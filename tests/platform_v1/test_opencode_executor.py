@@ -9,6 +9,7 @@ import platform
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
@@ -25,6 +26,7 @@ from reverse_agent.platform_v1.opencode_executor import (
     build_role_child_env,
     build_role_permission_config,
     build_role_prompt,
+    detect_provider_429,
     redact_event,
     redact_secrets,
     resolve_opencode_cli,
@@ -3567,3 +3569,132 @@ def test_artifact_file_is_safe_fails_closed_on_permissionerror(tmp_path, monkeyp
     file = source / "a.py"
     file.write_text("pass\n", encoding="utf-8")
     assert _artifact_file_is_safe(tmp_path, file) is False
+
+
+# ---------------------------------------------------------------------------
+# #1488: detect provider 429 in streaming output instead of waiting the stall
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("event, expected", [
+    ({"type": "error", "error": {"statusCode": 429, "message": "Too many requests"}}, True),
+    ({"type": "error", "error": {"statusCode": 500, "message": "Internal"}}, False),
+    ({"type": "error", "error": {"data": {"statusCode": 429}}}, True),
+    ({"type": "session.error", "error": {"data": {"statusCode": 429}}}, True),
+    ({"type": "error", "error": {"statusCode": 429}}, True),
+    ({"type": "error", "error": {"status": 429}}, True),
+    ({"type": "error", "error": {"status_code": 429}}, True),
+    ({"type": "text", "part": {"type": "text", "text": "429 Too Many Requests"}}, False),
+    ({"type": "error", "error": {"message": "rate limited but no status code"}}, False),
+    ({}, False),
+    ("not a dict", False),
+    (None, False),
+])
+def test_detect_provider_429(event, expected):
+    assert detect_provider_429(event) is expected
+
+
+@needs_real_interpreter
+def test_owned_cli_stops_early_on_provider_429():
+    """A CLI that emits a 429 error event is stopped immediately, not after the stall (#1488)."""
+    python_code = (
+        "import json, sys, time\n"
+        "sys.stdout.write(json.dumps({"
+        "'type':'error','error':{'statusCode':429,'message':'Too many requests'"
+        "}}) + '\\n')\n"
+        "sys.stdout.flush()\n"
+        "time.sleep(60)\n"
+    )
+    started = time.monotonic()
+    owned = _run_owned_cli_process(
+        [sys.executable, "-c", python_code],
+        cwd=".", env=dict(os.environ), timeout=30,
+        stall_seconds=900, poll_seconds=0.1,
+    )
+    assert owned.provider_429_detected is True
+    assert owned.timed_out is True
+    assert owned.cleanup_confirmed is True
+    assert owned.stalled is False
+    elapsed = time.monotonic() - started
+    assert elapsed < 10, "should stop within seconds, not wait the 900s stall"
+
+
+@needs_real_interpreter
+def test_owned_cli_does_not_stop_on_non_429_error():
+    """A non-429 error event does not trigger early stop; the stall timer still applies."""
+    python_code = (
+        "import json, sys, time\n"
+        "sys.stdout.write(json.dumps({"
+        "'type':'error','error':{'statusCode':500,'message':'Internal'"
+        "}}) + '\\n')\n"
+        "sys.stdout.flush()\n"
+        "time.sleep(60)\n"
+    )
+    owned = _run_owned_cli_process(
+        [sys.executable, "-c", python_code],
+        cwd=".", env=dict(os.environ), timeout=30,
+        stall_seconds=1.0, poll_seconds=0.1,
+    )
+    assert owned.provider_429_detected is False
+    assert owned.stalled is True
+    assert owned.timed_out is True
+
+
+def test_executor_core_provider_429_detected_classification(tmp_path):
+    """When provider_429_detected is True, the core returns api_error_429 (#1488)."""
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+
+    store = TaskStore(":memory:")
+    task = store.create_task(title="429 stall", executor_kind="opencode")
+
+    error_event = json.dumps({
+        "type": "error",
+        "error": {"statusCode": 429, "message": "Too many requests"},
+    })
+
+    original_owned = exec_mod._run_owned_cli_process
+    original_run = subprocess.run
+
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+    exec_mod.subprocess.run = fake_run
+    exec_mod._run_owned_cli_process = (
+        lambda argv, *, cwd, env, timeout: OwnedCliProcessResult(
+            returncode=-1,
+            stdout=error_event + "\n",
+            stderr="",
+            timed_out=True,
+            cleanup_confirmed=True,
+            provider_429_detected=True,
+        )
+    )
+    events: list[dict] = []
+    executor = OpenCodeExecutor(model_id="m", opencode_exe="/fake/opencode", timeout=30)
+    try:
+        result = executor._run_executor_core(
+            task_id=task.id,
+            store=store,
+            worktree=tmp_path,
+            base_sha="base",
+            execution_id="exec-429",
+            cli_path="/fake/opencode",
+            is_cmd=False,
+            event_callback=lambda _tid, ev: events.append(ev),
+            role_context=exec_mod.RoleContext(
+                role="executor", task_id=task.id, workspace=tmp_path,
+            ),
+        )
+        assert result.success is False
+        assert result.failure_classification == "api_error_429"
+        assert result.error == "opencode_provider_429_detected"
+        assert result.process_exit_code == -1
+        detect_events = [e for e in events
+                         if e.get("title") == "OpenCode provider 429 detected"]
+        assert detect_events, "expected provider 429 detected event"
+        meta = detect_events[0].get("metadata", {})
+        assert meta.get("failure_classification") == "api_error_429"
+        assert meta.get("provider_429_detected") is True
+        assert meta.get("usage_accounting") == "UNKNOWN"
+    finally:
+        exec_mod.subprocess.run = original_run
+        exec_mod._run_owned_cli_process = original_owned
