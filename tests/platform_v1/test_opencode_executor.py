@@ -28,6 +28,7 @@ from reverse_agent.platform_v1.opencode_executor import (
     redact_event,
     redact_secrets,
     resolve_opencode_cli,
+    _classify_stall_quota_signal,
     _extract_usage_observations,
     _persist_usage_observations,
     _run_owned_cli_process,
@@ -67,6 +68,7 @@ def _owned_result(
     stderr: str = "",
     timed_out: bool = False,
     cleanup_confirmed: bool = True,
+    stalled: bool = False,
 ) -> OwnedCliProcessResult:
     return OwnedCliProcessResult(
         returncode=returncode,
@@ -74,6 +76,7 @@ def _owned_result(
         stderr=stderr,
         timed_out=timed_out,
         cleanup_confirmed=cleanup_confirmed,
+        stalled=stalled,
     )
 
 
@@ -1356,6 +1359,234 @@ def test_executor_timeout() -> None:
         finally:
             exec_mod.subprocess.run = original_run
             exec_mod._run_owned_cli_process = original_owned
+
+
+def _stall_executor_setup(td, stdout="", stderr="", model_id="m"):
+    """Shared fixture: store + task + executor + fake_run for stall tests."""
+    store = TaskStore(":memory:")
+    store.create_task(title="stall-test", executor_kind="opencode", model_profile_ref="m")
+    task_id = store.list_tasks()[0].id
+    executor = OpenCodeExecutor(
+        model_id=model_id,
+        opencode_exe="/fake/opencode",
+        timeout=1,
+    )
+    return store, task_id, executor
+
+
+def _patch_owned_and_run(stdout, stderr, stalled=True):
+    """Patch _run_owned_cli_process and subprocess.run for a stall scenario."""
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+    original_run = subprocess.run
+    original_owned = exec_mod._run_owned_cli_process
+
+    def fake_run(argv, **kwargs):
+        return subprocess.CompletedProcess(args=argv, returncode=0, stdout="", stderr="")
+
+    exec_mod.subprocess.run = fake_run
+    exec_mod._run_owned_cli_process = (
+        lambda argv, *, cwd, env, timeout: _owned_result(
+            timed_out=True, stalled=stalled, stdout=stdout, stderr=stderr,
+        )
+    )
+
+    def restore():
+        exec_mod.subprocess.run = original_run
+        exec_mod._run_owned_cli_process = original_owned
+
+    return restore
+
+
+def test_executor_stall_with_429_quota_event_reclassifies_to_quota_exhausted() -> None:
+    """A stall whose pre-silence partial stdout carries a 429 + quota-exhausted
+    error event is reclassified so the hold/reroute machinery engages (#1530)."""
+    error_event = json.dumps({
+        "type": "error",
+        "error": {
+            "statusCode": 429,
+            "message": "quota exhausted",
+            "code": "rate_limit_exceeded",
+        },
+    })
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td, stdout=error_event)
+        restore = _patch_owned_and_run(stdout=error_event, stderr="")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.success is False
+            assert result.failure_classification == "quota_exhausted"
+            assert result.error.startswith("opencode_nonzero:exit=-1:quota_exhausted")
+        finally:
+            restore()
+
+
+def test_executor_stall_with_429_no_quota_reclassifies_to_api_error_429() -> None:
+    """A stall with a 429 status but no quota-exhaustion text reclassifies to
+    api_error_429, which still triggers account_refusal_hold (#1530)."""
+    error_event = json.dumps({
+        "type": "error",
+        "error": {"statusCode": 429, "message": "too many requests"},
+    })
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td, stdout=error_event)
+        restore = _patch_owned_and_run(stdout=error_event, stderr="")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.success is False
+            assert result.failure_classification == "api_error_429"
+        finally:
+            restore()
+
+
+def test_executor_stall_with_quota_in_stderr_reclassifies_to_quota_exhausted() -> None:
+    """A stall whose stderr carries quota-exhaustion text is reclassified even
+    when the structured stdout events carry no error payload (#1530)."""
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td)
+        restore = _patch_owned_and_run(stdout="", stderr="Error: quota exhausted\n")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.success is False
+            assert result.failure_classification == "quota_exhausted"
+        finally:
+            restore()
+
+
+def test_executor_stall_with_429_in_stderr_reclassifies_to_api_error_429() -> None:
+    """A stall whose stderr mentions HTTP 429 is reclassified to api_error_429
+    so account_refusal_hold engages (#1530)."""
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td)
+        restore = _patch_owned_and_run(stdout="", stderr="HTTP 429 Too Many Requests\n")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.success is False
+            assert result.failure_classification == "api_error_429"
+        finally:
+            restore()
+
+
+def test_executor_stall_with_rate_limit_in_stderr_reclassifies_to_api_error_429() -> None:
+    """A stall whose stderr carries 'rate limit' text is reclassified (#1530)."""
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td)
+        restore = _patch_owned_and_run(stdout="", stderr="rate limit exceeded\n")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.success is False
+            assert result.failure_classification == "api_error_429"
+        finally:
+            restore()
+
+
+def test_executor_stall_without_quota_signal_stays_executor_stalled() -> None:
+    """A stall with no 429/quota signal in partial output or stderr stays
+    executor_stalled: it may be a genuine hang, not an account refusal (#1530)."""
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td)
+        restore = _patch_owned_and_run(stdout="", stderr="")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.success is False
+            assert result.failure_classification == "executor_stalled"
+            assert result.error.startswith("opencode_stalled:")
+        finally:
+            restore()
+
+
+def test_executor_stall_with_unrelated_stderr_stays_executor_stalled() -> None:
+    """Stderr without quota/429 signals does not trigger a reclassification (#1530)."""
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td)
+        restore = _patch_owned_and_run(stdout="", stderr="some unrelated warning\n")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.success is False
+            assert result.failure_classification == "executor_stalled"
+        finally:
+            restore()
+
+
+def test_executor_stall_quota_exhausted_error_matches_executor_reported_pattern() -> None:
+    """The error string for a quota_exhausted stall matches _EXECUTOR_REPORTED_EXHAUSTION
+    so account_refusal_hold grants the longer plan-exhaustion hold (#1530)."""
+    from reverse_agent.platform_v1.quota_guard import account_refusal_hold
+    error_event = json.dumps({
+        "type": "error",
+        "error": {"statusCode": 429, "message": "insufficient quota"},
+    })
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td, stdout=error_event)
+        restore = _patch_owned_and_run(stdout=error_event, stderr="")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.failure_classification == "quota_exhausted"
+            hold = account_refusal_hold(result.failure_classification, result.error)
+            assert hold is not None and hold >= 3600
+        finally:
+            restore()
+
+
+def test_executor_stall_api_error_429_triggers_account_refusal_hold() -> None:
+    """api_error_429 from a stall triggers account_refusal_hold (#1530)."""
+    from reverse_agent.platform_v1.quota_guard import account_refusal_hold
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td)
+        restore = _patch_owned_and_run(stdout="", stderr="HTTP 429\n")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.failure_classification == "api_error_429"
+            hold = account_refusal_hold(result.failure_classification, result.error)
+            assert hold is not None and hold >= 3600
+        finally:
+            restore()
+
+
+def test_executor_stalled_does_not_trigger_account_refusal_hold() -> None:
+    """A plain executor_stalled (no quota signal) must NOT trigger a hold (#1530)."""
+    from reverse_agent.platform_v1.quota_guard import account_refusal_hold
+    with tempfile.TemporaryDirectory() as td:
+        store, task_id, executor = _stall_executor_setup(td)
+        restore = _patch_owned_and_run(stdout="", stderr="")
+        try:
+            result = executor.execute(task_id, store, workspace_root=td)
+            assert result.failure_classification == "executor_stalled"
+            hold = account_refusal_hold(result.failure_classification, result.error)
+            assert hold is None
+        finally:
+            restore()
+
+
+def test_classify_stall_quota_signal_unit() -> None:
+    """Unit-level checks for _classify_stall_quota_signal edge cases (#1530)."""
+    # 429 with quota text in events -> quota_exhausted
+    events = [{"type": "error", "error": {"statusCode": 429, "message": "quota exhausted"}}]
+    assert _classify_stall_quota_signal(events, "") == "quota_exhausted"
+
+    # 429 without quota text in events -> api_error_429
+    events = [{"type": "error", "error": {"statusCode": 429, "message": "busy"}}]
+    assert _classify_stall_quota_signal(events, "") == "api_error_429"
+
+    # quota text in events without 429 status -> quota_exhausted
+    events = [{"type": "error", "error": {"message": "insufficient quota"}}]
+    assert _classify_stall_quota_signal(events, "") == "quota_exhausted"
+
+    # quota text in stderr only -> quota_exhausted
+    assert _classify_stall_quota_signal([], "usage limit reached") == "quota_exhausted"
+
+    # 429 in stderr only -> api_error_429
+    assert _classify_stall_quota_signal([], "error 429") == "api_error_429"
+
+    # rate limit in stderr only -> api_error_429
+    assert _classify_stall_quota_signal([], "rate limit exceeded") == "api_error_429"
+
+    # no signal -> None
+    assert _classify_stall_quota_signal([], "unrelated text") is None
+    assert _classify_stall_quota_signal([], "") is None
+
+    # non-error events are ignored
+    events = [{"type": "text", "part": {"type": "text", "text": "429"}}]
+    assert _classify_stall_quota_signal(events, "") is None
 
 
 def test_executor_malformed_json_does_not_crash() -> None:
