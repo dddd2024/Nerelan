@@ -230,3 +230,66 @@ def test_build_report_unknown_window_raises(tmp_path):
     control = PlatformControlStore(store)
     with pytest.raises(Exception):
         build_report(control, store, "missing-window")
+
+
+def test_report_keeps_finished_task_after_goal_rebound(tmp_path):
+    """A goal rebound to a successor window appears in both reports, each
+    listing only the tasks that ran in that window (#1436)."""
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    goals = GoalService(store=store, control_store=control)
+
+    window_a = _budget_window(autonomy, policy_id="report-rebound-a", max_tokens=0, reservation=0)
+    goal = _parallel_goal(goals, window_a.id, key="report-rebound", count=2)
+    links = {link["plan_task_id"]: link["task_id"] for link in control.list_goal_tasks(goal.id)}
+    finished_id, queued_id = links["T001"], links["T002"]
+
+    epoch, _ = control.claim_task(window_id=window_a.id, task_id=finished_id, owner="host", lease_ms=60_000)
+    store.transition_to(finished_id, "PREPARING_WORKSPACE")
+    store.transition_to(finished_id, "RUNNING_FIXTURE")
+    store.transition_to(finished_id, "VALIDATING")
+    store.transition_to(finished_id, "READY_FOR_REVIEW_FIXTURE")
+    control.complete_task_claim(
+        window_id=window_a.id, task_id=finished_id, owner="host", epoch=epoch, result="success",
+    )
+
+    report_a_before = build_report(control, store, window_a.id)
+    goal_block = report_a_before["goals"][0]
+    assert goal_block["id"] == goal.id
+    assert {t["id"] for t in goal_block["tasks"]} == {finished_id, queued_id}
+
+    store._conn.execute(
+        "UPDATE platform_autonomous_windows SET status='EXPIRED', "
+        "expires_at='2000-01-01T00:00:00+00:00' WHERE id=?",
+        (window_a.id,),
+    )
+    window_b = _budget_window(autonomy, policy_id="report-rebound-b", max_tokens=0, reservation=0)
+    outcome = control.rebind_goal_to_window(goal.id, window_id=window_b.id, reason="standing_window_adoption")
+    assert outcome["status"] == "REBOUND"
+    assert control.get_goal(goal.id).window_id == window_b.id
+
+    report_a = build_report(control, store, window_a.id)
+    report_b = build_report(control, store, window_b.id)
+
+    assert len(report_a["goals"]) == 1
+    assert report_a["goals"][0]["id"] == goal.id
+    assert [t["id"] for t in report_a["goals"][0]["tasks"]] == [finished_id]
+    assert report_a["goals"][0]["tasks"][0]["status"] == "READY_FOR_REVIEW_FIXTURE"
+    assert report_a["bindings"][""]["task_count"] == 1
+    assert report_a["bindings"][""]["success_count"] == 1
+
+    assert len(report_b["goals"]) == 1
+    assert report_b["goals"][0]["id"] == goal.id
+    assert [t["id"] for t in report_b["goals"][0]["tasks"]] == [queued_id]
+    assert report_b["goals"][0]["tasks"][0]["status"] == "QUEUED"
+    assert report_b["bindings"][""]["task_count"] == 1
+    assert report_b["bindings"][""]["success_count"] == 0
+
+    markdown_a = render_markdown(report_a)
+    markdown_b = render_markdown(report_b)
+    assert goal.title in markdown_a and goal.title in markdown_b
+    assert store.get_task(finished_id).title in markdown_a
+    assert store.get_task(finished_id).title not in markdown_b
+    assert store.get_task(queued_id).title in markdown_b
+    assert store.get_task(queued_id).title not in markdown_a

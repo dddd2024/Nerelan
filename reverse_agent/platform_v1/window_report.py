@@ -22,9 +22,35 @@ def build_report(control_store: Any, task_store: TaskStore, window_id: str) -> d
     tasks (status, failure classification, executor, binding and any draft PR),
     per-binding aggregates (task count, successes, tokens, wall seconds), and a
     failure-classification histogram.
+
+    Task membership is decided from window-scoped evidence (task claims, budget
+    reservations and usage observations that carry the window id), not from the
+    goal's current ``window_id``. A goal rebound to a successor window therefore
+    appears in both reports, each listing only the tasks that ran in it. A task
+    that has not yet run anywhere (no window-scoped evidence) is attributed to
+    its goal's current window.
     """
     window = control_store.get_window(window_id)
-    goals = control_store.list_window_goals(window_id)
+
+    task_window_evidence = _task_window_evidence(control_store)
+
+    goals_by_id: dict[str, Any] = {}
+    for task_id, windows in task_window_evidence.items():
+        if window_id not in windows:
+            continue
+        try:
+            goal_id = control_store.goal_id_for_task(task_id)
+        except TaskStoreError:
+            continue
+        if goal_id not in goals_by_id:
+            try:
+                goals_by_id[goal_id] = control_store.get_goal(goal_id)
+            except TaskStoreError:
+                continue
+    for goal in control_store.list_window_goals(window_id):
+        goals_by_id[goal.id] = goal
+
+    goals = sorted(goals_by_id.values(), key=lambda g: g.created_at)
 
     goal_blocks: list[dict[str, Any]] = []
     bindings: dict[str, dict[str, Any]] = {}
@@ -38,6 +64,12 @@ def build_report(control_store: Any, task_store: TaskStore, window_id: str) -> d
         task_blocks: list[dict[str, Any]] = []
         for link in links:
             task_id = str(link["task_id"])
+            evidence_windows = task_window_evidence.get(task_id)
+            if evidence_windows is not None:
+                if window_id not in evidence_windows:
+                    continue
+            elif goal.window_id != window_id:
+                continue
             try:
                 task = task_store.get_task(task_id)
             except TaskStoreError:
@@ -94,6 +126,35 @@ def build_report(control_store: Any, task_store: TaskStore, window_id: str) -> d
 
 def _empty_binding() -> dict[str, Any]:
     return {"task_count": 0, "success_count": 0, "total_tokens": 0, "total_wall_seconds": 0.0}
+
+
+def _task_window_evidence(control_store: Any) -> dict[str, set[str]]:
+    """Map task ids to the set of windows they ran in, from window-scoped evidence.
+
+    A task is associated with a window if any of its claims, budget reservations
+    or usage observations carry that window id. Claims are the primary signal:
+    reservations are created at claim time and usage observations reference the
+    claim epoch, so the claim table covers every dispatched attempt. Reservations
+    and usage are unioned in as a safety net for edge cases where a claim row
+    has been retired or a usage observation was recorded before its claim.
+    """
+    conn = control_store._conn
+    result: dict[str, set[str]] = {}
+    for table, column in (
+        ("platform_coordinator_claims", "task_id"),
+        ("platform_budget_reservations", "task_id"),
+        ("task_usage_observations", "task_id"),
+    ):
+        try:
+            rows = conn.execute(
+                f"SELECT DISTINCT {column}, window_id FROM {table}"
+            ).fetchall()
+        except Exception:
+            continue
+        for row in rows:
+            task_id = str(row[column])
+            result.setdefault(task_id, set()).add(str(row["window_id"]))
+    return result
 
 
 def _window_task_tokens(task_store: TaskStore, window_id: str) -> dict[str, int]:
