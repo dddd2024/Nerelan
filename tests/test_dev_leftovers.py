@@ -178,6 +178,31 @@ def test_case_insensitive_matching(tmp_path):
     assert [e["name"] for e in result["entries"]] == ["NRL_upper"]
 
 
+def test_top_level_symlink_is_reported_as_link(tmp_path):
+    root = tmp_path / "root"
+    target = tmp_path / "target"
+    root.mkdir()
+    target.mkdir()
+    (target / "payload.bin").write_bytes(b"x" * 4096)
+    link = root / "nrl_link"
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks not supported")
+    result = scan(root, tmp_path)
+    assert len(result["entries"]) == 1
+    e = result["entries"][0]
+    assert e["name"] == "nrl_link"
+    assert e["kind"] == "link"
+    assert e["classification"] == "review"
+    assert e["size_bytes"] == 0
+    assert e["git_kind"] is None
+    assert result["total_bytes"] == 0
+    assert result["totals"]["review"] == {"count": 1, "size_bytes": 0}
+    assert result["totals"]["scratch"]["count"] == 0
+    assert (target / "payload.bin").stat().st_size == 4096
+
+
 def test_custom_pattern_overrides_defaults(world):
     result = scan(world["root"], world["repo"], patterns=[r"^unrelated"])
     assert [e["name"] for e in result["entries"]] == ["unrelated_project"]
