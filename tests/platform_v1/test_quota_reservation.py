@@ -592,6 +592,21 @@ def test_settlement_prices_measured_tokens_in_need_units():
     assert reservation.settlement([], estimate, usage_unknown=True)["price_units"] is None
 
 
+def test_partial_evidence_settles_at_nonzero_price_not_zero():
+    """Issue #1531 fix: a PARTIAL observation with measured tokens reports a real
+    price_units so the reservation settles at what the evidence says rather than
+    at full reservation or at zero."""
+    obs = [{"id": "o", "status": "PARTIAL", "source_kind": "step_finish",
+            "input_units": 40_000, "cache_read_units": 0, "cache_write_units": 0,
+            "output_units": 5_000, "reasoning_units": 0, "cost_micro_units": None}]
+    estimate = {"estimate": {"model": "gpt-6.1-sol"}, "calibration": {}}
+    fact = reservation.settlement(obs, estimate, usage_unknown=False)
+    assert fact["price_units"] is not None and fact["price_units"] > 0
+    assert fact["tokens"]["input"] == 40_000
+    assert fact["tokens"]["output"] == 5_000
+    assert fact["state"] == "UNKNOWN"
+
+
 def test_isolated_task_delta_gives_a_conservative_rate():
     # 2026-10-21 shape: admitted at 52%/28%, next fresh Magpie reading 74%/32%.
     rows = [_settled("t", 1010, 1500, units=0.786)]

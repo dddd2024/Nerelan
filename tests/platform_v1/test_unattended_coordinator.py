@@ -1038,6 +1038,57 @@ def test_a_charge_that_reaches_the_cap_stops_the_owner_window():
     assert stopped.observed_token_units == 1_050_000
 
 
+def test_partial_usage_in_non_owner_window_does_not_block_on_partial_evidence():
+    """Issue #1531 fix: PARTIAL observations in ordinary windows charge at what the
+    evidence reports instead of treating everything as zero or blocking outright."""
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="partial-non-owner", max_tokens=5_000, reservation=500)
+    task = store.create_task(title="partial attempt", executor_kind="opencode")
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="owner", lease_ms=60_000)
+    store.append_usage_observation(task.id, observation_id="usage-partial-non-owner", execution_id="exec-part",
+                                   role="executor", model_id="glm", provider_id="relay",
+                                   source_kind="step_finish", source_id="part-1",
+                                   status="PARTIAL", input_units=500, output_units=0,
+                                   reasoning_units=0, cache_read_units=0, cache_write_units=0, cost_micro_units=0)
+    control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
+    after = control.get_window(window.id)
+    assert after.status == "ACTIVE"
+    assert after.stop_reason in ("", None)
+    # PARTIAL observations increment unknown_observation_count but must NOT
+    # stop the window — they are charged at their partial evidence instead.
+    assert after.unknown_observation_count == 1
+    assert after.observed_token_units == 500  # charged at partial evidence, not zero
+    reservation = store._conn.execute(
+        "SELECT state, observed_token_units FROM platform_budget_reservations WHERE task_id=?",
+        (task.id,)).fetchone()
+    assert (reservation["state"], reservation["observed_token_units"]) == ("UNKNOWN", None)
+
+
+def test_partial_usage_in_non_owner_window_blocks_when_reaching_cap():
+    """Issue #1531 fix: a PARTIAL reading that pushes the window past its cap stops it with
+    window_token_budget_exhausted rather than usage_unknown."""
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    window = _budget_window(autonomy, policy_id="partial-exhaust-non-owner", max_tokens=500, reservation=500)
+    task = store.create_task(title="partial exhaust", executor_kind="opencode")
+    epoch, _ = control.claim_task(window_id=window.id, task_id=task.id, owner="owner", lease_ms=60_000)
+    store.append_usage_observation(task.id, observation_id="usage-partial-exhaust", execution_id="exec-part",
+                                   role="executor", model_id="glm", provider_id="relay",
+                                   source_kind="step_finish", source_id="part-1",
+                                   status="PARTIAL", input_units=500, output_units=0,
+                                   reasoning_units=0, cache_read_units=0, cache_write_units=0, cost_micro_units=0)
+    control.complete_task_claim(window_id=window.id, task_id=task.id, owner="owner", epoch=epoch, result="terminal")
+    stopped = control.get_window(window.id)
+    assert (stopped.status, stopped.stop_reason) == ("BLOCKED", "window_token_budget_exhausted")
+    assert stopped.enforcement_class == "USAGE_UNKNOWN"
+    # PARTIAL blocks only when it reaches the cap; the count stays as recorded.
+    assert stopped.unknown_observation_count == 1
+    assert control.active_window() is None
+
+
 def _owner_window_attempt(max_tokens, reservation, units, *, status="OBSERVED", cost_class=None, already=0):
     """An Owner window whose one attempt reported ``units`` tokens; optionally routed with a cost class."""
     store = TaskStore(":memory:")

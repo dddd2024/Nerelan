@@ -2918,6 +2918,7 @@ class PlatformControlStore:
                     # an earlier role's observations to the paused attempt.
                     unknown_count = max(1, unknown_count)
                 usage_unknown = bool(unknown_count)
+                has_partial = any(observation["status"] == "PARTIAL" for observation in observations)
                 host_zero = not observations and self._completed_host_checker(task_id)
                 if not observations and task["executor_kind"] != "deterministic_fixture" and not host_zero:
                     usage_unknown = True
@@ -3024,24 +3025,36 @@ class PlatformControlStore:
                 # UNKNOWN and the reservation is not released; only a charge that reaches the
                 # Owner's cap stops the window.
                 owner_charge = usage_unknown and owner_window
+                # Issue #1531 fix: PARTIAL observations carry usable evidence even outside
+                # Owner windows — settle at what the evidence says instead of zeroing out or
+                # blocking the whole window. TRUE-UNKNOWN (no data at all) still blocks.
+                partial_charge = has_partial and usage_unknown
                 if free_route:
                     values[0] = values[1] = 0
-                elif owner_charge:
+                elif owner_charge or partial_charge:
                     # The same weighted unit as the charge above, so a partial
-                    # reading and the reservation compare like with like.
+                    # reading and the reservation compare like with like. For Owner
+                    # windows the reservation is the floor; for ordinary windows we
+                    # charge exactly what the partial evidence reports.
                     partial_tokens = sum(
                         cost_equivalent_units(observation, unknown_as_zero=True) or 0
                         for observation in observations
                     )
                     partial_cost = sum(int(observation["cost_micro_units"] or 0) for observation in observations)
-                    values[0] = max(int(reservation["reserved_token_units"]), partial_tokens)
-                    values[1] = max(int(reservation["reserved_cost_micro_units"]), partial_cost)
+                    if owner_charge:
+                        values[0] = max(int(reservation["reserved_token_units"]), partial_tokens)
+                        values[1] = max(int(reservation["reserved_cost_micro_units"]), partial_cost)
+                    else:
+                        values[0] = partial_tokens
+                        values[1] = partial_cost
                     reached = ((token_enforced and int(window["observed_token_units"]) + values[0]
                                 >= int(window["max_token_units"]))
                                or (cost_enforced and int(window["observed_cost_micro_units"]) + values[1]
                                    >= int(window["max_cost_micro_units"])))
+                    stop = "usage_unknown_budget_reached" if owner_charge else "window_token_budget_exhausted"
                     if reached:
-                        assignments.extend(["status = 'BLOCKED'", "stop_reason = 'usage_unknown_budget_reached'"])
+                        assignments.extend([f"status = 'BLOCKED'", f"stop_reason = '{stop}'",
+                                            "enforcement_class = 'USAGE_UNKNOWN'"])
                 elif usage_unknown and (token_enforced or cost_enforced
                                         or window["enforcement_class"] != "POST_RUN_OBSERVED"):
                     # Unknown usage cannot be checked against a budget, and a hard-admission window

@@ -225,6 +225,22 @@ def test_report_aggregates_tokens_per_binding(tmp_path):
     assert "168" in markdown
 
 
+def test_report_blocked_by_partial_exhaust_shows_stop_reason(tmp_path):
+    store, control, window, goal, task_id = _blocked_usage_window(tmp_path)
+    # Replace the mock UNKNOWN block with a PARTIAL-exhaust scenario so the
+    # report exercises the new stop_reason path from issue #1531.
+    store._conn.execute(
+        "UPDATE platform_autonomous_windows SET status='BLOCKED', "
+        "stop_reason='window_token_budget_exhausted', unknown_observation_count=0 WHERE id=?",
+        (window.id,),
+    )
+    report = build_report(control, store, window.id)
+    assert report["window"]["status"] == "BLOCKED"
+    assert report["window"]["stop_reason"] == "window_token_budget_exhausted"
+    markdown = render_markdown(report)
+    assert "stop_reason: window_token_budget_exhausted" in markdown
+
+
 def test_build_report_unknown_window_raises(tmp_path):
     store = TaskStore(":memory:")
     control = PlatformControlStore(store)
