@@ -64,7 +64,7 @@ def assess_boot_readiness(
     report = dict(
         state="UNKNOWN", reason="unverified_snapshot", dispatch_permitted=False,
         auto_extend_window=False, startup_install_permitted=False,
-        active_window_id=None, active_claims=0, interrupted_tasks=0,
+        active_window_id=None, active_window_ids=[], active_claims=0, interrupted_tasks=0,
         queued_tasks=0, required_next_action="INSPECT",
     )
     try:
@@ -92,7 +92,8 @@ def assess_boot_readiness(
         report.update(active_claims=len(active_claims),
                       interrupted_tasks=task_counts.get("INTERRUPTED", 0),
                       queued_tasks=task_counts.get("QUEUED", 0))
-        if len(active) > 1:
+        if len(active) > 1 and not all(w.continuous for w in active):
+            # Only Owner continuous runs may be active together (#1552).
             return report | dict(reason="multiple_active_windows",
                                  required_next_action="INSPECT_WINDOW_CONFLICT")
         if len(active) == 0:
@@ -103,13 +104,14 @@ def assess_boot_readiness(
             return report | dict(
                 state="HOST_IDLE_NO_WINDOW", reason="no_authorized_active_window",
                 required_next_action="WAIT_FOR_OWNER_WINDOW")
-        w = active[0]
-        report["active_window_id"] = w.id
-        if not (_parse_time(w.starts_at) <= current and (w.continuous or current < _parse_time(w.expires_at))):
+        report["active_window_id"] = active[0].id if len(active) == 1 else None
+        report["active_window_ids"] = [w.id for w in active]
+        if not all(_parse_time(w.starts_at) <= current and (w.continuous or current < _parse_time(w.expires_at))
+                   for w in active):
             return report | dict(
                 state="HOLD_WINDOW_TIME_MISMATCH", reason="active_status_outside_time",
                 required_next_action="VERIFY_WINDOW_LIFECYCLE")
-        if any(c.window_id != w.id for c in active_claims):
+        if any(c.window_id not in report["active_window_ids"] for c in active_claims):
             return report | dict(
                 state="HOLD_ORPHANED_CLAIMS", reason="claim_for_other_window",
                 required_next_action="RECONCILE_REMOTE_RECEIPTS")

@@ -226,7 +226,8 @@ class ResearchLoop:
                 return
         window = self.goals.control_store.active_window()
         if window is not None and self.config["repository"] not in window.repositories:
-            window = None
+            window = next((other for other in self.goals.control_store.active_windows()
+                           if self.config["repository"] in other.repositories), None)
         if state in {"CREATING", "PLANNING"} and window is None:
             if campaign["state"] != "PAUSED_NO_WINDOW":
                 self._event(campaign, "PAUSED_NO_WINDOW", "no active research window", self.state_path)

@@ -265,9 +265,9 @@ class AutonomyService:
         decision = "allowed"
         reason = "operation_inside_active_window"
         try:
-            active = self.control_store.active_window()
+            active = {window.id for window in self.control_store.active_windows()}
             window = self.control_store.get_window(window_id)
-            if window.status != "ACTIVE" or active is None or active.id != window.id:
+            if window.status != "ACTIVE" or window.id not in active:
                 raise TaskStoreError("window_not_active")
             if repository not in window.repositories:
                 raise TaskStoreError("repository_outside_window")
@@ -279,6 +279,9 @@ class AutonomyService:
                 # Goal approval inside a window needed the retired delegated
                 # policy authority; Owner windows never grant it.
                 raise TaskStoreError("delegated_goal_authority_required")
+            if window.continuous:
+                # With several runs active, a subject runs only under its own run's receipt (#1552).
+                self._check_run_subject(window.id, subject_id)
         except TaskStoreError as exc:
             decision = "denied"
             reason = str(exc)
@@ -293,6 +296,20 @@ class AutonomyService:
             input_payload=input_payload,
         )
         return decision == "allowed"
+
+    def _check_run_subject(self, window_id: str, subject_id: str) -> None:
+        """A Goal, or a Goal's task, must be bound to this run and confirmed for it."""
+        try:
+            goal_id = self.control_store.goal_id_for_task(subject_id)
+        except TaskStoreError:
+            goal_id = subject_id
+        try:
+            goal = self.control_store.get_goal(goal_id)
+        except TaskStoreError:
+            return  # not a Goal subject; the operation's own checks apply
+        if goal.window_id != window_id:
+            raise TaskStoreError("goal_outside_window")
+        self.control_store.check_owner_window_goal(window_id, goal.id)
 
     def summary(self, window_id: str, *, limit: int = 100, cursor: str | None = None) -> dict[str, Any]:
         window = self.control_store.get_window(window_id)
@@ -325,16 +342,22 @@ class AutonomyService:
         }
 
     def status(self) -> dict[str, Any]:
-        active = self.control_store.active_window()
+        windows = self.control_store.active_windows()
+        active = windows[-1] if windows else None
         latest = None if active else next(iter(self.control_store.list_windows(limit=1)), None)
-        window = active or latest
+        progress = {window.id: self.control_store.window_last_progress_at(window.id)
+                    for window in (windows or ((latest,) if latest else ()))}
+        # Work still waiting in each window; the stalled warning needs it, not the max_tasks budget.
+        unfinished = {window.id: self.control_store.window_unfinished_task_count(window.id) for window in windows}
         return {
             "autonomy_enabled": active is not None,
             "active_window": window_to_dict(active) if active else None,
+            "active_windows": [{**window_to_dict(window), "last_progress_at": progress[window.id],
+                                "unfinished_tasks": unfinished[window.id]} for window in windows],
             "latest_window": window_to_dict(latest) if latest else None,
-            "last_progress_at": self.control_store.window_last_progress_at(window.id) if window else None,
-            # Work still waiting in this window; the stalled warning needs it, not the max_tasks budget.
-            "unfinished_tasks": self.control_store.window_unfinished_task_count(active.id) if active else 0,
+            # Across every active window; each window's own figures are in active_windows.
+            "last_progress_at": max(filter(None, progress.values()), default=None),
+            "unfinished_tasks": sum(unfinished.values()),
             "mode": ("delegated_controller_bounded_window" if active and active.confirmation_mode == "DELEGATED_CONTROLLER"
                      else "owner_activated_bounded_window"),
         }

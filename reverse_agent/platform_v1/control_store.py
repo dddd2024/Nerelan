@@ -54,6 +54,8 @@ OWNER_LANDING_CAPABILITY = "land_reviewed_pr"
 OWNER_LANDING_RECOVERY_RECEIPT = "owner_landing_recovery"
 OWNER_WINDOW_MAX_GOALS = 20
 OWNER_WINDOW_MAX_MINUTES = 7 * 24 * 60
+# Tasks that run at once across all concurrent Owner continuous runs (#1552).
+OWNER_RUNS_MAX_CONCURRENT = 3
 OWNER_WINDOW_CAPABILITIES = frozenset(
     {"execute_task", "resume_task", "reconcile_task", "validate_task", "open_draft_pr"})
 TERMINAL_TASK_STATES = frozenset(
@@ -1071,6 +1073,16 @@ class PlatformControlStore:
             return str(row["goal_id"])
 
     @staticmethod
+    def aggregate_concurrency(windows: Sequence[AutonomousWindowRecord]) -> int:
+        """Tasks all these active windows may run at once; opening another run never adds up.
+
+        One window keeps its own limit. Several share ``OWNER_RUNS_MAX_CONCURRENT``, or the
+        largest limit the Owner confirmed for one of them.
+        """
+        limits = [window.max_concurrent_tasks for window in windows]
+        return max(limits, default=0) if len(limits) < 2 else max(OWNER_RUNS_MAX_CONCURRENT, *limits)
+
+    @staticmethod
     def is_strict_owner_window(window: AutonomousWindowRecord) -> bool:
         return (window.confirmation_mode != "DELEGATED_CONTROLLER"
                 and window.max_tasks == 1 and window.max_concurrent_tasks == 1
@@ -1452,12 +1464,12 @@ class PlatformControlStore:
         return tuple(retired)
 
     def recover_orphaned_preparations(self, *, now_ms: int | None = None) -> tuple[str, ...]:
-        """Close pre-dispatch interruptions the active window holds, then settle dead claims (2026-11-17).
+        """Close pre-dispatch interruptions the active windows hold, then settle dead claims (2026-11-17).
 
         A host restart during workspace preparation used to leave the task INTERRUPTED
         (``orphan_stale_lease``) with nothing to resume: durable resume has no
         reconstruction path before PRE_PLANNER, and only FAILED/BLOCKED tasks escalate.
-        Each such task of the active window's goals is closed as FAILED
+        Each such task of an active window's goals is closed as FAILED
         ``orphaned_preparation`` (a host fault the goal retries without spending
         max_retries) in its own transaction, re-checked inside it: still INTERRUPTED,
         latest run still ``orphan_stale_lease``, not held, ``_stranded_source_refusal``
@@ -1468,11 +1480,11 @@ class PlatformControlStore:
         from .goal_service import _stranded_source_refusal
         from .run_store import ORPHANED_PREPARATION, pre_dispatch_interruption
         from .unknown_claim_isolation import held_task
-        window = self.active_window()
+        windows = self.active_windows()
         closed: list[str] = []
         with self._lock:
             now_ms = _utc_now_ms() if now_ms is None else now_ms
-            candidates = [] if window is None else [row["task_id"] for row in self._conn.execute(
+            candidates = [row["task_id"] for window in windows for row in self._conn.execute(
                 "SELECT t.id AS task_id FROM platform_goals g "
                 "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
                 "JOIN tasks t ON t.id = l.task_id "
@@ -1833,6 +1845,10 @@ class PlatformControlStore:
         continuous = payload.get("continuous", False)
         if type(continuous) is not bool or (continuous and not owner_window):
             raise TaskStoreError("continuous_run_requires_owner_admission")
+        # Only an explicit choice opens a run beside other continuous runs (#1552).
+        separate_run = payload.get("separate_run", False)
+        if type(separate_run) is not bool or (separate_run and not continuous):
+            raise TaskStoreError("separate_run_requires_continuous_admission")
         if owner_window:
             # Owner-confirmed multi-Goal window (owner_window.OwnerWindowAdmission).
             # Same transaction discipline as the single-Task path; wider, still
@@ -1967,13 +1983,20 @@ class PlatformControlStore:
                     return record
                 active = cur.execute(
                     "SELECT id FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
-                    "AND (? = 0 OR ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))) LIMIT 1",
-                    (int(_host_preserve_claim_windows),)
+                    "AND (? = 0 OR ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))) "
+                    "AND NOT (? = 1 AND confirmation_mode='OWNER_WINDOW' AND expires_at='') LIMIT 1",
+                    (int(_host_preserve_claim_windows), int(separate_run))
                 ).fetchone()
                 if active is not None:
                     # A scheduled window also reserves activation, although
                     # active_window() cannot dispatch it before starts_at.
                     raise TaskStoreError(f"active_window_already_exists:{active['id']}")
+                if separate_run and cur.execute(
+                        "SELECT 1 FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
+                        "AND max_cost_micro_units <> ? LIMIT 1",
+                        (int(payload.get("max_cost_micro_units", 0)),)).fetchone() is not None:
+                    # Concurrent runs spend against one cost cap; a run with another cap would widen it.
+                    raise TaskStoreError("separate_run_cost_cap_mismatch")
                 cur.execute(
                     "INSERT INTO platform_autonomous_windows "
                     "(id, policy_id, policy_revision, policy_digest, owner_identity, confirmation, "
@@ -2139,6 +2162,11 @@ class PlatformControlStore:
             return int(row["n"]) if row else 0
 
     def active_window(self, *, now: str | None = None) -> AutonomousWindowRecord | None:
+        """The newest active window. It is never authorization for another window's task."""
+        return next(iter(reversed(self.active_windows(now=now))), None)
+
+    def active_windows(self, *, now: str | None = None) -> tuple[AutonomousWindowRecord, ...]:
+        """Every window that may dispatch now, oldest first (#1552)."""
         current = now or _utc_now_precise()
         with self._lock:
             # Old bounded Owner runs must state why they cannot admit the next task.
@@ -2161,20 +2189,23 @@ class PlatformControlStore:
                 "WHERE r.operation_type='native_goal_admission' AND r.confirmation_mode='NATIVE_OWNER')",
                 (_utc_now(), current),
             )
-            row = self._conn.execute(
+            rows = self._conn.execute(
                 "SELECT * FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
-                "AND julianday(starts_at) <= julianday(?) AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday(?)) ORDER BY created_at DESC LIMIT 1",
+                "AND julianday(starts_at) <= julianday(?) AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday(?)) ORDER BY created_at, rowid",
                 (current, current),
-            ).fetchone()
-            if (row is not None and row["confirmation_mode"] == OWNER_WINDOW_MODE and row["expires_at"]
-                    and self._new_reservation_denial(row) == "window_token_budget_exhausted"
-                    and self._conn.execute("SELECT 1 FROM platform_coordinator_claims WHERE window_id=? "
-                        "AND status='ACTIVE' LIMIT 1", (row["id"],)).fetchone() is None):
-                self._conn.execute("UPDATE platform_autonomous_windows SET status='BLOCKED', "
-                    "stop_reason='window_token_budget_exhausted', updated_at=? WHERE id=? AND status='ACTIVE'",
-                    (_utc_now(), row["id"]))
-                return None
-            return self._row_to_window(row) if row is not None else None
+            ).fetchall()
+            active = []
+            for row in rows:
+                if (row["confirmation_mode"] == OWNER_WINDOW_MODE and row["expires_at"]
+                        and self._new_reservation_denial(row) == "window_token_budget_exhausted"
+                        and self._conn.execute("SELECT 1 FROM platform_coordinator_claims WHERE window_id=? "
+                            "AND status='ACTIVE' LIMIT 1", (row["id"],)).fetchone() is None):
+                    self._conn.execute("UPDATE platform_autonomous_windows SET status='BLOCKED', "
+                        "stop_reason='window_token_budget_exhausted', updated_at=? WHERE id=? AND status='ACTIVE'",
+                        (_utc_now(), row["id"]))
+                    continue
+                active.append(self._row_to_window(row))
+            return tuple(active)
 
     def stop_window(self, window_id: str, *, reason: str = "owner_stopped") -> AutonomousWindowRecord:
         with self._lock:
@@ -2394,11 +2425,22 @@ class PlatformControlStore:
             + int(window["per_task_token_reservation"]) > max_tokens
         ):
             return "window_token_budget_exhausted"
-        if max_cost > 0 and (
-            int(window["observed_cost_micro_units"]) + int(reserved["cost_units"])
-            + int(window["per_task_cost_reservation"]) > max_cost
-        ):
-            return "window_cost_budget_exhausted"
+        if max_cost > 0:
+            observed_cost, reserved_cost = int(window["observed_cost_micro_units"]), int(reserved["cost_units"])
+            if self._row_to_window(window).continuous:
+                # Concurrent continuous runs spend against one cost cap, not one each (#1552).
+                observed_cost += int(self._conn.execute(
+                    "SELECT COALESCE(SUM(observed_cost_micro_units), 0) FROM platform_autonomous_windows "
+                    "WHERE id <> ? AND status = 'ACTIVE' AND confirmation_mode = ? AND expires_at = ''",
+                    (window["id"], OWNER_WINDOW_MODE)).fetchone()[0])
+                reserved_cost += int(self._conn.execute(
+                    "SELECT COALESCE(SUM(r.reserved_cost_micro_units), 0) FROM platform_budget_reservations r "
+                    "JOIN platform_autonomous_windows w ON w.id = r.window_id "
+                    "WHERE r.state = 'ACTIVE' AND w.id <> ? AND w.status = 'ACTIVE' "
+                    "AND w.confirmation_mode = ? AND w.expires_at = ''",
+                    (window["id"], OWNER_WINDOW_MODE)).fetchone()[0])
+            if observed_cost + reserved_cost + int(window["per_task_cost_reservation"]) > max_cost:
+                return "window_cost_budget_exhausted"
         return None
 
     def claim_task(
@@ -2457,6 +2499,17 @@ class PlatformControlStore:
             ).fetchone()["c"]
             if int(active_count) >= int(window["max_concurrent_tasks"]):
                 raise TaskStoreError("window_wip_limit_reached")
+            if continuous:
+                runs = [self._row_to_window(row) for row in cur.execute(
+                    "SELECT * FROM platform_autonomous_windows WHERE status = 'ACTIVE' "
+                    "AND confirmation_mode = ? AND expires_at = ''", (OWNER_WINDOW_MODE,)).fetchall()]
+                if len(runs) > 1:
+                    # A stopped run's live attempts still hold their slots.
+                    running = cur.execute(
+                        "SELECT COUNT(*) AS c FROM platform_coordinator_claims WHERE status = 'ACTIVE' "
+                        "AND expires_at_ms > ?", (now_ms,)).fetchone()["c"]
+                    if int(running) >= self.aggregate_concurrency(runs):
+                        raise TaskStoreError("aggregate_wip_limit_reached")
             task = cur.execute("SELECT status, binding_ref FROM tasks WHERE id = ?", (task_id,)).fetchone()
             if task is None:
                 raise TaskStoreError("task_not_claimable")
@@ -2861,10 +2914,9 @@ class PlatformControlStore:
                     raise TaskStoreError("coordinator_claim_fenced")
                 if persisted_host_recovery:
                     window_record = self.get_window(window_id)
-                    active = self.active_window()
                     task_record = self.task_store.get_task(task_id)
                     if (not self.is_strict_owner_window(window_record)
-                            or active is None or active.id != window_id
+                            or all(window.id != window_id for window in self.active_windows())
                             or window_record.tasks_started != 1 or window_record.tasks_completed != 0
                             or int(claim["expires_at_ms"]) > _utc_now_ms()
                             or task_record.status not in {"READY_FOR_REVIEW", "FAILED"}

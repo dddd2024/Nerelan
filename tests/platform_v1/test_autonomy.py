@@ -7,6 +7,8 @@ from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 
+from test_owner_window import admit, setup  # noqa: F401 - shared fixture (rootdir import mode)
+
 
 def _payload(**overrides):
     now = datetime.now(timezone.utc)
@@ -78,6 +80,36 @@ def test_status_counts_unfinished_tasks_of_the_active_window_only():
     assert service.status()["unfinished_tasks"] == 0
     control.stop_window(window.id)
     assert service.status()["unfinished_tasks"] == 0
+
+
+def test_each_concurrent_run_authorizes_only_its_own_confirmed_goals(setup):  # noqa: F811
+    control = setup.host._control_store
+    service = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    run = dict(continuous=True, hours=0, max_tasks=0, max_concurrent=3)
+    goals = [setup.planned(key, "codex", "pinned") for key in ("a", "b")]
+    windows = [admit(setup.host, (goal.id,), **run, **choice)[0]
+               for goal, choice in zip(goals, ({}, {"separate_run": True}))]
+    tasks = [control.list_goal_tasks(goal.id)[0]["task_id"] for goal in goals]
+
+    def allowed(window, task, repository="owner/repo"):
+        return service.authorize(window_id=window.id, operation="execute_task", repository=repository,
+                                 subject_id=task, input_payload={})
+    # The older window is as much an authority for its task as the newest is for its own.
+    assert allowed(windows[0], tasks[0]) and allowed(windows[1], tasks[1])
+    assert not allowed(windows[1], tasks[0]) and not allowed(windows[0], tasks[1])
+    assert {receipt.reason for receipt in control.list_receipts(window_id=windows[1].id)
+            if receipt.decision == "denied"} == {"goal_outside_window"}
+    assert not allowed(windows[0], tasks[0], "owner/other")
+    status = service.status()
+    assert [window["id"] for window in status["active_windows"]] == [window.id for window in windows]
+    assert [window["unfinished_tasks"] for window in status["active_windows"]] == [1, 1]
+    assert status["active_window"]["id"] == windows[1].id and status["unfinished_tasks"] == 2
+    setup.db._conn.execute("DELETE FROM platform_operation_receipts WHERE subject_id=? AND window_id=?",
+                           (goals[0].id, windows[0].id))
+    assert not allowed(windows[0], tasks[0])  # no receipt for this Goal in this run
+    control.stop_window(windows[1].id)
+    assert not allowed(windows[1], tasks[1])
+    assert service.status()["active_window"]["id"] == windows[0].id
 
 
 def _canonical_checker_policy():

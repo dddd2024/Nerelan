@@ -14,6 +14,8 @@ from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 from reverse_agent.platform_v1.task_runtime import ExecutorResult, ExecutorRouter
 from reverse_agent.platform_v1.unattended_coordinator import UnattendedCoordinator
 
+from test_owner_window import admit, setup  # noqa: F401 - shared fixture (rootdir import mode)
+
 
 def _ready_fixture(store: TaskStore, task_id: str):
     store.transition_to(task_id, "PREPARING_WORKSPACE")
@@ -1494,6 +1496,143 @@ def test_redeploy_close_requires_the_callers_claim(tmp_path):
         coordinator._fail_redeploy_stranded_task(task_id, detail="authority_sha_mismatch:x!=y",
                                                  observed=coordinator._latest_durable_run_identity(task_id))
     assert store.get_task(task_id).status == "INTERRUPTED"
+
+
+class TestConcurrentRuns:
+    """#1552: one coordinator advances every active continuous run."""
+
+    def runs(self, setup, tmp_path, *counts, max_concurrent=3, **options):  # noqa: F811
+        control = setup.host._control_store
+        windows, tasks = [], []
+        for index, count in enumerate(counts):
+            goal = setup.planned(f"run-{index}", "codex", "pinned", tasks=count)
+            windows.append(admit(setup.host, (goal.id,), continuous=True, hours=0, max_tasks=0,
+                                 max_concurrent=max_concurrent, separate_run=index > 0)[0])
+            tasks.append([link["task_id"] for link in control.list_goal_tasks(goal.id)])
+        ran = []
+
+        def finish(task_id):
+            ran.append(task_id)
+            setup.db.set_state(task_id, "READY_FOR_REVIEW")
+            return SimpleNamespace(success=True)
+        coordinator = UnattendedCoordinator(
+            store=setup.db, control_store=control,
+            autonomy=AutonomyService(control_store=control, capabilities=CapabilityRegistry()),
+            router=ExecutorRouter(), workspace_root=tmp_path / "ws", task_executor=finish, **options)
+        return coordinator, control, windows, tasks, ran
+
+    def test_a_long_queue_does_not_starve_the_other_run(self, setup, tmp_path):  # noqa: F811
+        coordinator, _, windows, tasks, ran = self.runs(setup, tmp_path, 5, 1)
+        assert coordinator.tick() == 3  # the aggregate, not three per window
+        assert set(ran) == {*tasks[0][:2], tasks[1][0]}
+        assert coordinator.tick() == 3
+        assert set(ran) == {*tasks[0], *tasks[1]}
+        assert coordinator.status()["active_window_ids"] == [window.id for window in windows]
+
+    def test_one_free_slot_alternates_between_runs(self, setup, tmp_path):  # noqa: F811
+        coordinator, control, _, tasks, ran = self.runs(setup, tmp_path, 3, 3)
+        control.aggregate_concurrency = lambda windows: 1
+        for _ in range(4):
+            assert coordinator.tick() == 1
+        assert ran == [tasks[0][0], tasks[1][0], tasks[0][1], tasks[1][1]]
+
+    def test_an_unavailable_account_in_one_run_leaves_the_other_working(self, setup, tmp_path):  # noqa: F811
+        def prepare(task):
+            if task.id in blocked:
+                raise TaskStoreError("QUOTA_WAIT:unknown_reset")
+            return None
+        blocked: set = set()
+        coordinator, _, _, tasks, ran = self.runs(setup, tmp_path, 2, 2, quota_preparer=prepare)
+        blocked.update(tasks[0])
+        assert coordinator.tick() == 2
+        assert set(ran) == set(tasks[1])
+        assert all(setup.db.get_task(task_id).status == "QUEUED" for task_id in tasks[0])
+
+    def test_a_broken_scan_of_one_run_leaves_the_other_working(self, setup, tmp_path, monkeypatch):  # noqa: F811
+        coordinator, control, windows, tasks, ran = self.runs(setup, tmp_path, 1, 1)
+        real = control.runnable_tasks
+
+        def runnable(window_id, **kwargs):
+            if window_id == windows[0].id:
+                raise RuntimeError("scan")
+            return real(window_id, **kwargs)
+        monkeypatch.setattr(control, "runnable_tasks", runnable)
+        assert coordinator.tick() == 1 and ran == tasks[1]
+
+    def test_stopping_one_run_leaves_its_tasks_and_the_other_run_alone(self, setup, tmp_path):  # noqa: F811
+        coordinator, control, windows, tasks, ran = self.runs(setup, tmp_path, 2, 2)
+        control.stop_window(windows[1].id)
+        assert coordinator.tick() == 2 and set(ran) == set(tasks[0])
+        assert coordinator.tick() == 0
+        assert all(setup.db.get_task(task_id).status == "QUEUED" for task_id in tasks[1])
+
+    def test_a_run_stopped_while_its_batch_waits_is_not_started(self, setup, tmp_path):  # noqa: F811
+        coordinator, control, windows, tasks, ran = self.runs(setup, tmp_path, 1, 1)
+        finish = coordinator.task_executor
+
+        def stop_other(task_id):
+            control.stop_window(windows[1].id)
+            return finish(task_id)
+        coordinator.task_executor = stop_other
+        assert coordinator.tick() == 1 and ran == tasks[0]
+        assert _claim_status(setup.db, tasks[1][0]) == "FAILED"
+        assert setup.db.get_task(tasks[1][0]).status == "QUEUED"
+
+    def test_the_live_poller_fills_at_most_the_aggregate(self, setup, tmp_path):  # noqa: F811
+        coordinator, control, _, tasks, ran = self.runs(setup, tmp_path, 3, 3, poll_interval=0.1)
+        release, lock, live, peak = threading.Event(), threading.Lock(), [0], [0]
+        finish = coordinator.task_executor
+
+        def slow(task_id):
+            with lock:
+                live[0] += 1
+                peak[0] = max(peak[0], live[0])
+            assert release.wait(10)
+            with lock:
+                live[0] -= 1
+                return finish(task_id)
+        coordinator.task_executor = slow
+        coordinator.start()
+        try:
+            deadline = time.monotonic() + 8
+            while live[0] < 3 and time.monotonic() < deadline:
+                time.sleep(0.02)
+            ticks = coordinator.status()["ticks"]
+            while coordinator.status()["ticks"] < ticks + 3 and time.monotonic() < deadline:
+                time.sleep(0.02)
+            assert live[0] == 3 and len({coordinator._active_task_windows[t] for t in coordinator._active_task_ids}) == 2
+            release.set()
+            while len(ran) < 6 and time.monotonic() < deadline:
+                time.sleep(0.02)
+        finally:
+            release.set()
+            coordinator.stop(timeout=8)
+        assert peak[0] == 3 and sorted(ran) == sorted([*tasks[0], *tasks[1]])
+
+    def test_escalation_sweeps_the_goals_of_every_run(self, setup, tmp_path):  # noqa: F811
+        seen = []
+        coordinator, control, windows, tasks, _ = self.runs(setup, tmp_path, 1, 1, goal_escalator=seen.append)
+        for (task_id,) in tasks:
+            setup.db.set_state(task_id, "FAILED")
+        coordinator._sweep_escalations()
+        assert sorted(seen) == sorted(goal.id for window in windows for goal in control.list_window_goals(window.id))
+
+    def test_a_resume_is_authorized_by_its_own_window_not_the_newest(self, setup, tmp_path):  # noqa: F811
+        coordinator, control, windows, tasks, _ = self.runs(setup, tmp_path, 1, 1)
+        assert coordinator._execution_window_id(tasks[0][0]) == windows[0].id
+        coordinator._claim_local.claim = (windows[1].id, tasks[1][0], 1)
+        assert coordinator._execution_window_id(tasks[1][0]) == windows[1].id
+        assert coordinator._execution_window_id(tasks[0][0]) == windows[0].id
+        assert control.active_window().id == windows[1].id
+
+    def test_one_publication_per_tick_whichever_run_has_it(self, setup, tmp_path, monkeypatch):  # noqa: F811
+        coordinator, _, windows, _, _ = self.runs(setup, tmp_path, 1, 1)
+        coordinator.landing_loop = SimpleNamespace(tick=lambda *a, **k: None)
+        offered = []
+        monkeypatch.setattr(coordinator, "_publish_ready", lambda window: offered.append(window.id) or True)
+        coordinator.tick()
+        coordinator.tick()
+        assert sorted(offered) == sorted(window.id for window in windows)
 
 
 def _failed_and_queued_fixture(tmp_path, *, failed_count=1):

@@ -49,7 +49,8 @@ function WindowStatus({ status, now: fixedNow, quietWhenRunning = false }: {
   const window = status.autonomy.active_window ?? status.autonomy.latest_window;
   // The backend's active_window already applies expiry and start time; a stale ACTIVE row is not running.
   const active = window != null && window === status.autonomy.active_window;
-  const minutesSince = (value: string | undefined | null) => {
+  const runs = status.autonomy.active_windows ?? [];
+  const minutesSince =(value: string | undefined | null) => {
     const timestamp = value ? Date.parse(value) : NaN;
     return Number.isFinite(timestamp) ? Math.max(0, Math.floor((now - timestamp) / 60_000)) : null;
   };
@@ -85,7 +86,8 @@ function WindowStatus({ status, now: fixedNow, quietWhenRunning = false }: {
         ? "协调器启动恢复中 · 正在检查已有目标后再派发任务"
         : active && !coordinatorStopped
         // tasks_completed counts finished claims, failed ones included: "已结束", never "完成".
-        ? window.continuous ? `持续运行中 · 已结束 ${window.tasks_completed} 个任务` : `执行窗口运行中 · 剩 ${left} · 已结束 ${window.tasks_completed} 个任务`
+        ? runs.length > 1 ? `${runs.length} 个运行同时进行中 · 已结束 ${runs.reduce((sum, run) => sum + run.tasks_completed, 0)} 个任务`
+          : window.continuous ? `持续运行中 · 已结束 ${window.tasks_completed} 个任务` : `执行窗口运行中 · 剩 ${left} · 已结束 ${window.tasks_completed} 个任务`
         : `执行窗口已停止 · ${coordinatorStopped ? "协调器未在接收任务" : (reason ? runtimeMessage(reason).label : "") || "本次运行已结束"}。需要继续时在目标页重试，或开一个新窗口。`}
       {/* Progress only matters while the window can still make some. */}
       {active && !coordinatorRecovering && !coordinatorStopped && (stalled ? ` · 已有 ${idleAge} 分钟没有进展，请检查运行记录和账号状态。`

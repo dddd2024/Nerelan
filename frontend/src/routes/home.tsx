@@ -94,7 +94,9 @@ export function HomePage() {
   const detailIssue = detailGoal ? issueRef(detailGoal) : null;
   const recent = useMemo(() => recentGoals(goals, RECENT_GOAL_LIMIT), [goals]);
   const platform = statusQuery.data;
-  const activeWindow = platform?.autonomy.active_window;
+  // The goal's own window: several continuous runs can be active at once.
+  const activeWindow = platform?.autonomy.active_windows?.find((window) => window.id === detailGoal?.window_id)
+    ?? platform?.autonomy.active_window;
   const coordinatorError = platform?.coordinator.last_error;
 
   const coordinatorStatus = platform ? (

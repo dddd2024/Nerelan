@@ -33,6 +33,7 @@ const REASONS: Record<string, string> = {
   owner_window_requires_one_repository: "一次只能启动同一个仓库的目标。",
   owner_window_capability_missing: "计划里有一步需要的能力不在窗口里。",
   owner_window_scope_too_large: "一次启动的范围太大。",
+  separate_run_cost_cap_mismatch: "同时进行的运行共用一个费用上限：请用相同的上限。",
 };
 
 function reasonText(reason: string): string {
@@ -75,7 +76,7 @@ function terminalCommand(card: OwnerWindowCard) {
   const landing = r.capabilities.includes("land_reviewed_pr");
   const capabilities = r.capabilities.filter((capability) => capability !== "land_reviewed_pr");
   return ["python -m reverse_agent.platform_v1.owner_window", ...r.goal_ids.map((id) => `--goal ${id}`),
-    ...(r.continuous ? ["--continuous"] : [`--hours ${r.hours}`, `--max-tasks ${r.max_tasks}`]), `--max-concurrent ${r.max_concurrent}`,
+    ...(r.continuous ? ["--continuous", ...(r.separate_run ? ["--separate-run"] : [])] : [`--hours ${r.hours}`, `--max-tasks ${r.max_tasks}`]), `--max-concurrent ${r.max_concurrent}`,
     `--max-retries ${r.max_retries}`, ...capabilities.map((capability) => `--capability ${capability}`),
     ...(landing ? ["--land-reviewed-pr"] : []),
     ...(r.max_token_units ? [`--max-token-units ${r.max_token_units}`] : [])].join(" ");
@@ -90,6 +91,7 @@ function terminalCommand(card: OwnerWindowCard) {
 export function StartCard({ goal }: { goal: PlatformGoal }) {
   const [preset, setPreset] = useState("");
   const [concurrency, setConcurrency] = useState<number | null>(null);
+  const [separateRun, setSeparateRun] = useState(false);
   const [notice, setNotice] = useState("");
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -99,9 +101,13 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
     staleTime: 30_000, retry: false,
   });
   const rawCard = cardQuery.data;
-  const card = rawCard && concurrency !== null ? {
-    ...rawCard, request: { ...rawCard.request, max_concurrent: concurrency },
-  } : rawCard;
+  const card = rawCard && {
+    ...rawCard, request: {
+      ...rawCard.request,
+      ...(concurrency !== null ? { max_concurrent: concurrency } : {}),
+      ...(separateRun && rawCard.request.continuous ? { separate_run: true } : {}),
+    },
+  };
   const preflightQuery = useQuery<OwnerWindowPreflightResult>({
     queryKey: ["owner-window-preflight", goal.id, goal.revision, card?.preset, card?.request],
     queryFn: () => preflightOwnerWindow(card!.request),
@@ -172,6 +178,11 @@ export function StartCard({ goal }: { goal: PlatformGoal }) {
               {Array.from({ length: 8 }, (_, index) => index + 1).map((value) => <option key={value} value={value}>{value}</option>)}
             </select>
             个任务
+          </label>}
+          {card.request.continuous && <label className="mt-2 flex items-center gap-2 text-sm text-ra-text-secondary">
+            <input type="checkbox" data-testid="start-separate-run" checked={separateRun}
+              onChange={(event) => { setNotice(""); setSeparateRun(event.target.checked); }} />
+            另开一个独立的运行（不加入已有运行，并发总数和费用上限共用）
           </label>}
           <p data-testid="start-bounds" className="mt-2 text-xs text-ra-text-secondary">{boundsText(card)}</p>
         </>

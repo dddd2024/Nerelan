@@ -1204,6 +1204,7 @@ class _TaskHandler(BaseHTTPRequestHandler):
             "coordinator": coordinator.status() if coordinator is not None else {
                 "enabled": False,
                 "active_window_id": "",
+                "active_window_ids": [],
                 "last_error": "",
                 "mode": "manual_api_only",
             },
@@ -1448,6 +1449,8 @@ def owner_window_request(payload: Any) -> dict[str, Any]:
     hours = payload.get("hours")
     integers = ("max_tasks", "max_concurrent", "max_retries", "max_token_units", "max_cost_micro_units")
     if (type(payload.get("continuous", False)) is not bool
+            or type(payload.get("separate_run", False)) is not bool
+            or not isinstance(payload.get("append_to_window", ""), str)
             or not isinstance(goal_ids, list) or not all(isinstance(g, str) for g in goal_ids)
             or not isinstance(capabilities, list) or not all(isinstance(c, str) for c in capabilities)
             or isinstance(hours, bool) or not isinstance(hours, (int, float))
@@ -1458,7 +1461,7 @@ def owner_window_request(payload: Any) -> dict[str, Any]:
             or any(payload.get(key, 0) < 0 for key in integers)):
         raise TaskStoreError("owner_window_request_invalid")
     return {"goal_ids": goal_ids, "hours": float(hours), "capabilities": capabilities,
-            **({"continuous": True} if payload.get("continuous") else {}),
+            **{key: payload[key] for key in ("continuous", "separate_run", "append_to_window") if payload.get(key)},
             **{key: int(payload.get(key, 0)) for key in integers}}
 
 

@@ -352,7 +352,9 @@ export interface PlatformStatus {
   instance?: { id: string; kind: string };
   autonomy: {
     autonomy_enabled: boolean;
+    /** The newest active window; with several runs, see active_windows. */
     active_window: PlatformWindow | null;
+    active_windows?: Array<PlatformWindow & { last_progress_at?: string | null; unfinished_tasks?: number }>;
     latest_window?: PlatformWindow | null;
     last_progress_at?: string | null;
     unfinished_tasks?: number;
@@ -367,6 +369,7 @@ export interface PlatformStatus {
     executions?: number;
     last_error: string;
     active_window_id: string;
+    active_window_ids?: string[];
     /** Free space of the task workspaces' volume; `hold` means no new task is started. */
     disk?: DiskState | null;
   };
@@ -1745,6 +1748,8 @@ export interface OwnerWindowPreflightResult {
 
 export interface OwnerWindowPreflightRequest {
   continuous?: boolean;
+  /** Open a run beside the active continuous runs instead of joining one. */
+  separate_run?: boolean;
   goal_ids: string[];
   hours: number;
   max_tasks: number;

@@ -11,6 +11,9 @@ the launcher's client session and without a terminal:
     python -m reverse_agent.platform_v1.supervisor_requests --state-dir DIR activate \
         --preset day --goal G1 --goal G2 --card-digest <from preflight>
 
+With a continuous preset, ``--separate-run`` (on both) opens a run beside the active
+ones and ``--append-to-window W1`` names the run to join; neither joins a matching run.
+
 Owner decision 2026-11-14 lets an external agent operate the host as the Owner can in
 the client, behind the same switch:
 
@@ -71,8 +74,8 @@ _ID = re.compile(r"[a-z0-9]{8,32}")
 _REQUEST, _RESULT = ".request.json", ".result.json"
 _FIELDS = {
     "draft": {"action", "text", "repository", "preset"},
-    "preflight": {"action", "goal_ids", "preset"},
-    "activate": {"action", "goal_ids", "preset", "card_digest", "requested_by"},
+    "preflight": {"action", "goal_ids", "preset", "separate_run", "append_to_window"},
+    "activate": {"action", "goal_ids", "preset", "card_digest", "requested_by", "separate_run", "append_to_window"},
     # Owner decision 2026-11-14: an external agent may also read state, stop a window
     # and retry a stopped step, as the Owner can in the client.
     "status": {"action", "goal_id"},
@@ -217,11 +220,13 @@ class SupervisorRequests:
                 result = self._host._quick_start().draft(text, repository, preset=preset)
             elif action == "preflight":
                 goal_ids = payload.get("goal_ids")
-                result = admission.preflight(goal_ids, **admission.supervisor_request(goal_ids, payload.get("preset")))
+                result = admission.preflight(goal_ids, **admission.supervisor_request(goal_ids, payload.get("preset")),
+                                             **_run_choice(payload))
             elif action == "activate":
                 result = window_to_dict(admission.admit_from_supervisor(
                     payload.get("goal_ids"), preset=payload.get("preset"),
-                    card_digest=payload.get("card_digest"), requested_by=payload.get("requested_by", "")))
+                    card_digest=payload.get("card_digest"), requested_by=payload.get("requested_by", ""),
+                    **_run_choice(payload)))
             elif action == "status":
                 result = self._status(payload.get("goal_id", ""))
             elif action == "stop_window":
@@ -271,18 +276,27 @@ class SupervisorRequests:
                 + [entry for key, entry in steps.items() if key not in planned]}
 
     def _status(self, goal_id: Any) -> dict[str, Any]:
-        """Read-only: the active window and the recent Goals, or one Goal with its retry options."""
+        """Read-only: the active windows and the recent Goals, or one Goal with its retry options."""
         control = self._host._control_store
-        active = control.active_window()
+        active = [window_to_dict(window) for window in control.active_windows()]
+        windows = {"active_window": active[-1] if active else None, "active_windows": active}
         if goal_id:
             if not _ref(goal_id):
                 raise TaskStoreError("supervisor_request_invalid")
             goal = control.get_goal(goal_id)
-            return {"active_window": window_to_dict(active) if active else None,
+            return {**windows,
                     "goal": self._goal_summary(goal), "retry": self._host._goal_service.retry_options(goal.id)}
         goals = control.list_goals(limit=STATUS_GOALS)
-        return {"active_window": window_to_dict(active) if active else None,
+        return {**windows,
                 "goals": [self._goal_summary(goal) for goal in goals]}
+
+
+def _run_choice(payload: dict[str, Any]) -> dict[str, Any]:
+    """Which continuous run the Goals go to: a separate one, a named one, or (neither) the default."""
+    separate_run, append_to_window = payload.get("separate_run", False), payload.get("append_to_window", "")
+    if type(separate_run) is not bool or append_to_window != "" and not _ref(append_to_window):
+        raise TaskStoreError("supervisor_request_invalid")
+    return {"separate_run": separate_run, "append_to_window": append_to_window}
 
 
 def _ref(value: Any) -> bool:
@@ -365,6 +379,9 @@ def main(argv: list[str] | None = None) -> int:
         sub = actions.add_parser(name)
         sub.add_argument("--preset", required=True)
         sub.add_argument("--goal", action="append", required=True, dest="goal_ids")
+        run = sub.add_mutually_exclusive_group()
+        run.add_argument("--separate-run", action="store_true")
+        run.add_argument("--append-to-window", default="")
         if name == "activate":
             sub.add_argument("--card-digest", required=True)
             sub.add_argument("--requested-by", default="")
@@ -381,7 +398,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.state_dir:
         parser.error("--state-dir or REVERSE_AGENT_TASK_DB_DIR is required")
-    payload = {key: value for key, value in vars(args).items() if key not in {"state_dir", "wait", "grace"}}
+    payload = {key: value for key, value in vars(args).items() if key not in {"state_dir", "wait", "grace"}
+               and (value or key not in {"separate_run", "append_to_window"})}
     answer = submit(args.state_dir, payload, wait_seconds=args.wait, taken_grace_seconds=args.grace)
     _write_stdout(json.dumps(answer, ensure_ascii=False, indent=1) + "\n")
     return 0 if answer.get("ok") else 1

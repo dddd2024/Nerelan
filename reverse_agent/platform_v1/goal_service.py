@@ -769,10 +769,10 @@ class GoalService:
     def _initial_window_live(self, goal: Any, window_id: str) -> bool:
         with self.store._lock:
             window = self.control_store.get_window(window_id)
-            active = self.store._conn.execute("SELECT id FROM platform_autonomous_windows WHERE status='ACTIVE' "
-                "AND julianday(starts_at)<=julianday('now') AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now')) "
-                "ORDER BY created_at DESC LIMIT 1").fetchone()
-            return bool(active and active["id"] == window_id and goal.window_id == window_id
+            active = self.store._conn.execute("SELECT id FROM platform_autonomous_windows WHERE id=? AND status='ACTIVE' "
+                "AND julianday(starts_at)<=julianday('now') AND ((confirmation_mode='OWNER_WINDOW' AND expires_at='') OR julianday(expires_at)>julianday('now'))",
+                (window_id,)).fetchone()
+            return bool(active and goal.window_id == window_id
                 and goal.status in {"RUNNING", "BLOCKED"} and goal.repository in window.repositories
                 and (window.continuous or window.tasks_started < window.max_tasks))
 

@@ -182,6 +182,134 @@ class TestContinuousRun:
         assert not setup.db._conn.in_transaction
 
 
+class TestConcurrentRuns:
+    """#1552: several explicitly admitted continuous runs in one store."""
+
+    RUN = dict(hours=0, max_tasks=0, max_concurrent=3, max_retries=2, capabilities=ALL, continuous=True)
+
+    def open(self, setup, goal, **changes):
+        return admit(setup.host, (goal.id,), **{**self.RUN, **changes})[0]
+
+    def two(self, setup, tasks=1, **changes):
+        a = setup.planned("run-a", "codex", "pinned", tasks=tasks)
+        b = setup.planned("run-b", "codex", "pinned", tasks=tasks)
+        return a, b, self.open(setup, a, **changes), self.open(setup, b, separate_run=True, **changes)
+
+    def claim(self, setup, goal, window, index=0):
+        control = setup.host._control_store
+        return control.claim_task(window_id=window.id, task_id=control.list_goal_tasks(goal.id)[index]["task_id"],
+                                  owner="test", lease_ms=10000)
+
+    def test_a_separate_run_has_its_own_identity_goals_receipt_and_stop(self, setup):
+        a, b, first, second = self.two(setup)
+        control = setup.host._control_store
+        assert first.id != second.id and first.policy_id != second.policy_id
+        assert [w.id for w in control.active_windows()] == [first.id, second.id]
+        assert [g.id for g in control.list_window_goals(first.id)] == [a.id]
+        assert [g.id for g in control.list_window_goals(second.id)] == [b.id]
+        assert control._owner_window_receipt_locked(second.id, b.id)
+        assert not control._owner_window_receipt_locked(second.id, a.id)
+        with pytest.raises(TaskStoreError, match="owner_window_goal_not_confirmed"):
+            self.claim(setup, a, second)
+        control.stop_window(first.id)
+        assert [w.id for w in control.active_windows()] == [second.id]
+        with pytest.raises(TaskStoreError, match="window_not_active"):
+            self.claim(setup, a, first)
+        assert self.claim(setup, b, second)[0] == 1
+
+    def test_the_card_opens_a_separate_run_while_the_first_is_working(self, setup):
+        a = setup.planned("a", "codex", "pinned")
+        first = self.open(setup, a)
+        self.claim(setup, a, first)
+        b = setup.planned("b", "codex", "pinned")
+        admission = setup.host._owner_window_admission
+        request = {**self.RUN, "separate_run": True}
+        report = admission.preflight([b.id], **request)
+        assert report["ok"] is True and report["scope"]["envelope"]["separate_run"] is True
+        # The same Goals joining the first run are another scope.
+        assert admission.preflight([b.id], **self.RUN)["card_digest"] != report["card_digest"]
+        second = admission.admit_from_card([b.id], card_digest=report["card_digest"], **request)
+        assert second.id != first.id
+        assert setup.db._conn.execute(
+            "SELECT window_id FROM platform_coordinator_claims WHERE status='ACTIVE'").fetchone()[0] == first.id
+
+    def test_adding_a_goal_defaults_to_a_matching_run_or_the_named_one(self, setup):
+        _, _, first, second = self.two(setup)
+        assert self.open(setup, setup.planned("c", "codex", "pinned")).id == first.id
+        assert self.open(setup, setup.planned("d", "codex", "pinned"), append_to_window=second.id).id == second.id
+        setup.host._control_store.stop_window(second.id)
+        refused = setup.planned("e", "codex", "pinned")
+        with pytest.raises(TaskStoreError, match="continuous_run_not_active"):
+            self.open(setup, refused, append_to_window=second.id)
+        assert setup.host._control_store.get_goal(refused.id).status == "PLANNED"
+
+    def test_the_aggregate_stays_three_and_each_window_keeps_its_limit(self, setup):
+        a, b, first, second = self.two(setup, tasks=3)
+        self.claim(setup, a, first, 0)
+        self.claim(setup, a, first, 1)
+        self.claim(setup, b, second, 0)
+        with pytest.raises(TaskStoreError, match="aggregate_wip_limit_reached"):
+            self.claim(setup, b, second, 1)
+        with pytest.raises(TaskStoreError, match="aggregate_wip_limit_reached"):
+            self.claim(setup, a, first, 2)
+
+    def test_single_slot_runs_work_side_by_side_at_their_own_limit(self, setup):
+        a, b, first, second = self.two(setup, tasks=2, max_concurrent=1)
+        self.claim(setup, a, first)
+        self.claim(setup, b, second)
+        with pytest.raises(TaskStoreError, match="window_wip_limit_reached"):
+            self.claim(setup, b, second, 1)
+
+    def test_runs_share_one_cost_cap(self, setup):
+        a, b, first, second = self.two(setup, max_cost_micro_units=100)
+        c = setup.planned("uncapped", "codex", "pinned")
+        with pytest.raises(TaskStoreError, match="separate_run_cost_cap_mismatch"):
+            self.open(setup, c, separate_run=True, max_cost_micro_units=0)
+        assert setup.host._control_store.get_goal(c.id).status == "PLANNED"
+        self.claim(setup, a, first)
+        with pytest.raises(TaskStoreError, match="window_cost_budget_exhausted"):
+            self.claim(setup, b, second)
+
+    def test_bounded_windows_stay_exclusive(self, setup):
+        a, b = setup.planned("a", "codex", "pinned"), setup.planned("b", "codex", "pinned")
+        bounded, _ = admit(setup.host, (a.id,))
+        with pytest.raises(TaskStoreError, match=f"active_window_already_exists:{bounded.id}"):
+            self.open(setup, b, separate_run=True)
+        with pytest.raises(TaskStoreError, match="owner_window_mode_invalid"):
+            admit(setup.host, (b.id,), separate_run=True)
+        setup.host._control_store.stop_window(bounded.id)
+        run = self.open(setup, b)
+        c = setup.planned("c", "codex", "pinned")
+        with pytest.raises(TaskStoreError, match=f"active_window_already_exists:{run.id}"):
+            admit(setup.host, (c.id,))
+
+    def test_restart_preflight_accepts_several_continuous_runs(self, setup):
+        from reverse_agent.platform_v1.startup_preflight import ClaimState, WindowState, assess_boot_readiness
+        windows = [WindowState(w.id, "ACTIVE", w.starts_at, "", OWNER_WINDOW_MODE) for w in self.two(setup)[2:]]
+        check = dict(windows=windows, task_counts={"QUEUED": 2}, now=datetime.now(timezone.utc))
+        report = assess_boot_readiness(claims=[], **check)
+        assert report["state"] == "READY_FOR_HOST_RECONCILIATION" and not report["dispatch_permitted"]
+        assert report["active_window_ids"] == [w.id for w in windows] and report["active_window_id"] is None
+        held = assess_boot_readiness(claims=[ClaimState("t", windows[1].id, "ACTIVE")], **check)
+        assert held["state"] == "HOLD_REMOTE_RECONCILIATION"
+
+    @pytest.mark.parametrize("argv", [["--separate-run"], ["--append-to-window", "w"],
+                                      ["--continuous", "--separate-run", "--append-to-window", "w"]])
+    def test_the_command_line_needs_one_choice_for_a_continuous_run(self, argv):
+        with pytest.raises(SystemExit):
+            owner_window.parse(["--goal", "g", "--hours", "1", "--max-tasks", "1",
+                                "--capability", "execute_task", *argv])
+
+    def test_the_http_body_carries_the_choice(self):
+        from reverse_agent.platform_v1.task_service import owner_window_request
+        body = {"goal_ids": ["g1"], "hours": 0, "max_tasks": 0, "max_concurrent": 3, "max_retries": 2,
+                "capabilities": ["execute_task"], "continuous": True, "separate_run": True}
+        assert owner_window_request(body)["separate_run"] is True
+        for bad in ({"separate_run": "yes"}, {"append_to_window": 3}):
+            with pytest.raises(TaskStoreError, match="owner_window_request_invalid"):
+                owner_window_request({**body, **bad})
+
+
 # Filled per test from the real resolver over the fixture store, so the pool the
 # Owner approves and the resolution dispatch checks come from the same code.
 RESOLVED: dict = {}

@@ -187,6 +187,35 @@ def test_expired_row_is_retired_atomically_before_new_activation(tmp_path):
     assert control.active_window().id == second.id
 
 
+@pytest.mark.parametrize("value", [True, "yes"])
+def test_only_owner_admission_can_open_a_run_beside_another(tmp_path, value):
+    _, control, service = host(tmp_path / "separate.sqlite3")
+    first = service.activate(payload())
+    with pytest.raises(TaskStoreError, match="separate_run_requires_continuous_admission"):
+        control.activate_window({**payload("second-policy"), "separate_run": value}, confirmation="ACTIVATE")
+    with pytest.raises(TaskStoreError, match="active_window_already_exists"):
+        service.activate(payload("second-policy", separate_run=value))
+    assert control.active_windows() == (first,)
+
+
+def test_concurrent_runs_survive_a_restart_with_one_store(tmp_path):
+    db = tmp_path / "runs.sqlite3"
+    store, control, service = host(db)
+    ids = []
+    for name in ("first", "second"):
+        # Only the store's own view of two persisted continuous runs is under test here.
+        store._conn.execute("UPDATE platform_autonomous_windows SET status='STOPPED'")
+        ids.append(service.activate(payload(name)).id)
+    store._conn.execute("UPDATE platform_autonomous_windows SET status='ACTIVE', "
+                        "confirmation_mode='OWNER_WINDOW', expires_at=''")
+    store._conn.close()
+    _, restarted, _ = host(db)
+    assert [window.id for window in restarted.active_windows(now="2099-01-01T00:00:00Z")] == ids
+    assert restarted.active_window().id == ids[1]
+    restarted.stop_window(ids[1])
+    assert [window.id for window in restarted.active_windows()] == ids[:1]
+
+
 def test_activation_insert_failure_rolls_back_the_transaction(tmp_path):
     store, control, service = host(tmp_path / "persistence.sqlite3")
     store._conn.execute("CREATE TRIGGER reject_window BEFORE INSERT ON platform_autonomous_windows "

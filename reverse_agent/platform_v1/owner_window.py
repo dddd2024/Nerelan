@@ -164,19 +164,30 @@ class OwnerWindowAdmission:
         store = self._host._store
         return resolve_pool(store, read_overrides(getattr(store, "_state_path", None)))
 
+    def _append_target(self, envelope: Mapping[str, Any]) -> Any:
+        """The active continuous run these Goals join, or None."""
+        return next((window for window in self._host._control_store.active_windows()
+                     if window.continuous and window.id == envelope.get("append_to_window")), None)
+
+    def _held_claims(self, envelope: Mapping[str, Any]) -> int:
+        """Live claims that hold this admission: not those of the runs it joins or runs beside (#1552)."""
+        control = self._host._control_store
+        held = control.claim_holds()["live"]
+        if envelope.get("separate_run") or self._append_target(envelope) is not None:
+            held -= control._conn.execute(
+                "SELECT COUNT(*) FROM platform_coordinator_claims c "
+                "JOIN platform_autonomous_windows w ON w.id=c.window_id WHERE c.status='ACTIVE' "
+                "AND w.status='ACTIVE' AND w.confirmation_mode=? AND w.expires_at=''",
+                (OWNER_WINDOW_MODE,)).fetchone()[0]
+        return max(0, held)
+
     def _scope(self, goal_ids: Sequence[str], envelope: dict[str, Any]) -> dict[str, Any]:
         """Persisted truth for the prompt and for the in-transaction recheck."""
         host = self._host
         control = host._control_store
-        current = control.active_window()
-        appending = bool(envelope.get("continuous") and current and current.continuous
-                         and current.id == envelope["window_id"])
-        held = control.claim_holds()["live"]
-        if appending:
-            held -= control._conn.execute(
-                "SELECT COUNT(*) FROM platform_coordinator_claims WHERE window_id=? AND status='ACTIVE'",
-                (current.id,)).fetchone()[0]
-        if held > 0:
+        current = self._append_target(envelope)
+        appending = current is not None
+        if self._held_claims(envelope) > 0:
             raise TaskStoreError("owner_window_old_active_claims_hold")
         goals = [control.get_goal(goal_id) for goal_id in goal_ids]
         repositories = {goal.repository for goal in goals}
@@ -218,6 +229,10 @@ class OwnerWindowAdmission:
                  f"Repository:     {scope['repository']}",
                  f"Workspace:      {scope['workspace']}  (base {scope['base_sha'][:12]})"]
         if env.get("continuous"):
+            if env.get("append_to_window"):
+                lines.append(f"Adds to run:    {env['append_to_window']}")
+            elif env.get("separate_run"):
+                lines.append("Separate run:   shares concurrency and cost cap with the other active runs")
             lines += ["Run:            until Owner stops", f"Concurrency:    {env['max_concurrent_tasks']}",
                       f"Retries:        {env['max_retries']}", f"Cost cap:       {env['max_cost_micro_units'] or 'none'}"]
         else:
@@ -294,15 +309,17 @@ class OwnerWindowAdmission:
 
     def _prepare(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
                  max_retries: int, capabilities: Sequence[str], max_token_units: int = 0,
-                 max_cost_micro_units: int = 0, continuous: bool = False,
-                 terminal: bool = False) -> tuple[tuple[str, ...], dict[str, Any]]:
+                 max_cost_micro_units: int = 0, continuous: bool = False, separate_run: bool = False,
+                 append_to_window: str = "", terminal: bool = False) -> tuple[tuple[str, ...], dict[str, Any]]:
         """Validate the request and fix the envelope; binds discovered models first."""
         host = self._host
         goal_ids = tuple(goal_ids)
         if (not 1 <= len(goal_ids) <= OWNER_WINDOW_MAX_GOALS or len(set(goal_ids)) != len(goal_ids)
                 or any(not isinstance(g, str) or not _GOAL_ID.fullmatch(g) for g in goal_ids)):
             raise TaskStoreError("owner_window_goals_invalid")
-        if type(continuous) is not bool:
+        if (type(continuous) is not bool or type(separate_run) is not bool or not isinstance(append_to_window, str)
+                or (separate_run or append_to_window) and not continuous
+                or separate_run and append_to_window):
             raise TaskStoreError("owner_window_mode_invalid")
         if not continuous and not 0 < hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
             raise TaskStoreError("owner_window_duration_invalid")
@@ -350,11 +367,25 @@ class OwnerWindowAdmission:
                     "provider_quota_state": "UNKNOWN", "enforcement_class": "HARD_ADMISSION_ENFORCED"}
         if continuous:
             envelope["continuous"] = True
-            active = host._control_store.active_window()
-            if active and active.continuous:
-                if (active.max_concurrent_tasks != max_concurrent or active.max_retries != max_retries
-                        or active.capabilities != capabilities or active.max_cost_micro_units != max_cost_micro_units):
+            runs = [window for window in host._control_store.active_windows() if window.continuous]
+            if append_to_window:
+                runs = [window for window in runs if window.id == append_to_window]
+                if not runs:
+                    raise TaskStoreError("continuous_run_not_active")
+            if separate_run:
+                envelope["separate_run"] = True
+            elif runs:
+                matching = [window for window in runs
+                            if (window.max_concurrent_tasks, window.max_retries, window.capabilities,
+                                window.max_cost_micro_units)
+                            == (max_concurrent, max_retries, capabilities, max_cost_micro_units)]
+                if not matching:
                     raise TaskStoreError("continuous_run_settings_changed")
+                active = matching[0]
+                if len(matching) > 1:
+                    # Unnamed target: the oldest matching run of the Goals' repository.
+                    repository = host._control_store.get_goal(goal_ids[0]).repository
+                    active = next((window for window in matching if repository in window.repositories), active)
                 for key in envelope:
                     if hasattr(active, key):
                         envelope[key] = getattr(active, key)
@@ -450,12 +481,14 @@ class OwnerWindowAdmission:
                 "confirmation": self.confirmation_mode()}
 
     def admit_from_supervisor(self, goal_ids: Any, *, preset: Any, card_digest: Any,
-                              requested_by: Any = "") -> Any:
+                              requested_by: Any = "", separate_run: Any = False,
+                              append_to_window: Any = "") -> Any:
         """Activation a supervising agent asks the running host for (Owner decision 2026-11-10).
 
         Off unless the Owner's settings turn it on, and never in strict ``terminal``
         mode. The bounds are a preset's, computed here; the request names only the
-        preset, the Goals and the digest of the preflight it read. Everything else is
+        preset, the Goals, which continuous run they go to and the digest of the
+        preflight it read. Everything else is
         the card path: scope reread, one atomic commit, one receipt per Goal, and the
         receipt says a supervisor asked.
         """
@@ -467,7 +500,8 @@ class OwnerWindowAdmission:
         label = "".join(char for char in requested_by if char.isprintable())[:200]
         confirm = self._digest_confirm(card_digest)
         request = self.supervisor_request(goal_ids, preset)
-        return self.admit(list(goal_ids), **request, confirm=confirm, surface="supervisor", requested_by=label)
+        return self.admit(list(goal_ids), **request, confirm=confirm, surface="supervisor", requested_by=label,
+                          separate_run=separate_run, append_to_window=append_to_window)
 
     def admit_from_card(self, goal_ids: Sequence[str], *, card_digest: str, **request: Any) -> Any:
         """Activation from the confirmation card's Start (Owner decision 2026-11-09).
@@ -507,26 +541,30 @@ class OwnerWindowAdmission:
         scope = None
         with host._task_store._lock, host._store._lock:
             holds = control.claim_holds()
-            held = holds["live"]
-            active = control.active_window()
-            appending = bool(envelope.get("continuous") and active and active.continuous
-                             and active.id == envelope["window_id"])
-            if appending:
-                own = control._conn.execute(
-                    "SELECT COUNT(*) FROM platform_coordinator_claims WHERE window_id=? AND status='ACTIVE'",
-                    (active.id,)).fetchone()[0]
-                held = max(0, held - own)
+            held = self._held_claims(envelope)
+            windows = control.active_windows()
+            target = self._append_target(envelope)
+            separate = bool(envelope.get("separate_run"))
+            # A separate run stands beside continuous runs only; anything else keeps exclusivity.
+            blocking = [] if target is not None else [
+                window for window in windows if not (separate and window.continuous)]
             add("leftover_claims", "owner_window_old_active_claims_hold" if held else "",
                 f"{held} active coordinator claims; reconcile or isolate them first" if held else "none")
-            if active and not appending:
+            if blocking:
+                active = blocking[-1]
                 runnable = sum(goal.status == "RUNNING"
                                for goal in control.list_window_goals(active.id))
                 expiry = active.expires_at or "never (continuous run)"
                 add("active_window", f"active_window_already_exists:{active.id}",
                     f"{active.id} expires {expiry}; {runnable} of its goals still runnable; "
                     "stop it or wait for it")
+            elif separate and any(window.max_cost_micro_units != envelope["max_cost_micro_units"]
+                                  for window in windows):
+                add("active_window", "separate_run_cost_cap_mismatch",
+                    "concurrent runs share one cost cap; ask for the same cap")
             else:
-                add("active_window", "", f"appending to {active.id}" if appending else "none")
+                add("active_window", "", f"appending to {target.id}" if target is not None
+                    else f"separate run beside {len(windows)} active runs" if separate and windows else "none")
             if holds["stale"]:
                 warnings.append({"warning": "stale_claims_retired",
                                  "detail": f"{holds['stale']} expired claims of closed windows no longer hold "
@@ -570,6 +608,8 @@ class OwnerWindowAdmission:
                     "max_retries", "max_token_units", "max_cost_micro_units")},
                 "paid_api": scope["paid_api"]}
             result["scope"]["envelope"]["continuous"] = bool(env.get("continuous"))
+            result["scope"]["envelope"]["separate_run"] = bool(env.get("separate_run"))
+            result["scope"]["envelope"]["append_to_window"] = env.get("append_to_window", "")
             result["card_digest"] = self.card_digest(scope)
             result["confirmation"] = self.confirmation_mode()
         result["ok"] = all(check["ok"] for check in checks)
@@ -578,11 +618,12 @@ class OwnerWindowAdmission:
     def admit(self, goal_ids: Sequence[str], *, hours: float, max_tasks: int, max_concurrent: int,
               max_retries: int, capabilities: Sequence[str], confirm: Callable[..., bool],
               max_token_units: int = 0, max_cost_micro_units: int = 0, surface: str = "terminal",
-              requested_by: str = "", continuous: bool = False, resume_parked_landing: bool = False) -> Any:
+              requested_by: str = "", continuous: bool = False, separate_run: bool = False,
+              append_to_window: str = "", resume_parked_landing: bool = False) -> Any:
         if surface not in _MECHANISMS:
             raise TaskStoreError("owner_window_surface_invalid")
         if resume_parked_landing and (surface != "terminal" or tuple(capabilities) != (OWNER_LANDING_CAPABILITY,)
-                or continuous or len(goal_ids) != 1):
+                or continuous or separate_run or append_to_window or len(goal_ids) != 1):
             raise TaskStoreError("landing_recovery_scope_invalid")
         if not self._lock.acquire(blocking=False):
             raise TaskStoreError("owner_window_admission_in_progress")
@@ -593,7 +634,8 @@ class OwnerWindowAdmission:
             goal_ids, envelope = self._prepare(
                 goal_ids, hours=hours, max_tasks=max_tasks, max_concurrent=max_concurrent,
                 max_retries=max_retries, capabilities=capabilities, max_token_units=max_token_units,
-                max_cost_micro_units=max_cost_micro_units, continuous=continuous, terminal=surface == "terminal")
+                max_cost_micro_units=max_cost_micro_units, continuous=continuous, separate_run=separate_run,
+                append_to_window=append_to_window, terminal=surface == "terminal")
             deadline = time.monotonic() + CONFIRM_SECONDS
             with host._task_store._lock, host._store._lock:
                 goal = host._control_store.get_goal(goal_ids[0])
@@ -667,10 +709,10 @@ class OwnerWindowAdmission:
 
             with host._task_store._lock, host._store._lock:
                 validate()
-                active = host._control_store.active_window()
-                if continuous and active and active.continuous and active.id == envelope["window_id"]:
+                if envelope.get("append_to_window"):
                     # Append Goals with the same atomic approval/receipt/launch callback.
-                    return host._control_store.append_owner_window_goals(active.id, goal_ids, sql_admit)
+                    return host._control_store.append_owner_window_goals(
+                        envelope["append_to_window"], goal_ids, sql_admit)
                 return host._control_store.activate_window(
                     envelope, confirmation="ACTIVATE", _host_sql_admit=sql_admit,
                     _host_expected_goal_ids=goal_ids)
@@ -747,6 +789,11 @@ def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)
     parser.add_argument("--goal", action="append", required=True, metavar="GOAL_ID")
     parser.add_argument("--continuous", action="store_true")
+    run = parser.add_mutually_exclusive_group()
+    run.add_argument("--separate-run", action="store_true",
+                     help="with --continuous: open a run beside the active ones instead of joining one")
+    run.add_argument("--append-to-window", default="", metavar="WINDOW_ID",
+                     help="with --continuous: the active run these Goals join")
     parser.add_argument("--hours", type=float, default=0)
     parser.add_argument("--max-tasks", type=int, default=0)
     parser.add_argument("--max-concurrent", type=int, default=1)
@@ -766,6 +813,8 @@ def parse(argv: Sequence[str] | None = None) -> argparse.Namespace:
         parser.error("--goal values must be distinct Goal IDs")
     if not args.continuous and not 0 < args.hours * 60 <= OWNER_WINDOW_MAX_MINUTES:
         parser.error("--hours must be above 0 and at most 168")
+    if (args.separate_run or args.append_to_window) and not args.continuous:
+        parser.error("--separate-run and --append-to-window require --continuous")
     if args.resume_parked_landing:
         if (args.continuous or len(args.goal) != 1 or args.capability or args.max_tasks or args.max_concurrent != 1
                 or args.max_retries or args.max_token_units or args.max_cost_micro_units):
@@ -796,6 +845,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "max_concurrent": args.max_concurrent, "max_retries": args.max_retries,
         "capabilities": tuple(args.capability), "max_token_units": args.max_token_units,
         "max_cost_micro_units": args.max_cost_micro_units, "continuous": args.continuous, "confirm": terminal_confirm,
+        "separate_run": args.separate_run, "append_to_window": args.append_to_window,
         "resume_parked_landing": args.resume_parked_landing})
 
 

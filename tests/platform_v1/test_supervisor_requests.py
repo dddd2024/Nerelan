@@ -396,6 +396,31 @@ class TestSupervisorControl:
         again = self.ask(setup, state, "s0000004", {"action": "stop_window", "window_id": window.id})
         assert again == {"ok": False, "action": "stop_window", "error": "window_not_active"}
 
+    def test_a_separate_run_opens_is_listed_and_stops_alone(self, setup, state):  # noqa: F811
+        a, b = setup.planned("a", "codex", "pinned"), setup.planned("b", "codex", "pinned")
+        windows = []
+        for number, (goal, choice) in enumerate(((a, {}), (b, {"separate_run": True}))):
+            request = {"preset": "continuous", "goal_ids": [goal.id], **choice}
+            report = self.ask(setup, state, f"p000000{number}", {"action": "preflight", **request})["result"]
+            assert report["ok"] is True, report["checks"]
+            answer = self.ask(setup, state, f"a000000{number}", {
+                "action": "activate", "card_digest": report["card_digest"], **request})
+            assert answer["ok"] is True, answer
+            windows.append(answer["result"]["id"])
+        status = self.ask(setup, state, "s0000010", {"action": "status"})["result"]
+        assert [window["id"] for window in status["active_windows"]] == windows and len(set(windows)) == 2
+        assert status["active_window"]["id"] == windows[-1]
+        stopped = self.ask(setup, state, "s0000011", {"action": "stop_window", "window_id": windows[1]})
+        assert stopped["result"]["status"] == "STOPPED"
+        assert setup.host._control_store.get_window(windows[0]).status == "ACTIVE"
+
+    @pytest.mark.parametrize("choice", [{"separate_run": "yes"}, {"append_to_window": "bad id"}, {"append_to_window": 3}])
+    def test_a_malformed_run_choice_is_refused(self, setup, state, choice):  # noqa: F811
+        a = setup.planned("a", "codex", "pinned")
+        answer = self.ask(setup, state, "s0000012", {
+            "action": "preflight", "preset": "continuous", "goal_ids": [a.id], **choice})
+        assert answer["error"] == "supervisor_request_invalid"
+
     def test_stop_window_is_off_with_the_switch(self, setup, state):  # noqa: F811
         window = self.activate(setup, state, setup.planned("a", "codex", "pinned"))
         watcher = SupervisorRequests(setup.host)

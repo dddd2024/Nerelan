@@ -12,7 +12,7 @@ import subprocess
 import threading
 import time
 import uuid
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterator, Mapping
 
 from .autonomy import AutonomyService
 from .control_store import PlatformControlStore
@@ -86,6 +86,9 @@ class UnattendedCoordinator:
     disk_guard: Any | None = None
     _disk_hold: bool = False
     _disk_waiting: tuple[str, ...] = ()
+    # The window each running task was claimed in, and the one served last (#1552).
+    _active_task_windows: Mapping[str, str] = {}
+    _last_served_window: str = ""
 
     def __init__(
         self,
@@ -293,7 +296,7 @@ class UnattendedCoordinator:
         return any(now >= next_due for _, next_due in seen.values())
 
     def _sweep_escalations(self, *, stop_event: threading.Event | None = None) -> None:
-        """Re-examine the active window's goals with FAILED or BLOCKED tasks (#1473).
+        """Re-examine the active windows' goals with FAILED or BLOCKED tasks (#1473).
 
         Escalation otherwise runs only after a task this process just executed, so
         a task the host itself broke (restart during preparation, an interrupted
@@ -302,17 +305,17 @@ class UnattendedCoordinator:
         if self.goal_escalator is None or (stop_event is not None and stop_event.is_set()):
             return
         try:
-            window = self.control_store.active_window()
-            if window is None:
+            if self.control_store.active_window() is None:
                 return
             with self.control_store._lock:
-                rows = self.control_store._conn.execute(
+                rows = [row for window in self.control_store.active_windows()
+                        for row in self.control_store._conn.execute(
                     "SELECT g.id AS goal_id, t.id AS task_id, t.updated_at FROM platform_goals g "
                     "JOIN platform_goal_task_links l ON l.goal_id = g.id AND l.goal_revision = g.revision "
                     "JOIN tasks t ON t.id = l.task_id "
                     "WHERE g.window_id = ? AND g.status <> 'SUPERSEDED' "
                     "AND t.status IN ('FAILED', 'BLOCKED') ORDER BY g.id",
-                    (window.id,)).fetchall()
+                    (window.id,)).fetchall()]
         except Exception as exc:  # noqa: BLE001 - the sweep must never break reconciliation
             self._last_error = f"escalation_sweep_failed:{type(exc).__name__}"
             return
@@ -441,12 +444,31 @@ class UnattendedCoordinator:
                 return False
         return False
 
-    def _advance_landing(self, window):
+    def _advance_landing(self, *windows):
         if self.landing_loop is None:
             return
-        recovery = self.control_store.landing_recovery_identity(window)
-        if recovery:
-            self.landing_loop.tick(recovery, window_id=window.id)
+        recoveries = set()
+        for window in windows:
+            recovery = self.control_store.landing_recovery_identity(window)
+            if recovery:
+                recoveries.add(recovery)
+                self.landing_loop.tick(recovery, window_id=window.id)
+        for window in windows:
+            # At most one publication (it may run a review) per tick, whichever window has it.
+            if self._publish_ready(window):
+                break
+        rows = self.control_store._conn.execute(
+            "SELECT identity,goal_id FROM platform_landing_state WHERE phase NOT IN "
+            "('BLOCKED','COMPLETE','SUPERSEDED') ORDER BY next_attempt_ms LIMIT 10").fetchall()
+        for row in rows:
+            if row["identity"] in recoveries:
+                continue
+            goal = self.control_store.get_goal(row["goal_id"])
+            if goal.window_id:
+                self.landing_loop.tick(row["identity"], window_id=goal.window_id)
+
+    def _publish_ready(self, window) -> bool:
+        """Publish one reviewed-ready task of this window; True when one was published."""
         # Bounded scan over local intent; GitHub truth is read by each tick.
         if window is not None and self.publication is not None and self.goals is not None:
             from . import artifact_handoff as artifacts
@@ -482,16 +504,8 @@ class UnattendedCoordinator:
                 except (GitHubAdapterError, OSError, ValueError, subprocess.SubprocessError) as exc:
                     self._last_error = f"landing_publish_failed:{type(exc).__name__}"
                     continue
-                break
-        rows = self.control_store._conn.execute(
-            "SELECT identity,goal_id FROM platform_landing_state WHERE phase NOT IN "
-            "('BLOCKED','COMPLETE','SUPERSEDED') ORDER BY next_attempt_ms LIMIT 10").fetchall()
-        for row in rows:
-            if row["identity"] == recovery:
-                continue
-            goal = self.control_store.get_goal(row["goal_id"])
-            if goal.window_id:
-                self.landing_loop.tick(row["identity"], window_id=goal.window_id)
+                return True
+        return False
 
     def _tick_impl(self, *, background: bool) -> int:
         if self._stop.is_set():
@@ -500,8 +514,8 @@ class UnattendedCoordinator:
         if self._stop.is_set():
             return 0
         self._refresh_disk_hold()
-        window = self.control_store.active_window()
-        if window is None:
+        windows = self.control_store.active_windows()
+        if not windows:
             self._disk_waiting = ()
             # An Owner-approved standing policy renews a time-expired window (#1310 D).
             try:
@@ -512,38 +526,120 @@ class UnattendedCoordinator:
             if window is None:
                 self._advance_landing(None)
                 return 0
-        try:
-            self.control_store.adopt_standing_goals(window.id)
-        except TaskStoreError as exc:
-            self._last_error = f"standing_adoption_failed:{exc}"
-        self._advance_landing(window)
+            windows = (window,)
+        for window in windows:
+            try:
+                self.control_store.adopt_standing_goals(window.id)
+            except TaskStoreError as exc:
+                self._last_error = f"standing_adoption_failed:{exc}"
+        first = self._ticks % len(windows)
+        self._advance_landing(*windows[first:], *windows[:first])
         with self._lifecycle_lock:
             # Bound admission *before* claiming: old graph batches continue
             # running and still occupy slots even if newer tasks arrive.
             if self._dispatch_active and not background:
                 return 0
-            running_slots = len(self._active_task_ids) if background else 0
-            free_slots = max(0, window.max_concurrent_tasks - running_slots)
-        if free_slots == 0:
+            running = tuple(self._active_task_ids) if background else ()
+            owners = self._active_task_windows
+            free_slots = max(0, self.control_store.aggregate_concurrency(windows) - len(running))
+            # A running task of unknown origin counts against every window.
+            window_slots = {window.id: max(0, window.max_concurrent_tasks - sum(
+                owners.get(task_id, window.id) == window.id for task_id in running)) for window in windows}
+        if free_slots == 0 or not any(window_slots.values()):
             self._disk_waiting = ()  # waiting for a slot, not for disk space
             return 0
         if os.environ.get("REVERSE_AGENT_MULTI_ACCOUNT_ENABLED") == "1" and self.goals is not None:
-            try:
-                self.goals.reconsider_initial_models(window.id, autonomy=self.autonomy)
-            except Exception as exc:
-                self._last_error = f"initial_model_recovery_failed:{type(exc).__name__}"
-        claimed: dict[str, int] = {}
+            for window in windows:
+                try:
+                    self.goals.reconsider_initial_models(window.id, autonomy=self.autonomy)
+                except Exception as exc:
+                    self._last_error = f"initial_model_recovery_failed:{type(exc).__name__}"
+        batches: dict[str, dict[str, int]] = {}
         held: list[str] = []
         disk_waiting: list[str] = []
-        recovered = 0
+        recovered_tasks: list[str] = []
+        # One claim per window in turn, starting after the window served last, so
+        # neither a long queue nor an empty or held one keeps the others waiting.
+        ids = [window.id for window in windows]
+        after = ids.index(self._last_served_window) + 1 if self._last_served_window in ids else 0
+        scans = {window.id: self._claim_ready(window, held=held, disk_waiting=disk_waiting, recovered=recovered_tasks)
+                 for window in (*windows[after:], *windows[:after])}
+        while scans and free_slots > 0 and not self._stop.is_set():
+            for window_id, scan in tuple(scans.items()):
+                if free_slots == 0 or self._stop.is_set():
+                    break
+                if window_slots[window_id] == 0:
+                    del scans[window_id]
+                    continue
+                try:
+                    claim = next(scan, None)
+                except Exception as exc:
+                    if len(windows) == 1:
+                        raise
+                    self._last_error = f"window_scan_failed:{type(exc).__name__}"
+                    _logger.exception("window scan failed window=%s", window_id)
+                    claim = None
+                if claim is None:
+                    del scans[window_id]
+                    continue
+                task_id, epoch = claim
+                batches.setdefault(window_id, {})[task_id] = epoch
+                free_slots -= 1
+                window_slots[window_id] -= 1
+                self._last_served_window = window_id
+        recovered = len(recovered_tasks)
+        self._disk_waiting = tuple(disk_waiting)
+        if held:
+            # A fully held goal claims nothing, so post-execution escalation never
+            # runs for it: offer the held tasks to the rerouter here.
+            self._reroute_held(held)
+        if not batches:
+            return recovered
+        if not self._begin_dispatch(background=background):
+            for window_id, claimed in batches.items():
+                self._abandon_claimed_before_dispatch(
+                    window_id=window_id,
+                    claimed=claimed,
+                    reason="coordinator_stop_requested_before_dispatch",
+                )
+            return 0
+        if background:
+            # The poller never blocks on a slow graph invocation. A later tick
+            # can claim a *different* task up to the persisted window WIP cap.
+            return recovered + sum(len(claimed) for window_id, claimed in batches.items()
+                                   if self._launch_background_batch(window_id, claimed))
+        pending = dict(batches)
+        try:
+            for index, (window_id, claimed) in enumerate(batches.items()):
+                if index:
+                    # This batch waited for the earlier ones: start it only while still authorized,
+                    # and only tasks whose claim is still this coordinator's.
+                    if (self._stop.is_set()
+                            or all(window.id != window_id for window in self.control_store.active_windows())):
+                        continue
+                    claimed = {task_id: epoch for task_id, epoch in claimed.items()
+                               if self.control_store.renew_claim(
+                                   window_id=window_id, task_id=task_id, owner=self.owner,
+                                   epoch=epoch, lease_ms=self.claim_lease_ms)}
+                del pending[window_id]
+                if claimed:
+                    recovered += self._execute_claimed_batch(window_id=window_id, claimed=claimed)
+            return recovered
+        finally:
+            for window_id, claimed in pending.items():
+                self._abandon_claimed_before_dispatch(
+                    window_id=window_id, claimed=claimed, reason="batch_not_started")
+            self._finish_dispatch()
+
+    def _claim_ready(self, window: Any, *, held: list[str], disk_waiting: list[str],
+                     recovered: list[str]) -> Iterator[tuple[str, int]]:
+        """Claim this window's ready tasks one at a time, only as the caller asks for the next."""
         retained_after_denial = None
         # A claimed task can still be QUEUED while its executor is running.
         # Scan past already-claimed rows instead of starving later candidates.
         for task_id in self.control_store.runnable_tasks(
             window.id, limit=500, respect_attempt_limits=True, respect_reservation_limits=True
         ):
-            if len(claimed) >= free_slots:
-                break
             if self._stop.is_set():
                 break
             if retained_after_denial is not None and task_id not in retained_after_denial:
@@ -567,7 +663,7 @@ class UnattendedCoordinator:
                 except TaskStoreError as exc:
                     self._last_error = str(exc)
                     continue
-                recovered += 1
+                recovered.append(task_id)
                 self._executions += 1
                 continue
             if self._refresh_disk_hold():  # a landing review or an earlier claim took time
@@ -604,7 +700,7 @@ class UnattendedCoordinator:
                     **({"feedback_identity": feedback_identity} if feedback_identity is not None else {}),
                 )
             except TaskStoreError as exc:
-                if str(exc) == "window_wip_limit_reached":
+                if str(exc) in {"window_wip_limit_reached", "aggregate_wip_limit_reached"}:
                     break
                 if str(exc) in {"window_token_budget_exhausted", "window_cost_budget_exhausted"}:
                     # Avoid preparing more unfunded work this tick. Later
@@ -625,31 +721,7 @@ class UnattendedCoordinator:
                     held.append(task_id)
                 self._last_error = str(exc)
                 continue
-            claimed[task_id] = epoch
-            if self._stop.is_set():
-                break
-        self._disk_waiting = tuple(disk_waiting)
-        if held:
-            # A fully held goal claims nothing, so post-execution escalation never
-            # runs for it: offer the held tasks to the rerouter here.
-            self._reroute_held(held)
-        if not claimed:
-            return recovered
-        if not self._begin_dispatch(background=background):
-            self._abandon_claimed_before_dispatch(
-                window_id=window.id,
-                claimed=claimed,
-                reason="coordinator_stop_requested_before_dispatch",
-            )
-            return 0
-        if background:
-            # The poller never blocks on a slow graph invocation. A later tick
-            # can claim a *different* task up to the persisted window WIP cap.
-            return recovered + (len(claimed) if self._launch_background_batch(window.id, claimed) else 0)
-        try:
-            return recovered + self._execute_claimed_batch(window_id=window.id, claimed=claimed)
-        finally:
-            self._finish_dispatch()
+            yield task_id, epoch
 
     def _begin_dispatch(self, *, background: bool = False) -> bool:
         """Linearize admissions against stop intent without holding the worker lock."""
@@ -689,6 +761,10 @@ class UnattendedCoordinator:
                 reason = "coordinator_stop_requested_before_dispatch"
             else:
                 self._batch_threads[thread] = len(claimed)
+                self._active_task_windows = {
+                    **{task_id: owner for task_id, owner in self._active_task_windows.items()
+                       if task_id in self._active_task_ids},
+                    **dict.fromkeys(claimed, window_id)}
                 for task_id, epoch in claimed.items():
                     self._active_task_epochs[task_id] = epoch
                     self._active_task_ids.add(task_id)
@@ -1022,7 +1098,7 @@ class UnattendedCoordinator:
         return disk
 
     def status(self) -> dict[str, Any]:
-        active = self.control_store.active_window()
+        active = [window.id for window in self.control_store.active_windows()]
         with self._lifecycle_lock:
             thread = self._thread
             alive = thread is not None and thread.is_alive()
@@ -1050,7 +1126,8 @@ class UnattendedCoordinator:
             "executions": self._executions,
             "last_error": self._last_error,
             "last_batch": dict(self._last_batch),
-            "active_window_id": active.id if active else "",
+            "active_window_id": active[-1] if active else "",
+            "active_window_ids": active,
             # Unfinished work whose window can no longer dispatch; only an explicit rebind moves it.
             "stranded_goals": list(self.control_store.stranded_goals()),
             "workspace_root": self.workspace_root,
@@ -1197,12 +1274,12 @@ class UnattendedCoordinator:
             )
         durable = self._durable_service()
         if task.status == "INTERRUPTED":
-            window = self.control_store.active_window()
-            if window is None or not self.autonomy.authorize(window_id=window.id,
+            window_id = self._execution_window_id(task_id)
+            if not window_id or not self.autonomy.authorize(window_id=window_id,
                     operation="resume_task", repository=task.repository, subject_id=task_id,
                     input_payload={"task_id": task_id, "status": task.status}):
                 raise TaskStoreError("quota_resume_authority_revoked")
-            self.control_store.check_strict_task_admission(window.id, task_id)
+            self.control_store.check_strict_task_admission(window_id, task_id)
             if task.orchestration_mode == "single":
                 return self._resume_interrupted_durable(
                     task_id, lambda tid: durable.resume_single(task_id=tid, lease_owner=self.owner))
@@ -1215,6 +1292,16 @@ class UnattendedCoordinator:
         return durable.execute_durable_sequential_team(
             task_id=task_id, workspace_root=self.workspace_root, lease_owner=self.owner
         )
+
+    def _execution_window_id(self, task_id: str) -> str:
+        """The window this attempt runs under: its claim's, else its Goal's; never just the newest."""
+        claim = getattr(self._claim_local, "claim", None)
+        if claim is not None and claim[1] == task_id:
+            return claim[0]
+        try:
+            return self.control_store.get_goal(self.control_store.goal_id_for_task(task_id)).window_id
+        except TaskStoreError:
+            return ""
 
     def _durable_service(self) -> DurableExecutionService:
         return DurableExecutionService(
