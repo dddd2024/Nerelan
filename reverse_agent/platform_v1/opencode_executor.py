@@ -245,11 +245,44 @@ _MAX_MODEL_ID_LENGTH = 128
 _MODEL_ID_RE = re.compile(r"^[A-Za-z0-9._:/@\-]{1,128}$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 
+# Non-secret OS user/temp location keys. On Windows, CPython derives its
+# user base from ``USERPROFILE`` (falling back to ``APPDATA``/``HOME``); a
+# child without any of them makes ``site.getusersitepackages()`` resolve to
+# the *literal* ``~`` directory, so a tooling install writes a ``~/...`` tree
+# inside the workspace the executor is editing and the artifact hygiene gate
+# rejects the patch. These are filesystem locations, never credentials.
+_BINDING_CHILD_ENV_LOCATION_ALLOWLIST = (
+    "USERPROFILE",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "HOME",
+)
+
 _BINDING_CHILD_ENV_ALLOWLIST = (
     "PATH",
     "SystemRoot",
     "PATHEXT",
-)
+) + _BINDING_CHILD_ENV_LOCATION_ALLOWLIST
+
+
+def _safe_child_env_value(value: object) -> str | None:
+    """Return a forwardable environment value, or None when it must be dropped.
+
+    A child environment value must be a non-empty string with no control
+    characters: ``subprocess`` raises an uncaught ``ValueError`` for values
+    containing NUL and control bytes corrupt paths. This is the single shared
+    validation used by every child-environment builder.
+    """
+    if not isinstance(value, str) or not value:
+        return None
+    if _CONTROL_RE.search(value):
+        return None
+    return value
 
 # Conservative Windows executable-extension default used only when the parent
 # environment supplies no usable PATHEXT value. PATHEXT is required for child
@@ -485,12 +518,18 @@ def build_role_child_env(
     copied from the parent, and role permissions are injected via
     OPENCODE_CONFIG_CONTENT. The OpenCode safety disable flags are
     injected regardless.
+
+    Both branches forward only explicit non-secret OS location keys and use
+    the same value validation, so a control character or an empty value in a
+    parent location variable can never reach ``subprocess`` launch. The
+    caller's own ``OPENCODE_CONFIG_CONTENT`` is never forwarded; the executor
+    always rebuilds it from the binding config plus the role permissions.
     """
     child: dict[str, str] = {}
     if existing_config:
         for key in _BINDING_CHILD_ENV_ALLOWLIST:
-            value = parent_env.get(key)
-            if isinstance(value, str) and value:
+            value = _safe_child_env_value(parent_env.get(key))
+            if value is not None:
                 child[key] = value
         _ensure_windows_pathext(child, parent_env)
         for key, value in _OPENCODE_DISABLE_ENV.items():
@@ -500,17 +539,14 @@ def build_role_child_env(
             child["OPENCODE_CONFIG_CONTENT"] = merged
     else:
         direct_env_allowlist = [
-            "PATH", "SystemRoot", "PATHEXT", "COMSPEC",
-            "TEMP", "TMP", "USERPROFILE", "LOCALAPPDATA", "APPDATA",
-            "HOME", "XDG_DATA_HOME", "XDG_CONFIG_HOME",
+            "PATH", "SystemRoot", "COMSPEC",
+            *_BINDING_CHILD_ENV_LOCATION_ALLOWLIST,
+            "XDG_DATA_HOME", "XDG_CONFIG_HOME",
         ]
         for key in direct_env_allowlist:
-            value = parent_env.get(key)
-            if not isinstance(value, str) or not value:
-                continue
-            if any(ord(ch) < 32 or ord(ch) == 127 for ch in value):
-                continue
-            child[key] = value
+            value = _safe_child_env_value(parent_env.get(key))
+            if value is not None:
+                child[key] = value
         _ensure_windows_pathext(child, parent_env)
         for key, value in _OPENCODE_DISABLE_ENV.items():
             child[key] = value
@@ -544,11 +580,17 @@ def build_binding_child_env(
     Fixed executor-chosen OpenCode safety flags are injected regardless of
     parent env. These disable unrelated network/plugin surfaces so the fake
     loopback relay/provider is the only inference network target.
+
+    Location keys (user profile, application data, temp) are forwarded because
+    a Windows child without them resolves its user site to the literal ``~``
+    directory and pollutes the workspace when a tooling install is attempted.
+    Values carrying control characters or empty values are dropped with the
+    same validation as the direct/role session path.
     """
     child: dict[str, str] = {}
     for key in _BINDING_CHILD_ENV_ALLOWLIST:
-        value = parent_env.get(key)
-        if isinstance(value, str) and value:
+        value = _safe_child_env_value(parent_env.get(key))
+        if value is not None:
             child[key] = value
     _ensure_windows_pathext(child, parent_env)
     for key, value in _OPENCODE_DISABLE_ENV.items():
