@@ -442,3 +442,58 @@ class TestSupervisorControl:
             {"goal_revision": a.revision - 1, "plan_task_id": "T0"}))
         step = self.ask(setup, state, "s0000009", {"action": "status", "goal_id": a.id})["result"]["goal"]["steps"][0]
         assert step == {"step": "T0", "task_id": "task-2", "status": "FAILED", "failure": "api_error_429", "tries": 3}
+
+
+class TestCliFollowUps:
+    @pytest.mark.parametrize("document", [[1, 2], "text", 7, None])
+    def test_a_result_that_is_not_an_object_is_reported_invalid(self, state, document):
+        import threading
+        import time
+        directory = state.parent / DIRECTORY
+        directory.mkdir(exist_ok=True)
+
+        def host():
+            while not list(directory.glob("*.request.json")):
+                time.sleep(0.01)
+            request = next(directory.glob("*.request.json"))
+            request.unlink()
+            name = request.name[:-len(".request.json")]
+            (directory / f"{name}.result.json").write_text(json.dumps(document), encoding="utf-8")
+        thread = threading.Thread(target=host)
+        thread.start()
+        answer = supervisor_requests.submit(state.parent, {"action": "status"}, wait_seconds=5, poll_seconds=0.05)
+        thread.join()
+        assert answer == {"ok": False, "error": "supervisor_result_invalid", "request_id": answer["request_id"]}
+        assert answer["request_id"]
+
+    def test_main_writes_utf8_whatever_the_console_code_page(self, state, monkeypatch):
+        import io
+        import sys
+        monkeypatch.setattr(supervisor_requests, "submit", lambda *args, **kwargs: {
+            "ok": True, "action": "status", "result": {"title": "中文 café"}})
+        raw = io.BytesIO()
+        console = io.TextIOWrapper(raw, encoding="gbk", errors="strict")
+        monkeypatch.setattr(sys, "stdout", console)
+        assert supervisor_requests.main(["--state-dir", str(state.parent), "status"]) == 0
+        console.flush()
+        assert json.loads(raw.getvalue().decode("utf-8"))["result"]["title"] == "中文 café"
+
+    def test_grace_flag_reaches_submit_and_is_not_sent_as_a_field(self, state, monkeypatch, capsys):
+        seen = {}
+
+        def fake_submit(state_dir, payload, **kwargs):
+            seen.update(payload=payload, **kwargs)
+            return {"ok": True, "action": "status"}
+        monkeypatch.setattr(supervisor_requests, "submit", fake_submit)
+        assert supervisor_requests.main(["--state-dir", str(state.parent), "--grace", "12.5", "status"]) == 0
+        assert seen["taken_grace_seconds"] == 12.5 and "grace" not in seen["payload"]
+        assert supervisor_requests.main(["--state-dir", str(state.parent), "status"]) == 0
+        assert seen["taken_grace_seconds"] == supervisor_requests.TAKEN_GRACE_SECONDS == 900.0
+
+    def test_write_atomic_removes_its_temporary_file_on_any_exception(self, tmp_path, monkeypatch):
+        def boom(*args):
+            raise RuntimeError("not an OSError")
+        monkeypatch.setattr(supervisor_requests.os, "replace", boom)
+        with pytest.raises(RuntimeError):
+            supervisor_requests._write_atomic(tmp_path / "x.json", {"ok": True})
+        assert list(tmp_path.iterdir()) == []
