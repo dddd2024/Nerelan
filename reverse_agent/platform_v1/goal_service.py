@@ -1624,6 +1624,12 @@ class GoalService:
             host_validation = (failed.status == "FAILED"
                                and failed.failure_classification == "deterministic_validation_failure"
                                and bool(cause))
+            if failed.status == "FAILED" and cause == "functional_check_not_run":
+                # #1505: the check runner itself could not run (zero tests, no verdict,
+                # e.g. the npm test command was never installed). No agent tier and no
+                # retry changes that, so the step parks for the Owner with its recorded
+                # reason instead of escalating or spending attempt budget.
+                continue
             if (all_results and not host_validation
                     and (not rows or structured.get("result_digest") != failed.validation_output_digest)):
                 continue

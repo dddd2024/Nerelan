@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import locale
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -481,6 +482,25 @@ def _feedback_text(value: Any, limit: int) -> str:
     return public_text(str(value or ""), limit)
 
 
+def _decode_output(data: bytes) -> str:
+    """Decode runner output: UTF-8 when valid, else the host console/ANSI code page.
+
+    A zh-CN Windows cmd.exe/npm prints in code page 936; a forced UTF-8 read
+    turns that message into replacement characters (#1505).
+    """
+    try:
+        return data.decode("utf-8")
+    except UnicodeDecodeError:
+        pass
+    fallback = locale.getpreferredencoding(False)
+    if os.name == "nt" and not fallback:
+        fallback = "mbcs"
+    try:
+        return data.decode(fallback or "utf-8", errors="replace")
+    except (LookupError, UnicodeDecodeError):
+        return data.decode("utf-8", errors="replace")
+
+
 def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
     counts = {"tests": 0, "passed": 0, "failed": 0, "skipped": 0}
     failures: list[dict[str, str]] = []
@@ -501,7 +521,7 @@ def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
                 if problem is not None and len(failures) < MAX_REPORTED_FAILURES:
                     failures.append(_failure_item(case, problem))
         else:
-            summary = tail.decode("utf-8", errors="replace")
+            summary = _decode_output(tail)
             observed = {key: int(value) for key, value in re.findall(
                 r"(?m)^# (tests|pass|fail|cancelled|skipped) (\d+)\s*$", summary)}
             if set(observed) != {"tests", "pass", "fail", "cancelled", "skipped"}:
@@ -536,8 +556,8 @@ def _test_report(kind: str, report: Path, tail: bytes) -> dict[str, Any]:
     if failures:
         result["failures"] = failures
     elif not result["accepted"] and tail:
-        result["output_tail"] = _feedback_text(tail.decode("utf-8", errors="replace")[-FEEDBACK_TAIL_CHARS:],
-                                               FEEDBACK_TAIL_CHARS * 4)
+        result["output_tail"] = _feedback_text(_decode_output(tail)[-FEEDBACK_TAIL_CHARS:],
+                                                FEEDBACK_TAIL_CHARS * 4)
     return result
 
 
@@ -706,6 +726,15 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
                 raise TaskStoreError("expected_red_missing:" + ",".join(red_missed["missing_expected_failures"])
                                      if red_missed["missing_expected_failures"] else
                                      "expected_red_unexpected:" + ",".join(red_missed["unexpected_failures"]))
+            # A check that exited non-zero while observing zero tests (or writing
+            # no report at all) never judged the patch: the runner itself could
+            # not run, e.g. the npm test command was never installed on the host
+            # (#1505). That is not a capability failure, and retry advice cannot
+            # help, so it gets its own honest reason.
+            if any(check.get("exit_code") not in (None, 0) and not check.get("timed_out")
+                   and (check.get("test_report") or {}).get("tests", 0) == 0
+                   for check in result["checks"]):
+                raise TaskStoreError("functional_check_not_run")
             raise TaskStoreError("functional_check_failed")
         result.update(passed=True, verified=task.executor_kind != "deterministic_fixture",
                       status="FIXTURE_VERIFIED" if task.executor_kind == "deterministic_fixture" else "VERIFIED")
@@ -736,8 +765,11 @@ def functional_feedback(result: Mapping[str, Any]) -> str:
         report = check.get("test_report") or {}
         targets = " ".join(check.get("targets", ())) or check.get("working_directory", ".")
         state = "timed out" if check.get("timed_out") else f"exit {check.get('exit_code')}"
+        not_run = (report.get("tests", 0) == 0 and check.get("exit_code") not in (None, 0)
+                   and not check.get("timed_out"))
         lines.append(f"{check.get('profile_id')} {targets}: {state}, "
                      f"{report.get('passed', 0)} passed, {report.get('failed', 0)} failed"
+                     + (" (no tests observed; the check could not run)" if not_run else "")
                      + (" (incomplete report; not accepted)" if check.get("timed_out") else ""))
         lines += [f"  FAILED {item['test']}: {item['message']}" for item in report.get("failures", ())]
         if report.get("output_tail"):
@@ -877,7 +909,9 @@ def run_task_validation(store: Any, task_id: str, *, worktree: str | Path, base_
         store._fenced_add_evidence(lease.run_id, task_id, **fields, owner=lease.owner, epoch=lease.epoch)
     if not result["passed"]:
         # The next attempt (retry or escalation) sees this through its context packet.
-        feedback = dict(event_type="VALIDATED", title="Functional check failed",
+        feedback = dict(event_type="VALIDATED",
+                        title="Functional check could not run" if result["reason"] == "functional_check_not_run"
+                        else "Functional check failed",
                         description=functional_feedback(result), metadata={"validation_result": identity})
         if lease is None:
             store.add_event(task_id, **feedback)

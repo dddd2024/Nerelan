@@ -65,8 +65,10 @@ HOST_PLUMBING_CLASSES = frozenset({
 _NONZERO_EXIT = re.compile(r"opencode_nonzero:exit=(\d+)")
 # Functional validation that failed before judging the model's patch: the attempt was
 # prepared on a base other than the contract's (#1526 host bug), outside the worktree
-# root, or the host could not read its own contract or observation.
-HOST_VALIDATION_DETAILS = frozenset({"functional_base_mismatch", "functional_worktree_root_required"})
+# root, the host could not read its own contract or observation, or the check runner
+# itself could not run at all (#1505).
+HOST_VALIDATION_DETAILS = frozenset({"functional_base_mismatch", "functional_worktree_root_required",
+                                     "functional_check_not_run"})
 HOST_VALIDATION_PREFIXES = ("functional_contract_", "functional_observation_failed:", "host_validation_contract_")
 
 

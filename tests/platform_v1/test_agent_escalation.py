@@ -144,6 +144,25 @@ def test_provider_quota_limit_blocks_without_escalation_or_a_connection_hold(mon
     assert control.get_goal(goal.id).status == "BLOCKED"  # parked for the Owner, not escalated
 
 
+def test_a_check_that_could_not_run_parks_for_the_owner(monkeypatch):
+    # #1505: the npm test runner was never installed, so the check observed zero tests
+    # and judged nothing. A stronger agent and a retry both hit the same missing runner:
+    # the step parks with its recorded reason instead of escalating or spending budget.
+    store, control, goals, goal = _launched(monkeypatch)
+    first = _link(control, goal.id, "T001")["task_id"]
+    store._conn.execute(
+        "UPDATE tasks SET status = 'FAILED', failure_classification = 'deterministic_validation_failure', "
+        "failure_detail = 'functional_check_not_run' WHERE id = ?", (first,))
+    store._conn.commit()
+    assert goals.escalate_failed_tasks(goal.id) == ()
+    assert store._conn.execute("SELECT COUNT(*) FROM tasks").fetchone()[0] == 2  # no replacement task
+    assert control.list_task_escalations(goal.id) == ()
+    assert _link(control, goal.id, "T001")["task_id"] == first
+    assert store.get_task(first).status == "FAILED"
+    control.refresh_goal_status(goal.id)
+    assert control.get_goal(goal.id).status == "BLOCKED"  # parked for the Owner, not escalated
+
+
 @pytest.mark.parametrize("status", ["BLOCKED", "CANCELLED"])
 def test_blocked_and_cancelled_tasks_never_escalate(monkeypatch, status):
     store, control, goals, goal = _launched(monkeypatch)

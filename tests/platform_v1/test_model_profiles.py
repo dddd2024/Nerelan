@@ -301,6 +301,8 @@ def test_billing_error_is_not_counted_as_a_model_failure(status, message):
     ("claude_code_frame_limit_exceeded", "", "claude_code_frame_limit_exceeded"),
     ("deterministic_validation_failure", "functional_base_mismatch", "functional_base_mismatch"),
     ("deterministic_validation_failure", "functional_worktree_root_required", "functional_worktree_root_required"),
+    # #1505: the check runner itself could not run; not the model's failure.
+    ("deterministic_validation_failure", "functional_check_not_run", "functional_check_not_run"),
     ("deterministic_validation_failure", "functional_contract_invalid_or_stale", "functional_contract_invalid_or_stale"),
     ("deterministic_validation_failure", "functional_observation_failed:OSError", "functional_observation_failed"),
     # 2026-11-19 live (#1551): host-side failures that had spent the goal's max_retries.

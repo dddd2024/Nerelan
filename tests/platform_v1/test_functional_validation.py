@@ -200,14 +200,57 @@ def test_windows_ssh_version_runs_under_sanitized_child_environment(tmp_path, mo
     assert "OpenSSH" in output
 
 
-@pytest.mark.parametrize("test_code", ["# no tests\n", "import pytest\n@pytest.mark.skip(reason='fixture')\ndef test_skipped(): pass\n"])
-def test_no_executed_tests_cannot_verify(implementation, test_code):
+@pytest.mark.parametrize("test_code,reason", [
+    # Zero tests collected and a non-zero exit: the runner judged nothing, so the
+    # check could not run (#1505); a skipped test was observed and merely did not pass.
+    ("# no tests\n", "functional_check_not_run"),
+    ("import pytest\n@pytest.mark.skip(reason='fixture')\ndef test_skipped(): pass\n", "functional_check_failed"),
+])
+def test_no_executed_tests_cannot_verify(implementation, test_code, reason):
     root, *_ = implementation
     (root / "app.py").write_text("value = 2\n", encoding="utf-8")
     (root / "test_app.py").write_text(test_code, encoding="utf-8")
     result = validate(implementation)
-    assert result["verified"] is False and result["reason"] == "functional_check_failed"
+    assert result["verified"] is False and result["reason"] == reason
     assert result["checks"][0]["test_report"]["passed"] == 0
+
+
+def test_a_check_that_could_not_run_is_not_a_failed_check(implementation):
+    # #1505: the runner exited non-zero having observed zero tests. Reporting that as
+    # functional_check_failed claims the code failed and suggests a retry that cannot
+    # help; the reason, feedback line and event title must all say it could not run.
+    root, base, store, task_id = implementation
+    (root / "app.py").write_text("value = 2\n", encoding="utf-8")
+    (root / "test_app.py").write_text("# no tests\n", encoding="utf-8")
+    command, code, reason, _ = fv.run_task_validation(store, task_id, worktree=root, base_commit=base,
+                                                      execution_id="run-not-run")
+    assert (command, code, reason) == (fv.FUNCTIONAL_COMMAND_ID, 1, "functional_check_not_run")
+    result = fv.validate_functional(store.get_task(task_id), worktree=root, base_commit=base,
+                                    execution_id="run-not-run")
+    assert result["failure_kind"] == "host_observation"
+    [event] = [item for item in store.get_task(task_id).events
+               if item["title"] == "Functional check could not run"]
+    assert "Reason: functional_check_not_run" in event["description"]
+    assert "no tests observed; the check could not run" in event["description"]
+
+
+def test_output_decodes_utf8_first_and_falls_back_to_the_host_console_code_page(monkeypatch):
+    assert fv._decode_output("all fine\n".encode("utf-8")) == "all fine\n"
+    monkeypatch.setattr(fv.locale, "getpreferredencoding", lambda do_setlocale=True: "gbk")
+    # zh-CN cmd.exe prints "'vitest' is not an internal or external command" in code
+    # page 936; a forced UTF-8 read turns it into replacement characters (#1505).
+    tail = "'vitest' 不是内部或外部命令。".encode("gbk")
+    assert fv._decode_output(tail) == "'vitest' 不是内部或外部命令。"
+
+
+def test_tap_report_keeps_host_code_page_output_tail(monkeypatch):
+    monkeypatch.setattr(fv.locale, "getpreferredencoding", lambda do_setlocale=True: "gbk")
+    tail = ("TAP version 13\n1..0\n# 失败的输出信息\n"
+            "# tests 0\n# pass 0\n# fail 0\n# cancelled 0\n# skipped 0\n").encode("gbk")
+    report = fv._test_report("tap", Path("nonexistent-report"), tail)
+    assert report["accepted"] is False and report["tests"] == 0
+    assert "失败的输出信息" in report["output_tail"]
+    assert "\ufffd" not in report["output_tail"]
 
 
 def test_npm_echo_success_is_not_a_test_run(tmp_path):
