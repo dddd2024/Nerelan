@@ -16,7 +16,7 @@ import time
 from statistics import median
 from typing import Any
 
-from .model_availability import EXECUTOR_TERMINATED, transient_overload
+from .model_availability import EXECUTOR_TERMINATED, no_credits_error, transient_overload
 
 from .durable_execution import DEFAULT_EXECUTOR_TIMEOUT_SECONDS, MAX_EXECUTOR_TIMEOUT_SECONDS
 
@@ -116,6 +116,16 @@ def compute_agent_profiles(store: Any, *, limit: int = 500) -> dict[str, dict[st
             # keep only the tokens the attempt already spent.
             profile["observed_tokens"] += tokens.get(row["id"], 0)
             profile["provider_quota_limited"] = profile.get("provider_quota_limited", 0) + 1
+            continue
+        detail = row["failure_detail"] or ""
+        if (status == "FAILED" and classification.split(":", 1)[0] == "quota_exhausted"
+                and (no_credits_error(detail)
+                     or "status=402" in detail.partition("message=")[0].split())):
+            # Billing refusal is availability evidence. Preserve measured usage,
+            # but exclude it before capability, content and difficulty counts.
+            # Only the diagnostic's status field, not a quoted message, proves 402.
+            profile["observed_tokens"] += tokens.get(row["id"], 0)
+            profile["billing_refused"] = profile.get("billing_refused", 0) + 1
             continue
         content = contents.get(row["id"], "code")
         refused = row["id"] in refused_tasks or classification in {"model_refused", "no_willing_model"}

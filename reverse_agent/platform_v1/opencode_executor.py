@@ -3695,6 +3695,10 @@ def _classify_exit(
                 if _QUOTA_EXHAUSTED_RE.search(text):
                     return "quota_exhausted"
                 return "api_error_429"
+            # HTTP 402 Payment Required is a billing answer, never a rate limit:
+            # the upstream account has no credits left to pay for the call.
+            if status == 402:
+                return "quota_exhausted"
             if status in (401, 403):
                 return "auth_provider_route_failure"
             if status in (503, 529):
@@ -3732,7 +3736,18 @@ _QUOTA_EXHAUSTED_RE = re.compile(
     # A used-up token/coding plan answers HTTP 429 like a rate limit, but it
     # does not recover in seconds (#1497).
     r"(?:plan\s+)?entitlement\s+(?:is\s+|has\s+been\s+)?exhausted|"
-    r"plan\s+(?:is\s+|has\s+been\s+)?exhausted)\b",
+    r"plan\s+(?:is\s+|has\s+been\s+)?exhausted|"
+    # Billing answers are exhaustion too, not a rate limit: OpenRouter answers
+    # 402 "Insufficient credits", WorkBuddy answers 429 "Credits exhausted".
+    # Wording that names credits or a balance is the signal; a bare 429 stays a
+    # rate limit (#1525).
+    r"insufficient[_ -]?credits?|"
+    r"credits?[_ -]?(?:exhausted|exceeded|depleted|used[_ -]?up|spent|gone|lacking|insufficient)|"
+    r"exhausted[_ -]?credits?|"
+    r"(?:out\s+of|ran\s+out\s+of|not\s+enough|no)\s+credits?|"
+    r"credits?\s+(?:are\s+|is\s+|have\s+been\s+|has\s+been\s+)?(?:exhausted|depleted|exceeded|used\s+up|spent|gone|empty)|"
+    r"insufficient[_ -]?balance|"
+    r"balance\s+(?:is\s+|has\s+been\s+)?(?:insufficient|exhausted|depleted|too\s+low))\b",
     re.IGNORECASE,
 )
 # One exact structured message names a provider-side quota limit. Only that
