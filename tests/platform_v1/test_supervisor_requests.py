@@ -442,3 +442,68 @@ class TestSupervisorControl:
             {"goal_revision": a.revision - 1, "plan_task_id": "T0"}))
         step = self.ask(setup, state, "s0000009", {"action": "status", "goal_id": a.id})["result"]["goal"]["steps"][0]
         assert step == {"step": "T0", "task_id": "task-2", "status": "FAILED", "failure": "api_error_429", "tries": 3}
+
+
+class TestCliFollowUps:
+    """Issue #1438: non-object result, UTF-8 output, any-exception cleanup and ``--grace``."""
+
+    @pytest.mark.parametrize("document", [[1, 2], "text", 7, None, True])
+    def test_a_non_object_result_is_reported_as_invalid(self, state, document):
+        import threading
+        import time
+        directory = state.parent / DIRECTORY
+        directory.mkdir()
+
+        def host_writes_non_object():
+            while not list(directory.glob("*.request.json")):
+                time.sleep(0.01)
+            request = next(directory.glob("*.request.json"))
+            request.unlink()
+            name = request.name[:-len(".request.json")]
+            (directory / f"{name}.result.json").write_text(json.dumps(document), encoding="utf-8")
+
+        thread = threading.Thread(target=host_writes_non_object)
+        thread.start()
+        answer = supervisor_requests.submit(state.parent, {"action": "preflight"}, wait_seconds=5,
+                                            poll_seconds=0.02)
+        thread.join()
+        assert answer["ok"] is False and answer["error"] == "supervisor_result_invalid"
+        assert answer["request_id"] and set(answer) == {"ok", "error", "request_id"}
+
+    def test_main_writes_utf8_even_when_stdout_is_gbk(self, tmp_path, monkeypatch):
+        import io
+        import sys
+        answer = {"ok": True, "action": "preflight", "result": {"note": "h\u00e9llo \u4e16\u754c"}}
+        monkeypatch.setattr(supervisor_requests, "submit", lambda *args, **kwargs: answer)
+        raw = io.BytesIO()
+        stdout = io.TextIOWrapper(raw, encoding="gbk")
+        monkeypatch.setattr(sys, "stdout", stdout)
+        code = supervisor_requests.main(
+            ["--state-dir", str(tmp_path), "preflight", "--preset", "day", "--goal", "g1"])
+        assert code == 0
+        assert json.loads(raw.getvalue().decode("utf-8")) == answer
+
+    def test_main_defaults_the_grace_period_and_accepts_the_flag(self, tmp_path, monkeypatch):
+        import io
+        import sys
+        seen = {}
+
+        def fake_submit(state_dir, payload, **kwargs):
+            seen.update(kwargs)
+            return {"ok": True, "action": "status"}
+
+        monkeypatch.setattr(supervisor_requests, "submit", fake_submit)
+        monkeypatch.setattr(sys, "stdout", io.StringIO())
+        supervisor_requests.main(["--state-dir", str(tmp_path), "status"])
+        assert seen["taken_grace_seconds"] == supervisor_requests.TAKEN_GRACE_SECONDS == 900.0
+        supervisor_requests.main(["--state-dir", str(tmp_path), "--grace", "12.5", "status"])
+        assert seen["taken_grace_seconds"] == 12.5
+
+    def test_a_failed_write_removes_the_temp_file_on_any_exception(self, tmp_path, monkeypatch):
+        def fail(*args, **kwargs):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(supervisor_requests.os, "replace", fail)
+        with pytest.raises(RuntimeError, match="boom"):
+            supervisor_requests._write_atomic(tmp_path / "doc.json", {"a": 1})
+        assert list(tmp_path.glob("*.tmp")) == []
