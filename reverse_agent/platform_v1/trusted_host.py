@@ -615,7 +615,7 @@ class CombinedTrustedHost:
                             author_binding: str = "", author_bindings: Sequence[str] = (),
                             author_models: Sequence[str] = (), author_executors: Sequence[str] = (), failed_tier: int | None = None,
                             refused_models: Sequence[str] = (), forecast: bool = False, quota_evidence: Mapping[str, Any] | None = None,
-                            probe_availability: bool = True) -> dict[str, Any]:
+                            probe_availability: bool = True, availability_snapshot: Any = None) -> dict[str, Any]:
         """Route across the entire runnable catalog, including discovered connections."""
         if (task.kind == "review" or task.agent_role == "reviewer") and task.artifact_input is None:
             raise TaskStoreError("model_review_artifact_input_required")
@@ -657,6 +657,8 @@ class CombinedTrustedHost:
         metadata = self._routing_model_metadata()
         allow_paid = self._routing_paid_allowed(goal, owner)
         availability_history = self._routing_availability_history()
+        if forecast and availability_snapshot is None:
+            availability_snapshot = self._forecast_availability_snapshot()
         paced_providers = set(weekly_pace_config(owner).get("providers", ()))
         from .resource_allowances import effective_cost
         allowances = self._resource_allowances(refresh=not forecast)
@@ -741,6 +743,7 @@ class CombinedTrustedHost:
                 cost_class=cost_class, readonly=forecast,
                 probe_allowed=probe_availability and not forecast and can_probe and self._routing_probe_window_allowed(goal),
                 history=availability_history.get(binding["binding_id"], ()),
+                availability_snapshot=availability_snapshot,
                 runnable=binding["binding_id"] in runnable)
             candidates.append(candidate)
         # Legacy labels only identify optional pins; unpinned tasks use the full pool.
@@ -830,11 +833,27 @@ class CombinedTrustedHost:
             result.setdefault(row["binding_ref"], []).append(row)
         return result
 
+    def _forecast_availability_snapshot(self):
+        """One disposable availability view for every binding/task in a forecast."""
+        from copy import deepcopy
+        from .model_availability import AvailabilityCache
+        cache = getattr(self, "_availability_cache", None)
+        if cache is None:
+            path = getattr(self._store, "_state_path", None)
+            cache = AvailabilityCache(Path(path).with_name("model_availability.json") if path else None)
+        snapshot = AvailabilityCache()
+        with cache.lock:
+            snapshot.entries = deepcopy(cache.entries)
+        return snapshot
+
     def _routing_availability(self, binding: Mapping[str, Any], connection: Mapping[str, Any], *,
                               allow_paid: bool, cost_class: str, probe_allowed: bool = True,
-                              history: Sequence[Any] | None = None, runnable: bool | None = None, readonly: bool = False) -> dict[str, Any]:
+                              history: Sequence[Any] | None = None, runnable: bool | None = None, readonly: bool = False,
+                              availability_snapshot: Any = None) -> dict[str, Any]:
         from .model_availability import AvailabilityCache, observation, native_owner_account
         cache = getattr(self, "_availability_cache", None)
+        if readonly:
+            cache = availability_snapshot if availability_snapshot is not None else self._forecast_availability_snapshot()
         if cache is None:
             path = getattr(self._store, "_state_path", None)
             cache = AvailabilityCache(Path(path).with_name("model_availability.json") if path else None)
@@ -842,11 +861,6 @@ class CombinedTrustedHost:
                 self._availability_cache = cache
         if readonly:
             # Replay evidence in a disposable cache; remember() must never persist it.
-            from copy import deepcopy
-            snapshot = AvailabilityCache()
-            with cache.lock:
-                snapshot.entries = deepcopy(cache.entries)
-            cache = snapshot
             probe_allowed = False
         if history is None:
             history = self._routing_availability_history().get(binding["binding_id"], ())
@@ -1005,11 +1019,13 @@ class CombinedTrustedHost:
         routed = []
         alternatives = []
         chosen = {}
+        availability_snapshot = self._forecast_availability_snapshot() if goal.orchestration_mode == "agent_team" else None
         for task in tasks:
             try:
                 if goal.orchestration_mode == "agent_team":
                     ancestry = self._goal_service._review_ancestry(task, {t.id: t for t in tasks})
                     decision = self._resolve_task_model(task, goal=goal, forecast=True,
+                        quota_evidence=evidence, availability_snapshot=availability_snapshot,
                         author_models=tuple(chosen[a]["model_id"] for a in ancestry if a in chosen))
                     binding_id = decision["binding_ref"]
                     chosen[task.id] = decision

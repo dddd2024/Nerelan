@@ -8,6 +8,9 @@ truth.  Planning is deterministic and editable; it makes no model call.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, replace
+from collections import OrderedDict
+from copy import deepcopy
+import threading
 import os
 import re
 import json
@@ -38,6 +41,8 @@ from .run_read_model import publication_projection
 
 _INITIAL_WAIT = "initial_resource_wait"
 INITIAL_MODEL_RECHECK_SECONDS = 60.0
+GOAL_FORECAST_TTL_SECONDS = 10.0
+_GOAL_FORECAST_CACHE_LIMIT = 128
 
 
 def _initial_resource_wait(decision: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -214,6 +219,9 @@ class GoalService:
         self.roster_resolver = roster_resolver
         self.task_resolver = task_resolver
         self.quota_forecaster = quota_forecaster
+        self._forecast_lock = threading.Lock()
+        self._forecast_cache: OrderedDict[tuple[str, int], tuple[float, dict[str, Any]]] = OrderedDict()
+        self._forecast_inflight: set[tuple[str, int]] = set()
         # Seam C (account-aware reroute guard): both are optional. When either is
         # None the guard is a no-op pass-through, so behaviour is unchanged.
         # ``account_status_provider`` yields live ``AccountStatus`` for the pool;
@@ -1494,14 +1502,38 @@ class GoalService:
 
         The quota forecast routes every task across the whole binding catalog.
         Lists are polled, so they carry ``quota_fit: None``; the detail view
-        computes the forecast after the store lock is released, so a slow
-        forecast can never hold up task execution.
+        caches forecasts by revision after the store lock is released. Polls
+        overlapping a refresh return the previous same-revision forecast (or
+        None on a cold cache) instead of waiting behind a slow forecast.
         """
 
         response, goal = self._locked_snapshot(goal_id)
         if forecast and goal.tasks:
-            response["quota_fit"] = self._quota_fit(goal, self._normalize_tasks(goal.tasks))
+            response["quota_fit"] = self._cached_quota_fit(goal)
         return response
+
+    def _cached_quota_fit(self, goal: GoalRecord) -> dict[str, Any] | None:
+        key = (goal.id, goal.revision)
+        with self._forecast_lock:
+            cached = self._forecast_cache.get(key)
+            if cached is not None:
+                self._forecast_cache.move_to_end(key)
+            if (cached is not None and time.monotonic() - cached[0] < GOAL_FORECAST_TTL_SECONDS
+                    or key in self._forecast_inflight):
+                return deepcopy(cached[1]) if cached else None
+            self._forecast_inflight.add(key)
+        try:
+            fit = dict(self._quota_fit(goal, self._normalize_tasks(goal.tasks)))
+            fit["computed_at"] = time.time()
+            with self._forecast_lock:
+                self._forecast_cache[key] = (time.monotonic(), deepcopy(fit))
+                self._forecast_cache.move_to_end(key)
+                while len(self._forecast_cache) > _GOAL_FORECAST_CACHE_LIMIT:
+                    self._forecast_cache.popitem(last=False)
+            return fit
+        finally:
+            with self._forecast_lock:
+                self._forecast_inflight.discard(key)
 
     def _locked_snapshot(self, goal_id: str) -> tuple[dict[str, Any], GoalRecord]:
         with self.store._lock:
