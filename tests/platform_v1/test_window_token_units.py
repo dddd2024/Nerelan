@@ -12,7 +12,7 @@ from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
 from reverse_agent.platform_v1.control_store import PlatformControlStore
 from reverse_agent.platform_v1.run_store import TaskStore, TaskStoreError
 from reverse_agent.platform_v1.usage_ledger import cost_equivalent_units
-from reverse_agent.platform_v1.window_report import build_report
+from reverse_agent.platform_v1.window_report import build_report, render_markdown
 
 from tests.platform_v1.test_unattended_coordinator import _budget_window
 
@@ -109,6 +109,7 @@ def test_a_window_is_charged_cost_equivalent_units_not_the_raw_sum():
     assert (reservation["state"], reservation["observed_token_units"]) == ("RECONCILED", 11_500)
     summary = control.window_budget_summary(window.id)
     assert summary["remaining_token_units"] == 8_500
+    assert (summary["observed_token_units"], summary["raw_token_units"]) == (11_500, 101_500)
     raw = store._conn.execute(
         "SELECT input_units, cache_read_units, output_units FROM task_usage_observations "
         "WHERE task_id=?", (task.id,)).fetchone()
@@ -232,3 +233,26 @@ def test_the_window_report_shows_both_cost_equivalent_and_raw_totals(tmp_path):
     binding = report["bindings"][""]
     assert binding["total_tokens"] == 101_500
     assert binding["cost_equivalent_tokens"] == 11_500
+    markdown = render_markdown(report)
+    assert "(计费等效): 11500" in markdown
+    assert "(原始总量): 101500" in markdown
+
+
+def test_the_report_raw_total_keeps_partial_readings():
+    store, control, window, _ = _charged_window(
+        max_tokens=1_000_000, reservation=11_000, key="report-partial",
+        status="PARTIAL", owner_window=True)
+    charged = build_report(control, store, window.id)["window"]
+    assert charged["observed_token_units"] == 11_500
+    assert charged["raw_token_units"] == 101_500
+    assert charged["unknown_observation_count"] == 1
+    assert control.window_budget_summary(window.id)["raw_token_units"] == 101_500
+
+
+def test_an_unknown_observation_adds_no_measured_tokens_and_stays_counted_unknown():
+    store, control, window, _ = _charged_window(
+        max_tokens=1_000_000, reservation=11_000, key="report-unknown",
+        status="UNKNOWN", owner_window=True)
+    charged = build_report(control, store, window.id)["window"]
+    assert charged["raw_token_units"] == 0
+    assert charged["unknown_observation_count"] == 1

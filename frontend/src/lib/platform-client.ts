@@ -338,6 +338,7 @@ export interface PlatformBudgetSummary {
   reserved_token_units: number;
   reserved_cost_micro_units: number;
   observed_token_units: number;
+  raw_token_units?: number;
   observed_cost_micro_units: number;
   remaining_token_units: number | null;
   remaining_cost_micro_units: number | null;

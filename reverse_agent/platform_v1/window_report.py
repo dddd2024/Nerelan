@@ -108,12 +108,13 @@ _USAGE_COUNTERS = ("input_units", "cache_read_units", "cache_write_units",
 
 
 def _window_usage_rows(task_store: TaskStore, window_id: str) -> list[dict[str, Any]]:
+    """Rows with measured counters; PARTIAL ones (every Codex and Claude turn) count what they say."""
     conn = task_store._conn
     try:
         rows = conn.execute(
             "SELECT task_id, source_kind, status, input_units, cache_read_units, "
             "cache_write_units, output_units, reasoning_units "
-            "FROM task_usage_observations WHERE window_id = ? AND status = 'OBSERVED'",
+            "FROM task_usage_observations WHERE window_id = ? AND status IN ('OBSERVED', 'PARTIAL')",
             (window_id,),
         ).fetchall()
     except Exception:
@@ -128,7 +129,8 @@ def _window_task_tokens(task_store: TaskStore, window_id: str) -> dict[str, dict
     for row in _window_usage_rows(task_store, window_id):
         entry = totals.setdefault(str(row["task_id"]), {"raw": 0, "cost_equivalent": 0})
         entry["raw"] += sum(int(row[key] or 0) for key in _USAGE_COUNTERS)
-        entry["cost_equivalent"] += cost_equivalent_units(row) or 0
+        # A PARTIAL row counts its measured part; the window's unknown count marks the rest.
+        entry["cost_equivalent"] += cost_equivalent_units(row, unknown_as_zero=True) or 0
     return totals
 
 
@@ -165,8 +167,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     lines.append(f"- stop_reason: {window.get('stop_reason', '')}")
     lines.append(f"- starts_at: {window.get('starts_at', '')}")
     lines.append(f"- expires_at: {window.get('expires_at', '')}")
-    lines.append(f"- observed_token_units: {window.get('observed_token_units', 0)}")
-    lines.append(f"- raw_token_units: {window.get('raw_token_units', 0)}")
+    lines.append(f"- observed_token_units (计费等效): {window.get('observed_token_units', 0)}")
+    lines.append(f"- raw_token_units (原始总量): {window.get('raw_token_units', 0)}")
     counters = window.get("raw_token_counters") or {}
     lines.append("- raw_token_counters: " + ", ".join(
         f"{key}={counters.get(key, 0)}" for key in (

@@ -3135,6 +3135,14 @@ class PlatformControlStore:
                 # An Owner window has already charged its UNKNOWN reservations as usage.
                 (window_id, window.confirmation_mode != OWNER_WINDOW_MODE),
             ).fetchone()
+            # The unweighted counters beside the cost-equivalent charge (#1504).
+            raw = self._conn.execute(
+                "SELECT COALESCE(SUM(COALESCE(input_units, 0) + COALESCE(output_units, 0) "
+                "+ COALESCE(reasoning_units, 0) + COALESCE(cache_read_units, 0) "
+                "+ COALESCE(cache_write_units, 0)), 0) AS token_units "
+                "FROM task_usage_observations WHERE window_id = ?",
+                (window_id,),
+            ).fetchone()
         reserved_tokens = int(active["token_units"])
         reserved_cost = int(active["cost_units"])
         return {
@@ -3147,6 +3155,7 @@ class PlatformControlStore:
             "reserved_token_units": reserved_tokens,
             "reserved_cost_micro_units": reserved_cost,
             "observed_token_units": window.observed_token_units,
+            "raw_token_units": int(raw["token_units"]),
             "observed_cost_micro_units": window.observed_cost_micro_units,
             "remaining_token_units": (
                 max(0, window.max_token_units - window.observed_token_units - reserved_tokens)

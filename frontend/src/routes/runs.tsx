@@ -782,7 +782,7 @@ function RunCard({ run, defaultOpen = false }: { run: PlatformAgentRun; defaultO
           <div className="mt-3" data-testid={`run-budget-${run.task_id}`}>
             <div className="mb-1 flex justify-between text-xs text-ra-text-tertiary">
               <span>执行窗口的 Token 预算</span>
-              <span title={`${formatUnits(run.budget.observed_token_units + run.budget.reserved_token_units)} / ${formatUnits(run.budget.max_token_units)}（已用 + 本任务预留）`}>
+              <span title={`${formatUnits(run.budget.observed_token_units + run.budget.reserved_token_units)} / ${formatUnits(run.budget.max_token_units)}（计费等效：已用 + 本任务预留）${run.budget.raw_token_units === undefined ? "" : `；原始总量 ${formatUnits(run.budget.raw_token_units)}`}`}>
                 已用约 {Math.max(run.budget.observed_token_units + run.budget.reserved_token_units > 0 ? 1 : 0, Math.round(((run.budget.observed_token_units + run.budget.reserved_token_units) / Math.max(1, run.budget.max_token_units)) * 100))}%
               </span>
             </div>
