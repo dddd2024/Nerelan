@@ -626,9 +626,9 @@ class _HeartbeatContext:
 # ---------------------------------------------------------------------------
 
 
-# One agent turn may run this long. Free models are slow: 300 s timed out every free-model task
-# in the first real team runs. Trusted host configuration only (never a request field); it stays
-# bounded at one hour. Nerelan enforces the deadline and renews the coordinator claim.
+# Trusted host configuration only (never a request field), bounded at one hour.
+# OpenCode uses this as a no-progress interval: productive roles may run longer.
+# Other adapters retain their own timeout semantics.
 DEFAULT_EXECUTOR_TIMEOUT_SECONDS = 600
 MAX_EXECUTOR_TIMEOUT_SECONDS = 3600
 
@@ -2464,8 +2464,8 @@ class DurableExecutionService:
         kwargs: dict[str, Any] = {}
         artifact_input = load_input_binding(self.store.get_task(task.id))
         timeout = executor_timeout_seconds()
-        # A binding whose real turns run longer (a slow but productive model) gets the turn it
-        # needs, never more than the host maximum; a fast one keeps the host default.
+        # Slow bindings keep their learned allowance, up to the host maximum.
+        # For OpenCode this is an idle allowance, not a total-duration deadline.
         # An explicitly configured host timeout is a fixed value, never raised by learning.
         from .model_profiles import recommended_timeout_seconds
         explicit = bool(os.environ.get("REVERSE_AGENT_EXECUTOR_TIMEOUT_SECONDS", "").strip())

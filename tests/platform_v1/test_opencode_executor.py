@@ -3567,3 +3567,58 @@ def test_artifact_file_is_safe_fails_closed_on_permissionerror(tmp_path, monkeyp
     file = source / "a.py"
     file.write_text("pass\n", encoding="utf-8")
     assert _artifact_file_is_safe(tmp_path, file) is False
+
+
+@needs_real_interpreter
+@pytest.mark.parametrize("channel", ["stdout", "stderr"])
+@pytest.mark.parametrize("stall_seconds", [None, 0.4])
+def test_idle_timeout_allows_productive_long_cli(tmp_path, channel, stall_seconds):
+    """Output renews the guard even after the retained buffer is full."""
+    import reverse_agent.platform_v1.opencode_executor as exec_mod
+
+    # Keep capture bounded while exercising continued pipe draining.
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(exec_mod, "_OWNED_STDOUT_BOUND_BYTES", 8)
+        patch.setattr(exec_mod, "_OWNED_STDERR_BOUND_BYTES", 8)
+        result = _run_owned_cli_process(
+            [sys.executable, "-u", "-c",
+             "import sys,time\n"
+             f"stream=sys.{channel}\n"
+             "for i in range(12):\n"
+             " stream.write('progress %s\\n' % i); stream.flush(); time.sleep(0.1)\n"],
+            cwd=str(tmp_path), env={}, timeout=0.6,
+            stall_seconds=stall_seconds, poll_seconds=0.02,
+        )
+    assert result.returncode == 0
+    assert not result.timed_out
+    assert result.cleanup_confirmed
+    assert result.output_truncated
+    assert len(result.stdout if channel == "stdout" else result.stderr) == 8
+
+
+@needs_real_interpreter
+@pytest.mark.parametrize("stall_seconds,stalled", [(None, False), (0.2, True)])
+def test_idle_timeout_stops_cli_after_progress_ceases(tmp_path, stall_seconds, stalled):
+    result = _run_owned_cli_process(
+        [sys.executable, "-u", "-c",
+         "import time\nprint('partial progress', flush=True)\ntime.sleep(10)"],
+        cwd=str(tmp_path), env={}, timeout=0.6,
+        stall_seconds=stall_seconds, poll_seconds=0.02,
+    )
+    assert result.timed_out
+    assert result.stalled is stalled
+    assert result.cleanup_confirmed
+    assert "partial progress" in result.stdout
+
+
+@needs_real_interpreter
+def test_idle_timeout_stops_cli_without_initial_output(tmp_path):
+    result = _run_owned_cli_process(
+        [sys.executable, "-c", "import time; time.sleep(10)"],
+        cwd=str(tmp_path), env={}, timeout=0.3,
+        stall_seconds=None, poll_seconds=0.02,
+    )
+    assert result.timed_out
+    assert not result.stalled
+    assert result.cleanup_confirmed
+    assert not result.stdout

@@ -54,6 +54,43 @@ from reverse_agent.platform_v1.task_execution import (
 from reverse_agent.platform_v1.task_runtime import ExecutorRouter
 
 
+class TestOpenCodeIdleTimeout:
+    @pytest.fixture(autouse=True)
+    def _setup_repo_dir(self):
+        """These kwargs-only tests need no filesystem repository or commits."""
+
+    @pytest.mark.parametrize("transport", ["cli", "server"])
+    @pytest.mark.parametrize("raw,learned,expected", [
+        ("", None, 600), ("", 900, 900), ("", 9999, 3600),
+        ("3000", 3600, 3000), ("9999", None, 3600),
+    ])
+    def test_idle_timeout_retains_host_override_and_learned_allowance(
+        self, monkeypatch, transport, raw, learned, expected
+    ):
+        from reverse_agent.platform_v1 import model_profiles
+
+        monkeypatch.setenv("REVERSE_AGENT_EXECUTOR_TIMEOUT_SECONDS", raw)
+        monkeypatch.setenv("REVERSE_AGENT_OPENCODE_TRANSPORT", transport)
+        monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", "")
+
+        def learned_allowance(*args):
+            assert not raw, "Explicit host configuration must take precedence"
+            return learned
+
+        monkeypatch.setattr(model_profiles, "recommended_timeout_seconds", learned_allowance)
+        store = TaskStore(":memory:")
+        try:
+            task = store.create_task(title="long task", executor_kind="opencode")
+            service = DurableExecutionService.__new__(DurableExecutionService)
+            service.store = store
+            service.binding_resolver = service.lease_provider = None
+            kwargs = service._build_executor_kwargs(task)
+            assert kwargs["timeout"] == expected
+            assert kwargs["transport_kind"] == transport
+        finally:
+            store._conn.close()
+
+
 # ---------------------------------------------------------------------------
 # Test infrastructure: FakeExecutor
 # ---------------------------------------------------------------------------

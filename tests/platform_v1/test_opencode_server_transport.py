@@ -6,6 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 from threading import Event, Thread
+import time
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -33,6 +34,7 @@ class _State:
         self.calls: list[tuple[str, str]] = []
         self.prompt_body: dict[str, Any] = {}
         self.events: list[dict[str, Any]] = []
+        self.event_interval = 0.0
         self.auth_methods: Any = {
             "openai": [
                 {"type": "api", "label": "API key"},
@@ -90,6 +92,8 @@ def _handler(state: _State):
                 self.wfile.flush()
                 assert state.prompted.wait(2.0)
                 for event in state.events:
+                    if state.event_interval:
+                        time.sleep(state.event_interval)
                     raw = json.dumps(event, separators=(",", ":")).encode("utf-8")
                     self.wfile.write(b"data: " + raw + b"\n\n")
                     self.wfile.flush()
@@ -435,3 +439,133 @@ def test_managed_process_uses_transient_auth_without_result_exposure(
         "--port",
         "45678",
     ]
+
+
+def _run_timed_session(monkeypatch, scheduled_events):
+    """Drive the real SSE decoder with a deterministic clock, without I/O."""
+    from types import SimpleNamespace
+    import reverse_agent.platform_v1.opencode_server_transport as transport
+
+    clock = [0.0]
+    read_timeouts = []
+
+    class Stream:
+        closed = False
+        fp = SimpleNamespace(raw=SimpleNamespace(
+            _sock=SimpleNamespace(settimeout=read_timeouts.append)))
+
+        def __init__(self):
+            self.lines = []
+            for at, event in scheduled_events:
+                self.lines.extend([
+                    (at, b"data: " + json.dumps(event).encode() + b"\n"),
+                    (at, b"\n"),
+                ])
+
+        def readline(self, limit):
+            if not self.lines:
+                raise TimeoutError()
+            at, line = self.lines.pop(0)
+            clock[0] = at
+            return line
+
+        def close(self):
+            self.closed = True
+
+    stream = Stream()
+    monkeypatch.setattr(transport.time, "monotonic", lambda: clock[0])
+    client = OpenCodeServerClient(
+        base_url="http://127.0.0.1:45678", username="fixture",
+        password=PASSWORD, timeout=1.0,
+    )
+    monkeypatch.setattr(client, "health", lambda **_: "test-1")
+    monkeypatch.setattr(client, "_open_sse", lambda **_: stream)
+    monkeypatch.setattr(client, "create_session", lambda **_: "session-exact")
+    monkeypatch.setattr(client, "prompt_async", lambda **_: None)
+    return client, stream, read_timeouts
+
+
+@pytest.mark.parametrize("progress", [
+    {"type": "message.updated", "properties": {"info": {
+        "sessionID": "session-exact", "role": "assistant", "time": {}}}},
+    {"type": "message.part.updated", "properties": {"part": {
+        "sessionID": "session-exact", "type": "tool", "state": {"status": "running"}}}},
+    {"type": "message.part.delta", "properties": {
+        "sessionID": "session-exact", "delta": "more text"}},
+])
+def test_idle_timeout_allows_productive_long_server_session(monkeypatch, progress):
+    client, stream, _ = _run_timed_session(monkeypatch, [
+        (0.0, {"type": "server.connected"}),
+        (0.6, progress), (1.2, progress), (1.8, progress),
+        (2.4, {"type": "session.idle", "properties": {"sessionID": "session-exact"}}),
+    ])
+    result = client.run_role(
+        directory="fixture", title="long role", prompt="fixture",
+        provider_id="fixture", model_id="fixture", agent="",
+        usage_observer=lambda _: False,
+    )
+    assert result.success
+    assert result.usage_event_count == 0
+    assert stream.closed
+
+
+@pytest.mark.parametrize("noise", [
+    {"type": "server.heartbeat", "properties": {}},
+    {"type": "message.updated", "properties": {"info": {
+        "sessionID": "foreign", "role": "assistant"}}},
+    {"type": "message.part.updated", "properties": {"part": {"sessionID": "foreign"}}},
+    {"type": "message.part.delta", "properties": {"sessionID": "foreign", "delta": "text"}},
+    {"type": "message.part.delta", "properties": {"sessionID": "session-exact", "delta": ""}},
+    {"type": "session.status", "properties": {
+        "sessionID": "session-exact", "status": {"type": "retry"}}},
+    {"type": "message.updated", "properties": {"info": {
+        "sessionID": "session-exact", "role": "user"}}},
+])
+def test_idle_timeout_ignores_heartbeats_retries_and_foreign_sessions(monkeypatch, noise):
+    client, stream, read_timeouts = _run_timed_session(monkeypatch, [
+        (0.0, {"type": "server.connected"}),
+        (0.4, noise), (0.8, noise), (1.2, noise),
+    ])
+    with pytest.raises(OpenCodeServerTransportError, match="server_event_timeout"):
+        client.run_role(
+            directory="fixture", title="stalled role", prompt="fixture",
+            provider_id="fixture", model_id="fixture", agent="",
+            usage_observer=lambda _: False,
+        )
+    assert stream.closed
+    assert min(read_timeouts) == pytest.approx(0.2)
+
+
+def test_idle_timeout_starts_again_after_last_server_progress(monkeypatch):
+    client, stream, _ = _run_timed_session(monkeypatch, [
+        (0.0, {"type": "server.connected"}),
+        (0.8, {"type": "message.part.delta", "properties": {
+            "sessionID": "session-exact", "delta": "progress"}}),
+        (1.9, {"type": "session.idle", "properties": {"sessionID": "session-exact"}}),
+    ])
+    with pytest.raises(OpenCodeServerTransportError, match="server_event_timeout"):
+        client.run_role(
+            directory="fixture", title="stalled role", prompt="fixture",
+            provider_id="fixture", model_id="fixture", agent="",
+            usage_observer=lambda _: False,
+        )
+    assert stream.closed
+
+
+def test_idle_timeout_renews_on_real_sse_socket(tmp_path):
+    state = _State(str(tmp_path.resolve()))
+    state.event_interval = 0.15
+    state.events = [
+        {"type": "message.part.delta", "properties": {
+            "sessionID": "session-exact", "delta": str(index)}}
+        for index in range(6)
+    ] + [{"type": "session.idle", "properties": {"sessionID": "session-exact"}}]
+    with _fake_server(state) as base_url:
+        client = _client(base_url)
+        client.timeout = 0.6
+        result = client.run_role(
+            directory=state.directory, title="long role", prompt="fixture",
+            provider_id="fixture", model_id="fixture", agent="",
+            usage_observer=lambda _: False,
+        )
+    assert result.success

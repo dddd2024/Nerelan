@@ -357,12 +357,17 @@ class OpenCodeServerClient:
                 model_id=model_id,
                 agent=agent,
             )
+            # Setup has its own bounded requests. Only activity belonging to
+            # this session renews the execution idle interval (#1551).
+            deadline = time.monotonic() + self.timeout
             while True:
                 event = self._read_sse_event(stream, deadline)
                 event_type = event.get("type")
                 properties = event.get("properties")
                 if not isinstance(properties, Mapping):
                     continue
+                if self._is_session_progress(event_type, properties, session_id):
+                    deadline = time.monotonic() + self.timeout
                 if event_type == "message.updated":
                     info = properties.get("info")
                     if not isinstance(info, Mapping):
@@ -420,6 +425,31 @@ class OpenCodeServerClient:
             except Exception:
                 pass
 
+    @staticmethod
+    def _is_session_progress(
+        event_type: Any, properties: Mapping[str, Any], session_id: str
+    ) -> bool:
+        # Heartbeats, status/retry notifications and other sessions are not
+        # evidence that this role is making progress.
+        if event_type == "message.updated":
+            info = properties.get("info")
+            return (
+                isinstance(info, Mapping)
+                and info.get("sessionID") == session_id
+                and info.get("role") == "assistant"
+            )
+        if event_type == "message.part.updated":
+            part = properties.get("part")
+            return isinstance(part, Mapping) and part.get("sessionID") == session_id
+        if event_type == "message.part.delta":
+            delta = properties.get("delta")
+            return (
+                properties.get("sessionID") == session_id
+                and isinstance(delta, str)
+                and bool(delta)
+            )
+        return False
+
     def _open_sse(self, *, directory: str, timeout: float):
         request = self._request(
             "GET", "/event", query={"directory": directory}, accept="text/event-stream"
@@ -440,12 +470,19 @@ class OpenCodeServerClient:
         data_lines: list[bytes] = []
         total = 0
         while True:
-            if self._remaining(deadline) <= 0:
-                raise OpenCodeServerTransportError("server_event_timeout")
+            remaining = self._remaining(deadline)
             try:
+                # urllib's socket timeout otherwise stays at the initial
+                # interval. Bound each blocking read by the remaining idle
+                # time, including when unrelated events keep arriving.
+                raw = getattr(getattr(stream, "fp", None), "raw", None)
+                sock = getattr(raw, "_sock", None)
+                if sock is not None:
+                    sock.settimeout(remaining)
                 line = stream.readline(MAX_SSE_EVENT_BYTES + 1)
             except (TimeoutError, OSError) as exc:
                 raise OpenCodeServerTransportError("server_event_timeout") from exc
+            self._remaining(deadline)
             if not line:
                 raise OpenCodeServerTransportError("server_event_disconnected")
             total += len(line)

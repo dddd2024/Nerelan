@@ -1329,14 +1329,13 @@ def build_opencode_argv(
 # Executor
 # ---------------------------------------------------------------------------
 
-# One OpenCode role invocation is bounded by this hard execution budget. The
-# relay adds a fixed setup margin on top; the combined lease lifetime is
-# capped separately, and neither value is extendable from here.
+# Bound the no-output interval, not the total duration of a productive role.
+# Relay lease lifetimes are enforced separately by the relay.
 _EXECUTION_TIMEOUT_HARD_CAP_SECONDS = 3600
 
 
 def _validate_execution_timeout(timeout: object) -> int | float:
-    """Reject an invalid execution budget before any lease or transport work."""
+    """Reject an invalid idle interval before any lease or transport work."""
     if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
         raise ExecutorRuntimeError("invalid_execution_timeout")
     if not 0 < timeout <= _EXECUTION_TIMEOUT_HARD_CAP_SECONDS:
@@ -1382,8 +1381,8 @@ class OwnedCliProcessResult:
     timed_out: bool
     cleanup_confirmed: bool
     output_truncated: bool = False
-    # Stopped because the CLI wrote nothing for ``stall_seconds`` (#1473), not
-    # because the overall timeout ran out. ``timed_out`` is also True then.
+    # The optional stall guard expired before the execution idle interval.
+    # ``timed_out`` is also True then.
     stalled: bool = False
 
 
@@ -1429,6 +1428,10 @@ def _run_owned_cli_process(
     bounded buffers so partial diagnostics survive a timeout. Every exit path
     attempts to stop the owned tree. Failure to confirm an empty tree remains
     explicit; callers must withhold artifacts and retries in that case.
+
+    ``timeout`` bounds time since the most recent stdout/stderr bytes. Output
+    keeps renewing it even after capture is truncated; there is no total run
+    deadline. The optional stall guard may impose a shorter silent interval.
     """
     from .functional_validation import _WindowsJob
     from .native_quota import stop_and_confirm
@@ -1536,23 +1539,20 @@ def _run_owned_cli_process(
             reader.start()
 
         timed_out = False
-        deadline = time.monotonic() + float(timeout)
         while True:
-            remaining = deadline - time.monotonic()
+            with lock:
+                silent = time.monotonic() - last_output
+            idle_limit = min(float(timeout), stall_seconds) if stall_seconds else float(timeout)
+            remaining = idle_limit - silent
             if remaining <= 0:
                 timed_out = True
+                stalled = bool(stall_seconds and stall_seconds <= float(timeout))
                 break
             try:
-                proc.wait(timeout=min(remaining, poll_seconds) if stall_seconds else remaining)
+                proc.wait(timeout=min(remaining, poll_seconds))
                 break
             except subprocess.TimeoutExpired:
                 pass
-            if stall_seconds:
-                with lock:
-                    silent = time.monotonic() - last_output
-                if silent >= stall_seconds:
-                    timed_out = stalled = True
-                    break
     except BaseException as exc:
         process_error = exc
         raise
@@ -1969,10 +1969,11 @@ class OpenCodeExecutor:
                 "type": "EXECUTOR_FINISHED",
                 "title": "OpenCode stalled" if stalled else "OpenCode timeout",
                 "description": ("OpenCode CLI wrote nothing for too long (often a provider 429 it waits out)"
-                                if stalled else "OpenCode CLI exceeded timeout"),
+                                if stalled else "OpenCode CLI exceeded the no-output timeout"),
                 "metadata": {
                     "execution_id": execution_id,
                     "timeout": self._timeout,
+                    "timeout_kind": "idle",
                     "stall_seconds": executor_stall_seconds() if stalled else None,
                     "failure_classification": timeout_class,
                     "role": role_context.role,
