@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import deque
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Mapping
@@ -135,6 +136,117 @@ class CodexTurn:
     reported_cost_usd: float | None = None
 
 
+def _truncate_command_output(output: str, keep_bytes: int) -> str:
+    """Keep the first and last ``keep_bytes`` of a command output string.
+
+    The output is UTF-8 byte-truncated, not character-truncated, to keep the
+    retained size bounded. The two halves are joined with a marker so the
+    middle gap is unambiguous. Decode errors are ignored.
+    """
+    if not isinstance(output, str):
+        return ""
+    raw = output.encode("utf-8", errors="replace")
+    if len(raw) <= keep_bytes * 2:
+        return output
+    head = raw[:keep_bytes].decode("utf-8", errors="ignore")
+    tail = raw[-keep_bytes:].decode("utf-8", errors="ignore")
+    return f"{head}\n... [output truncated, {len(raw)} bytes total] ...\n{tail}"
+
+
+class _OversizedItemFrame:
+    """Stream-accumulates a frame that exceeds the JSON line limit.
+
+    Only item frames carrying command output are eligible: their output is
+    truncated rather than failing the turn. Other oversized frame types fail
+    closed. The parser keeps at most ``keep_bytes`` at the head and tail of
+    the raw line, so memory is bounded regardless of frame size.
+    """
+
+    _ITEM_KINDS = frozenset({"item.started", "item.updated", "item.completed"})
+    _TRUNCATABLE_TYPES = frozenset({"command_execution"})
+    _EVENT_TYPE_RE = re.compile(rb'"type"\s*:\s*"(item\.(?:started|updated|completed))"')
+    _ITEM_TYPE_RE = re.compile(rb'"item"\s*:\s*\{[^}]*?"type"\s*:\s*"(\w+)"')
+
+    def __init__(self, *, frame_limit: int, keep_bytes: int) -> None:
+        self._frame_limit = frame_limit
+        self._keep = keep_bytes
+        self._head = bytearray()
+        self._tail = deque(maxlen=keep_bytes)
+        self._total = 0
+        self._truncated = False
+        self._complete: bytes | None = None
+
+    def feed(self, chunk: bytes) -> None:
+        self._total += len(chunk)
+        if len(self._head) < self._keep:
+            space = self._keep - len(self._head)
+            self._head.extend(chunk[:space])
+            chunk = chunk[space:]
+        if chunk:
+            self._tail.extend(chunk)
+            self._truncated = True
+
+    def set_complete_line(self, line: bytes) -> None:
+        """Store the full line when it arrived complete (not streamed)."""
+        self._complete = line
+        self.feed(line)
+
+    def is_oversized(self) -> bool:
+        return self._total > self._frame_limit
+
+    @classmethod
+    def line_is_truncatable(cls, line: bytes) -> bool:
+        """Check a complete oversized line for truncatability using regex."""
+        event_match = cls._EVENT_TYPE_RE.search(line)
+        if event_match is None:
+            return False
+        if event_match.group(1).decode() not in cls._ITEM_KINDS:
+            return False
+        item_match = cls._ITEM_TYPE_RE.search(line)
+        if item_match is None:
+            return False
+        return item_match.group(1).decode() in cls._TRUNCATABLE_TYPES
+
+    def is_truncatable(self) -> bool:
+        return self.line_is_truncatable(bytes(self._head))
+
+    def build_event(self) -> dict[str, Any]:
+        """Reconstruct the item event with its aggregated_output truncated."""
+        if self._complete is not None:
+            raw = self._complete
+        else:
+            raw = bytes(self._head) + bytes(self._tail)
+        try:
+            event = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            event = self._reconstruct_from_head()
+        item = event.get("item")
+        if isinstance(item, dict):
+            output = item.get("aggregated_output")
+            if isinstance(output, str):
+                item["aggregated_output"] = _truncate_command_output(output, self._keep)
+                item["output_truncated"] = True
+        return event
+
+    def _reconstruct_from_head(self) -> dict[str, Any]:
+        """Best-effort rebuild of an item event from the head bytes when the
+        full frame is not valid JSON (e.g. streamed with a split tail)."""
+        head = bytes(self._head)
+        event_match = self._EVENT_TYPE_RE.search(head)
+        kind = event_match.group(1).decode() if event_match else "item.completed"
+        item: dict[str, Any] = {"type": "command_execution", "aggregated_output": ""}
+        m = re.search(rb'"command"\s*:\s*"((?:[^"\\]|\\.)*)"', head)
+        if m:
+            item["command"] = m.group(1).decode("utf-8", errors="ignore")
+        m = re.search(rb'"status"\s*:\s*"(\w+)"', head)
+        if m:
+            item["status"] = m.group(1).decode("utf-8", errors="ignore")
+        m = re.search(rb'"exit_code"\s*:\s*(-?\d+)', head)
+        if m:
+            item["exit_code"] = int(m.group(1))
+        return {"type": kind, "item": item}
+
+
 class CodexJsonl:
     """Incremental UTF-8 framing with independent line, stream and item bounds."""
 
@@ -146,10 +258,15 @@ class CodexJsonl:
         max_stream_bytes: int = 2 * 1024 * 1024,
         max_events: int = 2000,
         limit_classification: str = "codex_usage_limit",
+        item_output_keep_bytes: int | None = None,
     ) -> None:
         if not (0 < max_frame_bytes <= max_stream_bytes <= 8 * 1024 * 1024):
             raise ValueError("codex_protocol_limits_invalid")
         if not 0 < max_events <= 10000:
+            raise ValueError("codex_protocol_limits_invalid")
+        if item_output_keep_bytes is None:
+            item_output_keep_bytes = min(16 * 1024, max_frame_bytes)
+        if not (0 < item_output_keep_bytes <= max_frame_bytes):
             raise ValueError("codex_protocol_limits_invalid")
         self.turn = CodexTurn()
         self._callback = callback
@@ -157,6 +274,7 @@ class CodexJsonl:
         self._stream_limit = max_stream_bytes
         self._event_limit = max_events
         self._limit_classification = limit_classification
+        self._item_keep_bytes = item_output_keep_bytes
         self._buffer = bytearray()
         self._bytes = 0
         self._events = 0
@@ -164,6 +282,7 @@ class CodexJsonl:
         self._error_seen = False
         self._error_detail = ""
         self._error_fresh = False
+        self._oversized: _OversizedItemFrame | None = None
 
     def _publish_failure(self, classification: str, detail: str, *, terminal: str | None = None) -> None:
         self.turn.failed = True
@@ -192,16 +311,54 @@ class CodexJsonl:
         self._bytes += len(chunk)
         if self._bytes > self._stream_limit:
             raise CodexProtocolError("codex_stream_limit_exceeded")
+        if self._oversized is not None:
+            nl = chunk.find(b"\n")
+            if nl == -1:
+                self._oversized.feed(chunk)
+            else:
+                self._oversized.feed(chunk[:nl])
+                self._consume_oversized()
+                rest = chunk[nl + 1:]
+                if rest:
+                    self.feed(rest)
+            return
         self._buffer.extend(chunk)
         while b"\n" in self._buffer:
             end = self._buffer.index(b"\n")
             line = bytes(self._buffer[:end])
             del self._buffer[:end + 1]
+            if len(line) > self._frame_limit:
+                if not _OversizedItemFrame.line_is_truncatable(line):
+                    raise CodexProtocolError("codex_frame_limit_exceeded")
+                oversized = _OversizedItemFrame(
+                    frame_limit=self._frame_limit, keep_bytes=self._item_keep_bytes,
+                )
+                oversized.set_complete_line(line)
+                self._oversized = oversized
+                self._consume_oversized()
+                continue
             self._line(line)
         if len(self._buffer) > self._frame_limit:
-            raise CodexProtocolError("codex_frame_limit_exceeded")
+            head = bytes(self._buffer[:min(len(self._buffer), self._item_keep_bytes * 4)])
+            if not _OversizedItemFrame.line_is_truncatable(head):
+                raise CodexProtocolError("codex_frame_limit_exceeded")
+            oversized = _OversizedItemFrame(
+                frame_limit=self._frame_limit, keep_bytes=self._item_keep_bytes,
+            )
+            oversized.feed(bytes(self._buffer))
+            self._buffer.clear()
+            self._oversized = oversized
+
+    def _consume_oversized(self) -> None:
+        assert self._oversized is not None
+        oversized = self._oversized
+        self._oversized = None
+        event = oversized.build_event()
+        self._process_event(event)
 
     def finish(self) -> CodexTurn:
+        if self._oversized is not None:
+            self._consume_oversized()
         if self._buffer:
             self._line(bytes(self._buffer))
             self._buffer.clear()
@@ -225,15 +382,18 @@ class CodexJsonl:
             raise CodexProtocolError("codex_frame_limit_exceeded")
         if not line.strip():
             return
-        self._events += 1
-        if self._events > self._event_limit:
-            raise CodexProtocolError("codex_event_limit_exceeded")
         try:
             event = json.loads(line.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError, RecursionError) as exc:
             raise CodexProtocolError("codex_invalid_jsonl") from exc
+        self._process_event(event)
+
+    def _process_event(self, event: Any) -> None:
         if not isinstance(event, dict) or not isinstance(event.get("type"), str):
             raise CodexProtocolError("codex_invalid_event")
+        self._events += 1
+        if self._events > self._event_limit:
+            raise CodexProtocolError("codex_event_limit_exceeded")
         kind = event["type"]
         # Concrete model metadata is transport evidence, never inferred from
         # model prose or tool output. Missing metadata remains unknown.
@@ -325,6 +485,8 @@ class CodexJsonl:
                 if type(item.get("exit_code")) is int:
                     public["exit_code"] = item["exit_code"]
                 public["status"] = public_text(item.get("status"), 80)
+                if item.get("output_truncated") is True:
+                    public["output_truncated"] = True
                 # An exit code of -1 on a failed command_execution is a CLI
                 # helper/launch failure, not a normal nonzero command exit.
                 # Do not let a later turn.completed erase this evidence.

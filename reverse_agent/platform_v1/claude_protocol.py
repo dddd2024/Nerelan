@@ -70,6 +70,7 @@ class ClaudeStreamJson:
         self._buffer = bytearray()
         self._bytes = 0
         self._events = 0
+        self._oversized_kind: str | None = None
 
     def feed(self, chunk: bytes) -> None:
         if not isinstance(chunk, bytes):
@@ -77,16 +78,46 @@ class ClaudeStreamJson:
         self._bytes += len(chunk)
         if self._bytes > self._stream_limit:
             raise ClaudeProtocolError("claude_code_stream_limit_exceeded")
+        if self._oversized_kind is not None:
+            nl = chunk.find(b"\n")
+            if nl == -1:
+                return
+            self._oversized_kind = None
+            rest = chunk[nl + 1:]
+            if rest:
+                self.feed(rest)
+            return
         self._buffer.extend(chunk)
         while b"\n" in self._buffer:
             end = self._buffer.index(b"\n")
             line = bytes(self._buffer[:end])
             del self._buffer[:end + 1]
+            if len(line) > self._frame_limit:
+                if self._peek_oversized_kind(line) != "user":
+                    raise ClaudeProtocolError("claude_code_frame_limit_exceeded")
+                continue
             self._line(line)
         if len(self._buffer) > self._frame_limit:
-            raise ClaudeProtocolError("claude_code_frame_limit_exceeded")
+            oversized_kind = self._peek_oversized_kind(bytes(self._buffer))
+            if oversized_kind != "user":
+                raise ClaudeProtocolError("claude_code_frame_limit_exceeded")
+            self._oversized_kind = oversized_kind
+            self._buffer.clear()
+
+    @staticmethod
+    def _peek_oversized_kind(raw: bytes) -> str | None:
+        """Peek at the type field of an incomplete oversized frame."""
+        try:
+            event = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return None
+        if isinstance(event, dict) and isinstance(event.get("type"), str):
+            return event["type"]
+        return None
 
     def finish(self) -> CodexTurn:
+        if self._oversized_kind is not None:
+            self._oversized_kind = None
         if self._buffer:
             self._line(bytes(self._buffer))
             self._buffer.clear()

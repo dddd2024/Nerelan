@@ -383,3 +383,219 @@ def test_clock_reset_in_failure_uses_host_local_time(monkeypatch):
     turn = parser.finish()
     assert turn.failure_classification == 'codex_usage_limit'
     assert turn.failure_reset_at == '2026-10-19T07:05:00Z'
+
+
+# --- #1285: oversized command-output item frames are truncated, not fatal ---
+
+
+def _oversized_command_item(kind="item.completed", *, output_bytes=1024 * 1024, exit_code=0):
+    return {"type": kind, "item": {
+        "type": "command_execution",
+        "command": "yes",
+        "status": "completed" if exit_code == 0 else "failed",
+        "exit_code": exit_code,
+        "aggregated_output": "x" * output_bytes,
+    }}
+
+
+def test_oversized_command_output_item_is_truncated_turn_completes():
+    seen = []
+    parser = CodexJsonl(seen.append, max_frame_bytes=256 * 1024, max_stream_bytes=8 * 1024 * 1024)
+    stream = wire(*START, _oversized_command_item(output_bytes=1024 * 1024), MESSAGE, DONE)
+    parser.feed(stream)
+    turn = parser.finish()
+    assert turn.completed and not turn.failed
+    assert turn.thread_id == "thread-1"
+    cmd_items = [i for i in turn.items if i.get("item_type") == "command_execution"]
+    assert len(cmd_items) == 1
+    assert cmd_items[0].get("output_truncated") is True
+    assert cmd_items[0].get("exit_code") == 0
+    assert cmd_items[0].get("status") == "completed"
+    assert seen == turn.items
+
+
+def test_oversized_command_output_item_keeps_head_and_tail():
+    parser = CodexJsonl(max_frame_bytes=256, max_stream_bytes=8 * 1024 * 1024,
+                        item_output_keep_bytes=24)
+    big_output = "HEAD---" + "z" * 2000 + "---TAIL"
+    item = {"type": "item.completed", "item": {
+        "type": "command_execution", "command": "echo",
+        "status": "completed", "exit_code": 0,
+        "aggregated_output": big_output,
+    }}
+    parser.feed(wire(*START, item, MESSAGE, DONE))
+    turn = parser.finish()
+    assert turn.completed
+    cmd = [i for i in turn.items if i.get("item_type") == "command_execution"][0]
+    assert cmd["output_truncated"] is True
+
+
+def test_oversized_turn_completed_still_fails_closed():
+    parser = CodexJsonl(max_frame_bytes=64, max_stream_bytes=8 * 1024 * 1024)
+    big_done = {"type": "turn.completed", "usage": {
+        "input_tokens": 1, "cached_input_tokens": 0, "output_tokens": 1,
+        "padding": "x" * 1000}}
+    with pytest.raises(CodexProtocolError, match="codex_frame_limit_exceeded"):
+        parser.feed(wire(*START, MESSAGE, big_done))
+
+
+def test_oversized_non_command_item_still_fails_closed():
+    parser = CodexJsonl(max_frame_bytes=64, max_stream_bytes=8 * 1024 * 1024)
+    big_msg = {"type": "item.completed", "item": {
+        "type": "agent_message", "text": "x" * 1000}}
+    with pytest.raises(CodexProtocolError, match="codex_frame_limit_exceeded"):
+        parser.feed(wire(*START, big_msg, DONE))
+
+
+def test_memory_stays_bounded_while_reading_oversized_frame():
+    parser = CodexJsonl(max_frame_bytes=256 * 1024, max_stream_bytes=8 * 1024 * 1024,
+                        item_output_keep_bytes=16 * 1024)
+    seen = []
+    parser._callback = seen.append
+    big_output = "x" * (1024 * 1024)
+    item = {"type": "item.completed", "item": {
+        "type": "command_execution", "command": "yes",
+        "status": "completed", "exit_code": 0,
+        "aggregated_output": big_output,
+    }}
+    stream = wire(*START, item, MESSAGE, DONE)
+    chunk_size = 4096
+    for i in range(0, len(stream), chunk_size):
+        parser.feed(stream[i:i + chunk_size])
+    turn = parser.finish()
+    assert turn.completed
+    if parser._oversized is not None:
+        head_len = len(parser._oversized._head)
+        assert head_len <= 16 * 1024
+
+
+def test_oversized_command_item_delivered_across_multiple_feeds():
+    parser = CodexJsonl(max_frame_bytes=256 * 1024, max_stream_bytes=8 * 1024 * 1024)
+    big_output = "x" * (1024 * 1024)
+    item = {"type": "item.completed", "item": {
+        "type": "command_execution", "command": "yes",
+        "status": "completed", "exit_code": 0,
+        "aggregated_output": big_output,
+    }}
+    stream = wire(*START, item, MESSAGE, DONE)
+    step = 8192
+    for i in range(0, len(stream), step):
+        parser.feed(stream[i:i + step])
+    turn = parser.finish()
+    assert turn.completed
+    cmd = [i for i in turn.items if i.get("item_type") == "command_execution"][0]
+    assert cmd["output_truncated"] is True
+
+
+def test_oversized_command_item_without_final_newline_flushes_on_finish():
+    parser = CodexJsonl(max_frame_bytes=128, max_stream_bytes=8 * 1024 * 1024,
+                        item_output_keep_bytes=24)
+    item = {"type": "item.completed", "item": {
+        "type": "command_execution", "command": "yes",
+        "status": "completed", "exit_code": 0,
+        "aggregated_output": "x" * 500,
+    }}
+    no_newline = json.dumps(item, ensure_ascii=False).encode("utf-8")
+    parser.feed(wire(*START).rstrip(b"\n") + b"\n" + no_newline)
+    parser.feed(b"\n" + wire(MESSAGE, DONE).rstrip(b"\n"))
+    turn = parser.finish()
+    assert turn.completed
+    cmd = [i for i in turn.items if i.get("item_type") == "command_execution"][0]
+    assert cmd["output_truncated"] is True
+
+
+def test_two_oversized_command_items_both_truncated():
+    parser = CodexJsonl(max_frame_bytes=128, max_stream_bytes=8 * 1024 * 1024,
+                        item_output_keep_bytes=24)
+    item1 = {"type": "item.completed", "item": {
+        "type": "command_execution", "command": "yes",
+        "status": "completed", "exit_code": 0,
+        "aggregated_output": "a" * 500,
+    }}
+    item2 = {"type": "item.completed", "item": {
+        "type": "command_execution", "command": "ls",
+        "status": "completed", "exit_code": 0,
+        "aggregated_output": "b" * 500,
+    }}
+    parser.feed(wire(*START, item1, item2, MESSAGE, DONE))
+    turn = parser.finish()
+    assert turn.completed
+    cmds = [i for i in turn.items if i.get("item_type") == "command_execution"]
+    assert len(cmds) == 2
+    assert all(c["output_truncated"] for c in cmds)
+
+
+def test_oversized_command_item_failed_exit_code_preserved():
+    parser = CodexJsonl(max_frame_bytes=128, max_stream_bytes=8 * 1024 * 1024,
+                        item_output_keep_bytes=24)
+    item = {"type": "item.completed", "item": {
+        "type": "command_execution", "command": "grep foo",
+        "status": "failed", "exit_code": 2,
+        "aggregated_output": "x" * 500,
+    }}
+    parser.feed(wire(*START, item, MESSAGE, DONE))
+    turn = parser.finish()
+    assert turn.completed
+    cmd = [i for i in turn.items if i.get("item_type") == "command_execution"][0]
+    assert cmd["exit_code"] == 2
+    assert cmd["status"] == "failed"
+    assert cmd["output_truncated"] is True
+
+
+def test_stream_limit_still_applies_to_oversized_item():
+    parser = CodexJsonl(max_frame_bytes=128, max_stream_bytes=1024,
+                        item_output_keep_bytes=24)
+    item = {"type": "item.completed", "item": {
+        "type": "command_execution", "command": "yes",
+        "status": "completed", "exit_code": 0,
+        "aggregated_output": "x" * 2000,
+    }}
+    with pytest.raises(CodexProtocolError, match="codex_stream_limit_exceeded"):
+        parser.feed(wire(*START, item, MESSAGE, DONE))
+
+
+def test_oversized_command_output_does_not_leak_into_failure_detail():
+    parser = CodexJsonl(max_frame_bytes=128, max_stream_bytes=8 * 1024 * 1024,
+                        item_output_keep_bytes=24)
+    item = {"type": "item.completed", "item": {
+        "type": "command_execution", "command": "grep secret",
+        "status": "completed", "exit_code": 0,
+        "aggregated_output": "Bearer super-secret-token-" + "x" * 500,
+    }}
+    parser.feed(wire(*START, item, {"type": "turn.failed"}))
+    turn = parser.finish()
+    assert "super-secret-token" not in json.dumps(turn.items)
+    assert "super-secret-token" not in turn.failure_detail
+
+
+# --- Claude stream parser: oversized user (tool-result) frames are skipped ---
+
+
+def test_claude_oversized_user_frame_does_not_kill_turn():
+    from reverse_agent.platform_v1.claude_protocol import ClaudeStreamJson
+    init = {"type": "system", "subtype": "init", "session_id": "s1"}
+    assistant = {"type": "assistant", "session_id": "s1", "message": {"content": [
+        {"type": "tool_use", "name": "Bash", "input": {"command": "yes"}},
+    ]}}
+    user = {"type": "user", "session_id": "s1", "message": {"content": [
+        {"type": "tool_result", "content": "x" * (4 * 1024 * 1024 + 100)},
+    ]}}
+    result = {"type": "result", "subtype": "success", "is_error": False,
+              "result": "done", "usage": {"input_tokens": 1,
+              "cache_read_input_tokens": 0, "output_tokens": 1}}
+    parser = ClaudeStreamJson(max_frame_bytes=256, max_stream_bytes=8 * 1024 * 1024)
+    stream = b"\n".join(json.dumps(e).encode() for e in (init, assistant, user, result)) + b"\n"
+    parser.feed(stream)
+    turn = parser.finish()
+    assert turn.completed and turn.final_text == "done"
+
+
+def test_claude_oversized_result_frame_fails_closed():
+    from reverse_agent.platform_v1.claude_protocol import ClaudeStreamJson, ClaudeProtocolError
+    init = {"type": "system", "subtype": "init", "session_id": "s1"}
+    result = {"type": "result", "subtype": "success", "is_error": False,
+              "result": "x" * (4 * 1024 * 1024 + 100),
+              "usage": {"input_tokens": 1, "cache_read_input_tokens": 0, "output_tokens": 1}}
+    parser = ClaudeStreamJson(max_frame_bytes=256, max_stream_bytes=8 * 1024 * 1024)
+    with pytest.raises(ClaudeProtocolError, match="claude_code_frame_limit_exceeded"):
+        parser.feed(b"\n".join(json.dumps(e).encode() for e in (init, result)) + b"\n")
