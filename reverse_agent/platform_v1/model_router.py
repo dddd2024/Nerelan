@@ -127,7 +127,19 @@ def _window_renewed_since(candidate: Mapping[str, Any], announced_at: Any) -> bo
 class ModelSelectionError(ValueError):
     def __init__(self, reason: str, *, excluded: list[dict[str, Any]], refusals: Sequence[str] = (), pin: str = ""):
         super().__init__(reason)
-        self.decision = {"reason": reason, "excluded_candidates": excluded[:10], "refusals": list(refusals)}
+        # The pinned binding's own refusal leads the list so the 10-row cap cannot hide it (#1521).
+        shown = [row for row in excluded if pin and row.get("binding_id") == pin] + [
+            row for row in excluded if not pin or row.get("binding_id") != pin]
+        self.decision = {"reason": reason, "excluded_candidates": shown[:10], "refusals": list(refusals)}
+        summary: dict[str, int] = {}
+        for row in excluded:
+            summary[str(row.get("filter"))] = summary.get(str(row.get("filter")), 0) + 1
+        if summary:
+            self.decision["excluded_summary"] = summary
+        if pin:
+            pin_row = next((row for row in excluded if row.get("binding_id") == pin), None)
+            self.decision["pin"] = pin
+            self.decision["pin_filter"] = pin_row.get("filter") if pin_row else "pin_not_candidate"
         resources = [row for row in excluded if row.get("filter") in {"account_quarantined", "quota_exhausted", "weekly_pace"}
                      and (not pin or row.get("binding_id") == pin)]
         if resources:

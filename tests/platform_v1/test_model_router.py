@@ -104,6 +104,28 @@ def test_confirmed_quota_exhaustion_is_unavailable_even_for_pins(reason):
         choose([exhausted, candidate("b", "opus")], pin="a")
 
 
+def test_pinned_refusal_names_pin_filter_and_survives_row_cap():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    pool = [candidate(f"x{i}", "opus", executor_available=False) for i in range(12)]
+    pool.append(dict(candidate("pinned", "opus"), enabled=False))
+    with pytest.raises(ModelSelectionError, match="pinned_model_unavailable") as caught:
+        choose(pool + [candidate("ok", "opus")], pin="pinned")
+    decision = caught.value.decision
+    assert decision["pin"] == "pinned"
+    assert decision["pin_filter"] == "executor_fitness"
+    assert decision["excluded_candidates"][0]["binding_id"] == "pinned"
+    assert len(decision["excluded_candidates"]) == 10
+    assert decision["excluded_summary"] == {"executor_unavailable": 12, "executor_fitness": 1}
+    json.dumps(decision, allow_nan=False)
+
+
+def test_pin_absent_from_candidates_is_reported():
+    from reverse_agent.platform_v1.model_router import ModelSelectionError
+    with pytest.raises(ModelSelectionError, match="pinned_model_unavailable") as caught:
+        choose([candidate("a", "opus")], pin="missing")
+    assert caught.value.decision["pin_filter"] == "pin_not_candidate"
+
+
 @pytest.mark.parametrize("decision", ["warn", "switch"])
 def test_quota_ok_candidate_preferred_over_cheaper_shortfall(decision):
     result = choose([candidate("cheap", "flash-lite", quota={"decision": decision}),
