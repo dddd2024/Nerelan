@@ -60,7 +60,9 @@ def build_report(control_store: Any, task_store: TaskStore, window_id: str) -> d
             bucket["task_count"] += 1
             if task.status in _SUCCESS_STATES:
                 bucket["success_count"] += 1
-            bucket["total_tokens"] += int(token_totals.get(task_id, 0))
+            charged = token_totals.get(task_id, {})
+            bucket["total_tokens"] += int(charged.get("raw", 0))
+            bucket["cost_equivalent_tokens"] += int(charged.get("cost_equivalent", 0))
             wall = _task_wall_seconds(task_store, task.id)
             if wall is not None:
                 bucket["total_wall_seconds"] += wall
@@ -74,6 +76,7 @@ def build_report(control_store: Any, task_store: TaskStore, window_id: str) -> d
             "tasks": task_blocks,
         })
 
+    raw_totals = _window_raw_tokens(task_store, window_id)
     return {
         "window_id": window.id,
         "window": {
@@ -82,6 +85,8 @@ def build_report(control_store: Any, task_store: TaskStore, window_id: str) -> d
             "starts_at": window.starts_at,
             "expires_at": window.expires_at,
             "observed_token_units": int(window.observed_token_units),
+            "raw_token_units": raw_totals["total"],
+            "raw_token_counters": raw_totals["counters"],
             "observed_cost_micro_units": int(window.observed_cost_micro_units),
             "unknown_observation_count": int(window.unknown_observation_count),
         },
@@ -93,33 +98,45 @@ def build_report(control_store: Any, task_store: TaskStore, window_id: str) -> d
 
 
 def _empty_binding() -> dict[str, Any]:
-    return {"task_count": 0, "success_count": 0, "total_tokens": 0, "total_wall_seconds": 0.0}
+    return {"task_count": 0, "success_count": 0, "total_tokens": 0,
+            "cost_equivalent_tokens": 0, "total_wall_seconds": 0.0}
 
 
-def _window_task_tokens(task_store: TaskStore, window_id: str) -> dict[str, int]:
+_USAGE_COUNTERS = ("input_units", "cache_read_units", "cache_write_units",
+                   "output_units", "reasoning_units")
+
+
+def _window_usage_rows(task_store: TaskStore, window_id: str) -> list[dict[str, Any]]:
     conn = task_store._conn
-    totals: dict[str, int] = {}
     try:
         rows = conn.execute(
-            "SELECT task_id, "
-            "COALESCE(SUM(input_units),0) AS input_units, "
-            "COALESCE(SUM(cache_read_units),0) AS cache_read_units, "
-            "COALESCE(SUM(cache_write_units),0) AS cache_write_units, "
-            "COALESCE(SUM(output_units),0) AS output_units, "
-            "COALESCE(SUM(reasoning_units),0) AS reasoning_units "
-            "FROM task_usage_observations WHERE window_id = ? AND status = 'OBSERVED' "
-            "GROUP BY task_id",
+            "SELECT task_id, source_kind, status, input_units, cache_read_units, "
+            "cache_write_units, output_units, reasoning_units "
+            "FROM task_usage_observations WHERE window_id = ? AND status = 'OBSERVED'",
             (window_id,),
         ).fetchall()
     except Exception:
-        return totals
-    for row in rows:
-        total = sum(int(row[key] or 0) for key in (
-            "input_units", "cache_read_units", "cache_write_units",
-            "output_units", "reasoning_units",
-        ))
-        totals[str(row["task_id"])] = total
+        return []
+    return [dict(row) for row in rows]
+
+
+def _window_task_tokens(task_store: TaskStore, window_id: str) -> dict[str, dict[str, int]]:
+    """Per task: the raw counter sum and the cost-equivalent charged units (#1504)."""
+    from .usage_ledger import cost_equivalent_units
+    totals: dict[str, dict[str, int]] = {}
+    for row in _window_usage_rows(task_store, window_id):
+        entry = totals.setdefault(str(row["task_id"]), {"raw": 0, "cost_equivalent": 0})
+        entry["raw"] += sum(int(row[key] or 0) for key in _USAGE_COUNTERS)
+        entry["cost_equivalent"] += cost_equivalent_units(row) or 0
     return totals
+
+
+def _window_raw_tokens(task_store: TaskStore, window_id: str) -> dict[str, Any]:
+    counters = {key: 0 for key in _USAGE_COUNTERS}
+    for row in _window_usage_rows(task_store, window_id):
+        for key in counters:
+            counters[key] += int(row[key] or 0)
+    return {"total": sum(counters.values()), "counters": counters}
 
 
 def _task_wall_seconds(task_store: TaskStore, task_id: str) -> float | None:
@@ -148,6 +165,12 @@ def render_markdown(report: Mapping[str, Any]) -> str:
     lines.append(f"- starts_at: {window.get('starts_at', '')}")
     lines.append(f"- expires_at: {window.get('expires_at', '')}")
     lines.append(f"- observed_token_units: {window.get('observed_token_units', 0)}")
+    lines.append(f"- raw_token_units: {window.get('raw_token_units', 0)}")
+    counters = window.get("raw_token_counters") or {}
+    lines.append("- raw_token_counters: " + ", ".join(
+        f"{key}={counters.get(key, 0)}" for key in (
+            "input_units", "cache_read_units", "cache_write_units",
+            "output_units", "reasoning_units")))
     lines.append(f"- observed_cost_micro_units: {window.get('observed_cost_micro_units', 0)}")
     lines.append(f"- unknown_observation_count: {window.get('unknown_observation_count', 0)}")
 
@@ -186,8 +209,8 @@ def render_markdown(report: Mapping[str, Any]) -> str:
         lines.append("_no bindings_")
     else:
         lines.append("")
-        lines.append("| binding | tasks | successes | tokens | wall_seconds |")
-        lines.append("| --- | --- | --- | --- | --- |")
+        lines.append("| binding | tasks | successes | tokens | cost_eq_tokens | wall_seconds |")
+        lines.append("| --- | --- | --- | --- | --- | --- |")
         for binding, agg in bindings.items():
             wall = agg.get("total_wall_seconds", 0.0)
             wall_text = f"{wall:.3f}" if isinstance(wall, (int, float)) else str(wall)
@@ -195,6 +218,7 @@ def render_markdown(report: Mapping[str, Any]) -> str:
                 f"| {binding} | {agg.get('task_count', 0)} | "
                 f"{agg.get('success_count', 0)} | "
                 f"{agg.get('total_tokens', 0)} | "
+                f"{agg.get('cost_equivalent_tokens', 0)} | "
                 f"{wall_text} |"
             )
 

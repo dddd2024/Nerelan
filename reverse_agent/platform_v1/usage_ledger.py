@@ -20,10 +20,72 @@ from __future__ import annotations
 from contextlib import nullcontext
 from functools import wraps
 import json
-from typing import Any
+import math
+from typing import Any, Mapping
 
 OK_STATUSES = frozenset({"READY_FOR_REVIEW", "READY_FOR_REVIEW_FIXTURE", "COMPLETED"})
 COUNTERS = ("input", "cache_read", "cache_write", "output", "reasoning")
+
+# Cost-equivalent weights (#1504): a window's token budget is charged in
+# weighted units, not the raw counter sum, so a prompt-cache read (about 10%
+# of fresh input's list price on most providers) no longer exhausts a window
+# as fast as fresh input. Module constants; a window policy may override
+# individual counters later.
+COST_EQUIVALENT_WEIGHTS: dict[str, float] = {
+    "input": 1.0,
+    "cache_read": 0.1,
+    "cache_write": 1.25,
+    "output": 1.0,
+    "reasoning": 1.0,
+}
+_UNIT_FIELDS = {
+    "input": "input_units",
+    "cache_read": "cache_read_units",
+    "cache_write": "cache_write_units",
+    "output": "output_units",
+    "reasoning": "reasoning_units",
+}
+
+
+def cost_equivalent_units(
+    observation: Any,
+    weights: Mapping[str, float] | None = None,
+    *,
+    unknown_as_zero: bool = False,
+) -> int | None:
+    """Cost-equivalent token units of one usage observation (#1504).
+
+    Fresh input counts 1.0, a cache read 0.1, a cache write 1.25 and output
+    1.0. OpenCode reports reasoning beside output, so it counts 1.0 too;
+    ``native_summary`` rows already fold reasoning into output and must not
+    count it twice (the per-executor rules above). An override mapping
+    replaces only the counters it names. Unknown usage stays unknown
+    (``None``, never a silent zero); ``unknown_as_zero`` serves only the
+    Owner window's partial-reading fallback charge, which by Owner decision
+    2026-11-08 charges what partial readings say with the reservation as
+    the floor. Accepts mappings and ``sqlite3.Row`` observations.
+    """
+    if not isinstance(observation, Mapping):
+        try:
+            observation = dict(observation)
+        except (TypeError, ValueError):
+            return None
+    if not isinstance(observation, Mapping):
+        return None
+    charged = {**COST_EQUIVALENT_WEIGHTS, **(weights or {})}
+    if observation.get("status") != "OBSERVED" and not unknown_as_zero:
+        return None
+    total = 0.0
+    for counter, weight in charged.items():
+        value = _int(observation.get(_UNIT_FIELDS.get(counter, f"{counter}_units")))
+        if value is None:
+            if not unknown_as_zero:
+                return None
+            continue
+        if counter == "reasoning" and observation.get("source_kind") == "native_summary":
+            continue
+        total += value * weight
+    return int(math.floor(total + 0.5))
 
 
 def _store_locked(function):
