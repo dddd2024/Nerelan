@@ -223,10 +223,16 @@ class RoutedLandingGitHubAdapter:
                 record = self.control_store.get_publication(task.id)
                 if not record or record.pr_number != state["pr_number"]:
                     continue
+                # An unverified proof or a vanished/unresolvable retained worktree makes this
+                # producer ineligible; keep looking. Only the lookup is guarded, never the gh call.
                 try:
                     proof = functional.functional_evidence(task)
+                    if proof.get("verified") is not True:
+                        continue
                     workspace = artifacts._producer_worktree(self.control_store.task_store, task, proof)
-                except TaskStoreError:
+                    if not Path(workspace).is_dir():
+                        continue
+                except (TaskStoreError, OSError, RuntimeError, KeyError, ValueError, TypeError):
                     continue
                 return getattr(LiveLandingGitHubAdapter(workspace), name)(state, *args)
             if name in _READ_ONLY_LANDING_METHODS:
