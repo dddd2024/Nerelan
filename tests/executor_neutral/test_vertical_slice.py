@@ -410,3 +410,42 @@ def test_all_subject_repositories_are_temporary_fixtures(tmp_path: Path) -> None
     second, _ = _repo(tmp_path, "second")
     assert first.is_relative_to(tmp_path)
     assert second.is_relative_to(tmp_path)
+
+
+@pytest.mark.parametrize("path,rule", [
+    ("src/new.py", ""), ("tests/test_new.py", ""),
+    ("../escape.py", "path_escape"), ("a/../../escape", "path_escape"),
+    ("C:/outside.py", "path_escape"), (r"C:\outside.py", "path_escape"),
+    (r"\\server\share\file", "path_escape"), ("/etc/file", "path_escape"),
+    (r"a\..\escape", "path_escape"), ("a/node_modules/pkg/a.js", "package_payload"),
+    ("~/Python/Python313/site-packages/pkg/a.py", "package_payload"),
+    ("reverse_agent.egg-info/PKG-INFO", "package_payload"),
+])
+def test_portable_artifact_rules(path, rule):
+    assert core.artifact_path_rule(path) == rule
+
+
+@pytest.mark.parametrize("payload", [b"MZfake", b"\x7fELFfake", b"\xcf\xfa\xed\xfefake"])
+def test_snapshot_rejects_native_headers_without_arbitrary_binary_ban(tmp_path, payload):
+    repo, base = _repo(tmp_path)
+    (repo / "native").write_bytes(payload)
+    (repo / "asset.bin").write_bytes(b"image\x00data")
+    (repo / "new_test.py").write_text("def test_new(): pass\n", encoding="utf-8")
+    _, tree, changed, hygiene = core._snapshot_workspace(repo, base)
+    assert hygiene["exit_code"] != 0
+    assert hygiene["artifact_violations"] == [{"path": "native", "rule": "native_executable"}]
+    safe = core.safe_recovery_tree(repo, base, tree)
+    paths = _run(repo, "git", "ls-tree", "-r", "--name-only", safe).splitlines()
+    assert "native" not in paths and "asset.bin" in paths and "new_test.py" in paths
+    assert (repo / "native").read_bytes() == payload
+
+
+def test_git_object_symlink_rejected_without_following_target(tmp_path):
+    repo, base = _repo(tmp_path)
+    oid = subprocess.check_output(["git", "hash-object", "-w", "--stdin"], cwd=repo,
+                                  input=b"../../outside-secret").decode().strip()
+    _run(repo, "git", "update-index", "--add", "--cacheinfo", "120000", oid, "link")
+    tree = _run(repo, "git", "write-tree")
+    assert core.artifact_tree_diagnostics(repo, base, tree) == [{"path": "link", "rule": "symlink"}]
+    safe = core.safe_recovery_tree(repo, base, tree)
+    assert "link" not in _run(repo, "git", "ls-tree", "-r", "--name-only", safe).splitlines()

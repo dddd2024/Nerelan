@@ -6,9 +6,9 @@ from datetime import datetime
 import subprocess
 
 from .artifact_handoff import _load_evidence
-from .functional_validation import digest, git_output, load_contract, functional_feedback
+from .functional_validation import digest, git_output, load_contract, functional_feedback, public_hygiene
 from .run_store import TaskStoreError
-from reverse_agent.executor_neutral.core import _snapshot_workspace
+from reverse_agent.executor_neutral.core import _snapshot_workspace, safe_recovery_tree
 
 FAILED = "FailedAttemptTree"
 FIXUP = "ContractFixup"
@@ -60,7 +60,7 @@ def retain_interrupted_tree(store, task_id, *, worktree):
         "base_commit": base, "head": head, "tree": tree, "ref": ref,
         "contract_digest": digest(contract), "result_digest": "",
         "failure_kind": OVERLOAD_KIND, "failure_classification": task.failure_classification,
-        "feedback": OVERLOAD_FEEDBACK, "changed_paths": list(changed), "hygiene": hygiene}
+        "feedback": OVERLOAD_FEEDBACK, "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
     previous = _load_evidence(task, FAILED, task.execution_id)
     if previous is not None:
         if previous != document:
@@ -104,7 +104,7 @@ def retain_failed_tree(store, task_id, result, *, worktree, lease=None):
         "base_commit": base, "head": head, "tree": tree, "ref": ref,
         "contract_digest": digest(contract), "result_digest": digest(result),
         "failure_kind": result.get("failure_kind"), "feedback": functional_feedback(result),
-        "changed_paths": list(changed), "hygiene": hygiene}
+        "changed_paths": list(changed), "hygiene": public_hygiene(hygiene)}
     previous = _load_evidence(task, FAILED, task.execution_id)
     if previous is not None and previous != document:
         raise TaskStoreError("failed_snapshot_conflict")
@@ -180,28 +180,30 @@ def restore_failed_tree(store, task_id, *, worktree, lease=None):
             or {k: v for k, v in current.items() if k != "task_id"}
                != {k: v for k, v in original.items() if k != "task_id"}):
         raise TaskStoreError("failed_snapshot_recovery_mismatch")
+    base = snapshot["base_commit"]
+    recovery_tree = safe_recovery_tree(root, base, snapshot["tree"])
+    restored_identity = {**binding, "source_tree": snapshot["tree"], "recovery_tree": recovery_tree}
     previous = _load_evidence(task, "FailedTreeRestored", task.execution_id)
     if previous is not None:
-        if previous != binding:
+        if previous != restored_identity:
             raise TaskStoreError("failed_snapshot_restore_conflict")
         return  # Never overwrite work already executed after restoration.
-    base = snapshot["base_commit"]
     _, tree, _, _ = _snapshot_workspace(root, base)
     if git_output(root, "rev-parse", "HEAD") != base:
         raise TaskStoreError("failed_snapshot_destination_head_changed")
     if tree != git_output(root, "rev-parse", f"{base}^{{tree}}"):
         # A crash after apply but before binding may only reuse the exact failed tree.
-        if tree != snapshot["tree"]:
+        if tree != recovery_tree:
             raise TaskStoreError("failed_snapshot_destination_changed")
     else:
-        patch = subprocess.check_output(["git", "-C", str(root), "diff", "--binary", base, snapshot["tree"], "--"], timeout=60)
+        patch = subprocess.check_output(["git", "-C", str(root), "diff", "--binary", base, recovery_tree, "--"], timeout=60)
         if patch:
             subprocess.run(["git", "-C", str(root), "apply", "--whitespace=nowarn", "-"], input=patch, check=True,
                            capture_output=True, timeout=60)
-    if _snapshot_workspace(root, base)[1] != snapshot["tree"]:
+    if _snapshot_workspace(root, base)[1] != recovery_tree:
         raise TaskStoreError("failed_snapshot_restore_mismatch")
     store._bind_artifact_evidence(task.id, category="FailedTreeRestored", label=task.execution_id,
-                                  document=binding, lease=lease)
+                                  document=restored_identity, lease=lease)
 
 
 def record_attempt_disposition(store, task, *, reused, snapshot_digest):

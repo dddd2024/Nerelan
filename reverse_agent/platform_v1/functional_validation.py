@@ -501,6 +501,7 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
             raise TaskStoreError("functional_base_ancestry_mismatch")
         _, before, changed, hygiene = _snapshot_workspace(root, base_commit)
         result["tree_before"] = before
+        result["hygiene_diagnostics"] = public_hygiene(hygiene)["diagnostics"]
         from .artifact_handoff import check_input_snapshot, _digest as artifact_digest
         consumed = check_input_snapshot(task, root, head=result["head_before"], tree=before)
         if consumed is not None:
@@ -550,9 +551,22 @@ def validate_functional(task: Any, *, worktree: str | Path, base_commit: str, ex
     return result
 
 
+def public_hygiene(hygiene: Mapping[str, Any]) -> dict[str, Any]:
+    """Bounded rule data only; raw diff output can contain source or secrets."""
+    rows = hygiene.get("diagnostics", hygiene.get("artifact_violations", ()))
+    diagnostics = [{"path": re.sub(r"[^A-Za-z0-9_./? -]", "?", _feedback_text(item["path"], 180)),
+                    "rule": item["rule"]} for item in rows[:20]]
+    if hygiene["exit_code"] and not diagnostics:
+        diagnostics = [{"path": "(patch)", "rule": "whitespace"}]
+    return {"exit_code": hygiene["exit_code"], "diagnostics": diagnostics,
+            "diagnostics_truncated": bool(hygiene.get("diagnostics_truncated")) or len(rows) > 20, "observation_digest": digest(hygiene)}
+
+
 def functional_feedback(result: Mapping[str, Any]) -> str:
     """Plain summary of a failed validation: the reason, each check and what failed in it."""
     lines = [f"Reason: {result.get('reason') or 'functional_check_failed'}"]
+    for item in result.get("hygiene_diagnostics", ())[:20]:
+        lines.append(f"Artifact rule {item['rule']}: {item['path']}")
     for check in result.get("checks", ()):
         report = check.get("test_report") or {}
         targets = " ".join(check.get("targets", ())) or check.get("working_directory", ".")

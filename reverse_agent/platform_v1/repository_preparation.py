@@ -21,6 +21,13 @@ def _run_git(argv: list[str], *, cwd: Path, timeout: int):
     except (OSError, subprocess.TimeoutExpired) as exc:
         raise ExecutorRuntimeError("repository_preparation_failed") from exc
 
+def assert_pristine_workspace(root):
+    """Reject pre-execution dirt, including checkout-hook output, without deleting it."""
+    status = _run_git(["git", "status", "--porcelain=v1", "-z", "--untracked-files=all"], cwd=root, timeout=60)
+    if status.returncode or status.stdout:
+        raise ExecutorRuntimeError("workspace_preexisting_changes")
+
+
 def prepare_linked_worktree(task_id, root_path, event_callback, *, repo_dir_value, base_ref):
     if not isinstance(task_id,str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,199}",task_id):
         raise ExecutorRuntimeError("task_id_invalid")
@@ -135,6 +142,8 @@ def prepare_linked_worktree(task_id, root_path, event_callback, *, repo_dir_valu
     )
     if head_check.returncode != 0 or head_check.stdout.strip() != base_sha:
         raise ExecutorRuntimeError("worktree_head_mismatch")
+
+    assert_pristine_workspace(dest)
 
     list_proc = _run_git(
         ["git", "worktree", "list", "--porcelain"],

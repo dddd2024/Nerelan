@@ -1025,6 +1025,7 @@ _PROMPT_CONSTRAINTS = (
     "You MUST NOT read credentials, tokens, cookies, authentication "
     "configuration, secret stores, or environment secrets. "
     "You MUST NOT change any model or provider configuration. "
+    "Do not install dependencies or place package payloads in the workspace. "
     "You MUST NOT perform work unrelated to the bounded task below. "
     "You MUST run only the local verification explicitly needed for that task. "
     "Do NOT modify tracked repository files unless the task explicitly asks you to. "
@@ -2799,6 +2800,23 @@ def _persist_executor_evidence(
 # Changed-file collection
 # ---------------------------------------------------------------------------
 
+def _artifact_file_is_safe(worktree: Path, path: Path) -> bool:
+    """No workspace indirection may make collection read outside the artifact."""
+    try:
+        relative = path.relative_to(worktree)
+        from reverse_agent.executor_neutral.core import artifact_path_rule
+        if artifact_path_rule(relative.as_posix()):
+            return False
+        current = worktree
+        for part in relative.parts:
+            current = current / part
+            if current.is_symlink() or getattr(current, "is_junction", lambda: False)():
+                return False
+        return path.resolve().is_relative_to(worktree.resolve()) and path.is_file()
+    except (OSError, ValueError):
+        return False
+
+
 def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
     try:
         proc = subprocess.run(
@@ -2823,7 +2841,7 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
         fpath = worktree / path
         content_digest = ""
         try:
-            if fpath.exists() and fpath.is_file() and not fpath.is_symlink():
+            if _artifact_file_is_safe(worktree, fpath):
                 content_digest = hashlib.sha256(
                     fpath.read_bytes()
                 ).hexdigest()
@@ -2855,10 +2873,10 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
             if not path or path in seen_paths:
                 continue
             fpath = worktree / path
-            adds, dels = _count_untracked_lines(fpath)
+            adds, dels = _count_untracked_lines(fpath) if _artifact_file_is_safe(worktree, fpath) else (0, 0)
             content_digest = ""
             try:
-                if fpath.exists() and fpath.is_file() and not fpath.is_symlink():
+                if _artifact_file_is_safe(worktree, fpath):
                     content_digest = hashlib.sha256(
                         fpath.read_bytes()
                     ).hexdigest()
@@ -2880,7 +2898,7 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
 
 def _count_untracked_lines(fpath: Path) -> tuple[int, int]:
     try:
-        if not fpath.exists():
+        if fpath.is_symlink() or not fpath.exists():
             return 0, 0
         if _is_binary_file(fpath):
             return 1, 0

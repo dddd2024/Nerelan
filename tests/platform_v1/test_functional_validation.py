@@ -257,3 +257,22 @@ def test_targets_limit_pytest_to_the_named_files(tmp_path):
 def test_checks_without_targets_keep_their_frozen_shape():
     assert fv.normalize_checks([{"profile_id": "python_pytest", "working_directory": "."}]) == (
         {"profile_id": "python_pytest", "working_directory": "."},)
+
+
+def test_artifact_feedback_is_bounded_rule_data():
+    from reverse_agent.platform_v1.functional_validation import functional_feedback
+    result = {"reason": "functional_patch_hygiene_failed", "checks": [],
+              "hygiene_diagnostics": [{"path": "src/a.py", "rule": "whitespace"}] * 30}
+    feedback = functional_feedback(result)
+    assert feedback.count("Artifact rule") == 20
+    assert "src/a.py" in feedback and "whitespace" in feedback
+
+
+def test_retained_hygiene_does_not_forward_source_or_secret_output():
+    from reverse_agent.platform_v1.functional_validation import public_hygiene
+    raw = {"exit_code": 1, "stdout": "PRIVATE SOURCE SENTINEL", "stderr": "PRIVATE STDERR",
+           "diagnostics": [{"path": "src/a.py", "rule": "whitespace"}] * 25}
+    public = public_hygiene(raw)
+    assert len(public["diagnostics"]) == 20 and public["diagnostics_truncated"]
+    assert "PRIVATE" not in str(public)
+    assert len(public["observation_digest"]) == 64

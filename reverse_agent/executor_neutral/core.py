@@ -319,6 +319,65 @@ def _changed_paths(name_status_z: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(paths))
 
 
+def artifact_path_rule(path: str) -> str:
+    """Portable artifact names; do not interpret producer-supplied paths on the host."""
+    value = path.replace("\\", "/")
+    parts = value.split("/")
+    if (value.startswith("/") or ":" in value or any(p in {"", ".", ".."} for p in parts)):
+        return "path_escape"
+    if any(p.lower() in {"node_modules", "site-packages", "dist-packages", ".venv", "venv", "__pycache__"}
+           or p.lower().endswith((".egg-info", ".dist-info")) for p in parts):
+        return "package_payload"
+    return ""
+
+
+def artifact_tree_diagnostics(repo: Path, base: str, tree: str) -> list[dict[str, str]]:
+    """Inspect Git objects, never follow workspace symlinks or read payload contents into feedback."""
+    changed = set(_changed_paths(_git(repo, "diff", "--name-status", "-z", "--no-renames", base, tree, "--").stdout))
+    diagnostics = []
+    entries = _git(repo, "ls-tree", "-rz", tree).stdout.split("\0")
+    for entry in entries:
+        if not entry:
+            continue
+        metadata, path = entry.split("\t", 1)
+        if path.replace("\\", "/") not in changed:
+            continue
+        mode, kind, oid = metadata.split()
+        rule = artifact_path_rule(path)
+        if mode == "120000":
+            rule = "symlink"
+        elif kind != "blob":
+            rule = "nonregular_artifact"
+        elif not rule:
+            # Read only the header, including PE, ELF and Mach-O native formats.
+            proc = subprocess.Popen(["git", "cat-file", "blob", oid], cwd=repo, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            try:
+                header = proc.stdout.read(4)
+            finally:
+                proc.stdout.close()
+                proc.wait(timeout=60)
+            if header[:2] == b"MZ" or header == b"\x7fELF" or header in {
+                    b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe", b"\xfe\xed\xfa\xcf", b"\xcf\xfa\xed\xfe", b"\xca\xfe\xba\xbe"}:
+                rule = "native_executable"
+        if rule:
+            diagnostics.append({"path": path, "rule": rule})
+    return diagnostics
+
+
+def safe_recovery_tree(repo: Path, base: str, tree: str) -> str:
+    """Derive a source-only recovery tree, leaving original objects immutable."""
+    rejected = artifact_tree_diagnostics(repo, base, tree)
+    if not rejected:
+        return tree
+    with tempfile.TemporaryDirectory(prefix="reverse-agent-recovery-") as directory:
+        env = os.environ.copy()
+        env["GIT_INDEX_FILE"] = str(Path(directory) / "index")
+        _git(repo, "read-tree", tree, env=env)
+        for item in rejected:
+            _git(repo, "--literal-pathspecs", "restore", "--source", base, "--staged", "--", item["path"], env=env)
+        return _git(repo, "write-tree", env=env).stdout.strip()
+
+
 def _snapshot_workspace(
     repo: Path,
     base_commit: str,
@@ -351,6 +410,18 @@ def _snapshot_workspace(
         changed_paths = _changed_paths(name_status.stdout)
         diff_command = ("git", "diff", "--check", base_tree, observed_tree, "--")
         diff_result = _command_result(diff_command, _run(diff_command, cwd=repo))
+        violations = artifact_tree_diagnostics(repo, base_tree, observed_tree)
+        # git diff --check includes source lines. Extract file/line rules only.
+        whitespace = []
+        for line in diff_result.get("stdout", "").splitlines():
+            match = re.match(r"^(.+):(\d+): (?:trailing whitespace|new blank line at EOF|space before tab)", line)
+            if match:
+                whitespace.append({"path": match[1], "rule": "whitespace", "line": match[2]})
+        diff_result["diagnostics"] = (violations + whitespace)[:20]
+        diff_result["diagnostics_truncated"] = len(violations) + len(whitespace) > 20
+        diff_result["artifact_violations"] = violations
+        if violations:
+            diff_result["exit_code"] = 1
     finally:
         real_index_after, real_bytes_after = _real_index_state(repo)
         index_unchanged = (
