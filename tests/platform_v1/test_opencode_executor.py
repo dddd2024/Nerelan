@@ -7,6 +7,7 @@ import json
 import os
 import platform
 import subprocess
+import sys
 import tempfile
 from collections.abc import Iterator, Mapping
 from pathlib import Path
@@ -36,6 +37,25 @@ from reverse_agent.platform_v1.task_runtime import (
     ExecutorRuntimeError,
     ExecutorRouter,
     ExecutorResult,
+)
+
+
+def _interpreter_available() -> bool:
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", "import json, site"],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
+
+
+needs_real_interpreter = pytest.mark.skipif(
+    not _interpreter_available(),
+    reason="real host interpreter with json/site is required",
 )
 
 
@@ -2410,6 +2430,215 @@ def test_binding_child_env_still_uses_allowlist() -> None:
         expected["SystemDrive"] = "C:"
     assert child == expected
     assert not parent.forbidden.intersection(parent.read_keys)
+
+
+def _role_binding_config() -> str:
+    return build_binding_config_content(_binding_resolution())
+
+
+def test_role_binding_child_env_forwards_valid_os_location_keys_only() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "USERPROFILE": "C:\\Users\\builder",
+        "HOMEDRIVE": "C:",
+        "HOMEPATH": "\\Users\\builder",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "LOCALAPPDATA": "C:\\Users\\builder\\AppData\\Local",
+        "TEMP": "C:\\Users\\builder\\AppData\\Local\\Temp",
+        "TMP": "C:\\Users\\builder\\AppData\\Local\\Temp",
+        "HOME": "C:\\Users\\builder",
+        "FAKE_SENTINEL_OPENAI_KEY": "sentinel-not-a-real-key-0001",
+        "FAKE_SENTINEL_RELAY_KEY": "sentinel-not-a-real-key-0002",
+        "OPENCODE_CONFIG_CONTENT": "{\"caller\":\"inherited\"}",
+    }
+    existing = _role_binding_config()
+
+    child = build_role_child_env(parent, existing, "planner")
+
+    for key in (
+        "USERPROFILE",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "TEMP",
+        "TMP",
+        "HOME",
+    ):
+        assert child[key] == parent[key]
+    assert "FAKE_SENTINEL_OPENAI_KEY" not in child
+    assert "FAKE_SENTINEL_RELAY_KEY" not in child
+    assert "sentinel-not-a-real-key" not in json.dumps(child)
+    merged = json.loads(child["OPENCODE_CONFIG_CONTENT"])
+    assert "caller" not in merged
+    assert merged["permission"]["edit"]["*"] == "deny"
+    assert _binding_resolution().provider_id in merged["provider"]
+
+
+def test_role_binding_child_env_drops_control_and_empty_location_values() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "USERPROFILE": "C:\\Users\\build\u0000er",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming\u001f",
+        "TEMP": "",
+        "TMP": "C:\\Temp\n",
+        "HOME": "C:\\Temp\x7f",
+        "LOCALAPPDATA": "C:\\Users\\builder\\AppData\\Local",
+    }
+
+    child = build_role_child_env(parent, _role_binding_config(), "planner")
+
+    for key in ("USERPROFILE", "APPDATA", "TEMP", "TMP", "HOME"):
+        assert key not in child
+    assert child["LOCALAPPDATA"] == "C:\\Users\\builder\\AppData\\Local"
+
+
+def test_role_binding_child_env_matches_binding_helper_validation() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "PATHEXT": ".COM;.EXE;.BAT;.CMD",
+        "USERPROFILE": "C:\\Users\\build\u0000er",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "TEMP": "C:\\Temp",
+        "TMP": "",
+        "HOME": "C:\\Temp\x7f",
+    }
+
+    binding_child = build_binding_child_env(parent, _role_binding_config())
+    role_child = build_role_child_env(parent, _role_binding_config(), "planner")
+
+    for key in ("USERPROFILE", "APPDATA", "TEMP", "TMP", "HOME", "PATH", "SystemRoot"):
+        assert role_child.get(key) == binding_child.get(key)
+
+
+@needs_real_interpreter
+def test_role_binding_child_env_real_interpreter_resolves_user_site(
+    tmp_path: Path,
+) -> None:
+    """A real tooling interpreter in binding-mode role env must not use ``~``.
+
+    The child runs with the exact ``build_role_child_env(binding-mode)``
+    result. A parent profile/AppData/Temp with a NUL in a location value
+    would reach ``subprocess`` as an uncaught ``ValueError`` before the fix,
+    and a dropped valid profile makes CPython resolve its user site to the
+    literal ``~`` directory inside the workspace, which the artifact hygiene
+    gate rejects.
+    """
+    profile = tmp_path / "profile"
+    local_appdata = profile / "AppData" / "Local"
+    parent = {
+        "PATH": os.environ.get("PATH", ""),
+        "SystemRoot": os.environ.get("SystemRoot", "C:\\Windows"),
+        "PATHEXT": os.environ.get("PATHEXT", ".COM;.EXE;.BAT;.CMD"),
+        "USERPROFILE": str(profile),
+        "HOMEDRIVE": profile.drive or "C:",
+        "HOMEPATH": str(profile)[len(profile.drive or "C:"):] or "\\",
+        "APPDATA": str(profile / "AppData" / "Roaming"),
+        "LOCALAPPDATA": str(local_appdata),
+        "TEMP": str(local_appdata / "Temp"),
+        "TMP": str(local_appdata / "Temp"),
+        "HOME": str(profile),
+        "FAKE_SENTINEL_API_KEY": "sentinel-not-a-real-key-0003",
+    }
+
+    child = build_role_child_env(parent, _role_binding_config(), "coder")
+
+    assert "FAKE_SENTINEL_API_KEY" not in child
+    assert "sentinel-not-a-real-key-0003" not in json.dumps(child)
+    config = json.loads(child["OPENCODE_CONFIG_CONTENT"])
+    assert config["permission"]["bash"]["git push*"] == "deny"
+    probe = "import json, site;print(json.dumps({'site': site.getusersitepackages()}))"
+    result = subprocess.run(
+        [sys.executable, "-c", probe],
+        env=child,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        cwd=str(tmp_path),
+    )
+
+    assert result.returncode == 0, result.stderr
+    value = json.loads(result.stdout)["site"]
+    assert isinstance(value, str) and value
+    assert not value.startswith("~")
+    assert os.path.isabs(value)
+    assert str(profile) in value
+
+
+def test_role_direct_child_env_forwards_valid_custom_pathext() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "PATHEXT": ".EXE;.PY",
+        "COMSPEC": "C:\\Windows\\system32\\cmd.exe",
+        "USERPROFILE": "C:\\Users\\builder",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "TEMP": "C:\\Temp",
+        "XDG_DATA_HOME": "C:\\Users\\builder\\share",
+        "FAKE_SENTINEL_OPENAI_KEY": "sentinel-not-a-real-key-0004",
+        "OPENCODE_CONFIG_CONTENT": "{\"caller\":\"inherited\"}",
+    }
+
+    child = build_role_child_env(parent, None, "reviewer")
+
+    assert child["PATHEXT"] == ".EXE;.PY"
+    assert child["COMSPEC"] == parent["COMSPEC"]
+    assert child["USERPROFILE"] == parent["USERPROFILE"]
+    assert child["XDG_DATA_HOME"] == parent["XDG_DATA_HOME"]
+    assert "FAKE_SENTINEL_OPENAI_KEY" not in child
+    assert "sentinel-not-a-real-key-0004" not in json.dumps(child)
+    if platform.system() == "Windows":
+        assert child["PATHEXT"] != ".COM;.EXE;.BAT;.CMD"
+        assert child["SystemDrive"] == "C:"
+    config = json.loads(child["OPENCODE_CONFIG_CONTENT"])
+    assert "caller" not in config
+    assert config["permission"]["bash"]["*"] == "deny"
+    assert config["permission"]["bash"]["git diff*"] == "allow"
+
+
+@pytest.mark.parametrize(
+    "pathext",
+    [None, "", ".EXE;.PY\n", "../bad", "C:\\Windows\\bad.exe"],
+)
+def test_role_direct_child_env_malformed_pathext_falls_back_to_default(
+    pathext: str | None,
+) -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "PATHEXT": pathext,
+        "USERPROFILE": "C:\\Users\\builder",
+    }
+
+    child = build_role_child_env(parent, None, "planner")
+
+    assert child.get("PATHEXT", ".COM;.EXE;.BAT;.CMD") == ".COM;.EXE;.BAT;.CMD"
+    if platform.system() == "Windows":
+        assert child["PATHEXT"] == ".COM;.EXE;.BAT;.CMD"
+    else:
+        assert "PATHEXT" not in child
+    assert child["USERPROFILE"] == "C:\\Users\\builder"
+
+
+def test_role_direct_child_env_pathext_matches_binding_branch() -> None:
+    parent = {
+        "PATH": "C:\\safe-bin",
+        "SystemRoot": "C:\\Windows",
+        "PATHEXT": ".EXE;.PY",
+        "USERPROFILE": "C:\\Users\\builder",
+        "APPDATA": "C:\\Users\\builder\\AppData\\Roaming",
+        "TEMP": "C:\\Temp",
+    }
+
+    direct_child = build_role_child_env(parent, None, "planner")
+    binding_child = build_role_child_env(parent, _role_binding_config(), "planner")
+
+    assert direct_child["PATHEXT"] == ".EXE;.PY"
+    assert binding_child["PATHEXT"] == ".EXE;.PY"
+    assert direct_child["PATHEXT"] == binding_child["PATHEXT"]
 
 
 def test_role_permission_config_unknown_role_returns_none() -> None:
