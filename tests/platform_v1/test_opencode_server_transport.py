@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import base64
 from contextlib import contextmanager
+import http.client
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
+import socket
 from threading import Event, Thread
+import time
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -15,6 +18,7 @@ from reverse_agent.platform_v1.opencode_server_transport import (
     OpenCodeServerClient,
     OpenCodeServerTransportError,
     ServerTransportResult,
+    _DeadlineSSEStream,
     run_managed_server_role,
 )
 
@@ -185,6 +189,191 @@ def _client(base_url: str) -> OpenCodeServerClient:
         password=PASSWORD,
         timeout=3.0,
     )
+
+
+def _timed_role(monkeypatch, chunks, *, timeout=100, idle_timeout=5, abort_result=True):
+    """A fake clock and one-read response exercise the production SSE reader."""
+    from types import SimpleNamespace
+    import reverse_agent.platform_v1.opencode_server_transport as transport
+    clock = [0.0]
+    monkeypatch.setattr(transport, "time", SimpleNamespace(monotonic=lambda: clock[0]))
+    class Response:
+        def __init__(self):
+            self.chunks = list(chunks)
+            self.timeouts = []
+            self.closed = False
+            self.fp = SimpleNamespace(raw=SimpleNamespace(_sock=self))
+        def settimeout(self, value):
+            self.timeouts.append(value)
+        def read1(self, limit):
+            if not self.chunks:
+                clock[0] += self.timeouts[-1]
+                raise TimeoutError
+            delay, content = self.chunks.pop(0)
+            if delay >= self.timeouts[-1]:
+                clock[0] += self.timeouts[-1]
+                raise TimeoutError
+            clock[0] += delay
+            if len(content) > limit:
+                self.chunks.insert(0, (0, content[limit:]))
+            return content[:limit]
+        def close(self):
+            self.closed = True
+    response = Response()
+    client = OpenCodeServerClient(base_url="http://127.0.0.1:12345", username="test", password=PASSWORD,
+                                  timeout=timeout, idle_timeout=idle_timeout)
+    monkeypatch.setattr(client, "health", lambda **kw: "test")
+    monkeypatch.setattr(client, "_open_sse", lambda **kw: response)
+    monkeypatch.setattr(client, "create_session", lambda **kw: "session-exact")
+    monkeypatch.setattr(client, "prompt_async", lambda **kw: None)
+    calls = []
+    def abort(**kwargs):
+        calls.append(kwargs)
+        if abort_result is None:
+            raise OpenCodeServerTransportError("server_http_request_failed")
+        return abort_result
+    monkeypatch.setattr(client, "abort", abort)
+    def run():
+        return client.run_role(directory=".", title="test", prompt="PROMPT_SENTINEL", provider_id="p",
+                               model_id="m", agent="", usage_observer=lambda _: False)
+    return run, response, calls, clock
+
+
+def _event(kind, properties=None):
+    return b"data: " + json.dumps({"type": kind, "properties": properties or {}}).encode() + b"\n\n"
+
+
+@pytest.mark.parametrize("abort_result", [True, False, None])
+def test_idle_deadline_ignores_keepalives_and_foreign_session(monkeypatch, abort_result):
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")), (2, b": keepalive\n\n"),
+        (2, _event("message.part.delta", {"sessionID": "foreign", "field": "text", "delta": "SECRET"})),
+        (2, _event("session.idle", {"sessionID": "session-exact"})),
+    ], abort_result=abort_result)
+    result = run()
+    assert result.failure_classification == "server_stream_stalled" and clock[0] == 5
+    assert result.abort_state == ("STREAM_ABORT_CONFIRMED" if abort_result else "STREAM_ABORT_UNKNOWN")
+    assert len(calls) == 1 and calls[0]["session_id"] == "session-exact"
+    assert stream.closed
+    assert "SECRET" not in repr(result) and "PROMPT_SENTINEL" not in repr(result) and PASSWORD not in repr(result)
+
+
+def test_session_progress_refreshes_idle_without_extending_total_deadline(monkeypatch):
+    events = [(0, _event("server.connected")),
+              (4, _event("message.part.delta", {"sessionID": "session-exact", "field": "text", "delta": "progress"})),
+              (4, _event("session.idle", {"sessionID": "session-exact"}))]
+    run, stream, calls, clock = _timed_role(monkeypatch, events)
+    assert run().success and clock[0] == 8 and calls == [] and stream.closed
+    run, stream, calls, clock = _timed_role(monkeypatch, events, timeout=7)
+    result = run()
+    assert result.failure_classification == "server_role_deadline_exceeded" and clock[0] == 7
+    assert len(calls) == 1 and stream.closed
+
+
+def test_repeated_identical_tool_update_is_not_fresh_progress(monkeypatch):
+    tool = {"part": {"id": "tool", "sessionID": "session-exact", "type": "tool", "state": {"status": "running"}}}
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")), (4, _event("message.part.updated", tool)),
+        (4, _event("message.part.updated", tool)), (3, b": keepalive\n\n")])
+    assert run().failure_classification == "server_stream_stalled" and clock[0] == 9
+    assert stream.closed and len(calls) == 1
+
+
+def test_dribbled_partial_sse_line_cannot_extend_idle_deadline(monkeypatch):
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")), (2, b"data: {"), (2, b'"type":'), (2, b'"session.idle"}')])
+    assert run().failure_classification == "server_stream_stalled" and clock[0] == 5
+    assert stream.closed and len(calls) == 1
+
+
+def test_alternating_identical_part_updates_do_not_refresh_idle(monkeypatch):
+    tool_a = {
+        "part": {
+            "id": "tool-a",
+            "sessionID": "session-exact",
+            "type": "tool",
+            "state": {"status": "running"},
+        }
+    }
+    tool_b = {
+        "part": {
+            "id": "tool-b",
+            "sessionID": "session-exact",
+            "type": "tool",
+            "state": {"status": "running"},
+        }
+    }
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (4, _event("message.part.updated", tool_a)),
+        (4, _event("message.part.updated", tool_b)),
+        (4, _event("message.part.updated", tool_a)),
+        (4, _event("message.part.updated", tool_b)),
+        (4, _event("session.idle", {"sessionID": "session-exact"})),
+    ])
+    result = run()
+    assert result.failure_classification == "server_stream_stalled"
+    assert clock[0] == 13
+    assert result.abort_state == "STREAM_ABORT_CONFIRMED"
+    assert stream.closed and len(calls) == 1
+
+
+def test_replayed_completed_message_does_not_refresh_idle(monkeypatch):
+    properties = _usage_event()["properties"]
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (4, _event("message.updated", properties)),
+        (1, _event("message.updated", properties)),
+        (4, b": keepalive\n\n"),
+    ])
+    result = run()
+    assert result.failure_classification == "server_stream_stalled"
+    assert clock[0] == 9
+    assert result.usage_event_count == 1
+    assert stream.closed and len(calls) == 1
+
+
+def test_absolute_deadline_holds_below_real_chunked_framing() -> None:
+    client_sock, peer_sock = socket.socketpair()
+    stop = Event()
+
+    def dribble() -> None:
+        try:
+            peer_sock.sendall(
+                b"HTTP/1.1 200 OK\r\n"
+                b"Content-Type: text/event-stream\r\n"
+                b"Transfer-Encoding: chunked\r\n\r\n"
+            )
+            # HTTPResponse parses the chunk-size/extension line through a
+            # buffered readline; dribbling bytes keeps that readline alive.
+            for _ in range(200):
+                if stop.is_set():
+                    break
+                peer_sock.sendall(b"a")
+                time.sleep(0.02)
+        except OSError:
+            pass
+        finally:
+            peer_sock.close()
+
+    responder = Thread(target=dribble, daemon=True)
+    responder.start()
+    response = http.client.HTTPResponse(client_sock, method="GET")
+    try:
+        response.begin()
+        stream = _DeadlineSSEStream(response)
+        stream.deadline = time.monotonic() + 0.1
+        started = time.monotonic()
+        with pytest.raises(TimeoutError):
+            stream.readline(1024)
+        assert time.monotonic() - started < 0.5
+    finally:
+        stop.set()
+        try:
+            response.close()
+        finally:
+            client_sock.close()
+        responder.join(timeout=2.0)
 
 
 def test_server_client_runs_exact_session_and_projects_usage(tmp_path) -> None:
