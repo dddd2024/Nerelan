@@ -140,7 +140,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                  profiles: Mapping[str, Any] | None = None, role: str = "",
                  author_model: str = "", author_models: Sequence[str] = (), author_executors: Sequence[str] = (), pin: str = "", failed_model: str = "",
                  failed_tier: int = 0, exploration_draw: float = 1.0,
-                 exploration_budget: float = .1, context_need: int = 0,
+                 exploration_budget: float | None = None, benchmark_exploration_budget: float | None = None,
+                 context_need: int = 0,
                  needs: Sequence[str] = (), overrides: Mapping[str, Any] | None = None,
                  reset_signal: Mapping[str, Any] | None = None, now: float | None = None,
                  reset_buffer: float = .03, refused_models: Sequence[str] = (),
@@ -153,10 +154,18 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     Scores prefer known availability/readiness, then quota, cost, success and speed.
     Subscription cost ranges from 1 to 2 as headroom falls; paid API cost is 3.
     Pins override price/tier, while readiness, quota and review fitness still apply.
-    The injected uniform draw gives easy tasks a default 10% exploration rate.
+    The injected uniform draw gives easy tasks a default 10% exploration rate and
+    difficulty 3+ a 20% benchmark exploration rate; review and retries never explore.
     """
     if type(quota_buffer) not in (int, float) or not 0 <= quota_buffer <= 1:
         raise ValueError("invalid_quota_buffer")
+    easy_budget = .1 if exploration_budget is None else exploration_budget
+    hard_budget = .2 if benchmark_exploration_budget is None else benchmark_exploration_budget
+    if benchmark_exploration_budget is None and exploration_budget is not None:
+        hard_budget = easy_budget
+    if (type(easy_budget) not in (int, float) or not 0 <= easy_budget <= 1
+            or type(hard_budget) not in (int, float) or not 0 <= hard_budget <= 1):
+        raise ValueError("invalid_exploration_budget")
     task_traits({"difficulty": difficulty, "kind": kind})
     context_need, needs = requirements({"context_need": context_need, "needs": needs})
     content = "security_simulation" if "security_simulation" in needs else kind
@@ -192,6 +201,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         tier, unproven, tier_source = detail["tier"], detail["unproven"], detail["source"]
         # The decision record cites benchmark sources and confidence (issue 1264).
         tier_basis = {key: detail[key] for key in ("benchmark", "prior_gap") if key in detail}
+        benchmark_tier = (detail.get("benchmark") or {}).get("tier")
         reset = reset_decision(reset_signal, now=now, buffer=reset_buffer,
                                weekly_remaining=candidate.get("weekly_headroom"), short_resets_at=candidate.get("short_resets_at"))
         if reset["drain"] and _window_renewed_since(candidate, reset.get("announced_at")):
@@ -328,7 +338,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         characteristics = {key: metadata.get(key) for key in
                            ("context_window", "max_output_tokens", "input_modalities", "reasoning", "tool_reliability", "chinese")}
         characteristics["context_window"] = window
-        ranked.append(dict(candidate, review_transport=review_transport, availability=dict(candidate.get("availability") or {"state": "UNKNOWN"}), context_window=window, tier=tier, tier_source=tier_source, tier_basis=tier_basis, unproven=unproven, cost_class=cost_class,
+        ranked.append(dict(candidate, review_transport=review_transport, availability=dict(candidate.get("availability") or {"state": "UNKNOWN"}), context_window=window, tier=tier, tier_source=tier_source, tier_basis=tier_basis, benchmark_tier=benchmark_tier, unproven=unproven, cost_class=cost_class,
                            cost=cost, quota_penalty=quota_penalty, success_rate=success, speed=speed,
                            reset=reset, characteristics=characteristics, quota_headroom=observed_headroom,
                            score_breakdown=breakdown, refusal_risk=refusal_risk,
@@ -358,6 +368,17 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
     if refused_models:
         pool = sorted(pool, key=lambda c: (c["availability_rank"], c["refusal_risk"], *c["score"], c["binding_id"]))
         pinned = None  # a refusal never sends the task back to its pinned author
+    # A benchmark-strong but unmeasured model may take a bounded turn at hard
+    # difficulty; the experiment never applies to review or a retry.
+    benchmark_exploratory = [c for c in ranked if c["unproven"]
+                             and (c.get("benchmark_tier") or 0) >= difficulty]
+    exploratory = [c for c in pool if c["unproven"] and c["cost_class"] == "free"]
+    # Evidence always outranks an unmeasured fallback outside bounded exploration,
+    # including on retries: a failed experiment returns to a proven model.
+    proven_pool = [c for c in pool if not c["unproven"] and c["tier"] >= difficulty]
+    proven_pool_dropped = len(pool) - len(proven_pool) if proven_pool else 0
+    if proven_pool:
+        pool = proven_pool
     downgrade_fallback = False
     if failed_model and not pinned and not refused_models:
         # Compare tiers before preferring a different model: a weaker distinct
@@ -378,20 +399,23 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
         independent_toolless = [c for c in pool if c["review_transport"] == "toolless"
                                 and c["availability_rank"] == best_availability]
         pool = independent_toolless or pool
-    exploratory = [c for c in pool if c["unproven"] and c["cost_class"] == "free"]
-    # Evidence always outranks an unmeasured fallback outside bounded exploration.
-    proven_pool = [c for c in pool if not c["unproven"] and c["tier"] >= difficulty]
-    if proven_pool:
-        pool = proven_pool
     qualifying = [c for c in pool if c["tier"] >= difficulty]
     # Exploration must not turn unknown availability into a prerequisite probe
     # or displace an otherwise qualifying ready/available connection.
     if any(c["availability_rank"] == 0 for c in qualifying):
         exploratory = [c for c in exploratory if c["availability_rank"] == 0]
+    if any(c["availability_rank"] == 0 for c in proven_pool):
+        benchmark_exploratory = [c for c in benchmark_exploratory if c["availability_rank"] == 0]
     reason = "cheapest_qualifying"
     if pinned:
         chosen, reason = pinned, "pin"
-    elif not failed_model and difficulty <= 2 and exploration_draw < exploration_budget and exploratory:
+    elif (not failed_model and not refused_models and not artifact_review
+          and kind != "review" and role != "reviewer"
+          and difficulty >= 3 and exploration_draw < hard_budget
+          and benchmark_exploratory):
+        chosen = min(benchmark_exploratory, key=lambda c: (c["cost"], c["binding_id"]))
+        reason = "exploration_benchmark"
+    elif not failed_model and difficulty <= 2 and exploration_draw < easy_budget and exploratory:
         chosen, reason = exploratory[0], "exploration"
     elif qualifying:
         chosen = qualifying[0]
@@ -405,7 +429,7 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                   "retry_different_model" if model_identity(chosen["model_id"]) != model_identity(failed_model) else "retry_only_model")
     if artifact_review and chosen["tier"] < difficulty:
         raise ModelSelectionError("review_not_independent", excluded=excluded)
-    if chosen["unproven"] and difficulty >= 3:
+    if chosen["unproven"] and difficulty >= 3 and reason != "exploration_benchmark":
         reason = "prior_only_unproven"
     # JSON-safe evidence: unknown speed is null, never Infinity.
     for item in ranked:
@@ -420,7 +444,8 @@ def select_model(candidates: Sequence[Mapping[str, Any]], *, difficulty: int, ki
                 for item in top]
     return {"difficulty": difficulty, "kind": kind, "binding_ref": chosen["binding_id"],
             "model_id": chosen["model_id"], "executor_kind": chosen["executor_id"], "tier": chosen["tier"], "reason": reason,
-            "underpowered": chosen["tier"] < difficulty, "candidates": evidence,
+            "underpowered": chosen["tier"] < difficulty, "unproven": chosen["unproven"], "candidates": evidence,
+            "ranked_count": len(ranked), "proven_pool_dropped": proven_pool_dropped,
             "context_need": context_need, "needs": list(needs), "content_class": content,
             "excluded_candidates": excluded[:10], "reset": chosen["reset"],
             "score_breakdown": chosen["score_breakdown"], "context_window": chosen["context_window"],
