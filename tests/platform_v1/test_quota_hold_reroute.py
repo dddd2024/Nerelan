@@ -352,3 +352,74 @@ def test_cooldown_reads_the_task_table_once_per_routing_pass(monkeypatch, tmp_pa
         "EXPLAIN QUERY PLAN SELECT binding_ref FROM tasks WHERE updated_at >= 'x' "
         "AND status IN ('FAILED', 'READY_FOR_REVIEW') AND binding_ref != ''"))
     assert "idx_tasks_updated" in plan
+
+
+# --- #1530: quota_exhausted holds use upstream reset time and spare max_retries ---
+
+def test_quota_exhausted_is_not_a_model_failure(monkeypatch):
+    """Owner decision 2026-11-12 B: a non-model failure does not spend max_retries (#1530)."""
+    import reverse_agent.platform_v1.goal_service as gs
+    from datetime import datetime, timedelta, timezone
+    from reverse_agent.platform_v1.autonomy import AutonomyService
+    from reverse_agent.platform_v1.capability_registry import CapabilityRegistry
+    from reverse_agent.platform_v1.control_store import PlatformControlStore
+    from reverse_agent.platform_v1.run_store import TaskStore
+    from reverse_agent.platform_v1.goal_service import GoalService
+
+    store = TaskStore(":memory:")
+    control = PlatformControlStore(store)
+    autonomy = AutonomyService(control_store=control, capabilities=CapabilityRegistry())
+    monkeypatch.setattr(gs, "resolve_repository_workspace", lambda repository: object())
+    monkeypatch.setattr(gs, "repository_base", lambda repository: object())
+
+    now = datetime.now(timezone.utc)
+    window = autonomy.activate({
+        "policy_id": "own", "owner_identity": "o@example",
+        "starts_at": (now - timedelta(seconds=5)).isoformat(),
+        "expires_at": (now + timedelta(hours=1)).isoformat(),
+        "repositories": ["dddd2024/Nerelan"], "capabilities": ["execute_task"],
+        "max_concurrent_tasks": 1, "max_tasks": 10, "max_retries": 0, "confirmation": "ACTIVATE",
+    })
+    goals = GoalService(store=store, control_store=control, roster_resolver=lambda role: ("opencode", "codex-bind"))
+    goal = goals.create({"objective": "quota test", "repository": "dddd2024/Nerelan",
+                         "idempotency_key": "q-test", "executor_kind": "opencode",
+                         "orchestration_mode": "agent_team", "binding_ref": "",
+                         "window_id": window.id})
+    goals.plan(goal.id, expected_revision=1, tasks=[
+        {"id": "T001", "title": "t", "instruction": "i", "agent_role": "simple"}])
+    goals.approve(goal.id, expected_revision=1)
+    goals.launch(goal.id, expected_revision=1, window_id=window.id)
+    task_id = next(link["task_id"] for link in control.list_goal_tasks(goal.id) if link["plan_task_id"] == "T001")
+    store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='quota_exhausted',"
+                        " failure_reset_at='2026-11-22T11:06:00Z' WHERE id=?", (task_id,))
+    store._conn.commit()
+
+    outcome = goals.escalate_failed_tasks(goal.id)
+    # With max_retries=0 a model failure would park; quota_exhausted is host-side so it
+    # requeues on the same binding without spending retries.
+    assert any(o["reason"].startswith("host_retry") for o in outcome) or outcome == ()
+
+
+def test_quota_exhausted_hold_scopes_to_upstream_reset_time():
+    """Quota exhaustion classifications carry a longer fallback than rate-limit errors
+    when no upstream reset time is present (#1530)."""
+    from reverse_agent.platform_v1.quota_guard import account_refusal_hold, PLAN_EXHAUSTED_HOLD_SECONDS, LIMIT_HIT_HOLD_SECONDS
+
+    # Executor-reported exhaustion ("executor_nonzero:quota_exhausted") gets the 5h hold.
+    assert account_refusal_hold("quota_exhausted", "executor_nonzero:quota_exhausted") == PLAN_EXHAUSTED_HOLD_SECONDS
+    # A plain api_error_429 gets the shorter 1h hold.
+    assert account_refusal_hold("api_error_429", "opencode_server:api_error_429") == LIMIT_HIT_HOLD_SECONDS
+    # Non-quota classifications get no special hold.
+    assert account_refusal_hold("server_session_error", "") is None
+
+
+def test_credits_exhausted_without_reset_times_uses_fallback_hold():
+    """A WorkBuddy "Credits exhausted" message without a timestamp falls back to the
+    plan-exhaustion hold window when surfaced by the executor, not the short
+    rate-limit window (#1530)."""
+    from reverse_agent.platform_v1.quota_guard import account_refusal_hold, PLAN_EXHAUSTED_HOLD_SECONDS, LIMIT_HIT_HOLD_SECONDS
+
+    # Executor-reported exhaustion gets the longer 5h hold.
+    assert account_refusal_hold("quota_exhausted", "executor_nonzero:quota_exhausted") == PLAN_EXHAUSTED_HOLD_SECONDS
+    # A plain api_error_429 keeps its shorter one-hour hold.
+    assert account_refusal_hold("api_error_429", "opencode_server:api_error_429") == LIMIT_HIT_HOLD_SECONDS

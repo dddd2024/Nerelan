@@ -20,6 +20,7 @@ from reverse_agent.platform_v1.opencode_server_transport import (
     OpenCodeServerClient,
     OpenCodeServerTransportError,
     ServerTransportResult,
+    _detect_provider_quota_exhaustion,
     run_managed_server_role,
 )
 
@@ -269,7 +270,7 @@ def test_session_retry_rate_limit_exits_before_idle_timeout(monkeypatch, status,
     assert "PROVIDER_SENTINEL" not in repr(result)
 
 
-@pytest.mark.parametrize("message", ["connection reset", "HTTP 429 Credits exhausted"])
+@pytest.mark.parametrize("message", ["connection reset"])
 def test_unrecognized_retry_and_other_sessions_do_not_abort(monkeypatch, message):
     run, _, calls, _ = _timed_role(monkeypatch, [
         (0, _event("server.connected")),
@@ -289,7 +290,10 @@ def test_unrecognized_retry_and_other_sessions_do_not_abort(monkeypatch, message
     ({"name": "APIError", "data": {"message": "OpenCode Zen Free: Free usage limit reached (out of its allowance: not asked again before 07:06 UTC-4)"}}, "api_error_429"),
     ({"message": "Too Many Requests"}, "api_error_429"),
     ("out of its allowance", "api_error_429"),
-    ({"name": "APIError", "data": {"message": "HTTP 429 Credits exhausted"}}, "server_session_error"),
+    # WorkBuddy's account-exhaustion claim is no longer a generic session error: it
+    # names credits and does not carry a second-scale reset, so it surfaces as
+    # quota_exhausted with any upstream reset time attached (#1530).
+    ({"name": "APIError", "data": {"message": "HTTP 429 Credits exhausted"}}, "quota_exhausted"),
     ({"message": "Internal model execution failed"}, "server_session_error"),
 ])
 def test_session_error_classifies_rate_limit_without_masking_billing_or_generic_errors(monkeypatch, error_payload, expected):
@@ -355,6 +359,78 @@ def test_rate_limit_results_extract_validated_reset_timestamp(monkeypatch):
     non_429_res = run_non_429()
     assert non_429_res.failure_classification == "server_session_error"
     assert non_429_res.failure_reset_at == ""
+
+
+@pytest.mark.parametrize("error_payload,expected", [
+    ({"name": "APIError", "data": {"message": "HTTP 429 Credits exhausted"}}, "quota_exhausted"),
+    ({"message": "Your requests have exceeded the quota"}, "quota_exhausted"),
+    ({"name": "APIError", "data": {"statusCode": 429, "message": "credits are exhausted"}}, "quota_exhausted"),
+    ({"data": {"message": "plan entitlement is exhausted"}}, "quota_exhausted"),
+])
+def test_session_error_promotes_account_exhaustion_to_quota_exhausted(monkeypatch, error_payload, expected):
+    """WorkBuddy/OpenRouter-style exhaustion claims must not be swallowed as generic session errors (#1530)."""
+    run, stream, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {"sessionID": "session-exact", "error": error_payload})),
+    ])
+    result = run()
+    assert not result.success
+    assert result.failure_classification == expected
+    assert stream.closed
+
+
+@pytest.mark.parametrize("status_payload,expected", [
+    ({"type": "retry", "attempt": 1, "message": "HTTP 429 Credits exhausted"}, "quota_exhausted"),
+    ({"type": "retry", "attempt": 1, "message": "Your requests have exceeded the quota"}, "quota_exhausted"),
+    ({"type": "retry", "attempt": 1, "message": "Too Many Requests"}, "api_error_429"),
+])
+def test_status_retry_promotes_account_exhaustion_to_quota_exhausted(monkeypatch, status_payload, expected):
+    """A retry envelope carrying account exhaustion wording classifies as quota_exhausted too (#1530)."""
+    run, stream, calls, clock = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.status", {"sessionID": "session-exact", "status": status_payload})),
+        (6, _event("session.idle", {"sessionID": "session-exact"})),
+    ])
+    result = run()
+    assert not result.success
+    assert result.failure_classification == expected
+    assert result.abort_state == "STREAM_ABORT_CONFIRMED"
+    assert len(calls) == 1
+    assert stream.closed
+
+
+def test_quota_exhausted_session_error_carries_upstream_reset_timestamp(monkeypatch):
+    from datetime import datetime
+    from reverse_agent.platform_v1 import codex_protocol
+
+    fixed_now = datetime.fromisoformat("2026-11-22T06:00:00-04:00")
+    monkeypatch.setattr(codex_protocol, "local_now", lambda: fixed_now)
+    # Use a WorkBuddy-style exhaustion message that also carries a reset time.
+    workbuddy_msg = "HTTP 429 Credits exhausted, will reset at 2026-11-22 07:06 UTC-4"
+
+    run_err, _, _, _ = _timed_role(monkeypatch, [
+        (0, _event("server.connected")),
+        (1, _event("session.error", {
+            "sessionID": "session-exact",
+            "error": {"name": "APIError", "data": {"message": workbuddy_msg}},
+        })),
+    ])
+    err_res = run_err()
+    # Wording names credits exhaustion, so it becomes quota_exhausted.
+    assert err_res.failure_classification == "quota_exhausted"
+    # The same reset-time extractor works across both buckets.
+    assert err_res.failure_reset_at == "2026-11-22T11:06:00Z"
+
+
+def test_detect_provider_quota_exhaustion_handles_expected_messages():
+    assert _detect_provider_quota_exhaustion({"error": {"data": {"message": "HTTP 429 Credits exhausted"}}}) is True
+    assert _detect_provider_quota_exhaustion({"error": {"data": {"message": "Your requests have exceeded the quota"}}}) is True
+    assert _detect_provider_quota_exhaustion({"error": {"data": {"message": "insufficient credits"}}}) is True
+    assert _detect_provider_quota_exhaustion({"error": {"data": {"message": "balance is insufficient"}}}) is True
+    # Bare rate-limit / allowance wording stays False (that path uses provider_rate_limit_reply elsewhere).
+    assert _detect_provider_quota_exhaustion({"error": {"data": {"message": "Too Many Requests"}}}) is False
+    assert _detect_provider_quota_exhaustion({"error": {"data": {"message": "OpenCode Zen Free: Free usage limit reached"}}}) is False
+    assert _detect_provider_quota_exhaustion({"error": {"data": {"message": "Internal model execution failed"}}}) is False
 
 
 @pytest.mark.parametrize("oversized_event", [

@@ -92,6 +92,52 @@ def _session_error_rate_limit(properties: Mapping[str, Any]) -> bool:
     return any(provider_rate_limit_reply(text) for text in candidates)
 
 
+# Wording that names an absent or spent credit balance is the signal; a bare 429
+# stays a rate limit (#1525). When present, the account has no credits left to pay
+# for the call and does not recover on the next second-scale reset. That maps to
+# an account-exhausted hold rather than a transient rate-limit retry.
+_PROVIDER_QUOTA_EXHAUSTED_RE = re.compile(
+    r"\b(quota[_ -]*(?:exhausted|depleted|used[_ -]?up|fully[_ -]?consumed)|"
+    r"code\s*quota[_ -]?exhausted|"
+    r"insufficient[_ -]?quota|"
+    r"quota\s+has\s+been\s+exhausted|"
+    r"quota\s+is\s+exhausted|"
+    r"quota\s+was\s+exhausted|"
+    # A used-up token/coding plan answers HTTP 429 like a rate limit, but it
+    # does not recover in seconds (#1497).
+    r"(?:plan\s+)?entitlement\s+(?:is\s+|has\s+been\s+)?exhausted|"
+    r"plan\s+(?:is\s+|has\s+been\s+)?exhausted|"
+    # Billing answers are exhaustion too, not a rate limit: OpenRouter answers
+    # 402 "Insufficient credits", WorkBuddy answers 429 "Credits exhausted".
+    r"insufficient[_ -]?credits?|"
+    r"credits?[_ -]?(?:exhausted|exceeded|depleted|used[_ -]?up|spent|gone|lacking|insufficient)|"
+    r"exhausted[_ -]?credits?|"
+    r"(?:out\s+of|ran\s+out\s+of|not\s+enough|no)\s+credits?|"
+    r"credits?\s+(?:are\s+|is\s+|have\s+been\s+|has\s+been\s+)?(?:exhausted|depleted|exceeded|used\s+up|spent|gone|empty)|"
+    r"insufficient[_ -]?balance|"
+    r"balance\s+(?:is\s+|has\s+been\s+)?(?:insufficient|exhausted|depleted|too\s+low))\b"
+    r"|\brequests?\s+have\s+exceeded\s+(?:the\s+)?quota\b",
+    re.IGNORECASE,
+)
+
+
+def _detect_provider_quota_exhaustion(properties: Mapping[str, Any]) -> bool:
+    """Return True when the upstream text declares account-level credit/plan exhaustion.
+
+    This is broader than ``no_credits_error`` (which requires a purchase signal) and
+    narrower than generic rate-limit wording: it matches plain exhaustion claims such
+    as WorkBuddy's "Credits exhausted" and OpenRouter's "Your requests have exceeded
+    the quota" without relying on a 402 status that the SSE path does not expose.
+    """
+    texts = _session_error_texts(properties)
+    status_msg = properties.get("status") or {}
+    if isinstance(status_msg, Mapping):
+        status_msg = status_msg.get("message", "")
+        if isinstance(status_msg, str):
+            texts = list(texts) + [status_msg]
+    return any(_PROVIDER_QUOTA_EXHAUSTED_RE.search(t) for t in texts if isinstance(t, str))
+
+
 def _extract_rate_limit_reset_at(texts: Sequence[str]) -> str:
     """Return a validated UTC ISO reset timestamp from rate-limit text, or ''."""
     from .codex_protocol import local_now, parse_reset_time
@@ -110,11 +156,27 @@ def _account_rate_limit_retry(status: Any) -> bool:
     if not isinstance(status, Mapping) or status.get("type") != "retry":
         return False
     message = status.get("message")
-    if not isinstance(message, str) or no_credits_error(message):
+    if not isinstance(message, str):
+        return False
+    # Account-exhaustion wording in a retry envelope surfaces as quota_exhausted
+    # (#1530) even though no_credits_error would previously short-circuit it.
+    if provider_quota_exhaustion_claim(status):
+        return True
+    if no_credits_error(message):
         return False
     action = status.get("action")
     return ((isinstance(action, Mapping) and action.get("reason") == "account_rate_limit")
             or provider_rate_limit_reply(message))
+
+
+def provider_quota_exhaustion_claim(status: Mapping[str, Any]) -> bool:
+    """Return True when a ``session.status`` retry envelope carries a provider
+    quota/credit exhaustion claim (#1530). This is distinct from the broader
+    :func:`model_availability.no_credits_error` which requires a purchase signal."""
+    message = status.get("message")
+    if not isinstance(message, str):
+        return False
+    return bool(_PROVIDER_QUOTA_EXHAUSTED_RE.search(message))
 
 
 class OpenCodeServerTransportError(RuntimeError):
@@ -734,11 +796,19 @@ class OpenCodeServerClient:
                 if (event_type == "session.status" and bound_session == session_id
                         and _account_rate_limit_retry(properties.get("status"))):
                     status = properties.get("status")
-                    reset_at = _extract_rate_limit_reset_at((status.get("message", ""),))
+                    message = status.get("message", "") if isinstance(status, Mapping) else ""
+                    reset_at = _extract_rate_limit_reset_at((message,))
                     confirmed = self._abort_stream_confirmed(directory=directory, session_id=session_id)
+                    # Upstream "retry" envelopes can carry either a transient rate limit or an
+                    # account-exhaustion claim; surface the latter explicitly so downstream
+                    # holds treat them correctly (#1530).
+                    if isinstance(status, Mapping) and _detect_provider_quota_exhaustion({"error": status}):
+                        classification = "quota_exhausted"
+                    else:
+                        classification = "api_error_429"
                     return ServerTransportResult(
                         success=False,
-                        failure_classification="api_error_429",
+                        failure_classification=classification,
                         abort_state="STREAM_ABORT_CONFIRMED" if confirmed else "STREAM_ABORT_UNKNOWN",
                         server_version=version,
                         session_digest=_safe_digest(session_id, "session-"),
@@ -753,16 +823,22 @@ class OpenCodeServerClient:
                         usage_event_count=usage_count,
                     )
                 if event_type == "session.error" and bound_session == session_id:
-                    classification = (
-                        "api_error_429"
-                        if _session_error_rate_limit(properties)
-                        else "server_session_error"
-                    )
-                    reset_at = (
-                        _extract_rate_limit_reset_at(_session_error_texts(properties))
-                        if classification == "api_error_429"
-                        else ""
-                    )
+                    # Rate-limit text (rpm/tpm, bare 429) maps to a transient retry bucket
+                    # with an upstream reset time. Account-level credit/plan exhaustion is
+                    # not transient: the upstream does not answer again until someone funds
+                    # it, so the reset time is a hold boundary and the classification must
+                    # surface that distinction (#1530).
+                    if _detect_provider_quota_exhaustion(properties):
+                        classification = "quota_exhausted"
+                    elif _session_error_rate_limit(properties):
+                        classification = "api_error_429"
+                    else:
+                        classification = "server_session_error"
+                    # Only surface reset times for 429/quota paths; generic server errors
+                    # may mention hours elsewhere without meaning account-level resets.
+                    reset_at = ""
+                    if classification in ("api_error_429", "quota_exhausted"):
+                        reset_at = _extract_rate_limit_reset_at(_session_error_texts(properties))
                     return ServerTransportResult(
                         success=False,
                         failure_classification=classification,
