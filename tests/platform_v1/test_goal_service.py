@@ -18,141 +18,29 @@ def _services():
     return store, control, autonomy, GoalService(store=store, control_store=control)
 
 
-@pytest.mark.parametrize("durable", [False, True])
-def test_explicit_host_check_goal_freezes_intent_and_never_dispatches_model(tmp_path, monkeypatch, durable):
-    _persisted_host_result(tmp_path, monkeypatch, durable=durable)
-
-
-def _persisted_host_result(tmp_path, monkeypatch, *, durable=True, strict=False, failed=False):
-    """Synthetic SQLite authority; the checker uses a disposable Git repository."""
-    import subprocess
-    from reverse_agent.platform_v1.task_execution import TaskExecutionService
-    from reverse_agent.platform_v1.task_runtime import ExecutorRouter, load_host_validation_contract
-    subprocess.run(["git", "init", str(tmp_path)], check=True, capture_output=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "core.autocrlf", "false"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.name", "Fixture"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "config", "user.email", "fixture@example.invalid"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "remote", "add", "origin",
-                    "https://github.com/dddd2024/reverse-agent.git"], check=True)
-    (tmp_path / "source.txt").write_bytes(b"baseline\n")
-    subprocess.run(["git", "-C", str(tmp_path), "add", "source.txt"], check=True)
-    subprocess.run(["git", "-C", str(tmp_path), "commit", "-m", "fixture"], check=True, capture_output=True)
-    head = subprocess.check_output(["git", "-C", str(tmp_path), "rev-parse", "HEAD"], text=True).strip()
-    monkeypatch.setenv("REVERSE_AGENT_REPO_DIR", str(tmp_path))
-    store, control, autonomy, goals = _services()
-    payload = _window_payload()
-    payload["capabilities"] = ["validate_task"]
-    window = autonomy.activate(payload)
-    monkeypatch.setattr(control, "window_policy_binding", lambda unused: {
-        "canonical_policy": {"fixture_only": True}, "authority": {
-            "workspace_path": str(tmp_path), "head_sha": head, "validation_paths": ["source.txt"],
-            "validation_command_ids": ["git_diff_check"], "plan_task_id": "CHECK001",
-            "goal_idempotency_key": "host-check-fixture"}}, raising=False)
-    goal = goals.create({"objective": "Check patch hygiene", "idempotency_key": "host-check-fixture",
-                         "orchestration_mode": "single", "executor_kind": "opencode"})
-    planned = goals.plan(goal.id, expected_revision=1, tasks=[{
-        "id": "CHECK001", "title": "Host checker", "instruction": "Check pinned source only",
-        "capability": "validate_task", "validation_command_id": "git_diff_check"}]).goal
-    assert planned.tasks[0]["validation_command_id"] == "git_diff_check"
-    goals.approve(goal.id, expected_revision=1)
-    goals.launch(goal.id, expected_revision=1, window_id=window.id)
-    task_id = control.list_goal_tasks(goal.id)[0]["task_id"]
-    if strict:
-        # Synthetic authority only: exercise recovery under the strict admission shape.
-        store._conn.execute(
-            "UPDATE platform_autonomous_windows SET capabilities_json = ?, max_tasks = 1, "
-            "max_concurrent_tasks = 1, max_retries = 0 WHERE id = ?",
-            ('["execute_task"]', window.id))
-        assert control.is_strict_owner_window(control.get_window(window.id))
-        control.claim_task(window_id=window.id, task_id=task_id, owner="original", lease_ms=1000)
-    if failed:
-        (tmp_path / "source.txt").write_bytes(b"baseline trailing whitespace   \n")
-    frozen = load_host_validation_contract(store.get_task(task_id))
-    assert frozen["allowed_paths"] == ["source.txt"] and frozen["base_sha"] == head
-    router = ExecutorRouter()
-    monkeypatch.setattr(router, "dispatch_execute", lambda **unused: pytest.fail("model executor reached"))
-    monkeypatch.setattr(router, "create_executor", lambda **unused: pytest.fail("model binding reached"))
-    service = TaskExecutionService(store=store, router=router)
-    if durable:
-        task = store.get_task(task_id)
-        lease = store._acquire_durable_lease(task_id=task_id, execution_id=task.execution_id,
-            lease_owner="fixture-owner", execution_authority_sha=head, planning_sha=head, task_status="QUEUED")
-        outcome = service.execute_host_validation(task_id, lease=lease)
-        observed = store.get_latest_durable_run_observation(task_id)
-        assert observed.accepted_checkpoint == "POST_VALIDATION"
-        store._release_durable_lease(lease.run_id, lease.owner, lease.epoch)
-    else:
-        outcome = service.execute(task_id, workspace_root=str(tmp_path))
-    assert outcome.success is (not failed)
-    assert outcome.validation_command_id == "git_diff_check"
-    final = store.get_task(task_id)
-    assert final.status == ("FAILED" if failed else "READY_FOR_REVIEW")
-    assert any(row["value"] == "host_validation" for row in final.evidence_refs)
-    assert any(event.metadata.get("model_execution_skipped") for event in store.get_events(task_id))
-    if not failed:
-        assert goals.detail(goal.id)["completion_scope"] == "EXECUTION_ONLY"
-    control.refresh_goal_status(goal.id)
-    monkeypatch.setattr(control, "window_policy_binding",
-                        PlatformControlStore.window_policy_binding.__get__(control))
-    return store, control, window, goal, task_id
-
-
-@pytest.mark.parametrize("failed", [False, True])
-@pytest.mark.parametrize("mutation", [None, "task", "revision", "executor", "missing_result", "new_work"])
-def test_strict_terminal_goal_recovers_only_original_persisted_result(tmp_path, monkeypatch, failed, mutation):
-    store, control, window, goal, task_id = _persisted_host_result(
-        tmp_path, monkeypatch, strict=True, failed=failed)
-    assert control.get_goal(goal.id).status == ("BLOCKED" if failed else "COMPLETED")
-    store._conn.execute("UPDATE platform_coordinator_claims SET expires_at_ms = 0 WHERE task_id = ?", (task_id,))
-    task = store.get_task(task_id)
-    store.append_usage_observation(task_id, observation_id="original-unknown", execution_id=task.execution_id,
-        role="executor", model_id="fixture", provider_id="", source_kind="fixture", source_id="original", status="UNKNOWN")
-    if mutation == "task":
-        task_id = store.create_task(title="Unrelated", repository=goal.repository, executor_kind=goal.executor_kind).id
-    elif mutation == "revision":
-        store._conn.execute("UPDATE platform_goal_task_links SET goal_revision = 2 WHERE task_id = ?", (task_id,))
-    elif mutation == "executor":
-        store._conn.execute("UPDATE tasks SET executor_kind = 'codex' WHERE id = ?", (task_id,))
-    elif mutation == "missing_result":
-        store._conn.execute("UPDATE tasks SET validation_exit_code = NULL WHERE id = ?", (task_id,))
-    elif mutation == "new_work":
-        store.set_state(task_id, "QUEUED")
-    if mutation:
-        assert task_id not in control.runnable_tasks(window.id)
-        with pytest.raises(TaskStoreError, match="strict_window_task_binding_mismatch"):
-            control.claim_task(window_id=window.id, task_id=task_id, owner="recovery", lease_ms=1000)
-        reservation = store._conn.execute("SELECT * FROM platform_budget_reservations").fetchone()
-        assert reservation["state"] == "ACTIVE" and reservation["claim_epoch"] == 1
-    else:
-        assert control.can_complete_host_claim(window_id=window.id, task_id=task_id)
-        assert control.runnable_tasks(window.id) == (task_id,)
-        epoch, _ = control.claim_task(window_id=window.id, task_id=task_id, owner="recovery", lease_ms=1000)
-        assert epoch == 2
-        assert store.get_task(task_id) == task
-        control.complete_task_claim(window_id=window.id, task_id=task_id, owner="recovery", epoch=epoch, result="persisted")
-        with pytest.raises(TaskStoreError, match="coordinator_claim_fenced"):
-            control.complete_task_claim(window_id=window.id, task_id=task_id, owner="recovery", epoch=epoch, result="persisted")
-        reservation = store._conn.execute("SELECT * FROM platform_budget_reservations").fetchone()
-        assert reservation["state"] == "UNKNOWN" and reservation["claim_epoch"] == epoch
-        assert store._conn.execute("SELECT COUNT(*) FROM platform_usage_charges").fetchone()[0] == 1
-        assert control.get_window(window.id).tasks_completed == 1
-        assert control.get_window(window.id).unknown_observation_count == 1
-        assert control.runnable_tasks(window.id) == ()
-        with pytest.raises(TaskStoreError):
-            control.claim_task(window_id=window.id, task_id=task_id, owner="again", lease_ms=1000)
-    assert store._conn.execute("SELECT COUNT(*) FROM platform_budget_reservations").fetchone()[0] == 1
-    assert control.get_window(window.id).tasks_started == 1
-    assert control.get_window(window.id).retries_used == 0
-
-
-@pytest.mark.parametrize("command,capability", [("shell echo hello", "validate_task"), ("git_diff_check", "execute_task")])
-def test_goal_rejects_caller_selected_non_fixed_host_command(command, capability):
+@pytest.mark.parametrize("command,capability", [
+    ("shell echo hello", "validate_task"),
+    ("git_diff_check", "execute_task"),
+    ("git_diff_check", "validate_task"),
+])
+def test_goal_rejects_retired_host_validation_command(command, capability):
     _, _, _, goals = _services()
     goal = goals.create({"objective": "Check", "idempotency_key": "invalid-command"})
     with pytest.raises(TaskStoreError, match="unsupported_standalone_validation_command"):
         goals.plan(goal.id, expected_revision=1, tasks=[{
             "id": "CHECK001", "title": "Check", "instruction": "Check", "capability": capability,
             "validation_command_id": command}])
+
+
+def test_retired_host_validation_contract_api_is_gone():
+    from reverse_agent.platform_v1 import task_runtime, task_service
+    from reverse_agent.platform_v1.task_execution import TaskExecutionService
+
+    assert not hasattr(task_runtime, "HOST_VALIDATION_CONTRACT")
+    assert not hasattr(task_runtime, "load_host_validation_contract")
+    assert not hasattr(task_runtime, "task_operation")
+    assert not hasattr(TaskExecutionService, "execute_host_validation")
+    assert not hasattr(task_service._TaskHandler, "_dispatch_host_check")
 
 
 def _window_payload():

@@ -370,17 +370,6 @@ def test_discarded_usage_is_measured_once_and_unknown_stays_unknown(case):
     assert len([r for r in store.get_task(task.id).evidence_refs if r["category"] == "AttemptDisposition"]) == 1
 
 
-def test_unsettled_claim_prevents_fixup_reservation(case, monkeypatch):
-    root, _, store, control, service, goal, _, task = case
-    wrong_tree(root)
-    validate(case)
-    monkeypatch.setattr(control, "can_complete_host_claim", lambda **kwargs: True)
-    count = store.count_tasks()
-    assert service.escalate_failed_tasks(goal.id) == ()
-    assert store.count_tasks() == count
-    assert recovery.failed_snapshot(store.get_task(task.id), root=root)
-
-
 # Capability escalation never downgrades while an eligible equal-or-higher tier exists.
 from test_model_router import candidate, choose
 

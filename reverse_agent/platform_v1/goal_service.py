@@ -14,8 +14,6 @@ import json
 import time
 import math
 import subprocess
-import hashlib
-from pathlib import Path
 import shutil
 
 from .model_availability import EXECUTOR_TERMINATED, transient_overload
@@ -58,7 +56,7 @@ from .artifact_handoff import (
     ACCEPTED_CATEGORY, _load_evidence, freeze_handoff_contract, load_handoff_contract, normalize_input,
     publication_blocker, published_plan_tasks, validate_plan_inputs,
 )
-from .task_runtime import HOST_VALIDATION_CONTRACT, ExecutorRuntimeError, load_host_validation_contract
+
 
 
 def _resolve_orchestration_mode(payload: Mapping[str, Any]) -> str:
@@ -129,7 +127,6 @@ class PlannedTask:
     capability: str = "execute_task"
     validation_checks: tuple[dict[str, str], ...] = ()
     artifact_input: dict[str, str] | None = None
-    validation_command_id: str = ""
     agent_role: str = ""
     difficulty: int = 3
     kind: str = "code"
@@ -429,9 +426,6 @@ class GoalService:
         for item in planned_tasks:
             if item.capability not in window.capabilities:
                 raise TaskStoreError(f"goal_window_missing_{item.capability}_capability")
-            if item.validation_command_id and (goal.orchestration_mode not in {"single", "agent_team"} or item.artifact_input
-                                               or item.validation_checks):
-                raise TaskStoreError("host_validation_requires_standalone_single_task")
         routes, decisions = self._route_tasks(goal, planned_tasks, window_id=window_id,
                                               probe_availability=probe_availability)
         if any(kind in {"opencode", "codex", "claude_code"} for kind, _, _ in routes):
@@ -464,7 +458,7 @@ class GoalService:
                 binding_ref=binding_ref,
                 branch=functional_base if executor_kind in {"codex", "claude_code"} or (decision or {}).get(_INITIAL_WAIT) else "",
                 permission_profile="AUTONOMOUS_WINDOW",
-                policy_ref=window.id if plan_task.validation_command_id else window.policy_id,
+                policy_ref=window.policy_id,
                 idempotency_key=f"goal:{goal.id}:r{goal.revision}:{plan_task.id}",
                 orchestration_mode=orchestration_mode,
             )
@@ -479,8 +473,6 @@ class GoalService:
             freeze_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
             freeze_required_artifacts(self.store, task, goal=goal, plan_task=plan_task)
             freeze_handoff_contract(self.store, task, goal=goal, plan_task=plan_task, base_commit=functional_base)
-            if plan_task.validation_command_id:
-                self._freeze_host_validation(task, goal, plan_task, window)
             try:
                 self.control_store.link_goal_task(
                     goal.id,
@@ -534,7 +526,7 @@ class GoalService:
     def _initial_selection_state(self, task: Any, goal: Any, plan: PlannedTask,
                                  planned: Mapping[str, PlannedTask]) -> tuple[dict, str] | None:
         """Prove a marked initial task never entered execution; caller holds store lock."""
-        if (plan.validation_command_id or task.status != "BLOCKED" or _INITIAL_WAIT not in task.failure_detail
+        if (task.status != "BLOCKED" or _INITIAL_WAIT not in task.failure_detail
                 or task.binding_ref or task.workspace or task.model_profile_ref
                 or task.validation_command_id or task.validation_exit_code is not None or task.validation_output_digest
                 or task.repository != goal.repository
@@ -623,8 +615,7 @@ class GoalService:
                     self.store._update_task_fields(task_id, {"status": "QUEUED",
                         "binding_ref": decision["binding_ref"], "executor_kind": decision["executor_kind"],
                         "failure_classification": "", "failure_detail": ""})
-                    from .task_runtime import task_operation
-                    allowed = autonomy.authorize(window_id=goal.window_id, operation=task_operation(self.store.get_task(task_id)),
+                    allowed = autonomy.authorize(window_id=goal.window_id, operation="execute_task",
                         repository=goal.repository, subject_id=task_id,
                         input_payload={"source": "initial_model_selection_recovery"})
                     if not allowed:
@@ -770,8 +761,6 @@ class GoalService:
                     wait = ({"version": 1, "kind": "author", "author_plan_ids": list(pending_authors),
                              "retry_at": time.time() + INITIAL_MODEL_RECHECK_SECONDS} if pending_authors
                             else _initial_resource_wait(decision))
-                    if item.validation_command_id:
-                        wait = None  # a fixed host checker is not model-selection work
                     if wait:
                         decision[_INITIAL_WAIT] = wait
                     decisions[seq] = decision
@@ -831,7 +820,7 @@ class GoalService:
             if link["status"] != "QUEUED" or int(link["goal_revision"]) != goal.revision:
                 continue
             plan_task = planned.get(link["plan_task_id"])
-            if plan_task is None or plan_task.validation_command_id:
+            if plan_task is None:
                 continue
             hold = self.control_store.quota_hold(link["task_id"])
             if hold is None:
@@ -1111,8 +1100,7 @@ class GoalService:
                             history = self.control_store.list_task_escalations(goal_id)
                             continue
                     if (failed.status != "FAILED" or failed.failure_classification != "model_review_rejected"
-                            or not artifacts.model_review_input(failed)
-                            or self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id)):
+                            or not artifacts.model_review_input(failed)):
                         continue
                     if self._review_intent_hold(failed, review_plan):
                         continue
@@ -1198,8 +1186,8 @@ class GoalService:
             if link["status"] not in {"FAILED", "BLOCKED"} or int(link["goal_revision"]) != goal.revision:
                 continue
             plan_task = planned.get(link["plan_task_id"])
-            if plan_task is None or plan_task.validation_command_id:
-                continue  # host validation is not model work; a stronger agent cannot fix it
+            if plan_task is None:
+                continue
             failed = self.store.get_task(link["task_id"])
             # Interrupted by the host (sleep, restart), not by the agent: retry in a new task.
             interrupted_dispatch = _interrupted_dispatch(self.store, failed)
@@ -1281,8 +1269,6 @@ class GoalService:
                     and not quota_failure and not interrupted
                     and _NON_AGENT_FAILURE.search(failed.failure_classification or "")):
                 continue
-            if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
-                continue  # the claim is still being recovered and its reservation settled
             # Decision B: only retries that judge the model spend max_retries; host faults,
             # interrupted runs, quota/rate limits and Owner retries (decision A) do not.
             # All of them share the per-step cap; past it they spend max_retries too.
@@ -1524,8 +1510,6 @@ class GoalService:
                      if row["plan_task_id"] == plan_task_id and int(row["goal_revision"]) == goal.revision), None)
         if plan_task is None or link is None:
             raise TaskStoreError("owner_retry_step_not_found")
-        if plan_task.validation_command_id:
-            raise TaskStoreError("owner_retry_host_check")  # host validation is not model work
         if link["status"] not in {"FAILED", "BLOCKED"}:
             raise TaskStoreError("owner_retry_step_not_stopped")
         failed = self.store.get_task(link["task_id"])
@@ -1533,8 +1517,6 @@ class GoalService:
             raise TaskStoreError("owner_retry_cleanup_unconfirmed")  # the host skips these too
         if self._review_intent_hold(failed, plan_task):
             raise TaskStoreError("owner_retry_review_unresolved")  # never authorize a second reviewer call
-        if self.control_store.can_complete_host_claim(window_id=window.id, task_id=failed.id):
-            raise TaskStoreError("owner_retry_step_recovering")
         entries = self._owner_window_pool(goal, window.id)
         pool = None if entries is None else {entry["binding_ref"] for entry in entries}
         binding_ref = str(binding_ref or "").strip()
@@ -1647,41 +1629,6 @@ class GoalService:
                 return next_role, executor_kind, binding_ref
             next_role = ESCALATION_LADDER.get(next_role)
         return None
-
-    def _freeze_host_validation(self, task: Any, goal: GoalRecord, plan_task: PlannedTask, window: Any) -> None:
-        binding = self.control_store.window_policy_binding(window.id)
-        authority = binding.get("authority", {})
-        from .autonomy import bound_goal_admission
-        admitted = bound_goal_admission(authority, goal)
-        expected_key = admitted["idempotency_key"] if admitted else authority.get("goal_idempotency_key")
-        if (not binding.get("canonical_policy") or not isinstance(authority, Mapping)
-                or authority.get("plan_task_id") != plan_task.id
-                or expected_key != goal.idempotency_key
-                or "git_diff_check" not in authority.get("validation_command_ids", ())):
-            raise TaskStoreError("host_validation_requires_bound_authority")
-        workspace = resolve_repository_workspace(goal.repository)
-        if workspace.repo_dir != Path(authority["workspace_path"]).resolve():
-            raise TaskStoreError("host_validation_workspace_mismatch")
-        contract = {"version": 1, "task_id": task.id, "repository": task.repository,
-                    "goal_id": goal.id, "goal_revision": goal.revision,
-                    "goal_artifact_digest": goal.artifact_digest, "plan_task_id": plan_task.id,
-                    "capability": "validate_task", "validation_command_id": plan_task.validation_command_id,
-                    "window_id": window.id, "policy_digest": window.policy_digest,
-                    "workspace_path": str(workspace.repo_dir), "base_sha": authority["head_sha"],
-                    "allowed_paths": list(authority["validation_paths"]),
-                    "goal_idempotency_key": goal.idempotency_key}
-        try:
-            previous = load_host_validation_contract(self.store.get_task(task.id))
-        except ExecutorRuntimeError as exc:
-            raise TaskStoreError(str(exc)) from exc
-        if previous is not None:
-            if previous != contract:
-                raise TaskStoreError("host_validation_contract_conflict")
-            return
-        detail = json.dumps(contract, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        identity = hashlib.sha256(detail.encode("utf-8")).hexdigest()
-        self.store.add_evidence(task.id, category=HOST_VALIDATION_CONTRACT, label="approved_host_check",
-                                value=identity, status="APPROVED", detail=detail, raw_json_digest=identity)
 
     def list(self, *, limit: int = 100) -> list[dict[str, Any]]:
         goals = self.control_store.list_goals(limit=limit)
@@ -1917,12 +1864,11 @@ class GoalService:
             raise TaskStoreError(f"unsupported_plan_task_capability:{capability}")
         checks = normalize_checks(raw.get("validation_checks", ()))
         artifact_input = normalize_input(raw.get("artifact_input"))
-        command = raw.get("validation_command_id", "")
-        if (not isinstance(command, str) or (command and
-                (command != "git_diff_check" or capability != "validate_task" or artifact_input or checks))):
+        if raw.get("validation_command_id"):
+            # The delegated host-validation contract was retired (#1575).
             raise TaskStoreError("unsupported_standalone_validation_command")
         required_artifacts = normalize_required_artifacts(raw.get("required_artifacts", ()))
-        if required_artifacts and (capability != "execute_task" or checks or artifact_input or command):
+        if required_artifacts and (capability != "execute_task" or checks or artifact_input):
             raise TaskStoreError("required_artifacts_require_standalone_execution")
         agent_role = str(raw.get("agent_role", "") or "").strip()
         if agent_role and agent_role not in AGENT_TASK_ROLES:
@@ -1944,7 +1890,6 @@ class GoalService:
             capability=capability,
             validation_checks=checks,
             artifact_input=artifact_input,
-            validation_command_id=command,
             agent_role=agent_role,
             difficulty=difficulty,
             kind=kind,
@@ -1995,8 +1940,6 @@ class GoalService:
                     f"Dependencies: {deps}",
                     f"Capability: `{item.capability}`",
                     f"Difficulty: {item.difficulty}; kind: `{item.kind}`",
-                    *([f"Host check: `{item.validation_command_id}` (patch hygiene only)"]
-                      if item.validation_command_id else []),
                     "Functional checks: " + (", ".join(
                         f"`{check['profile_id']}` in `{check['working_directory']}`"
                         + (" on " + ", ".join(f"`{target}`" for target in check["targets"]) if check.get("targets") else "")

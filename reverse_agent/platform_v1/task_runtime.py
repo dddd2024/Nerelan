@@ -17,54 +17,12 @@ It does NOT access model APIs, provider credentials, or the network.
 from __future__ import annotations
 
 import hashlib
-import json
 import os
-import re
 import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping, Protocol, TypedDict
-
-HOST_VALIDATION_CONTRACT = "HostValidationContract"
-
-
-def load_host_validation_contract(task: Any) -> dict[str, Any] | None:
-    """Load the immutable host-check intent frozen when a Goal is materialized."""
-    rows = [row for row in task.evidence_refs if row.get("category") == HOST_VALIDATION_CONTRACT]
-    if not rows:
-        return None
-    if len(rows) != 1:
-        raise ExecutorRuntimeError("host_validation_contract_ambiguous")
-    row = rows[0]
-    try:
-        value = json.loads(row["detail"])
-        identity = hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
-                                             separators=(",", ":")).encode("utf-8")).hexdigest()
-        fields = {"version", "task_id", "repository", "goal_id", "goal_revision",
-                  "goal_artifact_digest", "plan_task_id", "capability", "validation_command_id",
-                  "window_id", "policy_digest", "workspace_path", "base_sha", "allowed_paths",
-                  "goal_idempotency_key"}
-        if (not isinstance(value, dict) or set(value) != fields or type(value["version"]) is not int or value["version"] != 1
-                or row["status"] != "APPROVED" or row["value"] != identity
-                or row["raw_json_digest"] != identity or value["task_id"] != task.id
-                or value["repository"] != task.repository or value["capability"] != "validate_task"
-                or value["validation_command_id"] != "git_diff_check"
-                or type(value["goal_revision"]) is not int or value["goal_revision"] < 1
-                or not re.fullmatch(r"[0-9a-f]{40}", value["base_sha"])
-                or not re.fullmatch(r"[0-9a-f]{64}", value["goal_artifact_digest"])
-                or not re.fullmatch(r"[0-9a-f]{64}", value["policy_digest"])
-                or not isinstance(value["allowed_paths"], list) or not value["allowed_paths"]
-                or any(not isinstance(value[key], str) or not value[key]
-                       for key in ("workspace_path", "window_id", "goal_id", "plan_task_id", "goal_idempotency_key"))):
-            raise ValueError
-        return value
-    except (ValueError, TypeError, KeyError) as exc:
-        raise ExecutorRuntimeError("host_validation_contract_invalid") from exc
-
-
-def task_operation(task: Any) -> str:
-    return "validate_task" if load_host_validation_contract(task) is not None else "execute_task"
 
 # ---------------------------------------------------------------------------
 # Result contract

@@ -226,13 +226,6 @@ def test_escalations_spend_the_window_retry_budget(monkeypatch):
     assert goals.escalate_failed_tasks(goal.id) == ()
 
 
-def test_a_claim_still_in_recovery_does_not_escalate(monkeypatch):
-    store, control, goals, goal = _launched(monkeypatch)
-    _fail(store, _link(control, goal.id, "T001")["task_id"])
-    monkeypatch.setattr(control, "can_complete_host_claim", lambda **kwargs: True)
-    assert goals.escalate_failed_tasks(goal.id) == ()
-
-
 def _claimed_unknown_failure(store, control, goal, classification, detail=""):
     task_id = _link(control, goal.id, "T001")["task_id"]
     window_id = control.get_goal(goal.id).window_id

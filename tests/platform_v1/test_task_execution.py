@@ -60,6 +60,16 @@ def test_task_service_has_no_duplicate_execution_helpers() -> None:
     assert not hasattr(task_service._TaskHandler, "_run_executor")
 
 
+def test_retired_host_validation_contract_is_not_part_of_task_execution() -> None:
+    import reverse_agent.platform_v1.task_execution as task_execution
+    import reverse_agent.platform_v1.task_runtime as task_runtime
+
+    assert not hasattr(task_runtime, "HOST_VALIDATION_CONTRACT")
+    assert not hasattr(task_runtime, "load_host_validation_contract")
+    assert not hasattr(task_runtime, "task_operation")
+    assert not hasattr(task_execution.TaskExecutionService, "execute_host_validation")
+
+
 def _service(
     tmp_path,
 ) -> tuple[TaskStore, ExecutorRouter, TaskExecutionService]:

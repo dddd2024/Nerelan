@@ -1080,9 +1080,7 @@ class PlatformControlStore:
         goal = goals[0]
         links = self.list_goal_tasks(goal.id)
         task = self.task_store.get_task(task_id)
-        completion_recovery = (goal.status in {"COMPLETED", "BLOCKED"}
-                               and self.can_complete_host_claim(window_id=window_id, task_id=task_id))
-        if ((goal.status != "RUNNING" and not completion_recovery)
+        if (goal.status != "RUNNING"
                 or goal.repository != window.repositories[0]
                 or goal.orchestration_mode != "single" or len(goal.tasks) != 1
                 or len(links) != 1 or links[0]["task_id"] != task_id
@@ -1123,16 +1121,8 @@ class PlatformControlStore:
                 "JOIN platform_goals g ON g.id = l.goal_id AND g.revision = l.goal_revision "
                 "JOIN tasks t ON t.id = l.task_id "
                 "LEFT JOIN platform_autonomous_windows w ON w.id = g.window_id "
-                "WHERE g.window_id = ? AND ((g.status = 'RUNNING' AND t.status IN ('QUEUED', 'INTERRUPTED', 'QUOTA_WAIT')) "
-                "OR (g.status IN ('RUNNING', 'COMPLETED', 'BLOCKED') AND t.status IN ('READY_FOR_REVIEW', 'FAILED') AND EXISTS ("
-                "SELECT 1 FROM platform_coordinator_claims original_claim "
-                "JOIN platform_budget_reservations original_reservation "
-                "ON original_reservation.task_id = original_claim.task_id "
-                "AND original_reservation.claim_epoch = original_claim.epoch "
-                "AND original_reservation.window_id = original_claim.window_id "
-                "WHERE original_claim.task_id = t.id AND original_claim.window_id = g.window_id "
-                "AND original_claim.status = 'ACTIVE' AND original_claim.expires_at_ms <= ? "
-                "AND original_reservation.state = 'ACTIVE'))) "
+                "WHERE g.window_id = ? AND g.status = 'RUNNING' "
+                "AND t.status IN ('QUEUED', 'INTERRUPTED', 'QUOTA_WAIT') "
                 "AND NOT EXISTS ("
                 "SELECT 1 FROM json_each(l.dependencies_json) dependency "
                 "WHERE NOT EXISTS ("
@@ -1144,7 +1134,7 @@ class PlatformControlStore:
                 "AND predecessor_task.status IN ('READY_FOR_REVIEW', 'READY_FOR_REVIEW_FIXTURE')"
                 ")) "
                 "ORDER BY g.created_at ASC, l.seq ASC",
-                (window_id, _utc_now_ms()),
+                (window_id,),
             ).fetchall()
             ready = []
             for row in rows:
@@ -1157,16 +1147,8 @@ class PlatformControlStore:
                 status = row["status"]
                 if respect_attempt_limits and (
                     (status == "QUEUED" and not row["fresh_budget"])
-                    or (status == "QUOTA_WAIT" and not row["retry_budget"])
+                    or (status in {"INTERRUPTED", "QUOTA_WAIT"} and not row["retry_budget"])
                 ):
-                    continue
-                # An interrupted checker may already have a completed result.
-                # Recovering that checkpoint spends no new attempt.
-                needs_result_recovery = status in {"READY_FOR_REVIEW", "FAILED"} or (
-                    respect_attempt_limits and status == "INTERRUPTED" and not row["retry_budget"]
-                )
-                if needs_result_recovery and not self.can_complete_host_claim(
-                        window_id=window_id, task_id=row["task_id"]):
                     continue
                 ready.append(row["task_id"])
                 if len(ready) >= max(1, min(limit, 500)):
@@ -1321,7 +1303,6 @@ class PlatformControlStore:
 
     def _rebind_goal_locked(self, goal_id: str, *, window_id: str, reason: str) -> dict[str, Any]:
         """Caller holds the store lock inside BEGIN IMMEDIATE; all checks precede any write."""
-        from .task_runtime import task_operation
         from .unknown_claim_isolation import held_task
         goal = self.get_goal(goal_id)
         if goal.status == "RUNNING" and goal.window_id == window_id:
@@ -1391,9 +1372,7 @@ class PlatformControlStore:
             if self._conn.execute("SELECT 1 FROM durable_runs WHERE task_id = ? AND lease_expiry_ms > ?",
                                   (task.id, now_ms)).fetchone() is not None:
                 raise TaskStoreError("goal_task_claim_live")
-            operation = task_operation(task)
-            if task.status in {"INTERRUPTED", "QUOTA_WAIT"} and operation != "validate_task":
-                operation = "resume_task"
+            operation = "resume_task" if task.status in {"INTERRUPTED", "QUOTA_WAIT"} else "execute_task"
             if operation not in window.capabilities:
                 raise TaskStoreError(f"rebind_window_missing_{operation}_capability")
             claim = self._conn.execute(
@@ -2186,13 +2165,12 @@ class PlatformControlStore:
                         raise ValueError
                 except (ValueError, TypeError):
                     raise TaskStoreError("invalid_feedback_identity") from None
-            completion_recovery = self.can_complete_host_claim(window_id=window_id, task_id=task_id)
-            if task["status"] not in {"QUEUED", "INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
+            if task["status"] not in {"QUEUED", "INTERRUPTED", "QUOTA_WAIT"}:
                 raise TaskStoreError("task_not_claimable")
-            if task["status"] in {"INTERRUPTED", "QUOTA_WAIT"} and not completion_recovery:
+            if task["status"] in {"INTERRUPTED", "QUOTA_WAIT"}:
                 if int(window["retries_used"]) >= int(window["max_retries"]):
                     raise TaskStoreError("window_retry_budget_exhausted")
-            elif not completion_recovery and not continuous and task["status"] != "INTERRUPTED" and int(window["tasks_started"]) >= int(window["max_tasks"]):
+            elif not continuous and int(window["tasks_started"]) >= int(window["max_tasks"]):
                 raise TaskStoreError("window_task_budget_exhausted")
             existing = cur.execute(
                 "SELECT * FROM platform_coordinator_claims WHERE task_id = ?", (task_id,)
@@ -2228,7 +2206,7 @@ class PlatformControlStore:
                     raise TaskStoreError("quota_reservation_identity_changed")
                 if active_reservation is not None and (active_reservation["account_ref"] != quota_input["account_ref"] or active_reservation["binding_ref"] != quota_input["binding_ref"]):
                     raise TaskStoreError("quota_reservation_identity_changed")
-            if quota_input is not None and not completion_recovery:
+            if quota_input is not None:
                 from . import quota_reservation
                 outstanding = [dict(r) for r in cur.execute("SELECT * FROM platform_budget_reservations WHERE account_ref=? AND NOT (task_id=? AND state='ACTIVE')", (quota_input["account_ref"], task_id))]
                 for row in outstanding:
@@ -2302,11 +2280,10 @@ class PlatformControlStore:
                         int(active_reservation["claim_epoch"]),
                     ),
                 )
-            if quota_input is not None and not completion_recovery:
+            if quota_input is not None:
                 cur.execute("UPDATE platform_budget_reservations SET account_ref=?, binding_ref=?, quota_windows_json=?, quota_state=?, estimate_json=? WHERE task_id=? AND claim_epoch=?",
                     (quota_input["account_ref"], quota_input["binding_ref"], json.dumps({name: value["p80"] for name, value in quota_need["windows"].items()}), quota_verdict["state"], json.dumps(quota_need), task_id, epoch))
-            elif (feedback_identity is not None and not completion_recovery
-                  and active_reservation is None):
+            elif feedback_identity is not None and active_reservation is None:
                 # Non-native routes have no subscription quota input. Freeze
                 # only feedback metadata; do not invent quota or change its gate.
                 cur.execute("UPDATE platform_budget_reservations SET estimate_json=? "
@@ -2318,9 +2295,7 @@ class PlatformControlStore:
                     cur.execute("UPDATE tasks SET executor_kind=?,binding_ref=? WHERE id=?", (route["executor_kind"], route["binding_ref"], task_id))
                 cur.execute("UPDATE tasks SET status='INTERRUPTED' WHERE id=?", (task_id,))
                 cur.execute("UPDATE durable_runs SET recovery_classification='interrupted' WHERE task_id=? AND recovery_classification='quota_wait'", (task_id,))
-            if completion_recovery:
-                pass  # Finish the original persisted result; no new task/retry spending.
-            elif task["status"] in {"INTERRUPTED", "QUOTA_WAIT"}:
+            if task["status"] in {"INTERRUPTED", "QUOTA_WAIT"}:
                 cur.execute(
                     "UPDATE platform_autonomous_windows SET retries_used = retries_used + 1, "
                     "updated_at = ? WHERE id = ?",
@@ -2419,78 +2394,6 @@ class PlatformControlStore:
             attempt_elapsed_seconds=attempt_elapsed_seconds,
         )
 
-    def _claim_operation(self, task_id: str) -> str:
-        from .task_runtime import task_operation
-        return task_operation(self.task_store.get_task(task_id))
-
-    def complete_persisted_host_claim(self, *, window_id: str, task_id: str) -> None:
-        """Finish one strict Owner admission's original result, never dispatch work."""
-        with self._lock:
-            claim = self._conn.execute(
-                "SELECT owner, epoch FROM platform_coordinator_claims WHERE task_id=? AND window_id=?",
-                (task_id, window_id)).fetchone()
-            if claim is None:
-                raise TaskStoreError("host_result_recovery_unavailable")
-            self._finalize_task_claim(
-                window_id=window_id, task_id=task_id, owner=claim["owner"], epoch=claim["epoch"],
-                claim_status="COMPLETE", count_completion=True,
-                receipt_reason="coordinator_persisted_result_reconciled", receipt_result="persisted_host_result",
-                persisted_host_recovery=True)
-
-    def can_complete_host_claim(self, *, window_id: str, task_id: str) -> bool:
-        """Narrow recovery of an existing result, never permission to rerun a checker."""
-        with self._lock:
-            from .unknown_claim_isolation import held_task
-            if held_task(self._conn, task_id):
-                return False
-            task = self.task_store.get_task(task_id)
-            claim = self._conn.execute("SELECT * FROM platform_coordinator_claims WHERE task_id = ? AND window_id = ?",
-                                       (task_id, window_id)).fetchone()
-            if task.status not in {"INTERRUPTED", "READY_FOR_REVIEW", "FAILED"} or claim is None or claim["status"] == "COMPLETE":
-                return False
-            if task.status in {"READY_FOR_REVIEW", "FAILED"}:
-                reservation = self._conn.execute(
-                    "SELECT state FROM platform_budget_reservations WHERE task_id=? AND window_id=? AND claim_epoch=?",
-                    (task_id, window_id, claim["epoch"])).fetchone()
-                if (claim["status"] != "ACTIVE" or reservation is None or reservation["state"] != "ACTIVE"
-                        or (task.status == "READY_FOR_REVIEW" and task.validation_exit_code != 0)
-                        or (task.status == "FAILED" and task.validation_exit_code in {None, 0})):
-                    return False
-            from .task_runtime import load_host_validation_contract
-            contract = load_host_validation_contract(task)
-            if contract is None or contract["window_id"] != window_id:
-                return False
-            return self._completed_host_checker(task_id)
-
-    def _completed_host_checker(self, task_id: str) -> bool:
-        """Zero model work is proven by host result/checkpoint, not executor name."""
-        from .task_runtime import load_host_validation_contract
-        task = self.task_store.get_task(task_id)
-        contract = load_host_validation_contract(task)
-        if contract is None or task.validation_command_id != "git_diff_check" or task.validation_exit_code is None:
-            return False
-        actual = self.task_store.get_latest_durable_run_observation(task_id)
-        if actual is None or actual.accepted_checkpoint != "POST_VALIDATION":
-            return False
-        run = self.task_store._get_durable_run(actual.run_id)
-        if (run.validation_command_id != task.validation_command_id
-                or run.validation_exit_code != task.validation_exit_code
-                or run.validation_output_digest != task.validation_output_digest):
-            return False
-        executor = any(row.get("category") == "Executor" and row.get("label") == "runtime_kind"
-                       and row.get("value") == "host_validation" and row.get("status") == "pass"
-                       and row.get("detail") == "model_execution_skipped=true; PATCH_HYGIENE only; no functional acceptance"
-                       for row in task.evidence_refs)
-        validation = any(row.get("category") == "Validation" and row.get("label") == "git_diff_check"
-                         and row.get("raw_json_digest") == task.validation_output_digest
-                         and str(row.get("value")) == str(task.validation_exit_code)
-                         for row in task.evidence_refs)
-        host_event = any(event.type == "EXECUTOR_RUNNING" and event.metadata == {
-            "runtime_kind": "host_validation", "model_execution_skipped": True,
-            "validation_surface": "PATCH_HYGIENE", "roles_executed": []}
-            for event in self.task_store.get_events(task_id))
-        return executor and validation and host_event and bool(task.validation_output_digest)
-
     @staticmethod
     def _task_route_is_free(cur: Any, task_id: str) -> bool:
         """True only when the routing record says this task's current binding is free.
@@ -2528,7 +2431,6 @@ class PlatformControlStore:
         count_completion: bool,
         receipt_reason: str,
         receipt_result: str,
-        persisted_host_recovery: bool = False,
         in_transaction: bool = False,
         quota_usage_before: Sequence[str] | None = None,
         attempt_elapsed_seconds: float | None = None,
@@ -2563,29 +2465,6 @@ class PlatformControlStore:
                 ).fetchone()
                 if claim is None:
                     raise TaskStoreError("coordinator_claim_fenced")
-                if persisted_host_recovery:
-                    window_record = self.get_window(window_id)
-                    active = self.active_window()
-                    task_record = self.task_store.get_task(task_id)
-                    if (not self.is_strict_owner_window(window_record)
-                            or active is None or active.id != window_id
-                            or window_record.tasks_started != 1 or window_record.tasks_completed != 0
-                            or int(claim["expires_at_ms"]) > _utc_now_ms()
-                            or task_record.status not in {"READY_FOR_REVIEW", "FAILED"}
-                            or not self.can_complete_host_claim(window_id=window_id, task_id=task_id)):
-                        raise TaskStoreError("host_result_recovery_unavailable")
-                    self.check_strict_task_admission(window_id, task_id)
-                    from .task_runtime import load_host_validation_contract
-                    contract = load_host_validation_contract(task_record)
-                    goal = self.list_window_goals(window_id)[0]
-                    link = self.list_goal_tasks(goal.id)[0]
-                    if (contract["goal_id"] != goal.id
-                            or contract["goal_revision"] != goal.revision
-                            or contract["goal_artifact_digest"] != goal.artifact_digest
-                            or contract["goal_idempotency_key"] != goal.idempotency_key
-                            or contract["policy_digest"] != window_record.policy_digest
-                            or contract["plan_task_id"] != link["plan_task_id"]):
-                        raise TaskStoreError("host_result_recovery_binding_mismatch")
                 reservation = cur.execute(
                     "SELECT * FROM platform_budget_reservations WHERE task_id = ? "
                     "AND claim_epoch = ? AND window_id = ? AND state = 'ACTIVE'",
@@ -2622,8 +2501,7 @@ class PlatformControlStore:
                     # an earlier role's observations to the paused attempt.
                     unknown_count = max(1, unknown_count)
                 usage_unknown = bool(unknown_count)
-                host_zero = not observations and self._completed_host_checker(task_id)
-                if not observations and task["executor_kind"] != "deterministic_fixture" and not host_zero:
+                if not observations and task["executor_kind"] != "deterministic_fixture":
                     usage_unknown = True
                     unknown_count = 1
                 token_units = 0
@@ -2774,18 +2652,13 @@ class PlatformControlStore:
                 )
                 self.append_receipt(
                     window_id=window_id,
-                    # Claim existence does not prove an earlier authorization.
-                    # A persisted result is reconciled, without evaluating or
-                    # granting any new capability or executing its checker.
-                    operation_type="task_claim_reconciliation" if persisted_host_recovery else "task_execution",
-                    capability="not_applicable" if persisted_host_recovery else self._claim_operation(task_id),
+                    operation_type="task_execution",
+                    capability="execute_task",
                     repository=self.task_store.get_task(task_id).repository,
                     subject_id=task_id,
-                    decision="not_evaluated" if persisted_host_recovery else "allowed",
+                    decision="allowed",
                     reason=receipt_reason,
-                    input_payload=({"task_id": task_id, "claim_epoch": epoch,
-                                    "claim_owner": owner, "persisted_result_only": True}
-                                   if persisted_host_recovery else {"task_id": task_id, "claim_epoch": epoch}),
+                    input_payload={"task_id": task_id, "claim_epoch": epoch},
                     result=f"{receipt_result}:{reservation_state}",
                 )
                 if not in_transaction:

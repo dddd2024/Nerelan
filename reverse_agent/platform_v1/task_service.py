@@ -43,7 +43,7 @@ from .task_runtime import (
 )
 from .durable_execution import DurableExecutionService, DurableResumeError
 from .autonomy import AutonomyService, window_to_dict
-from .task_runtime import load_host_validation_contract
+
 from .capability_registry import CapabilityRegistry
 from .control_store import PlatformControlStore
 from .goal_service import GoalService, goal_to_dict
@@ -903,8 +903,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 and segments[:2] == ["api", "tasks"]
                 and segments[3] == "execute"
             ):
-                if self._dispatch_host_check(segments[2], resume=False):
-                    return
                 workspace_root = os.environ.get(
                     "REVERSE_AGENT_TASK_WORKSPACE_ROOT", ""
                 )
@@ -1017,8 +1015,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 and segments[:2] == ["api", "tasks"]
                 and segments[3] == "resume"
             ):
-                if self._dispatch_host_check(segments[2], resume=True):
-                    return
                 try:
                     task = self.store.get_task(segments[2])
                 except TaskStoreError:
@@ -1077,16 +1073,6 @@ class _TaskHandler(BaseHTTPRequestHandler):
                 HTTPStatus.INTERNAL_SERVER_ERROR,
                 {"error": "internal task service error"},
             )
-
-    def _dispatch_host_check(self, task_id: str, *, resume: bool) -> bool:
-        task = self.store.get_task(task_id)
-        contract = load_host_validation_contract(task)
-        if contract is None:
-            return False
-        # Approved host checks were scoped by the retired delegated policy
-        # authority (#1575); a task that still carries one cannot run.
-        self._discard_bounded_request_body()
-        raise TaskStoreError("delegated_policy_authority_unavailable")
 
     def _create_task_from_payload(self, payload: dict[str, Any], *, require_repository_for_opencode: bool = False) -> Any:
         title = str(payload.get("title", "")).strip()
