@@ -902,6 +902,7 @@ class TaskExecutionService:
                 plan_digest=plan_digest,
                 classification=classification,
                 reasons=(failure_reason, classification),
+                worktree=prepared.worktree,
             )
             return self._build_sequential_team_outcome(
                 task_id,
@@ -1026,8 +1027,12 @@ class TaskExecutionService:
         classification: str,
         reasons: tuple[str, ...],
         plan_digest: str = "",
+        worktree: Path | None = None,
     ) -> None:
-        self.store.set_changed_files(task_id, baseline_product)
+        final_changed = (
+            _collect_final_product_files(worktree) if worktree is not None else []
+        )
+        self.store.set_changed_files(task_id, final_changed or list(baseline_product))
         try:
             last_role = roles_executed[-1] if roles_executed else "none"
             self.store.classify_failure(
