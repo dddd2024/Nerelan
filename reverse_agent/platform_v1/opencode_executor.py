@@ -591,6 +591,8 @@ def _resolve_windows_exe() -> str | None:
                 ["where.exe", candidate],
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=10,
             )
             if proc.returncode == 0:
@@ -607,6 +609,8 @@ def _resolve_windows_exe() -> str | None:
             ["where.exe", "opencode"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if proc.returncode == 0:
@@ -631,6 +635,8 @@ def _resolve_windows_cmd() -> str | None:
             ["where.exe", "opencode.cmd"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
         )
         if proc.returncode == 0:
@@ -2036,6 +2042,8 @@ class OpenCodeExecutor:
             cwd=str(wt),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=10,
             check=False,
         )
@@ -2086,6 +2094,8 @@ class OpenCodeExecutor:
                 cwd=str(cwd),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
                 timeout=timeout,
                 check=False,
             )
@@ -2699,6 +2709,8 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
             cwd=str(worktree),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
             check=False,
         )
@@ -2736,6 +2748,8 @@ def _collect_changed_files(worktree: Path) -> list[dict[str, Any]]:
             cwd=str(worktree),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=15,
             check=False,
         )

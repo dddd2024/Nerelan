@@ -2136,7 +2136,7 @@ class DurableExecutionService:
         try:
             result = subprocess.run(
                 ["git", "rev-parse", "HEAD"],
-                cwd=wt_path, capture_output=True, text=True, check=True,
+                cwd=wt_path, capture_output=True, text=True, encoding="utf-8", errors="replace", check=True,
             )
             return result.stdout.strip()
         except Exception:
