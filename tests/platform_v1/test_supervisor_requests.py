@@ -442,3 +442,86 @@ class TestSupervisorControl:
             {"goal_revision": a.revision - 1, "plan_task_id": "T0"}))
         step = self.ask(setup, state, "s0000009", {"action": "status", "goal_id": a.id})["result"]["goal"]["steps"][0]
         assert step == {"step": "T0", "task_id": "task-2", "status": "FAILED", "failure": "api_error_429", "tries": 3}
+
+
+class TestFollowUps1438:
+    """Follow-ups from the review and first live use of #1437."""
+
+    @pytest.mark.parametrize("document", ["[]", "[1, 2]", "42", '"text"', "null", "true"])
+    def test_a_non_object_result_is_reported_as_invalid(self, state, document):
+        import threading
+        import time
+        directory = state.parent / DIRECTORY
+        directory.mkdir()
+
+        def host_writes_non_object():
+            while not list(directory.glob("*.request.json")):
+                time.sleep(0.01)
+            request = next(directory.glob("*.request.json"))
+            request.unlink()
+            name = request.name[:-len(".request.json")]
+            (directory / f"{name}.result.json").write_text(document, encoding="utf-8")
+
+        thread = threading.Thread(target=host_writes_non_object)
+        thread.start()
+        answer = supervisor_requests.submit(state.parent, {"action": "preflight"}, wait_seconds=5,
+                                            poll_seconds=0.01, taken_grace_seconds=5)
+        thread.join()
+        assert answer["ok"] is False and answer["error"] == "supervisor_result_invalid"
+        assert answer["request_id"]
+
+    def test_main_writes_stdout_as_utf8_regardless_of_the_console_encoding(self, tmp_path, monkeypatch):
+        import io
+        import sys
+        answer = {"ok": True, "action": "status", "result": {"title": "日本語 😀"}}
+        monkeypatch.setattr(supervisor_requests, "submit", lambda *args, **kwargs: answer)
+        raw = io.BytesIO()
+        stream = io.TextIOWrapper(raw, encoding="gbk")
+        monkeypatch.setattr(sys, "stdout", stream)
+        assert supervisor_requests.main(["--state-dir", str(tmp_path), "status"]) == 0
+        stream.flush()
+        text = raw.getvalue().decode("utf-8")
+        assert json.loads(text) == answer
+        assert "😀" in text
+
+    def test_main_passes_the_grace_flag(self, tmp_path, monkeypatch):
+        import io
+        import sys
+        calls = {}
+
+        def fake_submit(state_dir, payload, **kwargs):
+            calls.update(state_dir=state_dir, payload=payload, kwargs=kwargs)
+            return {"ok": True}
+
+        monkeypatch.setattr(supervisor_requests, "submit", fake_submit)
+        monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="utf-8"))
+        assert supervisor_requests.main(
+            ["--state-dir", str(tmp_path), "--grace", "12.5", "status", "--goal", "g1"]) == 0
+        assert calls["kwargs"]["taken_grace_seconds"] == 12.5
+        assert calls["payload"] == {"action": "status", "goal_id": "g1"}
+
+    def test_main_grace_defaults_to_the_taken_grace_constant(self, tmp_path, monkeypatch):
+        import io
+        import sys
+        calls = {}
+
+        def fake_submit(state_dir, payload, **kwargs):
+            calls.update(payload=payload, kwargs=kwargs)
+            return {"ok": True}
+
+        monkeypatch.setattr(supervisor_requests, "submit", fake_submit)
+        monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(io.BytesIO(), encoding="utf-8"))
+        assert supervisor_requests.main(["--state-dir", str(tmp_path), "status"]) == 0
+        assert calls["kwargs"]["taken_grace_seconds"] == supervisor_requests.TAKEN_GRACE_SECONDS == 900.0
+        assert "grace" not in calls["payload"]
+
+    def test_write_atomic_removes_the_temp_file_on_any_exception(self, tmp_path, monkeypatch):
+        def refuse(*args, **kwargs):
+            raise RuntimeError("replace failed")
+
+        monkeypatch.setattr(supervisor_requests.os, "replace", refuse)
+        target = tmp_path / "answer.json"
+        with pytest.raises(RuntimeError, match="replace failed"):
+            supervisor_requests._write_atomic(target, {"ok": True})
+        assert list(tmp_path.glob("*.tmp")) == []
+        assert not target.exists()
