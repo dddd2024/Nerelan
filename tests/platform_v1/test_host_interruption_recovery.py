@@ -133,6 +133,25 @@ class TestEscalation:
         assert [s["from_task_id"] for s in steps] == [task.id]
         assert control.list_goal_tasks(goal.id)[0]["task_id"] == steps[0]["to_task_id"] != task.id
 
+    def test_refused_dispatch_with_pending_operation_stays_parked(self, case):
+        store, control, service, goal, task = case[2], case[3], case[4], case[5], case[-1]
+        run_id = _run(store, task)
+        store._conn.execute("UPDATE durable_runs SET recovery_classification='orphan_stale_lease' WHERE run_id=?",
+                            (run_id,))
+        store._conn.execute("INSERT INTO durable_external_operations (operation_id, run_id, task_id, operation_key, "
+                            "idempotency_key, request_digest, created_at, updated_at) VALUES "
+                            "('pending-dispatch', ?, ?, 'remote-dispatch', 'idem', 'digest', 'now', 'now')",
+                            (run_id, task.id))
+        store._conn.execute("UPDATE tasks SET status='FAILED', failure_classification='ambiguous_external_operation', "
+                            "failure_detail=? WHERE id=?", (gs.REFUSED_SECOND_DISPATCH, task.id))
+        store._conn.commit()
+        service.task_resolver = _resolver
+        assert service.escalate_failed_tasks(goal.id) == ()
+        assert control.list_goal_tasks(goal.id)[0]["task_id"] == task.id
+        assert store._conn.execute("SELECT state FROM durable_external_operations WHERE operation_id='pending-dispatch'").fetchone()["state"] == "PENDING"
+        with pytest.raises(Exception, match="owner_retry_external_operation_unresolved"):
+            service.owner_retry(goal.id, "T001", expected_revision=goal.revision)
+
     def test_an_ambiguous_dispatch_without_an_interruption_stays_put(self, case):
         store, service, goal, task = case[2], case[4], case[5], case[-1]
         _run(store, task)  # recovery_classification stays 'normal'
