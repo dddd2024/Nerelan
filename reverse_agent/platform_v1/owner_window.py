@@ -507,13 +507,24 @@ class OwnerWindowAdmission:
             holds = control.claim_holds()
             held = holds["live"]
             active = control.active_window()
-            if envelope.get("continuous") and active and active.continuous and active.id == envelope["window_id"]:
+            appending = bool(envelope.get("continuous") and active and active.continuous
+                             and active.id == envelope["window_id"])
+            if appending:
                 own = control._conn.execute(
                     "SELECT COUNT(*) FROM platform_coordinator_claims WHERE window_id=? AND status='ACTIVE'",
                     (active.id,)).fetchone()[0]
                 held = max(0, held - own)
             add("leftover_claims", "owner_window_old_active_claims_hold" if held else "",
                 f"{held} active coordinator claims; reconcile or isolate them first" if held else "none")
+            if active and not appending:
+                runnable = sum(goal.status == "RUNNING"
+                               for goal in control.list_window_goals(active.id))
+                expiry = active.expires_at or "never (continuous run)"
+                add("active_window", f"active_window_already_exists:{active.id}",
+                    f"{active.id} expires {expiry}; {runnable} of its goals still runnable; "
+                    "stop it or wait for it")
+            else:
+                add("active_window", "", f"appending to {active.id}" if appending else "none")
             if holds["stale"]:
                 warnings.append({"warning": "stale_claims_retired",
                                  "detail": f"{holds['stale']} expired claims of closed windows no longer hold "
