@@ -88,7 +88,7 @@ def _write_atomic(path: Path, document: Any) -> None:
     try:
         temporary.write_text(json.dumps(document, ensure_ascii=False, sort_keys=True), encoding="utf-8")
         os.replace(temporary, path)
-    except OSError:
+    except BaseException:
         try:
             temporary.unlink()
         except OSError:
@@ -313,9 +313,12 @@ def submit(state_dir: str | Path, payload: dict[str, Any], *, wait_seconds: floa
 
     def answer() -> dict[str, Any] | None:
         try:
-            return {**json.loads(result.read_text(encoding="utf-8")), "request_id": name}
+            document = json.loads(result.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
+        if not isinstance(document, dict):
+            return {"ok": False, "error": "supervisor_result_invalid", "request_id": name}
+        return {**document, "request_id": name}
 
     def wait(seconds: float) -> dict[str, Any] | None:
         deadline = time.monotonic() + seconds
@@ -351,6 +354,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--state-dir", default=os.environ.get("REVERSE_AGENT_TASK_DB_DIR", ""),
                         help="directory of the host's task store (default: REVERSE_AGENT_TASK_DB_DIR)")
     parser.add_argument("--wait", type=float, default=300.0, help="seconds to wait for the host")
+    parser.add_argument("--grace", type=float, default=TAKEN_GRACE_SECONDS,
+                        help="seconds to wait after the host has taken the request")
     actions = parser.add_subparsers(dest="action", required=True)
     draft = actions.add_parser("draft")
     draft.add_argument("--text", required=True)
@@ -376,10 +381,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if not args.state_dir:
         parser.error("--state-dir or REVERSE_AGENT_TASK_DB_DIR is required")
-    payload = {key: value for key, value in vars(args).items() if key not in {"state_dir", "wait"}}
-    answer = submit(args.state_dir, payload, wait_seconds=args.wait)
-    sys.stdout.write(json.dumps(answer, ensure_ascii=False, indent=1) + "\n")
+    payload = {key: value for key, value in vars(args).items() if key not in {"state_dir", "wait", "grace"}}
+    answer = submit(args.state_dir, payload, wait_seconds=args.wait, taken_grace_seconds=args.grace)
+    _write_stdout(json.dumps(answer, ensure_ascii=False, indent=1) + "\n")
     return 0 if answer.get("ok") else 1
+
+
+def _write_stdout(text: str) -> None:
+    """Write UTF-8 bytes, whatever the console code page or redirected file encoding."""
+    buffer = getattr(sys.stdout, "buffer", None)
+    if buffer is not None:
+        buffer.write(text.encode("utf-8"))
+        buffer.flush()
+    else:
+        sys.stdout.write(text)
+        sys.stdout.flush()
 
 
 if __name__ == "__main__":
