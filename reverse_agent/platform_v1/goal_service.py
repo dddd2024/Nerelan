@@ -1590,7 +1590,10 @@ class GoalService:
             raise TaskStoreError("owner_retry_step_not_found")
         if plan_task.validation_command_id:
             raise TaskStoreError("owner_retry_host_check")  # host validation is not model work
-        if link["status"] not in {"FAILED", "BLOCKED"}:
+        # INTERRUPTED is Owner-retryable: a redeploy can strand an in-flight run
+        # whose durable resume then refuses on authority_sha_mismatch, so the
+        # Owner must be able to abandon it and start a fresh attempt (#1515).
+        if link["status"] not in {"FAILED", "BLOCKED", "INTERRUPTED"}:
             raise TaskStoreError("owner_retry_step_not_stopped")
         failed = self.store.get_task(link["task_id"])
         if _explicit_cleanup_uncertainty(failed):
@@ -1645,7 +1648,7 @@ class GoalService:
                                 if row["plan_task_id"] == plan_task_id
                                 and int(row["goal_revision"]) == goal.revision), None)
                 if (current is None or current["task_id"] != failed.id
-                        or current["status"] not in {"FAILED", "BLOCKED"}
+                        or current["status"] not in {"FAILED", "BLOCKED", "INTERRUPTED"}
                         or self.control_store.get_goal(goal_id).revision != goal.revision):
                     raise TaskStoreError("owner_retry_step_not_stopped")
                 record_attempt_disposition(self.store, failed, reused=False, snapshot_digest="")

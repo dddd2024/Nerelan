@@ -988,8 +988,10 @@ class UnattendedCoordinator:
                 raise TaskStoreError("quota_resume_authority_revoked")
             self.control_store.check_strict_task_admission(window.id, task_id)
             if task.orchestration_mode == "single":
-                return durable.resume_single(task_id=task_id, lease_owner=self.owner)
-            return durable.resume_sequential_team(task_id=task_id, lease_owner=self.owner)
+                return self._resume_interrupted_durable(
+                    task_id, lambda tid: durable.resume_single(task_id=tid, lease_owner=self.owner))
+            return self._resume_interrupted_durable(
+                task_id, lambda tid: durable.resume_sequential_team(task_id=tid, lease_owner=self.owner))
         if task.orchestration_mode == "single":
             return durable.execute_durable_single(
                 task_id=task_id, workspace_root=self.workspace_root, lease_owner=self.owner
@@ -1006,4 +1008,55 @@ class UnattendedCoordinator:
             lease_provider=self.lease_provider,
             execution_authority_sha=self.execution_authority_sha,
             planning_sha=self.planning_sha,
+        )
+
+    def _resume_interrupted_durable(self, task_id: str, resume: Callable[[str], Any]) -> Any:
+        """Resume an INTERRUPTED durable run, recovering a redeploy strand (#1515).
+
+        A redeploy changes the host's own source HEAD, so the trusted authority
+        SHA recorded at execute time no longer matches the current host and the
+        durable resume refuses with ``authority_sha_mismatch``. That refusal is
+        correct (fail-closed identity: the run is not resumed under new code),
+        but leaving the task INTERRUPTED would busy-loop every tick. Transition
+        it to FAILED so escalation and Owner retry can recover it instead.
+        """
+        try:
+            return resume(task_id)
+        except DurableResumeError as exc:
+            if not str(exc).startswith("authority_sha_mismatch"):
+                raise
+            self._fail_redeploy_stranded_task(task_id, detail=str(exc)[:220])
+            final = self.store.get_task(task_id)
+            return TaskExecutionOutcome(
+                task_id=task_id,
+                execution_id=final.execution_id,
+                success=False,
+                validation_command_id="",
+                validation_exit_code=-1,
+                failure_classification=final.failure_classification,
+                failure_detail=final.failure_detail,
+            )
+
+    def _fail_redeploy_stranded_task(self, task_id: str, *, detail: str) -> None:
+        """Transition an INTERRUPTED task to FAILED after a redeploy authority mismatch.
+
+        No durable lease is held at this point (resume refused before acquiring
+        one), so the fenced lease-based failure path cannot be used. The
+        coordinator owns this task's claim for the current dispatch, so a plain
+        INTERRUPTED -> FAILED transition under the store lock is safe.
+        """
+        from .run_store import _utc_now
+        if self.store.get_task(task_id).status != "INTERRUPTED":
+            return
+        self.store.transition_to(task_id, "FAILED")
+        now = _utc_now()
+        self.store._update_task_fields(task_id, {
+            "failure_classification": "authority_sha_mismatch",
+            "failure_detail": detail,
+            "failure_at": now,
+        })
+        self.store.add_event(
+            task_id, event_type="EXECUTOR_FINISHED", title="Executor failed",
+            description="failure_classification=authority_sha_mismatch",
+            metadata={"failure_classification": "authority_sha_mismatch", "detail": detail},
         )
