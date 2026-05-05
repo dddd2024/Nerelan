@@ -46,6 +46,7 @@ PRE_RC4_MATERIAL_PROBE_FILE_NAME = "pre_rc4_material_probe.json"
 BASE64_RC4_BREAKPOINT_PROBE_FILE_NAME = "base64_rc4_breakpoint_probe.json"
 COMPARE_STACK_PIVOT_PROBE_FILE_NAME = "compare_stack_pivot_probe.json"
 COMPARE_HANDOFF_PROBE_FILE_NAME = "compare_handoff_probe.json"
+COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME = "compare_handoff_slice_probe.json"
 
 DEFAULT_ANCHORS = (
     "78d540b49c590770",
@@ -180,6 +181,7 @@ PRE_RC4_MATERIAL_PROBE_CANDIDATES = DYNAMIC_COMPARE_PATH_PROBE_CANDIDATES
 BASE64_RC4_BREAKPOINT_PROBE_CANDIDATES = PRE_RC4_MATERIAL_PROBE_CANDIDATES
 COMPARE_STACK_PIVOT_PROBE_CANDIDATES = BASE64_RC4_BREAKPOINT_PROBE_CANDIDATES
 COMPARE_HANDOFF_PROBE_CANDIDATES = COMPARE_STACK_PIVOT_PROBE_CANDIDATES
+COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES = COMPARE_HANDOFF_PROBE_CANDIDATES
 PAIR_TAIL_FLAGLIKE_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_{}-")
 
 PAIRSCAN_TOOL = "pairscan"
@@ -212,6 +214,10 @@ def _base64_rc4_breakpoint_probe_script_path() -> Path:
 
 def _compare_handoff_probe_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_handoff_probe.py"
+
+
+def _compare_handoff_slice_probe_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_handoff_slice_probe.py"
 
 
 def _tool_source_path(tool_name: str) -> Path:
@@ -3383,6 +3389,31 @@ def _prior_compare_stack_pivot_needs_handoff() -> bool:
     return _compare_stack_pivot_needs_handoff(payload)
 
 
+def _compare_handoff_needs_slice(payload: dict[str, object]) -> bool:
+    classification = str(payload.get("classification", "")).strip()
+    if classification == "handoff_capture_partial":
+        return True
+    hook_results = payload.get("hook_results", {})
+    hook_results = hook_results if isinstance(hook_results, dict) else {}
+    return (
+        str(hook_results.get("handoff_helper_enter", "")).strip() == "available"
+        and str(hook_results.get("handoff_helper_return", "")).strip() == "available"
+        and str(hook_results.get("post_handoff_lhs_reload", "")).strip() == "unavailable"
+    )
+
+
+def _prior_compare_handoff_needs_slice() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest_slice = current_state.get("latest_compare_handoff_slice_probe", {})
+    if isinstance(latest_slice, dict) and str(latest_slice.get("classification", "")).strip():
+        return False
+    latest = current_state.get("latest_compare_handoff_probe", {})
+    if isinstance(latest, dict) and _compare_handoff_needs_slice(latest):
+        return True
+    payload, _ = _indexed_artifact_payload("compare_handoff_probe")
+    return _compare_handoff_needs_slice(payload)
+
+
 def _profile_audit_candidate_record(
     *,
     label: str,
@@ -5733,6 +5764,408 @@ def run_compare_handoff_probe(
     _write_json(result_path, payload)
     if log:
         log(f"Compare handoff probe wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
+        "promotable_validations": [],
+    }
+
+
+def _compare_handoff_slice_hook_points(static_audit: dict[str, object]) -> list[dict[str, object]]:
+    _ = static_audit
+    return [
+        {
+            "name": "pre_lhs_slot_store",
+            "module_offset": 0x253A,
+            "address": "module+0x253a",
+            "reason": "captures eax immediately before [ebp-0x1170] is written",
+        },
+        {
+            "name": "pre_handoff_call",
+            "module_offset": 0x2554,
+            "address": "module+0x2554",
+            "reason": "captures helper call-site registers, stack words, and [ebp-0x1170]",
+        },
+        {
+            "name": "handoff_helper_enter",
+            "module_offset": 0x1B50,
+            "address": "module+0x1b50",
+            "reason": "captures helper entry arguments and caller return address",
+        },
+        {
+            "name": "post_handoff_lhs_reload",
+            "module_offset": 0x2559,
+            "address": "module+0x2559",
+            "reason": "revalidates the prior post-helper reload anchor",
+        },
+        {
+            "name": "post_handoff_after_reload",
+            "module_offset": 0x255C,
+            "address": "module+0x255c",
+            "reason": "instruction-confirmed fallback after the reload window",
+        },
+        {
+            "name": "pre_compare_push_esi",
+            "module_offset": 0x258B,
+            "address": "module+0x258b",
+            "reason": "captures esi immediately before compare lhs is pushed",
+        },
+        {
+            "name": "wide_flag_prefix_compare",
+            "module_offset": 0x258C,
+            "address": "module+0x258c",
+            "reason": "cross-checks compare lhs/rhs/count at the compare call",
+        },
+    ]
+
+
+def _pointer_text_equal(left: object, right: object) -> bool:
+    left_text = str(left or "").strip().lower()
+    right_text = str(right or "").strip().lower()
+    return bool(left_text and right_text and left_text not in {"0x0", "0"} and left_text == right_text)
+
+
+def _preview_text_equal(left: object, right: object) -> bool:
+    left_text = str(left or "").strip().lower()
+    right_text = str(right or "").strip().lower()
+    if not left_text or not right_text:
+        return False
+    return left_text[:32] == right_text[:32]
+
+
+def _first_observation(observations: list[dict[str, object]], hook_name: str) -> dict[str, object]:
+    return next((item for item in observations if str(item.get("hook_name", "")) == hook_name), {})
+
+
+def _helper_arg_map_from_observations(observations: list[dict[str, object]]) -> dict[str, object]:
+    pre_store = _first_observation(observations, "pre_lhs_slot_store")
+    pre_call = _first_observation(observations, "pre_handoff_call")
+    helper_enter = _first_observation(observations, "handoff_helper_enter")
+    helper_return = _first_observation(observations, "handoff_helper_return")
+    post_reload = _first_observation(observations, "post_handoff_lhs_reload")
+    post_after_reload = _first_observation(observations, "post_handoff_after_reload")
+    pre_compare = _first_observation(observations, "pre_compare_push_esi")
+    compare = _first_observation(observations, "wide_flag_prefix_compare")
+    compare_lhs_ptr = compare.get("lhs_ptr") or pre_compare.get("esi_ptr")
+    compare_lhs_preview = compare.get("lhs_buffer_preview_hex") or pre_compare.get("esi_preview_hex")
+    return {
+        "pre_store": {
+            "source": "eax before mov [ebp-0x1170], eax",
+            "eax_ptr": pre_store.get("eax_ptr", ""),
+            "eax_preview_hex": pre_store.get("eax_preview_hex", ""),
+        },
+        "pre_call": {
+            "source": "call-site immediately before call 0x401b50",
+            "eax_ptr": pre_call.get("eax_ptr", ""),
+            "ecx": dict(pre_call.get("registers", {})).get("ecx", "") if isinstance(pre_call.get("registers"), dict) else "",
+            "edx": dict(pre_call.get("registers", {})).get("edx", "") if isinstance(pre_call.get("registers"), dict) else "",
+            "esi_ptr": pre_call.get("esi_ptr", ""),
+            "lhs_slot_ptr": pre_call.get("lhs_slot_ptr", ""),
+            "stack_words": pre_call.get("stack_words", []),
+        },
+        "helper_enter": {
+            "source": "0x401b50 entry",
+            "return_address": helper_enter.get("return_address", ""),
+            "return_address_module_offset": helper_enter.get("return_address_module_offset", ""),
+            "eax_ptr": helper_enter.get("eax_ptr", ""),
+            "ecx": dict(helper_enter.get("registers", {})).get("ecx", "") if isinstance(helper_enter.get("registers"), dict) else "",
+            "edx": dict(helper_enter.get("registers", {})).get("edx", "") if isinstance(helper_enter.get("registers"), dict) else "",
+            "esi_ptr": helper_enter.get("esi_ptr", ""),
+            "lhs_slot_ptr": helper_enter.get("lhs_slot_ptr", ""),
+            "stack_words": helper_enter.get("stack_words", []),
+        },
+        "helper_return": {
+            "source": "0x401b50 onLeave",
+            "eax_ptr": helper_return.get("eax_ptr", ""),
+            "eax_preview_hex": helper_return.get("eax_preview_hex", ""),
+            "esi_ptr": helper_return.get("esi_ptr", ""),
+            "lhs_slot_ptr": helper_return.get("lhs_slot_ptr", ""),
+            "lhs_slot_preview_hex": helper_return.get("lhs_slot_preview_hex", ""),
+        },
+        "post_helper": {
+            "prior_reload_anchor_observed": bool(post_reload),
+            "fallback_after_reload_observed": bool(post_after_reload),
+            "post_reload_lhs_slot_ptr": post_reload.get("lhs_slot_ptr", ""),
+            "post_after_reload_esi_ptr": post_after_reload.get("esi_ptr", ""),
+        },
+        "compare_lhs": {
+            "source": "wide_flag_prefix_compare lhs or pre_compare esi",
+            "lhs_ptr": compare_lhs_ptr or "",
+            "lhs_preview_hex": compare_lhs_preview or "",
+            "compare_count": compare.get("compare_count"),
+        },
+        "relations": {
+            "pre_call_slot_matches_helper_enter_slot": _pointer_text_equal(
+                pre_call.get("lhs_slot_ptr"), helper_enter.get("lhs_slot_ptr")
+            ),
+            "helper_return_eax_matches_compare_lhs_ptr": _pointer_text_equal(
+                helper_return.get("eax_ptr"), compare_lhs_ptr
+            ),
+            "helper_return_eax_preview_matches_compare_lhs": _preview_text_equal(
+                helper_return.get("eax_preview_hex"), compare_lhs_preview
+            ),
+            "helper_return_slot_matches_compare_lhs_ptr": _pointer_text_equal(
+                helper_return.get("lhs_slot_ptr"), compare_lhs_ptr
+            ),
+            "helper_return_slot_preview_matches_compare_lhs": _preview_text_equal(
+                helper_return.get("lhs_slot_preview_hex"), compare_lhs_preview
+            ),
+            "pre_compare_esi_matches_compare_lhs_ptr": _pointer_text_equal(
+                pre_compare.get("esi_ptr"), compare_lhs_ptr
+            ),
+        },
+    }
+
+
+def _normalize_slice_observation(item: dict[str, object], candidate_hex: str) -> dict[str, object]:
+    normalized = _normalize_handoff_observation(item, candidate_hex)
+    normalized.update(
+        {
+            "return_address": str(item.get("return_address", "")),
+            "return_address_module_offset": str(item.get("return_address_module_offset", "")),
+            "stack_words": list(item.get("stack_words", [])) if isinstance(item.get("stack_words"), list) else [],
+            "argument_previews": dict(item.get("argument_previews", {}))
+            if isinstance(item.get("argument_previews"), dict)
+            else {},
+        }
+    )
+    return normalized
+
+
+def _aggregate_slice_hook_results(candidate_results: list[dict[str, object]]) -> dict[str, str]:
+    base = _aggregate_handoff_hook_results(candidate_results)
+    names: set[str] = set()
+    for result in candidate_results:
+        for item in result.get("hook_observations", []):
+            if isinstance(item, dict):
+                names.add(str(item.get("hook_name", "")))
+    base.update(
+        {
+            "post_handoff_after_reload": "available" if "post_handoff_after_reload" in names else "unavailable",
+            "pre_compare_push_esi": "available" if "pre_compare_push_esi" in names else "unavailable",
+        }
+    )
+    return base
+
+
+def _cross_candidate_slice_summary(candidate_results: list[dict[str, object]]) -> dict[str, object]:
+    relation_counts: dict[str, int] = {}
+    candidate_dependent_fields: dict[str, bool] = {}
+    field_values: dict[str, set[str]] = {
+        "helper_return.eax_preview_hex": set(),
+        "helper_return.lhs_slot_preview_hex": set(),
+        "compare_lhs.lhs_preview_hex": set(),
+        "pre_call.esi_ptr": set(),
+    }
+    for result in candidate_results:
+        arg_map = result.get("helper_argument_map", {})
+        if not isinstance(arg_map, dict):
+            continue
+        relations = arg_map.get("relations", {})
+        if isinstance(relations, dict):
+            for key, value in relations.items():
+                relation_counts[key] = relation_counts.get(key, 0) + (1 if bool(value) else 0)
+        helper_return = arg_map.get("helper_return", {})
+        compare_lhs = arg_map.get("compare_lhs", {})
+        pre_call = arg_map.get("pre_call", {})
+        if isinstance(helper_return, dict):
+            field_values["helper_return.eax_preview_hex"].add(str(helper_return.get("eax_preview_hex", ""))[:48])
+            field_values["helper_return.lhs_slot_preview_hex"].add(str(helper_return.get("lhs_slot_preview_hex", ""))[:48])
+        if isinstance(compare_lhs, dict):
+            field_values["compare_lhs.lhs_preview_hex"].add(str(compare_lhs.get("lhs_preview_hex", ""))[:48])
+        if isinstance(pre_call, dict):
+            field_values["pre_call.esi_ptr"].add(str(pre_call.get("esi_ptr", "")))
+    for key, values in field_values.items():
+        candidate_dependent_fields[key] = len({value for value in values if value}) > 1
+    return {
+        "candidate_count": len(candidate_results),
+        "runtime_backed_count": sum(1 for item in candidate_results if bool(item.get("runtime_backed"))),
+        "relation_counts": relation_counts,
+        "candidate_dependent_fields": candidate_dependent_fields,
+    }
+
+
+def _classify_handoff_slice(
+    *,
+    runtime_backed_count: int,
+    hook_results: dict[str, str],
+    cross_summary: dict[str, object],
+) -> str:
+    if runtime_backed_count <= 0:
+        return "needs_pre_rc4_base64_probe"
+    relation_counts = cross_summary.get("relation_counts", {})
+    relation_counts = relation_counts if isinstance(relation_counts, dict) else {}
+    helper_available = (
+        hook_results.get("handoff_helper_enter") == "available"
+        and hook_results.get("handoff_helper_return") == "available"
+    )
+    compare_available = hook_results.get("compare_lhs_buffer") == "available"
+    helper_to_compare = any(
+        int(relation_counts.get(key, 0) or 0) > 0
+        for key in (
+            "helper_return_eax_matches_compare_lhs_ptr",
+            "helper_return_eax_preview_matches_compare_lhs",
+            "helper_return_slot_matches_compare_lhs_ptr",
+            "helper_return_slot_preview_matches_compare_lhs",
+            "pre_compare_esi_matches_compare_lhs_ptr",
+        )
+    )
+    if (
+        helper_available
+        and compare_available
+        and hook_results.get("post_handoff_lhs_reload") == "unavailable"
+        and (
+            hook_results.get("post_handoff_after_reload") == "available"
+            or int(relation_counts.get("helper_return_eax_preview_matches_compare_lhs", 0) or 0) > 0
+        )
+    ):
+        return "wrong_reload_anchor"
+    if helper_available and compare_available and helper_to_compare:
+        return "helper_arg_slice_confirmed"
+    if helper_available or compare_available:
+        return "helper_arg_slice_partial"
+    return "wrong_helper_assumption"
+
+
+def run_compare_handoff_slice_probe(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel,
+    per_probe_timeout: float,
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME
+    script_path = _compare_handoff_slice_probe_script_path()
+    static_audit = _compare_stack_static_audit(target)
+    hook_points = _compare_handoff_slice_hook_points(static_audit)
+    entries = list(COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES)
+    payload: dict[str, object] = {
+        "artifact_kind": "compare_handoff_slice_probe",
+        "profile": "samplereverse",
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(entries),
+        "candidate_limit": len(COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES),
+        "static_audit": {
+            "classification": static_audit.get("classification"),
+            "compare_site": static_audit.get("compare_site"),
+            "backward_slice": static_audit.get("backward_slice", []),
+            "prior_reload_anchor": "module+0x2559",
+            "corrected_post_helper_probe": "helper onLeave plus module+0x255c fallback",
+        },
+        "hook_points": hook_points,
+        "promotable_validations": [],
+    }
+    _write_json(result_path, payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Compare handoff slice probe script missing: {script_path}")
+
+    points_path = artifacts_dir / "hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        compare_out = candidate_dir / "compare_handoff_slice_probe.json"
+        compare_log = candidate_dir / "compare_handoff_slice_probe.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(compare_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"CompareHandoffSliceProbe scripted hooks {idx}: {candidate_hex}")
+        proc = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        compare_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        observations = [
+            _normalize_slice_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        arg_map = _helper_arg_map_from_observations(observations)
+        candidate_results.append(
+            {
+                "label": f"compare_handoff_slice_probe_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_results": dict(compare_payload.get("hook_results", {}))
+                if isinstance(compare_payload.get("hook_results"), dict)
+                else {},
+                "helper_argument_map": arg_map,
+                "hook_observations": observations[:40],
+                "result_path": str(compare_out),
+                "log_path": str(compare_log),
+                "success": bool(compare_payload.get("success")),
+                "error": str(compare_payload.get("error", "")),
+            }
+        )
+
+    runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
+    hook_results = _aggregate_slice_hook_results(candidate_results)
+    cross_summary = _cross_candidate_slice_summary(candidate_results)
+    classification = _classify_handoff_slice(
+        runtime_backed_count=runtime_backed_count,
+        hook_results=hook_results,
+        cross_summary=cross_summary,
+    )
+    next_bounded_action = {
+        "helper_arg_slice_confirmed": "derive byte-level constraints from the confirmed helper-to-compare lhs relation",
+        "helper_arg_slice_partial": "tighten helper argument capture before candidate refinement",
+        "wrong_reload_anchor": "replace module+0x2559 with an instruction-confirmed post-helper hook point",
+        "wrong_helper_assumption": "move to the next bounded pre-compare transform handoff target",
+        "needs_pre_rc4_base64_probe": "return to pre-RC4/Base64 dynamic material capture with new hookable offsets only",
+    }.get(classification, "inspect helper argument slice artifact")
+    payload.update(
+        {
+            "classification": classification,
+            "runtime_backed_count": runtime_backed_count,
+            "hook_results": hook_results,
+            "candidate_results": candidate_results,
+            "helper_argument_maps": [
+                result.get("helper_argument_map", {}) for result in candidate_results
+            ],
+            "cross_candidate_summary": cross_summary,
+            "findings": [
+                "helper argument slice captured runtime observations"
+                if runtime_backed_count
+                else "helper argument slice did not capture runtime observations",
+                "candidate generation, ranking, final selection, and search budget were unchanged",
+            ],
+            "next_bounded_action": next_bounded_action,
+            "promotable_validations": [],
+        }
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Compare handoff slice probe wrote {result_path}")
     return {
         "result_path": str(result_path),
         "payload": payload,
@@ -10514,6 +10947,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         compare_stack_pivot_probe_artifact: ToolRunArtifact | None = None
         compare_handoff_probe_run: dict[str, object] | None = None
         compare_handoff_probe_artifact: ToolRunArtifact | None = None
+        compare_handoff_slice_probe_run: dict[str, object] | None = None
+        compare_handoff_slice_probe_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_validation_run: dict[str, object] | None = None
         h1_h3_boundary_validation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_runtime_artifact: ToolRunArtifact | None = None
@@ -10993,6 +11428,39 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 derived_entries=[],
             )
 
+        compare_handoff_payload = (
+            dict(compare_handoff_probe_run.get("payload", {}))
+            if compare_handoff_probe_run
+            else {}
+        )
+        should_run_compare_handoff_slice_probe = (
+            _compare_handoff_needs_slice(compare_handoff_payload)
+            or _prior_compare_handoff_needs_slice()
+        )
+        if should_run_compare_handoff_slice_probe:
+            compare_handoff_slice_probe_run = run_compare_handoff_slice_probe(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "compare_handoff_slice_probe",
+                transform_model=transform_model,
+                per_probe_timeout=per_probe_timeout,
+                log=log,
+            )
+            compare_handoff_slice_payload = dict(compare_handoff_slice_probe_run.get("payload", {}))
+            compare_handoff_slice_probe_artifact = _make_search_artifact(
+                tool_name="CompareHandoffSliceProbe",
+                output_path=Path(str(compare_handoff_slice_probe_run["result_path"])),
+                summary=str(
+                    compare_handoff_slice_payload.get(
+                        "classification",
+                        "compare handoff slice probe complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=compare_handoff_slice_payload,
+                derived_entries=[],
+            )
+
         should_run_h1_h3 = (
             _selected_h1_h3_target(profile_transform_audit_run)
             and not _negative_h1_h3_boundary_recorded()
@@ -11084,6 +11552,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(compare_stack_pivot_probe_artifact)
         if compare_handoff_probe_artifact is not None:
             artifacts.append(compare_handoff_probe_artifact)
+        if compare_handoff_slice_probe_artifact is not None:
+            artifacts.append(compare_handoff_slice_probe_artifact)
         if h1_h3_boundary_validation_artifact is not None:
             artifacts.append(h1_h3_boundary_validation_artifact)
         if h1_h3_boundary_runtime_artifact is not None:
@@ -11117,12 +11587,15 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "base64_rc4_breakpoint_probe": base64_rc4_breakpoint_probe_run or {},
                 "compare_stack_pivot_probe": compare_stack_pivot_probe_run or {},
                 "compare_handoff_probe": compare_handoff_probe_run or {},
+                "compare_handoff_slice_probe": compare_handoff_slice_probe_run or {},
                 "h1_h3_boundary_validation": h1_h3_boundary_validation_run or {},
                 "prefix_boundary_diagnostics": prefix_boundary_diagnostics,
                 "frontier_converged_reason": frontier_converged_reason,
                 "frontier_stall_stage": frontier_stall_stage,
                 "completed_stage": "h1_h3_boundary_validation"
                 if h1_h3_boundary_validation_run
+                else "compare_handoff_slice_probe"
+                if compare_handoff_slice_probe_run
                 else "compare_handoff_probe"
                 if compare_handoff_probe_run
                 else "compare_stack_pivot_probe"

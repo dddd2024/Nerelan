@@ -56,11 +56,11 @@
     "severity": "soft_block"
   },
   {
-    "direction": "repeat compare handoff probe without narrowing the 0x401b50 helper slice",
+    "direction": "expand candidate search after partial helper argument slice",
     "do_not_repeat": true,
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "compare handoff hooks produced partial runtime evidence; next work should backward-slice helper arguments instead of repeating the same hook set",
-    "severity": "soft_block"
+    "reason": "the helper slice still needs tighter runtime evidence before search expansion is justified",
+    "severity": "hard_block"
   }
 ]

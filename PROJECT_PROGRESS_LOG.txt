@@ -3226,3 +3226,65 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search；不重复 Base64/RC4 breakpoint probe。
 - 下一步做更窄的 `0x401b50` helper argument backward slice。
 - 目标是解释 helper enter/return 中 `[ebp-0x1170]`、eax、esi 与 compare lhs buffer 的关系，并重新校准 post-helper hook placement。
+
+## 2026-05-05 Compare handoff slice probe
+
+1) 执行范围
+- 按计划实现 `compare_handoff_slice_probe`，不新增 candidate generator，不改变 ranking、final selection、promotion。
+- 不扩大 beam、budget、topN、timeout、frontier iteration limit。
+- 固定 3 个 diagnostic candidates：
+  - `78d540b49c59077041414141414141`
+  - `78d540b49c59077040414141414141`
+  - `5a3e7f46ddd474d041414141414141`
+
+2) 代码改动
+- `reverse_agent/olly_scripts/compare_handoff_slice_probe.py`
+  - 新增独立 Frida/UI scripted helper argument slice。
+  - 捕获 helper call-site stack words、return address、registers、`[ebp-0x1170]`、eax/esi previews、compare lhs preview。
+  - 增加 `module+0x255c` fallback hook 和 helper onLeave 作为 post-helper 观测补充。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME`、固定 3-candidate diagnostic。
+  - 新增 `run_compare_handoff_slice_probe()`、helper argument map、cross-candidate relation summary。
+  - diagnostic 不产生 promotable candidates，不改变 search budget。
+- `reverse_agent/project_state.py`
+  - artifact index/current_state/model_gate 识别 `compare_handoff_slice_probe`。
+  - negative_results 记录 partial helper slice 后不应扩大搜索。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 覆盖 helper argument map、wrong reload anchor schema、no-promotion/no-budget-expansion、project_state indexing。
+
+3) 自动化验证
+- `python -m pytest -q tests/test_compare_aware_search_strategy.py` -> `83 passed`
+- `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` -> `24 passed`
+- `python -m pytest -q` -> `174 passed`
+
+4) Harness / project_state
+- Final run: `samplereverse_helper_arg_slice_probe_20260505`
+- Harness completed 1 case, 0 errors.
+- Artifact:
+  - `solve_reports\harness_runs\samplereverse_helper_arg_slice_probe_20260505\reports\tool_artifacts\samplereverse\compare_handoff_slice_probe\compare_handoff_slice_probe.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_helper_arg_slice_probe_20260505` passed.
+- `python -m reverse_agent.project_state status` reports `reason: helper_arg_slice_partial`。
+
+5) 结论
+- Classification: `helper_arg_slice_partial`
+- 3 个 diagnostic candidates 均 runtime-backed。
+- Hook result status:
+  - `handoff_helper_enter=available`
+  - `handoff_helper_return=available`
+  - `lhs_slot=available`
+  - `compare_lhs_buffer=available`
+  - `post_handoff_lhs_reload=unavailable`
+  - `post_handoff_after_reload=unavailable`
+  - `pre_compare_push_esi=unavailable`
+- Static audit still anchored:
+  - compare call RVA `0x258c`
+  - helper RVA `0x1028ac`
+  - helper classification `case_insensitive_wchar_compare`
+- Cross-candidate relation counts from helper return to compare lhs are all 0。
+- 当前 runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大搜索；不回 blind search；不重复当前 helper slice 原样 hook set。
+- 下一步应 tighten helper argument capture 或解释为什么 post-helper call-site hooks `0x2559` / `0x255c` / `0x258b` 未命中。
+- 只有拿到 instruction-confirmed post-helper/call-site 观测后，才继续做 helper-to-compare lhs dataflow 约束。
