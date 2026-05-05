@@ -22,6 +22,7 @@ IMPORTANT_ARTIFACTS = {
     "pre_rc4_material_probe": "pre_rc4_material_probe.json",
     "base64_rc4_breakpoint_probe": "base64_rc4_breakpoint_probe.json",
     "compare_stack_pivot_probe": "compare_stack_pivot_probe.json",
+    "compare_handoff_probe": "compare_handoff_probe.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -50,6 +51,7 @@ RUNTIME_VALIDATION_KEYS = {
     "pre_rc4_material_probe",
     "base64_rc4_breakpoint_probe",
     "compare_stack_pivot_probe",
+    "compare_handoff_probe",
 }
 
 STATE_JSON_NAMES = (
@@ -416,6 +418,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     pre_rc4_material_probe = _read_json(artifact_refs.get("pre_rc4_material_probe"))
     base64_rc4_breakpoint_probe = _read_json(artifact_refs.get("base64_rc4_breakpoint_probe"))
     compare_stack_pivot_probe = _read_json(artifact_refs.get("compare_stack_pivot_probe"))
+    compare_handoff_probe = _read_json(artifact_refs.get("compare_handoff_probe"))
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -474,6 +477,10 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if compare_stack_classification:
         stage = "compare_stack_pivot_probe"
         reason = compare_stack_classification
+    compare_handoff_classification = str(compare_handoff_probe.get("classification") or "").strip()
+    if compare_handoff_classification:
+        stage = "compare_handoff_probe"
+        reason = compare_handoff_classification
     if stage is None:
         uncertainty.append("current_bottleneck.stage")
     if reason is None:
@@ -564,6 +571,17 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": compare_stack_pivot_probe.get("next_bounded_action"),
         }
         if compare_stack_pivot_probe
+        else {},
+        "latest_compare_handoff_probe": {
+            "classification": compare_handoff_classification or None,
+            "artifact": artifact_refs.get("compare_handoff_probe"),
+            "runtime_backed_count": compare_handoff_probe.get("runtime_backed_count"),
+            "candidate_count": compare_handoff_probe.get("candidate_count"),
+            "hook_results": compare_handoff_probe.get("hook_results"),
+            "compare_stack_pivot_audit": compare_handoff_probe.get("compare_stack_pivot_audit"),
+            "next_bounded_action": compare_handoff_probe.get("next_bounded_action"),
+        }
+        if compare_handoff_probe
         else {},
         "uncertainty": sorted(set(uncertainty)),
         "artifact_refs": artifact_refs,
@@ -728,6 +746,36 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "reason": (
                     "compare stack pivot extracted closer handoff evidence from the compare frame; "
                     "next work should hook the recorded handoff points instead of repeating the prior static access probe"
+                ),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    compare_handoff_probe = _read_json(artifacts.get("compare_handoff_probe"))
+    compare_handoff_classification = str(compare_handoff_probe.get("classification") or "").strip()
+    if compare_handoff_classification == "handoff_capture_failed":
+        results.append(
+            {
+                "direction": "expand candidate search after compare handoff hooks failed",
+                "severity": "hard_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "compare handoff hooks did not capture the expected runtime slot evidence; "
+                    "next work should revalidate static hook addresses before any search expansion"
+                ),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    elif compare_handoff_classification == "handoff_capture_partial":
+        results.append(
+            {
+                "direction": "repeat compare handoff probe without narrowing the 0x401b50 helper slice",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "compare handoff hooks produced partial runtime evidence; "
+                    "next work should backward-slice helper arguments instead of repeating the same hook set"
                 ),
                 "override_allowed": True,
                 "override_reason_required": True,

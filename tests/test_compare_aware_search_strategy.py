@@ -12,6 +12,7 @@ from reverse_agent.strategies.base import StrategyResult
 from reverse_agent.strategies.compare_aware_search import (
     BASE64_RC4_BREAKPOINT_PROBE_FILE_NAME,
     BRIDGE_RESULT_FILE_NAME,
+    COMPARE_HANDOFF_PROBE_FILE_NAME,
     COMPARE_STACK_PIVOT_PROBE_FILE_NAME,
     CompareAwareSearchStrategy,
     DYNAMIC_COMPARE_PATH_PROBE_FILE_NAME,
@@ -52,6 +53,7 @@ from reverse_agent.strategies.compare_aware_search import (
     _validated_projected_preserve_second_hop_candidates,
     run_compare_aware_smt,
     run_base64_rc4_breakpoint_probe,
+    run_compare_handoff_probe,
     run_compare_stack_pivot_probe,
     run_dynamic_compare_path_probe,
     run_exact2_basin_value_pool_evaluation,
@@ -782,6 +784,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
         "pre_rc4_material_probe",
         "base64_rc4_breakpoint_probe",
         "compare_stack_pivot_probe",
+        "compare_handoff_probe",
         "h1_h3_boundary_validation",
     }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -3647,6 +3650,112 @@ def _fake_base64_rc4_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     return _Proc()
 
 
+def _fake_compare_handoff_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} >= {
+        "pre_lhs_slot_store",
+        "handoff_helper_enter",
+        "post_handoff_lhs_reload",
+        "wide_flag_prefix_compare",
+    }
+    lhs_preview = "46006c004464830d311c701038525b85"
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "handoff ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "hook_name": "pre_lhs_slot_store",
+                        "address": "0x40253a",
+                        "module_offset": "0x253a",
+                        "registers": {"eax": "0x419cea8", "esi": "0x0", "esp": "0x12fdc90", "ebp": "0x12fee44"},
+                        "stack_preview_hex": "00" * 32,
+                        "lhs_slot_ptr": "0x0",
+                        "eax_ptr": "0x419cea8",
+                        "eax_preview_hex": lhs_preview,
+                        "esi_ptr": "0x0",
+                        "lhs_buffer_preview_hex": lhs_preview,
+                    },
+                    {
+                        "hook_name": "handoff_helper_enter",
+                        "address": "0x401b50",
+                        "module_offset": "0x1b50",
+                        "registers": {"eax": "0x419cea8", "esi": "0x0", "esp": "0x12fdc80", "ebp": "0x12fee44"},
+                        "stack_preview_hex": "11" * 32,
+                        "lhs_slot_ptr": "0x419cea8",
+                        "lhs_slot_preview_hex": lhs_preview,
+                        "eax_ptr": "0x419cea8",
+                        "eax_preview_hex": lhs_preview,
+                        "esi_ptr": "0x0",
+                        "lhs_buffer_preview_hex": lhs_preview,
+                    },
+                    {
+                        "hook_name": "handoff_helper_return",
+                        "address": "0x401b50",
+                        "module_offset": "0x1b50",
+                        "registers": {"eax": "0x419cea8", "esi": "0x0", "esp": "0x12fdc80", "ebp": "0x12fee44"},
+                        "stack_preview_hex": "22" * 32,
+                        "lhs_slot_ptr": "0x419cea8",
+                        "lhs_slot_preview_hex": lhs_preview,
+                        "eax_ptr": "0x419cea8",
+                        "eax_preview_hex": lhs_preview,
+                        "esi_ptr": "0x0",
+                        "lhs_buffer_preview_hex": lhs_preview,
+                    },
+                    {
+                        "hook_name": "post_handoff_lhs_reload",
+                        "address": "0x402559",
+                        "module_offset": "0x2559",
+                        "registers": {"eax": "0x419cea8", "esi": "0x0", "esp": "0x12fdc90", "ebp": "0x12fee44"},
+                        "stack_preview_hex": "33" * 32,
+                        "lhs_slot_ptr": "0x419cea8",
+                        "lhs_slot_preview_hex": lhs_preview,
+                        "eax_ptr": "0x419cea8",
+                        "eax_preview_hex": lhs_preview,
+                        "esi_ptr": "0x0",
+                        "lhs_buffer_preview_hex": lhs_preview,
+                    },
+                    {
+                        "hook_name": "wide_flag_prefix_compare",
+                        "address": "0x40258c",
+                        "module_offset": "0x258c",
+                        "registers": {"eax": "0x0", "esi": "0x419cea8", "esp": "0x12fdc88", "ebp": "0x12fee44"},
+                        "stack_preview_hex": "44" * 32,
+                        "lhs_slot_ptr": "0x419cea8",
+                        "esi_ptr": "0x419cea8",
+                        "esi_preview_hex": lhs_preview,
+                        "lhs_ptr": "0x419cea8",
+                        "rhs_ptr": "0x551c4c",
+                        "compare_count": 5,
+                        "lhs_buffer_preview_hex": lhs_preview,
+                    },
+                ],
+                "hook_results": {
+                    "handoff_helper_enter": "available",
+                    "handoff_helper_return": "available",
+                    "post_handoff_lhs_reload": "available",
+                    "compare_lhs_buffer": "available",
+                    "lhs_slot": "available",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
 def test_base64_rc4_breakpoint_probe_has_bounded_candidate_count_and_schema(
     tmp_path: Path,
     monkeypatch,
@@ -3805,6 +3914,114 @@ def test_compare_stack_pivot_probe_does_not_expand_search_or_promote(
     assert payload["candidate_generation_changed"] is False
     assert payload["ranking_changed"] is False
     assert payload["final_selection_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+    assert payload["promotable_validations"] == []
+    assert result["promotable_validations"] == []
+
+
+def test_compare_handoff_probe_schema_and_records_handoff_points(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_compare_handoff_subprocess_run)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_compare_stack_static_audit",
+        lambda target: {
+            "classification": "static_anchor_confirmed",
+            "errors": [],
+            "compare_site": {
+                "expected_call_rva": "0x258c",
+                "actual_call_rva": "0x258c",
+                "helper_rva": "0x1028ac",
+                "helper_classification": "case_insensitive_wchar_compare",
+            },
+        },
+    )
+
+    result = run_compare_handoff_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_handoff_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == COMPARE_HANDOFF_PROBE_FILE_NAME
+    assert payload["candidate_count"] == 3
+    assert payload["candidate_limit"] == 3
+    assert payload["classification"] == "handoff_capture_complete"
+    assert payload["compare_stack_pivot_audit"] == {
+        "compare_call_rva": "0x258c",
+        "handoff_helper_rva": "0x1b50",
+        "post_handoff_reload_rva": "0x2559",
+        "lhs_slot": "[ebp-0x1170]",
+        "static_anchor_valid": True,
+        "reason": [],
+    }
+    assert payload["hook_results"]["handoff_helper_enter"] == "available"
+    assert payload["hook_results"]["handoff_helper_return"] == "available"
+    assert payload["hook_results"]["post_handoff_lhs_reload"] == "available"
+    assert payload["hook_results"]["lhs_slot"] == "available"
+    assert payload["hook_results"]["compare_lhs_buffer"] == "available"
+    assert {item["hook_name"] for item in payload["handoff_observations"]} >= {
+        "pre_lhs_slot_store",
+        "handoff_helper_enter",
+        "handoff_helper_return",
+        "post_handoff_lhs_reload",
+        "wide_flag_prefix_compare",
+    }
+
+
+def test_compare_handoff_probe_records_lhs_slot_and_post_reload(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_compare_handoff_subprocess_run)
+
+    result = run_compare_handoff_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_handoff_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        log=lambda _: None,
+    )
+
+    observations = result["payload"]["handoff_observations"]
+    post_reload = next(item for item in observations if item["hook_name"] == "post_handoff_lhs_reload")
+    assert post_reload["lhs_slot_ptr"] == "0x419cea8"
+    assert post_reload["eax_ptr"] == "0x419cea8"
+    assert post_reload["lhs_buffer_preview_hex"].startswith("46006c00")
+    assert post_reload["candidate_hex"] == "78d540b49c59077041414141414141"
+    assert post_reload["runtime_ci_exact_wchars"] == 2
+
+
+def test_compare_handoff_probe_does_not_expand_search_or_promote(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_compare_handoff_subprocess_run)
+
+    result = run_compare_handoff_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_handoff_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    assert payload["final_selection_changed"] is False
+    assert payload["search_budget_changed"] is False
     assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
     assert payload["promotable_validations"] == []
     assert result["promotable_validations"] == []

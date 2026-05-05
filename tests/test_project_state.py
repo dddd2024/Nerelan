@@ -259,6 +259,50 @@ def test_project_state_indexes_compare_stack_pivot_probe_and_bottleneck(tmp_path
     assert any("compare stack pivot hook points" in item["direction"] for item in negative_results)
 
 
+def test_project_state_indexes_compare_handoff_probe_and_bottleneck(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_handoff")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_handoff_probe" / "compare_handoff_probe.json",
+        {
+            "artifact_kind": "compare_handoff_probe",
+            "classification": "handoff_capture_partial",
+            "runtime_backed_count": 3,
+            "candidate_count": 3,
+            "hook_results": {
+                "handoff_helper_enter": "available",
+                "handoff_helper_return": "unavailable",
+                "post_handoff_lhs_reload": "available",
+                "compare_lhs_buffer": "available",
+                "lhs_slot": "available",
+            },
+            "compare_stack_pivot_audit": {
+                "compare_call_rva": "0x258c",
+                "handoff_helper_rva": "0x1b50",
+                "post_handoff_reload_rva": "0x2559",
+                "lhs_slot": "[ebp-0x1170]",
+                "static_anchor_valid": True,
+                "reason": [],
+            },
+            "next_bounded_action": "perform a narrower backward slice from 0x401b50 helper arguments",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_handoff_probe"].endswith("compare_handoff_probe.json")
+    assert current_state["current_bottleneck"]["stage"] == "compare_handoff_probe"
+    latest = current_state["latest_compare_handoff_probe"]
+    assert latest["classification"] == "handoff_capture_partial"
+    assert latest["hook_results"]["post_handoff_lhs_reload"] == "available"
+    assert any("compare handoff probe" in item["direction"] for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

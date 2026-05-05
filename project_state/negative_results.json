@@ -56,11 +56,11 @@
     "severity": "soft_block"
   },
   {
-    "direction": "repeat scripted Base64/RC4 breakpoint probe before using compare stack pivot hook points",
+    "direction": "repeat compare handoff probe without narrowing the 0x401b50 helper slice",
     "do_not_repeat": true,
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "compare stack pivot extracted closer handoff evidence from the compare frame; next work should hook the recorded handoff points instead of repeating the prior static access probe",
+    "reason": "compare handoff hooks produced partial runtime evidence; next work should backward-slice helper arguments instead of repeating the same hook set",
     "severity": "soft_block"
   }
 ]
