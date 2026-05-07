@@ -1,25 +1,25 @@
 {
   "active_strategy": "CompareAwareSearchStrategy",
   "artifact_refs": {
-    "bridge_search_result": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\bridge\\bridge_search_result.json",
-    "bridge_validation": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\bridge\\bridge_validation\\bridge_validation.json",
+    "bridge_search_result": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\bridge\\bridge_search_result.json",
+    "bridge_validation": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
-    "compare_aware_result": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\frontier_refine_2\\samplereverse_compare_aware_result.json",
-    "compare_handoff_slice_probe": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
-    "compare_probe": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.log",
-    "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
-    "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
-    "frontier_summary": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_aware_frontier_summary.json",
-    "guided_pool_result": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
-    "guided_pool_validation": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
-    "pairscan_summary": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\bridge\\pairscan_summary.json",
-    "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\profile_transform_hypothesis_matrix.json",
-    "run_manifest": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\run_manifest.json",
-    "smt_result": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\smt\\samplereverse_compare_aware_smt_result.json",
-    "strata_summary": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\summary.json",
-    "transform_trace_consistency": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\transform_trace_consistency\\transform_trace_consistency.json"
+    "compare_aware_result": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\frontier_refine_2\\samplereverse_compare_aware_result.json",
+    "compare_handoff_return_site_probe": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
+    "compare_probe": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.log",
+    "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
+    "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
+    "frontier_summary": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_aware_frontier_summary.json",
+    "guided_pool_result": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
+    "guided_pool_validation": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
+    "pairscan_summary": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\bridge\\pairscan_summary.json",
+    "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\profile_transform_hypothesis_matrix.json",
+    "run_manifest": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\run_manifest.json",
+    "smt_result": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\smt\\samplereverse_compare_aware_smt_result.json",
+    "strata_summary": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_aware_strata_summary.json",
+    "summary": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\summary.json",
+    "transform_trace_consistency": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\transform_trace_consistency\\transform_trace_consistency.json"
   },
   "best_candidates": {
     "exact1": {
@@ -58,11 +58,11 @@
   },
   "current_bottleneck": {
     "confidence": "medium",
-    "reason": "helper_arg_slice_partial",
-    "stage": "compare_handoff_slice_probe"
+    "reason": "wrong_helper_assumption",
+    "stage": "compare_handoff_return_site_probe"
   },
   "current_mainline": "L15(prefix8)",
-  "generated_at": "2026-05-05T15:03:10Z",
+  "generated_at": "2026-05-07T06:00:37Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -72,94 +72,177 @@
   ],
   "latest_base64_rc4_breakpoint_probe": {},
   "latest_compare_handoff_probe": {},
-  "latest_compare_handoff_slice_probe": {
-    "artifact": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
+  "latest_compare_handoff_return_site_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "candidate_count": 3,
-    "classification": "helper_arg_slice_partial",
+    "classification": "wrong_helper_assumption",
     "cross_candidate_summary": {
       "candidate_count": 3,
       "candidate_dependent_fields": {
-        "compare_lhs.lhs_preview_hex": false,
+        "compare_call.arg0.preview_hex": false,
+        "compare_call.arg0.value": false,
+        "compare_call.arg1.preview_hex": false,
+        "compare_call.arg1.value": false,
+        "helper_enter.return_address_module_offset": false,
         "helper_return.eax_preview_hex": true,
-        "helper_return.lhs_slot_preview_hex": false,
-        "pre_call.esi_ptr": true
+        "helper_return.esi_preview_hex": false,
+        "helper_return.lhs_slot_preview_hex": true
       },
       "relation_counts": {
-        "helper_return_eax_matches_compare_lhs_ptr": 0,
-        "helper_return_eax_preview_matches_compare_lhs": 0,
-        "helper_return_slot_matches_compare_lhs_ptr": 0,
-        "helper_return_slot_preview_matches_compare_lhs": 0,
-        "pre_call_slot_matches_helper_enter_slot": 0,
-        "pre_compare_esi_matches_compare_lhs_ptr": 0
+        "helper_enter_return_is_0x233d": 3,
+        "helper_enter_return_matches_0x2559": 0,
+        "helper_return_eax_matches_compare_arg0_ptr": 0,
+        "helper_return_eax_matches_compare_arg1_ptr": 0,
+        "helper_return_eax_preview_matches_compare_arg0": 0,
+        "helper_return_eax_preview_matches_compare_arg1": 0,
+        "helper_return_esi_matches_compare_arg0_ptr": 0,
+        "helper_return_slot_matches_compare_arg0_ptr": 0,
+        "pre_compare_esi_matches_compare_arg0_ptr": 0,
+        "return_site_hook_observed": 3
       },
-      "runtime_backed_count": 3
+      "runtime_backed_count": 3,
+      "target_flag_side_counts": {
+        "arg0": 0,
+        "arg1": 0
+      }
     },
     "hook_results": {
-      "compare_lhs_buffer": "available",
+      "compare_call_args": "unavailable",
       "handoff_helper_enter": "available",
       "handoff_helper_return": "available",
+      "helper_return_site": "available",
       "lhs_slot": "available",
       "post_handoff_after_reload": "unavailable",
       "post_handoff_lhs_reload": "unavailable",
-      "pre_compare_push_esi": "unavailable"
+      "pre_compare_push_esi": "unavailable",
+      "wide_flag_prefix_compare": "unavailable"
     },
-    "next_bounded_action": "tighten helper argument capture before candidate refinement",
+    "next_bounded_action": "move to the next bounded pre-compare handoff target; 0x401b50 did not return to module+0x2559",
     "runtime_backed_count": 3,
     "static_audit": {
-      "backward_slice": [
+      "byte_window": {
+        "bytes_hex": "898590eeffff8d4d9c518d9590eeffff68441c550052c645fc02e8f7f5ffff8bb590eeffff8b4ef8b8010000002b46fc83c40c0bc87d136a008d8d90eeffffe862f4ffff8bb590eeffff6a05684c1c550056e81b031000",
+        "end_rva": "0x2591",
+        "start_rva": "0x253a"
+      },
+      "classification": "static_return_site_audit_complete",
+      "hook_point_audit": [
         {
-          "instruction": "mov dword ptr [ebp - 0x1170], eax",
-          "operation": "store candidate output pointer into [ebp-0x1170]",
-          "rva": "0x253a"
+          "address": "module+0x253a",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x253a",
+          "name": "pre_lhs_slot_store",
+          "reason": "hook point is at a known instruction boundary"
         },
         {
-          "instruction": "call 0x401b50",
-          "operation": "handoff/copy helper before compare buffer reload",
-          "rva": "0x2554"
+          "address": "module+0x2554",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x2554",
+          "name": "pre_handoff_call",
+          "reason": "hook point is at a known instruction boundary"
         },
         {
-          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
-          "operation": "reload compare lhs pointer from [ebp-0x1170]",
-          "rva": "0x2559"
+          "address": "module+0x1b50",
+          "boundary_status": "unknown_boundary",
+          "module_offset": "0x1b50",
+          "name": "handoff_helper_enter",
+          "reason": "hook point is not in the bounded instruction map"
         },
         {
-          "instruction": "push 5",
-          "operation": "set wide compare count",
-          "rva": "0x2584"
+          "address": "module+0x2559",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x2559",
+          "name": "post_handoff_lhs_reload",
+          "reason": "hook point is at a known instruction boundary"
         },
         {
-          "instruction": "push 0x551c4c",
-          "operation": "push wide flag target",
-          "rva": "0x2586"
+          "address": "module+0x255c",
+          "boundary_status": "inside_instruction",
+          "module_offset": "0x255c",
+          "name": "post_handoff_after_reload",
+          "reason": "hook point falls inside instruction at 0x2559"
         },
         {
-          "instruction": "push esi",
-          "operation": "push compare lhs pointer",
-          "rva": "0x258b"
+          "address": "module+0x258b",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x258b",
+          "name": "pre_compare_push_esi",
+          "reason": "hook point is at a known instruction boundary"
         },
         {
-          "instruction": "call 0x5028ac",
-          "operation": "case-insensitive wide compare call",
-          "rva": "0x258c"
+          "address": "module+0x258c",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x258c",
+          "name": "wide_flag_prefix_compare",
+          "reason": "hook point is at a known instruction boundary"
         }
       ],
-      "classification": "static_anchor_confirmed",
-      "compare_site": {
-        "actual_call_rva": "0x258c",
-        "expected_call_rva": "0x258c",
-        "helper_classification": "case_insensitive_wchar_compare",
-        "helper_rva": "0x1028ac",
-        "helper_va": "0x5028ac"
-      },
-      "corrected_post_helper_probe": "helper onLeave plus module+0x255c fallback",
-      "prior_reload_anchor": "module+0x2559"
+      "instruction_boundaries": [
+        {
+          "bytes_hex": "898590eeffff",
+          "end_rva": "0x2540",
+          "instruction": "mov dword ptr [ebp - 0x1170], eax",
+          "operation": "store candidate output pointer into [ebp-0x1170]",
+          "rva": "0x253a",
+          "size": 6
+        },
+        {
+          "bytes_hex": "e8f7f5ffff",
+          "end_rva": "0x2559",
+          "instruction": "call 0x401b50",
+          "operation": "handoff/copy helper before compare buffer reload",
+          "rva": "0x2554",
+          "size": 5
+        },
+        {
+          "bytes_hex": "8bb590eeffff",
+          "end_rva": "0x255f",
+          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+          "operation": "reload compare lhs pointer from [ebp-0x1170]",
+          "rva": "0x2559",
+          "size": 6
+        },
+        {
+          "bytes_hex": "6a05",
+          "end_rva": "0x2586",
+          "instruction": "push 5",
+          "operation": "set wide compare count",
+          "rva": "0x2584",
+          "size": 2
+        },
+        {
+          "bytes_hex": "684c1c5500",
+          "end_rva": "0x258b",
+          "instruction": "push 0x551c4c",
+          "operation": "push wide flag target",
+          "rva": "0x2586",
+          "size": 5
+        },
+        {
+          "bytes_hex": "56",
+          "end_rva": "0x258c",
+          "instruction": "push esi",
+          "operation": "push compare lhs pointer",
+          "rva": "0x258b",
+          "size": 1
+        },
+        {
+          "bytes_hex": "e81b031000",
+          "end_rva": "0x2591",
+          "instruction": "call 0x5028ac",
+          "operation": "case-insensitive wide compare call",
+          "rva": "0x258c",
+          "size": 5
+        }
+      ]
     }
   },
+  "latest_compare_handoff_slice_probe": {},
   "latest_compare_stack_pivot_probe": {},
   "latest_dynamic_compare_path_probe": {},
   "latest_pre_rc4_material_probe": {},
   "latest_transform_trace_consistency": {
-    "artifact": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\transform_trace_consistency\\transform_trace_consistency.json",
+    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_return_site_probe_20260507\\reports\\tool_artifacts\\samplereverse\\transform_trace_consistency\\transform_trace_consistency.json",
     "candidate_count": 5,
     "classification": "evidence_insufficient",
     "next_bounded_action": "capture pre-RC4/Base64 runtime buffers with a bounded dynamic probe",

@@ -3288,3 +3288,69 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search；不重复当前 helper slice 原样 hook set。
 - 下一步应 tighten helper argument capture 或解释为什么 post-helper call-site hooks `0x2559` / `0x255c` / `0x258b` 未命中。
 - 只有拿到 instruction-confirmed post-helper/call-site 观测后，才继续做 helper-to-compare lhs dataflow 约束。
+
+## 2026-05-07 Compare handoff return-site probe
+
+1) 执行范围
+- 按计划实现 `compare_handoff_return_site_probe`，不新增 candidate generator，不改变 ranking、final selection、promotion。
+- 不扩大 beam、budget、topN、timeout、frontier iteration limit。
+- 固定 3 个 diagnostic candidates：
+  - `78d540b49c59077041414141414141`
+  - `78d540b49c59077040414141414141`
+  - `5a3e7f46ddd474d041414141414141`
+
+2) 代码改动
+- `reverse_agent/olly_scripts/compare_handoff_return_site_probe.py`
+  - 新增独立 Frida/UI scripted return-site audit。
+  - 捕获 helper enter return address、helper onLeave、动态 helper return-site hook、`[ebp-0x1170]`、eax/esi previews、compare-call stack args。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME`、固定 3-candidate diagnostic。
+  - 新增 `run_compare_handoff_return_site_probe()`、static instruction-boundary audit、return-site relation summary、cross-candidate relation summary。
+  - diagnostic 不产生 promotable candidates，不改变 search budget。
+- `reverse_agent/project_state.py`
+  - artifact index/current_state/model_gate 识别 `compare_handoff_return_site_probe`。
+  - negative_results 记录 return-site audit 产出后不应重复同一 hook set。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 覆盖 return-site schema、wrong helper assumption、no-promotion/no-budget-expansion、project_state indexing。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_handoff_return_site_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests/test_compare_aware_search_strategy.py` -> `85 passed`
+- `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` -> `25 passed`
+- `python -m pytest -q` -> `177 passed`
+
+4) Harness / project_state
+- Final run: `samplereverse_compare_return_site_probe_20260507`
+- Harness completed 1 case, 0 errors.
+- Artifact:
+  - `solve_reports\harness_runs\samplereverse_compare_return_site_probe_20260507\reports\tool_artifacts\samplereverse\compare_handoff_return_site_probe\compare_handoff_return_site_probe.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_compare_return_site_probe_20260507` passed.
+- `python -m reverse_agent.project_state status` reports `reason: wrong_helper_assumption`。
+
+5) 结论
+- Classification: `wrong_helper_assumption`
+- 3 个 diagnostic candidates 均 runtime-backed。
+- Hook result status:
+  - `handoff_helper_enter=available`
+  - `handoff_helper_return=available`
+  - `helper_return_site=available`
+  - `lhs_slot=available`
+  - `post_handoff_lhs_reload=unavailable`
+  - `post_handoff_after_reload=unavailable`
+  - `pre_compare_push_esi=unavailable`
+  - `wide_flag_prefix_compare=unavailable`
+  - `compare_call_args=unavailable`
+- Static audit:
+  - `0x253a`、`0x2554`、`0x2559`、`0x258b`、`0x258c` 是 instruction-confirmed。
+  - `0x255c` 落在 `0x2559` reload instruction 内部。
+- Runtime return-site evidence:
+  - `helper_enter_return_is_0x233d=3`
+  - `helper_enter_return_matches_0x2559=0`
+  - `return_site_hook_observed=3`
+- 当前 runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大搜索；不回 blind search；不重复当前 helper slice 或 return-site hook set。
+- 下一步应换到更近的 pre-compare handoff target；当前 `0x401b50` observation 没有返回 `module+0x2559`，不能作为 helper-to-compare lhs 数据流约束来源。
+- 若继续 compare-call arg audit，需要先找到能实际命中 `module+0x258c` 的脚本化触发/路径，而不是沿用本轮同一 helper 假设。

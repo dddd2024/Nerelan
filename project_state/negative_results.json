@@ -56,11 +56,11 @@
     "severity": "soft_block"
   },
   {
-    "direction": "expand candidate search after partial helper argument slice",
+    "direction": "repeat compare return-site audit without using its classification",
     "do_not_repeat": true,
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "the helper slice still needs tighter runtime evidence before search expansion is justified",
-    "severity": "hard_block"
+    "reason": "the return-site probe produced a more specific handoff classification; next work should use that evidence rather than rerunning the same hook set",
+    "severity": "soft_block"
   }
 ]

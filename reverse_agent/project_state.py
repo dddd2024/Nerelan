@@ -24,6 +24,7 @@ IMPORTANT_ARTIFACTS = {
     "compare_stack_pivot_probe": "compare_stack_pivot_probe.json",
     "compare_handoff_probe": "compare_handoff_probe.json",
     "compare_handoff_slice_probe": "compare_handoff_slice_probe.json",
+    "compare_handoff_return_site_probe": "compare_handoff_return_site_probe.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -54,6 +55,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_stack_pivot_probe",
     "compare_handoff_probe",
     "compare_handoff_slice_probe",
+    "compare_handoff_return_site_probe",
 }
 
 STATE_JSON_NAMES = (
@@ -422,6 +424,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_stack_pivot_probe = _read_json(artifact_refs.get("compare_stack_pivot_probe"))
     compare_handoff_probe = _read_json(artifact_refs.get("compare_handoff_probe"))
     compare_handoff_slice_probe = _read_json(artifact_refs.get("compare_handoff_slice_probe"))
+    compare_handoff_return_site_probe = _read_json(artifact_refs.get("compare_handoff_return_site_probe"))
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -488,6 +491,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if compare_handoff_slice_classification:
         stage = "compare_handoff_slice_probe"
         reason = compare_handoff_slice_classification
+    compare_handoff_return_site_classification = str(
+        compare_handoff_return_site_probe.get("classification") or ""
+    ).strip()
+    if compare_handoff_return_site_classification:
+        stage = "compare_handoff_return_site_probe"
+        reason = compare_handoff_return_site_classification
     if stage is None:
         uncertainty.append("current_bottleneck.stage")
     if reason is None:
@@ -601,6 +610,18 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": compare_handoff_slice_probe.get("next_bounded_action"),
         }
         if compare_handoff_slice_probe
+        else {},
+        "latest_compare_handoff_return_site_probe": {
+            "classification": compare_handoff_return_site_classification or None,
+            "artifact": artifact_refs.get("compare_handoff_return_site_probe"),
+            "runtime_backed_count": compare_handoff_return_site_probe.get("runtime_backed_count"),
+            "candidate_count": compare_handoff_return_site_probe.get("candidate_count"),
+            "hook_results": compare_handoff_return_site_probe.get("hook_results"),
+            "static_audit": compare_handoff_return_site_probe.get("static_audit"),
+            "cross_candidate_summary": compare_handoff_return_site_probe.get("cross_candidate_summary"),
+            "next_bounded_action": compare_handoff_return_site_probe.get("next_bounded_action"),
+        }
+        if compare_handoff_return_site_probe
         else {},
         "uncertainty": sorted(set(uncertainty)),
         "artifact_refs": artifact_refs,
@@ -824,6 +845,24 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "do_not_repeat": True,
                 "reason": (
                     "the helper slice still needs tighter runtime evidence before search expansion is justified"
+                ),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    compare_handoff_return_site_probe = _read_json(artifacts.get("compare_handoff_return_site_probe"))
+    compare_handoff_return_site_classification = str(
+        compare_handoff_return_site_probe.get("classification") or ""
+    ).strip()
+    if compare_handoff_return_site_classification:
+        results.append(
+            {
+                "direction": "repeat compare return-site audit without using its classification",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "the return-site probe produced a more specific handoff classification; "
+                    "next work should use that evidence rather than rerunning the same hook set"
                 ),
                 "override_allowed": True,
                 "override_reason_required": True,
