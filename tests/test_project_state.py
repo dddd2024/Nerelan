@@ -404,6 +404,56 @@ def test_project_state_indexes_compare_handoff_return_site_probe_and_bottleneck(
     assert any("return-site audit" in item["direction"] for item in negative_results)
 
 
+def test_project_state_indexes_compare_producer_trace_probe_and_bottleneck(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_producer_trace")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_producer_trace_probe" / "compare_producer_trace_probe.json",
+        {
+            "artifact_kind": "compare_producer_trace_probe",
+            "classification": "compare_args_identified",
+            "runtime_backed_count": 3,
+            "candidate_count": 3,
+            "hook_results": {
+                "producer_return_site": "available",
+                "compare_helper_entry": "available",
+                "compare_entry_args": "available",
+            },
+            "hook_miss_classification": {
+                "missed_hooks": "post_handoff_lhs_reload, pre_compare_push_esi",
+                "classification": "wrapper/alternate compare path",
+            },
+            "static_audit": {
+                "classification": "static_producer_trace_audit_complete",
+                "producer_window": {"start_rva": "0x2310", "end_rva": "0x2365"},
+            },
+            "cross_candidate_summary": {
+                "relation_counts": {"producer_eax_matches_compare_arg_ptr": 3},
+                "target_flag_side_counts": {"entry_arg1": 3},
+            },
+            "next_bounded_action": "derive candidate-side byte constraints from the actual compare helper entry args",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_producer_trace_probe"].endswith(
+        "compare_producer_trace_probe.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_producer_trace_probe"
+    assert current_state["current_bottleneck"]["reason"] == "compare_args_identified"
+    latest = current_state["latest_compare_producer_trace_probe"]
+    assert latest["classification"] == "compare_args_identified"
+    assert latest["hook_results"]["compare_helper_entry"] == "available"
+    assert latest["hook_miss_classification"]["classification"] == "wrapper/alternate compare path"
+    assert any("producer trace" in item["direction"] for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

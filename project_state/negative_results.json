@@ -56,11 +56,11 @@
     "severity": "soft_block"
   },
   {
-    "direction": "repeat compare return-site audit without using its classification",
+    "direction": "repeat compare producer trace without using its classification",
     "do_not_repeat": true,
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "the return-site probe produced a more specific handoff classification; next work should use that evidence rather than rerunning the same hook set",
+    "reason": "the producer trace produced a compare-side dataflow classification; next work should use that evidence rather than rerunning the same probe",
     "severity": "soft_block"
   }
 ]

@@ -2,51 +2,67 @@
 
 ## Summary
 
-Implemented and executed the bounded `compare_handoff_return_site_probe` diagnostic for `samplereverse`.
+Implemented and executed the bounded `compare_producer_trace_probe` diagnostic for `samplereverse`.
 
-This iteration does not add candidates and does not change ranking, final selection, promotion, beam, budget, topN, timeout, or frontier iteration limits. It audits the stalled helper slice by recording the actual helper return site and validating whether the compare-call stack arguments can be captured at `module+0x258c`.
+This iteration does not add candidates and does not change ranking, final selection, promotion, beam, budget, topN, timeout, or frontier iteration limits. It consumes the prior `wrong_helper_assumption` result by auditing `module+0x233d`, the nearby compare handoff window, and the actual compare helper entry target at `module+0x1028ac` (`0x5028ac`).
 
-## Implemented Changes
+## Files Changed
 
 | area | change | behavior impact |
 |---|---|---|
-| script | Added `reverse_agent/olly_scripts/compare_handoff_return_site_probe.py` | Frida/UI hook capture for helper return addresses, dynamic return-site hooks, and compare-call stack arguments |
-| strategy | Added `COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME` and `run_compare_handoff_return_site_probe()` | diagnostic metadata only; no promotable candidates |
-| project state | Indexes `compare_handoff_return_site_probe` and makes it the latest bottleneck | compact state now reports `wrong_helper_assumption` |
-| tests | Added schema, no-promotion/no-budget, return-site relation, and project_state coverage | protects bounded diagnostic behavior |
+| script | Added `reverse_agent/olly_scripts/compare_producer_trace_probe.py` | Frida/UI hook capture for `0x233d`, pre-compare call-site anchors, frame slots, and compare helper entry args |
+| strategy | Added `COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME` and `run_compare_producer_trace_probe()` | diagnostic metadata only; no promotable candidates |
+| project state | Indexes `compare_producer_trace_probe` and makes it the latest bottleneck | compact state now reports `producer_trace_inconclusive` |
+| tests | Added schema, no-promotion/no-budget, relation, and project_state coverage | protects bounded diagnostic behavior |
 
 ## Runtime Artifact
 
 | item | value |
 |---|---|
-| harness run | `samplereverse_compare_return_site_probe_20260507` |
+| harness run | `samplereverse_compare_producer_trace_probe_20260507_rerun2` |
 | status | completed, 1 case, 0 errors |
-| artifact | `solve_reports\harness_runs\samplereverse_compare_return_site_probe_20260507\reports\tool_artifacts\samplereverse\compare_handoff_return_site_probe\compare_handoff_return_site_probe.json` |
-| classification | `wrong_helper_assumption` |
+| artifact | `solve_reports\harness_runs\samplereverse_compare_producer_trace_probe_20260507_rerun2\reports\tool_artifacts\samplereverse\compare_producer_trace_probe\compare_producer_trace_probe.json` |
+| classification | `producer_trace_inconclusive` |
 | candidates | 3 |
 | runtime-backed candidates | 3 |
-| hook results | `handoff_helper_enter=available`, `handoff_helper_return=available`, `helper_return_site=available`, `lhs_slot=available`, `post_handoff_lhs_reload=unavailable`, `post_handoff_after_reload=unavailable`, `pre_compare_push_esi=unavailable`, `wide_flag_prefix_compare=unavailable`, `compare_call_args=unavailable` |
 
-## Probe Findings
+## Hook Availability
 
-- Static audit confirmed instruction boundaries for `0x253a`, `0x2554`, `0x2559`, `0x258b`, and `0x258c`; `0x255c` is inside the `0x2559` reload instruction.
-- The helper return address was `module+0x233d` for all 3 diagnostic candidates, not `module+0x2559`.
-- The dynamic return-site hook observed `helper_return_site_0x233d` for all 3 diagnostic candidates.
-- `wide_flag_prefix_compare` and compare-call stack args were not captured in this run, so the compare arg order remains unproven.
+| hook | status |
+|---|---|
+| `producer_return_site` | available |
+| `pre_lhs_slot_store` | available |
+| `pre_handoff_call` | available |
+| `post_handoff_lhs_reload` | unavailable |
+| `pre_compare_push_esi` | unavailable |
+| `wide_flag_prefix_compare` | unavailable |
+| `compare_call_args` | unavailable |
+| `compare_helper_entry` | unavailable |
+| `compare_entry_args` | unavailable |
+| `lhs_slot` | available |
+
+## Audit Result
+
+- Static audit captured the required `module+0x2310..0x2365` producer window and `module+0x253a..0x2591` compare window.
+- All 3 diagnostic candidates are runtime-backed after fixing surrogate-safe JSON output.
+- Runtime reached `module+0x233d`, `module+0x253a`, and `module+0x2554`, but not `module+0x2559`, `module+0x258b`, `module+0x258c`, or `module+0x1028ac`.
+- Hook miss classification is `control-flow skipped`.
+- Candidate-dependent fields were observed at `producer.eax_preview_hex` and `producer.lhs_slot_preview_hex`, but no relation to compare helper args was closed because compare entry/call args were not observed.
 - Current best runtime candidate did not improve: exact2 remains `78d540b49c59077041414141414141`, `runtime_ci_exact_wchars=2`, `runtime_ci_distance5=246`.
 
-## Commands
+## Tests
 
 | command | result |
 |---|---|
-| `python -m py_compile reverse_agent\olly_scripts\compare_handoff_return_site_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
-| `python -m pytest -q tests/test_compare_aware_search_strategy.py` | `85 passed` |
-| `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` | `25 passed` |
-| `python -m pytest -q` | `177 passed` |
-| `python -m reverse_agent.harness --dataset .\samplereverse_exact1_projected_vs_neighbor_20260424.json --run-name samplereverse_compare_return_site_probe_20260507 --reports-dir solve_reports --analysis-mode "Auto" --model-type "Copilot CLI" --copilot-timeout-seconds 300 --ctf-skill-profile compact --case-id samplereverse-exact1-projected-vs-neighbor --no-resume` | completed, 1 case, 0 errors |
-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_compare_return_site_probe_20260507` | passed |
-| `python -m reverse_agent.project_state status` | `reason: wrong_helper_assumption` |
+| `python -m py_compile reverse_agent\olly_scripts\compare_producer_trace_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+| `python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py` | `103 passed` |
+| `python -m pytest -q tests/test_compare_aware_search_strategy.py` | `87 passed` |
+| `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` | `26 passed` |
+| `python -m pytest -q` | `180 passed` |
+| `python -m reverse_agent.harness --dataset .\samplereverse_exact1_projected_vs_neighbor_20260424.json --run-name samplereverse_compare_producer_trace_probe_20260507_rerun2 --reports-dir solve_reports --analysis-mode "Auto" --model-type "Copilot CLI" --copilot-timeout-seconds 300 --ctf-skill-profile compact --case-id samplereverse-exact1-projected-vs-neighbor --no-resume` | completed, 1 case, 0 errors |
+| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_compare_producer_trace_probe_20260507_rerun2` | passed |
+| `python -m reverse_agent.project_state status` | `reason: producer_trace_inconclusive` |
 
-## Conclusion
+## Next Suggested Task
 
-The return-site audit proves the current `0x401b50` helper observation is not the missing post-helper handoff into `module+0x2559`. The next bounded direction is to move to a nearer pre-compare handoff target instead of expanding candidate search or rerunning the same helper-slice hook set.
+Do not expand candidate search. Use the captured `0x233d` context to choose a narrower producer hook, or run the bounded pre-RC4/Base64 material fallback if no instruction-confirmed producer target can be selected.

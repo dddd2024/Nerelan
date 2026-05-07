@@ -15,6 +15,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_PROBE_FILE_NAME,
     COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME,
     COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME,
+    COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME,
     COMPARE_STACK_PIVOT_PROBE_FILE_NAME,
     CompareAwareSearchStrategy,
     DYNAMIC_COMPARE_PATH_PROBE_FILE_NAME,
@@ -58,6 +59,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_probe,
     run_compare_handoff_return_site_probe,
     run_compare_handoff_slice_probe,
+    run_compare_producer_trace_probe,
     run_compare_stack_pivot_probe,
     run_dynamic_compare_path_probe,
     run_exact2_basin_value_pool_evaluation,
@@ -791,6 +793,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
         "compare_handoff_probe",
         "compare_handoff_slice_probe",
         "compare_handoff_return_site_probe",
+        "compare_producer_trace_probe",
         "h1_h3_boundary_validation",
     }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -4026,6 +4029,141 @@ def _fake_compare_handoff_return_site_subprocess_run(*args, **kwargs):  # noqa: 
     return _Proc()
 
 
+def _fake_compare_producer_trace_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} >= {
+        "producer_return_site",
+        "compare_helper_entry",
+        "pre_compare_push_esi",
+    }
+    candidate_preview = (
+        "46006c004464830d311c701038525b85"
+        if candidate_hex.startswith("78d540")
+        else "460061357f0b8c688502de328c19e029"
+    )
+    target_preview = "66006c00610067007b00000046006c0061006700"
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "producer trace ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "hook_name": "producer_return_site",
+                        "address": "0x40233d",
+                        "module_offset": "0x233d",
+                        "registers": {
+                            "esp": "0x12fdc84",
+                            "ebp": "0x12fee44",
+                            "eax": "0x36dce20",
+                            "esi": "0x54d73c",
+                            "edi": "0x36dce20",
+                        },
+                        "stack_words": [{"index": 0, "value": "0x403000", "module_offset": "0x3000"}],
+                        "frame_slots": [
+                            {
+                                "name": "[ebp-0x1170]",
+                                "value": "0x36dce20",
+                                "preview_hex": candidate_preview,
+                                "preview_utf16le": "Fl",
+                            }
+                        ],
+                        "lhs_slot_ptr": "0x36dce20",
+                        "lhs_slot_preview_hex": candidate_preview,
+                        "eax_ptr": "0x36dce20",
+                        "eax_preview_hex": candidate_preview,
+                        "esi_ptr": "0x54d73c",
+                        "esi_preview_hex": "aa" * 16,
+                        "edi_ptr": "0x36dce20",
+                        "edi_preview_hex": candidate_preview,
+                    },
+                    {
+                        "hook_name": "compare_helper_entry",
+                        "address": "0x5028ac",
+                        "module_offset": "0x1028ac",
+                        "registers": {"esp": "0x12fdc80", "ebp": "0x12fee44", "eax": "0x0", "esi": "0x36dce20"},
+                        "compare_entry": {
+                            "convention": "callee entry stack",
+                            "caller_return_address": "0x402591",
+                            "caller_return_module_offset": "0x2591",
+                            "slots": [
+                                {
+                                    "index": 0,
+                                    "role": "return_address",
+                                    "value": "0x402591",
+                                    "module_offset": "0x2591",
+                                },
+                                {
+                                    "index": 1,
+                                    "role": "arg0",
+                                    "value": "0x36dce20",
+                                    "preview_hex": candidate_preview,
+                                    "preview_utf16le": "Fl",
+                                },
+                                {
+                                    "index": 2,
+                                    "role": "arg1",
+                                    "value": "0x551c4c",
+                                    "preview_hex": target_preview,
+                                    "preview_utf16le": "flag{",
+                                    "looks_like_flag_target": True,
+                                },
+                                {"index": 3, "role": "arg2_count", "value_u32": 5},
+                            ],
+                        },
+                        "lhs_slot_ptr": "0x36dce20",
+                        "lhs_slot_preview_hex": candidate_preview,
+                        "eax_ptr": "0x0",
+                        "esi_ptr": "0x36dce20",
+                        "esi_preview_hex": candidate_preview,
+                        "edi_ptr": "0x36dce20",
+                        "edi_preview_hex": candidate_preview,
+                    },
+                    {
+                        "hook_name": "wide_flag_prefix_compare",
+                        "address": "0x40258c",
+                        "module_offset": "0x258c",
+                        "registers": {"esp": "0x12fdc88", "ebp": "0x12fee44", "eax": "0x0", "esi": "0x36dce20"},
+                        "compare_args": {
+                            "args": [
+                                {"index": 0, "value": "0x36dce20", "preview_hex": candidate_preview},
+                                {
+                                    "index": 1,
+                                    "value": "0x551c4c",
+                                    "preview_hex": target_preview,
+                                    "preview_utf16le": "flag{",
+                                },
+                                {"index": 2, "value_u32": 5},
+                            ]
+                        },
+                    },
+                ],
+                "hook_results": {
+                    "producer_return_site": "available",
+                    "compare_helper_entry": "available",
+                    "compare_entry_args": "available",
+                    "wide_flag_prefix_compare": "available",
+                    "compare_call_args": "available",
+                    "lhs_slot": "available",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
 def test_base64_rc4_breakpoint_probe_has_bounded_candidate_count_and_schema(
     tmp_path: Path,
     monkeypatch,
@@ -4419,6 +4557,68 @@ def test_compare_handoff_return_site_probe_does_not_expand_search_or_promote(
     result = run_compare_handoff_return_site_probe(
         target=target,
         artifacts_dir=tmp_path / "compare_handoff_return_site_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    assert payload["final_selection_changed"] is False
+    assert payload["search_budget_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+    assert payload["promotable_validations"] == []
+    assert result["promotable_validations"] == []
+
+
+def test_compare_producer_trace_probe_records_compare_entry_and_relations(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_compare_producer_trace_subprocess_run)
+
+    result = run_compare_producer_trace_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_producer_trace_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME
+    assert payload["artifact_kind"] == "compare_producer_trace_probe"
+    assert payload["candidate_count"] == 3
+    assert payload["candidate_limit"] == 3
+    assert payload["classification"] == "compare_args_identified"
+    assert payload["hook_results"]["compare_helper_entry"] == "available"
+    assert payload["hook_results"]["compare_entry_args"] == "available"
+    first_map = payload["candidate_results"][0]["producer_trace_map"]
+    assert first_map["producer_return_site"]["observed"] is True
+    assert first_map["compare_helper_entry"]["caller_return_module_offset"] == "0x2591"
+    assert first_map["compare_helper_entry"]["arg1_preview_has_flag_prefix"] is True
+    assert first_map["candidate_compare_arg"]["value"] == "0x36dce20"
+    assert first_map["relations"]["producer_eax_matches_compare_arg_ptr"] is True
+    assert payload["cross_candidate_summary"]["target_flag_side_counts"]["entry_arg1"] == 3
+    assert payload["cross_candidate_summary"]["candidate_dependent_fields"]["compare_entry.arg0.preview_hex"] is True
+    assert payload["hook_miss_classification"]["missed_hooks"] == "post_handoff_lhs_reload, pre_compare_push_esi"
+    assert payload["static_audit"]["producer_window"]["start_rva"] == "0x2310"
+
+
+def test_compare_producer_trace_probe_does_not_expand_search_or_promote(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_compare_producer_trace_subprocess_run)
+
+    result = run_compare_producer_trace_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_producer_trace_probe",
         transform_model=SamplereverseTransformModel(),
         per_probe_timeout=0.5,
         log=lambda _: None,

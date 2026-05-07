@@ -3354,3 +3354,68 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search；不重复当前 helper slice 或 return-site hook set。
 - 下一步应换到更近的 pre-compare handoff target；当前 `0x401b50` observation 没有返回 `module+0x2559`，不能作为 helper-to-compare lhs 数据流约束来源。
 - 若继续 compare-call arg audit，需要先找到能实际命中 `module+0x258c` 的脚本化触发/路径，而不是沿用本轮同一 helper 假设。
+
+## 2026-05-07 Compare producer trace probe
+
+1) 执行范围
+- 按计划实现 `compare_producer_trace_probe`，不新增 candidate generator，不改变 ranking、final selection、promotion。
+- 不扩大 beam、budget、topN、timeout、frontier iteration limit。
+- 固定 3 个 diagnostic candidates：
+  - `78d540b49c59077041414141414141`
+  - `78d540b49c59077040414141414141`
+  - `5a3e7f46ddd474d041414141414141`
+
+2) 代码改动
+- `reverse_agent/olly_scripts/compare_producer_trace_probe.py`
+  - 新增独立 Frida/UI scripted producer trace。
+  - 捕获 `module+0x233d`、`module+0x253a`、`module+0x2554`、`module+0x2559`、`module+0x258b`、`module+0x258c`、`module+0x1028ac`。
+  - 输出 registers、stack preview、frame slots、eax/esi/edi previews、`[ebp-0x1170]` preview、compare helper entry stack slots。
+  - 修复 UTF-16 preview 中孤立 surrogate 导致 JSON 写出失败的问题。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME`、固定 3-candidate diagnostic。
+  - 新增 `run_compare_producer_trace_probe()`、producer relation map、candidate dependency table、hook miss classification。
+  - diagnostic 不产生 promotable candidates，不改变 search budget。
+- `reverse_agent/project_state.py`
+  - artifact index/current_state/model_gate 识别 `compare_producer_trace_probe`。
+  - negative_results 记录 producer trace 后不应重复同一 probe。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 覆盖 schema、compare helper entry args、no-promotion/no-budget-expansion、project_state indexing。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_producer_trace_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests/test_compare_aware_search_strategy.py` -> `87 passed`
+- `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` -> `26 passed`
+- `python -m pytest -q` -> `180 passed`
+
+4) Harness / project_state
+- Final run: `samplereverse_compare_producer_trace_probe_20260507_rerun2`
+- Harness completed 1 case, 0 errors.
+- Artifact:
+  - `solve_reports\harness_runs\samplereverse_compare_producer_trace_probe_20260507_rerun2\reports\tool_artifacts\samplereverse\compare_producer_trace_probe\compare_producer_trace_probe.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_compare_producer_trace_probe_20260507_rerun2` passed.
+- `python -m reverse_agent.project_state status` reports `reason: producer_trace_inconclusive`。
+
+5) 结论
+- Classification: `producer_trace_inconclusive`
+- 3 个 diagnostic candidates 均 runtime-backed。
+- Hook result status:
+  - `producer_return_site=available`
+  - `pre_lhs_slot_store=available`
+  - `pre_handoff_call=available`
+  - `lhs_slot=available`
+  - `post_handoff_lhs_reload=unavailable`
+  - `pre_compare_push_esi=unavailable`
+  - `wide_flag_prefix_compare=unavailable`
+  - `compare_call_args=unavailable`
+  - `compare_helper_entry=unavailable`
+  - `compare_entry_args=unavailable`
+- Hook miss classification: `control-flow skipped`。
+- Candidate-dependent fields observed at `producer.eax_preview_hex` and `producer.lhs_slot_preview_hex`。
+- No relation from `0x233d` producer context to actual compare helper args was closed because `module+0x258c` and `module+0x1028ac` did not fire.
+- 当前 runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大搜索；不回 blind search；不重复当前 producer trace 原样 hook set。
+- 下一步应使用已捕获的 `0x233d` context 选择更窄的 producer hook。
+- 若无法从 `0x233d` context 选出 instruction-confirmed producer target，则执行 bounded pre-RC4/Base64 material fallback。

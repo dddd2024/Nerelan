@@ -48,6 +48,7 @@ COMPARE_STACK_PIVOT_PROBE_FILE_NAME = "compare_stack_pivot_probe.json"
 COMPARE_HANDOFF_PROBE_FILE_NAME = "compare_handoff_probe.json"
 COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME = "compare_handoff_slice_probe.json"
 COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME = "compare_handoff_return_site_probe.json"
+COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME = "compare_producer_trace_probe.json"
 
 DEFAULT_ANCHORS = (
     "78d540b49c590770",
@@ -184,6 +185,7 @@ COMPARE_STACK_PIVOT_PROBE_CANDIDATES = BASE64_RC4_BREAKPOINT_PROBE_CANDIDATES
 COMPARE_HANDOFF_PROBE_CANDIDATES = COMPARE_STACK_PIVOT_PROBE_CANDIDATES
 COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES = COMPARE_HANDOFF_PROBE_CANDIDATES
 COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES = COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES
+COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES = COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES
 PAIR_TAIL_FLAGLIKE_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_{}-")
 
 PAIRSCAN_TOOL = "pairscan"
@@ -224,6 +226,10 @@ def _compare_handoff_slice_probe_script_path() -> Path:
 
 def _compare_handoff_return_site_probe_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_handoff_return_site_probe.py"
+
+
+def _compare_producer_trace_probe_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_producer_trace_probe.py"
 
 
 def _tool_source_path(tool_name: str) -> Path:
@@ -3444,6 +3450,26 @@ def _prior_compare_handoff_slice_needs_return_site() -> bool:
         return True
     payload, _ = _indexed_artifact_payload("compare_handoff_slice_probe")
     return _compare_handoff_slice_needs_return_site(payload)
+
+
+def _compare_handoff_return_site_needs_producer_trace(payload: dict[str, object]) -> bool:
+    classification = str(payload.get("classification", "")).strip()
+    if classification == "wrong_helper_assumption":
+        return True
+    next_action = str(payload.get("next_bounded_action", "")).lower()
+    return "pre-compare handoff" in next_action or "0x401b50 did not return" in next_action
+
+
+def _prior_compare_handoff_return_site_needs_producer_trace() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest_producer = current_state.get("latest_compare_producer_trace_probe", {})
+    if isinstance(latest_producer, dict) and str(latest_producer.get("classification", "")).strip():
+        return False
+    latest_return_site = current_state.get("latest_compare_handoff_return_site_probe", {})
+    if isinstance(latest_return_site, dict) and _compare_handoff_return_site_needs_producer_trace(latest_return_site):
+        return True
+    payload, _ = _indexed_artifact_payload("compare_handoff_return_site_probe")
+    return _compare_handoff_return_site_needs_producer_trace(payload)
 
 
 def _profile_audit_candidate_record(
@@ -6713,6 +6739,640 @@ def run_compare_handoff_return_site_probe(
     _write_json(result_path, payload)
     if log:
         log(f"Compare handoff return-site probe wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
+        "promotable_validations": [],
+    }
+
+
+PRODUCER_TRACE_EXPECTED_INSTRUCTIONS = (
+    {
+        "rva": 0x233D,
+        "size": 1,
+        "instruction": "dynamic return site after observed 0x401b50 helper call",
+        "operation": "audit producer-side continuation after helper return",
+    },
+    {
+        "rva": 0x253A,
+        "size": 6,
+        "instruction": "mov dword ptr [ebp - 0x1170], eax",
+        "operation": "store candidate output pointer into [ebp-0x1170]",
+    },
+    {
+        "rva": 0x2554,
+        "size": 5,
+        "instruction": "call 0x401b50",
+        "operation": "previously suspected handoff helper",
+    },
+    {
+        "rva": 0x2559,
+        "size": 6,
+        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+        "operation": "reload compare lhs pointer from [ebp-0x1170]",
+    },
+    {"rva": 0x258B, "size": 1, "instruction": "push esi", "operation": "push compare lhs pointer"},
+    {"rva": 0x258C, "size": 5, "instruction": "call 0x5028ac", "operation": "static wide compare call site"},
+    {
+        "rva": 0x1028AC,
+        "size": 1,
+        "instruction": "case-insensitive wide compare helper entry",
+        "operation": "actual compare helper entry hook target",
+    },
+)
+
+
+def _compare_producer_trace_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "producer_return_site",
+            "module_offset": 0x233D,
+            "address": "module+0x233d",
+            "reason": "captures the actual return site observed after 0x401b50",
+        },
+        {
+            "name": "pre_lhs_slot_store",
+            "module_offset": 0x253A,
+            "address": "module+0x253a",
+            "reason": "captures eax immediately before [ebp-0x1170] is written",
+        },
+        {
+            "name": "pre_handoff_call",
+            "module_offset": 0x2554,
+            "address": "module+0x2554",
+            "reason": "retains the prior helper call-site context for correlation only",
+        },
+        {
+            "name": "post_handoff_lhs_reload",
+            "module_offset": 0x2559,
+            "address": "module+0x2559",
+            "reason": "rechecks whether the expected reload path is actually reached",
+        },
+        {
+            "name": "pre_compare_push_esi",
+            "module_offset": 0x258B,
+            "address": "module+0x258b",
+            "reason": "captures esi immediately before the static compare call-site pushes it",
+        },
+        {
+            "name": "wide_flag_prefix_compare",
+            "module_offset": 0x258C,
+            "address": "module+0x258c",
+            "reason": "captures static call-site stack layout if this path is reached",
+        },
+        {
+            "name": "compare_helper_entry",
+            "module_offset": 0x1028AC,
+            "address": "module+0x1028ac",
+            "reason": "captures actual 0x5028ac helper entry args without relying on a caller path",
+        },
+    ]
+
+
+def _compare_producer_trace_static_audit(target: Path, hook_points: list[dict[str, object]]) -> dict[str, object]:
+    try:
+        data = target.read_bytes()
+    except Exception:
+        data = b""
+    sections = _pe_sections_for_rva_mapping(data)
+    producer_start = 0x2310
+    producer_end = 0x2365
+    compare_start = 0x253A
+    compare_end = 0x2591
+    instructions: list[dict[str, object]] = []
+    for item in PRODUCER_TRACE_EXPECTED_INSTRUCTIONS:
+        rva = int(item["rva"])
+        size = int(item["size"])
+        instructions.append(
+            {
+                **item,
+                "rva": f"0x{rva:x}",
+                "end_rva": f"0x{rva + size:x}",
+                "bytes_hex": _read_rva_bytes(data, sections, rva, size),
+            }
+        )
+    hook_audit: list[dict[str, object]] = []
+    for point in hook_points:
+        offset = _parse_int_hex(point.get("module_offset"))
+        known = next(
+            (item for item in PRODUCER_TRACE_EXPECTED_INSTRUCTIONS if offset == int(item["rva"])),
+            None,
+        )
+        if known is not None:
+            status = "instruction_confirmed"
+            reason = "hook point is a bounded producer/compare audit target"
+        else:
+            status = "unknown_boundary"
+            reason = "hook point is not in the bounded producer trace map"
+        hook_audit.append(
+            {
+                "name": point.get("name", ""),
+                "module_offset": f"0x{offset:x}" if offset is not None else "",
+                "address": point.get("address", ""),
+                "boundary_status": status,
+                "reason": reason,
+            }
+        )
+    return {
+        "classification": "static_producer_trace_audit_complete" if data and sections else "static_producer_trace_audit_partial",
+        "producer_window": {
+            "start_rva": f"0x{producer_start:x}",
+            "end_rva": f"0x{producer_end:x}",
+            "bytes_hex": _read_rva_bytes(data, sections, producer_start, producer_end - producer_start),
+        },
+        "compare_window": {
+            "start_rva": f"0x{compare_start:x}",
+            "end_rva": f"0x{compare_end:x}",
+            "bytes_hex": _read_rva_bytes(data, sections, compare_start, compare_end - compare_start),
+        },
+        "instruction_boundaries": instructions,
+        "hook_point_audit": hook_audit,
+    }
+
+
+def _normalize_producer_trace_observation(item: dict[str, object], candidate_hex: str) -> dict[str, object]:
+    return {
+        "candidate_hex": candidate_hex,
+        "hook_name": str(item.get("hook_name", "")),
+        "address": str(item.get("address", "")),
+        "module_offset": str(item.get("module_offset", "")),
+        "registers": dict(item.get("registers", {})) if isinstance(item.get("registers"), dict) else {},
+        "stack_preview_hex": str(item.get("stack_preview_hex", "")),
+        "stack_words": list(item.get("stack_words", [])) if isinstance(item.get("stack_words"), list) else [],
+        "frame_slots": list(item.get("frame_slots", [])) if isinstance(item.get("frame_slots"), list) else [],
+        "return_address": str(item.get("return_address", "")),
+        "return_address_module_offset": str(item.get("return_address_module_offset", "")),
+        "lhs_slot_ptr": str(item.get("lhs_slot_ptr", "")),
+        "lhs_slot_preview_hex": str(item.get("lhs_slot_preview_hex", "")),
+        "lhs_slot_preview_utf16le": str(item.get("lhs_slot_preview_utf16le", "")),
+        "eax_ptr": str(item.get("eax_ptr", "")),
+        "eax_preview_hex": str(item.get("eax_preview_hex", "")),
+        "eax_preview_utf16le": str(item.get("eax_preview_utf16le", "")),
+        "esi_ptr": str(item.get("esi_ptr", "")),
+        "esi_preview_hex": str(item.get("esi_preview_hex", "")),
+        "esi_preview_utf16le": str(item.get("esi_preview_utf16le", "")),
+        "edi_ptr": str(item.get("edi_ptr", "")),
+        "edi_preview_hex": str(item.get("edi_preview_hex", "")),
+        "edi_preview_utf16le": str(item.get("edi_preview_utf16le", "")),
+        "compare_args": dict(item.get("compare_args", {})) if isinstance(item.get("compare_args"), dict) else {},
+        "compare_entry": dict(item.get("compare_entry", {})) if isinstance(item.get("compare_entry"), dict) else {},
+        "argument_previews": (
+            dict(item.get("argument_previews", {})) if isinstance(item.get("argument_previews"), dict) else {}
+        ),
+    }
+
+
+def _compare_entry_slots(observation: dict[str, object]) -> list[dict[str, object]]:
+    entry = observation.get("compare_entry", {})
+    if isinstance(entry, dict) and isinstance(entry.get("slots"), list):
+        return [dict(item) for item in entry.get("slots", []) if isinstance(item, dict)]
+    return []
+
+
+def _compare_entry_slot_by_role(slots: list[dict[str, object]], role: str) -> dict[str, object]:
+    return next((item for item in slots if str(item.get("role", "")) == role), {})
+
+
+def _producer_context_row(
+    *,
+    hook_name: str,
+    observation: dict[str, object],
+    compare_arg: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "hook_point": hook_name,
+        "observed": bool(observation),
+        "eax_preview": str(observation.get("eax_preview_hex", ""))[:64],
+        "esi_preview": str(observation.get("esi_preview_hex", ""))[:64],
+        "edi_preview": str(observation.get("edi_preview_hex", ""))[:64],
+        "lhs_slot_preview": str(observation.get("lhs_slot_preview_hex", ""))[:64],
+        "candidate_dependent": False,
+        "relation_to_compare_arg": {
+            "eax_ptr_matches": _pointer_text_equal(observation.get("eax_ptr"), compare_arg.get("value")),
+            "esi_ptr_matches": _pointer_text_equal(observation.get("esi_ptr"), compare_arg.get("value")),
+            "edi_ptr_matches": _pointer_text_equal(observation.get("edi_ptr"), compare_arg.get("value")),
+            "lhs_slot_ptr_matches": _pointer_text_equal(observation.get("lhs_slot_ptr"), compare_arg.get("value")),
+            "eax_preview_matches": _preview_text_equal(observation.get("eax_preview_hex"), compare_arg.get("preview_hex")),
+            "esi_preview_matches": _preview_text_equal(observation.get("esi_preview_hex"), compare_arg.get("preview_hex")),
+            "edi_preview_matches": _preview_text_equal(observation.get("edi_preview_hex"), compare_arg.get("preview_hex")),
+            "lhs_slot_preview_matches": _preview_text_equal(
+                observation.get("lhs_slot_preview_hex"), compare_arg.get("preview_hex")
+            ),
+        },
+    }
+
+
+def _producer_trace_map_from_observations(observations: list[dict[str, object]]) -> dict[str, object]:
+    producer = _first_observation(observations, "producer_return_site")
+    pre_store = _first_observation(observations, "pre_lhs_slot_store")
+    pre_call = _first_observation(observations, "pre_handoff_call")
+    post_reload = _first_observation(observations, "post_handoff_lhs_reload")
+    pre_compare = _first_observation(observations, "pre_compare_push_esi")
+    call_site = _first_observation(observations, "wide_flag_prefix_compare")
+    compare_entry = _first_observation(observations, "compare_helper_entry")
+    entry_slots = _compare_entry_slots(compare_entry)
+    entry_arg0 = _compare_entry_slot_by_role(entry_slots, "arg0")
+    entry_arg1 = _compare_entry_slot_by_role(entry_slots, "arg1")
+    call_args = _compare_arg_list(call_site)
+    call_arg0 = _compare_arg_at(call_args, 0)
+    call_arg1 = _compare_arg_at(call_args, 1)
+    candidate_compare_arg = entry_arg0
+    target_compare_arg = entry_arg1
+    if _preview_has_flag_prefix(entry_arg0):
+        target_compare_arg = entry_arg0
+        candidate_compare_arg = entry_arg1
+    elif _preview_has_flag_prefix(entry_arg1):
+        target_compare_arg = entry_arg1
+        candidate_compare_arg = entry_arg0
+    elif _preview_has_flag_prefix(call_arg0):
+        target_compare_arg = call_arg0
+        candidate_compare_arg = call_arg1
+    elif _preview_has_flag_prefix(call_arg1):
+        target_compare_arg = call_arg1
+        candidate_compare_arg = call_arg0
+
+    context_table = [
+        _producer_context_row(hook_name="module+0x233d", observation=producer, compare_arg=candidate_compare_arg),
+        _producer_context_row(hook_name="module+0x253a", observation=pre_store, compare_arg=candidate_compare_arg),
+        _producer_context_row(hook_name="module+0x2554", observation=pre_call, compare_arg=candidate_compare_arg),
+        _producer_context_row(hook_name="module+0x2559", observation=post_reload, compare_arg=candidate_compare_arg),
+        _producer_context_row(hook_name="module+0x258b", observation=pre_compare, compare_arg=candidate_compare_arg),
+    ]
+    return {
+        "producer_return_site": {
+            "observed": bool(producer),
+            "registers": producer.get("registers", {}),
+            "stack_preview_hex": producer.get("stack_preview_hex", ""),
+            "frame_slots": producer.get("frame_slots", []),
+            "eax_ptr": producer.get("eax_ptr", ""),
+            "eax_preview_hex": producer.get("eax_preview_hex", ""),
+            "esi_ptr": producer.get("esi_ptr", ""),
+            "esi_preview_hex": producer.get("esi_preview_hex", ""),
+            "edi_ptr": producer.get("edi_ptr", ""),
+            "edi_preview_hex": producer.get("edi_preview_hex", ""),
+            "lhs_slot_ptr": producer.get("lhs_slot_ptr", ""),
+            "lhs_slot_preview_hex": producer.get("lhs_slot_preview_hex", ""),
+        },
+        "compare_helper_entry": {
+            "observed": bool(compare_entry),
+            "caller_return_address": dict(compare_entry.get("compare_entry", {})).get("caller_return_address", "")
+            if isinstance(compare_entry.get("compare_entry"), dict)
+            else "",
+            "caller_return_module_offset": dict(compare_entry.get("compare_entry", {})).get(
+                "caller_return_module_offset", ""
+            )
+            if isinstance(compare_entry.get("compare_entry"), dict)
+            else "",
+            "slots": entry_slots,
+            "arg0_preview_has_flag_prefix": _preview_has_flag_prefix(entry_arg0),
+            "arg1_preview_has_flag_prefix": _preview_has_flag_prefix(entry_arg1),
+        },
+        "static_call_site": {
+            "observed": bool(call_site),
+            "args": call_args,
+            "arg0_preview_has_flag_prefix": _preview_has_flag_prefix(call_arg0),
+            "arg1_preview_has_flag_prefix": _preview_has_flag_prefix(call_arg1),
+        },
+        "candidate_compare_arg": candidate_compare_arg,
+        "target_compare_arg": target_compare_arg,
+        "context_table": context_table,
+        "relations": {
+            "producer_eax_matches_compare_arg_ptr": _pointer_text_equal(producer.get("eax_ptr"), candidate_compare_arg.get("value")),
+            "producer_esi_matches_compare_arg_ptr": _pointer_text_equal(producer.get("esi_ptr"), candidate_compare_arg.get("value")),
+            "producer_edi_matches_compare_arg_ptr": _pointer_text_equal(producer.get("edi_ptr"), candidate_compare_arg.get("value")),
+            "producer_lhs_slot_matches_compare_arg_ptr": _pointer_text_equal(
+                producer.get("lhs_slot_ptr"), candidate_compare_arg.get("value")
+            ),
+            "producer_eax_preview_matches_compare_arg": _preview_text_equal(
+                producer.get("eax_preview_hex"), candidate_compare_arg.get("preview_hex")
+            ),
+            "producer_esi_preview_matches_compare_arg": _preview_text_equal(
+                producer.get("esi_preview_hex"), candidate_compare_arg.get("preview_hex")
+            ),
+            "producer_edi_preview_matches_compare_arg": _preview_text_equal(
+                producer.get("edi_preview_hex"), candidate_compare_arg.get("preview_hex")
+            ),
+            "producer_lhs_slot_preview_matches_compare_arg": _preview_text_equal(
+                producer.get("lhs_slot_preview_hex"), candidate_compare_arg.get("preview_hex")
+            ),
+            "pre_store_eax_matches_compare_arg_ptr": _pointer_text_equal(
+                pre_store.get("eax_ptr"), candidate_compare_arg.get("value")
+            ),
+            "pre_compare_esi_matches_compare_arg_ptr": _pointer_text_equal(
+                pre_compare.get("esi_ptr"), candidate_compare_arg.get("value")
+            ),
+            "compare_entry_arg0_is_flag_target": _preview_has_flag_prefix(entry_arg0),
+            "compare_entry_arg1_is_flag_target": _preview_has_flag_prefix(entry_arg1),
+        },
+    }
+
+
+def _aggregate_producer_trace_hook_results(candidate_results: list[dict[str, object]]) -> dict[str, str]:
+    names: set[str] = set()
+    lhs_slot_available = False
+    compare_call_args_available = False
+    compare_entry_args_available = False
+    for result in candidate_results:
+        for item in result.get("hook_observations", []):
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("hook_name", ""))
+            names.add(name)
+            lhs_slot_available = lhs_slot_available or bool(str(item.get("lhs_slot_ptr", "")))
+            compare_call_args_available = compare_call_args_available or bool(item.get("compare_args"))
+            compare_entry_args_available = compare_entry_args_available or bool(item.get("compare_entry"))
+    return {
+        "producer_return_site": "available" if "producer_return_site" in names else "unavailable",
+        "pre_lhs_slot_store": "available" if "pre_lhs_slot_store" in names else "unavailable",
+        "pre_handoff_call": "available" if "pre_handoff_call" in names else "unavailable",
+        "post_handoff_lhs_reload": "available" if "post_handoff_lhs_reload" in names else "unavailable",
+        "pre_compare_push_esi": "available" if "pre_compare_push_esi" in names else "unavailable",
+        "wide_flag_prefix_compare": "available" if "wide_flag_prefix_compare" in names else "unavailable",
+        "compare_call_args": "available" if compare_call_args_available else "unavailable",
+        "compare_helper_entry": "available" if "compare_helper_entry" in names else "unavailable",
+        "compare_entry_args": "available" if compare_entry_args_available else "unavailable",
+        "lhs_slot": "available" if lhs_slot_available else "unavailable",
+    }
+
+
+def _cross_candidate_producer_trace_summary(candidate_results: list[dict[str, object]]) -> dict[str, object]:
+    relation_counts: dict[str, int] = {}
+    field_values: dict[str, set[str]] = {
+        "producer.eax_preview_hex": set(),
+        "producer.esi_preview_hex": set(),
+        "producer.edi_preview_hex": set(),
+        "producer.lhs_slot_preview_hex": set(),
+        "compare_entry.arg0.preview_hex": set(),
+        "compare_entry.arg1.preview_hex": set(),
+        "compare_entry.arg0.value": set(),
+        "compare_entry.arg1.value": set(),
+        "compare_entry.caller_return_module_offset": set(),
+        "static_call_site.arg0.preview_hex": set(),
+        "static_call_site.arg1.preview_hex": set(),
+    }
+    target_flag_side_counts = {"entry_arg0": 0, "entry_arg1": 0, "call_arg0": 0, "call_arg1": 0}
+    for result in candidate_results:
+        trace_map = result.get("producer_trace_map", {})
+        if not isinstance(trace_map, dict):
+            continue
+        relations = trace_map.get("relations", {})
+        if isinstance(relations, dict):
+            for key, value in relations.items():
+                relation_counts[key] = relation_counts.get(key, 0) + (1 if bool(value) else 0)
+        producer = trace_map.get("producer_return_site", {})
+        if isinstance(producer, dict):
+            field_values["producer.eax_preview_hex"].add(str(producer.get("eax_preview_hex", ""))[:48])
+            field_values["producer.esi_preview_hex"].add(str(producer.get("esi_preview_hex", ""))[:48])
+            field_values["producer.edi_preview_hex"].add(str(producer.get("edi_preview_hex", ""))[:48])
+            field_values["producer.lhs_slot_preview_hex"].add(str(producer.get("lhs_slot_preview_hex", ""))[:48])
+        entry = trace_map.get("compare_helper_entry", {})
+        if isinstance(entry, dict):
+            field_values["compare_entry.caller_return_module_offset"].add(
+                str(entry.get("caller_return_module_offset", ""))
+            )
+            slots = entry.get("slots", [])
+            slots = slots if isinstance(slots, list) else []
+            arg0 = _compare_entry_slot_by_role([dict(item) for item in slots if isinstance(item, dict)], "arg0")
+            arg1 = _compare_entry_slot_by_role([dict(item) for item in slots if isinstance(item, dict)], "arg1")
+            field_values["compare_entry.arg0.preview_hex"].add(str(arg0.get("preview_hex", ""))[:48])
+            field_values["compare_entry.arg1.preview_hex"].add(str(arg1.get("preview_hex", ""))[:48])
+            field_values["compare_entry.arg0.value"].add(str(arg0.get("value", "")))
+            field_values["compare_entry.arg1.value"].add(str(arg1.get("value", "")))
+            target_flag_side_counts["entry_arg0"] += 1 if _preview_has_flag_prefix(arg0) else 0
+            target_flag_side_counts["entry_arg1"] += 1 if _preview_has_flag_prefix(arg1) else 0
+        call_site = trace_map.get("static_call_site", {})
+        if isinstance(call_site, dict):
+            args = call_site.get("args", [])
+            args = args if isinstance(args, list) else []
+            arg0 = _compare_arg_at([dict(item) for item in args if isinstance(item, dict)], 0)
+            arg1 = _compare_arg_at([dict(item) for item in args if isinstance(item, dict)], 1)
+            field_values["static_call_site.arg0.preview_hex"].add(str(arg0.get("preview_hex", ""))[:48])
+            field_values["static_call_site.arg1.preview_hex"].add(str(arg1.get("preview_hex", ""))[:48])
+            target_flag_side_counts["call_arg0"] += 1 if _preview_has_flag_prefix(arg0) else 0
+            target_flag_side_counts["call_arg1"] += 1 if _preview_has_flag_prefix(arg1) else 0
+    return {
+        "candidate_count": len(candidate_results),
+        "runtime_backed_count": sum(1 for item in candidate_results if bool(item.get("runtime_backed"))),
+        "relation_counts": relation_counts,
+        "candidate_dependent_fields": {
+            key: len({value for value in values if value}) > 1 for key, values in field_values.items()
+        },
+        "target_flag_side_counts": target_flag_side_counts,
+    }
+
+
+def _classify_missed_compare_hooks(hook_results: dict[str, str]) -> dict[str, str]:
+    missed = [
+        name
+        for name in ("post_handoff_lhs_reload", "pre_compare_push_esi", "wide_flag_prefix_compare")
+        if hook_results.get(name) != "available"
+    ]
+    if not missed:
+        reason = "all required late compare call-site hooks fired"
+    elif hook_results.get("compare_helper_entry") == "available":
+        reason = "wrapper/alternate compare path"
+    elif hook_results.get("producer_return_site") == "available":
+        reason = "control-flow skipped"
+    else:
+        reason = "producer_trace_inconclusive"
+    return {"missed_hooks": ", ".join(missed), "classification": reason}
+
+
+def _classify_compare_producer_trace(
+    *,
+    runtime_backed_count: int,
+    hook_results: dict[str, str],
+    cross_summary: dict[str, object],
+) -> str:
+    if runtime_backed_count <= 0:
+        return "needs_pre_rc4_base64_probe"
+    relation_counts = cross_summary.get("relation_counts", {})
+    relation_counts = relation_counts if isinstance(relation_counts, dict) else {}
+    target_counts = cross_summary.get("target_flag_side_counts", {})
+    target_counts = target_counts if isinstance(target_counts, dict) else {}
+    candidate_dependent = cross_summary.get("candidate_dependent_fields", {})
+    candidate_dependent = candidate_dependent if isinstance(candidate_dependent, dict) else {}
+    candidate_count = int(cross_summary.get("candidate_count", 0) or 0)
+    relation_hit = any(
+        int(relation_counts.get(name, 0) or 0) > 0
+        for name in (
+            "producer_eax_matches_compare_arg_ptr",
+            "producer_esi_matches_compare_arg_ptr",
+            "producer_edi_matches_compare_arg_ptr",
+            "producer_lhs_slot_matches_compare_arg_ptr",
+            "producer_eax_preview_matches_compare_arg",
+            "producer_esi_preview_matches_compare_arg",
+            "producer_edi_preview_matches_compare_arg",
+            "producer_lhs_slot_preview_matches_compare_arg",
+            "pre_store_eax_matches_compare_arg_ptr",
+            "pre_compare_esi_matches_compare_arg_ptr",
+        )
+    )
+    if hook_results.get("compare_helper_entry") == "available" and hook_results.get("compare_entry_args") == "available":
+        entry_arg0_candidate = bool(candidate_dependent.get("compare_entry.arg0.preview_hex"))
+        entry_arg1_candidate = bool(candidate_dependent.get("compare_entry.arg1.preview_hex"))
+        flag_side_seen = (
+            int(target_counts.get("entry_arg0", 0) or 0) > 0
+            or int(target_counts.get("entry_arg1", 0) or 0) > 0
+        )
+        if candidate_count and flag_side_seen and (entry_arg0_candidate or entry_arg1_candidate):
+            return "compare_args_identified"
+        if relation_hit:
+            return "producer_path_identified"
+        return "compare_entry_captured"
+    if hook_results.get("wide_flag_prefix_compare") == "available" and hook_results.get("compare_helper_entry") != "available":
+        return "wrong_compare_callsite"
+    if hook_results.get("producer_return_site") != "available":
+        return "wrong_module_anchor"
+    if relation_hit:
+        return "producer_path_identified"
+    return "producer_trace_inconclusive"
+
+
+def run_compare_producer_trace_probe(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel,
+    per_probe_timeout: float,
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME
+    script_path = _compare_producer_trace_probe_script_path()
+    hook_points = _compare_producer_trace_hook_points()
+    static_audit = _compare_producer_trace_static_audit(target, hook_points)
+    entries = list(COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES)
+    payload: dict[str, object] = {
+        "artifact_kind": "compare_producer_trace_probe",
+        "profile": "samplereverse",
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(entries),
+        "candidate_limit": len(COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES),
+        "static_audit": static_audit,
+        "hook_points": hook_points,
+        "promotable_validations": [],
+    }
+    _write_json(result_path, payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Compare producer trace probe script missing: {script_path}")
+
+    points_path = artifacts_dir / "hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        compare_out = candidate_dir / "compare_producer_trace_probe.json"
+        compare_log = candidate_dir / "compare_producer_trace_probe.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(compare_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"CompareProducerTraceProbe scripted hooks {idx}: {candidate_hex}")
+        proc = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        compare_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        observations = [
+            _normalize_producer_trace_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        trace_map = _producer_trace_map_from_observations(observations)
+        candidate_results.append(
+            {
+                "label": f"compare_producer_trace_probe_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_results": dict(compare_payload.get("hook_results", {}))
+                if isinstance(compare_payload.get("hook_results"), dict)
+                else {},
+                "producer_trace_map": trace_map,
+                "hook_observations": observations[:64],
+                "result_path": str(compare_out),
+                "log_path": str(compare_log),
+                "success": bool(compare_payload.get("success")),
+                "error": str(compare_payload.get("error", "")),
+            }
+        )
+
+    runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
+    hook_results = _aggregate_producer_trace_hook_results(candidate_results)
+    cross_summary = _cross_candidate_producer_trace_summary(candidate_results)
+    hook_miss_classification = _classify_missed_compare_hooks(hook_results)
+    classification = _classify_compare_producer_trace(
+        runtime_backed_count=runtime_backed_count,
+        hook_results=hook_results,
+        cross_summary=cross_summary,
+    )
+    next_bounded_action = {
+        "compare_args_identified": "derive candidate-side byte constraints from the actual compare helper entry args",
+        "producer_path_identified": "turn the producer-to-compare relation into bounded candidate refinement constraints",
+        "compare_entry_captured": "inspect compare entry args and caller path before refining candidates",
+        "wrong_compare_callsite": "replace static module+0x258c assumptions with the observed compare helper caller path",
+        "wrong_module_anchor": "revalidate module base and producer hook anchors before any search expansion",
+        "needs_pre_rc4_base64_probe": "run the bounded pre-RC4/Base64 material capture fallback",
+        "producer_trace_inconclusive": "choose a narrower producer hook from the captured 0x233d context or fallback to material capture",
+    }.get(classification, "inspect compare producer trace artifact")
+    payload.update(
+        {
+            "classification": classification,
+            "runtime_backed_count": runtime_backed_count,
+            "hook_results": hook_results,
+            "hook_miss_classification": hook_miss_classification,
+            "candidate_results": candidate_results,
+            "producer_trace_maps": [result.get("producer_trace_map", {}) for result in candidate_results],
+            "candidate_dependency_table": [
+                {
+                    "candidate_hex": result.get("candidate_hex", ""),
+                    "rows": dict(result.get("producer_trace_map", {})).get("context_table", [])
+                    if isinstance(result.get("producer_trace_map"), dict)
+                    else [],
+                }
+                for result in candidate_results
+            ],
+            "cross_candidate_summary": cross_summary,
+            "findings": [
+                "producer trace captured runtime observations"
+                if runtime_backed_count
+                else "producer trace did not capture runtime observations",
+                "candidate generation, ranking, final selection, and search budget were unchanged",
+            ],
+            "next_bounded_action": next_bounded_action,
+            "promotable_validations": [],
+        }
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Compare producer trace probe wrote {result_path}")
     return {
         "result_path": str(result_path),
         "payload": payload,
@@ -11498,6 +12158,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         compare_handoff_slice_probe_artifact: ToolRunArtifact | None = None
         compare_handoff_return_site_probe_run: dict[str, object] | None = None
         compare_handoff_return_site_probe_artifact: ToolRunArtifact | None = None
+        compare_producer_trace_probe_run: dict[str, object] | None = None
+        compare_producer_trace_probe_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_validation_run: dict[str, object] | None = None
         h1_h3_boundary_validation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_runtime_artifact: ToolRunArtifact | None = None
@@ -12043,6 +12705,39 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 derived_entries=[],
             )
 
+        compare_handoff_return_site_payload = (
+            dict(compare_handoff_return_site_probe_run.get("payload", {}))
+            if compare_handoff_return_site_probe_run
+            else {}
+        )
+        should_run_compare_producer_trace_probe = (
+            _compare_handoff_return_site_needs_producer_trace(compare_handoff_return_site_payload)
+            or _prior_compare_handoff_return_site_needs_producer_trace()
+        )
+        if should_run_compare_producer_trace_probe:
+            compare_producer_trace_probe_run = run_compare_producer_trace_probe(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "compare_producer_trace_probe",
+                transform_model=transform_model,
+                per_probe_timeout=per_probe_timeout,
+                log=log,
+            )
+            compare_producer_trace_payload = dict(compare_producer_trace_probe_run.get("payload", {}))
+            compare_producer_trace_probe_artifact = _make_search_artifact(
+                tool_name="CompareProducerTraceProbe",
+                output_path=Path(str(compare_producer_trace_probe_run["result_path"])),
+                summary=str(
+                    compare_producer_trace_payload.get(
+                        "classification",
+                        "compare producer trace probe complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=compare_producer_trace_payload,
+                derived_entries=[],
+            )
+
         should_run_h1_h3 = (
             _selected_h1_h3_target(profile_transform_audit_run)
             and not _negative_h1_h3_boundary_recorded()
@@ -12138,6 +12833,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(compare_handoff_slice_probe_artifact)
         if compare_handoff_return_site_probe_artifact is not None:
             artifacts.append(compare_handoff_return_site_probe_artifact)
+        if compare_producer_trace_probe_artifact is not None:
+            artifacts.append(compare_producer_trace_probe_artifact)
         if h1_h3_boundary_validation_artifact is not None:
             artifacts.append(h1_h3_boundary_validation_artifact)
         if h1_h3_boundary_runtime_artifact is not None:
@@ -12173,12 +12870,15 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "compare_handoff_probe": compare_handoff_probe_run or {},
                 "compare_handoff_slice_probe": compare_handoff_slice_probe_run or {},
                 "compare_handoff_return_site_probe": compare_handoff_return_site_probe_run or {},
+                "compare_producer_trace_probe": compare_producer_trace_probe_run or {},
                 "h1_h3_boundary_validation": h1_h3_boundary_validation_run or {},
                 "prefix_boundary_diagnostics": prefix_boundary_diagnostics,
                 "frontier_converged_reason": frontier_converged_reason,
                 "frontier_stall_stage": frontier_stall_stage,
                 "completed_stage": "h1_h3_boundary_validation"
                 if h1_h3_boundary_validation_run
+                else "compare_producer_trace_probe"
+                if compare_producer_trace_probe_run
                 else "compare_handoff_return_site_probe"
                 if compare_handoff_return_site_probe_run
                 else "compare_handoff_slice_probe"
