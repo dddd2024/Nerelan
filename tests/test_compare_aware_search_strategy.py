@@ -3423,18 +3423,19 @@ def _fake_pre_rc4_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     out_path = Path(command[command.index("--out") + 1])
     materials_path = Path(command[command.index("--materials") + 1])
     materials = json.loads(materials_path.read_text(encoding="utf-8"))
-    material_names = [item["name"] for item in materials["materials"]]
+    material_by_name = {item["name"]: item for item in materials["materials"]}
+    available_names = {"utf16le_payload", "base64_ascii", "rc4_output", "compare_buffer"}
     matches = [
         {
             "material": name,
-            "status": "available" if name in {"base64_ascii", "rc4_output", "compare_buffer"} else "unavailable",
-            "match_kind": "prefix" if name in {"base64_ascii", "rc4_output", "compare_buffer"} else "",
-            "address": "0x1000" if name in {"base64_ascii", "rc4_output", "compare_buffer"} else "",
-            "protection": "rw-" if name in {"base64_ascii", "rc4_output", "compare_buffer"} else "",
-            "size": 16 if name in {"base64_ascii", "rc4_output", "compare_buffer"} else 0,
-            "preview_hex": "666f6f",
+            "status": "available" if name in available_names else "unavailable",
+            "match_kind": "prefix" if name in available_names else "",
+            "address": "0x1000" if name in available_names else "",
+            "protection": "rw-" if name in available_names else "",
+            "size": 16 if name in available_names else 0,
+            "preview_hex": str(material_by_name[name].get("hex", ""))[:64] if name in available_names else "",
         }
-        for name in material_names
+        for name in material_by_name
     ]
     out_path.write_text(
         json.dumps(
@@ -3447,7 +3448,7 @@ def _fake_pre_rc4_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
                 "probe_points": {
                     "raw_input": "unavailable",
                     "expanded_bytes": "unavailable",
-                    "utf16le_payload": "unavailable",
+                    "utf16le_payload": "available",
                     "base64_material": "available",
                     "rc4_ksa_key": "unavailable",
                     "rc4_encrypted_const": "unavailable",
@@ -3474,6 +3475,7 @@ def test_pre_rc4_material_probe_has_bounded_candidate_count_and_schema(
     target = tmp_path / "samplereverse.exe"
     target.write_bytes(b"MZ")
     monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_pre_rc4_subprocess_run)
+    monkeypatch.setattr(compare_aware_search, "_latest_producer_material_previews", lambda: {})
 
     result = run_pre_rc4_material_probe(
         target=target,
@@ -3488,12 +3490,57 @@ def test_pre_rc4_material_probe_has_bounded_candidate_count_and_schema(
     assert payload["candidate_count"] == 3
     assert payload["candidate_limit"] == 3
     assert payload["runtime_backed_count"] == 3
-    assert payload["classification"] == "pre_rc4_probe_complete"
+    assert payload["classification"] in {"material_chain_agrees", "needs_compare_path_discovery"}
     assert payload["probe_points"]["base64_material"] == "available"
     assert payload["probe_points"]["rc4_output"] == "available"
     assert payload["rc4_key_status"] == "inferred"
     assert payload["rc4_input_status"] == "confirmed"
+    assert payload["first_divergence_stage"] == ""
+    assert payload["offline_runtime_agreement_table"][0]["utf16_agree"] is True
+    assert payload["offline_runtime_agreement_table"][0]["base64_agree"] is True
+    assert payload["offline_runtime_agreement_table"][0]["rc4_agree"] is True
+    assert payload["producer_material_relation_table"][0]["rc4_to_producer_relation"] in {
+        "exact",
+        "prefix",
+        "slice",
+        "no_match",
+    }
     assert payload["promotable_validations"] == []
+
+
+def test_pre_rc4_material_probe_relates_rc4_output_to_latest_producer_buffer(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    first_candidate = compare_aware_search.PRE_RC4_MATERIAL_PROBE_CANDIDATES[0]
+    expected = compare_aware_search._pre_rc4_expected_materials(first_candidate)
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_pre_rc4_subprocess_run)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_latest_producer_material_previews",
+        lambda: {
+            first_candidate: {
+                "producer_eax_preview_hex": str(expected["rc4_output_hex"])[:64],
+                "producer_lhs_slot_preview_hex": "",
+            }
+        },
+    )
+
+    result = run_pre_rc4_material_probe(
+        target=target,
+        artifacts_dir=tmp_path / "pre_rc4_material_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "needs_compare_path_discovery"
+    first_relation = payload["producer_material_relation_table"][0]
+    assert first_relation["rc4_to_producer_eax_relation"] in {"exact", "prefix"}
+    assert first_relation["rc4_to_producer_relation"] in {"exact", "prefix"}
 
 
 def test_pre_rc4_material_probe_does_not_expand_search_or_promote(
@@ -3503,6 +3550,7 @@ def test_pre_rc4_material_probe_does_not_expand_search_or_promote(
     target = tmp_path / "samplereverse.exe"
     target.write_bytes(b"MZ")
     monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_pre_rc4_subprocess_run)
+    monkeypatch.setattr(compare_aware_search, "_latest_producer_material_previews", lambda: {})
 
     result = run_pre_rc4_material_probe(
         target=target,
@@ -3527,6 +3575,7 @@ def test_pre_rc4_material_probe_exact2_failure_trace_has_offsets_and_dependencie
     target = tmp_path / "samplereverse.exe"
     target.write_bytes(b"MZ")
     monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_pre_rc4_subprocess_run)
+    monkeypatch.setattr(compare_aware_search, "_latest_producer_material_previews", lambda: {})
 
     result = run_pre_rc4_material_probe(
         target=target,

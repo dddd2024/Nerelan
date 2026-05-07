@@ -15,8 +15,25 @@ COMPARE_SITE_OFFSET = 0x258C
 DEFAULT_MATCH_LIMIT = 3
 
 
+def _clean_hex(value: object) -> str:
+    text = str(value or "").strip().lower()
+    cleaned = "".join(ch for ch in text if ch in "0123456789abcdef")
+    return cleaned if len(cleaned) % 2 == 0 else cleaned[:-1]
+
+
+def _decode_preview(hex_text: object, encoding: str) -> str:
+    cleaned = _clean_hex(hex_text)
+    if not cleaned:
+        return ""
+    try:
+        return bytes.fromhex(cleaned).decode(encoding, errors="replace").replace("\x00", "")
+    except Exception:
+        return ""
+
+
 def _normalize_memory_match(item: dict[str, object] | None) -> dict[str, object]:
     item = item or {}
+    preview_hex = _clean_hex(item.get("preview_hex", ""))
     return {
         "material": str(item.get("material", "")),
         "status": str(item.get("status", "unavailable") or "unavailable"),
@@ -24,7 +41,10 @@ def _normalize_memory_match(item: dict[str, object] | None) -> dict[str, object]
         "address": str(item.get("address", "")),
         "protection": str(item.get("protection", "")),
         "size": int(item.get("size", 0) or 0),
-        "preview_hex": str(item.get("preview_hex", "")),
+        "preview_hex": preview_hex,
+        "preview_ascii": _decode_preview(preview_hex, "ascii"),
+        "preview_utf16le": _decode_preview(preview_hex, "utf-16le"),
+        "match_count_capped": int(item.get("match_count_capped", 0) or 0),
     }
 
 
@@ -74,7 +94,7 @@ def _build_payload(
 
 def _write_payload(out_path: Path, payload: dict[str, object]) -> int:
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    out_path.write_text(json.dumps(payload, ensure_ascii=True, indent=2), encoding="utf-8")
     return 0
 
 

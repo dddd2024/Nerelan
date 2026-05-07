@@ -3419,3 +3419,65 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search；不重复当前 producer trace 原样 hook set。
 - 下一步应使用已捕获的 `0x233d` context 选择更窄的 producer hook。
 - 若无法从 `0x233d` context 选出 instruction-confirmed producer target，则执行 bounded pre-RC4/Base64 material fallback。
+
+## 2026-05-07 Pre-RC4/Base64 material capture
+
+1) 执行范围
+- 按计划升级并执行现有 `pre_rc4_material_probe`，不新增 candidate generator，不改变 ranking、final selection、promotion。
+- 不扩大 beam、budget、topN、timeout、frontier iteration limit。
+- 固定 3 个 diagnostic candidates：
+  - `78d540b49c59077041414141414141`
+  - `78d540b49c59077040414141414141`
+  - `5a3e7f46ddd474d041414141414141`
+
+2) 代码改动
+- `reverse_agent/olly_scripts/pre_rc4_material_probe.py`
+  - material match 输出新增 sanitized `preview_hex`、ASCII/UTF-16LE preview、`match_count_capped`。
+  - JSON 写出改为 ASCII-safe，避免 decoded preview 中异常字符破坏 artifact。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - `run_pre_rc4_material_probe()` 新增 offline/runtime agreement table。
+  - 新增 RC4 output 到 latest producer trace `producer.eax_preview_hex` / `producer.lhs_slot_preview_hex` 的 relation table。
+  - 新增 material capture classification，并在 latest producer trace 指向 material capture 时优先运行 pre-RC4 probe，避免重复 producer trace。
+- `reverse_agent/project_state.py`
+  - `current_state` 暴露 `first_divergence_stage`、offline/runtime agreement table、producer relation table。
+  - 若 pre-RC4 material probe 是 producer inconclusive 后续结果，则 bottleneck 更新为 `pre_rc4_material_probe`。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 更新 schema、classification、no-promotion/no-budget、RC4-to-producer relation、project_state indexing 覆盖。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\pre_rc4_material_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests/test_compare_aware_search_strategy.py` -> `88 passed`
+- `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` -> `26 passed`
+- `python -m pytest -q` -> `181 passed`
+
+4) Harness / project_state
+- Final run: `samplereverse_pre_rc4_material_probe_20260507`
+- Harness completed 1 case, 0 errors.
+- Artifact:
+  - `solve_reports\harness_runs\samplereverse_pre_rc4_material_probe_20260507\reports\tool_artifacts\samplereverse\pre_rc4_material_probe\pre_rc4_material_probe.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_pre_rc4_material_probe_20260507` passed.
+- `python -m reverse_agent.project_state status` reports `reason: material_capture_partial`。
+
+5) 结论
+- Classification: `material_capture_partial`
+- 3 个 diagnostic candidates 均 runtime-backed，但 automatic memory scan 未捕获 material buffer：
+  - `raw_input=unavailable`
+  - `expanded_bytes=unavailable`
+  - `utf16le_payload=unavailable`
+  - `base64_material=unavailable`
+  - `rc4_ksa_key=unavailable`
+  - `rc4_encrypted_const=unavailable`
+  - `rc4_output=unavailable`
+  - `compare_buffer=unavailable`
+- Offline/runtime agreement:
+  - UTF-16LE/Base64/RC4 均为 `unknown`，没有确认 divergence。
+  - `first_divergence_stage=unknown`。
+- RC4-to-producer relation:
+  - 3 个 candidates 均 `no_match`，原因是 runtime RC4 material 未捕获，只能保留 offline RC4 与 producer preview 对照。
+- 当前 runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大搜索；不回 blind search；不重复当前 automatic memory scan 原样策略。
+- 下一步做更窄的 material hook 或 bounded Base64/RC4 breakpoint fallback。
+- 目标是直接捕获 UTF-16LE/Base64/RC4 runtime buffers；只有 material chain agree 后才继续 compare-path discovery。

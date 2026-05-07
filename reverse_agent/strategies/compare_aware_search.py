@@ -3358,10 +3358,11 @@ def _prior_dynamic_probe_needs_pre_rc4() -> bool:
 def _prior_pre_rc4_probe_needs_breakpoint() -> bool:
     current_state = _project_state_json("current_state.json")
     latest = current_state.get("latest_pre_rc4_material_probe", {})
-    if isinstance(latest, dict) and str(latest.get("classification", "")).strip() == "pre_rc4_probe_unavailable":
+    breakpoint_classifications = {"pre_rc4_probe_unavailable", "material_capture_unreliable"}
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip() in breakpoint_classifications:
         return True
     payload, _ = _indexed_artifact_payload("pre_rc4_material_probe")
-    return str(payload.get("classification", "")).strip() == "pre_rc4_probe_unavailable"
+    return str(payload.get("classification", "")).strip() in breakpoint_classifications
 
 
 def _base64_probe_needs_stack_pivot(payload: dict[str, object]) -> bool:
@@ -3470,6 +3471,26 @@ def _prior_compare_handoff_return_site_needs_producer_trace() -> bool:
         return True
     payload, _ = _indexed_artifact_payload("compare_handoff_return_site_probe")
     return _compare_handoff_return_site_needs_producer_trace(payload)
+
+
+def _compare_producer_trace_needs_material_capture(payload: dict[str, object]) -> bool:
+    classification = str(payload.get("classification", "")).strip()
+    if classification in {"producer_trace_inconclusive", "needs_pre_rc4_base64_probe"}:
+        return True
+    next_action = str(payload.get("next_bounded_action", "")).lower()
+    return "material capture" in next_action or "pre-rc4" in next_action or "base64" in next_action
+
+
+def _prior_compare_producer_trace_needs_material_capture() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest_pre_rc4 = current_state.get("latest_pre_rc4_material_probe", {})
+    if isinstance(latest_pre_rc4, dict) and str(latest_pre_rc4.get("classification", "")).strip():
+        return False
+    latest_producer = current_state.get("latest_compare_producer_trace_probe", {})
+    if isinstance(latest_producer, dict) and _compare_producer_trace_needs_material_capture(latest_producer):
+        return True
+    payload, _ = _indexed_artifact_payload("compare_producer_trace_probe")
+    return _compare_producer_trace_needs_material_capture(payload)
 
 
 def _profile_audit_candidate_record(
@@ -4657,6 +4678,201 @@ def _availability_status(
     if runtime_backed_count:
         return "unknown"
     return "unknown"
+
+
+def _expected_material_map(expected: dict[str, object]) -> dict[str, str]:
+    materials = expected.get("materials", [])
+    if not isinstance(materials, list):
+        return {}
+    return {
+        str(item.get("name", "")): str(item.get("hex", "")).strip().lower()
+        for item in materials
+        if isinstance(item, dict) and str(item.get("name", ""))
+    }
+
+
+def _match_by_material(matches: Sequence[dict[str, object]], material: str) -> dict[str, object]:
+    return next((dict(item) for item in matches if str(item.get("material", "")) == material), {})
+
+
+def _runtime_match_hex(matches: Sequence[dict[str, object]], material: str) -> str:
+    match = _match_by_material(matches, material)
+    if str(match.get("status", "")) != "available":
+        return ""
+    return str(match.get("preview_hex", "")).strip().lower()
+
+
+def _safe_decode_material(hex_text: str, encoding: str) -> str:
+    raw = _hex_to_bytes(hex_text)
+    if not raw:
+        return ""
+    try:
+        return raw.decode(encoding, errors="replace").replace("\x00", "")
+    except Exception:
+        return ""
+
+
+def _material_preview_agrees(offline_hex: str, runtime_hex: str) -> bool | None:
+    offline = str(offline_hex or "").strip().lower()
+    runtime = str(runtime_hex or "").strip().lower()
+    if not offline or not runtime:
+        return None
+    compare_len = min(len(offline), len(runtime))
+    return bool(compare_len and offline[:compare_len] == runtime[:compare_len])
+
+
+def _runtime_offline_agreement_row(
+    *,
+    candidate_hex: str,
+    expected: dict[str, object],
+    matches: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    material_map = _expected_material_map(expected)
+    offline_utf16_hex = material_map.get("utf16le_payload", "")
+    offline_base64_hex = material_map.get("base64_ascii", "")
+    offline_rc4_hex = material_map.get("rc4_output", "")
+    runtime_utf16_hex = _runtime_match_hex(matches, "utf16le_payload")
+    runtime_base64_hex = _runtime_match_hex(matches, "base64_ascii")
+    runtime_rc4_hex = _runtime_match_hex(matches, "rc4_output")
+    utf16_agree = _material_preview_agrees(offline_utf16_hex, runtime_utf16_hex)
+    base64_agree = _material_preview_agrees(offline_base64_hex, runtime_base64_hex)
+    rc4_agree = _material_preview_agrees(offline_rc4_hex, runtime_rc4_hex)
+    first_divergence_stage = ""
+    if utf16_agree is False:
+        first_divergence_stage = "utf16"
+    elif base64_agree is False:
+        first_divergence_stage = "base64"
+    elif rc4_agree is False:
+        first_divergence_stage = "rc4"
+    elif any(value is None for value in (utf16_agree, base64_agree, rc4_agree)):
+        first_divergence_stage = "unknown"
+    return {
+        "candidate_hex": candidate_hex,
+        "offline_utf16_hex": offline_utf16_hex,
+        "runtime_utf16_hex": runtime_utf16_hex,
+        "utf16_agree": utf16_agree,
+        "offline_base64_ascii": _safe_decode_material(offline_base64_hex, "ascii"),
+        "runtime_base64_ascii": _safe_decode_material(runtime_base64_hex, "ascii"),
+        "base64_agree": base64_agree,
+        "offline_rc4_hex": offline_rc4_hex,
+        "runtime_rc4_hex": runtime_rc4_hex,
+        "rc4_agree": rc4_agree,
+        "first_divergence_stage": first_divergence_stage,
+    }
+
+
+def _latest_producer_material_previews() -> dict[str, dict[str, str]]:
+    payload, _ = _indexed_artifact_payload("compare_producer_trace_probe")
+    out: dict[str, dict[str, str]] = {}
+    results = payload.get("candidate_results", [])
+    if not isinstance(results, list):
+        return out
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        candidate_hex = str(item.get("candidate_hex", "")).strip().lower()
+        trace_map = item.get("producer_trace_map", {})
+        if not candidate_hex or not isinstance(trace_map, dict):
+            continue
+        producer = trace_map.get("producer_return_site", {})
+        if not isinstance(producer, dict):
+            continue
+        out[candidate_hex] = {
+            "producer_eax_preview_hex": str(producer.get("eax_preview_hex", "")).strip().lower(),
+            "producer_lhs_slot_preview_hex": str(producer.get("lhs_slot_preview_hex", "")).strip().lower(),
+        }
+    return out
+
+
+def _hex_relation(left_hex: str, right_hex: str) -> str:
+    left = str(left_hex or "").strip().lower()
+    right = str(right_hex or "").strip().lower()
+    if not left or not right:
+        return "no_match"
+    if left == right:
+        return "exact"
+    if left.startswith(right) or right.startswith(left):
+        return "prefix"
+    if left in right or right in left:
+        return "slice"
+    return "no_match"
+
+
+def _best_relation(*relations: str) -> str:
+    for candidate in ("exact", "prefix", "slice"):
+        if candidate in relations:
+            return candidate
+    return "no_match"
+
+
+def _producer_relation_row(
+    *,
+    candidate_hex: str,
+    expected: dict[str, object],
+    matches: Sequence[dict[str, object]],
+    producer_previews: dict[str, dict[str, str]],
+) -> dict[str, object]:
+    runtime_rc4_hex = _runtime_match_hex(matches, "rc4_output")
+    if not runtime_rc4_hex:
+        runtime_rc4_hex = str(expected.get("rc4_output_hex", "")).strip().lower()
+    producer = producer_previews.get(candidate_hex, {})
+    eax_hex = str(producer.get("producer_eax_preview_hex", "")).strip().lower()
+    lhs_hex = str(producer.get("producer_lhs_slot_preview_hex", "")).strip().lower()
+    eax_relation = _hex_relation(runtime_rc4_hex, eax_hex)
+    lhs_relation = _hex_relation(runtime_rc4_hex, lhs_hex)
+    return {
+        "candidate_hex": candidate_hex,
+        "utf16_material": _runtime_match_hex(matches, "utf16le_payload"),
+        "base64_output": _runtime_match_hex(matches, "base64_ascii"),
+        "rc4_output": runtime_rc4_hex,
+        "producer_eax": eax_hex,
+        "producer_lhs_slot": lhs_hex,
+        "rc4_to_producer_eax_relation": eax_relation,
+        "rc4_to_producer_lhs_slot_relation": lhs_relation,
+        "rc4_to_producer_relation": _best_relation(eax_relation, lhs_relation),
+    }
+
+
+def _first_material_divergence(agreement_table: Sequence[dict[str, object]]) -> str:
+    for stage in ("utf16", "base64", "rc4"):
+        if any(str(item.get("first_divergence_stage", "")) == stage for item in agreement_table):
+            return stage
+    return ""
+
+
+def _classify_pre_rc4_material_capture(
+    *,
+    runtime_backed_count: int,
+    agreement_table: Sequence[dict[str, object]],
+    relation_table: Sequence[dict[str, object]],
+) -> str:
+    if runtime_backed_count == 0:
+        return "material_capture_unreliable"
+    divergence = _first_material_divergence(agreement_table)
+    if divergence:
+        return f"{divergence}_diverges"
+    required = ("utf16_agree", "base64_agree", "rc4_agree")
+    if not agreement_table or any(item.get(key) is not True for item in agreement_table for key in required):
+        return "material_capture_partial"
+    relations = {str(item.get("rc4_to_producer_relation", "")) for item in relation_table}
+    if relations & {"exact", "prefix", "slice"}:
+        return "needs_compare_path_discovery"
+    if any(item.get("producer_eax") or item.get("producer_lhs_slot") for item in relation_table):
+        return "rc4_not_producer_buffer"
+    return "material_chain_agrees"
+
+
+def _pre_rc4_next_bounded_action(classification: str) -> str:
+    return {
+        "material_chain_agrees": "use confirmed material chain to choose the next compare-path discovery target",
+        "needs_compare_path_discovery": "discover the alternate or skipped compare path that consumes the producer-side transformed buffer",
+        "rc4_not_producer_buffer": "choose a narrower producer hook to explain where RC4 output is copied or transformed next",
+        "utf16_diverges": "stop candidate search and correct the UTF-16LE material model",
+        "base64_diverges": "stop candidate search and correct the Base64 material model",
+        "rc4_diverges": "stop candidate search and correct the RC4 key/input/output model",
+        "material_capture_partial": "add a narrower material hook or bounded Base64/RC4 breakpoint fallback",
+        "material_capture_unreliable": "repair material capture reliability before expanding search",
+    }.get(classification, "inspect pre-RC4 material probe artifact")
 
 
 def _exact2_failure_trace_from_expected(expected: dict[str, object]) -> dict[str, object]:
@@ -7412,6 +7628,7 @@ def run_pre_rc4_material_probe(
         raise RuntimeError(f"pre-RC4 material probe script missing: {script_path}")
 
     candidate_results: list[dict[str, object]] = []
+    producer_previews = _latest_producer_material_previews()
     for idx, entry in enumerate(entries, 1):
         candidate_hex = str(entry["candidate_hex"])
         candidate_dir = artifacts_dir / f"candidate_{idx}"
@@ -7465,6 +7682,17 @@ def run_pre_rc4_material_probe(
             if isinstance(compare_payload.get("probe_points"), dict)
             else _match_statuses(matches)
         )
+        agreement_row = _runtime_offline_agreement_row(
+            candidate_hex=candidate_hex,
+            expected=expected,
+            matches=matches,
+        )
+        relation_row = _producer_relation_row(
+            candidate_hex=candidate_hex,
+            expected=expected,
+            matches=matches,
+            producer_previews=producer_previews,
+        )
         candidate_results.append(
             {
                 "label": entry.get("label", f"pre_rc4_material_probe_{idx}"),
@@ -7475,6 +7703,8 @@ def run_pre_rc4_material_probe(
                 ),
                 "probe_points": probe_points,
                 "matches": matches,
+                "offline_runtime_agreement": agreement_row,
+                "producer_material_relation": relation_row,
                 "result_path": str(compare_out),
                 "log_path": str(compare_log),
                 "expected_material_summary": {
@@ -7489,17 +7719,20 @@ def run_pre_rc4_material_probe(
 
     runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
     probe_points = _aggregate_pre_rc4_probe_points(candidate_results)
-    has_pre_rc4 = any(
-        probe_points.get(key) == "available"
-        for key in ("utf16le_payload", "base64_material", "rc4_ksa_key")
-    )
-    has_any_material = any(value == "available" for value in probe_points.values())
-    classification = (
-        "pre_rc4_probe_complete"
-        if has_pre_rc4
-        else "pre_rc4_probe_partial"
-        if has_any_material
-        else "pre_rc4_probe_unavailable"
+    offline_runtime_agreement_table = [
+        dict(item.get("offline_runtime_agreement", {}))
+        for item in candidate_results
+        if isinstance(item.get("offline_runtime_agreement"), dict)
+    ]
+    producer_material_relation_table = [
+        dict(item.get("producer_material_relation", {}))
+        for item in candidate_results
+        if isinstance(item.get("producer_material_relation"), dict)
+    ]
+    classification = _classify_pre_rc4_material_capture(
+        runtime_backed_count=runtime_backed_count,
+        agreement_table=offline_runtime_agreement_table,
+        relation_table=producer_material_relation_table,
     )
     first_expected = dict(entries[0].get("expected_materials", {})) if entries else {}
     rc4_key_status = _availability_status(
@@ -7515,9 +7748,9 @@ def run_pre_rc4_material_probe(
         runtime_backed_count=runtime_backed_count,
     )
     findings = [
-        "memory scan observed pre-RC4/Base64/key material"
-        if has_pre_rc4
-        else "memory scan did not observe pre-RC4/Base64/key material",
+        "material capture produced offline/runtime agreement evidence"
+        if classification not in {"material_capture_partial", "material_capture_unreliable"}
+        else "material capture did not fully close offline/runtime agreement",
         "candidate generation, ranking, final selection, and search budget were unchanged",
     ]
     payload.update(
@@ -7527,14 +7760,18 @@ def run_pre_rc4_material_probe(
             "probe_points": probe_points,
             "rc4_key_status": rc4_key_status,
             "rc4_input_status": rc4_input_status,
+            "first_divergence_stage": _first_material_divergence(offline_runtime_agreement_table)
+            or (
+                "unknown"
+                if classification in {"material_capture_partial", "material_capture_unreliable"}
+                else ""
+            ),
+            "offline_runtime_agreement_table": offline_runtime_agreement_table,
+            "producer_material_relation_table": producer_material_relation_table,
             "candidate_results": candidate_results,
             "exact2_failure_trace": _exact2_failure_trace_from_expected(first_expected),
             "findings": findings,
-            "next_bounded_action": (
-                "derive bounded exact3 constraints from confirmed pre-RC4 material"
-                if classification == "pre_rc4_probe_complete"
-                else "switch to IDA/x64dbg manual breakpoints for Base64/RC4 construction points"
-            ),
+            "next_bounded_action": _pre_rc4_next_bounded_action(classification),
             "promotable_validations": [],
         }
     )
@@ -12519,6 +12756,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 and str(dynamic_probe_points.get("pre_rc4_runtime_material", "")) == "unavailable"
             )
             or _prior_dynamic_probe_needs_pre_rc4()
+            or _prior_compare_producer_trace_needs_material_capture()
         ) and not _prior_pre_rc4_probe_needs_breakpoint()
         if should_run_pre_rc4_probe:
             pre_rc4_material_probe_run = run_pre_rc4_material_probe(
@@ -12546,7 +12784,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
 
         pre_rc4_payload = dict(pre_rc4_material_probe_run.get("payload", {})) if pre_rc4_material_probe_run else {}
         should_run_base64_rc4_breakpoint_probe = (
-            str(pre_rc4_payload.get("classification", "")) == "pre_rc4_probe_unavailable"
+            str(pre_rc4_payload.get("classification", "")) in {"pre_rc4_probe_unavailable", "material_capture_unreliable"}
             or _prior_pre_rc4_probe_needs_breakpoint()
         )
         if should_run_base64_rc4_breakpoint_probe:
@@ -12713,7 +12951,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
         should_run_compare_producer_trace_probe = (
             _compare_handoff_return_site_needs_producer_trace(compare_handoff_return_site_payload)
             or _prior_compare_handoff_return_site_needs_producer_trace()
-        )
+        ) and not _prior_compare_producer_trace_needs_material_capture()
         if should_run_compare_producer_trace_probe:
             compare_producer_trace_probe_run = run_compare_producer_trace_probe(
                 target=file_path,

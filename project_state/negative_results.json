@@ -54,13 +54,5 @@
     "override_reason_required": true,
     "reason": "transform trace consistency diagnostic confirmed five runtime-backed candidates agree with offline UTF-16LE/Base64/RC4/compare trace; next work needs a different bounded evidence source",
     "severity": "soft_block"
-  },
-  {
-    "direction": "repeat compare producer trace without using its classification",
-    "do_not_repeat": true,
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "the producer trace produced a compare-side dataflow classification; next work should use that evidence rather than rerunning the same probe",
-    "severity": "soft_block"
   }
 ]

@@ -504,6 +504,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if compare_producer_trace_classification:
         stage = "compare_producer_trace_probe"
         reason = compare_producer_trace_classification
+    if pre_rc4_classification and compare_producer_trace_classification in {
+        "producer_trace_inconclusive",
+        "needs_pre_rc4_base64_probe",
+    }:
+        stage = "pre_rc4_material_probe"
+        reason = pre_rc4_classification
     if stage is None:
         uncertainty.append("current_bottleneck.stage")
     if reason is None:
@@ -564,6 +570,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "probe_points": pre_rc4_material_probe.get("probe_points"),
             "rc4_key_status": pre_rc4_material_probe.get("rc4_key_status"),
             "rc4_input_status": pre_rc4_material_probe.get("rc4_input_status"),
+            "first_divergence_stage": pre_rc4_material_probe.get("first_divergence_stage"),
+            "offline_runtime_agreement_table": pre_rc4_material_probe.get("offline_runtime_agreement_table"),
+            "producer_material_relation_table": pre_rc4_material_probe.get("producer_material_relation_table"),
             "next_bounded_action": pre_rc4_material_probe.get("next_bounded_action"),
         }
         if pre_rc4_material_probe
@@ -743,15 +752,15 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
         )
     pre_rc4_probe = _read_json(artifacts.get("pre_rc4_material_probe"))
     pre_rc4_classification = str(pre_rc4_probe.get("classification") or "").strip()
-    if pre_rc4_classification == "pre_rc4_probe_unavailable":
+    if pre_rc4_classification in {"pre_rc4_probe_unavailable", "material_capture_unreliable"}:
         results.append(
             {
                 "direction": "memory-scan lower-level pre-RC4/key material probe with current automatic harness",
                 "severity": "soft_block",
                 "do_not_repeat": True,
                 "reason": (
-                    "current memory-scan lower-level probe did not capture pre-RC4/Base64/RC4 key material; "
-                    "next evidence source should be IDA/x64dbg manual breakpoints around Base64/RC4 construction"
+                    "current memory-scan lower-level probe did not reliably capture pre-RC4/Base64/RC4 key material; "
+                    "next evidence source should be narrower material hooks or IDA/x64dbg manual breakpoints around Base64/RC4 construction"
                 ),
                 "override_allowed": True,
                 "override_reason_required": True,

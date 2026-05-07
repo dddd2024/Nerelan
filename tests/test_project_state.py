@@ -139,7 +139,7 @@ def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_pa
         artifacts_dir / "pre_rc4_material_probe" / "pre_rc4_material_probe.json",
         {
             "artifact_kind": "pre_rc4_material_probe",
-            "classification": "pre_rc4_probe_unavailable",
+            "classification": "material_capture_unreliable",
             "runtime_backed_count": 0,
             "candidate_count": 3,
             "probe_points": {
@@ -149,6 +149,9 @@ def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_pa
             },
             "rc4_key_status": "unknown",
             "rc4_input_status": "unknown",
+            "first_divergence_stage": "unknown",
+            "offline_runtime_agreement_table": [],
+            "producer_material_relation_table": [],
             "next_bounded_action": "switch to manual breakpoints",
         },
     )
@@ -160,7 +163,8 @@ def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_pa
     negative_results = _read_json(state_dir / "negative_results.json")
     assert artifact_index["latest_artifacts"]["pre_rc4_material_probe"].endswith("pre_rc4_material_probe.json")
     assert current_state["current_bottleneck"]["stage"] == "pre_rc4_material_probe"
-    assert current_state["latest_pre_rc4_material_probe"]["classification"] == "pre_rc4_probe_unavailable"
+    assert current_state["latest_pre_rc4_material_probe"]["classification"] == "material_capture_unreliable"
+    assert current_state["latest_pre_rc4_material_probe"]["first_divergence_stage"] == "unknown"
     assert any("memory-scan lower-level pre-RC4" in item["direction"] for item in negative_results)
 
 
