@@ -62,5 +62,13 @@
     "override_reason_required": true,
     "reason": "scripted breakpoint/access probe did not capture Base64 or RC4 construction material; next evidence source should be manual IDA/x64dbg breakpoints with explicit addresses",
     "severity": "soft_block"
+  },
+  {
+    "direction": "rerun Base64/RC4 breakpoint probe before confirming a Base64/RC4 instruction hook",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "static discovery found hookable compare-side evidence but no instruction-confirmed Base64/RC4 point; the breakpoint probe remains gated until a material construction hook is confirmed",
+    "severity": "soft_block"
   }
 ]

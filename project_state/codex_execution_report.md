@@ -2,61 +2,42 @@
 
 ## Summary
 
-Implemented and executed the bounded Base64/RC4 breakpoint fallback for `samplereverse`.
+Implemented the bounded Base64/RC4 static-point discovery gate for `samplereverse`.
 
-This iteration consumes the prior `pre_rc4_material_probe / material_capture_partial` bottleneck. It does not add candidates and does not change ranking, final selection, promotion, beam, budget, topN, timeout, or frontier iteration limits.
+The new route does not add candidates and does not change ranking, final selection, promotion, beam, budget, topN, timeout, or frontier iteration limits. It prevents rerunning the scripted Base64/RC4 breakpoint probe until a Base64/RC4 material construction hook is instruction-confirmed.
 
 ## Files Changed
 
 | area | change | behavior impact |
 |---|---|---|
-| strategy | Routes `material_capture_partial` into `base64_rc4_breakpoint_probe` | the existing 3-candidate fallback now runs after partial material capture |
-| strategy | Adds clearer breakpoint classifications and compact summary fields | reports static-point, hook-failure, compare-only, partial, and complete outcomes |
-| script | Adds per-candidate `classification` to `base64_rc4_breakpoint_probe.py` payloads | candidate artifacts explain whether material, compare-only, static-point, or hook failure occurred |
-| project state | Compacts latest breakpoint state | exposes artifact path, hook counts, availability table, first captured kind, next bottleneck, and next action |
-| tests | Extends strategy/tool/project_state coverage | protects routing, schema, no-promotion/no-budget behavior, compare-only classification, and compact state |
+| strategy | Added `base64_rc4_static_point_discovery.json` generation | records hookability, instruction confirmation, per-kind counts, best points, and next action |
+| strategy | Gated `base64_rc4_breakpoint_probe` behind discovery readiness | old breakpoint probe now reruns only when discovery reports `breakpoint_probe_ready` |
+| project state | Indexed compact static discovery state | exposes `latest_static_point_discovery` and `latest_base64_rc4_static_point_discovery` |
+| tests | Added strategy and project_state coverage | protects schema, no-promotion/no-budget behavior, gate behavior, and compact rendering |
 
-## Runtime Artifact
+## Artifact Result
 
 | item | value |
 |---|---|
-| harness run | `samplereverse_base64_rc4_breakpoint_probe_20260507` |
-| harness process | timed out in the outer tool after 15 minutes; stopped manually |
-| artifact completeness | key breakpoint artifact complete; harness `summary` and `case_results` missing |
-| artifact | `solve_reports\harness_runs\samplereverse_base64_rc4_breakpoint_probe_20260507\reports\tool_artifacts\samplereverse\base64_rc4_breakpoint_probe\base64_rc4_breakpoint_probe.json` |
-| classification | `base64_rc4_static_points_unavailable` |
-| candidates | 3 |
-| runtime-backed candidates | 3 |
-| hook events | 3 |
-| first captured kind | `compare_buffer` |
-| next bottleneck | `static point discovery` |
+| artifact | `solve_reports\tool_artifacts\samplereverse_base64_rc4_static_point_discovery_20260508\base64_rc4_static_point_discovery.json` |
+| classification | `hookable_points_found` |
+| hookable_count | `3` |
+| instruction_confirmed_count | `3` |
+| breakpoint_probe_allowed | `false` |
+| current bottleneck | `base64_rc4_static_point_discovery / hookable_points_found` |
 
-## Breakpoint Evidence
-
-| material | status |
-|---|---|
-| `utf16le_payload` | unavailable |
-| `base64_input` | unavailable |
-| `base64_output` | unavailable |
-| `rc4_key` | unavailable |
-| `rc4_input` | unavailable |
-| `rc4_output` | unavailable |
-| `compare_buffer` | available |
-
-The breakpoint fallback hit the compare hook for all 3 diagnostic candidates, but all Base64/RC4 construction points remained unavailable. Static point discovery produced one unresolved point per material family and zero hookable points, so the next bottleneck is not candidate search; it is locating hookable Base64/RC4 construction addresses.
+The discovery found instruction-confirmed compare-producer points (`module+0x2559`, `module+0x1b50`, `module+0x2559`) from the compare stack audit. It did not find an instruction-confirmed Base64/RC4 material construction point, so the breakpoint probe remains blocked by design.
 
 ## Tests
 
 | command | result |
 |---|---|
 | `python -m py_compile reverse_agent\olly_scripts\base64_rc4_breakpoint_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
-| `python -m pytest -q tests/test_compare_aware_search_strategy.py` | `90 passed` |
-| `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` | `26 passed` |
-| `python -m pytest -q` | `183 passed` |
-| `python -m reverse_agent.harness --dataset .\samplereverse_exact1_projected_vs_neighbor_20260424.json --run-name samplereverse_base64_rc4_breakpoint_probe_20260507 --reports-dir solve_reports --analysis-mode "Auto" --model-type "Copilot CLI" --copilot-timeout-seconds 300 --ctf-skill-profile compact --case-id samplereverse-exact1-projected-vs-neighbor --no-resume` | outer tool timeout after artifact generation; process stopped |
-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_base64_rc4_breakpoint_probe_20260507` | passed |
-| `python -m reverse_agent.project_state status` | `reason: base64_rc4_static_points_unavailable`; `missing: ['case_results', 'summary']` |
+| `python -m pytest -q tests/test_compare_aware_search_strategy.py` | `93 passed` |
+| `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` | `27 passed` |
+| `python -m pytest -q` | `187 passed` |
+| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse` | passed |
 
 ## Next Suggested Task
 
-Do not expand candidate search. Locate hookable Base64/RC4 construction points with IDA/x64dbg or a narrower static discovery pass, then repeat the bounded breakpoint capture only after those offsets are instruction-confirmed.
+Use the compare-producer hook evidence to manually or narrowly identify the Base64/RC4 material construction instruction. Do not rerun `base64_rc4_breakpoint_probe` until discovery can report `breakpoint_probe_ready`.

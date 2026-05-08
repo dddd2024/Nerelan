@@ -11,6 +11,7 @@ from reverse_agent.strategies import compare_aware_search
 from reverse_agent.strategies.base import StrategyResult
 from reverse_agent.strategies.compare_aware_search import (
     BASE64_RC4_BREAKPOINT_PROBE_FILE_NAME,
+    BASE64_RC4_STATIC_POINT_DISCOVERY_FILE_NAME,
     BRIDGE_RESULT_FILE_NAME,
     COMPARE_HANDOFF_PROBE_FILE_NAME,
     COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME,
@@ -56,6 +57,7 @@ from reverse_agent.strategies.compare_aware_search import (
     _validated_projected_preserve_second_hop_candidates,
     run_compare_aware_smt,
     run_base64_rc4_breakpoint_probe,
+    run_base64_rc4_static_point_discovery,
     run_compare_handoff_probe,
     run_compare_handoff_return_site_probe,
     run_compare_handoff_slice_probe,
@@ -788,6 +790,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
         "transform_trace_consistency",
         "dynamic_compare_path_probe",
         "pre_rc4_material_probe",
+        "base64_rc4_static_point_discovery",
         "base64_rc4_breakpoint_probe",
         "compare_stack_pivot_probe",
         "compare_handoff_probe",
@@ -3657,6 +3660,24 @@ def _fake_base64_rc4_static_points(target: Path) -> dict[str, list[dict[str, obj
     }
 
 
+def _fake_base64_rc4_instruction_static_points(target: Path) -> dict[str, list[dict[str, object]]]:
+    points = _fake_base64_rc4_static_points(target)
+    points["base64"] = [
+        {
+            "kind": "base64",
+            "name": "base64_output_write",
+            "address": "module+0x2345",
+            "module_offset": 0x2345,
+            "confidence": "high",
+            "evidence": ["instruction-confirmed base64 output write"],
+            "hook_kind": "interceptor",
+            "hookable": True,
+            "size": 1,
+        }
+    ]
+    return points
+
+
 def _fake_base64_rc4_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     command = list(args[0])
     out_path = Path(command[command.index("--out") + 1])
@@ -4273,6 +4294,81 @@ def _fake_compare_producer_trace_subprocess_run(*args, **kwargs):  # noqa: ANN00
         stderr = ""
 
     return _Proc()
+
+
+def test_base64_rc4_static_point_discovery_records_schema_and_blocks_unconfirmed_points(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search, "_base64_rc4_static_points", _fake_base64_rc4_static_points)
+
+    result = run_base64_rc4_static_point_discovery(
+        target=target,
+        artifacts_dir=tmp_path / "base64_rc4_static_point_discovery",
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == BASE64_RC4_STATIC_POINT_DISCOVERY_FILE_NAME
+    assert payload["artifact_kind"] == "base64_rc4_static_point_discovery"
+    assert payload["classification"] == "manual_disassembly_required"
+    assert payload["hookable_count"] == 2
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["promotable_validations"] == []
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    first = payload["best_points"][0]
+    assert {"kind", "module_offset", "rva", "instruction", "hookable", "confidence", "evidence", "classification"}.issubset(first)
+    assert payload["by_kind"]["base64"]["hookable_count"] == 1
+    assert payload["by_kind"]["base64"]["instruction_confirmed_count"] == 0
+
+
+def test_base64_rc4_static_point_discovery_allows_breakpoint_only_for_instruction_confirmed_material(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search, "_base64_rc4_static_points", _fake_base64_rc4_instruction_static_points)
+
+    result = run_base64_rc4_static_point_discovery(
+        target=target,
+        artifacts_dir=tmp_path / "base64_rc4_static_point_discovery",
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "breakpoint_probe_ready"
+    assert payload["breakpoint_probe_allowed"] is True
+    assert compare_aware_search._base64_rc4_static_discovery_allows_breakpoint(payload) is True
+    assert payload["breakpoint_static_points"]["base64"][0]["hook_kind"] == "interceptor"
+
+
+def test_base64_rc4_breakpoint_gate_requires_static_discovery_ready(monkeypatch) -> None:
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {
+            "latest_base64_rc4_breakpoint_probe": {
+                "classification": "base64_rc4_static_points_unavailable",
+                "hook_results": {
+                    "base64_input": "unavailable",
+                    "base64_output": "unavailable",
+                    "rc4_key": "unavailable",
+                    "rc4_input": "unavailable",
+                    "rc4_output": "unavailable",
+                },
+            }
+        }
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", lambda kind: ({}, None))
+
+    assert compare_aware_search._prior_base64_probe_needs_static_point_discovery() is True
+    assert compare_aware_search._prior_base64_rc4_static_discovery_allows_breakpoint() is False
 
 
 def test_base64_rc4_breakpoint_probe_has_bounded_candidate_count_and_schema(

@@ -43,6 +43,7 @@ H1_H3_BOUNDARY_CANDIDATE_LIMIT = 8
 TRANSFORM_TRACE_CONSISTENCY_FILE_NAME = "transform_trace_consistency.json"
 DYNAMIC_COMPARE_PATH_PROBE_FILE_NAME = "dynamic_compare_path_probe.json"
 PRE_RC4_MATERIAL_PROBE_FILE_NAME = "pre_rc4_material_probe.json"
+BASE64_RC4_STATIC_POINT_DISCOVERY_FILE_NAME = "base64_rc4_static_point_discovery.json"
 BASE64_RC4_BREAKPOINT_PROBE_FILE_NAME = "base64_rc4_breakpoint_probe.json"
 COMPARE_STACK_PIVOT_PROBE_FILE_NAME = "compare_stack_pivot_probe.json"
 COMPARE_HANDOFF_PROBE_FILE_NAME = "compare_handoff_probe.json"
@@ -187,6 +188,7 @@ COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES = COMPARE_HANDOFF_PROBE_CANDIDATES
 COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES = COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES
 COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES = COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES
 PAIR_TAIL_FLAGLIKE_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_{}-")
+BASE64_RC4_BREAKPOINT_READY_KINDS = {"base64", "base64_output", "rc4_ksa", "rc4_prga", "rc4_input", "rc4_output"}
 
 PAIRSCAN_TOOL = "pairscan"
 TRIAD_TOOL = "triad"
@@ -3369,6 +3371,62 @@ def _prior_pre_rc4_probe_needs_breakpoint() -> bool:
     return str(payload.get("classification", "")).strip() in breakpoint_classifications
 
 
+def _base64_probe_needs_static_point_discovery(payload: dict[str, object]) -> bool:
+    classification = str(payload.get("classification", "")).strip()
+    hook_results = payload.get("hook_results", {})
+    hook_results = hook_results if isinstance(hook_results, dict) else {}
+    construction_unavailable = all(
+        str(hook_results.get(key, "unavailable")).strip() == "unavailable"
+        for key in ("base64_input", "base64_output", "rc4_key", "rc4_input", "rc4_output")
+    )
+    return classification in {
+        "base64_rc4_static_points_unavailable",
+        "base64_rc4_compare_only",
+    } or (classification == "breakpoint_probe_partial" and construction_unavailable)
+
+
+def _prior_base64_probe_needs_static_point_discovery() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest_discovery = current_state.get("latest_base64_rc4_static_point_discovery", {})
+    if isinstance(latest_discovery, dict) and str(latest_discovery.get("classification", "")).strip():
+        return False
+    latest = current_state.get("latest_base64_rc4_breakpoint_probe", {})
+    if isinstance(latest, dict) and _base64_probe_needs_static_point_discovery(latest):
+        return True
+    payload, _ = _indexed_artifact_payload("base64_rc4_breakpoint_probe")
+    return _base64_probe_needs_static_point_discovery(payload)
+
+
+def _base64_rc4_static_discovery_allows_breakpoint(payload: dict[str, object]) -> bool:
+    classification = str(payload.get("classification", "")).strip()
+    if classification != "breakpoint_probe_ready":
+        return False
+    points = payload.get("best_points", [])
+    if not isinstance(points, list):
+        points = payload.get("points", [])
+    if not isinstance(points, list):
+        return False
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        if str(point.get("kind", "")).strip() not in BASE64_RC4_BREAKPOINT_READY_KINDS:
+            continue
+        if not bool(point.get("hookable")):
+            continue
+        if str(point.get("classification", "")).strip() == "hookable_and_instruction_confirmed":
+            return True
+    return False
+
+
+def _prior_base64_rc4_static_discovery_allows_breakpoint() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_base64_rc4_static_point_discovery", {})
+    if isinstance(latest, dict) and _base64_rc4_static_discovery_allows_breakpoint(latest):
+        return True
+    payload, _ = _indexed_artifact_payload("base64_rc4_static_point_discovery")
+    return _base64_rc4_static_discovery_allows_breakpoint(payload)
+
+
 def _base64_probe_needs_stack_pivot(payload: dict[str, object]) -> bool:
     classification = str(payload.get("classification", "")).strip()
     hook_results = payload.get("hook_results", {})
@@ -4996,6 +5054,31 @@ def _static_point(
     }
 
 
+def _format_offset(value: object) -> str:
+    if isinstance(value, int):
+        return f"0x{value:x}"
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    try:
+        parsed = int(text, 16) if text.lower().startswith("0x") else int(text)
+    except ValueError:
+        return ""
+    return f"0x{parsed:x}"
+
+
+def _static_point_module_offset(value: object) -> int | None:
+    if isinstance(value, int):
+        return value
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return int(text, 16) if text.lower().startswith("0x") else int(text)
+    except ValueError:
+        return None
+
+
 def _base64_rc4_static_points(target: Path) -> dict[str, list[dict[str, object]]]:
     groups: dict[str, list[dict[str, object]]] = {
         "utf16le": [],
@@ -5106,6 +5189,203 @@ def _base64_rc4_static_points(target: Path) -> dict[str, list[dict[str, object]]
         )
     )
     return groups
+
+
+def _discovery_point_from_static_point(point: dict[str, object]) -> dict[str, object]:
+    module_offset = _static_point_module_offset(point.get("module_offset"))
+    hookable = bool(point.get("hookable")) and module_offset is not None
+    hook_kind = str(point.get("hook_kind", "") or "")
+    instruction_confirmed = hookable and hook_kind == "interceptor"
+    classification = (
+        "hookable_and_instruction_confirmed"
+        if instruction_confirmed
+        else "hookable_but_unconfirmed"
+        if hookable
+        else "found_but_not_hookable"
+    )
+    evidence = [str(value) for value in point.get("evidence", []) if value is not None] if isinstance(point.get("evidence"), list) else []
+    if hookable and not instruction_confirmed:
+        evidence = [*evidence, f"hook_kind={hook_kind or 'unknown'} is not an instruction-level interceptor"]
+    return {
+        "kind": str(point.get("kind", "")),
+        "name": str(point.get("name", "")),
+        "module_offset": _format_offset(module_offset),
+        "rva": _format_offset(module_offset),
+        "function": "",
+        "instruction": _format_offset(module_offset) if instruction_confirmed else "",
+        "hookable": hookable,
+        "confidence": str(point.get("confidence", "low") or "low"),
+        "evidence": evidence,
+        "classification": classification,
+    }
+
+
+def _compare_producer_discovery_points(static_audit: dict[str, object]) -> list[dict[str, object]]:
+    points: list[dict[str, object]] = []
+    audit_classification = str(static_audit.get("classification", "") or "")
+    next_hook_points = static_audit.get("next_hook_points", [])
+    if not isinstance(next_hook_points, list):
+        next_hook_points = []
+    for item in next_hook_points:
+        if not isinstance(item, dict):
+            continue
+        module_offset = _static_point_module_offset(item.get("module_offset"))
+        if module_offset is None:
+            continue
+        name = str(item.get("name") or "compare_producer")
+        points.append(
+            {
+                "kind": "compare_producer",
+                "name": name,
+                "module_offset": _format_offset(module_offset),
+                "rva": _format_offset(module_offset),
+                "function": "",
+                "instruction": _format_offset(module_offset),
+                "hookable": audit_classification == "static_anchor_confirmed",
+                "confidence": "high" if audit_classification == "static_anchor_confirmed" else "medium",
+                "evidence": [
+                    f"compare_stack_static_audit={audit_classification or 'unknown'}",
+                    str(item.get("evidence", "") or f"next_hook_point={name}"),
+                ],
+                "classification": (
+                    "hookable_and_instruction_confirmed"
+                    if audit_classification == "static_anchor_confirmed"
+                    else "hookable_but_unconfirmed"
+                ),
+            }
+        )
+    return points
+
+
+def _base64_rc4_static_discovery_by_kind(points: Sequence[dict[str, object]]) -> dict[str, dict[str, int]]:
+    by_kind: dict[str, dict[str, int]] = {}
+    for point in points:
+        kind = str(point.get("kind", "") or "unknown")
+        entry = by_kind.setdefault(kind, {"count": 0, "hookable_count": 0, "instruction_confirmed_count": 0})
+        entry["count"] += 1
+        if bool(point.get("hookable")):
+            entry["hookable_count"] += 1
+        if str(point.get("classification", "")) == "hookable_and_instruction_confirmed":
+            entry["instruction_confirmed_count"] += 1
+    return by_kind
+
+
+def _base64_rc4_static_discovery_classification(points: Sequence[dict[str, object]]) -> str:
+    hookable = [point for point in points if bool(point.get("hookable"))]
+    instruction_confirmed = [
+        point
+        for point in hookable
+        if str(point.get("classification", "")) == "hookable_and_instruction_confirmed"
+    ]
+    if any(str(point.get("kind", "")) in BASE64_RC4_BREAKPOINT_READY_KINDS for point in instruction_confirmed):
+        return "breakpoint_probe_ready"
+    if instruction_confirmed:
+        return "hookable_points_found"
+    if hookable:
+        return "manual_disassembly_required"
+    return "static_point_discovery_failed"
+
+
+def _base64_rc4_static_discovery_next_action(classification: str) -> str:
+    if classification == "breakpoint_probe_ready":
+        return "rerun bounded Base64/RC4 breakpoint probe with instruction-confirmed static points"
+    if classification == "hookable_points_found":
+        return "use compare-producer hook evidence to narrow manual Base64/RC4 disassembly before rerunning breakpoint probe"
+    if classification == "manual_disassembly_required":
+        return "confirm the ambiguous Base64/RC4 offsets in IDA/x64dbg before rerunning breakpoint probe"
+    return "manual IDA/x64dbg static point discovery is required; automated scan found zero hookable Base64/RC4 points"
+
+
+def _discovery_point_sort_key(point: dict[str, object]) -> tuple[int, int, str]:
+    classification = str(point.get("classification", ""))
+    kind = str(point.get("kind", ""))
+    return (
+        0 if classification == "hookable_and_instruction_confirmed" else 1,
+        0 if kind in BASE64_RC4_BREAKPOINT_READY_KINDS else 1,
+        kind,
+    )
+
+
+def _breakpoint_static_points_from_discovery_payload(payload: dict[str, object]) -> dict[str, list[dict[str, object]]]:
+    if not _base64_rc4_static_discovery_allows_breakpoint(payload):
+        return {}
+    static_points = payload.get("breakpoint_static_points", {})
+    return static_points if isinstance(static_points, dict) else {}
+
+
+def run_base64_rc4_static_point_discovery(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    log=None,
+    static_points: dict[str, list[dict[str, object]]] | None = None,
+) -> dict[str, object]:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / BASE64_RC4_STATIC_POINT_DISCOVERY_FILE_NAME
+    source_static_points = static_points if static_points is not None else _base64_rc4_static_points(target)
+    points: list[dict[str, object]] = []
+    for values in source_static_points.values():
+        if not isinstance(values, list):
+            continue
+        for item in values:
+            if isinstance(item, dict):
+                points.append(_discovery_point_from_static_point(item))
+    static_audit = _compare_stack_static_audit(target)
+    points.extend(_compare_producer_discovery_points(static_audit))
+    points.sort(key=_discovery_point_sort_key)
+    classification = _base64_rc4_static_discovery_classification(points)
+    instruction_confirmed_material = {
+        str(point.get("kind", ""))
+        for point in points
+        if bool(point.get("hookable"))
+        and str(point.get("classification", "")) == "hookable_and_instruction_confirmed"
+        and str(point.get("kind", "")) in BASE64_RC4_BREAKPOINT_READY_KINDS
+    }
+    breakpoint_static_points: dict[str, list[dict[str, object]]] = {}
+    if instruction_confirmed_material:
+        for kind, values in source_static_points.items():
+            if str(kind) not in instruction_confirmed_material or not isinstance(values, list):
+                continue
+            breakpoint_static_points[str(kind)] = [
+                dict(item)
+                for item in values
+                if isinstance(item, dict)
+                and bool(item.get("hookable"))
+                and str(item.get("hook_kind", "")) == "interceptor"
+                and _static_point_module_offset(item.get("module_offset")) is not None
+            ]
+    payload: dict[str, object] = {
+        "artifact_kind": "base64_rc4_static_point_discovery",
+        "profile": "samplereverse",
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "classification": classification,
+        "hookable_count": sum(1 for point in points if bool(point.get("hookable"))),
+        "instruction_confirmed_count": sum(
+            1 for point in points if str(point.get("classification", "")) == "hookable_and_instruction_confirmed"
+        ),
+        "by_kind": _base64_rc4_static_discovery_by_kind(points),
+        "best_points": points[:8],
+        "points": points,
+        "static_audit": static_audit,
+        "static_point_summary": _breakpoint_static_point_summary(source_static_points),
+        "breakpoint_probe_allowed": classification == "breakpoint_probe_ready",
+        "breakpoint_static_points": breakpoint_static_points,
+        "next_bounded_action": _base64_rc4_static_discovery_next_action(classification),
+        "promotable_validations": [],
+    }
+    _write_json(result_path, payload)
+    if log:
+        log(f"Base64/RC4 static point discovery wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "promotable_validations": [],
+    }
 
 
 def _breakpoint_probe_entries(transform_model: SamplereverseTransformModel) -> list[dict[str, object]]:
@@ -5237,11 +5517,12 @@ def run_base64_rc4_breakpoint_probe(
     transform_model: SamplereverseTransformModel,
     per_probe_timeout: float,
     log,
+    static_points: dict[str, list[dict[str, object]]] | None = None,
 ) -> dict[str, object]:
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     result_path = artifacts_dir / BASE64_RC4_BREAKPOINT_PROBE_FILE_NAME
     script_path = _base64_rc4_breakpoint_probe_script_path()
-    static_points = _base64_rc4_static_points(target)
+    static_points = static_points if static_points is not None else _base64_rc4_static_points(target)
     entries = _breakpoint_probe_entries(transform_model)
     payload: dict[str, object] = {
         "artifact_kind": "base64_rc4_breakpoint_probe",
@@ -12466,6 +12747,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         dynamic_compare_path_probe_artifact: ToolRunArtifact | None = None
         pre_rc4_material_probe_run: dict[str, object] | None = None
         pre_rc4_material_probe_artifact: ToolRunArtifact | None = None
+        base64_rc4_static_point_discovery_run: dict[str, object] | None = None
+        base64_rc4_static_point_discovery_artifact: ToolRunArtifact | None = None
         base64_rc4_breakpoint_probe_run: dict[str, object] | None = None
         base64_rc4_breakpoint_probe_artifact: ToolRunArtifact | None = None
         compare_stack_pivot_probe_run: dict[str, object] | None = None
@@ -12864,21 +13147,58 @@ class CompareAwareSearchStrategy(SolverStrategy):
             )
 
         pre_rc4_payload = dict(pre_rc4_material_probe_run.get("payload", {})) if pre_rc4_material_probe_run else {}
-        should_run_base64_rc4_breakpoint_probe = (
+        should_run_static_point_discovery = (
             str(pre_rc4_payload.get("classification", "")) in {
                 "pre_rc4_probe_unavailable",
                 "material_capture_unreliable",
                 "material_capture_partial",
             }
             or _prior_pre_rc4_probe_needs_breakpoint()
+            or _prior_base64_probe_needs_static_point_discovery()
+        )
+        if should_run_static_point_discovery:
+            base64_rc4_static_point_discovery_run = run_base64_rc4_static_point_discovery(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "base64_rc4_static_point_discovery",
+                log=log,
+            )
+            static_discovery_payload = dict(base64_rc4_static_point_discovery_run.get("payload", {}))
+            base64_rc4_static_point_discovery_artifact = _make_search_artifact(
+                tool_name="Base64RC4StaticPointDiscovery",
+                output_path=Path(str(base64_rc4_static_point_discovery_run["result_path"])),
+                summary=str(
+                    static_discovery_payload.get(
+                        "classification",
+                        "Base64/RC4 static point discovery complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="StaticAnalysisEvidence",
+                payload=static_discovery_payload,
+                derived_entries=[],
+            )
+
+        static_discovery_payload = (
+            dict(base64_rc4_static_point_discovery_run.get("payload", {}))
+            if base64_rc4_static_point_discovery_run
+            else {}
+        )
+        should_run_base64_rc4_breakpoint_probe = (
+            _base64_rc4_static_discovery_allows_breakpoint(static_discovery_payload)
+            or _prior_base64_rc4_static_discovery_allows_breakpoint()
         )
         if should_run_base64_rc4_breakpoint_probe:
+            breakpoint_static_points = _breakpoint_static_points_from_discovery_payload(static_discovery_payload)
+            if not breakpoint_static_points:
+                prior_discovery_payload, _ = _indexed_artifact_payload("base64_rc4_static_point_discovery")
+                breakpoint_static_points = _breakpoint_static_points_from_discovery_payload(prior_discovery_payload)
             base64_rc4_breakpoint_probe_run = run_base64_rc4_breakpoint_probe(
                 target=file_path,
                 artifacts_dir=artifacts_dir / "base64_rc4_breakpoint_probe",
                 transform_model=transform_model,
                 per_probe_timeout=per_probe_timeout,
                 log=log,
+                static_points=breakpoint_static_points,
             )
             base64_rc4_payload = dict(base64_rc4_breakpoint_probe_run.get("payload", {}))
             base64_rc4_breakpoint_probe_artifact = _make_search_artifact(
@@ -13146,6 +13466,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(dynamic_compare_path_probe_artifact)
         if pre_rc4_material_probe_artifact is not None:
             artifacts.append(pre_rc4_material_probe_artifact)
+        if base64_rc4_static_point_discovery_artifact is not None:
+            artifacts.append(base64_rc4_static_point_discovery_artifact)
         if base64_rc4_breakpoint_probe_artifact is not None:
             artifacts.append(base64_rc4_breakpoint_probe_artifact)
         if compare_stack_pivot_probe_artifact is not None:
@@ -13188,6 +13510,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "transform_trace_consistency": transform_trace_consistency_run or {},
                 "dynamic_compare_path_probe": dynamic_compare_path_probe_run or {},
                 "pre_rc4_material_probe": pre_rc4_material_probe_run or {},
+                "base64_rc4_static_point_discovery": base64_rc4_static_point_discovery_run or {},
                 "base64_rc4_breakpoint_probe": base64_rc4_breakpoint_probe_run or {},
                 "compare_stack_pivot_probe": compare_stack_pivot_probe_run or {},
                 "compare_handoff_probe": compare_handoff_probe_run or {},
@@ -13212,6 +13535,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 if compare_stack_pivot_probe_run
                 else "base64_rc4_breakpoint_probe"
                 if base64_rc4_breakpoint_probe_run
+                else "base64_rc4_static_point_discovery"
+                if base64_rc4_static_point_discovery_run
                 else "pre_rc4_material_probe"
                 if pre_rc4_material_probe_run
                 else "dynamic_compare_path_probe"

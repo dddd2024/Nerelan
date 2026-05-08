@@ -3481,3 +3481,56 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search；不重复当前 automatic memory scan 原样策略。
 - 下一步做更窄的 material hook 或 bounded Base64/RC4 breakpoint fallback。
 - 目标是直接捕获 UTF-16LE/Base64/RC4 runtime buffers；只有 material chain agree 后才继续 compare-path discovery。
+
+## 2026-05-08 Base64/RC4 static point discovery gate
+
+1) 执行范围
+- 实现并执行 bounded `base64_rc4_static_point_discovery`。
+- 不新增 candidate generator，不改变 ranking、final selection、promotion。
+- 不扩大 beam、budget、topN、timeout、frontier iteration limit。
+- 旧 `base64_rc4_breakpoint_probe` 现在只有在 discovery 报告 Base64/RC4 material hook `breakpoint_probe_ready` 后才会 rerun。
+
+2) 代码改动
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `BASE64_RC4_STATIC_POINT_DISCOVERY_FILE_NAME`。
+  - 新增 `run_base64_rc4_static_point_discovery()`，输出 `kind/module_offset/rva/instruction/hookable/confidence/evidence/classification` schema。
+  - 新增 gate：`hookable_points_found` 不足以 rerun Base64/RC4 breakpoint；必须有 instruction-confirmed Base64/RC4 material point。
+  - `run_base64_rc4_breakpoint_probe()` 支持传入 discovery 确认后的 static points。
+- `reverse_agent/project_state.py`
+  - 索引 `base64_rc4_static_point_discovery.json`。
+  - 暴露 `latest_static_point_discovery` / `latest_base64_rc4_static_point_discovery`。
+  - 对未确认 Base64/RC4 material hook 的 rerun 写入 negative result。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 覆盖 discovery schema、hookable_count aggregation、project_state compact rendering、no-promotion/no-budget、breakpoint gate。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\base64_rc4_breakpoint_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests/test_compare_aware_search_strategy.py` -> `93 passed`
+- `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` -> `27 passed`
+- `python -m pytest -q` -> `187 passed`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse` -> passed
+
+4) Artifact / project_state
+- Artifact:
+  - `solve_reports\tool_artifacts\samplereverse_base64_rc4_static_point_discovery_20260508\base64_rc4_static_point_discovery.json`
+- Classification: `hookable_points_found`
+- `hookable_count=3`
+- `instruction_confirmed_count=3`
+- `breakpoint_probe_allowed=false`
+- `project_state/current_state.json` now reports:
+  - `stage=base64_rc4_static_point_discovery`
+  - `reason=hookable_points_found`
+
+5) 结论
+- Discovery found instruction-confirmed compare-producer points:
+  - `module+0x2559`
+  - `module+0x1b50`
+  - `module+0x2559`
+- No instruction-confirmed Base64/RC4 material construction point was found.
+- Current runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大搜索；不回 blind search；不重复旧 Base64/RC4 breakpoint probe。
+- 使用 compare-producer hook evidence 继续人工或更窄静态/动态定位 Base64/RC4 material construction instruction。
+- 只有 discovery 升级到 `breakpoint_probe_ready` 后才 rerun bounded breakpoint capture。

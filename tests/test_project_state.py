@@ -213,6 +213,56 @@ def test_project_state_indexes_base64_rc4_breakpoint_probe_and_bottleneck(tmp_pa
     assert any("scripted Base64/RC4 breakpoint probe" in item["direction"] for item in negative_results)
 
 
+def test_project_state_indexes_base64_rc4_static_point_discovery(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_static")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "base64_rc4_static_point_discovery.json",
+        {
+            "artifact_kind": "base64_rc4_static_point_discovery",
+            "classification": "manual_disassembly_required",
+            "hookable_count": 2,
+            "instruction_confirmed_count": 0,
+            "by_kind": {
+                "base64": {"count": 1, "hookable_count": 1, "instruction_confirmed_count": 0},
+                "encrypted_const": {"count": 1, "hookable_count": 1, "instruction_confirmed_count": 0},
+            },
+            "best_points": [
+                {
+                    "kind": "base64",
+                    "module_offset": "0x3000",
+                    "rva": "0x3000",
+                    "instruction": "",
+                    "hookable": True,
+                    "confidence": "high",
+                    "evidence": ["standard alphabet"],
+                    "classification": "hookable_but_unconfirmed",
+                }
+            ],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "confirm the ambiguous Base64/RC4 offsets in IDA/x64dbg before rerunning breakpoint probe",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["base64_rc4_static_point_discovery"].endswith(
+        "base64_rc4_static_point_discovery.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "base64_rc4_static_point_discovery"
+    latest = current_state["latest_static_point_discovery"]
+    assert latest["classification"] == "manual_disassembly_required"
+    assert latest["hookable_count"] == 2
+    assert latest["by_kind"]["base64"]["hookable_count"] == 1
+    assert latest["best_points"][0]["module_offset"] == "0x3000"
+    assert any("static point discovery" in item["direction"] for item in negative_results)
+
+
 def test_project_state_indexes_compare_stack_pivot_probe_and_bottleneck(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

@@ -2,6 +2,7 @@
   "active_strategy": "CompareAwareSearchStrategy",
   "artifact_refs": {
     "base64_rc4_breakpoint_probe": "solve_reports\\harness_runs\\samplereverse_base64_rc4_breakpoint_probe_20260507\\reports\\tool_artifacts\\samplereverse\\base64_rc4_breakpoint_probe\\base64_rc4_breakpoint_probe.json",
+    "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
     "bridge_search_result": "solve_reports\\harness_runs\\samplereverse_base64_rc4_breakpoint_probe_20260507\\reports\\tool_artifacts\\samplereverse\\bridge\\bridge_search_result.json",
     "bridge_validation": "solve_reports\\harness_runs\\samplereverse_base64_rc4_breakpoint_probe_20260507\\reports\\tool_artifacts\\samplereverse\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
@@ -58,8 +59,8 @@
   },
   "current_bottleneck": {
     "confidence": "medium",
-    "reason": "base64_rc4_static_points_unavailable",
-    "stage": "base64_rc4_breakpoint_probe"
+    "reason": "hookable_points_found",
+    "stage": "base64_rc4_static_point_discovery"
   },
   "do_not_do": [
     "do not return to old sample_solver blind search",
@@ -70,10 +71,11 @@
     "do not repeat: H1/H3 fixed 8-candidate prefix8 plus Base64 boundary contrast set: 78d540b49c59077041414141414141, 78d540b49c59076f41414141414141, 78d540b49c59077141414141414141, 78d540b49c5907b041414141414141, 78d540b49c5907d041414141414141, 78d540b49c59077040414141414141, 78d540b49c59077042414141414141, 78d540b49c59076f42414141414141",
     "do not repeat: repeat current 5-candidate transform trace consistency audit without new runtime evidence",
     "do not repeat: scripted Base64/RC4 breakpoint probe with current static access points",
+    "do not repeat: rerun Base64/RC4 breakpoint probe before confirming a Base64/RC4 instruction hook",
     "do not scan entire solve_reports unless explicitly needed"
   ],
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-05-07T13:26:39Z",
+  "generated_at": "2026-05-08T12:51:13Z",
   "included": [
     "current state",
     "best candidates",
@@ -83,7 +85,7 @@
   ],
   "model_gate": {
     "context_level": 2,
-    "reason": "base64_rc4_static_points_unavailable",
+    "reason": "hookable_points_found",
     "should_call_model": true
   },
   "omitted": [
@@ -109,5 +111,5 @@
     "has_runtime_validation": true,
     "has_stall_stage": true
   },
-  "task": "Investigate stalled base64_rc4_breakpoint_probe path"
+  "task": "Investigate stalled base64_rc4_static_point_discovery path"
 }

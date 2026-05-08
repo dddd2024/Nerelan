@@ -20,6 +20,7 @@ IMPORTANT_ARTIFACTS = {
     "transform_trace_consistency": "transform_trace_consistency.json",
     "dynamic_compare_path_probe": "dynamic_compare_path_probe.json",
     "pre_rc4_material_probe": "pre_rc4_material_probe.json",
+    "base64_rc4_static_point_discovery": "base64_rc4_static_point_discovery.json",
     "base64_rc4_breakpoint_probe": "base64_rc4_breakpoint_probe.json",
     "compare_stack_pivot_probe": "compare_stack_pivot_probe.json",
     "compare_handoff_probe": "compare_handoff_probe.json",
@@ -422,6 +423,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     transform_trace_consistency = _read_json(artifact_refs.get("transform_trace_consistency"))
     dynamic_compare_path_probe = _read_json(artifact_refs.get("dynamic_compare_path_probe"))
     pre_rc4_material_probe = _read_json(artifact_refs.get("pre_rc4_material_probe"))
+    base64_rc4_static_point_discovery = _read_json(artifact_refs.get("base64_rc4_static_point_discovery"))
     base64_rc4_breakpoint_probe = _read_json(artifact_refs.get("base64_rc4_breakpoint_probe"))
     compare_stack_pivot_probe = _read_json(artifact_refs.get("compare_stack_pivot_probe"))
     compare_handoff_probe = _read_json(artifact_refs.get("compare_handoff_probe"))
@@ -478,6 +480,10 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if pre_rc4_classification:
         stage = "pre_rc4_material_probe"
         reason = pre_rc4_classification
+    static_discovery_classification = str(base64_rc4_static_point_discovery.get("classification") or "").strip()
+    if static_discovery_classification:
+        stage = "base64_rc4_static_point_discovery"
+        reason = static_discovery_classification
     breakpoint_classification = str(base64_rc4_breakpoint_probe.get("classification") or "").strip()
     if breakpoint_classification:
         stage = "base64_rc4_breakpoint_probe"
@@ -510,6 +516,17 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     }:
         stage = "pre_rc4_material_probe"
         reason = pre_rc4_classification
+    if static_discovery_classification and (
+        not breakpoint_classification
+        or breakpoint_classification
+        in {
+            "base64_rc4_static_points_unavailable",
+            "base64_rc4_compare_only",
+            "breakpoint_probe_partial",
+        }
+    ):
+        stage = "base64_rc4_static_point_discovery"
+        reason = static_discovery_classification
     if stage is None:
         uncertainty.append("current_bottleneck.stage")
     if reason is None:
@@ -590,6 +607,30 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": base64_rc4_breakpoint_probe.get("next_bounded_action"),
         }
         if base64_rc4_breakpoint_probe
+        else {},
+        "latest_base64_rc4_static_point_discovery": {
+            "classification": static_discovery_classification or None,
+            "artifact": artifact_refs.get("base64_rc4_static_point_discovery"),
+            "hookable_count": base64_rc4_static_point_discovery.get("hookable_count"),
+            "instruction_confirmed_count": base64_rc4_static_point_discovery.get("instruction_confirmed_count"),
+            "by_kind": base64_rc4_static_point_discovery.get("by_kind"),
+            "best_points": base64_rc4_static_point_discovery.get("best_points"),
+            "breakpoint_probe_allowed": base64_rc4_static_point_discovery.get("breakpoint_probe_allowed"),
+            "next_bounded_action": base64_rc4_static_point_discovery.get("next_bounded_action"),
+        }
+        if base64_rc4_static_point_discovery
+        else {},
+        "latest_static_point_discovery": {
+            "classification": static_discovery_classification or None,
+            "artifact": artifact_refs.get("base64_rc4_static_point_discovery"),
+            "hookable_count": base64_rc4_static_point_discovery.get("hookable_count"),
+            "instruction_confirmed_count": base64_rc4_static_point_discovery.get("instruction_confirmed_count"),
+            "by_kind": base64_rc4_static_point_discovery.get("by_kind"),
+            "best_points": base64_rc4_static_point_discovery.get("best_points"),
+            "breakpoint_probe_allowed": base64_rc4_static_point_discovery.get("breakpoint_probe_allowed"),
+            "next_bounded_action": base64_rc4_static_point_discovery.get("next_bounded_action"),
+        }
+        if base64_rc4_static_point_discovery
         else {},
         "latest_compare_stack_pivot_probe": {
             "classification": compare_stack_classification or None,
@@ -792,6 +833,36 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "reason": (
                     "scripted breakpoint/access probe did not capture Base64 or RC4 construction material; "
                     "next evidence source should be manual IDA/x64dbg breakpoints with explicit addresses"
+                ),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    static_point_discovery = _read_json(artifacts.get("base64_rc4_static_point_discovery"))
+    static_point_classification = str(static_point_discovery.get("classification") or "").strip()
+    if static_point_classification in {"static_point_discovery_failed", "manual_disassembly_required"}:
+        results.append(
+            {
+                "direction": "repeat Base64/RC4 static point discovery without new manual disassembly evidence",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "the bounded static discovery did not produce instruction-confirmed Base64/RC4 hook points; "
+                    "next evidence source should be manual IDA/x64dbg confirmation"
+                ),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    elif static_point_classification == "hookable_points_found":
+        results.append(
+            {
+                "direction": "rerun Base64/RC4 breakpoint probe before confirming a Base64/RC4 instruction hook",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "static discovery found hookable compare-side evidence but no instruction-confirmed Base64/RC4 point; "
+                    "the breakpoint probe remains gated until a material construction hook is confirmed"
                 ),
                 "override_allowed": True,
                 "override_reason_required": True,
