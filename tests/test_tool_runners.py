@@ -253,6 +253,7 @@ def test_base64_rc4_breakpoint_probe_payload_records_hook_results() -> None:
     assert payload["hook_results"]["base64_input"] == "inferred"
     assert payload["hook_results"]["base64_output"] == "inferred"
     assert payload["hook_results"]["compare_buffer"] == "available"
+    assert payload["classification"] == "breakpoint_probe_complete"
     assert payload["hook_events"][1]["compare_count"] == 5
 
 

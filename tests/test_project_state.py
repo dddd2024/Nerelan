@@ -180,16 +180,8 @@ def test_project_state_indexes_base64_rc4_breakpoint_probe_and_bottleneck(tmp_pa
             "classification": "breakpoint_probe_partial",
             "runtime_backed_count": 3,
             "candidate_count": 3,
-            "static_points": {
-                "base64": [
-                    {
-                        "kind": "base64",
-                        "name": "standard_base64_alphabet",
-                        "module_offset": 0x3000,
-                        "confidence": "high",
-                    }
-                ],
-            },
+            "hook_event_count": 3,
+            "static_point_summary": {"base64": {"count": 1, "hookable_count": 1}},
             "hook_results": {
                 "base64_input": "unavailable",
                 "base64_output": "unavailable",
@@ -198,9 +190,8 @@ def test_project_state_indexes_base64_rc4_breakpoint_probe_and_bottleneck(tmp_pa
                 "rc4_output": "unavailable",
                 "compare_buffer": "available",
             },
-            "rc4_key": {"status": "unknown"},
-            "rc4_input": {"status": "unknown"},
-            "base64_material": {"status": "unknown"},
+            "first_captured_material_kind": "compare_buffer",
+            "next_bottleneck": "compare-only capture",
             "next_bounded_action": "manual breakpoints",
         },
     )
@@ -215,6 +206,10 @@ def test_project_state_indexes_base64_rc4_breakpoint_probe_and_bottleneck(tmp_pa
     )
     assert current_state["current_bottleneck"]["stage"] == "base64_rc4_breakpoint_probe"
     assert current_state["latest_base64_rc4_breakpoint_probe"]["classification"] == "breakpoint_probe_partial"
+    assert current_state["latest_base64_rc4_breakpoint_probe"]["hook_event_count"] == 3
+    assert current_state["latest_base64_rc4_breakpoint_probe"]["first_captured_material_kind"] == "compare_buffer"
+    assert current_state["latest_base64_rc4_breakpoint_probe"]["next_bottleneck"] == "compare-only capture"
+    assert "static_points" not in current_state["latest_base64_rc4_breakpoint_probe"]
     assert any("scripted Base64/RC4 breakpoint probe" in item["direction"] for item in negative_results)
 
 

@@ -3595,6 +3595,21 @@ def test_pre_rc4_material_probe_exact2_failure_trace_has_offsets_and_dependencie
     assert "candidate_byte_dependencies" in failure["base64_key_dependency"]
 
 
+def test_material_capture_partial_triggers_base64_rc4_breakpoint(monkeypatch) -> None:
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {
+            "latest_pre_rc4_material_probe": {"classification": "material_capture_partial"}
+        }
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", lambda kind: ({}, None))
+
+    assert compare_aware_search._prior_pre_rc4_probe_needs_breakpoint() is True
+
+
 def _fake_base64_rc4_static_points(target: Path) -> dict[str, list[dict[str, object]]]:
     _ = target
     return {
@@ -3690,6 +3705,53 @@ def _fake_base64_rc4_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
                     "utf16le_payload": "unavailable",
                     "base64_input": "inferred",
                     "base64_output": "inferred",
+                    "rc4_key": "unavailable",
+                    "rc4_input": "unavailable",
+                    "rc4_output": "unavailable",
+                    "compare_buffer": "available",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
+def _fake_base64_rc4_compare_only_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "compare only",
+                "candidate_hex": candidate_hex,
+                "static_points": points_payload["static_points"],
+                "hook_events": [
+                    {
+                        "point_kind": "compare",
+                        "point_name": "wide_flag_prefix_compare",
+                        "hook_kind": "interceptor",
+                        "address": "0x40258c",
+                        "module_offset": "0x258c",
+                        "hit_count": 1,
+                        "lhs_preview_hex": "46006c004464830d311c",
+                        "rhs_preview_hex": "66006c00610067007b00",
+                    }
+                ],
+                "hook_results": {
+                    "utf16le_payload": "unavailable",
+                    "base64_input": "unavailable",
+                    "base64_output": "unavailable",
                     "rc4_key": "unavailable",
                     "rc4_input": "unavailable",
                     "rc4_output": "unavailable",
@@ -4290,6 +4352,32 @@ def test_base64_rc4_breakpoint_probe_records_exact2_failure_trace(
     assert failure["encrypted_const_bytes"] == "8f3b"
     assert failure["keystream_bytes"] == "cb5f"
     assert "bounded_constraint" in failure
+
+
+def test_base64_rc4_breakpoint_probe_classifies_compare_only_capture(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search, "_base64_rc4_static_points", _fake_base64_rc4_static_points)
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_base64_rc4_compare_only_subprocess_run)
+
+    result = run_base64_rc4_breakpoint_probe(
+        target=target,
+        artifacts_dir=tmp_path / "base64_rc4_breakpoint_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "base64_rc4_compare_only"
+    assert payload["hook_results"]["compare_buffer"] == "available"
+    assert payload["first_captured_material_kind"] == "compare_buffer"
+    assert payload["next_bottleneck"] == "compare-only capture"
+    assert payload["hook_event_count"] == 3
+    assert payload["promotable_validations"] == []
 
 
 def test_compare_stack_pivot_probe_extracts_utf16le_payload_from_compare_stack(

@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-07T11:00:12Z",
+  "generated_at": "2026-05-07T13:26:39Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "material_capture_partial",
+  "reason": "base64_rc4_static_points_unavailable",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }

@@ -2,67 +2,61 @@
 
 ## Summary
 
-Implemented and executed the bounded `pre_rc4_material_probe` upgrade for `samplereverse`.
+Implemented and executed the bounded Base64/RC4 breakpoint fallback for `samplereverse`.
 
-This iteration consumes the prior `producer_trace_inconclusive` bottleneck. It does not add candidates and does not change ranking, final selection, promotion, beam, budget, topN, timeout, or frontier iteration limits. The probe now emits offline/runtime material agreement rows and RC4-to-producer relation rows.
+This iteration consumes the prior `pre_rc4_material_probe / material_capture_partial` bottleneck. It does not add candidates and does not change ranking, final selection, promotion, beam, budget, topN, timeout, or frontier iteration limits.
 
 ## Files Changed
 
 | area | change | behavior impact |
 |---|---|---|
-| script | Upgraded `reverse_agent/olly_scripts/pre_rc4_material_probe.py` | normalizes material matches with hex, ASCII, UTF-16LE previews, match counts, and surrogate-safe JSON |
-| strategy | Enhanced `run_pre_rc4_material_probe()` | adds material agreement, producer relation, new classifications, and producer-trace-to-material routing |
-| project state | Exposes material agreement/relation fields | compact state now reports `pre_rc4_material_probe` / `material_capture_partial` |
-| tests | Updated pre-RC4 and project_state coverage | protects schema, no-promotion/no-budget behavior, and RC4-to-producer relation handling |
+| strategy | Routes `material_capture_partial` into `base64_rc4_breakpoint_probe` | the existing 3-candidate fallback now runs after partial material capture |
+| strategy | Adds clearer breakpoint classifications and compact summary fields | reports static-point, hook-failure, compare-only, partial, and complete outcomes |
+| script | Adds per-candidate `classification` to `base64_rc4_breakpoint_probe.py` payloads | candidate artifacts explain whether material, compare-only, static-point, or hook failure occurred |
+| project state | Compacts latest breakpoint state | exposes artifact path, hook counts, availability table, first captured kind, next bottleneck, and next action |
+| tests | Extends strategy/tool/project_state coverage | protects routing, schema, no-promotion/no-budget behavior, compare-only classification, and compact state |
 
 ## Runtime Artifact
 
 | item | value |
 |---|---|
-| harness run | `samplereverse_pre_rc4_material_probe_20260507` |
-| status | completed, 1 case, 0 errors |
-| artifact | `solve_reports\harness_runs\samplereverse_pre_rc4_material_probe_20260507\reports\tool_artifacts\samplereverse\pre_rc4_material_probe\pre_rc4_material_probe.json` |
-| classification | `material_capture_partial` |
+| harness run | `samplereverse_base64_rc4_breakpoint_probe_20260507` |
+| harness process | timed out in the outer tool after 15 minutes; stopped manually |
+| artifact completeness | key breakpoint artifact complete; harness `summary` and `case_results` missing |
+| artifact | `solve_reports\harness_runs\samplereverse_base64_rc4_breakpoint_probe_20260507\reports\tool_artifacts\samplereverse\base64_rc4_breakpoint_probe\base64_rc4_breakpoint_probe.json` |
+| classification | `base64_rc4_static_points_unavailable` |
 | candidates | 3 |
 | runtime-backed candidates | 3 |
+| hook events | 3 |
+| first captured kind | `compare_buffer` |
+| next bottleneck | `static point discovery` |
 
-## Material Availability
+## Breakpoint Evidence
 
 | material | status |
 |---|---|
-| `raw_input` | unavailable |
-| `expanded_bytes` | unavailable |
 | `utf16le_payload` | unavailable |
-| `base64_material` | unavailable |
-| `rc4_ksa_key` | unavailable |
-| `rc4_encrypted_const` | unavailable |
+| `base64_input` | unavailable |
+| `base64_output` | unavailable |
+| `rc4_key` | unavailable |
+| `rc4_input` | unavailable |
 | `rc4_output` | unavailable |
-| `compare_buffer` | unavailable |
+| `compare_buffer` | available |
 
-## Agreement And Relation
-
-| check | result |
-|---|---|
-| offline/runtime UTF-16LE agreement | unknown for all 3 candidates |
-| offline/runtime Base64 agreement | unknown for all 3 candidates |
-| offline/runtime RC4 agreement | unknown for all 3 candidates |
-| first divergence stage | `unknown` |
-| RC4 -> producer.eax/lhs relation | `no_match` for all 3, because runtime RC4 material was not captured |
-
-The automatic memory scan reached the compare trigger but did not expose the requested pre-RC4/Base64/RC4 material buffers. This is a partial material capture, not evidence of transform divergence.
+The breakpoint fallback hit the compare hook for all 3 diagnostic candidates, but all Base64/RC4 construction points remained unavailable. Static point discovery produced one unresolved point per material family and zero hookable points, so the next bottleneck is not candidate search; it is locating hookable Base64/RC4 construction addresses.
 
 ## Tests
 
 | command | result |
 |---|---|
-| `python -m py_compile reverse_agent\olly_scripts\pre_rc4_material_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
-| `python -m pytest -q tests/test_compare_aware_search_strategy.py` | `88 passed` |
+| `python -m py_compile reverse_agent\olly_scripts\base64_rc4_breakpoint_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+| `python -m pytest -q tests/test_compare_aware_search_strategy.py` | `90 passed` |
 | `python -m pytest -q tests/test_tool_runners.py tests/test_project_state.py` | `26 passed` |
-| `python -m pytest -q` | `181 passed` |
-| `python -m reverse_agent.harness --dataset .\samplereverse_exact1_projected_vs_neighbor_20260424.json --run-name samplereverse_pre_rc4_material_probe_20260507 --reports-dir solve_reports --analysis-mode "Auto" --model-type "Copilot CLI" --copilot-timeout-seconds 300 --ctf-skill-profile compact --case-id samplereverse-exact1-projected-vs-neighbor --no-resume` | completed, 1 case, 0 errors |
-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_pre_rc4_material_probe_20260507` | passed |
-| `python -m reverse_agent.project_state status` | `reason: material_capture_partial` |
+| `python -m pytest -q` | `183 passed` |
+| `python -m reverse_agent.harness --dataset .\samplereverse_exact1_projected_vs_neighbor_20260424.json --run-name samplereverse_base64_rc4_breakpoint_probe_20260507 --reports-dir solve_reports --analysis-mode "Auto" --model-type "Copilot CLI" --copilot-timeout-seconds 300 --ctf-skill-profile compact --case-id samplereverse-exact1-projected-vs-neighbor --no-resume` | outer tool timeout after artifact generation; process stopped |
+| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_base64_rc4_breakpoint_probe_20260507` | passed |
+| `python -m reverse_agent.project_state status` | `reason: base64_rc4_static_points_unavailable`; `missing: ['case_results', 'summary']` |
 
 ## Next Suggested Task
 
-Do not expand candidate search. Add a narrower material hook or run the bounded Base64/RC4 breakpoint fallback; the current automatic memory scan did not capture UTF-16LE/Base64/RC4 runtime buffers.
+Do not expand candidate search. Locate hookable Base64/RC4 construction points with IDA/x64dbg or a narrower static discovery pass, then repeat the bounded breakpoint capture only after those offsets are instruction-confirmed.

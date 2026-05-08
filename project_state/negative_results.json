@@ -54,5 +54,13 @@
     "override_reason_required": true,
     "reason": "transform trace consistency diagnostic confirmed five runtime-backed candidates agree with offline UTF-16LE/Base64/RC4/compare trace; next work needs a different bounded evidence source",
     "severity": "soft_block"
+  },
+  {
+    "direction": "scripted Base64/RC4 breakpoint probe with current static access points",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "scripted breakpoint/access probe did not capture Base64 or RC4 construction material; next evidence source should be manual IDA/x64dbg breakpoints with explicit addresses",
+    "severity": "soft_block"
   }
 ]

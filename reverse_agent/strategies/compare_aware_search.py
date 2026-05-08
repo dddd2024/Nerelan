@@ -3358,7 +3358,11 @@ def _prior_dynamic_probe_needs_pre_rc4() -> bool:
 def _prior_pre_rc4_probe_needs_breakpoint() -> bool:
     current_state = _project_state_json("current_state.json")
     latest = current_state.get("latest_pre_rc4_material_probe", {})
-    breakpoint_classifications = {"pre_rc4_probe_unavailable", "material_capture_unreliable"}
+    breakpoint_classifications = {
+        "pre_rc4_probe_unavailable",
+        "material_capture_unreliable",
+        "material_capture_partial",
+    }
     if isinstance(latest, dict) and str(latest.get("classification", "")).strip() in breakpoint_classifications:
         return True
     payload, _ = _indexed_artifact_payload("pre_rc4_material_probe")
@@ -5152,6 +5156,52 @@ def _aggregate_breakpoint_hook_results(candidate_results: Sequence[dict[str, obj
     return out
 
 
+def _breakpoint_static_point_summary(static_points: dict[str, list[dict[str, object]]]) -> dict[str, dict[str, int]]:
+    summary: dict[str, dict[str, int]] = {}
+    for kind, values in static_points.items():
+        points = [item for item in values if isinstance(item, dict)] if isinstance(values, list) else []
+        summary[str(kind)] = {
+            "count": len(points),
+            "hookable_count": sum(1 for item in points if bool(item.get("hookable"))),
+        }
+    return summary
+
+
+def _first_captured_breakpoint_material(hook_results: dict[str, str]) -> str:
+    for key in (
+        "utf16le_payload",
+        "base64_input",
+        "base64_output",
+        "rc4_key",
+        "rc4_input",
+        "rc4_output",
+        "compare_buffer",
+    ):
+        if hook_results.get(key) in {"available", "inferred"}:
+            return key
+    return ""
+
+
+def _breakpoint_next_bottleneck(
+    *,
+    classification: str,
+    hook_results: dict[str, str],
+    candidate_errors: Sequence[str],
+    hookable_static_points: Sequence[dict[str, object]],
+) -> str:
+    if classification == "breakpoint_probe_complete":
+        return "actual transform divergence"
+    if classification == "base64_rc4_static_points_unavailable":
+        return "static point discovery"
+    if classification == "base64_rc4_hook_failed" or candidate_errors:
+        return "runtime GUI triggering"
+    if hook_results.get("compare_buffer") in {"available", "inferred"}:
+        return "compare-only capture"
+    if hookable_static_points:
+        return "hook placement"
+    return "static point discovery"
+
+
 def _breakpoint_material_status(hook_results: dict[str, str], *keys: str) -> str:
     values = [hook_results.get(key, "unavailable") for key in keys]
     if "available" in values:
@@ -5282,9 +5332,9 @@ def run_base64_rc4_breakpoint_probe(
     runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
     construction_hit_count = sum(1 for item in candidate_results if bool(item.get("construction_hit")))
     hook_results = _aggregate_breakpoint_hook_results(candidate_results)
-    construction_statuses = [
+    material_statuses = [
         hook_results.get(key, "unavailable")
-        for key in ("base64_input", "base64_output", "rc4_key", "rc4_input", "rc4_output")
+        for key in ("utf16le_payload", "base64_input", "base64_output", "rc4_key", "rc4_input", "rc4_output")
     ]
     hookable_static_points = [
         point
@@ -5292,12 +5342,33 @@ def run_base64_rc4_breakpoint_probe(
         for point in values
         if isinstance(point, dict) and bool(point.get("hookable"))
     ]
+    candidate_errors = [
+        str(item.get("error", ""))
+        for item in candidate_results
+        if str(item.get("error", "")).strip()
+    ]
     classification = (
         "breakpoint_probe_complete"
-        if any(value in {"available", "inferred"} for value in construction_statuses)
+        if any(value in {"available", "inferred"} for value in material_statuses)
+        else "base64_rc4_static_points_unavailable"
+        if not hookable_static_points
+        else "base64_rc4_hook_failed"
+        if candidate_errors and not runtime_backed_count
+        else "base64_rc4_compare_only"
+        if hook_results.get("compare_buffer") in {"available", "inferred"}
         else "breakpoint_probe_partial"
-        if runtime_backed_count or hookable_static_points
-        else "breakpoint_probe_unavailable"
+    )
+    hook_event_count = sum(
+        len(list(item.get("hook_events", [])))
+        for item in candidate_results
+        if isinstance(item.get("hook_events"), list)
+    )
+    first_captured_material_kind = _first_captured_breakpoint_material(hook_results)
+    next_bottleneck = _breakpoint_next_bottleneck(
+        classification=classification,
+        hook_results=hook_results,
+        candidate_errors=candidate_errors,
+        hookable_static_points=hookable_static_points,
     )
     first_expected = dict(entries[0].get("expected_materials", {})) if entries else {}
     findings = [
@@ -5311,7 +5382,11 @@ def run_base64_rc4_breakpoint_probe(
             "classification": classification,
             "runtime_backed_count": runtime_backed_count,
             "construction_hit_count": construction_hit_count,
+            "hook_event_count": hook_event_count,
             "hook_results": hook_results,
+            "static_point_summary": _breakpoint_static_point_summary(static_points),
+            "first_captured_material_kind": first_captured_material_kind,
+            "next_bottleneck": next_bottleneck,
             "candidate_results": candidate_results,
             "rc4_key": {
                 "status": _breakpoint_material_status(hook_results, "rc4_key"),
@@ -5340,6 +5415,12 @@ def run_base64_rc4_breakpoint_probe(
             "next_bounded_action": (
                 "derive bounded exact3 constraints from captured Base64/RC4 construction evidence"
                 if classification == "breakpoint_probe_complete"
+                else "locate hookable Base64/RC4 construction points with IDA/x64dbg before repeating scripted breakpoint capture"
+                if classification == "base64_rc4_static_points_unavailable"
+                else "repair Frida/UI triggering before repeating the bounded breakpoint capture"
+                if classification == "base64_rc4_hook_failed"
+                else "audit hook placement: compare fired, but Base64/RC4 construction hooks did not"
+                if classification == "base64_rc4_compare_only"
                 else "use manual IDA/x64dbg breakpoints with the recorded static offsets"
                 if hookable_static_points
                 else "use manual IDA/x64dbg to locate Base64/RC4 construction points; current static scan found no hookable offsets"
@@ -12784,7 +12865,11 @@ class CompareAwareSearchStrategy(SolverStrategy):
 
         pre_rc4_payload = dict(pre_rc4_material_probe_run.get("payload", {})) if pre_rc4_material_probe_run else {}
         should_run_base64_rc4_breakpoint_probe = (
-            str(pre_rc4_payload.get("classification", "")) in {"pre_rc4_probe_unavailable", "material_capture_unreliable"}
+            str(pre_rc4_payload.get("classification", "")) in {
+                "pre_rc4_probe_unavailable",
+                "material_capture_unreliable",
+                "material_capture_partial",
+            }
             or _prior_pre_rc4_probe_needs_breakpoint()
         )
         if should_run_base64_rc4_breakpoint_probe:

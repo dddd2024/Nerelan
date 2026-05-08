@@ -582,11 +582,11 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "artifact": artifact_refs.get("base64_rc4_breakpoint_probe"),
             "runtime_backed_count": base64_rc4_breakpoint_probe.get("runtime_backed_count"),
             "candidate_count": base64_rc4_breakpoint_probe.get("candidate_count"),
-            "static_points": base64_rc4_breakpoint_probe.get("static_points"),
+            "hook_event_count": base64_rc4_breakpoint_probe.get("hook_event_count"),
+            "static_point_summary": base64_rc4_breakpoint_probe.get("static_point_summary"),
             "hook_results": base64_rc4_breakpoint_probe.get("hook_results"),
-            "rc4_key": base64_rc4_breakpoint_probe.get("rc4_key"),
-            "rc4_input": base64_rc4_breakpoint_probe.get("rc4_input"),
-            "base64_material": base64_rc4_breakpoint_probe.get("base64_material"),
+            "first_captured_material_kind": base64_rc4_breakpoint_probe.get("first_captured_material_kind"),
+            "next_bottleneck": base64_rc4_breakpoint_probe.get("next_bottleneck"),
             "next_bounded_action": base64_rc4_breakpoint_probe.get("next_bounded_action"),
         }
         if base64_rc4_breakpoint_probe
@@ -752,7 +752,11 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
         )
     pre_rc4_probe = _read_json(artifacts.get("pre_rc4_material_probe"))
     pre_rc4_classification = str(pre_rc4_probe.get("classification") or "").strip()
-    if pre_rc4_classification in {"pre_rc4_probe_unavailable", "material_capture_unreliable"}:
+    if pre_rc4_classification in {
+        "pre_rc4_probe_unavailable",
+        "material_capture_unreliable",
+        "material_capture_partial",
+    }:
         results.append(
             {
                 "direction": "memory-scan lower-level pre-RC4/key material probe with current automatic harness",
@@ -774,9 +778,12 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
         str(hook_results.get(key, "unavailable")) == "unavailable"
         for key in ("base64_input", "base64_output", "rc4_key", "rc4_input", "rc4_output")
     )
-    if breakpoint_classification == "breakpoint_probe_unavailable" or (
-        breakpoint_classification == "breakpoint_probe_partial" and construction_unavailable
-    ):
+    if breakpoint_classification in {
+        "breakpoint_probe_unavailable",
+        "base64_rc4_static_points_unavailable",
+        "base64_rc4_hook_failed",
+        "base64_rc4_compare_only",
+    } or (breakpoint_classification == "breakpoint_probe_partial" and construction_unavailable):
         results.append(
             {
                 "direction": "scripted Base64/RC4 breakpoint probe with current static access points",

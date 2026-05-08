@@ -95,6 +95,34 @@ def _hook_results_from_events(events: list[dict[str, object]]) -> dict[str, str]
     return results
 
 
+def _hookable_static_point_count(static_points: dict[str, list[dict[str, object]]] | None) -> int:
+    count = 0
+    for values in (static_points or {}).values():
+        if not isinstance(values, list):
+            continue
+        count += sum(1 for item in values if isinstance(item, dict) and bool(item.get("hookable", True)))
+    return count
+
+
+def _payload_classification(
+    *,
+    success: bool,
+    static_points: dict[str, list[dict[str, object]]] | None,
+    hook_results: dict[str, str],
+    error: str,
+) -> str:
+    material_keys = ("utf16le_payload", "base64_input", "base64_output", "rc4_key", "rc4_input", "rc4_output")
+    if error and not success:
+        return "base64_rc4_hook_failed"
+    if any(hook_results.get(key) in {"available", "inferred"} for key in material_keys):
+        return "breakpoint_probe_complete"
+    if _hookable_static_point_count(static_points) == 0:
+        return "base64_rc4_static_points_unavailable"
+    if hook_results.get("compare_buffer") in {"available", "inferred"}:
+        return "base64_rc4_compare_only"
+    return "breakpoint_probe_partial"
+
+
 def _build_payload(
     *,
     success: bool,
@@ -107,13 +135,20 @@ def _build_payload(
     error: str = "",
 ) -> dict[str, object]:
     normalized_events = [_normalize_hook_event(item) for item in hook_events or []]
+    normalized_hook_results = hook_results or _hook_results_from_events(normalized_events)
     return {
         "success": success,
         "summary": summary,
         "candidate_hex": candidate_hex,
+        "classification": _payload_classification(
+            success=success,
+            static_points=static_points,
+            hook_results=normalized_hook_results,
+            error=error,
+        ),
         "static_points": static_points or {},
         "hook_events": normalized_events,
-        "hook_results": hook_results or _hook_results_from_events(normalized_events),
+        "hook_results": normalized_hook_results,
         "evidence": evidence or [],
         "error": error,
     }
