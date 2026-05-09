@@ -68,6 +68,7 @@ def _normalize_observation(item: dict[str, object] | None) -> dict[str, object]:
         "argument_previews": (
             dict(item.get("argument_previews", {})) if isinstance(item.get("argument_previews"), dict) else {}
         ),
+        "candidate_buffers": list(item.get("candidate_buffers", [])) if isinstance(item.get("candidate_buffers"), list) else [],
     }
 
 
@@ -385,6 +386,29 @@ function compareEntryArgs(sp, moduleBase) {{
     }};
 }}
 
+function candidateBuffers(eax, esi, edi, slotPtr) {{
+    let out = [];
+    for (const item of [
+        ["eax", eax],
+        ["esi", esi],
+        ["edi", edi],
+        ["lhs_slot", slotPtr],
+    ]) {{
+        const name = item[0];
+        const value = item[1];
+        const preview = readBytes(value, 128);
+        if (preview.length > 0) {{
+            out.push({{
+                source: name,
+                address: value.toString(),
+                preview_hex: preview,
+                preview_utf16le: readWide(value, 128),
+            }});
+        }}
+    }}
+    return out;
+}}
+
 function observe(name, address, context) {{
     const mainModule = Process.enumerateModules()[0];
     const sp = ptr(context.sp || context.esp || 0);
@@ -442,6 +466,7 @@ function observe(name, address, context) {{
             edi: readBytes(edi, 64),
             lhs_slot: readBytes(slotPtr, 64),
         }},
+        candidate_buffers: candidateBuffers(eax, esi, edi, slotPtr),
     }});
 }}
 

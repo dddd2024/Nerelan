@@ -3534,3 +3534,72 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search；不重复旧 Base64/RC4 breakpoint probe。
 - 使用 compare-producer hook evidence 继续人工或更窄静态/动态定位 Base64/RC4 material construction instruction。
 - 只有 discovery 升级到 `breakpoint_probe_ready` 后才 rerun bounded breakpoint capture。
+
+## 2026-05-08 Compare-producer bounded backtrace
+
+1) 执行范围
+- 扩展 `compare_producer_trace_probe`，在已确认 compare-producer hook 点周围捕获 bounded producer context。
+- 不新增 candidate generator，不改变 ranking、final selection、promotion。
+- 不扩大 beam、budget、topN、timeout、frontier iteration limit。
+- `base64_rc4_breakpoint_probe` 仍只允许在 material hook `breakpoint_probe_ready` 后 rerun。
+
+2) 代码改动
+- `reverse_agent/olly_scripts/compare_producer_trace_probe.py`
+  - 在 runtime observation 中增加 `candidate_buffers`，覆盖 eax/esi/edi/lhs slot 等紧凑 buffer preview。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 bounded producer material extraction，输出 `candidate_materials`、`write_source_trace`、`material_hook_candidates`。
+  - 固定 producer trace classification 到允许集合。
+  - 只有 instruction-confirmed 且 hookable 的 `base64_output`、`rc4_input`、`rc4_output`、`rc4_key`、`utf16le_payload` 才允许 `breakpoint_probe_ready`。
+  - 当 static discovery 只确认 compare-producer hook 时，自动调度 compare producer trace，而不是重复 breakpoint probe。
+- `reverse_agent/project_state.py`
+  - compact 输出最新 producer trace artifact、material candidate count、best material candidates、classification、next bounded action、`breakpoint_probe_allowed`。
+  - 防止旧 static discovery 覆盖新的 producer trace bottleneck。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 覆盖 producer trace schema invariant、static-to-producer scheduling、material promotion gate、project_state compact rendering。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_producer_trace_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests/test_compare_aware_search_strategy.py` -> passed
+- `python -m pytest -q tests/test_project_state.py` -> passed
+- `python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py` -> `112 passed`
+- `python -m pytest -q` -> `189 passed`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_compare_producer_backtrace_20260508` -> passed
+
+4) Harness / artifact
+- 真实 harness run:
+  - `samplereverse_compare_producer_backtrace_20260508`
+- Run timed out after 15 minutes, after producer trace artifact had been written but before `summary.json` / `case_results` completed.
+- Artifact:
+  - `solve_reports\harness_runs\samplereverse_compare_producer_backtrace_20260508\reports\tool_artifacts\samplereverse_patched\compare_producer_trace_probe\compare_producer_trace_probe.json`
+- Classification: `upstream_material_candidate_found`
+- `candidate_count=3`
+- `runtime_backed_count=3`
+- `candidate_material_count=18`
+- `write_source_trace_count=0`
+- `material_hook_candidate_count=0`
+- `breakpoint_probe_allowed=false`
+- `promotable_validations=[]`
+- Invariants preserved:
+  - `candidate_generation_changed=false`
+  - `ranking_changed=false`
+  - `final_selection_changed=false`
+  - `search_budget_changed=false`
+
+5) project_state
+- `project_state/current_state.json` now reports:
+  - `stage=compare_producer_trace_probe`
+  - `reason=upstream_material_candidate_found`
+  - latest producer trace artifact points at the timed-out harness run artifact.
+- `project_state status` reports missing `case_results` and `summary` for the timed-out run, but keeps the correct bounded next task.
+
+6) 结论
+- Producer trace captured bounded runtime-backed context for the compare-producer path.
+- It did not find any instruction-confirmed hookable Base64/RC4 material point.
+- `base64_rc4_breakpoint_probe` remains blocked by design.
+- Current runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+7) 下一轮默认方向
+- 不扩大搜索；不回 blind search；不重复当前 Base64/RC4 breakpoint probe。
+- 对 `upstream_material_candidate_found` 做 instruction-level confirmation。
+- 只有出现 hookable + instruction-confirmed 的 `base64_output`、`rc4_input`、`rc4_output`、`rc4_key` 或 `utf16le_payload` 后，才允许 breakpoint capture。

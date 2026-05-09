@@ -459,12 +459,48 @@ def test_project_state_indexes_compare_producer_trace_probe_and_bottleneck(tmp_p
     run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_producer_trace")
     artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
     _write_json(
+        artifacts_dir / "base64_rc4_static_point_discovery.json",
+        {
+            "artifact_kind": "base64_rc4_static_point_discovery",
+            "classification": "hookable_points_found",
+            "breakpoint_probe_allowed": False,
+        },
+    )
+    _write_json(
+        artifacts_dir / "base64_rc4_breakpoint_probe" / "base64_rc4_breakpoint_probe.json",
+        {
+            "artifact_kind": "base64_rc4_breakpoint_probe",
+            "classification": "base64_rc4_static_points_unavailable",
+            "hook_results": {"compare_buffer": "available"},
+        },
+    )
+    _write_json(
         artifacts_dir / "compare_producer_trace_probe" / "compare_producer_trace_probe.json",
         {
             "artifact_kind": "compare_producer_trace_probe",
-            "classification": "compare_args_identified",
+            "classification": "compare_producer_trace_captured",
             "runtime_backed_count": 3,
             "candidate_count": 3,
+            "candidate_material_count": 3,
+            "candidate_materials": [
+                {
+                    "kind": "compare_buffer",
+                    "address": "0x36dce20",
+                    "preview_hex": "46006c004464830d311c",
+                    "evidence": ["matches compare arg"],
+                }
+            ],
+            "write_source_trace_count": 1,
+            "write_source_trace": [
+                {
+                    "source_module_offset": "0x253a",
+                    "instruction": "mov dword ptr [ebp - 0x1170], eax",
+                    "classification": "compare_buffer_write_source",
+                }
+            ],
+            "material_hook_candidate_count": 0,
+            "material_hook_candidates": [],
+            "breakpoint_probe_allowed": False,
             "hook_results": {
                 "producer_return_site": "available",
                 "compare_helper_entry": "available",
@@ -495,9 +531,14 @@ def test_project_state_indexes_compare_producer_trace_probe_and_bottleneck(tmp_p
         "compare_producer_trace_probe.json"
     )
     assert current_state["current_bottleneck"]["stage"] == "compare_producer_trace_probe"
-    assert current_state["current_bottleneck"]["reason"] == "compare_args_identified"
+    assert current_state["current_bottleneck"]["reason"] == "compare_producer_trace_captured"
     latest = current_state["latest_compare_producer_trace_probe"]
-    assert latest["classification"] == "compare_args_identified"
+    assert latest["classification"] == "compare_producer_trace_captured"
+    assert latest["candidate_material_count"] == 3
+    assert latest["best_material_candidates"][0]["kind"] == "compare_buffer"
+    assert latest["write_source_trace_count"] == 1
+    assert latest["material_hook_candidate_count"] == 0
+    assert latest["breakpoint_probe_allowed"] is False
     assert latest["hook_results"]["compare_helper_entry"] == "available"
     assert latest["hook_miss_classification"]["classification"] == "wrapper/alternate compare path"
     assert any("producer trace" in item["direction"] for item in negative_results)

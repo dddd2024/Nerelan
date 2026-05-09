@@ -188,7 +188,7 @@ COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES = COMPARE_HANDOFF_PROBE_CANDIDATES
 COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES = COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES
 COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES = COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES
 PAIR_TAIL_FLAGLIKE_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_{}-")
-BASE64_RC4_BREAKPOINT_READY_KINDS = {"base64", "base64_output", "rc4_ksa", "rc4_prga", "rc4_input", "rc4_output"}
+BASE64_RC4_BREAKPOINT_READY_KINDS = {"base64_output", "rc4_input", "rc4_output", "rc4_key", "utf16le_payload"}
 
 PAIRSCAN_TOOL = "pairscan"
 TRIAD_TOOL = "triad"
@@ -3427,6 +3427,30 @@ def _prior_base64_rc4_static_discovery_allows_breakpoint() -> bool:
     return _base64_rc4_static_discovery_allows_breakpoint(payload)
 
 
+def _base64_rc4_static_discovery_needs_compare_producer_trace(payload: dict[str, object]) -> bool:
+    if str(payload.get("classification", "")).strip() != "hookable_points_found":
+        return False
+    if _base64_rc4_static_discovery_allows_breakpoint(payload):
+        return False
+    by_kind = payload.get("by_kind", {})
+    by_kind = by_kind if isinstance(by_kind, dict) else {}
+    compare_producer = by_kind.get("compare_producer", {})
+    compare_producer = compare_producer if isinstance(compare_producer, dict) else {}
+    return int(compare_producer.get("instruction_confirmed_count", 0) or 0) > 0
+
+
+def _prior_base64_rc4_static_discovery_needs_compare_producer_trace() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest_producer = current_state.get("latest_compare_producer_trace_probe", {})
+    if isinstance(latest_producer, dict) and str(latest_producer.get("classification", "")).strip():
+        return False
+    latest = current_state.get("latest_base64_rc4_static_point_discovery", {})
+    if isinstance(latest, dict) and _base64_rc4_static_discovery_needs_compare_producer_trace(latest):
+        return True
+    payload, _ = _indexed_artifact_payload("base64_rc4_static_point_discovery")
+    return _base64_rc4_static_discovery_needs_compare_producer_trace(payload)
+
+
 def _base64_probe_needs_stack_pivot(payload: dict[str, object]) -> bool:
     classification = str(payload.get("classification", "")).strip()
     hook_results = payload.get("hook_results", {})
@@ -3537,10 +3561,18 @@ def _prior_compare_handoff_return_site_needs_producer_trace() -> bool:
 
 def _compare_producer_trace_needs_material_capture(payload: dict[str, object]) -> bool:
     classification = str(payload.get("classification", "")).strip()
-    if classification in {"producer_trace_inconclusive", "needs_pre_rc4_base64_probe"}:
+    if classification in {
+        "compare_producer_trace_captured",
+        "compare_only_capture",
+        "upstream_material_candidate_found",
+        "manual_disassembly_required",
+        "runtime_execution_failure",
+    }:
         return True
+    if classification in {"breakpoint_probe_ready", "base64_material_captured", "rc4_material_captured"}:
+        return False
     next_action = str(payload.get("next_bounded_action", "")).lower()
-    return "material capture" in next_action or "pre-rc4" in next_action or "base64" in next_action
+    return "material capture" in next_action or "pre-rc4" in next_action or "base64" in next_action or "rc4" in next_action
 
 
 def _prior_compare_producer_trace_needs_material_capture() -> bool:
@@ -7498,6 +7530,7 @@ def _normalize_producer_trace_observation(item: dict[str, object], candidate_hex
         "argument_previews": (
             dict(item.get("argument_previews", {})) if isinstance(item.get("argument_previews"), dict) else {}
         ),
+        "candidate_buffers": list(item.get("candidate_buffers", [])) if isinstance(item.get("candidate_buffers"), list) else [],
     }
 
 
@@ -7646,6 +7679,196 @@ def _producer_trace_map_from_observations(observations: list[dict[str, object]])
     }
 
 
+def _preview_ascii_from_hex(preview_hex: object, limit: int = 80) -> str:
+    raw = _hex_to_bytes(preview_hex)
+    if not raw:
+        return ""
+    return "".join(chr(value) if 32 <= value < 127 else "." for value in raw[:limit])
+
+
+def _producer_material_kind(
+    *,
+    source_name: str,
+    preview_hex: object,
+    preview_utf16le: object = "",
+    matches_compare_arg: bool = False,
+) -> str:
+    if matches_compare_arg:
+        return "compare_buffer"
+    preview_text = str(preview_utf16le or "").strip()
+    if preview_text and any(ch.isprintable() for ch in preview_text):
+        return "possible_utf16le_payload"
+    ascii_preview = _preview_ascii_from_hex(preview_hex)
+    compact_ascii = ascii_preview.replace(".", "")
+    if len(compact_ascii) >= 12 and all(ch.isalnum() or ch in "+/=" for ch in compact_ascii):
+        return "possible_base64_output"
+    if source_name in {"eax", "esi", "edi", "lhs_slot"} and str(preview_hex or "").strip():
+        return "unknown_buffer"
+    return ""
+
+
+def _candidate_material_rows_for_result(result: dict[str, object]) -> list[dict[str, object]]:
+    trace_map = result.get("producer_trace_map", {})
+    if not isinstance(trace_map, dict):
+        return []
+    candidate_hex = str(result.get("candidate_hex", ""))
+    candidate_compare_arg = trace_map.get("candidate_compare_arg", {})
+    candidate_compare_arg = candidate_compare_arg if isinstance(candidate_compare_arg, dict) else {}
+    compare_value = candidate_compare_arg.get("value", "")
+    compare_preview = candidate_compare_arg.get("preview_hex", "")
+    sources: list[tuple[str, dict[str, object], str, str, str]] = []
+    producer = trace_map.get("producer_return_site", {})
+    if isinstance(producer, dict):
+        for name, ptr_key, preview_key in (
+            ("eax", "eax_ptr", "eax_preview_hex"),
+            ("esi", "esi_ptr", "esi_preview_hex"),
+            ("edi", "edi_ptr", "edi_preview_hex"),
+            ("lhs_slot", "lhs_slot_ptr", "lhs_slot_preview_hex"),
+        ):
+            sources.append((name, producer, ptr_key, preview_key, "producer_return_site"))
+    for row in trace_map.get("context_table", []):
+        if not isinstance(row, dict):
+            continue
+        hook_point = str(row.get("hook_point", ""))
+        for name, preview_key in (
+            ("eax", "eax_preview"),
+            ("esi", "esi_preview"),
+            ("edi", "edi_preview"),
+            ("lhs_slot", "lhs_slot_preview"),
+        ):
+            sources.append((name, row, "", preview_key, hook_point))
+    out: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str]] = set()
+    for source_name, source, ptr_key, preview_key, hook_point in sources:
+        preview_hex = str(source.get(preview_key, "") or "")
+        if not preview_hex:
+            continue
+        address = str(source.get(ptr_key, "") or "")
+        matches_compare = _pointer_text_equal(address, compare_value) or _preview_text_equal(preview_hex, compare_preview)
+        kind = _producer_material_kind(
+            source_name=source_name,
+            preview_hex=preview_hex,
+            preview_utf16le=source.get(f"{source_name}_preview_utf16le", ""),
+            matches_compare_arg=matches_compare,
+        )
+        if not kind:
+            continue
+        key = (candidate_hex, kind, preview_hex[:48])
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(
+            {
+                "candidate_hex": candidate_hex,
+                "kind": kind,
+                "address": address,
+                "source_hook": hook_point,
+                "source_register": source_name,
+                "size": len(_hex_to_bytes(preview_hex)),
+                "preview_hex": preview_hex[:160],
+                "preview_ascii": _preview_ascii_from_hex(preview_hex),
+                "preview_utf16le": str(source.get(f"{source_name}_preview_utf16le", ""))[:80],
+                "instruction_confirmed": False,
+                "hookable": False,
+                "evidence": [
+                    "matches compare arg" if matches_compare else "captured in bounded producer context",
+                    "not promoted to material hook without instruction-level evidence",
+                ],
+            }
+        )
+    return out[:16]
+
+
+def _producer_write_source_trace_for_result(result: dict[str, object]) -> list[dict[str, object]]:
+    trace_map = result.get("producer_trace_map", {})
+    if not isinstance(trace_map, dict):
+        return []
+    relations = trace_map.get("relations", {})
+    relations = relations if isinstance(relations, dict) else {}
+    candidate_hex = str(result.get("candidate_hex", ""))
+    candidate_arg = trace_map.get("candidate_compare_arg", {})
+    candidate_arg = candidate_arg if isinstance(candidate_arg, dict) else {}
+    rows: list[dict[str, object]] = []
+    if any(
+        bool(relations.get(name))
+        for name in (
+            "pre_store_eax_matches_compare_arg_ptr",
+            "producer_eax_matches_compare_arg_ptr",
+            "producer_eax_preview_matches_compare_arg",
+        )
+    ):
+        rows.append(
+            {
+                "candidate_hex": candidate_hex,
+                "depth": 0,
+                "source_hook": "pre_lhs_slot_store",
+                "source_module_offset": "0x253a",
+                "instruction": "mov dword ptr [ebp - 0x1170], eax",
+                "source_register": "eax",
+                "destination": "[ebp-0x1170]",
+                "destination_address": str(candidate_arg.get("value", "")),
+                "preview_hex": str(candidate_arg.get("preview_hex", ""))[:160],
+                "classification": "compare_buffer_write_source",
+            }
+        )
+    if bool(relations.get("producer_lhs_slot_preview_matches_compare_arg")) or bool(
+        relations.get("producer_lhs_slot_matches_compare_arg_ptr")
+    ):
+        rows.append(
+            {
+                "candidate_hex": candidate_hex,
+                "depth": 1,
+                "source_hook": "producer_return_site",
+                "source_module_offset": "0x233d",
+                "instruction": "bounded producer return context",
+                "source_register": "lhs_slot",
+                "destination": "compare arg",
+                "destination_address": str(candidate_arg.get("value", "")),
+                "preview_hex": str(candidate_arg.get("preview_hex", ""))[:160],
+                "classification": "producer_context_matches_compare_buffer",
+            }
+        )
+    return rows[:4]
+
+
+def _producer_material_hook_candidates(
+    candidate_materials: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    candidates: list[dict[str, object]] = []
+    for item in candidate_materials:
+        kind = str(item.get("kind", ""))
+        if kind not in BASE64_RC4_BREAKPOINT_READY_KINDS:
+            continue
+        if not bool(item.get("hookable")) or not bool(item.get("instruction_confirmed")):
+            continue
+        candidates.append(dict(item))
+    return candidates
+
+
+def _producer_trace_findings(
+    *,
+    runtime_backed_count: int,
+    candidate_materials: Sequence[dict[str, object]],
+    write_source_trace: Sequence[dict[str, object]],
+    material_hook_candidates: Sequence[dict[str, object]],
+) -> list[str]:
+    findings = [
+        "producer trace captured runtime observations"
+        if runtime_backed_count
+        else "producer trace did not capture runtime observations",
+        "candidate generation, ranking, final selection, and search budget were unchanged",
+    ]
+    if candidate_materials:
+        findings.append("bounded producer contexts emitted compact candidate material rows")
+    if write_source_trace:
+        findings.append("compare buffer write-source trace reached bounded producer depth")
+    if material_hook_candidates:
+        findings.append("instruction-confirmed material hook candidates are ready for breakpoint capture")
+    else:
+        findings.append("no instruction-confirmed Base64/RC4 material hook candidate was promoted")
+    return findings
+
+
 def _aggregate_producer_trace_hook_results(candidate_results: list[dict[str, object]]) -> dict[str, str]:
     names: set[str] = set()
     lhs_slot_available = False
@@ -7762,9 +7985,19 @@ def _classify_compare_producer_trace(
     runtime_backed_count: int,
     hook_results: dict[str, str],
     cross_summary: dict[str, object],
+    candidate_materials: Sequence[dict[str, object]],
+    write_source_trace: Sequence[dict[str, object]],
+    material_hook_candidates: Sequence[dict[str, object]],
 ) -> str:
     if runtime_backed_count <= 0:
-        return "needs_pre_rc4_base64_probe"
+        return "runtime_execution_failure"
+    if material_hook_candidates:
+        kinds = {str(item.get("kind", "")) for item in material_hook_candidates}
+        if kinds & {"rc4_input", "rc4_output", "rc4_key"}:
+            return "rc4_material_captured"
+        if kinds & {"base64_output"}:
+            return "base64_material_captured"
+        return "breakpoint_probe_ready"
     relation_counts = cross_summary.get("relation_counts", {})
     relation_counts = relation_counts if isinstance(relation_counts, dict) else {}
     target_counts = cross_summary.get("target_flag_side_counts", {})
@@ -7795,17 +8028,19 @@ def _classify_compare_producer_trace(
             or int(target_counts.get("entry_arg1", 0) or 0) > 0
         )
         if candidate_count and flag_side_seen and (entry_arg0_candidate or entry_arg1_candidate):
-            return "compare_args_identified"
-        if relation_hit:
-            return "producer_path_identified"
-        return "compare_entry_captured"
-    if hook_results.get("wide_flag_prefix_compare") == "available" and hook_results.get("compare_helper_entry") != "available":
-        return "wrong_compare_callsite"
+            return "compare_producer_trace_captured"
+        if relation_hit or write_source_trace:
+            return "compare_producer_trace_captured"
+        return "compare_only_capture"
+    if candidate_materials and any(str(item.get("kind", "")) != "compare_buffer" for item in candidate_materials):
+        return "upstream_material_candidate_found"
+    if hook_results.get("wide_flag_prefix_compare") == "available":
+        return "compare_only_capture"
     if hook_results.get("producer_return_site") != "available":
-        return "wrong_module_anchor"
-    if relation_hit:
-        return "producer_path_identified"
-    return "producer_trace_inconclusive"
+        return "manual_disassembly_required"
+    if relation_hit or write_source_trace:
+        return "compare_producer_trace_captured"
+    return "manual_disassembly_required"
 
 
 def run_compare_producer_trace_probe(
@@ -7836,6 +8071,13 @@ def run_compare_producer_trace_probe(
         "candidate_limit": len(COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES),
         "static_audit": static_audit,
         "hook_points": hook_points,
+        "candidate_material_count": 0,
+        "candidate_materials": [],
+        "write_source_trace_count": 0,
+        "write_source_trace": [],
+        "material_hook_candidate_count": 0,
+        "material_hook_candidates": [],
+        "breakpoint_probe_allowed": False,
         "promotable_validations": [],
     }
     _write_json(result_path, payload)
@@ -7895,6 +8137,12 @@ def run_compare_producer_trace_probe(
                 else {},
                 "producer_trace_map": trace_map,
                 "hook_observations": observations[:64],
+                "candidate_materials": list(compare_payload.get("candidate_materials", []))
+                if isinstance(compare_payload.get("candidate_materials"), list)
+                else [],
+                "material_hook_candidates": list(compare_payload.get("material_hook_candidates", []))
+                if isinstance(compare_payload.get("material_hook_candidates"), list)
+                else [],
                 "result_path": str(compare_out),
                 "log_path": str(compare_log),
                 "success": bool(compare_payload.get("success")),
@@ -7906,19 +8154,53 @@ def run_compare_producer_trace_probe(
     hook_results = _aggregate_producer_trace_hook_results(candidate_results)
     cross_summary = _cross_candidate_producer_trace_summary(candidate_results)
     hook_miss_classification = _classify_missed_compare_hooks(hook_results)
+    candidate_materials = [
+        row
+        for result in candidate_results
+        for row in [
+            *_candidate_material_rows_for_result(result),
+            *(
+                [dict(item) for item in result.get("candidate_materials", []) if isinstance(item, dict)]
+                if isinstance(result.get("candidate_materials"), list)
+                else []
+            ),
+        ]
+    ][:48]
+    write_source_trace = [
+        row
+        for result in candidate_results
+        for row in _producer_write_source_trace_for_result(result)
+    ][:24]
+    explicit_material_hook_candidates = [
+        dict(item)
+        for result in candidate_results
+        for item in (
+            result.get("material_hook_candidates", [])
+            if isinstance(result.get("material_hook_candidates"), list)
+            else []
+        )
+        if isinstance(item, dict)
+    ]
+    material_hook_candidates = _producer_material_hook_candidates(
+        [*candidate_materials, *explicit_material_hook_candidates]
+    )[:16]
     classification = _classify_compare_producer_trace(
         runtime_backed_count=runtime_backed_count,
         hook_results=hook_results,
         cross_summary=cross_summary,
+        candidate_materials=candidate_materials,
+        write_source_trace=write_source_trace,
+        material_hook_candidates=material_hook_candidates,
     )
     next_bounded_action = {
-        "compare_args_identified": "derive candidate-side byte constraints from the actual compare helper entry args",
-        "producer_path_identified": "turn the producer-to-compare relation into bounded candidate refinement constraints",
-        "compare_entry_captured": "inspect compare entry args and caller path before refining candidates",
-        "wrong_compare_callsite": "replace static module+0x258c assumptions with the observed compare helper caller path",
-        "wrong_module_anchor": "revalidate module base and producer hook anchors before any search expansion",
-        "needs_pre_rc4_base64_probe": "run the bounded pre-RC4/Base64 material capture fallback",
-        "producer_trace_inconclusive": "choose a narrower producer hook from the captured 0x233d context or fallback to material capture",
+        "compare_producer_trace_captured": "use the bounded write-source trace to choose an instruction-confirmed Base64/RC4 material hook",
+        "compare_only_capture": "inspect compare entry args and caller path before any breakpoint rerun",
+        "upstream_material_candidate_found": "confirm the upstream material candidate at instruction level before enabling breakpoint capture",
+        "breakpoint_probe_ready": "rerun bounded Base64/RC4 breakpoint probe with instruction-confirmed material hooks",
+        "base64_material_captured": "rerun bounded breakpoint capture for the confirmed Base64 material hook",
+        "rc4_material_captured": "rerun bounded breakpoint capture for the confirmed RC4 material hook",
+        "runtime_execution_failure": "fix runtime producer trace execution before adding new search",
+        "manual_disassembly_required": "use manual IDA/x64dbg disassembly around the producer context to identify a material construction instruction",
     }.get(classification, "inspect compare producer trace artifact")
     payload.update(
         {
@@ -7926,6 +8208,18 @@ def run_compare_producer_trace_probe(
             "runtime_backed_count": runtime_backed_count,
             "hook_results": hook_results,
             "hook_miss_classification": hook_miss_classification,
+            "candidate_material_count": len(candidate_materials),
+            "candidate_materials": candidate_materials,
+            "write_source_trace_count": len(write_source_trace),
+            "write_source_trace": write_source_trace,
+            "material_hook_candidate_count": len(material_hook_candidates),
+            "material_hook_candidates": material_hook_candidates,
+            "breakpoint_probe_allowed": classification
+            in {
+                "breakpoint_probe_ready",
+                "base64_material_captured",
+                "rc4_material_captured",
+            },
             "candidate_results": candidate_results,
             "producer_trace_maps": [result.get("producer_trace_map", {}) for result in candidate_results],
             "candidate_dependency_table": [
@@ -7938,12 +8232,12 @@ def run_compare_producer_trace_probe(
                 for result in candidate_results
             ],
             "cross_candidate_summary": cross_summary,
-            "findings": [
-                "producer trace captured runtime observations"
-                if runtime_backed_count
-                else "producer trace did not capture runtime observations",
-                "candidate generation, ranking, final selection, and search budget were unchanged",
-            ],
+            "findings": _producer_trace_findings(
+                runtime_backed_count=runtime_backed_count,
+                candidate_materials=candidate_materials,
+                write_source_trace=write_source_trace,
+                material_hook_candidates=material_hook_candidates,
+            ),
             "next_bounded_action": next_bounded_action,
             "promotable_validations": [],
         }
@@ -13356,6 +13650,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         should_run_compare_producer_trace_probe = (
             _compare_handoff_return_site_needs_producer_trace(compare_handoff_return_site_payload)
             or _prior_compare_handoff_return_site_needs_producer_trace()
+            or _base64_rc4_static_discovery_needs_compare_producer_trace(static_discovery_payload)
+            or _prior_base64_rc4_static_discovery_needs_compare_producer_trace()
         ) and not _prior_compare_producer_trace_needs_material_capture()
         if should_run_compare_producer_trace_probe:
             compare_producer_trace_probe_run = run_compare_producer_trace_probe(

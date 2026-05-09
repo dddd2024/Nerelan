@@ -3662,9 +3662,9 @@ def _fake_base64_rc4_static_points(target: Path) -> dict[str, list[dict[str, obj
 
 def _fake_base64_rc4_instruction_static_points(target: Path) -> dict[str, list[dict[str, object]]]:
     points = _fake_base64_rc4_static_points(target)
-    points["base64"] = [
+    points["base64_output"] = [
         {
-            "kind": "base64",
+            "kind": "base64_output",
             "name": "base64_output_write",
             "address": "module+0x2345",
             "module_offset": 0x2345,
@@ -4296,6 +4296,28 @@ def _fake_compare_producer_trace_subprocess_run(*args, **kwargs):  # noqa: ANN00
     return _Proc()
 
 
+def _fake_compare_producer_trace_material_hook_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    proc = _fake_compare_producer_trace_subprocess_run(*args, **kwargs)
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    payload = json.loads(out_path.read_text(encoding="utf-8"))
+    payload["material_hook_candidates"] = [
+        {
+            "kind": "base64_output",
+            "name": "base64_output_write",
+            "module_offset": "0x2345",
+            "address": "module+0x2345",
+            "instruction": "mov byte ptr [edi], al",
+            "hookable": True,
+            "instruction_confirmed": True,
+            "preview_hex": "516c5a735245526b6844307848413d3d",
+            "evidence": ["bounded producer backtrace reached instruction-confirmed material write"],
+        }
+    ]
+    out_path.write_text(json.dumps(payload), encoding="utf-8")
+    return proc
+
+
 def test_base64_rc4_static_point_discovery_records_schema_and_blocks_unconfirmed_points(
     tmp_path: Path,
     monkeypatch,
@@ -4343,7 +4365,7 @@ def test_base64_rc4_static_point_discovery_allows_breakpoint_only_for_instructio
     assert payload["classification"] == "breakpoint_probe_ready"
     assert payload["breakpoint_probe_allowed"] is True
     assert compare_aware_search._base64_rc4_static_discovery_allows_breakpoint(payload) is True
-    assert payload["breakpoint_static_points"]["base64"][0]["hook_kind"] == "interceptor"
+    assert payload["breakpoint_static_points"]["base64_output"][0]["hook_kind"] == "interceptor"
 
 
 def test_base64_rc4_breakpoint_gate_requires_static_discovery_ready(monkeypatch) -> None:
@@ -4369,6 +4391,40 @@ def test_base64_rc4_breakpoint_gate_requires_static_discovery_ready(monkeypatch)
 
     assert compare_aware_search._prior_base64_probe_needs_static_point_discovery() is True
     assert compare_aware_search._prior_base64_rc4_static_discovery_allows_breakpoint() is False
+
+
+def test_static_discovery_compare_producer_points_trigger_producer_trace(monkeypatch) -> None:
+    payload = {
+        "classification": "hookable_points_found",
+        "breakpoint_probe_allowed": False,
+        "by_kind": {
+            "compare_producer": {
+                "count": 3,
+                "hookable_count": 3,
+                "instruction_confirmed_count": 3,
+            },
+            "base64_output": {
+                "count": 0,
+                "hookable_count": 0,
+                "instruction_confirmed_count": 0,
+            },
+        },
+    }
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {
+            "latest_base64_rc4_static_point_discovery": payload,
+            "latest_compare_producer_trace_probe": {},
+        }
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", lambda kind: ({}, None))
+
+    assert compare_aware_search._base64_rc4_static_discovery_needs_compare_producer_trace(payload) is True
+    assert compare_aware_search._prior_base64_rc4_static_discovery_needs_compare_producer_trace() is True
+    assert compare_aware_search._base64_rc4_static_discovery_allows_breakpoint(payload) is False
 
 
 def test_base64_rc4_breakpoint_probe_has_bounded_candidate_count_and_schema(
@@ -4826,9 +4882,16 @@ def test_compare_producer_trace_probe_records_compare_entry_and_relations(
     assert payload["artifact_kind"] == "compare_producer_trace_probe"
     assert payload["candidate_count"] == 3
     assert payload["candidate_limit"] == 3
-    assert payload["classification"] == "compare_args_identified"
+    assert payload["classification"] == "compare_producer_trace_captured"
     assert payload["hook_results"]["compare_helper_entry"] == "available"
     assert payload["hook_results"]["compare_entry_args"] == "available"
+    assert payload["candidate_material_count"] >= 3
+    assert payload["candidate_materials"][0]["kind"] == "compare_buffer"
+    assert payload["write_source_trace_count"] >= 1
+    assert payload["write_source_trace"][0]["source_module_offset"] == "0x253a"
+    assert payload["material_hook_candidate_count"] == 0
+    assert payload["material_hook_candidates"] == []
+    assert payload["breakpoint_probe_allowed"] is False
     first_map = payload["candidate_results"][0]["producer_trace_map"]
     assert first_map["producer_return_site"]["observed"] is True
     assert first_map["compare_helper_entry"]["caller_return_module_offset"] == "0x2591"
@@ -4863,8 +4926,37 @@ def test_compare_producer_trace_probe_does_not_expand_search_or_promote(
     assert payload["final_selection_changed"] is False
     assert payload["search_budget_changed"] is False
     assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+    assert payload["breakpoint_probe_allowed"] is False
     assert payload["promotable_validations"] == []
     assert result["promotable_validations"] == []
+
+
+def test_compare_producer_trace_probe_promotes_only_instruction_confirmed_material_hooks(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        compare_aware_search.subprocess,
+        "run",
+        _fake_compare_producer_trace_material_hook_subprocess_run,
+    )
+
+    result = run_compare_producer_trace_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_producer_trace_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "base64_material_captured"
+    assert payload["breakpoint_probe_allowed"] is True
+    assert payload["material_hook_candidate_count"] == 3
+    assert payload["material_hook_candidates"][0]["kind"] == "base64_output"
+    assert payload["promotable_validations"] == []
 
 
 def test_h1_h3_boundary_validation_runtime_validates_fixed_contrast_set(

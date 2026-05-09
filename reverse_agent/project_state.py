@@ -513,10 +513,13 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if pre_rc4_classification and compare_producer_trace_classification in {
         "producer_trace_inconclusive",
         "needs_pre_rc4_base64_probe",
+        "compare_only_capture",
+        "manual_disassembly_required",
+        "runtime_execution_failure",
     }:
         stage = "pre_rc4_material_probe"
         reason = pre_rc4_classification
-    if static_discovery_classification and (
+    if static_discovery_classification and not compare_producer_trace_classification and (
         not breakpoint_classification
         or breakpoint_classification
         in {
@@ -685,6 +688,19 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "artifact": artifact_refs.get("compare_producer_trace_probe"),
             "runtime_backed_count": compare_producer_trace_probe.get("runtime_backed_count"),
             "candidate_count": compare_producer_trace_probe.get("candidate_count"),
+            "candidate_material_count": compare_producer_trace_probe.get("candidate_material_count"),
+            "best_material_candidates": compare_producer_trace_probe.get("candidate_materials", [])[:8]
+            if isinstance(compare_producer_trace_probe.get("candidate_materials"), list)
+            else [],
+            "write_source_trace_count": compare_producer_trace_probe.get("write_source_trace_count"),
+            "write_source_trace": compare_producer_trace_probe.get("write_source_trace", [])[:8]
+            if isinstance(compare_producer_trace_probe.get("write_source_trace"), list)
+            else [],
+            "material_hook_candidate_count": compare_producer_trace_probe.get("material_hook_candidate_count"),
+            "material_hook_candidates": compare_producer_trace_probe.get("material_hook_candidates", [])[:8]
+            if isinstance(compare_producer_trace_probe.get("material_hook_candidates"), list)
+            else [],
+            "breakpoint_probe_allowed": compare_producer_trace_probe.get("breakpoint_probe_allowed"),
             "hook_results": compare_producer_trace_probe.get("hook_results"),
             "hook_miss_classification": compare_producer_trace_probe.get("hook_miss_classification"),
             "static_audit": compare_producer_trace_probe.get("static_audit"),
