@@ -3603,3 +3603,62 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search；不重复当前 Base64/RC4 breakpoint probe。
 - 对 `upstream_material_candidate_found` 做 instruction-level confirmation。
 - 只有出现 hookable + instruction-confirmed 的 `base64_output`、`rc4_input`、`rc4_output`、`rc4_key` 或 `utf16le_payload` 后，才允许 breakpoint capture。
+
+## 2026-05-10 Compare-producer material confirmation
+
+1) 执行范围
+- 新增 bounded `compare_producer_material_confirmation` follow-up。
+- 仅在 prior `compare_producer_trace_probe` classification 为 `upstream_material_candidate_found` 时运行。
+- 固定 3 个 diagnostic candidates；不新增 candidate generator，不改变 ranking、final selection、promotion，不扩大 beam/budget/topN/timeout/frontier limit。
+- `base64_rc4_breakpoint_probe` 继续由 instruction-confirmed material hook gate 控制。
+
+2) 代码改动
+- `reverse_agent/olly_scripts/compare_producer_material_confirmation.py`
+  - 新增 Frida/UIA probe，在 producer window 内 hook `0x2312/0x2320/0x2325/0x2338/0x233d/0x2346/0x234e/0x2353/0x2355/0x235a`。
+  - 捕获寄存器、stack words、frame slots，以及 expected producer EAX preview match。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME` 和 `run_compare_producer_material_confirmation_probe()`。
+  - 从最新 producer trace 读取 expected `producer_return_site.eax_preview_hex`。
+  - 输出 `instruction_confirmation_table`、`material_source_trace`、`confirmed_material_hook_candidates`、`breakpoint_probe_allowed`、`classification`、`next_bounded_action`。
+  - 若确认到 hookable + instruction-confirmed material hook，才把对应 static points 交给 Base64/RC4 breakpoint probe。
+- `reverse_agent/project_state.py`
+  - 索引 `compare_producer_material_confirmation.json`。
+  - compact state 暴露 latest material confirmation，并让该 stage 覆盖旧 static discovery fallback。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 覆盖 schema、no-promotion/no-budget、material confirmation gate、project_state indexing/bottleneck。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_producer_material_confirmation.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py` -> `117 passed`
+- `python -m pytest -q` -> `194 passed`
+
+4) Harness / project_state
+- Real harness run attempted:
+  - `samplereverse_material_confirmation_20260510_rerun2`
+- Harness timed out after 15 minutes before writing `case_results` / `summary`, but the material confirmation artifact completed.
+- Artifact:
+  - `solve_reports\harness_runs\samplereverse_material_confirmation_20260510_rerun2\reports\tool_artifacts\samplereverse_patched\compare_producer_material_confirmation\compare_producer_material_confirmation.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_material_confirmation_20260510_rerun2` passed.
+- `python -m reverse_agent.project_state status` reports:
+  - `reason: material_confirmation_inconclusive`
+  - missing `case_results` and `summary` from the timed-out harness run.
+
+5) 结论
+- Classification: `material_confirmation_inconclusive`
+- 3 个 diagnostic candidates 均 runtime-backed。
+- Observed hook counts:
+  - `producer_window_entry / 0x2312`: 3
+  - `producer_pre_material_call / 0x2338`: 3
+  - `producer_return_site / 0x233d`: 0
+  - `producer_pre_output_call / 0x234e`: 0
+  - `producer_pre_second_call / 0x2355`: 0
+- No confirmed material hook candidate:
+  - `confirmed_material_hook_candidate_count=0`
+  - `breakpoint_probe_allowed=false`
+- 当前 runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大搜索；不回 blind search；不 rerun Base64/RC4 breakpoint probe。
+- 使用本轮 negative evidence：`0x2338` 可达而 `0x233d/0x234e/0x2355` 不可达。
+- 下一步应对 `0x2338` call target / branch outcome 做更窄 instruction-level confirmation，或直接人工/静态检查 `0x401b50` 返回路径为什么未落到 `0x233d`。

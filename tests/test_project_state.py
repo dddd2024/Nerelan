@@ -544,6 +544,71 @@ def test_project_state_indexes_compare_producer_trace_probe_and_bottleneck(tmp_p
     assert any("producer trace" in item["direction"] for item in negative_results)
 
 
+def test_project_state_indexes_compare_producer_material_confirmation_and_bottleneck(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_material_confirmation")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_producer_trace_probe" / "compare_producer_trace_probe.json",
+        {
+            "artifact_kind": "compare_producer_trace_probe",
+            "classification": "upstream_material_candidate_found",
+            "candidate_material_count": 3,
+            "breakpoint_probe_allowed": False,
+        },
+    )
+    _write_json(
+        artifacts_dir / "compare_producer_material_confirmation.json",
+        {
+            "artifact_kind": "compare_producer_material_confirmation",
+            "classification": "material_confirmation_inconclusive",
+            "runtime_backed_count": 3,
+            "candidate_count": 3,
+            "instruction_confirmation_table": [
+                {
+                    "hook_name": "producer_return_site",
+                    "module_offset": "0x233d",
+                    "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+                    "observed_count": 3,
+                    "candidate_dependent_eax": True,
+                    "instruction_confirmed": True,
+                    "hookable": True,
+                }
+            ],
+            "material_source_trace": [
+                {
+                    "hook_name": "producer_return_site",
+                    "module_offset": "0x233d",
+                    "classification": "expected_candidate_material_seen",
+                }
+            ],
+            "confirmed_material_hook_candidate_count": 0,
+            "confirmed_material_hook_candidates": [],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "manually inspect producer offsets 0x2320, 0x2338, 0x234e, and 0x2355",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_producer_material_confirmation"].endswith(
+        "compare_producer_material_confirmation.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_producer_material_confirmation"
+    assert current_state["current_bottleneck"]["reason"] == "material_confirmation_inconclusive"
+    latest = current_state["latest_compare_producer_material_confirmation"]
+    assert latest["classification"] == "material_confirmation_inconclusive"
+    assert latest["runtime_backed_count"] == 3
+    assert latest["instruction_confirmation_table"][0]["hook_name"] == "producer_return_site"
+    assert latest["material_source_trace"][0]["module_offset"] == "0x233d"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert any("producer material confirmation" in item["direction"] for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

@@ -2,25 +2,25 @@
   "active_strategy": "CompareAwareSearchStrategy",
   "artifact_refs": {
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
-    "bridge_search_result": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_search_result.json",
-    "bridge_validation": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_validation\\bridge_validation.json",
+    "bridge_search_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_search_result.json",
+    "bridge_validation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
-    "compare_aware_result": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\frontier_refine_2\\samplereverse_compare_aware_result.json",
-    "compare_probe": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
-    "compare_producer_trace_probe": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
-    "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
-    "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
-    "frontier_summary": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_frontier_summary.json",
-    "guided_pool_result": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
-    "guided_pool_validation": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
-    "pairscan_summary": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\pairscan_summary.json",
-    "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\profile_transform_hypothesis_matrix.json",
-    "run_manifest": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\run_manifest.json",
-    "smt_result": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\smt\\samplereverse_compare_aware_smt_result.json",
-    "strata_summary": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
+    "compare_aware_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_refine_2\\samplereverse_compare_aware_result.json",
+    "compare_probe": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_producer_material_confirmation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
+    "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
+    "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
+    "frontier_summary": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_frontier_summary.json",
+    "guided_pool_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
+    "guided_pool_validation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
+    "pairscan_summary": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\pairscan_summary.json",
+    "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\profile_transform_hypothesis_matrix.json",
+    "run_manifest": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\run_manifest.json",
+    "smt_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\smt\\samplereverse_compare_aware_smt_result.json",
+    "strata_summary": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\tool_artifacts\\samplereverse_l15_exact4_sext_batch1\\summary.json",
-    "transform_trace_consistency": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
+    "transform_trace_consistency": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
   },
   "best_candidates": {
     "exact1": {
@@ -59,11 +59,11 @@
   },
   "current_bottleneck": {
     "confidence": "medium",
-    "reason": "upstream_material_candidate_found",
-    "stage": "compare_producer_trace_probe"
+    "reason": "material_confirmation_inconclusive",
+    "stage": "compare_producer_material_confirmation"
   },
   "current_mainline": "L15(prefix8)",
-  "generated_at": "2026-05-08T13:34:50Z",
+  "generated_at": "2026-05-10T07:58:27Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -232,332 +232,130 @@
   "latest_compare_handoff_probe": {},
   "latest_compare_handoff_return_site_probe": {},
   "latest_compare_handoff_slice_probe": {},
-  "latest_compare_producer_trace_probe": {
-    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
-    "best_material_candidates": [
-      {
-        "address": "0x35acd48",
-        "candidate_hex": "78d540b49c59077041414141414141",
-        "evidence": [
-          "captured in bounded producer context",
-          "not promoted to material hook without instruction-level evidence"
-        ],
-        "hookable": false,
-        "instruction_confirmed": false,
-        "kind": "unknown_buffer",
-        "preview_ascii": "..eQ.v.[../f .:. .x...@.....Y...p.A.A.A.A.A.A.A...Z......jW.......Z..yZ...Z.....",
-        "preview_hex": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c01590007017000410041004100410041004100410000005a0300000000146a57edd1f50000c0005a0388795a039ccd5a0300000000",
-        "preview_utf16le": "",
-        "size": 128,
-        "source_hook": "producer_return_site",
-        "source_register": "eax"
-      },
-      {
-        "address": "0x51d73c",
-        "candidate_hex": "78d540b49c59077041414141414141",
-        "evidence": [
-          "captured in bounded producer context",
-          "not promoted to material hook without instruction-level evidence"
-        ],
-        "hookable": false,
-        "instruction_confirmed": false,
-        "kind": "unknown_buffer",
-        "preview_ascii": "..M.<.Q...................O......PAVCResourceException@@......O......PAVCUserExc",
-        "preview_hex": "bc924d003cd7510000000000000000001600000000000000f8d24f00000000002e504156435265736f75726365457863657074696f6e404000000000f8d24f00000000002e5041564355736572457863",
-        "preview_utf16le": "",
-        "size": 128,
-        "source_hook": "producer_return_site",
-        "source_register": "esi"
-      },
-      {
-        "address": "0x37f8a8",
-        "candidate_hex": "78d540b49c59077041414141414141",
-        "evidence": [
-          "captured in bounded producer context",
-          "not promoted to material hook without instruction-level evidence"
-        ],
-        "hookable": false,
-        "instruction_confirmed": false,
-        "kind": "unknown_buffer",
-        "preview_ascii": "|.P..........................D....%...............M.@.M.........................",
-        "preview_hex": "7c1c5000010000000000000000000000000000000100000000000000c044a90096012500000000000000000000000000cc9e4d00409f4d0000000000ffffffffffffffff000000000000000000000000",
-        "preview_utf16le": "",
-        "size": 128,
-        "source_hook": "producer_return_site",
-        "source_register": "edi"
-      },
-      {
-        "address": "0x7774af81",
-        "candidate_hex": "78d540b49c59077041414141414141",
-        "evidence": [
-          "captured in bounded producer context",
-          "not promoted to material hook without instruction-level evidence"
-        ],
-        "hookable": false,
-        "instruction_confirmed": false,
-        "kind": "unknown_buffer",
-        "preview_ascii": "...M.d......Y_^[..]....u..}...t..(...............U.......D...~w3..D$@S.].V.u.W.}",
-        "preview_hex": "8bc68b4df064890d00000000595f5e5b8be55dc210008b75e48b7de085ff7405e8288fffffc3cccccccccccccccccc8bff558bec83e4f883ec44a1c4a47e7733c489442440538b5d10568b750c578b7d",
-        "preview_utf16le": "",
-        "size": 128,
-        "source_hook": "producer_return_site",
-        "source_register": "lhs_slot"
-      },
-      {
-        "address": "",
-        "candidate_hex": "78d540b49c59077041414141414141",
-        "evidence": [
-          "captured in bounded producer context",
-          "not promoted to material hook without instruction-level evidence"
-        ],
-        "hookable": false,
-        "instruction_confirmed": false,
-        "kind": "possible_base64_output",
-        "preview_ascii": "......O......PAVCResourceExcepti",
-        "preview_hex": "00000000f8d24f00000000002e504156435265736f7572636545786365707469",
-        "preview_utf16le": "",
-        "size": 32,
-        "source_hook": "module+0x253a",
-        "source_register": "eax"
-      },
-      {
-        "address": "",
-        "candidate_hex": "78d540b49c59077041414141414141",
-        "evidence": [
-          "captured in bounded producer context",
-          "not promoted to material hook without instruction-level evidence"
-        ],
-        "hookable": false,
-        "instruction_confirmed": false,
-        "kind": "unknown_buffer",
-        "preview_ascii": "f...o...........N....(*...l..k.v",
-        "preview_hex": "669e09956ff4b99dcaaef19c93b8c6d14ec183d5d3282aeb8b7f6c05186bcd76",
-        "preview_utf16le": "",
-        "size": 32,
-        "source_hook": "module+0x253a",
-        "source_register": "esi"
-      },
-      {
-        "address": "0x3fdcd48",
-        "candidate_hex": "78d540b49c59077040414141414141",
-        "evidence": [
-          "captured in bounded producer context",
-          "not promoted to material hook without instruction-level evidence"
-        ],
-        "hookable": false,
-        "instruction_confirmed": false,
-        "kind": "unknown_buffer",
-        "preview_ascii": "..eQ.v.[../f .:. .x...@.....Y...p.@.A.A.A.A.A.A............'q........y..........",
-        "preview_hex": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701700040004100410041004100410041000000fd0300000000d116b52771dd0000c000fd038879fd039ccdfd0300000000",
-        "preview_utf16le": "",
-        "size": 128,
-        "source_hook": "producer_return_site",
-        "source_register": "eax"
-      },
-      {
-        "address": "0x51d73c",
-        "candidate_hex": "78d540b49c59077040414141414141",
-        "evidence": [
-          "captured in bounded producer context",
-          "not promoted to material hook without instruction-level evidence"
-        ],
-        "hookable": false,
-        "instruction_confirmed": false,
-        "kind": "unknown_buffer",
-        "preview_ascii": "..M.<.Q...................O......PAVCResourceException@@......O......PAVCUserExc",
-        "preview_hex": "bc924d003cd7510000000000000000001600000000000000f8d24f00000000002e504156435265736f75726365457863657074696f6e404000000000f8d24f00000000002e5041564355736572457863",
-        "preview_utf16le": "",
-        "size": 128,
-        "source_hook": "producer_return_site",
-        "source_register": "esi"
-      }
-    ],
+  "latest_compare_producer_material_confirmation": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "breakpoint_probe_allowed": false,
     "candidate_count": 3,
-    "candidate_material_count": 18,
-    "classification": "upstream_material_candidate_found",
-    "cross_candidate_summary": {
-      "candidate_count": 3,
-      "candidate_dependent_fields": {
-        "compare_entry.arg0.preview_hex": false,
-        "compare_entry.arg0.value": false,
-        "compare_entry.arg1.preview_hex": false,
-        "compare_entry.arg1.value": false,
-        "compare_entry.caller_return_module_offset": false,
-        "producer.eax_preview_hex": true,
-        "producer.edi_preview_hex": false,
-        "producer.esi_preview_hex": false,
-        "producer.lhs_slot_preview_hex": false,
-        "static_call_site.arg0.preview_hex": false,
-        "static_call_site.arg1.preview_hex": false
+    "classification": "material_confirmation_inconclusive",
+    "confirmed_material_hook_candidate_count": 0,
+    "confirmed_material_hook_candidates": [],
+    "instruction_confirmation_table": [
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_window_entry",
+        "hookable": true,
+        "instruction": "sub eax, dword ptr [edx - 4]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2312",
+        "observed_count": 3
       },
-      "relation_counts": {
-        "compare_entry_arg0_is_flag_target": 0,
-        "compare_entry_arg1_is_flag_target": 0,
-        "pre_compare_esi_matches_compare_arg_ptr": 0,
-        "pre_store_eax_matches_compare_arg_ptr": 0,
-        "producer_eax_matches_compare_arg_ptr": 0,
-        "producer_eax_preview_matches_compare_arg": 0,
-        "producer_edi_matches_compare_arg_ptr": 0,
-        "producer_edi_preview_matches_compare_arg": 0,
-        "producer_esi_matches_compare_arg_ptr": 0,
-        "producer_esi_preview_matches_compare_arg": 0,
-        "producer_lhs_slot_matches_compare_arg_ptr": 0,
-        "producer_lhs_slot_preview_matches_compare_arg": 0
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_pre_transform_call",
+        "hookable": false,
+        "instruction": "call 0x4019e0",
+        "instruction_confirmed": true,
+        "module_offset": "0x2320",
+        "observed_count": 0
       },
-      "runtime_backed_count": 3,
-      "target_flag_side_counts": {
-        "call_arg0": 0,
-        "call_arg1": 0,
-        "entry_arg0": 0,
-        "entry_arg1": 0
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_post_transform_call",
+        "hookable": false,
+        "instruction": "mov edx, dword ptr [ebp - 0x1168]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2325",
+        "observed_count": 0
+      },
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_pre_material_call",
+        "hookable": true,
+        "instruction": "call 0x401b50",
+        "instruction_confirmed": true,
+        "module_offset": "0x2338",
+        "observed_count": 3
+      },
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_return_site",
+        "hookable": false,
+        "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+        "instruction_confirmed": true,
+        "module_offset": "0x233d",
+        "observed_count": 0
+      },
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_pre_candidate_push",
+        "hookable": false,
+        "instruction": "push edx",
+        "instruction_confirmed": true,
+        "module_offset": "0x2346",
+        "observed_count": 0
+      },
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_pre_output_call",
+        "hookable": false,
+        "instruction": "call 0x4018cd",
+        "instruction_confirmed": true,
+        "module_offset": "0x234e",
+        "observed_count": 0
+      },
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_post_output_call",
+        "hookable": false,
+        "instruction": "mov ecx, eax",
+        "instruction_confirmed": true,
+        "module_offset": "0x2353",
+        "observed_count": 0
+      },
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_pre_second_call",
+        "hookable": false,
+        "instruction": "call 0x401be3",
+        "instruction_confirmed": true,
+        "module_offset": "0x2355",
+        "observed_count": 0
+      },
+      {
+        "candidate_dependent_eax": false,
+        "candidate_previews": {},
+        "expected_eax_match_count": 0,
+        "hook_name": "producer_after_second_call",
+        "hookable": false,
+        "instruction": "push 2",
+        "instruction_confirmed": true,
+        "module_offset": "0x235a",
+        "observed_count": 0
       }
-    },
-    "hook_miss_classification": {
-      "classification": "control-flow skipped",
-      "missed_hooks": "post_handoff_lhs_reload, pre_compare_push_esi, wide_flag_prefix_compare"
-    },
-    "hook_results": {
-      "compare_call_args": "unavailable",
-      "compare_entry_args": "unavailable",
-      "compare_helper_entry": "unavailable",
-      "lhs_slot": "available",
-      "post_handoff_lhs_reload": "unavailable",
-      "pre_compare_push_esi": "unavailable",
-      "pre_handoff_call": "available",
-      "pre_lhs_slot_store": "available",
-      "producer_return_site": "available",
-      "wide_flag_prefix_compare": "unavailable"
-    },
-    "material_hook_candidate_count": 0,
-    "material_hook_candidates": [],
-    "next_bounded_action": "confirm the upstream material candidate at instruction level before enabling breakpoint capture",
-    "runtime_backed_count": 3,
-    "static_audit": {
-      "classification": "static_producer_trace_audit_complete",
-      "compare_window": {
-        "bytes_hex": "898590eeffff8d4d9c518d9590eeffff68441c550052c645fc02e8f7f5ffff8bb590eeffff8b4ef8b8010000002b46fc83c40c0bc87d136a008d8d90eeffffe862f4ffff8bb590eeffff6a05684c1c550056e81b031000",
-        "end_rva": "0x2591",
-        "start_rva": "0x253a"
-      },
-      "hook_point_audit": [
-        {
-          "address": "module+0x233d",
-          "boundary_status": "instruction_confirmed",
-          "module_offset": "0x233d",
-          "name": "producer_return_site",
-          "reason": "hook point is a bounded producer/compare audit target"
-        },
-        {
-          "address": "module+0x253a",
-          "boundary_status": "instruction_confirmed",
-          "module_offset": "0x253a",
-          "name": "pre_lhs_slot_store",
-          "reason": "hook point is a bounded producer/compare audit target"
-        },
-        {
-          "address": "module+0x2554",
-          "boundary_status": "instruction_confirmed",
-          "module_offset": "0x2554",
-          "name": "pre_handoff_call",
-          "reason": "hook point is a bounded producer/compare audit target"
-        },
-        {
-          "address": "module+0x2559",
-          "boundary_status": "instruction_confirmed",
-          "module_offset": "0x2559",
-          "name": "post_handoff_lhs_reload",
-          "reason": "hook point is a bounded producer/compare audit target"
-        },
-        {
-          "address": "module+0x258b",
-          "boundary_status": "instruction_confirmed",
-          "module_offset": "0x258b",
-          "name": "pre_compare_push_esi",
-          "reason": "hook point is a bounded producer/compare audit target"
-        },
-        {
-          "address": "module+0x258c",
-          "boundary_status": "instruction_confirmed",
-          "module_offset": "0x258c",
-          "name": "wide_flag_prefix_compare",
-          "reason": "hook point is a bounded producer/compare audit target"
-        },
-        {
-          "address": "module+0x1028ac",
-          "boundary_status": "instruction_confirmed",
-          "module_offset": "0x1028ac",
-          "name": "compare_helper_entry",
-          "reason": "hook point is a bounded producer/compare audit target"
-        }
-      ],
-      "instruction_boundaries": [
-        {
-          "bytes_hex": "8b",
-          "end_rva": "0x233e",
-          "instruction": "dynamic return site after observed 0x401b50 helper call",
-          "operation": "audit producer-side continuation after helper return",
-          "rva": "0x233d",
-          "size": 1
-        },
-        {
-          "bytes_hex": "898590eeffff",
-          "end_rva": "0x2540",
-          "instruction": "mov dword ptr [ebp - 0x1170], eax",
-          "operation": "store candidate output pointer into [ebp-0x1170]",
-          "rva": "0x253a",
-          "size": 6
-        },
-        {
-          "bytes_hex": "e8f7f5ffff",
-          "end_rva": "0x2559",
-          "instruction": "call 0x401b50",
-          "operation": "previously suspected handoff helper",
-          "rva": "0x2554",
-          "size": 5
-        },
-        {
-          "bytes_hex": "8bb590eeffff",
-          "end_rva": "0x255f",
-          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
-          "operation": "reload compare lhs pointer from [ebp-0x1170]",
-          "rva": "0x2559",
-          "size": 6
-        },
-        {
-          "bytes_hex": "56",
-          "end_rva": "0x258c",
-          "instruction": "push esi",
-          "operation": "push compare lhs pointer",
-          "rva": "0x258b",
-          "size": 1
-        },
-        {
-          "bytes_hex": "e81b031000",
-          "end_rva": "0x2591",
-          "instruction": "call 0x5028ac",
-          "operation": "static wide compare call site",
-          "rva": "0x258c",
-          "size": 5
-        },
-        {
-          "bytes_hex": "8b",
-          "end_rva": "0x1028ad",
-          "instruction": "case-insensitive wide compare helper entry",
-          "operation": "actual compare helper entry hook target",
-          "rva": "0x1028ac",
-          "size": 1
-        }
-      ],
-      "producer_window": {
-        "bytes_hex": "00002b42fc0bc87d12538d8d98eeffffe8bbf6ffff8b9598eeffff528d8d94eeffff68081c550051e813f8ffff8b9594eeffff83c40c5268ea0300008bcfe87af500008bc8e889f600006a0268201c55008d8d94ee",
-        "end_rva": "0x2365",
-        "start_rva": "0x2310"
-      }
-    },
-    "write_source_trace": [],
-    "write_source_trace_count": 0
+    ],
+    "material_source_trace": [],
+    "next_bounded_action": "manually inspect producer offsets 0x2320, 0x2338, 0x234e, and 0x2355 before expanding search",
+    "runtime_backed_count": 3
   },
+  "latest_compare_producer_trace_probe": {},
   "latest_compare_stack_pivot_probe": {},
   "latest_dynamic_compare_path_probe": {},
   "latest_pre_rc4_material_probe": {},
@@ -719,7 +517,7 @@
     "next_bounded_action": "use compare-producer hook evidence to narrow manual Base64/RC4 disassembly before rerunning breakpoint probe"
   },
   "latest_transform_trace_consistency": {
-    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_producer_backtrace_20260508\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json",
+    "artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json",
     "candidate_count": 5,
     "classification": "evidence_insufficient",
     "next_bounded_action": "capture pre-RC4/Base64 runtime buffers with a bounded dynamic probe",

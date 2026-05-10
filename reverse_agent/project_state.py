@@ -27,6 +27,7 @@ IMPORTANT_ARTIFACTS = {
     "compare_handoff_slice_probe": "compare_handoff_slice_probe.json",
     "compare_handoff_return_site_probe": "compare_handoff_return_site_probe.json",
     "compare_producer_trace_probe": "compare_producer_trace_probe.json",
+    "compare_producer_material_confirmation": "compare_producer_material_confirmation.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -59,6 +60,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_handoff_slice_probe",
     "compare_handoff_return_site_probe",
     "compare_producer_trace_probe",
+    "compare_producer_material_confirmation",
 }
 
 STATE_JSON_NAMES = (
@@ -430,6 +432,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_handoff_slice_probe = _read_json(artifact_refs.get("compare_handoff_slice_probe"))
     compare_handoff_return_site_probe = _read_json(artifact_refs.get("compare_handoff_return_site_probe"))
     compare_producer_trace_probe = _read_json(artifact_refs.get("compare_producer_trace_probe"))
+    compare_producer_material_confirmation = _read_json(
+        artifact_refs.get("compare_producer_material_confirmation")
+    )
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -510,6 +515,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if compare_producer_trace_classification:
         stage = "compare_producer_trace_probe"
         reason = compare_producer_trace_classification
+    material_confirmation_classification = str(
+        compare_producer_material_confirmation.get("classification") or ""
+    ).strip()
+    if material_confirmation_classification:
+        stage = "compare_producer_material_confirmation"
+        reason = material_confirmation_classification
     if pre_rc4_classification and compare_producer_trace_classification in {
         "producer_trace_inconclusive",
         "needs_pre_rc4_base64_probe",
@@ -519,7 +530,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     }:
         stage = "pre_rc4_material_probe"
         reason = pre_rc4_classification
-    if static_discovery_classification and not compare_producer_trace_classification and (
+    if static_discovery_classification and not compare_producer_trace_classification and not material_confirmation_classification and (
         not breakpoint_classification
         or breakpoint_classification
         in {
@@ -708,6 +719,32 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": compare_producer_trace_probe.get("next_bounded_action"),
         }
         if compare_producer_trace_probe
+        else {},
+        "latest_compare_producer_material_confirmation": {
+            "classification": material_confirmation_classification or None,
+            "artifact": artifact_refs.get("compare_producer_material_confirmation"),
+            "runtime_backed_count": compare_producer_material_confirmation.get("runtime_backed_count"),
+            "candidate_count": compare_producer_material_confirmation.get("candidate_count"),
+            "instruction_confirmation_table": compare_producer_material_confirmation.get(
+                "instruction_confirmation_table", []
+            )[:10]
+            if isinstance(compare_producer_material_confirmation.get("instruction_confirmation_table"), list)
+            else [],
+            "material_source_trace": compare_producer_material_confirmation.get("material_source_trace", [])[:8]
+            if isinstance(compare_producer_material_confirmation.get("material_source_trace"), list)
+            else [],
+            "confirmed_material_hook_candidate_count": compare_producer_material_confirmation.get(
+                "confirmed_material_hook_candidate_count"
+            ),
+            "confirmed_material_hook_candidates": compare_producer_material_confirmation.get(
+                "confirmed_material_hook_candidates", []
+            )[:8]
+            if isinstance(compare_producer_material_confirmation.get("confirmed_material_hook_candidates"), list)
+            else [],
+            "breakpoint_probe_allowed": compare_producer_material_confirmation.get("breakpoint_probe_allowed"),
+            "next_bounded_action": compare_producer_material_confirmation.get("next_bounded_action"),
+        }
+        if compare_producer_material_confirmation
         else {},
         "uncertainty": sorted(set(uncertainty)),
         "artifact_refs": artifact_refs,
@@ -1002,6 +1039,40 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "reason": (
                     "the producer trace produced a compare-side dataflow classification; "
                     "next work should use that evidence rather than rerunning the same probe"
+                ),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    material_confirmation = _read_json(artifacts.get("compare_producer_material_confirmation"))
+    material_confirmation_classification = str(material_confirmation.get("classification") or "").strip()
+    if material_confirmation_classification == "material_confirmation_inconclusive":
+        results.append(
+            {
+                "direction": "repeat producer material confirmation without adding instruction-level evidence",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "the producer material confirmation remained inconclusive; next work should inspect the "
+                    "reported producer offsets or add a more specific hook before repeating it"
+                ),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    elif material_confirmation_classification in {
+        "breakpoint_probe_ready",
+        "base64_material_captured",
+        "rc4_material_captured",
+    }:
+        results.append(
+            {
+                "direction": "rerun Base64/RC4 breakpoint probe without using confirmed material hooks",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "producer material confirmation found instruction-confirmed hooks; the next runtime probe "
+                    "must consume those hooks instead of falling back to old static points"
                 ),
                 "override_allowed": True,
                 "override_reason_required": True,

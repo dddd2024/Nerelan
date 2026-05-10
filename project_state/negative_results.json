@@ -64,11 +64,11 @@
     "severity": "soft_block"
   },
   {
-    "direction": "repeat compare producer trace without using its classification",
+    "direction": "repeat producer material confirmation without adding instruction-level evidence",
     "do_not_repeat": true,
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "the producer trace produced a compare-side dataflow classification; next work should use that evidence rather than rerunning the same probe",
+    "reason": "the producer material confirmation remained inconclusive; next work should inspect the reported producer offsets or add a more specific hook before repeating it",
     "severity": "soft_block"
   }
 ]

@@ -16,6 +16,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_PROBE_FILE_NAME,
     COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME,
     COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME,
+    COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME,
     COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME,
     COMPARE_STACK_PIVOT_PROBE_FILE_NAME,
     CompareAwareSearchStrategy,
@@ -61,6 +62,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_probe,
     run_compare_handoff_return_site_probe,
     run_compare_handoff_slice_probe,
+    run_compare_producer_material_confirmation_probe,
     run_compare_producer_trace_probe,
     run_compare_stack_pivot_probe,
     run_dynamic_compare_path_probe,
@@ -794,11 +796,12 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
         "base64_rc4_breakpoint_probe",
         "compare_stack_pivot_probe",
         "compare_handoff_probe",
-        "compare_handoff_slice_probe",
-        "compare_handoff_return_site_probe",
-        "compare_producer_trace_probe",
-        "h1_h3_boundary_validation",
-    }
+            "compare_handoff_slice_probe",
+            "compare_handoff_return_site_probe",
+            "compare_producer_trace_probe",
+            "compare_producer_material_confirmation",
+            "h1_h3_boundary_validation",
+        }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
     assert result.metadata["transform_trace_consistency"]["payload"]["classification"] in {
         "transform_model_confirmed",
@@ -4318,6 +4321,111 @@ def _fake_compare_producer_trace_material_hook_subprocess_run(*args, **kwargs): 
     return proc
 
 
+def _fake_material_confirmation_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    expected_preview = command[command.index("--expected-eax-preview") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} >= {
+        "producer_pre_material_call",
+        "producer_return_site",
+        "producer_pre_output_call",
+    }
+    first_preview = expected_preview or (
+        "938f65518476c65ba5942f6620003a0020007800d5014000"
+        if candidate_hex.startswith("78d540")
+        else "938f65518476c65ba5942f6620003a0020005a003e007f01"
+    )
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "material confirmation ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "hook_name": "producer_pre_material_call",
+                        "module_offset": "0x2338",
+                        "instruction": "call 0x401b50",
+                        "registers": {"eax": "0x10", "ecx": "0x20", "edx": "0x30"},
+                        "eax_ptr": "0x10",
+                        "eax_preview_hex": "aa" * 16,
+                        "ecx_ptr": "0x20",
+                        "ecx_preview_hex": "bb" * 16,
+                        "edx_ptr": "0x30",
+                        "edx_preview_hex": "cc" * 16,
+                        "expected_eax_preview_hex": expected_preview,
+                        "matched_expected_eax": False,
+                    },
+                    {
+                        "hook_name": "producer_return_site",
+                        "module_offset": "0x233d",
+                        "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+                        "registers": {"eax": "0x40", "ecx": "0x20", "edx": "0x30"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": first_preview,
+                        "ecx_ptr": "0x20",
+                        "ecx_preview_hex": "bb" * 16,
+                        "edx_ptr": "0x30",
+                        "edx_preview_hex": "cc" * 16,
+                        "expected_eax_preview_hex": expected_preview,
+                        "matched_expected_eax": bool(expected_preview),
+                    },
+                    {
+                        "hook_name": "producer_pre_output_call",
+                        "module_offset": "0x234e",
+                        "instruction": "call 0x4018cd",
+                        "registers": {"eax": "0x40", "ecx": "0x50", "edx": "0x40"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": first_preview,
+                        "ecx_ptr": "0x50",
+                        "ecx_preview_hex": "dd" * 16,
+                        "edx_ptr": "0x40",
+                        "edx_preview_hex": first_preview,
+                        "expected_eax_preview_hex": expected_preview,
+                        "matched_expected_eax": bool(expected_preview),
+                    },
+                ],
+                "confirmed_material_hook_candidates": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
+def _fake_material_confirmation_ready_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    proc = _fake_material_confirmation_subprocess_run(*args, **kwargs)
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    payload = json.loads(out_path.read_text(encoding="utf-8"))
+    payload["confirmed_material_hook_candidates"] = [
+        {
+            "kind": "base64_output",
+            "name": "producer_confirmed_base64_output",
+            "module_offset": "0x234e",
+            "rva": "0x234e",
+            "address": "module+0x234e",
+            "instruction": "call 0x4018cd",
+            "hook_kind": "interceptor",
+            "hookable": True,
+            "instruction_confirmed": True,
+            "preview_hex": "516c5a735245526b6844307848413d3d",
+            "evidence": ["material confirmation linked producer EAX to Base64 output"],
+        }
+    ]
+    out_path.write_text(json.dumps(payload), encoding="utf-8")
+    return proc
+
+
 def test_base64_rc4_static_point_discovery_records_schema_and_blocks_unconfirmed_points(
     tmp_path: Path,
     monkeypatch,
@@ -4957,6 +5065,143 @@ def test_compare_producer_trace_probe_promotes_only_instruction_confirmed_materi
     assert payload["material_hook_candidate_count"] == 3
     assert payload["material_hook_candidates"][0]["kind"] == "base64_output"
     assert payload["promotable_validations"] == []
+
+
+def _upstream_material_producer_trace_payload() -> dict[str, object]:
+    return {
+        "artifact_kind": "compare_producer_trace_probe",
+        "classification": "upstream_material_candidate_found",
+        "candidate_material_count": 3,
+        "breakpoint_probe_allowed": False,
+        "candidate_results": [
+            {
+                "candidate_hex": "78d540b49c59077041414141414141",
+                "producer_trace_map": {
+                    "producer_return_site": {
+                        "eax_preview_hex": "938f65518476c65ba5942f6620003a0020007800d5014000"
+                    }
+                },
+            },
+            {
+                "candidate_hex": "78d540b49c59077040414141414141",
+                "producer_trace_map": {
+                    "producer_return_site": {
+                        "eax_preview_hex": "938f65518476c65ba5942f6620003a0020007800d5014001"
+                    }
+                },
+            },
+            {
+                "candidate_hex": "5a3e7f46ddd474d041414141414141",
+                "producer_trace_map": {
+                    "producer_return_site": {
+                        "eax_preview_hex": "938f65518476c65ba5942f6620003a0020005a003e007f01"
+                    }
+                },
+            },
+        ],
+    }
+
+
+def test_compare_producer_material_confirmation_records_schema_and_blocks_without_confirmed_hook(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_material_confirmation_subprocess_run)
+
+    result = run_compare_producer_material_confirmation_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_producer_material_confirmation",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        producer_trace_payload=_upstream_material_producer_trace_payload(),
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME
+    assert payload["artifact_kind"] == "compare_producer_material_confirmation"
+    assert payload["candidate_count"] == 3
+    assert payload["candidate_limit"] == 3
+    assert payload["classification"] == "material_confirmation_inconclusive"
+    assert payload["runtime_backed_count"] == 3
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["confirmed_material_hook_candidates"] == []
+    assert payload["instruction_confirmation_table"][0]["instruction_confirmed"] is True
+    assert payload["material_source_trace"]
+    assert payload["promotable_validations"] == []
+
+
+def test_compare_producer_material_confirmation_does_not_expand_search_or_promote(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_material_confirmation_subprocess_run)
+
+    result = run_compare_producer_material_confirmation_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_producer_material_confirmation",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        producer_trace_payload=_upstream_material_producer_trace_payload(),
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    assert payload["final_selection_changed"] is False
+    assert payload["search_budget_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+    assert payload["promotable_validations"] == []
+    assert result["promotable_validations"] == []
+
+
+def test_compare_producer_material_confirmation_allows_breakpoint_only_after_confirmed_hook(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_material_confirmation_ready_subprocess_run)
+
+    result = run_compare_producer_material_confirmation_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_producer_material_confirmation",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        producer_trace_payload=_upstream_material_producer_trace_payload(),
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "base64_material_captured"
+    assert payload["breakpoint_probe_allowed"] is True
+    assert compare_aware_search._producer_material_confirmation_allows_breakpoint(payload) is True
+    points = compare_aware_search._breakpoint_static_points_from_material_confirmation_payload(payload)
+    assert points["base64_output"][0]["module_offset"] == 0x234E
+
+
+def test_upstream_producer_trace_triggers_material_confirmation_not_pre_rc4(monkeypatch) -> None:
+    payload = _upstream_material_producer_trace_payload()
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {
+            "latest_compare_producer_trace_probe": payload,
+            "latest_compare_producer_material_confirmation": {},
+            "latest_pre_rc4_material_probe": {},
+        }
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", lambda kind: ({}, None))
+
+    assert compare_aware_search._prior_compare_producer_trace_needs_material_confirmation() is True
+    assert compare_aware_search._prior_compare_producer_trace_needs_pre_rc4_fallback() is False
 
 
 def test_h1_h3_boundary_validation_runtime_validates_fixed_contrast_set(

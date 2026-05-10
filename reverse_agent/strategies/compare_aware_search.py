@@ -50,6 +50,7 @@ COMPARE_HANDOFF_PROBE_FILE_NAME = "compare_handoff_probe.json"
 COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME = "compare_handoff_slice_probe.json"
 COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME = "compare_handoff_return_site_probe.json"
 COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME = "compare_producer_trace_probe.json"
+COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME = "compare_producer_material_confirmation.json"
 
 DEFAULT_ANCHORS = (
     "78d540b49c590770",
@@ -187,6 +188,7 @@ COMPARE_HANDOFF_PROBE_CANDIDATES = COMPARE_STACK_PIVOT_PROBE_CANDIDATES
 COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES = COMPARE_HANDOFF_PROBE_CANDIDATES
 COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES = COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES
 COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES = COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES
+COMPARE_PRODUCER_MATERIAL_CONFIRMATION_CANDIDATES = COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES
 PAIR_TAIL_FLAGLIKE_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_{}-")
 BASE64_RC4_BREAKPOINT_READY_KINDS = {"base64_output", "rc4_input", "rc4_output", "rc4_key", "utf16le_payload"}
 
@@ -232,6 +234,10 @@ def _compare_handoff_return_site_probe_script_path() -> Path:
 
 def _compare_producer_trace_probe_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_producer_trace_probe.py"
+
+
+def _compare_producer_material_confirmation_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_producer_material_confirmation.py"
 
 
 def _tool_source_path(tool_name: str) -> Path:
@@ -3575,6 +3581,25 @@ def _compare_producer_trace_needs_material_capture(payload: dict[str, object]) -
     return "material capture" in next_action or "pre-rc4" in next_action or "base64" in next_action or "rc4" in next_action
 
 
+def _compare_producer_trace_needs_pre_rc4_fallback(payload: dict[str, object]) -> bool:
+    classification = str(payload.get("classification", "")).strip()
+    if classification == "upstream_material_candidate_found":
+        return False
+    return _compare_producer_trace_needs_material_capture(payload)
+
+
+def _prior_compare_producer_trace_needs_pre_rc4_fallback() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest_pre_rc4 = current_state.get("latest_pre_rc4_material_probe", {})
+    if isinstance(latest_pre_rc4, dict) and str(latest_pre_rc4.get("classification", "")).strip():
+        return False
+    latest_producer = current_state.get("latest_compare_producer_trace_probe", {})
+    if isinstance(latest_producer, dict) and _compare_producer_trace_needs_pre_rc4_fallback(latest_producer):
+        return True
+    payload, _ = _indexed_artifact_payload("compare_producer_trace_probe")
+    return _compare_producer_trace_needs_pre_rc4_fallback(payload)
+
+
 def _prior_compare_producer_trace_needs_material_capture() -> bool:
     current_state = _project_state_json("current_state.json")
     latest_pre_rc4 = current_state.get("latest_pre_rc4_material_probe", {})
@@ -3585,6 +3610,86 @@ def _prior_compare_producer_trace_needs_material_capture() -> bool:
         return True
     payload, _ = _indexed_artifact_payload("compare_producer_trace_probe")
     return _compare_producer_trace_needs_material_capture(payload)
+
+
+def _compare_producer_trace_needs_material_confirmation(payload: dict[str, object]) -> bool:
+    if str(payload.get("classification", "")).strip() != "upstream_material_candidate_found":
+        return False
+    if bool(payload.get("breakpoint_probe_allowed")):
+        return False
+    return int(payload.get("candidate_material_count", 0) or 0) > 0
+
+
+def _prior_compare_producer_trace_needs_material_confirmation() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest_confirmation = current_state.get("latest_compare_producer_material_confirmation", {})
+    if isinstance(latest_confirmation, dict) and str(latest_confirmation.get("classification", "")).strip():
+        return False
+    latest_producer = current_state.get("latest_compare_producer_trace_probe", {})
+    if isinstance(latest_producer, dict) and _compare_producer_trace_needs_material_confirmation(latest_producer):
+        return True
+    payload, _ = _indexed_artifact_payload("compare_producer_trace_probe")
+    return _compare_producer_trace_needs_material_confirmation(payload)
+
+
+def _producer_material_confirmation_allows_breakpoint(payload: dict[str, object]) -> bool:
+    if str(payload.get("classification", "")).strip() not in {
+        "breakpoint_probe_ready",
+        "base64_material_captured",
+        "rc4_material_captured",
+    }:
+        return False
+    if not bool(payload.get("breakpoint_probe_allowed")):
+        return False
+    points = payload.get("confirmed_material_hook_candidates", [])
+    if not isinstance(points, list):
+        return False
+    return any(
+        isinstance(point, dict)
+        and str(point.get("kind", "")).strip() in BASE64_RC4_BREAKPOINT_READY_KINDS
+        and bool(point.get("hookable"))
+        and bool(point.get("instruction_confirmed"))
+        for point in points
+    )
+
+
+def _prior_producer_material_confirmation_allows_breakpoint() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_compare_producer_material_confirmation", {})
+    if isinstance(latest, dict) and _producer_material_confirmation_allows_breakpoint(latest):
+        return True
+    payload, _ = _indexed_artifact_payload("compare_producer_material_confirmation")
+    return _producer_material_confirmation_allows_breakpoint(payload)
+
+
+def _breakpoint_static_points_from_material_confirmation_payload(
+    payload: dict[str, object],
+) -> dict[str, list[dict[str, object]]]:
+    if not _producer_material_confirmation_allows_breakpoint(payload):
+        return {}
+    out: dict[str, list[dict[str, object]]] = {}
+    points = payload.get("confirmed_material_hook_candidates", [])
+    if not isinstance(points, list):
+        return {}
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        kind = str(point.get("kind", "")).strip()
+        if kind not in BASE64_RC4_BREAKPOINT_READY_KINDS:
+            continue
+        module_offset = _static_point_module_offset(point.get("module_offset"))
+        if module_offset is None:
+            continue
+        out.setdefault(kind, []).append(
+            {
+                **point,
+                "hook_kind": str(point.get("hook_kind", "interceptor") or "interceptor"),
+                "module_offset": module_offset,
+                "rva": f"0x{module_offset:x}",
+                "hookable": True,
+            }
+        )
+    return out
 
 
 def _profile_audit_candidate_record(
@@ -8245,6 +8350,410 @@ def run_compare_producer_trace_probe(
     _write_json(result_path, payload)
     if log:
         log(f"Compare producer trace probe wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
+        "promotable_validations": [],
+    }
+
+
+def _material_confirmation_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "producer_window_entry",
+            "module_offset": 0x2312,
+            "address": "module+0x2312",
+            "instruction": "sub eax, dword ptr [edx - 4]",
+            "reason": "first instruction-aligned point in bounded producer window",
+        },
+        {
+            "name": "producer_pre_transform_call",
+            "module_offset": 0x2320,
+            "address": "module+0x2320",
+            "instruction": "call 0x4019e0",
+            "reason": "captures first upstream helper call inputs",
+        },
+        {
+            "name": "producer_post_transform_call",
+            "module_offset": 0x2325,
+            "address": "module+0x2325",
+            "instruction": "mov edx, dword ptr [ebp - 0x1168]",
+            "reason": "captures first helper output slot",
+        },
+        {
+            "name": "producer_pre_material_call",
+            "module_offset": 0x2338,
+            "address": "module+0x2338",
+            "instruction": "call 0x401b50",
+            "reason": "captures candidate-material handoff call inputs",
+        },
+        {
+            "name": "producer_return_site",
+            "module_offset": 0x233D,
+            "address": "module+0x233d",
+            "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+            "reason": "captures the candidate-dependent EAX buffer already observed by producer trace",
+        },
+        {
+            "name": "producer_pre_candidate_push",
+            "module_offset": 0x2346,
+            "address": "module+0x2346",
+            "instruction": "push edx",
+            "reason": "captures the material pointer before the next producer call consumes it",
+        },
+        {
+            "name": "producer_pre_output_call",
+            "module_offset": 0x234E,
+            "address": "module+0x234e",
+            "instruction": "call 0x4018cd",
+            "reason": "captures downstream producer call using the candidate material pointer",
+        },
+        {
+            "name": "producer_post_output_call",
+            "module_offset": 0x2353,
+            "address": "module+0x2353",
+            "instruction": "mov ecx, eax",
+            "reason": "captures downstream producer call output",
+        },
+        {
+            "name": "producer_pre_second_call",
+            "module_offset": 0x2355,
+            "address": "module+0x2355",
+            "instruction": "call 0x401be3",
+            "reason": "captures final bounded producer call inputs",
+        },
+        {
+            "name": "producer_after_second_call",
+            "module_offset": 0x235A,
+            "address": "module+0x235a",
+            "instruction": "push 2",
+            "reason": "captures final bounded producer call output",
+        },
+    ]
+
+
+def _latest_compare_producer_trace_payload() -> dict[str, object]:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_compare_producer_trace_probe", {})
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
+        payload, _ = _indexed_artifact_payload("compare_producer_trace_probe")
+        if payload:
+            return payload
+    payload, _ = _indexed_artifact_payload("compare_producer_trace_probe")
+    return payload
+
+
+def _producer_trace_expected_eax_previews(producer_trace_payload: dict[str, object]) -> dict[str, str]:
+    previews: dict[str, str] = {}
+    candidate_results = producer_trace_payload.get("candidate_results", [])
+    if isinstance(candidate_results, list):
+        for result in candidate_results:
+            if not isinstance(result, dict):
+                continue
+            candidate_hex = str(result.get("candidate_hex", "")).strip().lower()
+            trace_map = result.get("producer_trace_map", {})
+            if not candidate_hex or not isinstance(trace_map, dict):
+                continue
+            producer = trace_map.get("producer_return_site", {})
+            if isinstance(producer, dict):
+                preview = str(producer.get("eax_preview_hex", "")).strip().lower()
+                if preview:
+                    previews[candidate_hex] = preview
+    materials = producer_trace_payload.get("candidate_materials", [])
+    if isinstance(materials, list):
+        for item in materials:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("source_hook", "")) != "producer_return_site":
+                continue
+            if str(item.get("source_register", "")) != "eax":
+                continue
+            candidate_hex = str(item.get("candidate_hex", "")).strip().lower()
+            preview = str(item.get("preview_hex", "")).strip().lower()
+            if candidate_hex and preview and candidate_hex not in previews:
+                previews[candidate_hex] = preview
+    return previews
+
+
+def _normalize_material_confirmation_observation(item: dict[str, object], candidate_hex: str) -> dict[str, object]:
+    return {
+        "candidate_hex": candidate_hex,
+        "hook_name": str(item.get("hook_name", "")),
+        "address": str(item.get("address", "")),
+        "module_offset": str(item.get("module_offset", "")),
+        "instruction": str(item.get("instruction", "")),
+        "registers": dict(item.get("registers", {})) if isinstance(item.get("registers"), dict) else {},
+        "stack_words": list(item.get("stack_words", [])) if isinstance(item.get("stack_words"), list) else [],
+        "frame_slots": list(item.get("frame_slots", [])) if isinstance(item.get("frame_slots"), list) else [],
+        "eax_ptr": str(item.get("eax_ptr", "")),
+        "eax_preview_hex": str(item.get("eax_preview_hex", "")),
+        "ecx_ptr": str(item.get("ecx_ptr", "")),
+        "ecx_preview_hex": str(item.get("ecx_preview_hex", "")),
+        "edx_ptr": str(item.get("edx_ptr", "")),
+        "edx_preview_hex": str(item.get("edx_preview_hex", "")),
+        "esi_ptr": str(item.get("esi_ptr", "")),
+        "esi_preview_hex": str(item.get("esi_preview_hex", "")),
+        "edi_ptr": str(item.get("edi_ptr", "")),
+        "edi_preview_hex": str(item.get("edi_preview_hex", "")),
+        "matched_expected_eax": bool(item.get("matched_expected_eax")),
+        "expected_eax_preview_hex": str(item.get("expected_eax_preview_hex", "")),
+    }
+
+
+def _confirmation_observation_preview(item: dict[str, object], register: str) -> str:
+    return str(item.get(f"{register}_preview_hex", "")).strip().lower()
+
+
+def _material_confirmation_table(
+    candidate_results: Sequence[dict[str, object]],
+    hook_points: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for point in hook_points:
+        name = str(point.get("name", ""))
+        previews_by_candidate: dict[str, str] = {}
+        matched_count = 0
+        observed_count = 0
+        for result in candidate_results:
+            candidate_hex = str(result.get("candidate_hex", ""))
+            observations = [
+                item
+                for item in result.get("hook_observations", [])
+                if isinstance(item, dict) and str(item.get("hook_name", "")) == name
+            ]
+            if not observations:
+                continue
+            observed_count += 1
+            observation = observations[0]
+            preview = _confirmation_observation_preview(observation, "eax")
+            if preview:
+                previews_by_candidate[candidate_hex] = preview[:64]
+            if bool(observation.get("matched_expected_eax")):
+                matched_count += 1
+        rows.append(
+            {
+                "hook_name": name,
+                "module_offset": f"0x{int(point.get('module_offset', 0) or 0):x}",
+                "instruction": str(point.get("instruction", "")),
+                "observed_count": observed_count,
+                "candidate_dependent_eax": len({value for value in previews_by_candidate.values() if value}) > 1,
+                "expected_eax_match_count": matched_count,
+                "instruction_confirmed": True,
+                "hookable": observed_count > 0,
+                "candidate_previews": previews_by_candidate,
+            }
+        )
+    return rows
+
+
+def _material_source_trace_from_table(table: Sequence[dict[str, object]]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for item in table:
+        if int(item.get("observed_count", 0) or 0) <= 0:
+            continue
+        if not bool(item.get("candidate_dependent_eax")) and int(item.get("expected_eax_match_count", 0) or 0) <= 0:
+            continue
+        rows.append(
+            {
+                "hook_name": item.get("hook_name", ""),
+                "module_offset": item.get("module_offset", ""),
+                "instruction": item.get("instruction", ""),
+                "classification": (
+                    "expected_candidate_material_seen"
+                    if int(item.get("expected_eax_match_count", 0) or 0) > 0
+                    else "candidate_dependent_context"
+                ),
+            }
+        )
+    return rows[:16]
+
+
+def _confirmation_material_hook_candidates(
+    candidate_results: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    out: list[dict[str, object]] = []
+    seen: set[tuple[str, str]] = set()
+    for result in candidate_results:
+        candidates = result.get("confirmed_material_hook_candidates", [])
+        if not isinstance(candidates, list):
+            continue
+        for item in candidates:
+            if not isinstance(item, dict):
+                continue
+            kind = str(item.get("kind", ""))
+            module_offset = str(item.get("module_offset", ""))
+            key = (kind, module_offset)
+            if kind not in BASE64_RC4_BREAKPOINT_READY_KINDS or key in seen:
+                continue
+            if not bool(item.get("hookable")) or not bool(item.get("instruction_confirmed")):
+                continue
+            seen.add(key)
+            out.append(dict(item))
+    return out[:16]
+
+
+def _classify_material_confirmation(
+    *,
+    runtime_backed_count: int,
+    confirmed_material_hook_candidates: Sequence[dict[str, object]],
+    material_source_trace: Sequence[dict[str, object]],
+) -> str:
+    if runtime_backed_count <= 0:
+        return "material_confirmation_runtime_failure"
+    kinds = {str(item.get("kind", "")) for item in confirmed_material_hook_candidates}
+    if kinds & {"rc4_input", "rc4_output", "rc4_key"}:
+        return "rc4_material_captured"
+    if kinds & {"base64_output"}:
+        return "base64_material_captured"
+    if kinds & BASE64_RC4_BREAKPOINT_READY_KINDS:
+        return "breakpoint_probe_ready"
+    if material_source_trace:
+        return "material_confirmation_inconclusive"
+    return "material_confirmation_inconclusive"
+
+
+def run_compare_producer_material_confirmation_probe(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel,
+    per_probe_timeout: float,
+    producer_trace_payload: dict[str, object] | None = None,
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME
+    script_path = _compare_producer_material_confirmation_script_path()
+    producer_trace_payload = producer_trace_payload or _latest_compare_producer_trace_payload()
+    expected_previews = _producer_trace_expected_eax_previews(producer_trace_payload)
+    hook_points = _material_confirmation_hook_points()
+    entries = list(COMPARE_PRODUCER_MATERIAL_CONFIRMATION_CANDIDATES)
+    payload: dict[str, object] = {
+        "artifact_kind": "compare_producer_material_confirmation",
+        "profile": "samplereverse",
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(entries),
+        "candidate_limit": len(COMPARE_PRODUCER_MATERIAL_CONFIRMATION_CANDIDATES),
+        "source_producer_trace_classification": producer_trace_payload.get("classification", ""),
+        "source_producer_trace_artifact_kind": producer_trace_payload.get("artifact_kind", ""),
+        "hook_points": hook_points,
+        "expected_eax_previews": expected_previews,
+        "instruction_confirmation_table": [],
+        "material_source_trace": [],
+        "confirmed_material_hook_candidates": [],
+        "breakpoint_probe_allowed": False,
+        "promotable_validations": [],
+    }
+    _write_json(result_path, payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Compare producer material confirmation script missing: {script_path}")
+
+    points_path = artifacts_dir / "material_confirmation_hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        compare_out = candidate_dir / "compare_producer_material_confirmation.json"
+        compare_log = candidate_dir / "compare_producer_material_confirmation.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(compare_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            expected_previews.get(candidate_hex, ""),
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"CompareProducerMaterialConfirmation scripted hooks {idx}: {candidate_hex}")
+        proc = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        compare_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        observations = [
+            _normalize_material_confirmation_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        candidate_results.append(
+            {
+                "label": f"compare_producer_material_confirmation_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_observations": observations[:96],
+                "confirmed_material_hook_candidates": list(compare_payload.get("confirmed_material_hook_candidates", []))
+                if isinstance(compare_payload.get("confirmed_material_hook_candidates"), list)
+                else [],
+                "instruction_confirmation_table": list(compare_payload.get("instruction_confirmation_table", []))
+                if isinstance(compare_payload.get("instruction_confirmation_table"), list)
+                else [],
+                "result_path": str(compare_out),
+                "log_path": str(compare_log),
+                "success": bool(compare_payload.get("success")),
+                "error": str(compare_payload.get("error", "")),
+            }
+        )
+
+    runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
+    instruction_confirmation_table = _material_confirmation_table(candidate_results, hook_points)
+    material_source_trace = _material_source_trace_from_table(instruction_confirmation_table)
+    confirmed_material_hook_candidates = _confirmation_material_hook_candidates(candidate_results)
+    classification = _classify_material_confirmation(
+        runtime_backed_count=runtime_backed_count,
+        confirmed_material_hook_candidates=confirmed_material_hook_candidates,
+        material_source_trace=material_source_trace,
+    )
+    breakpoint_probe_allowed = classification in {
+        "breakpoint_probe_ready",
+        "base64_material_captured",
+        "rc4_material_captured",
+    }
+    next_bounded_action = (
+        "rerun bounded Base64/RC4 breakpoint probe with instruction-confirmed material hooks"
+        if breakpoint_probe_allowed
+        else "manually inspect producer offsets 0x2320, 0x2338, 0x234e, and 0x2355 before expanding search"
+    )
+    payload.update(
+        {
+            "classification": classification,
+            "runtime_backed_count": runtime_backed_count,
+            "instruction_confirmation_table": instruction_confirmation_table,
+            "material_source_trace": material_source_trace,
+            "confirmed_material_hook_candidate_count": len(confirmed_material_hook_candidates),
+            "confirmed_material_hook_candidates": confirmed_material_hook_candidates,
+            "breakpoint_probe_allowed": breakpoint_probe_allowed,
+            "candidate_results": candidate_results,
+            "next_bounded_action": next_bounded_action,
+            "promotable_validations": [],
+        }
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Compare producer material confirmation wrote {result_path}")
     return {
         "result_path": str(result_path),
         "payload": payload,
@@ -13055,6 +13564,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         compare_handoff_return_site_probe_artifact: ToolRunArtifact | None = None
         compare_producer_trace_probe_run: dict[str, object] | None = None
         compare_producer_trace_probe_artifact: ToolRunArtifact | None = None
+        compare_producer_material_confirmation_run: dict[str, object] | None = None
+        compare_producer_material_confirmation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_validation_run: dict[str, object] | None = None
         h1_h3_boundary_validation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_runtime_artifact: ToolRunArtifact | None = None
@@ -13414,7 +13925,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 and str(dynamic_probe_points.get("pre_rc4_runtime_material", "")) == "unavailable"
             )
             or _prior_dynamic_probe_needs_pre_rc4()
-            or _prior_compare_producer_trace_needs_material_capture()
+            or _prior_compare_producer_trace_needs_pre_rc4_fallback()
         ) and not _prior_pre_rc4_probe_needs_breakpoint()
         if should_run_pre_rc4_probe:
             pre_rc4_material_probe_run = run_pre_rc4_material_probe(
@@ -13480,12 +13991,18 @@ class CompareAwareSearchStrategy(SolverStrategy):
         should_run_base64_rc4_breakpoint_probe = (
             _base64_rc4_static_discovery_allows_breakpoint(static_discovery_payload)
             or _prior_base64_rc4_static_discovery_allows_breakpoint()
+            or _prior_producer_material_confirmation_allows_breakpoint()
         )
         if should_run_base64_rc4_breakpoint_probe:
             breakpoint_static_points = _breakpoint_static_points_from_discovery_payload(static_discovery_payload)
             if not breakpoint_static_points:
                 prior_discovery_payload, _ = _indexed_artifact_payload("base64_rc4_static_point_discovery")
                 breakpoint_static_points = _breakpoint_static_points_from_discovery_payload(prior_discovery_payload)
+            if not breakpoint_static_points:
+                prior_material_payload, _ = _indexed_artifact_payload("compare_producer_material_confirmation")
+                breakpoint_static_points = _breakpoint_static_points_from_material_confirmation_payload(
+                    prior_material_payload
+                )
             base64_rc4_breakpoint_probe_run = run_base64_rc4_breakpoint_probe(
                 target=file_path,
                 artifacts_dir=artifacts_dir / "base64_rc4_breakpoint_probe",
@@ -13677,6 +14194,72 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 derived_entries=[],
             )
 
+        compare_producer_trace_payload = (
+            dict(compare_producer_trace_probe_run.get("payload", {}))
+            if compare_producer_trace_probe_run
+            else {}
+        )
+        should_run_material_confirmation_probe = (
+            _compare_producer_trace_needs_material_confirmation(compare_producer_trace_payload)
+            or _prior_compare_producer_trace_needs_material_confirmation()
+        )
+        if should_run_material_confirmation_probe:
+            if not compare_producer_trace_payload:
+                compare_producer_trace_payload = _latest_compare_producer_trace_payload()
+            compare_producer_material_confirmation_run = run_compare_producer_material_confirmation_probe(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "compare_producer_material_confirmation",
+                transform_model=transform_model,
+                per_probe_timeout=per_probe_timeout,
+                producer_trace_payload=compare_producer_trace_payload,
+                log=log,
+            )
+            material_confirmation_payload = dict(compare_producer_material_confirmation_run.get("payload", {}))
+            compare_producer_material_confirmation_artifact = _make_search_artifact(
+                tool_name="CompareProducerMaterialConfirmation",
+                output_path=Path(str(compare_producer_material_confirmation_run["result_path"])),
+                summary=str(
+                    material_confirmation_payload.get(
+                        "classification",
+                        "compare producer material confirmation complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=material_confirmation_payload,
+                derived_entries=[],
+            )
+            if (
+                base64_rc4_breakpoint_probe_run is None
+                and _producer_material_confirmation_allows_breakpoint(material_confirmation_payload)
+            ):
+                breakpoint_static_points = _breakpoint_static_points_from_material_confirmation_payload(
+                    material_confirmation_payload
+                )
+                base64_rc4_breakpoint_probe_run = run_base64_rc4_breakpoint_probe(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "base64_rc4_breakpoint_probe",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    log=log,
+                    static_points=breakpoint_static_points,
+                )
+                base64_rc4_payload = dict(base64_rc4_breakpoint_probe_run.get("payload", {}))
+                base64_rc4_breakpoint_probe_artifact = _make_search_artifact(
+                    tool_name="Base64RC4BreakpointProbe",
+                    output_path=Path(str(base64_rc4_breakpoint_probe_run["result_path"])),
+                    summary=str(
+                        base64_rc4_payload.get(
+                            "classification",
+                            "Base64/RC4 breakpoint probe complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=base64_rc4_payload,
+                    derived_entries=[],
+                )
+
         should_run_h1_h3 = (
             _selected_h1_h3_target(profile_transform_audit_run)
             and not _negative_h1_h3_boundary_recorded()
@@ -13776,6 +14359,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(compare_handoff_return_site_probe_artifact)
         if compare_producer_trace_probe_artifact is not None:
             artifacts.append(compare_producer_trace_probe_artifact)
+        if compare_producer_material_confirmation_artifact is not None:
+            artifacts.append(compare_producer_material_confirmation_artifact)
         if h1_h3_boundary_validation_artifact is not None:
             artifacts.append(h1_h3_boundary_validation_artifact)
         if h1_h3_boundary_runtime_artifact is not None:
@@ -13813,12 +14398,15 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "compare_handoff_slice_probe": compare_handoff_slice_probe_run or {},
                 "compare_handoff_return_site_probe": compare_handoff_return_site_probe_run or {},
                 "compare_producer_trace_probe": compare_producer_trace_probe_run or {},
+                "compare_producer_material_confirmation": compare_producer_material_confirmation_run or {},
                 "h1_h3_boundary_validation": h1_h3_boundary_validation_run or {},
                 "prefix_boundary_diagnostics": prefix_boundary_diagnostics,
                 "frontier_converged_reason": frontier_converged_reason,
                 "frontier_stall_stage": frontier_stall_stage,
                 "completed_stage": "h1_h3_boundary_validation"
                 if h1_h3_boundary_validation_run
+                else "compare_producer_material_confirmation"
+                if compare_producer_material_confirmation_run
                 else "compare_producer_trace_probe"
                 if compare_producer_trace_probe_run
                 else "compare_handoff_return_site_probe"
