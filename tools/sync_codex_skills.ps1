@@ -38,7 +38,9 @@ if ($SkillName.Count -gt 0) {
 foreach ($skillDir in $skillDirs) {
     $dest = Join-Path $DestinationRoot $skillDir.Name
     New-Item -ItemType Directory -Force -Path $dest | Out-Null
-    Copy-Item -LiteralPath (Join-Path $skillDir.FullName "*") -Destination $dest -Recurse -Force
+    Get-ChildItem -LiteralPath $skillDir.FullName -Force | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination $dest -Recurse -Force
+    }
     Write-Host "Synced skill $($skillDir.Name) -> $dest"
 }
 

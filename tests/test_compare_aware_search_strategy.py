@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from reverse_agent.evidence import StructuredEvidence
+from reverse_agent.function_semantics import FUNCTION_SEMANTIC_AUDIT_FILE_NAME
 from reverse_agent.profiles.samplereverse import SamplereverseProfile
 from reverse_agent.samplereverse_z3 import _optimize_ready, solve_targeted_prefix8
 from reverse_agent.strategies import compare_aware_search
@@ -56,6 +57,7 @@ from reverse_agent.strategies.compare_aware_search import (
     _refine_anchor_plan,
     _select_smt_base_entry,
     _validated_projected_preserve_second_hop_candidates,
+    build_function_semantic_audit_payload,
     run_compare_aware_smt,
     run_base64_rc4_breakpoint_probe,
     run_base64_rc4_static_point_discovery,
@@ -68,6 +70,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_dynamic_compare_path_probe,
     run_exact2_basin_value_pool_evaluation,
     run_h1_h3_boundary_validation,
+    run_function_semantic_audit,
     run_pre_rc4_material_probe,
     run_profile_transform_hypothesis_audit,
     run_transform_trace_consistency_diagnostic,
@@ -800,6 +803,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
             "compare_handoff_return_site_probe",
             "compare_producer_trace_probe",
             "compare_producer_material_confirmation",
+            "function_semantic_audit",
             "h1_h3_boundary_validation",
         }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -3675,6 +3679,8 @@ def _fake_base64_rc4_instruction_static_points(target: Path) -> dict[str, list[d
             "evidence": ["instruction-confirmed base64 output write"],
             "hook_kind": "interceptor",
             "hookable": True,
+            "candidate_dependent": True,
+            "connects_to_compare_lhs": True,
             "size": 1,
         }
     ]
@@ -4418,6 +4424,8 @@ def _fake_material_confirmation_ready_subprocess_run(*args, **kwargs):  # noqa: 
             "hook_kind": "interceptor",
             "hookable": True,
             "instruction_confirmed": True,
+            "candidate_dependent": True,
+            "connects_to_compare_lhs": True,
             "preview_hex": "516c5a735245526b6844307848413d3d",
             "evidence": ["material confirmation linked producer EAX to Base64 output"],
         }
@@ -5160,7 +5168,40 @@ def test_compare_producer_material_confirmation_does_not_expand_search_or_promot
     assert result["promotable_validations"] == []
 
 
-def test_compare_producer_material_confirmation_allows_breakpoint_only_after_confirmed_hook(
+def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_material_confirmation_subprocess_run)
+    material_result = run_compare_producer_material_confirmation_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_producer_material_confirmation",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        producer_trace_payload=_upstream_material_producer_trace_payload(),
+        log=lambda _: None,
+    )
+
+    result = run_function_semantic_audit(
+        artifacts_dir=tmp_path / "function_semantic_audit",
+        material_confirmation_payload=material_result["payload"],
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == FUNCTION_SEMANTIC_AUDIT_FILE_NAME
+    assert payload["artifact_kind"] == "function_semantic_audit"
+    assert payload["classification"] == "runtime_instrumentation_required"
+    assert payload["function_count"] == 4
+    assert payload["material_hook_candidate_count"] == 0
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["functions"][1]["function"] == "0x401b50"
+    assert payload["functions"][1]["material_hook_candidate_status"] == "blocked_missing_candidate_dependent_output"
+
+
+def test_function_semantic_audit_allows_breakpoint_only_after_semantic_gate(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
@@ -5183,6 +5224,10 @@ def test_compare_producer_material_confirmation_allows_breakpoint_only_after_con
     assert compare_aware_search._producer_material_confirmation_allows_breakpoint(payload) is True
     points = compare_aware_search._breakpoint_static_points_from_material_confirmation_payload(payload)
     assert points["base64_output"][0]["module_offset"] == 0x234E
+
+    audit = build_function_semantic_audit_payload(material_confirmation_payload=payload)
+    assert audit["breakpoint_probe_allowed"] is True
+    assert audit["material_hook_candidate_count"] == 1
 
 
 def test_upstream_producer_trace_triggers_material_confirmation_not_pre_rc4(monkeypatch) -> None:

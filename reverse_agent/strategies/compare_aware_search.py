@@ -10,6 +10,12 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from ..evidence import StructuredEvidence
+from ..function_semantics import (
+    FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
+    compute_breakpoint_probe_allowed,
+    is_material_hook_ready,
+    normalize_function_semantic_audit,
+)
 from ..sample_solver import _decrypt_prefix
 from ..samplereverse_z3 import solve_targeted_prefix8
 from ..tool_runners import ToolRunArtifact
@@ -3412,16 +3418,14 @@ def _base64_rc4_static_discovery_allows_breakpoint(payload: dict[str, object]) -
         points = payload.get("points", [])
     if not isinstance(points, list):
         return False
-    for point in points:
-        if not isinstance(point, dict):
-            continue
-        if str(point.get("kind", "")).strip() not in BASE64_RC4_BREAKPOINT_READY_KINDS:
-            continue
-        if not bool(point.get("hookable")):
-            continue
-        if str(point.get("classification", "")).strip() == "hookable_and_instruction_confirmed":
-            return True
-    return False
+    semantic_records = [
+        _semantic_record_from_material_hook_candidate(point)
+        for point in points
+        if isinstance(point, dict)
+        and str(point.get("kind", "")).strip() in BASE64_RC4_BREAKPOINT_READY_KINDS
+        and str(point.get("classification", "")).strip() == "hookable_and_instruction_confirmed"
+    ]
+    return compute_breakpoint_probe_allowed(semantic_records)
 
 
 def _prior_base64_rc4_static_discovery_allows_breakpoint() -> bool:
@@ -3644,12 +3648,14 @@ def _producer_material_confirmation_allows_breakpoint(payload: dict[str, object]
     points = payload.get("confirmed_material_hook_candidates", [])
     if not isinstance(points, list):
         return False
-    return any(
-        isinstance(point, dict)
-        and str(point.get("kind", "")).strip() in BASE64_RC4_BREAKPOINT_READY_KINDS
-        and bool(point.get("hookable"))
-        and bool(point.get("instruction_confirmed"))
+    semantic_records = [
+        _semantic_record_from_material_hook_candidate(point)
         for point in points
+        if isinstance(point, dict)
+        and str(point.get("kind", "")).strip() in BASE64_RC4_BREAKPOINT_READY_KINDS
+    ]
+    return compute_breakpoint_probe_allowed(
+        [record for record in semantic_records if isinstance(record, dict)]
     )
 
 
@@ -5351,9 +5357,13 @@ def _discovery_point_from_static_point(point: dict[str, object]) -> dict[str, ob
         "function": "",
         "instruction": _format_offset(module_offset) if instruction_confirmed else "",
         "hookable": hookable,
+        "instruction_confirmed": instruction_confirmed,
         "confidence": str(point.get("confidence", "low") or "low"),
         "evidence": evidence,
         "classification": classification,
+        "candidate_dependent": bool(point.get("candidate_dependent")),
+        "connects_to_compare_lhs": bool(point.get("connects_to_compare_lhs")),
+        "connects_to_transform_chain": bool(point.get("connects_to_transform_chain")),
     }
 
 
@@ -5414,7 +5424,12 @@ def _base64_rc4_static_discovery_classification(points: Sequence[dict[str, objec
         for point in hookable
         if str(point.get("classification", "")) == "hookable_and_instruction_confirmed"
     ]
-    if any(str(point.get("kind", "")) in BASE64_RC4_BREAKPOINT_READY_KINDS for point in instruction_confirmed):
+    semantic_records = [
+        _semantic_record_from_material_hook_candidate(point)
+        for point in instruction_confirmed
+        if str(point.get("kind", "")) in BASE64_RC4_BREAKPOINT_READY_KINDS
+    ]
+    if compute_breakpoint_probe_allowed(semantic_records):
         return "breakpoint_probe_ready"
     if instruction_confirmed:
         return "hookable_points_found"
@@ -5477,6 +5492,7 @@ def run_base64_rc4_static_point_discovery(
         if bool(point.get("hookable"))
         and str(point.get("classification", "")) == "hookable_and_instruction_confirmed"
         and str(point.get("kind", "")) in BASE64_RC4_BREAKPOINT_READY_KINDS
+        and compute_breakpoint_probe_allowed([_semantic_record_from_material_hook_candidate(point)])
     }
     breakpoint_static_points: dict[str, list[dict[str, object]]] = {}
     if instruction_confirmed_material:
@@ -5510,7 +5526,8 @@ def run_base64_rc4_static_point_discovery(
         "points": points,
         "static_audit": static_audit,
         "static_point_summary": _breakpoint_static_point_summary(source_static_points),
-        "breakpoint_probe_allowed": classification == "breakpoint_probe_ready",
+        "breakpoint_probe_allowed": classification == "breakpoint_probe_ready"
+        and bool(instruction_confirmed_material),
         "breakpoint_static_points": breakpoint_static_points,
         "next_bounded_action": _base64_rc4_static_discovery_next_action(classification),
         "promotable_validations": [],
@@ -8601,6 +8618,13 @@ def _classify_material_confirmation(
 ) -> str:
     if runtime_backed_count <= 0:
         return "material_confirmation_runtime_failure"
+    semantic_records = [
+        _semantic_record_from_material_hook_candidate(dict(item))
+        for item in confirmed_material_hook_candidates
+        if isinstance(item, dict)
+    ]
+    if not compute_breakpoint_probe_allowed(semantic_records):
+        return "material_confirmation_inconclusive"
     kinds = {str(item.get("kind", "")) for item in confirmed_material_hook_candidates}
     if kinds & {"rc4_input", "rc4_output", "rc4_key"}:
         return "rc4_material_captured"
@@ -8611,6 +8635,322 @@ def _classify_material_confirmation(
     if material_source_trace:
         return "material_confirmation_inconclusive"
     return "material_confirmation_inconclusive"
+
+
+def _table_row_by_hook(
+    table: Sequence[dict[str, object]],
+    hook_name: str,
+) -> dict[str, object]:
+    for row in table:
+        if isinstance(row, dict) and str(row.get("hook_name", "")) == hook_name:
+            return row
+    return {}
+
+
+def _table_bool(row: dict[str, object], key: str) -> bool:
+    return bool(row.get(key))
+
+
+def _table_count(row: dict[str, object], key: str) -> int:
+    try:
+        return int(row.get(key, 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _semantic_guess_for_material_kind(kind: str) -> str:
+    if kind == "utf16le_payload":
+        return "utf16le_constructor"
+    if kind == "base64_output":
+        return "base64_transform"
+    if kind == "rc4_key":
+        return "rc4_ksa"
+    if kind in {"rc4_input", "rc4_output"}:
+        return "rc4_transform"
+    return "unknown_but_bounded"
+
+
+def _semantic_record_from_material_hook_candidate(item: dict[str, object]) -> dict[str, object]:
+    kind = str(item.get("kind", ""))
+    return {
+        "function": str(item.get("function") or item.get("module_offset") or ""),
+        "call_sites": [str(item.get("module_offset", ""))],
+        "input_sources": [str(item.get("source", ""))] if item.get("source") else [],
+        "output_sinks": [kind] if kind else [],
+        "stack_slots_read": [],
+        "stack_slots_written": [],
+        "registers_read": [],
+        "registers_written": [],
+        "memory_writes": [],
+        "candidate_dependent": bool(item.get("candidate_dependent")),
+        "semantic_guess": _semantic_guess_for_material_kind(kind),
+        "confidence": str(item.get("confidence") or "medium"),
+        "positive_evidence": list(item.get("evidence", [])) if isinstance(item.get("evidence"), list) else [],
+        "negative_evidence": [],
+        "next_required_evidence": [],
+        "instruction_confirmed": bool(item.get("instruction_confirmed")),
+        "hookable": bool(item.get("hookable")),
+        "connects_to_compare_lhs": bool(item.get("connects_to_compare_lhs")),
+        "connects_to_transform_chain": bool(item.get("connects_to_transform_chain")),
+        "material_hook_candidate_status": "ready"
+        if is_material_hook_ready(
+            {
+                "semantic_guess": _semantic_guess_for_material_kind(kind),
+                "instruction_confirmed": bool(item.get("instruction_confirmed")),
+                "hookable": bool(item.get("hookable")),
+                "candidate_dependent": bool(item.get("candidate_dependent")),
+                "connects_to_compare_lhs": bool(item.get("connects_to_compare_lhs")),
+                "connects_to_transform_chain": bool(item.get("connects_to_transform_chain")),
+            }
+        )
+        else "blocked_missing_semantic_gate_evidence",
+    }
+
+
+def _function_semantic_records_from_material_confirmation(
+    material_confirmation_payload: dict[str, object],
+) -> list[dict[str, object]]:
+    table = material_confirmation_payload.get("instruction_confirmation_table", [])
+    table = table if isinstance(table, list) else []
+    pre_transform = _table_row_by_hook(table, "producer_pre_transform_call")
+    post_transform = _table_row_by_hook(table, "producer_post_transform_call")
+    pre_material = _table_row_by_hook(table, "producer_pre_material_call")
+    producer_return = _table_row_by_hook(table, "producer_return_site")
+    pre_output = _table_row_by_hook(table, "producer_pre_output_call")
+    post_output = _table_row_by_hook(table, "producer_post_output_call")
+    pre_second = _table_row_by_hook(table, "producer_pre_second_call")
+    after_second = _table_row_by_hook(table, "producer_after_second_call")
+
+    records: list[dict[str, object]] = [
+        {
+            "function": "0x4019e0",
+            "call_sites": ["0x2320"],
+            "input_sources": ["producer window context before 0x2320"],
+            "output_sinks": ["[ebp-0x1168] observed by 0x2325"],
+            "stack_slots_read": [],
+            "stack_slots_written": ["[ebp-0x1168]"],
+            "registers_read": ["eax", "edx"],
+            "registers_written": ["eax", "edx"],
+            "memory_writes": [],
+            "candidate_dependent": bool(pre_transform.get("candidate_dependent_eax"))
+            or bool(post_transform.get("candidate_dependent_eax")),
+            "semantic_guess": "unknown_but_bounded",
+            "confidence": "low",
+            "positive_evidence": [
+                "call site is instruction-confirmed at producer offset 0x2320",
+            ],
+            "negative_evidence": [
+                "material confirmation did not observe candidate-dependent EAX at 0x2320/0x2325",
+            ],
+            "next_required_evidence": [
+                "confirm whether 0x4019e0 writes [ebp-0x1168] on the active path",
+            ],
+            "instruction_confirmed": bool(pre_transform.get("instruction_confirmed", True)),
+            "hookable": _table_bool(pre_transform, "hookable") or _table_bool(post_transform, "hookable"),
+            "connects_to_compare_lhs": False,
+            "connects_to_transform_chain": False,
+            "material_hook_candidate_status": "blocked_missing_candidate_dependent_output",
+        },
+        {
+            "function": "0x401b50",
+            "call_sites": ["0x2338"],
+            "input_sources": ["producer context before candidate-material handoff call"],
+            "output_sinks": ["eax", "[ebp-0x116c] observed by 0x233d"],
+            "stack_slots_read": ["[ebp-0x1168]"],
+            "stack_slots_written": ["[ebp-0x116c]"],
+            "registers_read": ["eax", "edx"],
+            "registers_written": ["eax", "edx"],
+            "memory_writes": [],
+            "candidate_dependent": bool(pre_material.get("candidate_dependent_eax"))
+            or bool(producer_return.get("candidate_dependent_eax")),
+            "semantic_guess": "unknown_but_bounded",
+            "confidence": "medium" if _table_count(pre_material, "observed_count") else "low",
+            "positive_evidence": [
+                "0x2338 call to 0x401b50 was reached by runtime-backed diagnostic candidates",
+            ]
+            if _table_count(pre_material, "observed_count")
+            else ["call site is instruction-confirmed at producer offset 0x2338"],
+            "negative_evidence": [
+                "0x233d return-site observation was not reached in the latest material confirmation",
+                "no candidate-dependent output was confirmed for 0x401b50",
+            ],
+            "next_required_evidence": [
+                "confirm 0x401b50 return or branch outcome after the 0x2338 call",
+            ],
+            "instruction_confirmed": bool(pre_material.get("instruction_confirmed", True)),
+            "hookable": _table_bool(pre_material, "hookable") or _table_bool(producer_return, "hookable"),
+            "connects_to_compare_lhs": False,
+            "connects_to_transform_chain": False,
+            "material_hook_candidate_status": "blocked_missing_candidate_dependent_output",
+        },
+        {
+            "function": "0x4018cd",
+            "call_sites": ["0x234e"],
+            "input_sources": ["edx pushed at 0x2346 from [ebp-0x116c]"],
+            "output_sinks": ["eax", "ecx at 0x2353"],
+            "stack_slots_read": ["[ebp-0x116c]"],
+            "stack_slots_written": [],
+            "registers_read": ["edx"],
+            "registers_written": ["eax", "ecx"],
+            "memory_writes": [],
+            "candidate_dependent": bool(pre_output.get("candidate_dependent_eax"))
+            or bool(post_output.get("candidate_dependent_eax")),
+            "semantic_guess": "unknown_but_bounded",
+            "confidence": "low",
+            "positive_evidence": ["call site is instruction-confirmed at producer offset 0x234e"],
+            "negative_evidence": [
+                "0x234e/0x2353 were not reached in the latest material confirmation",
+            ],
+            "next_required_evidence": [
+                "inspect why the active path reaches 0x2338 but not 0x234e",
+            ],
+            "instruction_confirmed": bool(pre_output.get("instruction_confirmed", True)),
+            "hookable": _table_bool(pre_output, "hookable") or _table_bool(post_output, "hookable"),
+            "connects_to_compare_lhs": False,
+            "connects_to_transform_chain": False,
+            "material_hook_candidate_status": "blocked_unreached_in_current_probe",
+        },
+        {
+            "function": "0x401be3",
+            "call_sites": ["0x2355"],
+            "input_sources": ["ecx after 0x4018cd"],
+            "output_sinks": ["producer output before 0x235a"],
+            "stack_slots_read": [],
+            "stack_slots_written": [],
+            "registers_read": ["ecx"],
+            "registers_written": ["eax"],
+            "memory_writes": [],
+            "candidate_dependent": bool(pre_second.get("candidate_dependent_eax"))
+            or bool(after_second.get("candidate_dependent_eax")),
+            "semantic_guess": "unknown_but_bounded",
+            "confidence": "low",
+            "positive_evidence": ["call site is instruction-confirmed at producer offset 0x2355"],
+            "negative_evidence": [
+                "0x2355/0x235a were not reached in the latest material confirmation",
+            ],
+            "next_required_evidence": [
+                "inspect whether this call is downstream of the missed 0x401b50 return path",
+            ],
+            "instruction_confirmed": bool(pre_second.get("instruction_confirmed", True)),
+            "hookable": _table_bool(pre_second, "hookable") or _table_bool(after_second, "hookable"),
+            "connects_to_compare_lhs": False,
+            "connects_to_transform_chain": False,
+            "material_hook_candidate_status": "blocked_unreached_in_current_probe",
+        },
+    ]
+
+    confirmed = material_confirmation_payload.get("confirmed_material_hook_candidates", [])
+    if isinstance(confirmed, list):
+        records.extend(
+            _semantic_record_from_material_hook_candidate(item)
+            for item in confirmed
+            if isinstance(item, dict)
+        )
+    return records
+
+
+def _function_semantic_audit_classification(records: Sequence[dict[str, object]]) -> str:
+    if compute_breakpoint_probe_allowed(records):
+        return "material_hook_ready"
+    if any(
+        str(record.get("semantic_guess", "")) in {
+            "utf16le_constructor",
+            "base64_transform",
+            "rc4_ksa",
+            "rc4_prga",
+            "rc4_transform",
+        }
+        for record in records
+    ):
+        return "material_function_identified"
+    if any(bool(record.get("hookable")) for record in records):
+        return "runtime_instrumentation_required"
+    return "evidence_insufficient"
+
+
+def build_function_semantic_audit_payload(
+    *,
+    material_confirmation_payload: dict[str, object],
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    records = _function_semantic_records_from_material_confirmation(material_confirmation_payload)
+    classification = _function_semantic_audit_classification(records)
+    payload = {
+        "classification": classification,
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "target_functions": ["0x4019e0", "0x401b50", "0x4018cd", "0x401be3"],
+        "functions": records,
+        "material_pipeline_hypothesis": ["input", "UTF-16LE", "Base64", "RC4", "compare lhs"],
+        "dataflow_summary": {
+            "producer_window_offsets": [
+                "0x2312",
+                "0x2320",
+                "0x2325",
+                "0x2338",
+                "0x233d",
+                "0x2346",
+                "0x234e",
+                "0x2353",
+                "0x2355",
+                "0x235a",
+            ],
+            "current_classification": "insufficient instrumentation",
+            "eax_producer": "unknown; 0x401b50 return path not observed after 0x2338",
+            "eax_consumer": "unknown; downstream 0x234e/0x2355 calls were not reached",
+            "slot_0x1168_writer": "candidate: 0x4019e0, unconfirmed on active path",
+            "slot_0x116c_writer": "candidate: 0x401b50, unconfirmed because 0x233d was not reached",
+            "slot_0x1170_writer": "unknown in current bounded producer window",
+            "esi_source": "unknown in current bounded producer window",
+            "compare_lhs_source": "not connected to a confirmed material function yet",
+            "candidate_dependent_call": "none confirmed",
+        },
+        "negative_evidence": [
+            "0x2338 was reachable but 0x233d/0x234e/0x2355 were not observed",
+            "no function output is both candidate-dependent and connected to compare lhs",
+        ],
+        "next_bounded_action": (
+            "confirm the 0x401b50 return or branch outcome after the 0x2338 call before rerunning "
+            "Base64/RC4 breakpoint capture"
+        ),
+    }
+    return normalize_function_semantic_audit(payload)
+
+
+def run_function_semantic_audit(
+    *,
+    artifacts_dir: Path,
+    material_confirmation_payload: dict[str, object],
+    run_name: str = "",
+    log=None,
+) -> dict[str, object]:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / FUNCTION_SEMANTIC_AUDIT_FILE_NAME
+    payload = build_function_semantic_audit_payload(
+        material_confirmation_payload=material_confirmation_payload,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Function semantic audit wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": [],
+        "promotable_validations": [],
+    }
+
+
+def _function_semantic_audit_allows_breakpoint(payload: dict[str, object]) -> bool:
+    functions = payload.get("functions", [])
+    if not isinstance(functions, list):
+        return False
+    return compute_breakpoint_probe_allowed(
+        [item for item in functions if isinstance(item, dict)]
+    )
 
 
 def run_compare_producer_material_confirmation_probe(
@@ -8727,11 +9067,13 @@ def run_compare_producer_material_confirmation_probe(
         confirmed_material_hook_candidates=confirmed_material_hook_candidates,
         material_source_trace=material_source_trace,
     )
-    breakpoint_probe_allowed = classification in {
-        "breakpoint_probe_ready",
-        "base64_material_captured",
-        "rc4_material_captured",
-    }
+    breakpoint_probe_allowed = compute_breakpoint_probe_allowed(
+        [
+            _semantic_record_from_material_hook_candidate(dict(item))
+            for item in confirmed_material_hook_candidates
+            if isinstance(item, dict)
+        ]
+    )
     next_bounded_action = (
         "rerun bounded Base64/RC4 breakpoint probe with instruction-confirmed material hooks"
         if breakpoint_probe_allowed
@@ -13566,6 +13908,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         compare_producer_trace_probe_artifact: ToolRunArtifact | None = None
         compare_producer_material_confirmation_run: dict[str, object] | None = None
         compare_producer_material_confirmation_artifact: ToolRunArtifact | None = None
+        function_semantic_audit_run: dict[str, object] | None = None
+        function_semantic_audit_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_validation_run: dict[str, object] | None = None
         h1_h3_boundary_validation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_runtime_artifact: ToolRunArtifact | None = None
@@ -14229,8 +14573,29 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 payload=material_confirmation_payload,
                 derived_entries=[],
             )
+            function_semantic_audit_run = run_function_semantic_audit(
+                artifacts_dir=artifacts_dir / "function_semantic_audit",
+                material_confirmation_payload=material_confirmation_payload,
+                log=log,
+            )
+            function_semantic_payload = dict(function_semantic_audit_run.get("payload", {}))
+            function_semantic_audit_artifact = _make_search_artifact(
+                tool_name="FunctionSemanticAudit",
+                output_path=Path(str(function_semantic_audit_run["result_path"])),
+                summary=str(
+                    function_semantic_payload.get(
+                        "classification",
+                        "function semantic audit complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=function_semantic_payload,
+                derived_entries=[],
+            )
             if (
                 base64_rc4_breakpoint_probe_run is None
+                and _function_semantic_audit_allows_breakpoint(function_semantic_payload)
                 and _producer_material_confirmation_allows_breakpoint(material_confirmation_payload)
             ):
                 breakpoint_static_points = _breakpoint_static_points_from_material_confirmation_payload(
@@ -14361,6 +14726,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(compare_producer_trace_probe_artifact)
         if compare_producer_material_confirmation_artifact is not None:
             artifacts.append(compare_producer_material_confirmation_artifact)
+        if function_semantic_audit_artifact is not None:
+            artifacts.append(function_semantic_audit_artifact)
         if h1_h3_boundary_validation_artifact is not None:
             artifacts.append(h1_h3_boundary_validation_artifact)
         if h1_h3_boundary_runtime_artifact is not None:
@@ -14399,12 +14766,15 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "compare_handoff_return_site_probe": compare_handoff_return_site_probe_run or {},
                 "compare_producer_trace_probe": compare_producer_trace_probe_run or {},
                 "compare_producer_material_confirmation": compare_producer_material_confirmation_run or {},
+                "function_semantic_audit": function_semantic_audit_run or {},
                 "h1_h3_boundary_validation": h1_h3_boundary_validation_run or {},
                 "prefix_boundary_diagnostics": prefix_boundary_diagnostics,
                 "frontier_converged_reason": frontier_converged_reason,
                 "frontier_stall_stage": frontier_stall_stage,
                 "completed_stage": "h1_h3_boundary_validation"
                 if h1_h3_boundary_validation_run
+                else "function_semantic_audit"
+                if function_semantic_audit_run
                 else "compare_producer_material_confirmation"
                 if compare_producer_material_confirmation_run
                 else "compare_producer_trace_probe"

@@ -17,6 +17,12 @@ Use this skill for reverse-agent challenge iteration work. It provides the gener
 4. Inspect the newest relevant `solve_reports/harness_runs/*` directory before relying on memory.
 5. Identify the latest complete artifacts: summary files, validation JSON, compare/runtime evidence, and any strategy-specific result JSON.
 
+## Local Search Policy
+
+- In the Codex desktop Windows environment for this repository, do not call `rg` by default; the bundled `rg.exe` may be blocked by Windows app permissions.
+- Use PowerShell-native search instead: `Get-ChildItem -Recurse -File` with `Select-String`, plus `Get-Content` / `Select-String -Context` for file reads.
+- Do not tell the user that `rg` failed or that you are switching to PowerShell unless the search failure changes the result or requires user action.
+
 ## Artifact Triage
 
 Extract these facts from artifacts:

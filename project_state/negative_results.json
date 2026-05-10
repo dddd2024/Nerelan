@@ -70,5 +70,49 @@
     "override_reason_required": true,
     "reason": "the producer material confirmation remained inconclusive; next work should inspect the reported producer offsets or add a more specific hook before repeating it",
     "severity": "soft_block"
+  },
+  {
+    "direction": "treat 0x4019e0 as Base64/RC4 material producer without new semantic evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+    "function": "0x4019e0",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
+    "scope": "function_semantics",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "treat 0x401b50 as Base64/RC4 material producer without new semantic evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+    "function": "0x401b50",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
+    "scope": "function_semantics",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "treat 0x4018cd as Base64/RC4 material producer without new semantic evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+    "function": "0x4018cd",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
+    "scope": "function_semantics",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "treat 0x401be3 as Base64/RC4 material producer without new semantic evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+    "function": "0x401be3",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
+    "scope": "function_semantics",
+    "severity": "soft_block"
   }
 ]

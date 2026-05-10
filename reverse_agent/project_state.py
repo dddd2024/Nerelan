@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from .function_semantics import FUNCTION_SEMANTIC_AUDIT_FILE_NAME
+
 
 IMPORTANT_ARTIFACTS = {
     "compare_aware_result": "samplereverse_compare_aware_result.json",
@@ -28,6 +30,7 @@ IMPORTANT_ARTIFACTS = {
     "compare_handoff_return_site_probe": "compare_handoff_return_site_probe.json",
     "compare_producer_trace_probe": "compare_producer_trace_probe.json",
     "compare_producer_material_confirmation": "compare_producer_material_confirmation.json",
+    "function_semantic_audit": FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -435,6 +438,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_producer_material_confirmation = _read_json(
         artifact_refs.get("compare_producer_material_confirmation")
     )
+    function_semantic_audit = _read_json(artifact_refs.get("function_semantic_audit"))
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -521,6 +525,10 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if material_confirmation_classification:
         stage = "compare_producer_material_confirmation"
         reason = material_confirmation_classification
+    function_semantic_classification = str(function_semantic_audit.get("classification") or "").strip()
+    if function_semantic_classification:
+        stage = "function_semantic_audit"
+        reason = function_semantic_classification
     if pre_rc4_classification and compare_producer_trace_classification in {
         "producer_trace_inconclusive",
         "needs_pre_rc4_base64_probe",
@@ -548,6 +556,22 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
 
     if artifact_index.get("missing"):
         uncertainty.extend(f"missing:{item}" for item in artifact_index.get("missing", []))
+
+    function_records = function_semantic_audit.get("functions", [])
+    function_records = function_records if isinstance(function_records, list) else []
+    function_semantics = {
+        str(item.get("function")): {
+            "semantic_guess": item.get("semantic_guess"),
+            "confidence": item.get("confidence"),
+            "candidate_dependent": item.get("candidate_dependent"),
+            "hookable": item.get("hookable"),
+            "instruction_confirmed": item.get("instruction_confirmed"),
+            "material_hook_candidate_status": item.get("material_hook_candidate_status"),
+            "evidence_artifact": artifact_refs.get("function_semantic_audit"),
+        }
+        for item in function_records[:8]
+        if isinstance(item, dict) and item.get("function")
+    }
 
     return {
         "sample": sample,
@@ -746,6 +770,20 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
         }
         if compare_producer_material_confirmation
         else {},
+        "latest_function_semantic_audit": {
+            "classification": function_semantic_classification or None,
+            "artifact": artifact_refs.get("function_semantic_audit"),
+            "function_count": function_semantic_audit.get("function_count"),
+            "material_hook_candidate_count": function_semantic_audit.get("material_hook_candidate_count"),
+            "breakpoint_probe_allowed": function_semantic_audit.get("breakpoint_probe_allowed"),
+            "top_semantic_guesses": function_semantic_audit.get("top_semantic_guesses", [])[:8]
+            if isinstance(function_semantic_audit.get("top_semantic_guesses"), list)
+            else [],
+            "next_bounded_action": function_semantic_audit.get("next_bounded_action"),
+        }
+        if function_semantic_audit
+        else {},
+        "function_semantics": function_semantics,
         "uncertainty": sorted(set(uncertainty)),
         "artifact_refs": artifact_refs,
         "generated_at": _now_iso(),
@@ -1078,6 +1116,33 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "override_reason_required": True,
             }
         )
+    function_semantic_audit = _read_json(artifacts.get("function_semantic_audit"))
+    function_semantic_classification = str(function_semantic_audit.get("classification") or "").strip()
+    functions = function_semantic_audit.get("functions", [])
+    functions = functions if isinstance(functions, list) else []
+    if function_semantic_classification and not bool(function_semantic_audit.get("breakpoint_probe_allowed")):
+        for item in functions:
+            if not isinstance(item, dict):
+                continue
+            function = str(item.get("function") or "").strip()
+            if not function:
+                continue
+            results.append(
+                {
+                    "direction": f"treat {function} as Base64/RC4 material producer without new semantic evidence",
+                    "scope": "function_semantics",
+                    "function": function,
+                    "severity": "soft_block",
+                    "do_not_repeat": True,
+                    "reason": (
+                        "function semantic audit did not confirm instruction-confirmed, hookable, "
+                        "candidate-dependent material output connected to compare lhs"
+                    ),
+                    "evidence_artifact": artifacts.get("function_semantic_audit"),
+                    "override_allowed": True,
+                    "override_reason_required": True,
+                }
+            )
     return results
 
 
@@ -1268,8 +1333,10 @@ def build_task_packet(
             "current_best": best_candidates,
             "do_not_do": _do_not_do_items(negative_results),
             "relevant_files": [
+                "reverse_agent/function_semantics.py",
                 "reverse_agent/strategies/compare_aware_search.py",
                 "tests/test_compare_aware_search_strategy.py",
+                "tests/test_project_state.py",
             ],
             "missing_evidence": missing_evidence,
             "next_local_action": model_gate.get("next_local_action"),
@@ -1306,8 +1373,10 @@ def build_task_packet(
         "current_best": best_candidates,
         "do_not_do": _do_not_do_items(negative_results),
         "relevant_files": [
+            "reverse_agent/function_semantics.py",
             "reverse_agent/strategies/compare_aware_search.py",
             "tests/test_compare_aware_search_strategy.py",
+            "tests/test_project_state.py",
         ],
         "artifact_refs": artifact_refs,
         "included": [

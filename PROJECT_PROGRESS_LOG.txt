@@ -3662,3 +3662,56 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search；不 rerun Base64/RC4 breakpoint probe。
 - 使用本轮 negative evidence：`0x2338` 可达而 `0x233d/0x234e/0x2355` 不可达。
 - 下一步应对 `0x2338` call target / branch outcome 做更窄 instruction-level confirmation，或直接人工/静态检查 `0x401b50` 返回路径为什么未落到 `0x233d`。
+
+## 2026-05-10 Function semantic audit layer
+
+1) 执行范围
+- 执行最新 decision packet：新增可复用 Function Semantic Audit Layer，并用当前 `compare_producer_material_confirmation` 卡点作为首个验证目标。
+- 不新增 candidate generator，不改变 ranking、final selection、promotion、beam/budget/topN/timeout/frontier iteration。
+- 按用户反馈更新本项目搜索约定：当前 Codex desktop 环境优先使用 PowerShell `Get-ChildItem` / `Select-String`，不再主动触发会被权限拦截的 `rg.exe`。
+
+2) 代码改动
+- `reverse_agent/function_semantics.py`
+  - 新增 `FunctionSemanticRecord` / semantic audit normalization。
+  - 新增 conservative material hook gate：必须同时满足 material semantic guess、instruction-confirmed、hookable、candidate-dependent、连接 compare lhs 或 transform chain。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `function_semantic_audit.json` 生成。
+  - 在 material confirmation 后对 `0x4019e0`、`0x401b50`、`0x4018cd`、`0x401be3` 产出 compact semantic records。
+  - 将 static/material breakpoint readiness 收紧到 semantic gate。
+- `reverse_agent/project_state.py`
+  - 索引 `function_semantic_audit.json`。
+  - compact state 暴露 `latest_function_semantic_audit` 和 `function_semantics`。
+  - negative cache 增加 function-level soft blocks。
+- `AGENT_GUIDE_FOR_AI.md`
+  - 记录本环境 PowerShell-native search policy。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 覆盖 semantic audit schema、gate、project_state indexing/rendering、function-level negative cache。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\function_semantics.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py` -> `119 passed`
+- `python -m pytest -q` -> `196 passed`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_material_confirmation_20260510_rerun2` -> passed
+
+4) Artifact / project_state
+- Generated artifact:
+  - `solve_reports\harness_runs\samplereverse_material_confirmation_20260510_rerun2\reports\tool_artifacts\samplereverse_patched\function_semantic_audit\function_semantic_audit.json`
+- Classification: `runtime_instrumentation_required`
+- `function_count=4`
+- `material_hook_candidate_count=0`
+- `breakpoint_probe_allowed=false`
+- `project_state/current_state.json` now reports:
+  - `stage=function_semantic_audit`
+  - `reason=runtime_instrumentation_required`
+
+5) 结论
+- `0x401b50` 是当前最强 bounded suspect：`0x2338` 对 3 个 diagnostic candidates 均可达。
+- 但 `0x233d/0x234e/0x2355` 仍不可达，未确认 candidate-dependent output，也未连接 compare lhs / transform chain。
+- `base64_rc4_breakpoint_probe` 继续 blocked by design。
+- 当前 runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大搜索；不回 blind search；不 rerun Base64/RC4 breakpoint probe。
+- 对 `0x2338 -> 0x401b50` call outcome 做最小 runtime/static confirmation。
+- 目标是解释为什么未落到 `0x233d`，并仅在出现 candidate-dependent 且连接 compare lhs/transform chain 的 material hook 后放行 breakpoint capture。

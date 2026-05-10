@@ -2,57 +2,58 @@
 
 ## Summary
 
-Implemented bounded compare-producer backtrace support for the Base64/RC4 material discovery bottleneck.
+Implemented the reusable Function Semantic Audit Layer and applied it to the current `samplereverse` producer-window bottleneck.
 
-The new route keeps candidate generation, ranking, final selection, promotion, beam, budget, topN, timeout, and frontier iteration unchanged. It captures compact producer-side buffer context from confirmed compare-producer hook points and only allows the Base64/RC4 breakpoint probe when an instruction-confirmed, hookable material point is found.
+The new layer records compact function-level semantic facts for `0x4019e0`, `0x401b50`, `0x4018cd`, and `0x401be3`, centralizes the material hook readiness gate, and keeps Base64/RC4 breakpoint probing blocked until a function is instruction-confirmed, hookable, candidate-dependent, and connected to the compare lhs or known transform chain.
 
 ## Files Changed
 
 | area | change | behavior impact |
 |---|---|---|
-| Olly probe | Added bounded `candidate_buffers` capture around compare-producer observations | emits compact register/stack/source buffer context without large dumps |
-| strategy | Added producer backtrace normalization and material candidate extraction | records `candidate_materials`, `write_source_trace`, `material_hook_candidates`, classification, and next bounded action |
-| strategy | Tightened breakpoint readiness to material kinds only | compare-producer hooks alone no longer enable Base64/RC4 breakpoint probing |
-| strategy | Static discovery now schedules producer trace when compare-producer hooks are confirmed | advances the current bottleneck without expanding search |
-| project state | Compact producer trace summary added | exposes latest producer trace artifact, material counts, best material candidates, classification, and breakpoint gate |
-| tests | Added strategy and project_state coverage | protects schema invariants, producer-trace scheduling, promotion gating, and compact rendering |
+| semantic layer | Added `reverse_agent/function_semantics.py` | normalizes function semantic records and computes conservative breakpoint readiness |
+| strategy | Added `function_semantic_audit.json` generation after material confirmation | persists function/dataflow evidence without changing candidate search |
+| strategy | Tightened static/material breakpoint gates | confirmed hooks alone no longer allow Base64/RC4 capture without semantic readiness |
+| project state | Indexed and summarized `function_semantic_audit` | current bottleneck now points to semantic audit evidence |
+| negative cache | Added function-level semantic soft blocks | avoids treating the same function as Base64/RC4 material without new evidence |
+| guidance | Documented PowerShell-native search preference | avoids repeating blocked `rg.exe` attempts in this desktop environment |
+| tests | Added semantic gate and project_state coverage | protects schema, indexing, compact rendering, and conservative gating |
 
 ## Artifact Result
 
 | item | value |
 |---|---|
-| run | `samplereverse_compare_producer_backtrace_20260508` |
-| artifact | `solve_reports\harness_runs\samplereverse_compare_producer_backtrace_20260508\reports\tool_artifacts\samplereverse_patched\compare_producer_trace_probe\compare_producer_trace_probe.json` |
-| classification | `upstream_material_candidate_found` |
-| candidate_count | `3` |
-| runtime_backed_count | `3` |
-| candidate_material_count | `18` |
-| write_source_trace_count | `0` |
+| source run | `samplereverse_material_confirmation_20260510_rerun2` |
+| artifact | `solve_reports\harness_runs\samplereverse_material_confirmation_20260510_rerun2\reports\tool_artifacts\samplereverse_patched\function_semantic_audit\function_semantic_audit.json` |
+| classification | `runtime_instrumentation_required` |
+| function_count | `4` |
 | material_hook_candidate_count | `0` |
 | breakpoint_probe_allowed | `false` |
-| current bottleneck | `compare_producer_trace_probe / upstream_material_candidate_found` |
+| current bottleneck | `function_semantic_audit / runtime_instrumentation_required` |
 
-The probe captured bounded producer context and candidate buffers, but no instruction-confirmed hookable Base64/RC4 material point was promoted. `base64_rc4_breakpoint_probe` remains gated by design.
+Semantic facts learned:
 
-The harness run timed out after the producer-trace artifact was written and before `summary.json` / `case_results` completed. The compact project state was rebuilt from the available artifact.
+| function | current read | missing evidence |
+|---|---|---|
+| `0x4019e0` | instruction-confirmed but not runtime-hooked in latest confirmation | prove whether it writes `[ebp-0x1168]` on the active path |
+| `0x401b50` | strongest bounded suspect; `0x2338` reached for all 3 diagnostic candidates | confirm return/branch outcome and candidate-dependent output after the call |
+| `0x4018cd` | downstream call site, not reached | explain why execution stops before `0x234e` |
+| `0x401be3` | later downstream call site, not reached | depends on resolving the missed 0x401b50/0x234e path |
 
 ## Tests
 
 | command | result |
 |---|---|
-| `python -m py_compile reverse_agent\olly_scripts\compare_producer_trace_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
-| `python -m pytest -q tests/test_compare_aware_search_strategy.py` | passed |
-| `python -m pytest -q tests/test_project_state.py` | passed |
-| `python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py` | `112 passed` |
-| `python -m pytest -q` | `189 passed` |
-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_compare_producer_backtrace_20260508` | passed |
+| `python -m py_compile reverse_agent\function_semantics.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+| `python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py` | `119 passed` |
+| `python -m pytest -q` | `196 passed` |
+| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_material_confirmation_20260510_rerun2` | passed |
 
 ## Current Best
 
-No runtime candidate improved during this diagnostic change. The current best remains exact2:
+No runtime candidate improved during this architecture/evidence change. The current best remains exact2:
 
 `78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`.
 
 ## Next Suggested Task
 
-Confirm the upstream material candidate at instruction level before enabling breakpoint capture. Do not rerun `base64_rc4_breakpoint_probe` until a hookable, instruction-confirmed `base64_output`, `rc4_input`, `rc4_output`, `rc4_key`, or `utf16le_payload` point is available.
+Add the smallest runtime/static confirmation for the `0x2338 -> 0x401b50` call outcome: determine why `0x233d`, `0x234e`, and `0x2355` are not reached, and only promote a material hook if it becomes candidate-dependent and connected to compare lhs or the transform chain.

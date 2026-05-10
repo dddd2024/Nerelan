@@ -12,6 +12,7 @@
     "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
     "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
     "frontier_summary": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_frontier_summary.json",
+    "function_semantic_audit": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
     "guided_pool_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
     "guided_pool_validation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
     "pairscan_summary": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\pairscan_summary.json",
@@ -59,11 +60,49 @@
   },
   "current_bottleneck": {
     "confidence": "medium",
-    "reason": "material_confirmation_inconclusive",
-    "stage": "compare_producer_material_confirmation"
+    "reason": "runtime_instrumentation_required",
+    "stage": "function_semantic_audit"
   },
   "current_mainline": "L15(prefix8)",
-  "generated_at": "2026-05-10T07:58:27Z",
+  "function_semantics": {
+    "0x4018cd": {
+      "candidate_dependent": false,
+      "confidence": "low",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+      "hookable": false,
+      "instruction_confirmed": true,
+      "material_hook_candidate_status": "blocked_unreached_in_current_probe",
+      "semantic_guess": "unknown_but_bounded"
+    },
+    "0x4019e0": {
+      "candidate_dependent": false,
+      "confidence": "low",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+      "hookable": false,
+      "instruction_confirmed": true,
+      "material_hook_candidate_status": "blocked_missing_candidate_dependent_output",
+      "semantic_guess": "unknown_but_bounded"
+    },
+    "0x401b50": {
+      "candidate_dependent": false,
+      "confidence": "medium",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+      "hookable": true,
+      "instruction_confirmed": true,
+      "material_hook_candidate_status": "blocked_missing_candidate_dependent_output",
+      "semantic_guess": "unknown_but_bounded"
+    },
+    "0x401be3": {
+      "candidate_dependent": false,
+      "confidence": "low",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+      "hookable": false,
+      "instruction_confirmed": true,
+      "material_hook_candidate_status": "blocked_unreached_in_current_probe",
+      "semantic_guess": "unknown_but_bounded"
+    }
+  },
+  "generated_at": "2026-05-10T08:43:02Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -358,6 +397,44 @@
   "latest_compare_producer_trace_probe": {},
   "latest_compare_stack_pivot_probe": {},
   "latest_dynamic_compare_path_probe": {},
+  "latest_function_semantic_audit": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+    "breakpoint_probe_allowed": false,
+    "classification": "runtime_instrumentation_required",
+    "function_count": 4,
+    "material_hook_candidate_count": 0,
+    "next_bounded_action": "confirm the 0x401b50 return or branch outcome after the 0x2338 call before rerunning Base64/RC4 breakpoint capture",
+    "top_semantic_guesses": [
+      {
+        "candidate_dependent": false,
+        "confidence": "low",
+        "function": "0x4019e0",
+        "material_hook_candidate_status": "blocked_missing_candidate_dependent_output",
+        "semantic_guess": "unknown_but_bounded"
+      },
+      {
+        "candidate_dependent": false,
+        "confidence": "medium",
+        "function": "0x401b50",
+        "material_hook_candidate_status": "blocked_missing_candidate_dependent_output",
+        "semantic_guess": "unknown_but_bounded"
+      },
+      {
+        "candidate_dependent": false,
+        "confidence": "low",
+        "function": "0x4018cd",
+        "material_hook_candidate_status": "blocked_unreached_in_current_probe",
+        "semantic_guess": "unknown_but_bounded"
+      },
+      {
+        "candidate_dependent": false,
+        "confidence": "low",
+        "function": "0x401be3",
+        "material_hook_candidate_status": "blocked_unreached_in_current_probe",
+        "semantic_guess": "unknown_but_bounded"
+      }
+    ]
+  },
   "latest_pre_rc4_material_probe": {},
   "latest_static_point_discovery": {
     "artifact": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",

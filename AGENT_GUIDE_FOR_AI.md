@@ -59,6 +59,7 @@ Use this file as the **first-read startup guide** so a new AI session can begin 
   - `solve_reports\tool_artifacts\samplereverse_compare_aware_long5_newbest\samplereverse_compare_aware_result.json`
   - `solve_reports\tool_artifacts\samplereverse_compare_aware_pairscan_newbest_exact2\pairscan_summary.json`
 - Do not default back to the old `sample_solver` blind search unless a decision packet explicitly gives a new evidence-backed override reason.
+- In this Codex desktop environment, prefer PowerShell-native search (`Get-ChildItem -Recurse -File` + `Select-String`) over `rg`; the bundled `rg.exe` may be blocked by Windows app permissions and should not be retried unless explicitly requested.
 
 ## Fixed Input/Output Contract
 - Input: executable file path or downloadable URL.

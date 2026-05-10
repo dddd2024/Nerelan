@@ -609,6 +609,63 @@ def test_project_state_indexes_compare_producer_material_confirmation_and_bottle
     assert any("producer material confirmation" in item["direction"] for item in negative_results)
 
 
+def test_project_state_indexes_function_semantic_audit_and_negative_cache(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_function_semantics")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "function_semantic_audit" / "function_semantic_audit.json",
+        {
+            "artifact_kind": "function_semantic_audit",
+            "classification": "runtime_instrumentation_required",
+            "sample": "samplereverse",
+            "profile": "samplereverse",
+            "target_functions": ["0x4019e0", "0x401b50", "0x4018cd", "0x401be3"],
+            "function_count": 4,
+            "functions": [
+                {
+                    "function": "0x401b50",
+                    "semantic_guess": "unknown_but_bounded",
+                    "confidence": "medium",
+                    "candidate_dependent": False,
+                    "instruction_confirmed": True,
+                    "hookable": True,
+                    "material_hook_candidate_status": "blocked_missing_candidate_dependent_output",
+                }
+            ],
+            "material_hook_candidate_count": 0,
+            "material_hook_candidates": [],
+            "breakpoint_probe_allowed": False,
+            "top_semantic_guesses": [
+                {
+                    "function": "0x401b50",
+                    "semantic_guess": "unknown_but_bounded",
+                    "confidence": "medium",
+                }
+            ],
+            "next_bounded_action": "confirm the 0x401b50 return path",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["function_semantic_audit"].endswith("function_semantic_audit.json")
+    assert current_state["current_bottleneck"]["stage"] == "function_semantic_audit"
+    assert current_state["current_bottleneck"]["reason"] == "runtime_instrumentation_required"
+    latest = current_state["latest_function_semantic_audit"]
+    assert latest["function_count"] == 4
+    assert latest["material_hook_candidate_count"] == 0
+    assert latest["breakpoint_probe_allowed"] is False
+    assert current_state["function_semantics"]["0x401b50"]["material_hook_candidate_status"] == (
+        "blocked_missing_candidate_dependent_output"
+    )
+    assert any(item.get("scope") == "function_semantics" for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
