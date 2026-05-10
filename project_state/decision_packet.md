@@ -2,123 +2,115 @@
 
 ## 1. Goal
 
-Build a reusable Function Semantic Audit Layer for reverse-agent, and use the current `samplereverse` bottleneck as the first validation target.
-
-The immediate challenge-specific goal is to resolve the current stall:
+本轮目标不是继续扩大搜索，而是做一个**最小控制流/数据流确认任务**：
 
 ```text
-compare_producer_material_confirmation / material_confirmation_inconclusive
+确认 0x2338 -> 0x401b50 调用之后，为什么 0x233d / 0x234e / 0x2355 没有被当前探针观测到。
 ```
 
-The project-level architectural goal is to stop accumulating one-off probes and instead introduce a persistent semantic-evidence layer that records what suspicious functions do, how data flows through them, and whether they can justify material hooks.
-
-This round must move the project from:
+核心要解决的问题：
 
 ```text
-candidate -> probe -> inconclusive -> another probe
+0x401b50 是否只是 handoff/copy/helper？
+还是它确实参与 UTF-16LE / Base64 / RC4 材料链？
 ```
 
-to:
+只有当新的证据证明某个点满足：
 
 ```text
-candidate
-  -> suspicious function discovery
-  -> function semantic audit
-  -> material pipeline hypothesis
-  -> hook readiness gate
-  -> runtime capture or solver refinement
+instruction_confirmed = true
+hookable = true
+candidate_dependent = true
+connected_to_compare_lhs_or_transform_chain = true
 ```
 
-The first seed functions for the new layer are:
+才允许打开 Base64/RC4 breakpoint probe。
+
+当前 `project_state` 已经把瓶颈定位为：
 
 ```text
-0x4019e0  called at module+0x2320
-0x401b50  called at module+0x2338
-0x4018cd  called at module+0x234e
-0x401be3  called at module+0x2355
+stage = function_semantic_audit
+reason = runtime_instrumentation_required
 ```
 
-These are the current producer-window calls that need semantic classification before any further Base64/RC4 breakpoint work.
+上一轮 Codex 已经实现 Function Semantic Audit Layer，并且完整测试通过。
 
 ## 2. Current Evidence
 
-The current active strategy is:
+当前主线：
 
 ```text
-CompareAwareSearchStrategy
+sample/profile = samplereverse
+active_strategy = CompareAwareSearchStrategy
+current_mainline = L15(prefix8)
+known_transform = input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix
 ```
 
-Current bottleneck:
+当前最好候选仍然是 exact2：
 
 ```text
-stage = compare_producer_material_confirmation
-reason = material_confirmation_inconclusive
-confidence = medium
-```
-
-The current best candidate remains:
-
-```text
-78d540b49c59077041414141414141
+candidate_hex = 78d540b49c59077041414141414141
 runtime_ci_exact_wchars = 2
 runtime_ci_distance5 = 246
 compare_semantics_agree = true
+source = pairscan
 ```
 
-No exact3+ improvement has been recorded.
-
-The latest material confirmation artifact did not find a valid material hook:
+当前 frontier 候选：
 
 ```text
-candidate_count = 3
-runtime_backed_count = 3
-confirmed_material_hook_candidate_count = 0
-confirmed_material_hook_candidates = []
-material_source_trace = []
+candidate_hex = 5a3e7f46ddd474d041414141414141
+runtime_ci_exact_wchars = 1
+runtime_ci_distance5 = 258
+```
+
+上一轮语义审计结果：
+
+```text
+classification = runtime_instrumentation_required
+function_count = 4
+material_hook_candidate_count = 0
 breakpoint_probe_allowed = false
 ```
 
-The project state explicitly says the next bounded action is:
+四个函数当前状态：
 
 ```text
-manually inspect producer offsets 0x2320, 0x2338, 0x234e, and 0x2355 before expanding search
+0x4019e0: instruction-confirmed, but not candidate-dependent
+0x401b50: strongest bounded suspect; 0x2338 reached for 3 diagnostic candidates
+0x4018cd: downstream call site, current probe not reached
+0x401be3: downstream call site, current probe not reached
 ```
 
-The instruction table confirms these call sites exist, but they did not produce candidate-dependent evidence in the current probe.
-
-The known transform hypothesis is still:
+Codex 报告明确指出下一步是：
 
 ```text
-input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix
+Add the smallest runtime/static confirmation for the 0x2338 -> 0x401b50 call outcome:
+determine why 0x233d, 0x234e, and 0x2355 are not reached.
 ```
-
-But the project currently lacks enough function-level evidence to prove which function implements which transform stage.
 
 ## 3. Do Not Do
 
-Do not:
+不要做以下事情：
 
 ```text
-1. Do not return to old sample_solver blind search.
-2. Do not only increase beam, budget, topN, timeout, or frontier iteration.
-3. Do not use compare_semantics_agree=false candidates as the primary frontier.
-4. Do not commit full solve_reports.
-5. Do not repeat exact2 basin value-pool evaluation.
-6. Do not repeat H1/H3 fixed Base64 boundary contrast set.
-7. Do not repeat transform trace consistency audit without new runtime evidence.
-8. Do not rerun base64_rc4_breakpoint_probe before confirming a Base64/RC4/UTF-16LE material hook.
-9. Do not repeat producer material confirmation unless new instruction-level evidence is added.
-10. Do not scan the entire solve_reports tree.
-11. Do not build another one-off probe that cannot persist semantic facts into project_state.
+1. 不要回到 old sample_solver blind search。
+2. 不要只增加 beam / budget / timeout / topN。
+3. 不要把 compare_semantics_agree=false 的候选作为主 frontier。
+4. 不要提交完整 solve_reports。
+5. 不要重复 exact2 basin value-pool evaluation。
+6. 不要重复 H1/H3 fixed Base64 boundary contrast set。
+7. 不要在没有新运行时证据的情况下重复 transform trace consistency audit。
+8. 不要在没有确认 Base64/RC4/UTF-16LE instruction hook 前运行 Base64/RC4 breakpoint probe。
+9. 不要把 0x4019e0 / 0x401b50 / 0x4018cd / 0x401be3 当作 material producer，除非有新的 candidate-dependent 语义证据。
+10. 不要扫描完整 solve_reports。
 ```
 
-The important new constraint is item 11: this round must improve the architecture, not merely produce another local diagnostic artifact.
+这些限制已经写入 `negative_results.json`，其中 `compare_semantics_agree=false` 和提交完整 `solve_reports` 是硬性阻断方向。
 
 ## 4. Files To Inspect
 
-Codex must first inspect the existing implementation to avoid duplicating features.
-
-Required project-state files:
+Codex 必须先读：
 
 ```text
 project_state/task_packet.json
@@ -128,116 +120,46 @@ project_state/negative_results.json
 project_state/codex_execution_report.md
 ```
 
-Required strategy/state files:
+然后检查实现位置：
 
 ```text
+reverse_agent/function_semantics.py
 reverse_agent/strategies/compare_aware_search.py
 reverse_agent/project_state.py
 tests/test_compare_aware_search_strategy.py
 tests/test_project_state.py
 ```
 
-Required probe-related files, if present:
+重点搜索这些关键词：
 
 ```text
-reverse_agent/olly_scripts/compare_producer_trace_probe.py
-reverse_agent/olly_scripts/base64_rc4_breakpoint_probe.py
-reverse_agent/olly_scripts/*material*
-reverse_agent/olly_scripts/*compare*
-reverse_agent/olly_scripts/*semantic*
-```
-
-Codex must search the repository for existing logic related to:
-
-```text
-compare_producer_material_confirmation
-compare_producer_trace_probe
-material_hook_candidates
+function_semantic_audit
 breakpoint_probe_allowed
 candidate_dependent
-instruction_confirmation_table
+material_hook_candidate
+compare_producer_material_confirmation
+producer_pre_material_call
+0x2338
+0x233d
+0x234e
+0x2355
+0x401b50
 ```
 
-Do not implement a duplicate runner if existing logic can be extended cleanly.
+如果存在 Olly/x32dbg/运行时探针脚本，再检查：
+
+```text
+reverse_agent/olly_scripts/*compare*
+reverse_agent/olly_scripts/*material*
+reverse_agent/olly_scripts/*semantic*
+reverse_agent/olly_scripts/*probe*
+```
 
 ## 5. Required Audit
 
-### A. Architecture audit
+### A. Static control-flow audit
 
-Before writing code, Codex must answer:
-
-```text
-1. Where are probe artifacts normalized?
-2. Where is breakpoint_probe_allowed computed?
-3. Where are material_hook_candidates extracted?
-4. Where does project_state decide which latest artifact to summarize?
-5. Is there already a reusable artifact schema mechanism?
-6. Is there already a suitable place for function-level semantic records?
-7. Which existing tests protect strategy scheduling and project_state rendering?
-```
-
-The architecture audit must identify whether the new semantic layer should be implemented as:
-
-```text
-Option A: a new artifact kind: function_semantic_audit
-Option B: an extension of compare_producer_material_confirmation
-Option C: a general semantic evidence module used by multiple probes
-```
-
-Preferred direction: Option C, with Option A as the first artifact type.
-
-### B. Function semantic audit
-
-For each function:
-
-```text
-0x4019e0
-0x401b50
-0x4018cd
-0x401be3
-```
-
-Codex must produce a compact semantic record:
-
-```json
-{
-  "function": "0x4019e0",
-  "call_sites": ["0x2320"],
-  "input_sources": [],
-  "output_sinks": [],
-  "stack_slots_read": [],
-  "stack_slots_written": [],
-  "registers_read": [],
-  "registers_written": [],
-  "memory_writes": [],
-  "candidate_dependent": false,
-  "semantic_guess": "unknown",
-  "confidence": "low",
-  "positive_evidence": [],
-  "negative_evidence": [],
-  "next_required_evidence": []
-}
-```
-
-Allowed semantic guesses:
-
-```text
-utf16le_constructor
-base64_transform
-rc4_ksa
-rc4_prga
-rc4_transform
-copy_or_handoff
-compare_preparer
-string_helper
-allocator_or_container_helper
-unrelated_helper
-unknown_but_bounded
-```
-
-### C. Dataflow audit
-
-For the producer window around:
+围绕以下窗口做精确审计：
 
 ```text
 0x2312
@@ -252,36 +174,100 @@ For the producer window around:
 0x235a
 ```
 
-Codex must map:
+必须回答：
 
 ```text
-1. Which function produces eax?
-2. Which function consumes eax?
-3. Which function writes [ebp-0x1168]?
-4. Which function writes [ebp-0x116c]?
-5. Which function writes [ebp-0x1170]?
-6. Which value eventually becomes esi?
-7. Which value becomes compare lhs?
-8. Which call, if any, introduces candidate-dependent data?
+1. 0x2338 call 0x401b50 是否正常返回？
+2. 如果没有到达 0x233d，是因为：
+   - 0x401b50 内部直接跳转？
+   - 异常 / early exit？
+   - hook 点设置错误？
+   - 地址基址/RVA 映射错误？
+   - 当前候选走了另一条路径？
+3. 0x401b50 返回后 EAX / EDX / ECX / ESI 的值如何变化？
+4. [ebp-0x1168] / [ebp-0x116c] / [ebp-0x1170] 是否被写入？
+5. 哪个值最终进入 compare lhs？
 ```
 
-If no candidate-dependent data is found, Codex must explicitly classify whether the current producer window is:
+### B. Runtime micro-probe audit
+
+新增或修改一个**最小运行时探针**，只围绕：
 
 ```text
-compare-side only
-copy/handoff only
-too late after material transform
-too early before material transform
-wrong path
-insufficient instrumentation
+entry: 0x2338
+return/next: 0x233d
+downstream: 0x234e, 0x2355
+callee: 0x401b50
 ```
 
-### D. Hook readiness audit
+不允许做大范围追踪。
 
-Codex must not set `breakpoint_probe_allowed=true` unless all are true:
+探针至少记录：
+
+```json
+{
+  "candidate_hex": "...",
+  "hit_0x2338": true,
+  "hit_0x233d": false,
+  "hit_0x234e": false,
+  "hit_0x2355": false,
+  "call_0x401b50_entered": true,
+  "call_0x401b50_returned": false,
+  "return_address": "...",
+  "eax_before": "...",
+  "eax_after": "...",
+  "edx_before": "...",
+  "edx_after": "...",
+  "esi_before": "...",
+  "esi_after": "...",
+  "stack_slots": {
+    "ebp_minus_1168": "...",
+    "ebp_minus_116c": "...",
+    "ebp_minus_1170": "..."
+  },
+  "candidate_dependent_fields": [],
+  "classification": "..."
+}
+```
+
+### C. Candidate-dependence audit
+
+至少用 3 个候选做对照：
 
 ```text
-1. semantic_guess is one of:
+1. current exact2:
+   78d540b49c59077041414141414141
+
+2. current frontier:
+   5a3e7f46ddd474d041414141414141
+
+3. one controlled neighbor:
+   78d540b49c59077141414141414141
+```
+
+目标不是找更优 candidate，而是判断：
+
+```text
+0x401b50 前后是否出现 candidate-dependent 差异。
+```
+
+如果所有寄存器、栈槽、返回路径都不随 candidate 改变，则必须把 `0x401b50` 降级为：
+
+```text
+copy_or_handoff
+allocator_or_container_helper
+string_helper
+unknown_but_bounded
+```
+
+不要继续把它当 Base64/RC4 producer。
+
+### D. Hook-readiness audit
+
+不得把 `breakpoint_probe_allowed` 设为 true，除非同时满足：
+
+```text
+1. semantic_guess 属于：
    - utf16le_constructor
    - base64_transform
    - rc4_ksa
@@ -289,345 +275,179 @@ Codex must not set `breakpoint_probe_allowed=true` unless all are true:
    - rc4_transform
 
 2. instruction_confirmed = true
-
 3. hookable = true
-
 4. candidate_dependent = true
-
-5. the function output can be connected to compare lhs or known transform chain
+5. output connected to compare lhs or known transform chain
 ```
 
-If these conditions are not met, the output must keep:
+否则继续保持：
 
 ```text
 breakpoint_probe_allowed = false
 ```
 
-and explain the missing evidence.
+并写明缺失证据。
 
 ## 6. Implementation Scope
 
-### Phase 1: Add Function Semantic Audit data model
+### Phase 1: Add minimal call-outcome probe
 
-Add a reusable schema for function semantic records.
+添加一个小型、可复用的 probe，不要写成 samplereverse 专用硬编码。
 
-Suggested names:
+建议命名：
 
 ```text
-FunctionSemanticRecord
-FunctionSemanticAuditArtifact
-FunctionSemanticMap
+compare_handoff_return_site_probe
+producer_call_outcome_probe
+material_call_outcome_probe
 ```
 
-The schema must support:
+产物路径建议：
 
 ```text
-sample
-profile
-run_name
-function address
-call sites
-input sources
-output sinks
-register effects
-stack effects
-memory writes
-candidate dependence
-semantic guess
+solve_reports/.../tool_artifacts/<sample>/compare_handoff_return_site_probe/compare_handoff_return_site_probe.json
+```
+
+### Phase 2: Integrate result into Function Semantic Audit
+
+把新证据回填到：
+
+```text
+function_semantics["0x401b50"]
+```
+
+至少更新：
+
+```text
+candidate_dependent
+hookable
+instruction_confirmed
+material_hook_candidate_status
+semantic_guess
 confidence
-positive evidence
-negative evidence
-next required evidence
-material hook candidate status
+positive_evidence
+negative_evidence
+next_required_evidence
 ```
 
-This should not be hard-coded only for `samplereverse`.
+### Phase 3: Update project_state summary
 
-### Phase 2: Add compact artifact type
-
-Add a new artifact kind:
-
-```text
-function_semantic_audit
-```
-
-or:
-
-```text
-compare_producer_callee_semantic_audit
-```
-
-Preferred artifact path pattern:
-
-```text
-solve_reports/.../tool_artifacts/<sample>/function_semantic_audit/function_semantic_audit.json
-```
-
-The artifact must be compact. Do not store full dumps.
-
-Required top-level fields:
+`current_state.json` 应该新增或更新：
 
 ```json
 {
-  "classification": "function_semantic_audit_complete",
-  "sample": "samplereverse",
-  "profile": "samplereverse",
-  "target_functions": [],
-  "functions": [],
-  "material_pipeline_hypothesis": [],
-  "material_hook_candidates": [],
-  "breakpoint_probe_allowed": false,
-  "next_bounded_action": ""
-}
-```
-
-Allowed classifications:
-
-```text
-function_semantic_audit_complete
-material_function_identified
-material_hook_ready
-compare_side_only
-copy_handoff_only
-wrong_window
-manual_disassembly_required
-runtime_instrumentation_required
-evidence_insufficient
-```
-
-### Phase 3: Seed audit with current four functions
-
-Use the current bottleneck to seed the semantic map:
-
-```text
-0x4019e0
-0x401b50
-0x4018cd
-0x401be3
-```
-
-Codex must not just list them. It must rank them:
-
-```text
-most likely material producer
-second likely
-likely handoff/copy
-likely unrelated/unknown
-```
-
-The report must answer:
-
-```text
-Which function is most likely responsible for Base64/RC4/UTF-16LE material production?
-Why?
-What evidence is missing?
-What is the next minimum probe?
-```
-
-### Phase 4: Integrate semantic map into project_state
-
-Extend `project_state/current_state.json` compact rendering with a new section:
-
-```json
-{
-  "latest_function_semantic_audit": {
+  "latest_compare_handoff_return_site_probe": {
     "artifact": "...",
     "classification": "...",
-    "function_count": 4,
-    "material_hook_candidate_count": 0,
-    "breakpoint_probe_allowed": false,
-    "top_semantic_guesses": []
-  },
-  "function_semantics": {
-    "0x4019e0": {
-      "semantic_guess": "unknown_but_bounded",
-      "confidence": "low",
-      "evidence_artifact": "..."
-    }
+    "candidate_count": 3,
+    "hit_0x2338_count": 3,
+    "hit_0x233d_count": 0,
+    "candidate_dependent_count": 0,
+    "next_bounded_action": "..."
   }
 }
 ```
 
-Also update `artifact_index.json` to index:
+如果确认 `0x401b50` 非 material producer，要把 `function_semantics["0x401b50"]` 的状态降级。
 
-```text
-function_semantic_audit
-```
+如果确认它有 candidate-dependent output，则标记为下一轮可进入 material hook confirmation，但仍不直接跑 Base64/RC4 probe，除非 hook-readiness 全部满足。
 
-Do not make `project_state` huge. It should summarize, not embed large artifacts.
+### Phase 4: Update negative_results
 
-### Phase 5: Add semantic negative cache
-
-Extend negative tracking so that the project can remember function-level negative results.
-
-Example:
+如果本轮证明 `0x401b50` 不产生 candidate-dependent material，则写入新的 soft block：
 
 ```json
 {
-  "direction": "treat 0x401b50 as rc4_prga",
+  "direction": "treat 0x401b50 as material producer after 0x2338 without new candidate-dependent return evidence",
   "scope": "function_semantics",
   "function": "0x401b50",
   "do_not_repeat": true,
-  "reason": "no candidate-dependent output observed in bounded audit",
-  "evidence_artifact": "...",
-  "severity": "soft_block"
+  "severity": "soft_block",
+  "reason": "0x2338 call outcome probe showed no candidate-dependent output / no return-site connection",
+  "evidence_artifact": "..."
 }
 ```
 
-This prevents repeated inspection of the same function with no new evidence.
+### Phase 5: Preserve candidate search behavior
 
-### Phase 6: Add semantic gate before expensive runtime probes
-
-Centralize the rule:
-
-```text
-Base64/RC4 breakpoint probe may run only if Function Semantic Audit identifies
-an instruction-confirmed, hookable, candidate-dependent material function or instruction.
-```
-
-This should be represented as a gate function, not scattered across probes.
-
-Suggested function names:
-
-```text
-is_material_hook_ready(...)
-compute_breakpoint_probe_allowed(...)
-summarize_function_semantic_gate(...)
-```
-
-The rule must remain conservative. False positives are worse than false negatives at this stage.
-
-### Phase 7: Preserve candidate-search behavior
-
-This architecture change must not change:
+不得修改：
 
 ```text
 candidate generation
 candidate ranking
-final selection
-promotion logic
+frontier promotion
 beam
 budget
-topN
 timeout
-frontier iteration
+topN
+solver scoring
 ```
 
-The current exact2 best must remain stable unless new runtime evidence genuinely improves it.
-
-### Phase 8: Update tests
-
-Add tests for:
-
-```text
-1. Function semantic record schema normalization.
-2. Function semantic audit artifact compact rendering.
-3. project_state includes latest_function_semantic_audit.
-4. function_semantics are summarized without bloating current_state.
-5. breakpoint_probe_allowed remains false without material hook readiness.
-6. breakpoint_probe_allowed becomes true only with:
-   - instruction_confirmed
-   - hookable
-   - candidate_dependent
-   - material semantic_guess
-7. existing candidate ranking tests remain unchanged.
-8. negative_results can store function-level negative evidence.
-```
+本轮是证据层任务，不是搜索策略任务。
 
 ## 7. Tests
 
-Minimum test commands:
+最低测试：
 
 ```bash
-python -m py_compile reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py
-python -m pytest -q tests/test_compare_aware_search_strategy.py
-python -m pytest -q tests/test_project_state.py
+python -m py_compile reverse_agent\function_semantics.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py
+python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py
 ```
 
-If Codex adds a new probe or artifact parser:
+如果新增 probe 脚本：
 
 ```bash
-python -m py_compile reverse_agent\olly_scripts\<new_or_modified_probe>.py
+python -m py_compile reverse_agent\olly_scripts\<new_probe>.py
 ```
 
-If shared strategy, artifact indexing, or project_state logic changes:
+如果改了 artifact indexing / project_state：
 
 ```bash
 python -m pytest -q
 ```
 
-Codex must report whether full test count remains consistent with previous baseline. The earlier report showed full test success at `189 passed`; any regression must be explained and fixed before completion.
+上一轮基线是：
+
+```text
+196 passed
+```
+
+本轮不得引入回归。
 
 ## 8. Stop Conditions
 
-Codex must stop and report when any of these happens:
+Codex 遇到以下任一情况就停止并报告：
 
 ```text
-1. Function Semantic Audit Layer is implemented and tested.
-2. The four seed functions are classified with evidence.
-3. A material-producing function is identified.
-4. A material hook becomes instruction-confirmed, hookable, and candidate-dependent.
-5. All four functions are classified as non-material or inconclusive.
-6. The current producer window is proven to be the wrong observation layer.
-7. Further progress requires manual IDA/x64dbg inspection.
-8. Further progress would require full binary-wide search.
-9. Candidate ranking changes unexpectedly.
-10. Any exact3+ or distance5 improvement appears.
+1. 证明 0x401b50 正常返回到 0x233d。
+2. 证明 0x401b50 不返回到 0x233d，并解释原因。
+3. 证明 0x401b50 前后存在 candidate-dependent output。
+4. 证明 0x401b50 前后不存在 candidate-dependent output。
+5. 证明 0x233d / 0x234e / 0x2355 未命中是 hook/address/path 问题。
+6. 找到新的 instruction-confirmed + hookable + candidate-dependent material hook。
+7. 需要人工 IDA/x32dbg 检查才能继续。
+8. 任何 exact3+ 或 distance5 改进出现。
+9. candidate ranking 意外变化。
+10. 测试失败且无法在本轮修复。
 ```
 
-Final `CODEX_EXECUTION_REPORT` must include:
+最终 `CODEX_EXECUTION_REPORT` 必须包含：
 
 ```text
-1. What architecture was added?
-2. What files changed?
-3. What new artifact schema was introduced?
-4. What semantic facts were learned about 0x4019e0 / 0x401b50 / 0x4018cd / 0x401be3?
-5. Which function is currently most likely to be material-producing?
-6. Is base64_rc4_breakpoint_probe still gated?
-7. What is the next minimum evidence needed?
-8. Did any candidate improve?
-9. What tests passed?
+1. 本轮新增/修改了什么 probe。
+2. 0x2338 是否命中。
+3. 0x401b50 是否进入。
+4. 0x401b50 是否返回。
+5. 0x233d / 0x234e / 0x2355 为什么没有命中。
+6. 是否发现 candidate-dependent register/stack/memory field。
+7. 0x401b50 当前语义分类是什么。
+8. breakpoint_probe_allowed 是否仍为 false。
+9. 是否有候选改善。
+10. 哪些测试通过。
 ```
 
-## Expected Deliverables
-
-Codex should produce:
+一句话给 Codex：
 
 ```text
-1. New or updated semantic audit implementation.
-2. New compact artifact:
-   function_semantic_audit.json
-3. Updated project_state/current_state.json rendering.
-4. Updated project_state/artifact_index.json indexing.
-5. Updated project_state/codex_execution_report.md.
-6. Updated or added tests.
-7. No full solve_reports commit.
-```
-
-## Strategic Interpretation
-
-This is the important project-level change:
-
-```text
-Before:
-reverse-agent primarily stores candidates and probe outcomes.
-
-After:
-reverse-agent stores semantic evidence about the binary:
-- functions
-- call sites
-- dataflow
-- material pipeline hypotheses
-- hook readiness
-- negative semantic conclusions
-```
-
-This makes the project more reusable across future reverse challenges.
-
-For `samplereverse`, the short-term target is still to break the current deadlock around Base64/RC4 material discovery. But the correct way to do that now is not another broad search. It is to make the project understand what the suspicious functions do.
-
-One-line instruction to Codex:
-
-```text
-Implement a reusable Function Semantic Audit Layer, seed it with 0x4019e0 / 0x401b50 / 0x4018cd / 0x401be3, persist the semantic map into project_state, and keep Base64/RC4 breakpoint probing gated until a material hook is instruction-confirmed, hookable, and candidate-dependent.
+Do the smallest runtime/static confirmation of the 0x2338 -> 0x401b50 call outcome, explain why 0x233d/0x234e/0x2355 are not reached, update function_semantics and project_state with candidate-dependence evidence, and keep Base64/RC4 breakpoint probing gated unless a material hook becomes instruction-confirmed, hookable, candidate-dependent, and connected to the compare lhs or transform chain.
 ```
