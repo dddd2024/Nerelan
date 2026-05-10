@@ -711,6 +711,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "artifact": artifact_refs.get("compare_handoff_return_site_probe"),
             "runtime_backed_count": compare_handoff_return_site_probe.get("runtime_backed_count"),
             "candidate_count": compare_handoff_return_site_probe.get("candidate_count"),
+            "hit_0x2338_count": compare_handoff_return_site_probe.get("hit_0x2338_count"),
+            "hit_0x233d_count": compare_handoff_return_site_probe.get("hit_0x233d_count"),
+            "hit_0x234e_count": compare_handoff_return_site_probe.get("hit_0x234e_count"),
+            "hit_0x2355_count": compare_handoff_return_site_probe.get("hit_0x2355_count"),
+            "call_0x401b50_entered_count": compare_handoff_return_site_probe.get("call_0x401b50_entered_count"),
+            "call_0x401b50_returned_count": compare_handoff_return_site_probe.get("call_0x401b50_returned_count"),
             "hook_results": compare_handoff_return_site_probe.get("hook_results"),
             "static_audit": compare_handoff_return_site_probe.get("static_audit"),
             "cross_candidate_summary": compare_handoff_return_site_probe.get("cross_candidate_summary"),
@@ -1143,6 +1149,27 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                     "override_reason_required": True,
                 }
             )
+            if (
+                function == "0x401b50"
+                and str(item.get("semantic_guess") or "").strip() == "copy_or_handoff"
+                and not bool(item.get("candidate_dependent"))
+            ):
+                results.append(
+                    {
+                        "direction": "treat 0x401b50 as material producer after 0x2338 without new candidate-dependent return evidence",
+                        "scope": "function_semantics",
+                        "function": "0x401b50",
+                        "severity": "soft_block",
+                        "do_not_repeat": True,
+                        "reason": (
+                            "0x2338 call-outcome evidence indicates copy/handoff behavior without candidate-dependent "
+                            "material output connected to compare lhs or transform chain"
+                        ),
+                        "evidence_artifact": artifacts.get("function_semantic_audit"),
+                        "override_allowed": True,
+                        "override_reason_required": True,
+                    }
+                )
     return results
 
 

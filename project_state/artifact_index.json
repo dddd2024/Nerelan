@@ -1,165 +1,165 @@
 {
-  "generated_at": "2026-05-10T08:43:02Z",
+  "generated_at": "2026-05-10T14:45:13Z",
   "latest_artifacts": {
-    "base64_rc4_breakpoint_probe": null,
+    "base64_rc4_breakpoint_probe": "solve_reports\\harness_runs\\samplereverse_base64_rc4_breakpoint_probe_20260507\\reports\\tool_artifacts\\samplereverse\\base64_rc4_breakpoint_probe\\base64_rc4_breakpoint_probe.json",
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
-    "bridge_search_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_search_result.json",
-    "bridge_validation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_validation\\bridge_validation.json",
+    "bridge_search_result": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_search_result.json",
+    "bridge_validation": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
-    "compare_aware_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_refine_2\\samplereverse_compare_aware_result.json",
-    "compare_handoff_probe": null,
-    "compare_handoff_return_site_probe": null,
-    "compare_handoff_slice_probe": null,
-    "compare_probe": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
-    "compare_producer_material_confirmation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
-    "compare_producer_trace_probe": null,
-    "compare_stack_pivot_probe": null,
-    "dynamic_compare_path_probe": null,
-    "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
-    "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
-    "frontier_summary": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_frontier_summary.json",
-    "function_semantic_audit": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
-    "guided_pool_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
-    "guided_pool_validation": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
-    "h1_h3_boundary_validation": null,
-    "pairscan_summary": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\pairscan_summary.json",
-    "pre_rc4_material_probe": null,
-    "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\profile_transform_hypothesis_matrix.json",
-    "run_manifest": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\run_manifest.json",
-    "smt_result": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\smt\\samplereverse_compare_aware_smt_result.json",
+    "compare_aware_result": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\frontier_refine_2\\samplereverse_compare_aware_result.json",
+    "compare_handoff_probe": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
+    "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
+    "compare_handoff_slice_probe": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
+    "compare_probe": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
+    "compare_producer_trace_probe": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
+    "compare_stack_pivot_probe": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
+    "dynamic_compare_path_probe": "solve_reports\\harness_runs\\samplereverse_dynamic_compare_path_probe_20260504_rerun\\reports\\tool_artifacts\\samplereverse\\dynamic_compare_path_probe\\dynamic_compare_path_probe.json",
+    "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
+    "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
+    "frontier_summary": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_frontier_summary.json",
+    "function_semantic_audit": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+    "guided_pool_result": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
+    "guided_pool_validation": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
+    "h1_h3_boundary_validation": "solve_reports\\harness_runs\\samplereverse_h1_h3_boundary_validation_20260504\\reports\\tool_artifacts\\samplereverse\\h1_h3_boundary_validation\\h1_h3_boundary_validation.json",
+    "h1_h3_boundary_validation_runtime": "solve_reports\\harness_runs\\samplereverse_h1_h3_boundary_validation_20260504\\reports\\tool_artifacts\\samplereverse\\h1_h3_boundary_validation\\validation\\h1_h3_boundary_validation.json",
+    "pairscan_summary": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\pairscan_summary.json",
+    "pre_rc4_material_probe": "solve_reports\\harness_runs\\samplereverse_pre_rc4_material_probe_20260507\\reports\\tool_artifacts\\samplereverse\\pre_rc4_material_probe\\pre_rc4_material_probe.json",
+    "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\profile_transform_hypothesis_matrix.json",
+    "run_manifest": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\run_manifest.json",
+    "smt_result": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\smt\\samplereverse_compare_aware_smt_result.json",
     "smt_validation": null,
-    "strata_summary": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\tool_artifacts\\samplereverse_l15_exact4_sext_batch1\\summary.json",
-    "transform_trace_consistency": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
+    "strata_summary": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
+    "summary": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\summary.json",
+    "transform_trace_consistency": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
   },
-  "latest_case_results": [],
-  "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2",
-  "latest_summary": null,
-  "missing": [
-    "case_results",
-    "summary"
+  "latest_case_results": [
+    "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\case_results\\samplereverse-compare-producer-backtrace.json"
   ],
+  "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510",
+  "latest_summary": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\summary.json",
+  "missing": [],
   "recent_artifacts": [
     {
+      "kind": "compare_producer_material_confirmation",
+      "modified_at": "2026-05-10T14:45:02Z",
+      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
+      "size_bytes": 50953
+    },
+    {
       "kind": "function_semantic_audit",
-      "modified_at": "2026-05-10T08:42:52Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
-      "size_bytes": 7795
+      "modified_at": "2026-05-10T14:45:02Z",
+      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+      "size_bytes": 7957
     },
     {
       "kind": "compare_producer_material_confirmation",
-      "modified_at": "2026-05-10T07:54:58Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
-      "size_bytes": 54368
+      "modified_at": "2026-05-10T14:45:01Z",
+      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\candidate_3\\compare_producer_material_confirmation.json",
+      "size_bytes": 15498
     },
     {
       "kind": "compare_producer_material_confirmation",
-      "modified_at": "2026-05-10T07:54:58Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\candidate_3\\compare_producer_material_confirmation.json",
-      "size_bytes": 17246
+      "modified_at": "2026-05-10T14:44:50Z",
+      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\candidate_2\\compare_producer_material_confirmation.json",
+      "size_bytes": 15886
     },
     {
       "kind": "compare_producer_material_confirmation",
-      "modified_at": "2026-05-10T07:54:50Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\candidate_2\\compare_producer_material_confirmation.json",
-      "size_bytes": 15590
+      "modified_at": "2026-05-10T14:44:39Z",
+      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\candidate_1\\compare_producer_material_confirmation.json",
+      "size_bytes": 15519
+    },
+    {
+      "kind": "compare_handoff_return_site_probe",
+      "modified_at": "2026-05-10T14:44:27Z",
+      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
+      "size_bytes": 132806
+    },
+    {
+      "kind": "compare_handoff_return_site_probe",
+      "modified_at": "2026-05-10T14:44:27Z",
+      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\candidate_3\\compare_handoff_return_site_probe.json",
+      "size_bytes": 35193
+    },
+    {
+      "kind": "compare_handoff_return_site_probe",
+      "modified_at": "2026-05-10T14:44:18Z",
+      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\candidate_2\\compare_handoff_return_site_probe.json",
+      "size_bytes": 34153
+    },
+    {
+      "kind": "compare_handoff_return_site_probe",
+      "modified_at": "2026-05-10T14:44:13Z",
+      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\candidate_1\\compare_handoff_return_site_probe.json",
+      "size_bytes": 34225
+    },
+    {
+      "kind": "summary",
+      "modified_at": "2026-05-10T14:43:46Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\summary.json",
+      "size_bytes": 969
+    },
+    {
+      "kind": "run_manifest",
+      "modified_at": "2026-05-10T14:43:46Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\run_manifest.json",
+      "size_bytes": 2130
     },
     {
       "kind": "compare_producer_material_confirmation",
-      "modified_at": "2026-05-10T07:54:43Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\candidate_1\\compare_producer_material_confirmation.json",
-      "size_bytes": 17404
+      "modified_at": "2026-05-10T14:36:21Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
+      "size_bytes": 51698
     },
     {
-      "kind": "profile_transform_hypothesis_matrix",
-      "modified_at": "2026-05-10T07:54:35Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\profile_transform_hypothesis_matrix.json",
-      "size_bytes": 107837
+      "kind": "function_semantic_audit",
+      "modified_at": "2026-05-10T14:36:21Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+      "size_bytes": 7967
     },
     {
-      "kind": "exact2_basin_value_pool_result",
-      "modified_at": "2026-05-10T07:54:35Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
-      "size_bytes": 123845
+      "kind": "compare_producer_material_confirmation",
+      "modified_at": "2026-05-10T14:36:20Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\candidate_3\\compare_producer_material_confirmation.json",
+      "size_bytes": 15556
     },
     {
-      "kind": "transform_trace_consistency",
-      "modified_at": "2026-05-10T07:54:35Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json",
-      "size_bytes": 60793
+      "kind": "compare_producer_material_confirmation",
+      "modified_at": "2026-05-10T14:36:09Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\candidate_2\\compare_producer_material_confirmation.json",
+      "size_bytes": 15556
     },
     {
-      "kind": "exact2_basin_value_pool_validation",
-      "modified_at": "2026-05-10T07:54:35Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
-      "size_bytes": 95083
+      "kind": "compare_producer_material_confirmation",
+      "modified_at": "2026-05-10T14:35:58Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\candidate_1\\compare_producer_material_confirmation.json",
+      "size_bytes": 16476
     },
     {
-      "kind": "smt_result",
-      "modified_at": "2026-05-10T07:53:37Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\smt\\samplereverse_compare_aware_smt_result.json",
-      "size_bytes": 8460
+      "kind": "compare_producer_trace_probe",
+      "modified_at": "2026-05-10T14:35:46Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
+      "size_bytes": 187206
     },
     {
-      "kind": "smt_result",
-      "modified_at": "2026-05-10T07:53:37Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\smt_exact2_basin\\samplereverse_compare_aware_smt_result.json",
-      "size_bytes": 8419
+      "kind": "compare_producer_trace_probe",
+      "modified_at": "2026-05-10T14:35:46Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\candidate_3\\compare_producer_trace_probe.json",
+      "size_bytes": 29787
     },
     {
-      "kind": "frontier_summary",
-      "modified_at": "2026-05-10T07:53:26Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_frontier_summary.json",
-      "size_bytes": 682600
+      "kind": "compare_producer_trace_probe",
+      "modified_at": "2026-05-10T14:35:36Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\candidate_2\\compare_producer_trace_probe.json",
+      "size_bytes": 33718
     },
     {
-      "kind": "strata_summary",
-      "modified_at": "2026-05-10T07:53:26Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
-      "size_bytes": 79287
-    },
-    {
-      "kind": "compare_aware_result",
-      "modified_at": "2026-05-10T07:53:01Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_refine_2\\samplereverse_compare_aware_result.json",
-      "size_bytes": 25001
-    },
-    {
-      "kind": "guided_pool_validation",
-      "modified_at": "2026-05-10T07:50:25Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
-      "size_bytes": 43091
-    },
-    {
-      "kind": "guided_pool_result",
-      "modified_at": "2026-05-10T07:50:00Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
-      "size_bytes": 922514
-    },
-    {
-      "kind": "compare_aware_result",
-      "modified_at": "2026-05-10T07:49:32Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_refine_1\\samplereverse_compare_aware_result.json",
-      "size_bytes": 24749
-    },
-    {
-      "kind": "guided_pool_validation",
-      "modified_at": "2026-05-10T07:47:10Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_1_5a3e7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
-      "size_bytes": 42110
-    },
-    {
-      "kind": "guided_pool_result",
-      "modified_at": "2026-05-10T07:46:12Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_1_5a3e7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
-      "size_bytes": 1028799
-    },
-    {
-      "kind": "compare_aware_result",
-      "modified_at": "2026-05-10T07:45:12Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_material_confirmation_20260510_rerun2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_result.json",
-      "size_bytes": 23144
+      "kind": "compare_producer_trace_probe",
+      "modified_at": "2026-05-10T14:35:27Z",
+      "path": "solve_reports\\harness_runs\\samplereverse_handoff_return_outcome_20260510\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\candidate_1\\compare_producer_trace_probe.json",
+      "size_bytes": 33631
     }
   ],
   "reports_dir": "solve_reports",

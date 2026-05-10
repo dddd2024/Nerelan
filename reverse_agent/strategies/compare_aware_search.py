@@ -192,7 +192,11 @@ BASE64_RC4_BREAKPOINT_PROBE_CANDIDATES = PRE_RC4_MATERIAL_PROBE_CANDIDATES
 COMPARE_STACK_PIVOT_PROBE_CANDIDATES = BASE64_RC4_BREAKPOINT_PROBE_CANDIDATES
 COMPARE_HANDOFF_PROBE_CANDIDATES = COMPARE_STACK_PIVOT_PROBE_CANDIDATES
 COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES = COMPARE_HANDOFF_PROBE_CANDIDATES
-COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES = COMPARE_HANDOFF_SLICE_PROBE_CANDIDATES
+COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES = (
+    "78d540b49c59077041414141414141",
+    "5a3e7f46ddd474d041414141414141",
+    "78d540b49c59077141414141414141",
+)
 COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES = COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES
 COMPARE_PRODUCER_MATERIAL_CONFIRMATION_CANDIDATES = COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES
 PAIR_TAIL_FLAGLIKE_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_{}-")
@@ -7339,6 +7343,42 @@ def _classify_handoff_return_site(
     return "helper_arg_slice_still_partial"
 
 
+def _return_site_hit_summary(candidate_results: list[dict[str, object]]) -> dict[str, int]:
+    hit_0x2338 = 0
+    hit_0x233d = 0
+    hit_0x234e = 0
+    hit_0x2355 = 0
+    call_entered = 0
+    call_returned = 0
+    for result in candidate_results:
+        observations = result.get("hook_observations", [])
+        observations = observations if isinstance(observations, list) else []
+        names = {
+            str(item.get("hook_name", ""))
+            for item in observations
+            if isinstance(item, dict)
+        }
+        if "handoff_helper_enter" in names:
+            hit_0x2338 += 1
+            call_entered += 1
+        if any(name.startswith("helper_return_site_0x233d") for name in names):
+            hit_0x233d += 1
+        if "handoff_helper_return" in names:
+            call_returned += 1
+        if any(name.startswith("producer_pre_output_call") for name in names):
+            hit_0x234e += 1
+        if any(name.startswith("producer_pre_second_call") for name in names):
+            hit_0x2355 += 1
+    return {
+        "hit_0x2338_count": hit_0x2338,
+        "hit_0x233d_count": hit_0x233d,
+        "hit_0x234e_count": hit_0x234e,
+        "hit_0x2355_count": hit_0x2355,
+        "call_0x401b50_entered_count": call_entered,
+        "call_0x401b50_returned_count": call_returned,
+    }
+
+
 def run_compare_handoff_return_site_probe(
     *,
     target: Path,
@@ -7435,6 +7475,7 @@ def run_compare_handoff_return_site_probe(
     runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
     hook_results = _aggregate_return_site_hook_results(candidate_results)
     cross_summary = _cross_candidate_return_site_summary(candidate_results)
+    hit_summary = _return_site_hit_summary(candidate_results)
     classification = _classify_handoff_return_site(
         runtime_backed_count=runtime_backed_count,
         hook_results=hook_results,
@@ -7458,6 +7499,7 @@ def run_compare_handoff_return_site_probe(
             "candidate_results": candidate_results,
             "return_site_maps": [result.get("return_site_map", {}) for result in candidate_results],
             "cross_candidate_summary": cross_summary,
+            **hit_summary,
             "findings": [
                 "return-site audit captured runtime observations"
                 if runtime_backed_count
@@ -8709,6 +8751,7 @@ def _semantic_record_from_material_hook_candidate(item: dict[str, object]) -> di
 
 def _function_semantic_records_from_material_confirmation(
     material_confirmation_payload: dict[str, object],
+    return_site_payload: dict[str, object] | None = None,
 ) -> list[dict[str, object]]:
     table = material_confirmation_payload.get("instruction_confirmation_table", [])
     table = table if isinstance(table, list) else []
@@ -8721,6 +8764,34 @@ def _function_semantic_records_from_material_confirmation(
     pre_second = _table_row_by_hook(table, "producer_pre_second_call")
     after_second = _table_row_by_hook(table, "producer_after_second_call")
 
+    return_site_payload = return_site_payload or {}
+    return_site_summary = return_site_payload.get("cross_candidate_summary", {})
+    return_site_summary = return_site_summary if isinstance(return_site_summary, dict) else {}
+    return_site_dep = return_site_summary.get("candidate_dependent_fields", {})
+    return_site_dep = return_site_dep if isinstance(return_site_dep, dict) else {}
+    return_site_rel = return_site_summary.get("relation_counts", {})
+    return_site_rel = return_site_rel if isinstance(return_site_rel, dict) else {}
+    hit_2338 = int(return_site_payload.get("hit_0x2338_count", 0) or 0)
+    hit_233d = int(return_site_payload.get("hit_0x233d_count", 0) or 0)
+    hit_234e = int(return_site_payload.get("hit_0x234e_count", 0) or 0)
+    hit_2355 = int(return_site_payload.get("hit_0x2355_count", 0) or 0)
+    call_returned = int(return_site_payload.get("call_0x401b50_returned_count", 0) or 0)
+    call_entered = int(return_site_payload.get("call_0x401b50_entered_count", 0) or 0)
+    return_site_candidate_dependent = bool(
+        return_site_dep.get("helper_return.eax_preview_hex")
+        or return_site_dep.get("helper_return.esi_preview_hex")
+        or return_site_dep.get("helper_return.lhs_slot_preview_hex")
+    )
+    return_site_connects_compare = any(
+        int(return_site_rel.get(key, 0) or 0) > 0
+        for key in (
+            "helper_return_eax_matches_compare_arg0_ptr",
+            "helper_return_eax_matches_compare_arg1_ptr",
+            "helper_return_eax_preview_matches_compare_arg0",
+            "helper_return_eax_preview_matches_compare_arg1",
+            "pre_compare_esi_matches_compare_arg0_ptr",
+        )
+    )
     records: list[dict[str, object]] = [
         {
             "function": "0x4019e0",
@@ -8762,26 +8833,36 @@ def _function_semantic_records_from_material_confirmation(
             "registers_written": ["eax", "edx"],
             "memory_writes": [],
             "candidate_dependent": bool(pre_material.get("candidate_dependent_eax"))
-            or bool(producer_return.get("candidate_dependent_eax")),
-            "semantic_guess": "unknown_but_bounded",
+            or bool(producer_return.get("candidate_dependent_eax"))
+            or return_site_candidate_dependent,
+            "semantic_guess": "copy_or_handoff" if call_entered > 0 and call_returned > 0 else "unknown_but_bounded",
             "confidence": "medium" if _table_count(pre_material, "observed_count") else "low",
             "positive_evidence": [
                 "0x2338 call to 0x401b50 was reached by runtime-backed diagnostic candidates",
+                "0x401b50 call outcome cross-check was captured by compare handoff return-site probe",
             ]
             if _table_count(pre_material, "observed_count")
-            else ["call site is instruction-confirmed at producer offset 0x2338"],
+            else [
+                "call site is instruction-confirmed at producer offset 0x2338",
+                "0x401b50 call outcome cross-check was captured by compare handoff return-site probe",
+            ],
             "negative_evidence": [
                 "0x233d return-site observation was not reached in the latest material confirmation",
                 "no candidate-dependent output was confirmed for 0x401b50",
+                "downstream 0x234e/0x2355 were not reached after the 0x2338 call",
             ],
             "next_required_evidence": [
                 "confirm 0x401b50 return or branch outcome after the 0x2338 call",
             ],
             "instruction_confirmed": bool(pre_material.get("instruction_confirmed", True)),
             "hookable": _table_bool(pre_material, "hookable") or _table_bool(producer_return, "hookable"),
-            "connects_to_compare_lhs": False,
+            "connects_to_compare_lhs": return_site_connects_compare,
             "connects_to_transform_chain": False,
-            "material_hook_candidate_status": "blocked_missing_candidate_dependent_output",
+            "material_hook_candidate_status": (
+                "blocked_missing_candidate_dependent_output"
+                if not return_site_candidate_dependent
+                else "blocked_missing_transform_chain_connection"
+            ),
         },
         {
             "function": "0x4018cd",
@@ -8871,11 +8952,15 @@ def _function_semantic_audit_classification(records: Sequence[dict[str, object]]
 def build_function_semantic_audit_payload(
     *,
     material_confirmation_payload: dict[str, object],
+    return_site_payload: dict[str, object] | None = None,
     sample: str = "samplereverse",
     profile: str = "samplereverse",
     run_name: str = "",
 ) -> dict[str, object]:
-    records = _function_semantic_records_from_material_confirmation(material_confirmation_payload)
+    records = _function_semantic_records_from_material_confirmation(
+        material_confirmation_payload,
+        return_site_payload=return_site_payload,
+    )
     classification = _function_semantic_audit_classification(records)
     payload = {
         "classification": classification,
@@ -8924,6 +9009,7 @@ def run_function_semantic_audit(
     *,
     artifacts_dir: Path,
     material_confirmation_payload: dict[str, object],
+    return_site_payload: dict[str, object] | None = None,
     run_name: str = "",
     log=None,
 ) -> dict[str, object]:
@@ -8931,6 +9017,7 @@ def run_function_semantic_audit(
     result_path = artifacts_dir / FUNCTION_SEMANTIC_AUDIT_FILE_NAME
     payload = build_function_semantic_audit_payload(
         material_confirmation_payload=material_confirmation_payload,
+        return_site_payload=return_site_payload,
         run_name=run_name,
     )
     _write_json(result_path, payload)
@@ -14576,6 +14663,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
             function_semantic_audit_run = run_function_semantic_audit(
                 artifacts_dir=artifacts_dir / "function_semantic_audit",
                 material_confirmation_payload=material_confirmation_payload,
+                return_site_payload=compare_handoff_return_site_payload,
                 log=log,
             )
             function_semantic_payload = dict(function_semantic_audit_run.get("payload", {}))
