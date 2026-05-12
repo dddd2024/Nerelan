@@ -57,6 +57,7 @@ COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME = "compare_handoff_slice_probe.json"
 COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME = "compare_handoff_return_site_probe.json"
 COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME = "compare_producer_trace_probe.json"
 COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME = "compare_producer_material_confirmation.json"
+COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME = "compare_pre_compare_handoff_target_probe.json"
 
 DEFAULT_ANCHORS = (
     "78d540b49c590770",
@@ -199,6 +200,7 @@ COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES = (
 )
 COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES = COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES
 COMPARE_PRODUCER_MATERIAL_CONFIRMATION_CANDIDATES = COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES
+COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_CANDIDATES = COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES
 PAIR_TAIL_FLAGLIKE_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_{}-")
 BASE64_RC4_BREAKPOINT_READY_KINDS = {"base64_output", "rc4_input", "rc4_output", "rc4_key", "utf16le_payload"}
 
@@ -248,6 +250,10 @@ def _compare_producer_trace_probe_script_path() -> Path:
 
 def _compare_producer_material_confirmation_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_producer_material_confirmation.py"
+
+
+def _compare_pre_compare_handoff_target_probe_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_pre_compare_handoff_target_probe.py"
 
 
 def _tool_source_path(tool_name: str) -> Path:
@@ -3670,6 +3676,49 @@ def _prior_producer_material_confirmation_allows_breakpoint() -> bool:
         return True
     payload, _ = _indexed_artifact_payload("compare_producer_material_confirmation")
     return _producer_material_confirmation_allows_breakpoint(payload)
+
+
+def _function_semantic_audit_needs_pre_compare_handoff(payload: dict[str, object]) -> bool:
+    if bool(payload.get("breakpoint_probe_allowed")):
+        return False
+    classification = str(payload.get("classification", "")).strip()
+    next_action = str(payload.get("next_bounded_action", "")).lower()
+    if classification == "runtime_instrumentation_required" and (
+        "0x401b50" in next_action
+        or "return or branch outcome" in next_action
+        or "pre-compare handoff" in next_action
+    ):
+        return True
+    return "0x401b50" in next_action and "base64/rc4 breakpoint" in next_action
+
+
+def _return_site_needs_pre_compare_handoff(payload: dict[str, object]) -> bool:
+    classification = str(payload.get("classification", "")).strip()
+    if classification == "wrong_helper_assumption":
+        return True
+    next_action = str(payload.get("next_bounded_action", "")).lower()
+    return "pre-compare handoff" in next_action or "0x401b50 did not return" in next_action
+
+
+def _prior_needs_pre_compare_handoff_target_probe() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest_pre_compare = current_state.get("latest_compare_pre_compare_handoff_target_probe", {})
+    if isinstance(latest_pre_compare, dict) and str(latest_pre_compare.get("classification", "")).strip():
+        return False
+    latest_material = current_state.get("latest_compare_producer_material_confirmation", {})
+    if isinstance(latest_material, dict) and _producer_material_confirmation_allows_breakpoint(latest_material):
+        return False
+    latest_function = current_state.get("latest_function_semantic_audit", {})
+    if isinstance(latest_function, dict) and _function_semantic_audit_needs_pre_compare_handoff(latest_function):
+        return True
+    latest_return_site = current_state.get("latest_compare_handoff_return_site_probe", {})
+    if isinstance(latest_return_site, dict) and _return_site_needs_pre_compare_handoff(latest_return_site):
+        return True
+    function_payload, _ = _indexed_artifact_payload("function_semantic_audit")
+    if _function_semantic_audit_needs_pre_compare_handoff(function_payload):
+        return True
+    return_payload, _ = _indexed_artifact_payload("compare_handoff_return_site_probe")
+    return _return_site_needs_pre_compare_handoff(return_payload)
 
 
 def _breakpoint_static_points_from_material_confirmation_payload(
@@ -8749,9 +8798,440 @@ def _semantic_record_from_material_hook_candidate(item: dict[str, object]) -> di
     }
 
 
+def _pre_compare_handoff_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "producer_return_site",
+            "module_offset": 0x233D,
+            "address": "module+0x233d",
+            "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+            "reason": "actual return site observed after the 0x2338 -> 0x401b50 call",
+        },
+        {
+            "name": "producer_pre_candidate_push",
+            "module_offset": 0x2346,
+            "address": "module+0x2346",
+            "instruction": "push edx",
+            "reason": "captures candidate material pointer before the next bounded call",
+        },
+        {
+            "name": "producer_pre_output_call",
+            "module_offset": 0x234E,
+            "address": "module+0x234e",
+            "instruction": "call 0x4018cd",
+            "reason": "captures downstream producer call input if the 0x233d path reaches it",
+        },
+        {
+            "name": "producer_post_output_call",
+            "module_offset": 0x2353,
+            "address": "module+0x2353",
+            "instruction": "mov ecx, eax",
+            "reason": "captures downstream producer call output",
+        },
+        {
+            "name": "producer_pre_second_call",
+            "module_offset": 0x2355,
+            "address": "module+0x2355",
+            "instruction": "call 0x401be3",
+            "reason": "captures final bounded producer call input",
+        },
+        {
+            "name": "producer_after_second_call",
+            "module_offset": 0x235A,
+            "address": "module+0x235a",
+            "instruction": "push 2",
+            "reason": "captures final bounded producer call output",
+        },
+        {
+            "name": "compare_helper_entry",
+            "module_offset": 0x1028AC,
+            "address": "module+0x1028ac",
+            "instruction": "case-insensitive wide compare helper entry",
+            "reason": "validates the final compare-side argument relation without relying on caller stack capture",
+        },
+    ]
+
+
+def _pre_compare_handoff_static_audit(
+    target: Path,
+    hook_points: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    try:
+        data = target.read_bytes()
+    except Exception:
+        data = b""
+    sections = _pe_sections_for_rva_mapping(data)
+    producer_start = 0x233D
+    producer_end = 0x235B
+    instructions: list[dict[str, object]] = []
+    for point in hook_points:
+        offset = _parse_int_hex(point.get("module_offset"))
+        if offset is None:
+            continue
+        size = 1 if offset == 0x1028AC else 5 if offset in {0x234E, 0x2355} else 1
+        instructions.append(
+            {
+                "name": point.get("name", ""),
+                "rva": f"0x{offset:x}",
+                "end_rva": f"0x{offset + size:x}",
+                "size": size,
+                "instruction": point.get("instruction", ""),
+                "bytes_hex": _read_rva_bytes(data, sections, offset, size),
+                "boundary_status": "instruction_confirmed",
+            }
+        )
+    return {
+        "classification": "static_pre_compare_handoff_audit_complete"
+        if data and sections
+        else "static_pre_compare_handoff_audit_partial",
+        "producer_window": {
+            "start_rva": f"0x{producer_start:x}",
+            "end_rva": f"0x{producer_end:x}",
+            "bytes_hex": _read_rva_bytes(data, sections, producer_start, producer_end - producer_start),
+        },
+        "instruction_boundaries": instructions,
+        "hook_point_audit": [
+            {
+                "name": point.get("name", ""),
+                "module_offset": f"0x{_parse_int_hex(point.get('module_offset')):x}"
+                if _parse_int_hex(point.get("module_offset")) is not None
+                else "",
+                "address": point.get("address", ""),
+                "boundary_status": "instruction_confirmed",
+                "reason": "fixed bounded pre-compare handoff target",
+            }
+            for point in hook_points
+        ],
+    }
+
+
+def _normalize_pre_compare_handoff_observation(item: dict[str, object], candidate_hex: str) -> dict[str, object]:
+    normalized = _normalize_material_confirmation_observation(item, candidate_hex)
+    normalized.update(
+        {
+            "compare_entry": dict(item.get("compare_entry", {})) if isinstance(item.get("compare_entry"), dict) else {},
+            "compare_args": dict(item.get("compare_args", {})) if isinstance(item.get("compare_args"), dict) else {},
+            "argument_previews": dict(item.get("argument_previews", {}))
+            if isinstance(item.get("argument_previews"), dict)
+            else {},
+        }
+    )
+    return normalized
+
+
+def _pre_compare_observations_for_hook(
+    result: dict[str, object],
+    hook_name: str,
+) -> list[dict[str, object]]:
+    observations = result.get("hook_observations", [])
+    observations = observations if isinstance(observations, list) else []
+    return [
+        item
+        for item in observations
+        if isinstance(item, dict) and str(item.get("hook_name", "")) == hook_name
+    ]
+
+
+def _pre_compare_compare_args(compare_observation: dict[str, object]) -> list[dict[str, object]]:
+    compare_args = compare_observation.get("compare_args", {})
+    if isinstance(compare_args, dict) and isinstance(compare_args.get("args"), list):
+        return [dict(item) for item in compare_args["args"] if isinstance(item, dict)]
+    entry_slots = _compare_entry_slots(compare_observation)
+    if entry_slots:
+        return entry_slots
+    stack_words = compare_observation.get("stack_words", [])
+    stack_words = stack_words if isinstance(stack_words, list) else []
+    args: list[dict[str, object]] = []
+    for index, stack_index in enumerate((1, 2, 3)):
+        if stack_index >= len(stack_words) or not isinstance(stack_words[stack_index], dict):
+            continue
+        word = dict(stack_words[stack_index])
+        args.append(
+            {
+                "index": index,
+                "role": f"arg{index}",
+                "value": word.get("value", ""),
+                "preview_hex": word.get("preview_hex", ""),
+                "module_offset": word.get("module_offset", ""),
+            }
+        )
+    return args
+
+
+def _pre_compare_arg_by_index(args: Sequence[dict[str, object]], index: int) -> dict[str, object]:
+    for item in args:
+        try:
+            item_index = int(item.get("index", -1))
+        except (TypeError, ValueError):
+            item_index = -1
+        if item_index == index:
+            return dict(item)
+    role = f"arg{index}"
+    for item in args:
+        if str(item.get("role", "")) == role:
+            return dict(item)
+    return {}
+
+
+def _pre_compare_register_relation(
+    observation: dict[str, object],
+    arg: dict[str, object],
+    register: str,
+) -> dict[str, bool]:
+    return {
+        "ptr_matches": _pointer_text_equal(observation.get(f"{register}_ptr"), arg.get("value")),
+        "preview_matches": _preview_text_equal(
+            observation.get(f"{register}_preview_hex"),
+            arg.get("preview_hex"),
+        ),
+    }
+
+
+def _pre_compare_relation_table(candidate_results: Sequence[dict[str, object]]) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for result in candidate_results:
+        compare = next(iter(_pre_compare_observations_for_hook(result, "compare_helper_entry")), {})
+        args = _pre_compare_compare_args(compare)
+        arg0 = _pre_compare_arg_by_index(args, 0)
+        arg1 = _pre_compare_arg_by_index(args, 1)
+        hook_rows: list[dict[str, object]] = []
+        for hook_name in (
+            "producer_return_site",
+            "producer_pre_candidate_push",
+            "producer_pre_output_call",
+            "producer_post_output_call",
+            "producer_pre_second_call",
+            "producer_after_second_call",
+        ):
+            observation = next(iter(_pre_compare_observations_for_hook(result, hook_name)), {})
+            if not observation:
+                continue
+            hook_rows.append(
+                {
+                    "hook_name": hook_name,
+                    "module_offset": observation.get("module_offset", ""),
+                    "eax_to_arg0": _pre_compare_register_relation(observation, arg0, "eax"),
+                    "eax_to_arg1": _pre_compare_register_relation(observation, arg1, "eax"),
+                    "edx_to_arg0": _pre_compare_register_relation(observation, arg0, "edx"),
+                    "edx_to_arg1": _pre_compare_register_relation(observation, arg1, "edx"),
+                    "esi_to_arg0": _pre_compare_register_relation(observation, arg0, "esi"),
+                    "esi_to_arg1": _pre_compare_register_relation(observation, arg1, "esi"),
+                    "edi_to_arg0": _pre_compare_register_relation(observation, arg0, "edi"),
+                    "edi_to_arg1": _pre_compare_register_relation(observation, arg1, "edi"),
+                }
+            )
+        rows.append(
+            {
+                "candidate_hex": result.get("candidate_hex", ""),
+                "compare_observed": bool(compare),
+                "compare_args": args,
+                "hook_relations": hook_rows,
+            }
+        )
+    return rows
+
+
+def _pre_compare_relation_counts(relation_table: Sequence[dict[str, object]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in relation_table:
+        if not isinstance(row, dict):
+            continue
+        for hook_row in row.get("hook_relations", []):
+            if not isinstance(hook_row, dict):
+                continue
+            hook_name = str(hook_row.get("hook_name", ""))
+            for relation_name, relation in hook_row.items():
+                if not isinstance(relation, dict):
+                    continue
+                for field, value in relation.items():
+                    key = f"{hook_name}.{relation_name}.{field}"
+                    counts[key] = counts.get(key, 0) + (1 if bool(value) else 0)
+    return counts
+
+
+def _pre_compare_candidate_dependent_fields(candidate_results: Sequence[dict[str, object]]) -> dict[str, bool]:
+    values: dict[str, set[str]] = {}
+    for result in candidate_results:
+        observations = result.get("hook_observations", [])
+        observations = observations if isinstance(observations, list) else []
+        for item in observations:
+            if not isinstance(item, dict):
+                continue
+            hook_name = str(item.get("hook_name", ""))
+            for register in ("eax", "ecx", "edx", "esi", "edi"):
+                key = f"{hook_name}.{register}_preview_hex"
+                values.setdefault(key, set()).add(str(item.get(f"{register}_preview_hex", ""))[:64])
+    return {key: len({value for value in seen if value}) > 1 for key, seen in values.items()}
+
+
+def _pre_compare_hit_summary(candidate_results: Sequence[dict[str, object]]) -> dict[str, int]:
+    hook_names = (
+        "producer_return_site",
+        "producer_pre_candidate_push",
+        "producer_pre_output_call",
+        "producer_post_output_call",
+        "producer_pre_second_call",
+        "producer_after_second_call",
+        "compare_helper_entry",
+    )
+    summary = {f"hit_{name}_count": 0 for name in hook_names}
+    for result in candidate_results:
+        observations = result.get("hook_observations", [])
+        observations = observations if isinstance(observations, list) else []
+        names = {str(item.get("hook_name", "")) for item in observations if isinstance(item, dict)}
+        for name in hook_names:
+            if name in names:
+                summary[f"hit_{name}_count"] += 1
+    return summary
+
+
+def _pre_compare_hook_miss_classification(hit_summary: dict[str, int], runtime_backed_count: int) -> str:
+    if runtime_backed_count <= 0:
+        return "runtime_no_observations"
+    hit_233d = int(hit_summary.get("hit_producer_return_site_count", 0) or 0)
+    hit_2346 = int(hit_summary.get("hit_producer_pre_candidate_push_count", 0) or 0)
+    hit_234e = int(hit_summary.get("hit_producer_pre_output_call_count", 0) or 0)
+    hit_2355 = int(hit_summary.get("hit_producer_pre_second_call_count", 0) or 0)
+    if hit_233d and hit_2346 and not hit_234e and not hit_2355:
+        return "branch_exits_before_output_calls"
+    if hit_233d and not hit_2346:
+        return "branch_exits_immediately_after_return_site"
+    if hit_234e and not hit_2355:
+        return "first_output_call_only"
+    if hit_234e and hit_2355:
+        return "bounded_output_calls_reached"
+    return "producer_window_inconclusive"
+
+
+def _pre_compare_material_kind_for_hook(hook_name: str) -> str:
+    if hook_name in {"producer_pre_output_call", "producer_post_output_call"}:
+        return "base64_output"
+    if hook_name in {"producer_pre_second_call", "producer_after_second_call"}:
+        return "rc4_output"
+    if hook_name in {"producer_return_site", "producer_pre_candidate_push"}:
+        return "utf16le_payload"
+    return ""
+
+
+def _pre_compare_handoff_material_hook_candidates(
+    table: Sequence[dict[str, object]],
+    relation_counts: dict[str, int],
+) -> list[dict[str, object]]:
+    out: list[dict[str, object]] = []
+    for row in table:
+        if not isinstance(row, dict):
+            continue
+        hook_name = str(row.get("hook_name", ""))
+        kind = _pre_compare_material_kind_for_hook(hook_name)
+        if kind not in BASE64_RC4_BREAKPOINT_READY_KINDS:
+            continue
+        module_offset = str(row.get("module_offset", ""))
+        candidate_dependent = bool(row.get("candidate_dependent_eax"))
+        relation_prefix = f"{hook_name}."
+        connects_to_compare = any(
+            key.startswith(relation_prefix) and bool(value)
+            for key, value in relation_counts.items()
+            if key.endswith(".ptr_matches") or key.endswith(".preview_matches")
+        )
+        expected_match = int(row.get("expected_eax_match_count", 0) or 0) > 0
+        if not candidate_dependent or not (connects_to_compare or expected_match):
+            continue
+        out.append(
+            {
+                "kind": kind,
+                "name": f"pre_compare_{hook_name}_{kind}",
+                "module_offset": module_offset,
+                "rva": module_offset,
+                "address": f"module+{module_offset}",
+                "instruction": row.get("instruction", ""),
+                "hook_kind": "interceptor",
+                "hookable": bool(row.get("hookable")),
+                "instruction_confirmed": bool(row.get("instruction_confirmed")),
+                "candidate_dependent": True,
+                "connects_to_compare_lhs": connects_to_compare,
+                "connects_to_transform_chain": expected_match,
+                "confidence": "medium",
+                "source": "compare_pre_compare_handoff_target_probe",
+                "evidence": [
+                    "candidate-dependent EAX observed in bounded pre-compare handoff window",
+                    "hook connects to compare lhs or expected producer material",
+                ],
+            }
+        )
+    return out[:16]
+
+
+def _classify_pre_compare_handoff_target(
+    *,
+    runtime_backed_count: int,
+    hit_summary: dict[str, int],
+    relation_counts: dict[str, int],
+    material_hook_candidates: Sequence[dict[str, object]],
+) -> str:
+    if runtime_backed_count <= 0:
+        return "runtime_instrumentation_required"
+    semantic_records = [
+        _semantic_record_from_material_hook_candidate(dict(item))
+        for item in material_hook_candidates
+        if isinstance(item, dict)
+    ]
+    if compute_breakpoint_probe_allowed(semantic_records):
+        return "next_handoff_target_identified"
+    if any(bool(value) for value in relation_counts.values()):
+        return "next_handoff_target_identified"
+    miss = _pre_compare_hook_miss_classification(hit_summary, runtime_backed_count)
+    if miss.startswith("branch_exits"):
+        return "wrong_window"
+    return "runtime_instrumentation_required"
+
+
+def _pre_compare_handoff_allows_breakpoint(payload: dict[str, object]) -> bool:
+    points = payload.get("material_hook_candidates", [])
+    if not isinstance(points, list):
+        return False
+    semantic_records = [
+        _semantic_record_from_material_hook_candidate(point)
+        for point in points
+        if isinstance(point, dict)
+        and str(point.get("kind", "")).strip() in BASE64_RC4_BREAKPOINT_READY_KINDS
+    ]
+    return compute_breakpoint_probe_allowed(
+        [record for record in semantic_records if isinstance(record, dict)]
+    )
+
+
+def _breakpoint_static_points_from_pre_compare_handoff_payload(
+    payload: dict[str, object],
+) -> dict[str, list[dict[str, object]]]:
+    if not _pre_compare_handoff_allows_breakpoint(payload):
+        return {}
+    out: dict[str, list[dict[str, object]]] = {}
+    points = payload.get("material_hook_candidates", [])
+    if not isinstance(points, list):
+        return {}
+    for point in points:
+        if not isinstance(point, dict):
+            continue
+        kind = str(point.get("kind", "")).strip()
+        module_offset = _static_point_module_offset(point.get("module_offset"))
+        if kind not in BASE64_RC4_BREAKPOINT_READY_KINDS or module_offset is None:
+            continue
+        out.setdefault(kind, []).append(
+            {
+                **point,
+                "hook_kind": str(point.get("hook_kind", "interceptor") or "interceptor"),
+                "module_offset": module_offset,
+                "rva": f"0x{module_offset:x}",
+                "hookable": True,
+            }
+        )
+    return out
+
+
 def _function_semantic_records_from_material_confirmation(
     material_confirmation_payload: dict[str, object],
     return_site_payload: dict[str, object] | None = None,
+    pre_compare_handoff_payload: dict[str, object] | None = None,
 ) -> list[dict[str, object]]:
     table = material_confirmation_payload.get("instruction_confirmation_table", [])
     table = table if isinstance(table, list) else []
@@ -8777,10 +9257,26 @@ def _function_semantic_records_from_material_confirmation(
     hit_2355 = int(return_site_payload.get("hit_0x2355_count", 0) or 0)
     call_returned = int(return_site_payload.get("call_0x401b50_returned_count", 0) or 0)
     call_entered = int(return_site_payload.get("call_0x401b50_entered_count", 0) or 0)
+    pre_compare_handoff_payload = pre_compare_handoff_payload or {}
+    pre_compare_table = pre_compare_handoff_payload.get("instruction_confirmation_table", [])
+    pre_compare_table = pre_compare_table if isinstance(pre_compare_table, list) else []
+    pre_compare_return = _table_row_by_hook(pre_compare_table, "producer_return_site")
+    pre_compare_push = _table_row_by_hook(pre_compare_table, "producer_pre_candidate_push")
+    pre_compare_pre_output = _table_row_by_hook(pre_compare_table, "producer_pre_output_call")
+    pre_compare_post_output = _table_row_by_hook(pre_compare_table, "producer_post_output_call")
+    pre_compare_pre_second = _table_row_by_hook(pre_compare_table, "producer_pre_second_call")
+    pre_compare_after_second = _table_row_by_hook(pre_compare_table, "producer_after_second_call")
+    pre_compare_relations = pre_compare_handoff_payload.get("relation_counts", {})
+    pre_compare_relations = pre_compare_relations if isinstance(pre_compare_relations, dict) else {}
+    pre_compare_hits = pre_compare_handoff_payload.get("hit_summary", {})
+    pre_compare_hits = pre_compare_hits if isinstance(pre_compare_hits, dict) else {}
+    pre_compare_classification = str(pre_compare_handoff_payload.get("classification", "") or "")
     return_site_candidate_dependent = bool(
         return_site_dep.get("helper_return.eax_preview_hex")
         or return_site_dep.get("helper_return.esi_preview_hex")
         or return_site_dep.get("helper_return.lhs_slot_preview_hex")
+        or pre_compare_return.get("candidate_dependent_eax")
+        or pre_compare_push.get("candidate_dependent_eax")
     )
     return_site_connects_compare = any(
         int(return_site_rel.get(key, 0) or 0) > 0
@@ -8791,7 +9287,29 @@ def _function_semantic_records_from_material_confirmation(
             "helper_return_eax_preview_matches_compare_arg1",
             "pre_compare_esi_matches_compare_arg0_ptr",
         )
+    ) or any(
+        key.startswith(("producer_return_site.", "producer_pre_candidate_push."))
+        and bool(value)
+        for key, value in pre_compare_relations.items()
     )
+    pre_compare_output_candidate_dependent = bool(pre_compare_pre_output.get("candidate_dependent_eax")) or bool(
+        pre_compare_post_output.get("candidate_dependent_eax")
+    )
+    pre_compare_second_candidate_dependent = bool(pre_compare_pre_second.get("candidate_dependent_eax")) or bool(
+        pre_compare_after_second.get("candidate_dependent_eax")
+    )
+    pre_compare_output_connects = any(
+        key.startswith(("producer_pre_output_call.", "producer_post_output_call."))
+        and bool(value)
+        for key, value in pre_compare_relations.items()
+    )
+    pre_compare_second_connects = any(
+        key.startswith(("producer_pre_second_call.", "producer_after_second_call."))
+        and bool(value)
+        for key, value in pre_compare_relations.items()
+    )
+    hit_pre_compare_234e = int(pre_compare_hits.get("hit_producer_pre_output_call_count", 0) or 0)
+    hit_pre_compare_2355 = int(pre_compare_hits.get("hit_producer_pre_second_call_count", 0) or 0)
     records: list[dict[str, object]] = [
         {
             "function": "0x4019e0",
@@ -8850,6 +9368,11 @@ def _function_semantic_records_from_material_confirmation(
                 "0x233d return-site observation was not reached in the latest material confirmation",
                 "no candidate-dependent output was confirmed for 0x401b50",
                 "downstream 0x234e/0x2355 were not reached after the 0x2338 call",
+            ]
+            if not pre_compare_handoff_payload
+            else [
+                f"pre-compare handoff probe classified the 0x233d follow-up as {pre_compare_classification}",
+                "0x401b50 remains a handoff/copy suspect until a material transform edge is confirmed",
             ],
             "next_required_evidence": [
                 "confirm 0x401b50 return or branch outcome after the 0x2338 call",
@@ -8857,11 +9380,14 @@ def _function_semantic_records_from_material_confirmation(
             "instruction_confirmed": bool(pre_material.get("instruction_confirmed", True)),
             "hookable": _table_bool(pre_material, "hookable") or _table_bool(producer_return, "hookable"),
             "connects_to_compare_lhs": return_site_connects_compare,
-            "connects_to_transform_chain": False,
+            "connects_to_transform_chain": bool(pre_compare_return.get("expected_eax_match_count"))
+            or bool(pre_compare_push.get("expected_eax_match_count")),
             "material_hook_candidate_status": (
                 "blocked_missing_candidate_dependent_output"
                 if not return_site_candidate_dependent
                 else "blocked_missing_transform_chain_connection"
+                if not pre_compare_handoff_payload
+                else "blocked_copy_handoff_only"
             ),
         },
         {
@@ -8875,21 +9401,43 @@ def _function_semantic_records_from_material_confirmation(
             "registers_written": ["eax", "ecx"],
             "memory_writes": [],
             "candidate_dependent": bool(pre_output.get("candidate_dependent_eax"))
-            or bool(post_output.get("candidate_dependent_eax")),
-            "semantic_guess": "unknown_but_bounded",
-            "confidence": "low",
+            or bool(post_output.get("candidate_dependent_eax"))
+            or pre_compare_output_candidate_dependent,
+            "semantic_guess": "base64_transform"
+            if pre_compare_output_candidate_dependent and pre_compare_output_connects
+            else "unknown_but_bounded",
+            "confidence": "medium" if hit_pre_compare_234e else "low",
             "positive_evidence": ["call site is instruction-confirmed at producer offset 0x234e"],
             "negative_evidence": [
                 "0x234e/0x2353 were not reached in the latest material confirmation",
+            ]
+            if not hit_pre_compare_234e
+            else [
+                "0x234e/0x2353 reached in pre-compare handoff probe but semantic gate still requires compare/transform connection",
             ],
             "next_required_evidence": [
                 "inspect why the active path reaches 0x2338 but not 0x234e",
             ],
             "instruction_confirmed": bool(pre_output.get("instruction_confirmed", True)),
-            "hookable": _table_bool(pre_output, "hookable") or _table_bool(post_output, "hookable"),
-            "connects_to_compare_lhs": False,
-            "connects_to_transform_chain": False,
-            "material_hook_candidate_status": "blocked_unreached_in_current_probe",
+            "hookable": _table_bool(pre_output, "hookable")
+            or _table_bool(post_output, "hookable")
+            or _table_bool(pre_compare_pre_output, "hookable")
+            or _table_bool(pre_compare_post_output, "hookable"),
+            "connects_to_compare_lhs": pre_compare_output_connects,
+            "connects_to_transform_chain": bool(pre_compare_pre_output.get("expected_eax_match_count"))
+            or bool(pre_compare_post_output.get("expected_eax_match_count")),
+            "material_hook_candidate_status": (
+                "ready"
+                if pre_compare_output_candidate_dependent
+                and (
+                    pre_compare_output_connects
+                    or bool(pre_compare_pre_output.get("expected_eax_match_count"))
+                    or bool(pre_compare_post_output.get("expected_eax_match_count"))
+                )
+                else "blocked_missing_transform_chain_connection"
+                if hit_pre_compare_234e
+                else "blocked_unreached_in_current_probe"
+            ),
         },
         {
             "function": "0x401be3",
@@ -8902,9 +9450,12 @@ def _function_semantic_records_from_material_confirmation(
             "registers_written": ["eax"],
             "memory_writes": [],
             "candidate_dependent": bool(pre_second.get("candidate_dependent_eax"))
-            or bool(after_second.get("candidate_dependent_eax")),
-            "semantic_guess": "unknown_but_bounded",
-            "confidence": "low",
+            or bool(after_second.get("candidate_dependent_eax"))
+            or pre_compare_second_candidate_dependent,
+            "semantic_guess": "rc4_transform"
+            if pre_compare_second_candidate_dependent and pre_compare_second_connects
+            else "unknown_but_bounded",
+            "confidence": "medium" if hit_pre_compare_2355 else "low",
             "positive_evidence": ["call site is instruction-confirmed at producer offset 0x2355"],
             "negative_evidence": [
                 "0x2355/0x235a were not reached in the latest material confirmation",
@@ -8913,10 +9464,25 @@ def _function_semantic_records_from_material_confirmation(
                 "inspect whether this call is downstream of the missed 0x401b50 return path",
             ],
             "instruction_confirmed": bool(pre_second.get("instruction_confirmed", True)),
-            "hookable": _table_bool(pre_second, "hookable") or _table_bool(after_second, "hookable"),
-            "connects_to_compare_lhs": False,
-            "connects_to_transform_chain": False,
-            "material_hook_candidate_status": "blocked_unreached_in_current_probe",
+            "hookable": _table_bool(pre_second, "hookable")
+            or _table_bool(after_second, "hookable")
+            or _table_bool(pre_compare_pre_second, "hookable")
+            or _table_bool(pre_compare_after_second, "hookable"),
+            "connects_to_compare_lhs": pre_compare_second_connects,
+            "connects_to_transform_chain": bool(pre_compare_pre_second.get("expected_eax_match_count"))
+            or bool(pre_compare_after_second.get("expected_eax_match_count")),
+            "material_hook_candidate_status": (
+                "ready"
+                if pre_compare_second_candidate_dependent
+                and (
+                    pre_compare_second_connects
+                    or bool(pre_compare_pre_second.get("expected_eax_match_count"))
+                    or bool(pre_compare_after_second.get("expected_eax_match_count"))
+                )
+                else "blocked_missing_transform_chain_connection"
+                if hit_pre_compare_2355
+                else "blocked_unreached_in_current_probe"
+            ),
         },
     ]
 
@@ -8925,6 +9491,13 @@ def _function_semantic_records_from_material_confirmation(
         records.extend(
             _semantic_record_from_material_hook_candidate(item)
             for item in confirmed
+            if isinstance(item, dict)
+        )
+    pre_compare_candidates = pre_compare_handoff_payload.get("material_hook_candidates", [])
+    if isinstance(pre_compare_candidates, list):
+        records.extend(
+            _semantic_record_from_material_hook_candidate(item)
+            for item in pre_compare_candidates
             if isinstance(item, dict)
         )
     return records
@@ -8953,6 +9526,7 @@ def build_function_semantic_audit_payload(
     *,
     material_confirmation_payload: dict[str, object],
     return_site_payload: dict[str, object] | None = None,
+    pre_compare_handoff_payload: dict[str, object] | None = None,
     sample: str = "samplereverse",
     profile: str = "samplereverse",
     run_name: str = "",
@@ -8960,8 +9534,12 @@ def build_function_semantic_audit_payload(
     records = _function_semantic_records_from_material_confirmation(
         material_confirmation_payload,
         return_site_payload=return_site_payload,
+        pre_compare_handoff_payload=pre_compare_handoff_payload,
     )
     classification = _function_semantic_audit_classification(records)
+    pre_compare_handoff_payload = pre_compare_handoff_payload or {}
+    pre_compare_classification = str(pre_compare_handoff_payload.get("classification", "") or "")
+    pre_compare_miss = str(pre_compare_handoff_payload.get("hook_miss_classification", "") or "")
     payload = {
         "classification": classification,
         "sample": sample,
@@ -8992,14 +9570,24 @@ def build_function_semantic_audit_payload(
             "esi_source": "unknown in current bounded producer window",
             "compare_lhs_source": "not connected to a confirmed material function yet",
             "candidate_dependent_call": "none confirmed",
+            "pre_compare_handoff_classification": pre_compare_classification,
+            "pre_compare_handoff_hook_miss_classification": pre_compare_miss,
         },
         "negative_evidence": [
-            "0x2338 was reachable but 0x233d/0x234e/0x2355 were not observed",
+            "0x2338 was reachable but 0x233d/0x234e/0x2355 were not observed"
+            if not pre_compare_handoff_payload
+            else f"pre-compare handoff follow-up classified as {pre_compare_classification or 'unknown'}",
             "no function output is both candidate-dependent and connected to compare lhs",
         ],
         "next_bounded_action": (
-            "confirm the 0x401b50 return or branch outcome after the 0x2338 call before rerunning "
-            "Base64/RC4 breakpoint capture"
+            "rerun bounded Base64/RC4 breakpoint probe with pre-compare handoff material hooks"
+            if compute_breakpoint_probe_allowed(records)
+            else "use pre-compare handoff target evidence to decide whether the producer window is wrong or too narrow"
+            if pre_compare_handoff_payload
+            else (
+                "confirm the 0x401b50 return or branch outcome after the 0x2338 call before rerunning "
+                "Base64/RC4 breakpoint capture"
+            )
         ),
     }
     return normalize_function_semantic_audit(payload)
@@ -9010,6 +9598,7 @@ def run_function_semantic_audit(
     artifacts_dir: Path,
     material_confirmation_payload: dict[str, object],
     return_site_payload: dict[str, object] | None = None,
+    pre_compare_handoff_payload: dict[str, object] | None = None,
     run_name: str = "",
     log=None,
 ) -> dict[str, object]:
@@ -9018,6 +9607,7 @@ def run_function_semantic_audit(
     payload = build_function_semantic_audit_payload(
         material_confirmation_payload=material_confirmation_payload,
         return_site_payload=return_site_payload,
+        pre_compare_handoff_payload=pre_compare_handoff_payload,
         run_name=run_name,
     )
     _write_json(result_path, payload)
@@ -9038,6 +9628,164 @@ def _function_semantic_audit_allows_breakpoint(payload: dict[str, object]) -> bo
     return compute_breakpoint_probe_allowed(
         [item for item in functions if isinstance(item, dict)]
     )
+
+
+def run_compare_pre_compare_handoff_target_probe(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel,
+    per_probe_timeout: float,
+    producer_trace_payload: dict[str, object] | None = None,
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME
+    script_path = _compare_pre_compare_handoff_target_probe_script_path()
+    producer_trace_payload = producer_trace_payload or _latest_compare_producer_trace_payload()
+    expected_previews = _producer_trace_expected_eax_previews(producer_trace_payload)
+    hook_points = _pre_compare_handoff_hook_points()
+    static_audit = _pre_compare_handoff_static_audit(target, hook_points)
+    entries = list(COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_CANDIDATES)
+    payload: dict[str, object] = {
+        "artifact_kind": "compare_pre_compare_handoff_target_probe",
+        "profile": "samplereverse",
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(entries),
+        "candidate_limit": len(COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_CANDIDATES),
+        "source_producer_trace_classification": producer_trace_payload.get("classification", ""),
+        "hook_points": hook_points,
+        "static_audit": static_audit,
+        "expected_eax_previews": expected_previews,
+        "instruction_confirmation_table": [],
+        "relation_table": [],
+        "relation_counts": {},
+        "candidate_dependent_fields": {},
+        "material_hook_candidates": [],
+        "breakpoint_probe_allowed": False,
+        "promotable_validations": [],
+    }
+    _write_json(result_path, payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Compare pre-compare handoff target probe script missing: {script_path}")
+
+    points_path = artifacts_dir / "pre_compare_handoff_hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        compare_out = candidate_dir / "compare_pre_compare_handoff_target_probe.json"
+        compare_log = candidate_dir / "compare_pre_compare_handoff_target_probe.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(compare_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            expected_previews.get(candidate_hex, ""),
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"ComparePreCompareHandoffTargetProbe scripted hooks {idx}: {candidate_hex}")
+        proc = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        compare_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        observations = [
+            _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        candidate_results.append(
+            {
+                "label": f"compare_pre_compare_handoff_target_probe_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_observations": observations[:128],
+                "result_path": str(compare_out),
+                "log_path": str(compare_log),
+                "success": bool(compare_payload.get("success")),
+                "error": str(compare_payload.get("error", "")),
+            }
+        )
+
+    runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
+    instruction_confirmation_table = _material_confirmation_table(candidate_results, hook_points)
+    relation_table = _pre_compare_relation_table(candidate_results)
+    relation_counts = _pre_compare_relation_counts(relation_table)
+    hit_summary = _pre_compare_hit_summary(candidate_results)
+    candidate_dependent_fields = _pre_compare_candidate_dependent_fields(candidate_results)
+    hook_miss_classification = _pre_compare_hook_miss_classification(hit_summary, runtime_backed_count)
+    material_hook_candidates = _pre_compare_handoff_material_hook_candidates(
+        instruction_confirmation_table,
+        relation_counts,
+    )
+    breakpoint_probe_allowed = _pre_compare_handoff_allows_breakpoint(
+        {"material_hook_candidates": material_hook_candidates}
+    )
+    classification = _classify_pre_compare_handoff_target(
+        runtime_backed_count=runtime_backed_count,
+        hit_summary=hit_summary,
+        relation_counts=relation_counts,
+        material_hook_candidates=material_hook_candidates,
+    )
+    next_bounded_action = (
+        "rerun bounded Base64/RC4 breakpoint probe with pre-compare handoff material hooks"
+        if breakpoint_probe_allowed
+        else "inspect branch/call outcome after 0x233d; bounded output calls were not connected to compare lhs"
+        if classification == "wrong_window"
+        else "use relation table to decide whether the hook window is too narrow or compare-side relation is missing"
+    )
+    payload.update(
+        {
+            "classification": classification,
+            "runtime_backed_count": runtime_backed_count,
+            "instruction_confirmation_table": instruction_confirmation_table,
+            "relation_table": relation_table,
+            "relation_counts": relation_counts,
+            "candidate_dependent_fields": candidate_dependent_fields,
+            "hit_summary": hit_summary,
+            "hook_miss_classification": hook_miss_classification,
+            "material_hook_candidate_count": len(material_hook_candidates),
+            "material_hook_candidates": material_hook_candidates,
+            "breakpoint_probe_allowed": breakpoint_probe_allowed,
+            "candidate_results": candidate_results,
+            "next_bounded_action": next_bounded_action,
+            "promotable_validations": [],
+        }
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Compare pre-compare handoff target probe wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
+        "promotable_validations": [],
+    }
 
 
 def run_compare_producer_material_confirmation_probe(
@@ -13995,6 +14743,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         compare_producer_trace_probe_artifact: ToolRunArtifact | None = None
         compare_producer_material_confirmation_run: dict[str, object] | None = None
         compare_producer_material_confirmation_artifact: ToolRunArtifact | None = None
+        compare_pre_compare_handoff_target_probe_run: dict[str, object] | None = None
+        compare_pre_compare_handoff_target_probe_artifact: ToolRunArtifact | None = None
         function_semantic_audit_run: dict[str, object] | None = None
         function_semantic_audit_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_validation_run: dict[str, object] | None = None
@@ -14713,6 +15463,109 @@ class CompareAwareSearchStrategy(SolverStrategy):
                     derived_entries=[],
                 )
 
+        current_function_semantic_payload = (
+            dict(function_semantic_audit_run.get("payload", {}))
+            if function_semantic_audit_run
+            else _indexed_artifact_payload("function_semantic_audit")[0]
+        )
+        should_run_pre_compare_handoff_target_probe = (
+            (
+                _function_semantic_audit_needs_pre_compare_handoff(current_function_semantic_payload)
+                or _prior_needs_pre_compare_handoff_target_probe()
+                or _return_site_needs_pre_compare_handoff(compare_handoff_return_site_payload)
+            )
+            and not _prior_producer_material_confirmation_allows_breakpoint()
+        )
+        if should_run_pre_compare_handoff_target_probe:
+            if not compare_producer_trace_payload:
+                compare_producer_trace_payload = _latest_compare_producer_trace_payload()
+            compare_pre_compare_handoff_target_probe_run = run_compare_pre_compare_handoff_target_probe(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "compare_pre_compare_handoff_target_probe",
+                transform_model=transform_model,
+                per_probe_timeout=per_probe_timeout,
+                producer_trace_payload=compare_producer_trace_payload,
+                log=log,
+            )
+            pre_compare_handoff_payload = dict(compare_pre_compare_handoff_target_probe_run.get("payload", {}))
+            compare_pre_compare_handoff_target_probe_artifact = _make_search_artifact(
+                tool_name="ComparePreCompareHandoffTargetProbe",
+                output_path=Path(str(compare_pre_compare_handoff_target_probe_run["result_path"])),
+                summary=str(
+                    pre_compare_handoff_payload.get(
+                        "classification",
+                        "compare pre-compare handoff target probe complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=pre_compare_handoff_payload,
+                derived_entries=[],
+            )
+            material_payload_for_audit = (
+                dict(compare_producer_material_confirmation_run.get("payload", {}))
+                if compare_producer_material_confirmation_run
+                else _indexed_artifact_payload("compare_producer_material_confirmation")[0]
+            )
+            return_payload_for_audit = (
+                compare_handoff_return_site_payload
+                if compare_handoff_return_site_payload
+                else _indexed_artifact_payload("compare_handoff_return_site_probe")[0]
+            )
+            function_semantic_audit_run = run_function_semantic_audit(
+                artifacts_dir=artifacts_dir / "function_semantic_audit",
+                material_confirmation_payload=material_payload_for_audit,
+                return_site_payload=return_payload_for_audit,
+                pre_compare_handoff_payload=pre_compare_handoff_payload,
+                log=log,
+            )
+            function_semantic_payload = dict(function_semantic_audit_run.get("payload", {}))
+            function_semantic_audit_artifact = _make_search_artifact(
+                tool_name="FunctionSemanticAudit",
+                output_path=Path(str(function_semantic_audit_run["result_path"])),
+                summary=str(
+                    function_semantic_payload.get(
+                        "classification",
+                        "function semantic audit complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=function_semantic_payload,
+                derived_entries=[],
+            )
+            if (
+                base64_rc4_breakpoint_probe_run is None
+                and _function_semantic_audit_allows_breakpoint(function_semantic_payload)
+                and _pre_compare_handoff_allows_breakpoint(pre_compare_handoff_payload)
+            ):
+                breakpoint_static_points = _breakpoint_static_points_from_pre_compare_handoff_payload(
+                    pre_compare_handoff_payload
+                )
+                base64_rc4_breakpoint_probe_run = run_base64_rc4_breakpoint_probe(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "base64_rc4_breakpoint_probe",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    log=log,
+                    static_points=breakpoint_static_points,
+                )
+                base64_rc4_payload = dict(base64_rc4_breakpoint_probe_run.get("payload", {}))
+                base64_rc4_breakpoint_probe_artifact = _make_search_artifact(
+                    tool_name="Base64RC4BreakpointProbe",
+                    output_path=Path(str(base64_rc4_breakpoint_probe_run["result_path"])),
+                    summary=str(
+                        base64_rc4_payload.get(
+                            "classification",
+                            "Base64/RC4 breakpoint probe complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=base64_rc4_payload,
+                    derived_entries=[],
+                )
+
         should_run_h1_h3 = (
             _selected_h1_h3_target(profile_transform_audit_run)
             and not _negative_h1_h3_boundary_recorded()
@@ -14814,6 +15667,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(compare_producer_trace_probe_artifact)
         if compare_producer_material_confirmation_artifact is not None:
             artifacts.append(compare_producer_material_confirmation_artifact)
+        if compare_pre_compare_handoff_target_probe_artifact is not None:
+            artifacts.append(compare_pre_compare_handoff_target_probe_artifact)
         if function_semantic_audit_artifact is not None:
             artifacts.append(function_semantic_audit_artifact)
         if h1_h3_boundary_validation_artifact is not None:
@@ -14854,6 +15709,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "compare_handoff_return_site_probe": compare_handoff_return_site_probe_run or {},
                 "compare_producer_trace_probe": compare_producer_trace_probe_run or {},
                 "compare_producer_material_confirmation": compare_producer_material_confirmation_run or {},
+                "compare_pre_compare_handoff_target_probe": compare_pre_compare_handoff_target_probe_run or {},
                 "function_semantic_audit": function_semantic_audit_run or {},
                 "h1_h3_boundary_validation": h1_h3_boundary_validation_run or {},
                 "prefix_boundary_diagnostics": prefix_boundary_diagnostics,
@@ -14863,6 +15719,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 if h1_h3_boundary_validation_run
                 else "function_semantic_audit"
                 if function_semantic_audit_run
+                else "compare_pre_compare_handoff_target_probe"
+                if compare_pre_compare_handoff_target_probe_run
                 else "compare_producer_material_confirmation"
                 if compare_producer_material_confirmation_run
                 else "compare_producer_trace_probe"

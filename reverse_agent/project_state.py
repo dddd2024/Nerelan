@@ -30,6 +30,7 @@ IMPORTANT_ARTIFACTS = {
     "compare_handoff_return_site_probe": "compare_handoff_return_site_probe.json",
     "compare_producer_trace_probe": "compare_producer_trace_probe.json",
     "compare_producer_material_confirmation": "compare_producer_material_confirmation.json",
+    "compare_pre_compare_handoff_target_probe": "compare_pre_compare_handoff_target_probe.json",
     "function_semantic_audit": FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
@@ -64,6 +65,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_handoff_return_site_probe",
     "compare_producer_trace_probe",
     "compare_producer_material_confirmation",
+    "compare_pre_compare_handoff_target_probe",
 }
 
 STATE_JSON_NAMES = (
@@ -438,6 +440,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_producer_material_confirmation = _read_json(
         artifact_refs.get("compare_producer_material_confirmation")
     )
+    compare_pre_compare_handoff_target_probe = _read_json(
+        artifact_refs.get("compare_pre_compare_handoff_target_probe")
+    )
     function_semantic_audit = _read_json(artifact_refs.get("function_semantic_audit"))
     uncertainty: list[str] = []
 
@@ -525,10 +530,22 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if material_confirmation_classification:
         stage = "compare_producer_material_confirmation"
         reason = material_confirmation_classification
+    pre_compare_handoff_classification = str(
+        compare_pre_compare_handoff_target_probe.get("classification") or ""
+    ).strip()
+    if pre_compare_handoff_classification:
+        stage = "compare_pre_compare_handoff_target_probe"
+        reason = pre_compare_handoff_classification
     function_semantic_classification = str(function_semantic_audit.get("classification") or "").strip()
     if function_semantic_classification:
         stage = "function_semantic_audit"
         reason = function_semantic_classification
+    if (
+        pre_compare_handoff_classification
+        and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
+    ):
+        stage = "compare_pre_compare_handoff_target_probe"
+        reason = pre_compare_handoff_classification
     if pre_rc4_classification and compare_producer_trace_classification in {
         "producer_trace_inconclusive",
         "needs_pre_rc4_base64_probe",
@@ -775,6 +792,37 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": compare_producer_material_confirmation.get("next_bounded_action"),
         }
         if compare_producer_material_confirmation
+        else {},
+        "latest_compare_pre_compare_handoff_target_probe": {
+            "classification": pre_compare_handoff_classification or None,
+            "artifact": artifact_refs.get("compare_pre_compare_handoff_target_probe"),
+            "runtime_backed_count": compare_pre_compare_handoff_target_probe.get("runtime_backed_count"),
+            "candidate_count": compare_pre_compare_handoff_target_probe.get("candidate_count"),
+            "hit_summary": compare_pre_compare_handoff_target_probe.get("hit_summary"),
+            "hook_miss_classification": compare_pre_compare_handoff_target_probe.get(
+                "hook_miss_classification"
+            ),
+            "candidate_dependent_fields": compare_pre_compare_handoff_target_probe.get(
+                "candidate_dependent_fields"
+            ),
+            "relation_counts": compare_pre_compare_handoff_target_probe.get("relation_counts"),
+            "relation_table": compare_pre_compare_handoff_target_probe.get("relation_table", [])[:4]
+            if isinstance(compare_pre_compare_handoff_target_probe.get("relation_table"), list)
+            else [],
+            "material_hook_candidate_count": compare_pre_compare_handoff_target_probe.get(
+                "material_hook_candidate_count"
+            ),
+            "material_hook_candidates": compare_pre_compare_handoff_target_probe.get(
+                "material_hook_candidates", []
+            )[:8]
+            if isinstance(compare_pre_compare_handoff_target_probe.get("material_hook_candidates"), list)
+            else [],
+            "breakpoint_probe_allowed": compare_pre_compare_handoff_target_probe.get(
+                "breakpoint_probe_allowed"
+            ),
+            "next_bounded_action": compare_pre_compare_handoff_target_probe.get("next_bounded_action"),
+        }
+        if compare_pre_compare_handoff_target_probe
         else {},
         "latest_function_semantic_audit": {
             "classification": function_semantic_classification or None,
@@ -1122,6 +1170,37 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "override_reason_required": True,
             }
         )
+    pre_compare_handoff = _read_json(artifacts.get("compare_pre_compare_handoff_target_probe"))
+    pre_compare_handoff_classification = str(pre_compare_handoff.get("classification") or "").strip()
+    if pre_compare_handoff_classification:
+        results.append(
+            {
+                "direction": "repeat old 0x401b50 -> 0x2559 helper assumption after pre-compare handoff evidence",
+                "scope": "compare_pre_compare_handoff_target_probe",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "pre-compare handoff follow-up supersedes the old post-helper reload assumption; "
+                    "use its relation table or hook miss classification instead"
+                ),
+                "evidence_artifact": artifacts.get("compare_pre_compare_handoff_target_probe"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+        if not bool(pre_compare_handoff.get("breakpoint_probe_allowed")):
+            results.append(
+                {
+                    "direction": "rerun Base64/RC4 breakpoint probe from pre-compare handoff evidence before semantic gate is ready",
+                    "scope": "compare_pre_compare_handoff_target_probe",
+                    "severity": "soft_block",
+                    "do_not_repeat": True,
+                    "reason": "no hookable candidate-dependent material hook is connected to compare lhs or transform chain yet",
+                    "evidence_artifact": artifacts.get("compare_pre_compare_handoff_target_probe"),
+                    "override_allowed": True,
+                    "override_reason_required": True,
+                }
+            )
     function_semantic_audit = _read_json(artifacts.get("function_semantic_audit"))
     function_semantic_classification = str(function_semantic_audit.get("classification") or "").strip()
     functions = function_semantic_audit.get("functions", [])

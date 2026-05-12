@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-10T14:45:14Z",
+  "generated_at": "2026-05-12T06:48:14Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "runtime_instrumentation_required",
+  "reason": "material_hook_ready",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }

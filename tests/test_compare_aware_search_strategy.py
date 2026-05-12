@@ -17,6 +17,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_PROBE_FILE_NAME,
     COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME,
     COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME,
+    COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME,
     COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME,
     COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME,
     COMPARE_STACK_PIVOT_PROBE_FILE_NAME,
@@ -64,6 +65,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_probe,
     run_compare_handoff_return_site_probe,
     run_compare_handoff_slice_probe,
+    run_compare_pre_compare_handoff_target_probe,
     run_compare_producer_material_confirmation_probe,
     run_compare_producer_trace_probe,
     run_compare_stack_pivot_probe,
@@ -4434,6 +4436,144 @@ def _fake_material_confirmation_ready_subprocess_run(*args, **kwargs):  # noqa: 
     return proc
 
 
+def _fake_pre_compare_handoff_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    expected_preview = command[command.index("--expected-eax-preview") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} >= {
+        "producer_return_site",
+        "producer_pre_candidate_push",
+        "producer_pre_output_call",
+        "producer_pre_second_call",
+        "compare_helper_entry",
+    }
+    first_preview = expected_preview or (
+        "938f65518476c65ba5942f6620003a0020007800d5014000"
+        if candidate_hex.startswith("78d540")
+        else "938f65518476c65ba5942f6620005a003e007f014600"
+    )
+    compare_arg0 = "66006c00610067007b00"
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "pre-compare handoff ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "hook_name": "producer_return_site",
+                        "module_offset": "0x233d",
+                        "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+                        "registers": {"eax": "0x40", "ecx": "0x20", "edx": "0x30"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": first_preview,
+                        "edx_ptr": "0x30",
+                        "edx_preview_hex": "cc" * 16,
+                        "expected_eax_preview_hex": expected_preview,
+                        "matched_expected_eax": bool(expected_preview),
+                    },
+                    {
+                        "hook_name": "producer_pre_candidate_push",
+                        "module_offset": "0x2346",
+                        "instruction": "push edx",
+                        "registers": {"eax": "0x40", "ecx": "0x20", "edx": "0x40"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": first_preview,
+                        "edx_ptr": "0x40",
+                        "edx_preview_hex": first_preview,
+                        "expected_eax_preview_hex": expected_preview,
+                        "matched_expected_eax": bool(expected_preview),
+                    },
+                    {
+                        "hook_name": "compare_helper_entry",
+                        "module_offset": "0x1028ac",
+                        "instruction": "case-insensitive wide compare helper entry",
+                        "registers": {"esp": "0x1000"},
+                        "stack_words": [
+                            {"index": 0, "value": "0x9999", "preview_hex": ""},
+                            {"index": 1, "value": "0x40", "preview_hex": first_preview},
+                            {"index": 2, "value": "0x50", "preview_hex": compare_arg0},
+                            {"index": 3, "value": "0x5", "preview_hex": ""},
+                        ],
+                        "compare_args": {
+                            "args": [
+                                {"index": 0, "value": "0x40", "preview_hex": first_preview},
+                                {"index": 1, "value": "0x50", "preview_hex": compare_arg0},
+                                {"index": 2, "value_u32": 5},
+                            ]
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
+def _fake_pre_compare_handoff_ready_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    expected_preview = command[command.index("--expected-eax-preview") + 1]
+    first_preview = expected_preview or (
+        "938f65518476c65ba5942f6620003a0020007800d5014000"
+        if candidate_hex.startswith("78d540")
+        else "938f65518476c65ba5942f6620005a003e007f014600"
+    )
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "pre-compare handoff material ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "hook_name": "producer_pre_output_call",
+                        "module_offset": "0x234e",
+                        "instruction": "call 0x4018cd",
+                        "registers": {"eax": "0x40", "edx": "0x40"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": first_preview,
+                        "edx_ptr": "0x40",
+                        "edx_preview_hex": first_preview,
+                        "expected_eax_preview_hex": expected_preview,
+                        "matched_expected_eax": bool(expected_preview),
+                    },
+                    {
+                        "hook_name": "compare_helper_entry",
+                        "module_offset": "0x1028ac",
+                        "compare_args": {
+                            "args": [
+                                {"index": 0, "value": "0x40", "preview_hex": first_preview},
+                                {"index": 1, "value": "0x50", "preview_hex": "66006c00610067007b00"},
+                                {"index": 2, "value_u32": 5},
+                            ]
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
 def test_base64_rc4_static_point_discovery_records_schema_and_blocks_unconfirmed_points(
     tmp_path: Path,
     monkeypatch,
@@ -5168,6 +5308,74 @@ def test_compare_producer_material_confirmation_does_not_expand_search_or_promot
     assert result["promotable_validations"] == []
 
 
+def test_compare_pre_compare_handoff_target_probe_records_schema_and_relations(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_pre_compare_handoff_subprocess_run)
+
+    result = run_compare_pre_compare_handoff_target_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_pre_compare_handoff_target_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        producer_trace_payload=_upstream_material_producer_trace_payload(),
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME
+    assert payload["artifact_kind"] == "compare_pre_compare_handoff_target_probe"
+    assert payload["candidate_count"] == 3
+    assert payload["candidate_limit"] == 3
+    assert payload["runtime_backed_count"] == 3
+    assert payload["classification"] == "next_handoff_target_identified"
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    assert payload["final_selection_changed"] is False
+    assert payload["search_budget_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+    assert payload["promotable_validations"] == []
+    assert payload["hit_summary"]["hit_producer_return_site_count"] == 3
+    assert payload["hit_summary"]["hit_compare_helper_entry_count"] == 3
+    assert payload["candidate_dependent_fields"]["producer_return_site.eax_preview_hex"] is True
+    assert payload["relation_counts"]["producer_return_site.eax_to_arg0.ptr_matches"] == 3
+    assert payload["relation_table"][0]["compare_observed"] is True
+
+
+def test_function_semantic_audit_uses_pre_compare_handoff_gate(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_pre_compare_handoff_ready_subprocess_run)
+    pre_compare = run_compare_pre_compare_handoff_target_probe(
+        target=target,
+        artifacts_dir=tmp_path / "compare_pre_compare_handoff_target_probe",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        producer_trace_payload=_upstream_material_producer_trace_payload(),
+        log=lambda _: None,
+    )
+
+    audit = build_function_semantic_audit_payload(
+        material_confirmation_payload={
+            "instruction_confirmation_table": [],
+            "confirmed_material_hook_candidates": [],
+        },
+        pre_compare_handoff_payload=pre_compare["payload"],
+    )
+
+    assert pre_compare["payload"]["breakpoint_probe_allowed"] is True
+    assert audit["breakpoint_probe_allowed"] is True
+    assert audit["classification"] == "material_hook_ready"
+    assert audit["material_hook_candidate_count"] >= 1
+    assert any(item["material_hook_candidate_status"] == "ready" for item in audit["functions"])
+
+
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(
     tmp_path: Path,
     monkeypatch,
@@ -5247,6 +5455,27 @@ def test_upstream_producer_trace_triggers_material_confirmation_not_pre_rc4(monk
 
     assert compare_aware_search._prior_compare_producer_trace_needs_material_confirmation() is True
     assert compare_aware_search._prior_compare_producer_trace_needs_pre_rc4_fallback() is False
+
+
+def test_wrong_helper_assumption_triggers_pre_compare_handoff_target_probe(monkeypatch) -> None:
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {
+            "latest_compare_pre_compare_handoff_target_probe": {},
+            "latest_compare_producer_material_confirmation": {},
+            "latest_compare_handoff_return_site_probe": {
+                "classification": "wrong_helper_assumption",
+                "next_bounded_action": "move to the next bounded pre-compare handoff target",
+            },
+            "latest_function_semantic_audit": {},
+        }
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", lambda kind: ({}, None))
+
+    assert compare_aware_search._prior_needs_pre_compare_handoff_target_probe() is True
 
 
 def test_h1_h3_boundary_validation_runtime_validates_fixed_contrast_set(

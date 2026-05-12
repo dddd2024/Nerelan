@@ -609,6 +609,53 @@ def test_project_state_indexes_compare_producer_material_confirmation_and_bottle
     assert any("producer material confirmation" in item["direction"] for item in negative_results)
 
 
+def test_project_state_indexes_pre_compare_handoff_target_probe_and_negative_cache(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_pre_compare_handoff")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_pre_compare_handoff_target_probe.json",
+        {
+            "artifact_kind": "compare_pre_compare_handoff_target_probe",
+            "classification": "wrong_window",
+            "runtime_backed_count": 3,
+            "candidate_count": 3,
+            "hit_summary": {
+                "hit_producer_return_site_count": 3,
+                "hit_producer_pre_candidate_push_count": 3,
+                "hit_producer_pre_output_call_count": 0,
+                "hit_producer_pre_second_call_count": 0,
+                "hit_compare_helper_entry_count": 3,
+            },
+            "hook_miss_classification": "branch_exits_before_output_calls",
+            "candidate_dependent_fields": {"producer_return_site.eax_preview_hex": True},
+            "relation_counts": {"producer_return_site.eax_to_arg0.ptr_matches": 3},
+            "relation_table": [{"candidate_hex": "78d540b49c59077041414141414141"}],
+            "material_hook_candidate_count": 0,
+            "material_hook_candidates": [],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "inspect branch/call outcome after 0x233d",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_pre_compare_handoff_target_probe"].endswith(
+        "compare_pre_compare_handoff_target_probe.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_pre_compare_handoff_target_probe"
+    assert current_state["current_bottleneck"]["reason"] == "wrong_window"
+    latest = current_state["latest_compare_pre_compare_handoff_target_probe"]
+    assert latest["classification"] == "wrong_window"
+    assert latest["hook_miss_classification"] == "branch_exits_before_output_calls"
+    assert latest["relation_counts"]["producer_return_site.eax_to_arg0.ptr_matches"] == 3
+    assert any("0x401b50 -> 0x2559" in item["direction"] for item in negative_results)
+
+
 def test_project_state_indexes_function_semantic_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

@@ -56,22 +56,6 @@
     "severity": "soft_block"
   },
   {
-    "direction": "focused dynamic compare-path probe with current compare-site hook",
-    "do_not_repeat": true,
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "dynamic compare-path probe captured compare-site evidence but did not directly expose pre-RC4/Base64/RC4 key material; next evidence source should be lower-level instrumentation",
-    "severity": "soft_block"
-  },
-  {
-    "direction": "memory-scan lower-level pre-RC4/key material probe with current automatic harness",
-    "do_not_repeat": true,
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "current memory-scan lower-level probe did not reliably capture pre-RC4/Base64/RC4 key material; next evidence source should be narrower material hooks or IDA/x64dbg manual breakpoints around Base64/RC4 construction",
-    "severity": "soft_block"
-  },
-  {
     "direction": "scripted Base64/RC4 breakpoint probe with current static access points",
     "do_not_repeat": true,
     "override_allowed": true,
@@ -86,30 +70,6 @@
     "override_reason_required": true,
     "reason": "static discovery found hookable compare-side evidence but no instruction-confirmed Base64/RC4 point; the breakpoint probe remains gated until a material construction hook is confirmed",
     "severity": "soft_block"
-  },
-  {
-    "direction": "repeat scripted Base64/RC4 breakpoint probe before using compare stack pivot hook points",
-    "do_not_repeat": true,
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "compare stack pivot extracted closer handoff evidence from the compare frame; next work should hook the recorded handoff points instead of repeating the prior static access probe",
-    "severity": "soft_block"
-  },
-  {
-    "direction": "repeat compare handoff probe without narrowing the 0x401b50 helper slice",
-    "do_not_repeat": true,
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "compare handoff hooks produced partial runtime evidence; next work should backward-slice helper arguments instead of repeating the same hook set",
-    "severity": "soft_block"
-  },
-  {
-    "direction": "expand candidate search after partial helper argument slice",
-    "do_not_repeat": true,
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "the helper slice still needs tighter runtime evidence before search expansion is justified",
-    "severity": "hard_block"
   },
   {
     "direction": "repeat compare return-site audit without using its classification",
@@ -136,47 +96,13 @@
     "severity": "soft_block"
   },
   {
-    "direction": "treat 0x4019e0 as Base64/RC4 material producer without new semantic evidence",
+    "direction": "repeat old 0x401b50 -> 0x2559 helper assumption after pre-compare handoff evidence",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
-    "function": "0x4019e0",
+    "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_pre_compare_handoff_target_probe\\compare_pre_compare_handoff_target_probe.json",
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
-    "scope": "function_semantics",
-    "severity": "soft_block"
-  },
-  {
-    "direction": "treat 0x401b50 as Base64/RC4 material producer without new semantic evidence",
-    "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
-    "function": "0x401b50",
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
-    "scope": "function_semantics",
-    "severity": "soft_block"
-  },
-  {
-    "direction": "treat 0x4018cd as Base64/RC4 material producer without new semantic evidence",
-    "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
-    "function": "0x4018cd",
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
-    "scope": "function_semantics",
-    "severity": "soft_block"
-  },
-  {
-    "direction": "treat 0x401be3 as Base64/RC4 material producer without new semantic evidence",
-    "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
-    "function": "0x401be3",
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
-    "scope": "function_semantics",
+    "reason": "pre-compare handoff follow-up supersedes the old post-helper reload assumption; use its relation table or hook miss classification instead",
+    "scope": "compare_pre_compare_handoff_target_probe",
     "severity": "soft_block"
   }
 ]

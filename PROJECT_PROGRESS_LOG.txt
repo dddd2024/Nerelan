@@ -3715,3 +3715,72 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search；不 rerun Base64/RC4 breakpoint probe。
 - 对 `0x2338 -> 0x401b50` call outcome 做最小 runtime/static confirmation。
 - 目标是解释为什么未落到 `0x233d`，并仅在出现 candidate-dependent 且连接 compare lhs/transform chain 的 material hook 后放行 breakpoint capture。
+
+## 2026-05-12 Pre-compare handoff target probe
+
+1) 执行范围
+- 执行计划中的 bounded `compare_pre_compare_handoff_target_probe`。
+- 主线保持 `L15(prefix8)`，固定 suffix `AAAAAAA`。
+- 不回 old `sample_solver` blind search；不扩大 beam/budget/topN/timeout/frontier iteration。
+- 新 probe 只使用 3 个 diagnostic candidates，并固定 hook producer window `0x233d/0x2346/0x234e/0x2353/0x2355/0x235a` 与 compare helper entry `0x1028ac`。
+
+2) 代码改动
+- `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
+  - 新增 Frida/UIA bounded runtime probe，捕获寄存器、stack words、frame slots、EAX/ECX/EDX/ESI/EDI previews、compare helper entry args。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 probe 常量、脚本入口、运行函数、schema 聚合、hit summary、candidate-dependent fields、compare relation table。
+  - 新增调度门控：`wrong_helper_assumption` 或 function semantic 要求确认 `0x401b50` return/branch outcome 时触发；已有 material hook ready 时不重复。
+  - 扩展 function semantic audit，让 pre-compare handoff artifact 可以提升 material hook candidate，并继续要求 semantic gate 才放行 Base64/RC4 breakpoint probe。
+- `reverse_agent/project_state.py`
+  - 索引 `compare_pre_compare_handoff_target_probe.json`。
+  - compact state 暴露 latest pre-compare handoff artifact、hit summary、relation counts、material hook readiness。
+  - negative cache 增加不要重复旧 `0x401b50 -> 0x2559` 假设。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 覆盖 probe schema、gating、semantic gate、project_state indexing/negative cache。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `123 passed`
+- `python -m pytest -q` -> `200 passed`
+
+4) Harness / project_state
+- Real harness run:
+  - `samplereverse_pre_compare_handoff_target_20260512`
+- Summary:
+  - `solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\summary.json`
+  - completed 1 case, 0 errors, 1 not_found.
+- New artifact:
+  - `solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\reports\tool_artifacts\samplereverse_patched\compare_pre_compare_handoff_target_probe\compare_pre_compare_handoff_target_probe.json`
+- New probe classification:
+  - `classification=next_handoff_target_identified`
+  - `runtime_backed_count=3`
+  - `hook_miss_classification=branch_exits_before_output_calls`
+  - `material_hook_candidate_count=2`
+  - `breakpoint_probe_allowed=true`
+  - Hit summary: `0x233d=3`, `0x2346=3`, `0x234e=0`, `0x2355=0`, compare helper entry `0`.
+- Function semantic audit:
+  - `classification=material_hook_ready`
+  - `function_count=6`
+  - `material_hook_candidate_count=2`
+  - ready semantic records at `0x233d` and `0x2346` as `utf16le_constructor` candidates.
+- Follow-up Base64/RC4 breakpoint probe:
+  - `classification=base64_rc4_compare_only`
+  - `hook_event_count=9`
+  - `first_captured_material_kind=compare_buffer`
+  - `hook_results.utf16le_payload=unavailable`
+  - next bottleneck remains `compare-only capture`.
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_pre_compare_handoff_target_20260512` -> passed.
+- `python -m reverse_agent.project_state status` reports:
+  - `reason: material_hook_ready`
+  - `missing: []`
+
+5) 结论
+- 新 probe 成功解释了旧卡点：`0x233d` 和 `0x2346` 可达，但 `0x234e/0x2355` 不可达，当前窗口在 output calls 前分支退出。
+- Semantic gate 成功放行 bounded breakpoint probe，但实际 breakpoint 仍只捕获 compare buffer，未捕获 UTF-16LE/Base64/RC4 material。
+- Current runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大搜索；不回 blind search。
+- 不重复旧 `0x401b50 -> 0x2559` 假设。
+- 对 `0x233d -> 0x2346` 后的 branch/call outcome 做更窄静态/动态确认，重点解释为什么不到 `0x234e/0x2355`，并寻找真正连接 compare lhs 的 material construction hook。
