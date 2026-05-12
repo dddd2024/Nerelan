@@ -2,210 +2,101 @@
 
 ## 1. Goal
 
-Resolve the current `function_semantic_audit` bottleneck for `samplereverse`.
+围绕 `samplereverse` 当前瓶颈继续推进：
 
-The next Codex task is to perform a bounded runtime/static audit around the newly identified material hook candidates:
+**验证 `0x233d` 和 `0x2346` 这两个已确认、可 hook、candidate-dependent 的 material hook 点，捕获它们附近的真实运行时材料，并判断它们是否能把 compare-only 捕获推进到 UTF-16LE / Base64 / RC4 链路材料。**
 
-```text
-module+0x233d
-module+0x2346
-```
+当前事实源显示 active strategy 是 `CompareAwareSearchStrategy`，当前任务是 `Investigate stalled function_semantic_audit path`，瓶颈阶段是 `function_semantic_audit`，状态为 `material_hook_ready`。
 
-The objective is to determine whether these sites can expose candidate-dependent UTF-16LE / pre-Base64 material that connects to the known transform chain:
+## 2. Current Evidence
+
+当前最佳候选仍然没有变：
+
+- exact2：`78d540b49c59077041414141414141`
+  - `runtime_ci_exact_wchars = 2`
+  - `runtime_ci_distance5 = 246`
+- frontier / exact1：`5a3e7f46ddd474d041414141414141`
+  - `runtime_ci_exact_wchars = 1`
+  - `runtime_ci_distance5 = 258`
+
+这些候选都要求 `compare_semantics_agree = true`，不能把语义不一致的候选作为主 frontier。
+
+已知变换链是：
 
 ```text
 input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix
 ```
 
-Only if this is proven should the Base64/RC4 breakpoint probe gate be reopened.
+当前最关键的新证据是：
 
-Current project state says the bottleneck is:
+- `0x233d`
+  - `semantic_guess = utf16le_constructor`
+  - `candidate_dependent = true`
+  - `instruction_confirmed = true`
+  - `hookable = true`
+  - `material_hook_candidate_status = ready`
+- `0x2346`
+  - 同样是 `utf16le_constructor`
+  - 同样 ready
 
-```text
-stage = function_semantic_audit
-reason = material_hook_ready
-confidence = medium
-```
+而 `0x401b50` 被归类为 `copy_or_handoff`，状态是 `blocked_copy_handoff_only`，不应继续按旧假设把它当作核心 Base64/RC4 producer。
 
-Current best candidates remain:
+最近一次 Base64/RC4 breakpoint probe 的分类是 `base64_rc4_compare_only`：只捕获到了 `compare_buffer`，`base64_input / base64_output / rc4_input / rc4_key / rc4_output / utf16le_payload` 都是 unavailable。下一步应该审计 hook placement，而不是重复原 probe。
 
-```text
-exact2:
-78d540b49c59077041414141414141
-runtime exact_wchars = 2
-distance5 = 246
-
-frontier / exact1:
-5a3e7f46ddd474d041414141414141
-runtime exact_wchars = 1
-distance5 = 258
-```
-
-This round is an evidence-gathering task, not a candidate-search expansion task.
-
-## 2. Current Evidence
-
-Use these facts as ground truth:
-
-### A. Current bottleneck
-
-`project_state/current_state.json` marks the active bottleneck as:
-
-```json
-{
-  "stage": "function_semantic_audit",
-  "reason": "material_hook_ready",
-  "confidence": "medium"
-}
-```
-
-### B. Current best candidates
-
-The current exact2 candidate is:
+artifact index 显示最新运行目录是：
 
 ```text
-78d540b49c59077041414141414141
-runtime_ci_exact_wchars = 2
-runtime_ci_distance5 = 246
-compare_semantics_agree = true
-source = pairscan
+solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512
 ```
 
-The current frontier / exact1 candidate is:
+最新相关 artifacts 包括：
 
 ```text
-5a3e7f46ddd474d041414141414141
-runtime_ci_exact_wchars = 1
-runtime_ci_distance5 = 258
-compare_semantics_agree = true
-source = exact2_seed(78d540b49c590770) -> refine(seed) -> guided(frontier)
+function_semantic_audit
+compare_pre_compare_handoff_target_probe
+base64_rc4_breakpoint_probe
+base64_rc4_static_point_discovery
+compare_producer_material_confirmation
+compare_producer_trace_probe
 ```
 
-Do not promote any candidate where `compare_semantics_agree = false`.
-
-### C. New material hook candidates
-
-`function_semantics` now marks two sites as ready material-hook candidates:
-
-```text
-0x233d
-0x2346
-```
-
-Both currently have:
-
-```text
-semantic_guess = utf16le_constructor
-candidate_dependent = true
-hookable = true
-instruction_confirmed = true
-material_hook_candidate_status = ready
-confidence = medium
-```
-
-These are the only new material-hook candidates that justify another bounded runtime validation.
-
-### D. Previous Base64/RC4 breakpoint probe result
-
-The previous Base64/RC4 breakpoint probe classified as:
-
-```text
-base64_rc4_compare_only
-```
-
-Its captured material status was:
-
-```text
-compare_buffer = available
-base64_input = unavailable
-base64_output = unavailable
-rc4_input = unavailable
-rc4_key = unavailable
-rc4_output = unavailable
-utf16le_payload = unavailable
-```
-
-Therefore, do not repeat the same Base64/RC4 probe unless the new material hook validation confirms a transform-chain material site.
-
-### E. Static point discovery status
-
-Static point discovery found hookable compare-producer points, including:
-
-```text
-0x2559
-0x1b50
-```
-
-But Base64 / RC4 KSA / RC4 PRGA remain unresolved or not hookable. Treat compare-producer hooks as insufficient for Base64/RC4 material capture unless connected to the transform chain by runtime evidence.
-
-### F. Codex previous implementation status
-
-The previous Codex round implemented the reusable Function Semantic Audit Layer:
-
-```text
-reverse_agent/function_semantics.py
-function_semantic_audit.json generation
-project_state indexing and summary
-semantic breakpoint readiness gate
-tests for schema, indexing, and conservative gating
-```
-
-The previous test baseline was:
-
-```text
-196 passed
-```
-
-No runtime candidate improved during that architecture/evidence change.
+这些足够支撑下一轮，不需要默认读取完整 `solve_reports`。
 
 ## 3. Do Not Do
 
-Do not do any of the following:
+Codex 本轮禁止做这些事：
 
-```text
-1. Do not return to old sample_solver blind search.
-2. Do not only increase guided_pool beam, budget, timeout, topN, or search width.
-3. Do not use compare_semantics_agree=false candidates as primary frontier.
-4. Do not commit the full solve_reports directory.
-5. Do not repeat exact2 basin value-pool evaluation with the already-tested pools.
-6. Do not repeat the H1/H3 fixed 8-candidate prefix8 plus Base64 boundary contrast set.
-7. Do not repeat the current 5-candidate transform trace consistency audit without new runtime evidence.
-8. Do not repeat the scripted Base64/RC4 breakpoint probe with the same static access points.
-9. Do not rerun Base64/RC4 breakpoint probe before confirming a material construction hook.
-10. Do not repeat compare return-site audit without using its classification.
-11. Do not repeat compare producer trace without using its classification.
-12. Do not repeat producer material confirmation without adding instruction-level evidence.
-13. Do not repeat the old 0x401b50 -> 0x2559 helper assumption.
-14. Do not scan the entire solve_reports tree unless a specific indexed artifact is insufficient.
-```
+1. 不要回到旧的 `sample_solver` blind search。
+2. 不要只扩大 beam、budget 或 guided pool。
+3. 不要把 `compare_semantics_agree=false` 的候选作为主 frontier。
+4. 不要提交完整 `solve_reports`。
+5. 不要重复 exact2 basin value-pool 分支。
+6. 不要重复 H1/H3 fixed 8-candidate prefix8 contrast set。
+7. 不要重复当前 5-candidate transform trace consistency audit，除非有新的 runtime evidence。
+8. 不要在没有确认新的 Base64/RC4 instruction hook 前重复旧 Base64/RC4 breakpoint probe。
+9. 不要继续沿用旧的 `0x401b50 -> 0x2559` helper 假设。
+10. 不要默认扫描完整 `PROJECT_PROGRESS_LOG.txt` 或完整 `solve_reports`。
 
-These constraints are already recorded in `project_state/negative_results.json`. Treat `compare_semantics_agree=false` and committing full `solve_reports` as hard blocks.
+这些方向已经在 negative cache 中被标记为 soft/hard block。
 
 ## 4. Files To Inspect
 
-Start with the project state files:
-
-```text
-project_state/task_packet.json
-project_state/current_state.json
-project_state/artifact_index.json
-project_state/negative_results.json
-project_state/codex_execution_report.md
-```
-
-Then inspect only the bounded implementation files:
+优先检查：
 
 ```text
 reverse_agent/function_semantics.py
 reverse_agent/strategies/compare_aware_search.py
-reverse_agent/project_state.py
 tests/test_compare_aware_search_strategy.py
 tests/test_project_state.py
 ```
 
-Use these indexed artifacts directly. Do not scan full `solve_reports`:
+必要时只读取以下 artifact，不要展开完整 solve_reports：
 
 ```text
+project_state/current_state.json
+project_state/artifact_index.json
+project_state/negative_results.json
+
 solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\reports\tool_artifacts\samplereverse_patched\function_semantic_audit\function_semantic_audit.json
 
 solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\reports\tool_artifacts\samplereverse_patched\compare_pre_compare_handoff_target_probe\compare_pre_compare_handoff_target_probe.json
@@ -213,84 +104,38 @@ solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\rep
 solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\reports\tool_artifacts\samplereverse_patched\base64_rc4_breakpoint_probe\base64_rc4_breakpoint_probe.json
 
 solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\reports\tool_artifacts\samplereverse_patched\base64_rc4_static_point_discovery\base64_rc4_static_point_discovery.json
-
-solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\reports\tool_artifacts\samplereverse_patched\compare_producer_material_confirmation\compare_producer_material_confirmation.json
-```
-
-Search terms:
-
-```text
-function_semantic_audit
-material_hook_candidate_status
-breakpoint_probe_allowed
-candidate_dependent
-utf16le_payload
-base64_rc4_breakpoint_probe
-compare_pre_compare_handoff_target_probe
-0x233d
-0x2346
-0x401b50
-0x2559
 ```
 
 ## 5. Required Audit
 
-Codex must perform a narrow audit with this exact purpose:
+Codex 需要做一个小范围、证据驱动的 runtime/static audit。
+
+### A. 对 `0x233d` 和 `0x2346` 做 hook 点确认
+
+确认这两个点在当前 active candidate 下：
 
 ```text
-Validate whether 0x233d / 0x2346 expose candidate-dependent UTF-16LE or pre-Base64 transform material.
+0x233d: mov edx, dword ptr [ebp - 0x116c]
+0x2346: push edx
 ```
 
-### A. Confirm instruction-level behavior at 0x233d and 0x2346
-
-For each diagnostic candidate, record:
+需要记录：
 
 ```text
-hit_count
-register state
-pointer values
-readable memory windows
-preview_hex
-preview_utf16le or decoded preview if safe
-whether preview changes across candidates
-whether preview corresponds to UTF-16LE-expanded user input
-whether this material can feed later Base64 / RC4 / compare path
+EAX / EDX / ECX / ESI / EDI
+[ebp-0x116c]
+[ebp-0x1168]
+[ebp-0x1170]
+stack top around push edx
+candidate preview bytes
+wide-char interpretation if possible
 ```
 
-Minimum diagnostic candidates:
+目标不是直接解 flag，而是确认这些数据是否是：
 
 ```text
-78d540b49c59077041414141414141
-5a3e7f46ddd474d041414141414141
-414141414141414141414141414141
-```
-
-Optional contrast candidate:
-
-```text
-78d540b49c59076f41414141414141
-```
-
-### B. Classify each hook
-
-For each of `0x233d` and `0x2346`, assign exactly one classification:
-
-```text
-confirmed_utf16le_material
-candidate_dependent_but_not_transform_material
-unreadable_or_unstable_pointer
-not_reached
-false_positive
-```
-
-### C. Verify transform-chain connection
-
-A hook is not sufficient merely because it is candidate-dependent.
-
-Codex must explicitly decide whether the observed material connects to one of:
-
-```text
-UTF-16LE payload
+raw input
+UTF-16LE input
 Base64 input
 Base64 output
 RC4 input
@@ -298,167 +143,121 @@ RC4 output
 compare lhs
 ```
 
-If the observed material is only compare-side material, classify it as insufficient and keep the Base64/RC4 probe blocked.
+### B. 对 3 个代表候选做 cross-candidate 差分
 
-### D. Decide whether Base64/RC4 probe is allowed
-
-Only set:
+至少使用：
 
 ```text
-breakpoint_probe_allowed = true
+78d540b49c59077041414141414141
+5a3e7f46ddd474d041414141414141
+一个边界扰动候选，例如只改第 8 字节或第 9 字节
 ```
 
-if at least one hook satisfies all of:
+记录每个候选在 `0x233d / 0x2346` 附近捕获到的 buffer preview，并判断哪些字段是 candidate-dependent。
 
-```text
-instruction_confirmed = true
-hookable = true
-candidate_dependent = true
-connects_to_transform_chain = true
-material_kind in ["utf16le_payload", "base64_input", "base64_output", "rc4_input", "rc4_output"]
-```
+### C. 建立 material-kind 分类
 
-Otherwise keep:
-
-```text
-breakpoint_probe_allowed = false
-```
-
-and state the missing evidence.
-
-### E. Produce a compact artifact
-
-Generate a new compact artifact such as:
-
-```text
-solve_reports\...\tool_artifacts\samplereverse_patched\material_hook_runtime_validation\material_hook_runtime_validation.json
-```
-
-The artifact should include at least:
+新增或更新 artifact，输出类似：
 
 ```json
 {
-  "classification": "...",
+  "classification": "utf16le_material_captured | base64_boundary_candidate | compare_only | inconclusive",
+  "hook_points": ["0x233d", "0x2346"],
   "candidate_count": 3,
-  "validated_hooks": [],
-  "blocked_hooks": [],
-  "breakpoint_probe_allowed": false,
+  "captured_material": {
+    "utf16le_payload": "available/unavailable",
+    "base64_input": "available/unavailable",
+    "base64_output": "available/unavailable",
+    "rc4_input": "available/unavailable",
+    "rc4_output": "available/unavailable",
+    "compare_buffer": "available/unavailable"
+  },
   "next_bounded_action": "..."
 }
 ```
 
-For each hook, include compact per-candidate evidence:
+### D. 只在有新证据时解锁 Base64/RC4 probe
 
-```json
-{
-  "hook": "0x233d",
-  "instruction_confirmed": true,
-  "hit_count": 3,
-  "candidate_dependent": true,
-  "material_kind": "utf16le_payload",
-  "connects_to_transform_chain": true,
-  "classification": "confirmed_utf16le_material",
-  "evidence": []
-}
-```
+如果 `0x233d / 0x2346` 捕获到的材料能稳定连接到 UTF-16LE 或后续 transform chain，再允许下一步构造新的 Base64/RC4 breakpoint probe。
+
+如果仍然只到 compare buffer，保持 `base64_rc4_breakpoint_probe_allowed = false`。
 
 ## 6. Implementation Scope
 
-This round should be mostly instrumentation and evidence collection.
+本轮实现范围应保持很小：
 
-Allowed changes:
-
-```text
-1. Add or extend a small runtime validation probe for material hooks.
-2. Add compact schema support if necessary.
-3. Update project_state builder so the new validation result appears in current_state.json, artifact_index.json, and task_packet.json.
-4. Update tests for hook classification, breakpoint gate behavior, and project_state indexing.
-```
-
-Avoid broad solver changes.
-
-Do not change:
+1. 在 `CompareAwareSearchStrategy` 里增加一个 bounded probe 或 audit step，名称建议：
 
 ```text
-candidate generation
-candidate ranking
-frontier promotion
-beam
-budget
-timeout
-topN
-solver scoring
+pre_compare_material_hook_probe
 ```
 
-If a hook is validated, the next step is to unlock the bounded Base64/RC4 material probe. Do not also perform a large search expansion in this same round.
+2. 只围绕 `0x233d / 0x2346` 采集材料。
+3. 输出 compact artifact，不提交完整运行目录。
+4. 更新 `project_state/current_state.json`、`artifact_index.json`、`task_packet.json`。
+5. 如发现明确 negative result，追加到 `negative_results.json`，避免下一轮重复。
+
+不要改候选搜索主逻辑，除非 audit 明确证明某个 captured material 可直接形成新的 prefix constraint。
 
 ## 7. Tests
 
-Run at minimum:
+至少运行：
 
 ```powershell
 python -m py_compile reverse_agent\function_semantics.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py
+```
+
+```powershell
 python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py
+```
+
+如果改动 probe 或 artifact schema，再运行：
+
+```powershell
 python -m pytest -q
 ```
 
-Then rebuild project state:
+最后重新构建 project_state：
 
 ```powershell
 python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name <new_run_name>
 ```
 
-Expected result:
-
-```text
-all tests pass
-project_state files updated
-new artifact indexed
-no full solve_reports commit
-```
+此前 Codex 的完整测试基线是 `196 passed`，可以作为回归参考。
 
 ## 8. Stop Conditions
 
-Stop immediately and report if any of these happens:
+Codex 在以下任一条件满足时停止，并生成新的 `CODEX_EXECUTION_REPORT`。
+
+### 成功停止
+
+捕获到以下任一类新材料：
 
 ```text
-1. 0x233d and 0x2346 are not reached for diagnostic candidates.
-2. The pointers at 0x233d / 0x2346 are unreadable or unstable across runs.
-3. The observed material is candidate-dependent but does not match UTF-16LE input expansion or any known transform-chain material.
-4. The probe only captures compare-buffer material again.
-5. A Base64/RC4 hook is still not instruction-confirmed.
-6. Runtime evidence contradicts the current function_semantic_audit classification.
-7. The next step would require scanning the full solve_reports tree.
-8. Any exact3+ or distance5 improvement appears unexpectedly.
-9. Candidate ranking changes unexpectedly.
-10. Tests fail and cannot be fixed within the bounded scope.
+utf16le_payload available
+base64_input available
+base64_output available
+rc4_input available
+rc4_output available
 ```
 
-The final `CODEX_EXECUTION_REPORT.md` must explicitly state one of:
+并且能说明它与候选输入或 compare lhs 的关系。
+
+### 有效失败停止
+
+确认：
 
 ```text
-ACCEPT: material hook validated, Base64/RC4 probe may proceed
-BLOCKED: material hook not validated, need different bounded audit
-REJECTED: current hook hypothesis is false
+0x233d / 0x2346 虽然 hookable 且 candidate-dependent，
+但只能解释为 copy/handoff 或无法连接到 transform chain
 ```
 
-It must also include:
+此时必须把该方向写入 negative cache，并给出下一个最小 bounded action。
 
-```text
-1. Which probe was added or modified.
-2. Whether 0x233d was reached.
-3. Whether 0x2346 was reached.
-4. What material was readable at each site.
-5. Whether the material was candidate-dependent.
-6. Whether the material matched UTF-16LE / Base64 / RC4 / compare-chain expectations.
-7. Whether breakpoint_probe_allowed is true or false.
-8. Whether any candidate improved.
-9. Which tests passed.
-10. Which artifact path contains the evidence.
-```
+### 禁止继续条件
 
-One-line instruction for Codex:
+如果只得到 compare buffer，不能继续重复 Base64/RC4 breakpoint probe。
 
-```text
-Validate the new 0x233d / 0x2346 material hook candidates with a minimal runtime/static probe, update function_semantics and project_state with candidate-dependence and transform-chain evidence, and keep Base64/RC4 probing gated unless a hook becomes instruction-confirmed, hookable, candidate-dependent, and connected to real transform material.
-```
+如果没有新增 runtime evidence，不能扩大搜索预算。
+
+如果需要完整 `PROJECT_PROGRESS_LOG.txt` 才能判断，先停止并说明 project_state 信息不足。
