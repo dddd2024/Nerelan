@@ -3784,3 +3784,48 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不扩大搜索；不回 blind search。
 - 不重复旧 `0x401b50 -> 0x2559` 假设。
 - 对 `0x233d -> 0x2346` 后的 branch/call outcome 做更窄静态/动态确认，重点解释为什么不到 `0x234e/0x2355`，并寻找真正连接 compare lhs 的 material construction hook。
+
+## 2026-05-12 Material hook runtime validation gate
+
+1) 执行范围
+- 按计划新增窄范围 `material_hook_runtime_validation`。
+- 固定 hook 仅为 `module+0x233d` / `module+0x2346`。
+- 固定候选 4 个：exact2、exact1、全 `41` baseline、`78d540b49c59076f...` contrast。
+- 未扩大 candidate generation、ranking、beam、budget、timeout、topN 或 frontier promotion。
+
+2) 代码改动
+- `reverse_agent/olly_scripts/material_hook_runtime_validation.py`
+  - 新增 runtime probe 入口，复用 pre-compare handoff hook collector。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME`、固定候选集、hook points、artifact 聚合与 per-hook 分类。
+  - `function_semantic_audit / material_hook_ready` 后先运行 material hook runtime validation。
+  - 只有 validation artifact 满足 confirmed transform material gate 时才放行 Base64/RC4 breakpoint probe。
+  - 为 material validation subprocess 增加策略层 hard timeout，避免子脚本卡住整个 run。
+- `reverse_agent/project_state.py`
+  - 索引 `material_hook_runtime_validation.json`。
+  - `current_state.json` / `task_packet.json` 暴露 `latest_material_hook_runtime_validation`。
+  - validation 失败时 bottleneck 可降为 `material_hook_runtime_validation`，negative cache 记录 blocked/rejected gate。
+- `tests/test_compare_aware_search_strategy.py`、`tests/test_project_state.py`
+  - 覆盖 ACCEPT、BLOCKED、timeout、project_state indexing/bottleneck/negative cache。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\material_hook_runtime_validation.py reverse_agent\function_semantics.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `127 passed`
+- `python -m pytest -q` -> `204 passed`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_pre_compare_handoff_target_20260512` -> passed
+
+4) Harness attempt
+- Started real run `samplereverse_material_hook_runtime_validation_20260512`.
+- Run reached `material_hook_runtime_validation` but candidate 1 child process hung before writing candidate output.
+- Stopped the spawned harness/subprocess pair and added hard timeout guard.
+- Partial run only contains initial aggregate validation artifact, so project_state remains rebuilt from latest completed run `samplereverse_pre_compare_handoff_target_20260512`.
+
+5) 结论
+- 新 gate 已实现：没有 material validation `ACCEPT` 时不再直接放行 Base64/RC4 breakpoint probe。
+- 当前 indexed state 仍是上一轮 completed run：`function_semantic_audit / material_hook_ready`，`latest_material_hook_runtime_validation={}`。
+- Current best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 先用新增 hard timeout 重新跑真实 harness。
+- 如果 validation 返回 `BLOCKED`/`REJECTED`，保持 Base64/RC4 blocked，并转向解释 `0x233d/0x2346` 为什么不是 transform material。
