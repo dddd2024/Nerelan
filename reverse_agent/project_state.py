@@ -32,6 +32,7 @@ IMPORTANT_ARTIFACTS = {
     "compare_producer_material_confirmation": "compare_producer_material_confirmation.json",
     "compare_pre_compare_handoff_target_probe": "compare_pre_compare_handoff_target_probe.json",
     "function_semantic_audit": FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
+    "material_hook_runtime_validation": "material_hook_runtime_validation.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -66,6 +67,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_producer_trace_probe",
     "compare_producer_material_confirmation",
     "compare_pre_compare_handoff_target_probe",
+    "material_hook_runtime_validation",
 }
 
 STATE_JSON_NAMES = (
@@ -444,6 +446,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
         artifact_refs.get("compare_pre_compare_handoff_target_probe")
     )
     function_semantic_audit = _read_json(artifact_refs.get("function_semantic_audit"))
+    material_hook_runtime_validation = _read_json(artifact_refs.get("material_hook_runtime_validation"))
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -540,6 +543,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if function_semantic_classification:
         stage = "function_semantic_audit"
         reason = function_semantic_classification
+    material_hook_runtime_classification = str(
+        material_hook_runtime_validation.get("classification") or ""
+    ).strip()
+    if material_hook_runtime_classification:
+        stage = "material_hook_runtime_validation"
+        reason = material_hook_runtime_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -836,6 +845,28 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": function_semantic_audit.get("next_bounded_action"),
         }
         if function_semantic_audit
+        else {},
+        "latest_material_hook_runtime_validation": {
+            "classification": material_hook_runtime_classification or None,
+            "artifact": artifact_refs.get("material_hook_runtime_validation"),
+            "runtime_backed_count": material_hook_runtime_validation.get("runtime_backed_count"),
+            "candidate_count": material_hook_runtime_validation.get("candidate_count"),
+            "validated_hook_count": len(material_hook_runtime_validation.get("validated_hooks", []))
+            if isinstance(material_hook_runtime_validation.get("validated_hooks"), list)
+            else 0,
+            "blocked_hook_count": len(material_hook_runtime_validation.get("blocked_hooks", []))
+            if isinstance(material_hook_runtime_validation.get("blocked_hooks"), list)
+            else 0,
+            "validated_hooks": material_hook_runtime_validation.get("validated_hooks", [])[:4]
+            if isinstance(material_hook_runtime_validation.get("validated_hooks"), list)
+            else [],
+            "blocked_hooks": material_hook_runtime_validation.get("blocked_hooks", [])[:4]
+            if isinstance(material_hook_runtime_validation.get("blocked_hooks"), list)
+            else [],
+            "breakpoint_probe_allowed": material_hook_runtime_validation.get("breakpoint_probe_allowed"),
+            "next_bounded_action": material_hook_runtime_validation.get("next_bounded_action"),
+        }
+        if material_hook_runtime_validation
         else {},
         "function_semantics": function_semantics,
         "uncertainty": sorted(set(uncertainty)),
@@ -1201,6 +1232,37 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                     "override_reason_required": True,
                 }
             )
+    material_hook_runtime_validation = _read_json(artifacts.get("material_hook_runtime_validation"))
+    material_hook_runtime_classification = str(material_hook_runtime_validation.get("classification") or "").strip()
+    if material_hook_runtime_classification in {"BLOCKED", "REJECTED"}:
+        results.append(
+            {
+                "direction": "rerun Base64/RC4 breakpoint probe after material hook runtime validation blocked it",
+                "scope": "material_hook_runtime_validation",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "0x233d/0x2346 did not confirm instruction-backed, candidate-dependent transform material; "
+                    "Base64/RC4 probing remains gated until a different material hook is validated"
+                ),
+                "evidence_artifact": artifacts.get("material_hook_runtime_validation"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    elif material_hook_runtime_classification == "ACCEPT":
+        results.append(
+            {
+                "direction": "ignore validated material hook runtime evidence when preparing Base64/RC4 breakpoint points",
+                "scope": "material_hook_runtime_validation",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": "validated hooks must be consumed directly instead of falling back to older static access points",
+                "evidence_artifact": artifacts.get("material_hook_runtime_validation"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
     function_semantic_audit = _read_json(artifacts.get("function_semantic_audit"))
     function_semantic_classification = str(function_semantic_audit.get("classification") or "").strip()
     functions = function_semantic_audit.get("functions", [])

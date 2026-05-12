@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-12T06:48:13Z",
+  "generated_at": "2026-05-12T08:25:00Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_breakpoint_probe\\base64_rc4_breakpoint_probe.json",
     "base64_rc4_static_point_discovery": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
@@ -24,6 +24,7 @@
     "guided_pool_result": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
     "guided_pool_validation": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
     "h1_h3_boundary_validation": null,
+    "material_hook_runtime_validation": null,
     "pairscan_summary": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\pairscan_summary.json",
     "pre_rc4_material_probe": null,
     "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\profile_transform_hypothesis_matrix.json",

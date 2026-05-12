@@ -58,6 +58,7 @@ COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME = "compare_handoff_return_site_probe
 COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME = "compare_producer_trace_probe.json"
 COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME = "compare_producer_material_confirmation.json"
 COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME = "compare_pre_compare_handoff_target_probe.json"
+MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME = "material_hook_runtime_validation.json"
 
 DEFAULT_ANCHORS = (
     "78d540b49c590770",
@@ -201,6 +202,12 @@ COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES = (
 COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES = COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES
 COMPARE_PRODUCER_MATERIAL_CONFIRMATION_CANDIDATES = COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES
 COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_CANDIDATES = COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES
+MATERIAL_HOOK_RUNTIME_VALIDATION_CANDIDATES = (
+    "78d540b49c59077041414141414141",
+    "5a3e7f46ddd474d041414141414141",
+    "414141414141414141414141414141",
+    "78d540b49c59076f41414141414141",
+)
 PAIR_TAIL_FLAGLIKE_BYTES = set(b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_{}-")
 BASE64_RC4_BREAKPOINT_READY_KINDS = {"base64_output", "rc4_input", "rc4_output", "rc4_key", "utf16le_payload"}
 
@@ -254,6 +261,10 @@ def _compare_producer_material_confirmation_script_path() -> Path:
 
 def _compare_pre_compare_handoff_target_probe_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_pre_compare_handoff_target_probe.py"
+
+
+def _material_hook_runtime_validation_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "material_hook_runtime_validation.py"
 
 
 def _tool_source_path(tool_name: str) -> Path:
@@ -9228,6 +9239,228 @@ def _breakpoint_static_points_from_pre_compare_handoff_payload(
     return out
 
 
+def _material_hook_runtime_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "producer_return_site",
+            "kind": "utf16le_payload",
+            "module_offset": 0x233D,
+            "address": "module+0x233d",
+            "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+            "reason": "validate candidate-dependent material at the 0x401b50 return continuation",
+        },
+        {
+            "name": "producer_pre_candidate_push",
+            "kind": "utf16le_payload",
+            "module_offset": 0x2346,
+            "address": "module+0x2346",
+            "instruction": "push edx",
+            "reason": "validate candidate material pointer before the next bounded producer call",
+        },
+    ]
+
+
+def _material_hook_runtime_expected_previews() -> dict[str, str]:
+    previews: dict[str, str] = {}
+    for candidate_hex in MATERIAL_HOOK_RUNTIME_VALIDATION_CANDIDATES:
+        material_map = _expected_material_map(_pre_rc4_expected_materials(candidate_hex))
+        previews[candidate_hex] = material_map.get("utf16le_payload", "")[:64]
+    return previews
+
+
+def _material_hook_observation_previews(item: dict[str, object]) -> dict[str, str]:
+    previews: dict[str, str] = {}
+    for register in ("eax", "ecx", "edx", "esi", "edi"):
+        value = str(item.get(f"{register}_preview_hex", "")).strip().lower()
+        if value:
+            previews[register] = value
+    for slot in item.get("frame_slots", []):
+        if not isinstance(slot, dict):
+            continue
+        offset = str(slot.get("offset", "") or slot.get("name", "")).strip()
+        value = str(slot.get("preview_hex", "")).strip().lower()
+        if offset and value:
+            previews[f"frame:{offset}"] = value
+    return previews
+
+
+def _material_hook_preview_matches_expected(preview: str, expected_hex: str) -> bool:
+    preview = str(preview or "").strip().lower()
+    expected_hex = str(expected_hex or "").strip().lower()
+    if not preview or not expected_hex:
+        return False
+    prefixes = [expected_hex[:size] for size in (64, 48, 32, 24, 16) if len(expected_hex) >= size]
+    return any(prefix and prefix in preview for prefix in prefixes)
+
+
+def _material_hook_validation_for_hook(
+    *,
+    hook_point: dict[str, object],
+    candidate_results: Sequence[dict[str, object]],
+    expected_previews: dict[str, str],
+) -> dict[str, object]:
+    hook_name = str(hook_point.get("name", ""))
+    module_offset_int = _parse_int_hex(hook_point.get("module_offset"))
+    module_offset = f"0x{module_offset_int:x}" if module_offset_int is not None else str(hook_point.get("module_offset", ""))
+    per_candidate: list[dict[str, object]] = []
+    preview_values: dict[str, set[str]] = {}
+    expected_match_count = 0
+    observed_count = 0
+    readable_count = 0
+
+    for result in candidate_results:
+        candidate_hex = str(result.get("candidate_hex", "")).strip().lower()
+        observations = [
+            item
+            for item in result.get("hook_observations", [])
+            if isinstance(item, dict) and str(item.get("hook_name", "")) == hook_name
+        ]
+        observed = bool(observations)
+        if observed:
+            observed_count += 1
+        observation = dict(observations[0]) if observations else {}
+        previews = _material_hook_observation_previews(observation)
+        if previews:
+            readable_count += 1
+        for key, value in previews.items():
+            preview_values.setdefault(key, set()).add(value[:96])
+        expected_hex = expected_previews.get(candidate_hex, "")
+        matched_registers = [
+            key
+            for key, value in previews.items()
+            if _material_hook_preview_matches_expected(value, expected_hex)
+        ]
+        if matched_registers:
+            expected_match_count += 1
+        per_candidate.append(
+            {
+                "candidate_hex": candidate_hex,
+                "observed": observed,
+                "registers": observation.get("registers", {}),
+                "pointers": {
+                    "eax": observation.get("eax_ptr", ""),
+                    "ecx": observation.get("ecx_ptr", ""),
+                    "edx": observation.get("edx_ptr", ""),
+                    "esi": observation.get("esi_ptr", ""),
+                    "edi": observation.get("edi_ptr", ""),
+                },
+                "preview_hex": previews,
+                "expected_utf16le_prefix_hex": expected_hex[:64],
+                "matched_expected_registers": matched_registers,
+                "stack_words": observation.get("stack_words", [])[:8] if isinstance(observation.get("stack_words"), list) else [],
+                "frame_slots": observation.get("frame_slots", [])[:8] if isinstance(observation.get("frame_slots"), list) else [],
+            }
+        )
+
+    candidate_dependent = any(len({value for value in values if value}) > 1 for values in preview_values.values())
+    connects_to_transform_chain = expected_match_count > 0
+    if observed_count <= 0:
+        classification = "not_reached"
+    elif readable_count <= 0:
+        classification = "unreadable_or_unstable_pointer"
+    elif candidate_dependent and connects_to_transform_chain:
+        classification = "confirmed_utf16le_material"
+    elif candidate_dependent:
+        classification = "candidate_dependent_but_not_transform_material"
+    else:
+        classification = "false_positive"
+
+    return {
+        "kind": "utf16le_payload",
+        "name": f"material_hook_runtime_{hook_name}",
+        "hook_name": hook_name,
+        "function": module_offset,
+        "module_offset": module_offset,
+        "rva": module_offset,
+        "address": f"module+{module_offset}",
+        "instruction": hook_point.get("instruction", ""),
+        "hook_kind": "interceptor",
+        "instruction_confirmed": True,
+        "hookable": observed_count > 0,
+        "hit_count": observed_count,
+        "readable_count": readable_count,
+        "candidate_dependent": candidate_dependent,
+        "material_kind": "utf16le_payload",
+        "connects_to_transform_chain": connects_to_transform_chain,
+        "connects_to_compare_lhs": False,
+        "classification": classification,
+        "confidence": "medium" if classification == "confirmed_utf16le_material" else "low",
+        "evidence": [
+            f"observed_count={observed_count}",
+            f"readable_count={readable_count}",
+            f"expected_utf16le_match_count={expected_match_count}",
+        ],
+        "per_candidate": per_candidate,
+    }
+
+
+def _material_hook_runtime_validation_classification(
+    validated_hooks: Sequence[dict[str, object]],
+    blocked_hooks: Sequence[dict[str, object]],
+) -> str:
+    if validated_hooks:
+        return "ACCEPT"
+    if any(int(item.get("hit_count", 0) or 0) > 0 for item in blocked_hooks):
+        return "BLOCKED"
+    return "REJECTED"
+
+
+def _material_hook_runtime_validation_allows_breakpoint(payload: dict[str, object]) -> bool:
+    if str(payload.get("classification", "")).strip() != "ACCEPT":
+        return False
+    if not bool(payload.get("breakpoint_probe_allowed")):
+        return False
+    hooks = payload.get("validated_hooks", [])
+    if not isinstance(hooks, list):
+        return False
+    semantic_records = [
+        _semantic_record_from_material_hook_candidate(item)
+        for item in hooks
+        if isinstance(item, dict)
+        and str(item.get("material_kind") or item.get("kind")) in BASE64_RC4_BREAKPOINT_READY_KINDS
+    ]
+    return compute_breakpoint_probe_allowed(semantic_records)
+
+
+def _breakpoint_static_points_from_material_hook_runtime_validation_payload(
+    payload: dict[str, object],
+) -> dict[str, list[dict[str, object]]]:
+    if not _material_hook_runtime_validation_allows_breakpoint(payload):
+        return {}
+    out: dict[str, list[dict[str, object]]] = {}
+    hooks = payload.get("validated_hooks", [])
+    if not isinstance(hooks, list):
+        return {}
+    for hook in hooks:
+        if not isinstance(hook, dict):
+            continue
+        kind = str(hook.get("material_kind") or hook.get("kind") or "").strip()
+        module_offset = _static_point_module_offset(hook.get("module_offset"))
+        if kind not in BASE64_RC4_BREAKPOINT_READY_KINDS or module_offset is None:
+            continue
+        out.setdefault(kind, []).append(
+            {
+                **hook,
+                "kind": kind,
+                "hook_kind": "interceptor",
+                "module_offset": module_offset,
+                "rva": f"0x{module_offset:x}",
+                "address": f"module+0x{module_offset:x}",
+                "hookable": True,
+            }
+        )
+    return out
+
+
+def _prior_material_hook_runtime_validation_has_decision() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_material_hook_runtime_validation", {})
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
+        return True
+    payload, _ = _indexed_artifact_payload("material_hook_runtime_validation")
+    return bool(str(payload.get("classification", "")).strip())
+
+
 def _function_semantic_records_from_material_confirmation(
     material_confirmation_payload: dict[str, object],
     return_site_payload: dict[str, object] | None = None,
@@ -9617,6 +9850,174 @@ def run_function_semantic_audit(
         "result_path": str(result_path),
         "payload": payload,
         "validations": [],
+        "promotable_validations": [],
+    }
+
+
+def run_material_hook_runtime_validation(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel,
+    per_probe_timeout: float,
+    function_semantic_payload: dict[str, object] | None = None,
+    pre_compare_handoff_payload: dict[str, object] | None = None,
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME
+    script_path = _material_hook_runtime_validation_script_path()
+    hook_points = _material_hook_runtime_hook_points()
+    static_audit = _pre_compare_handoff_static_audit(target, hook_points)
+    expected_previews = _material_hook_runtime_expected_previews()
+    entries = list(MATERIAL_HOOK_RUNTIME_VALIDATION_CANDIDATES)
+    payload: dict[str, object] = {
+        "artifact_kind": "material_hook_runtime_validation",
+        "profile": "samplereverse",
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(entries),
+        "candidate_limit": len(MATERIAL_HOOK_RUNTIME_VALIDATION_CANDIDATES),
+        "hook_points": hook_points,
+        "static_audit": static_audit,
+        "source_function_semantic_classification": (function_semantic_payload or {}).get("classification", ""),
+        "source_pre_compare_handoff_classification": (pre_compare_handoff_payload or {}).get("classification", ""),
+        "validated_hooks": [],
+        "blocked_hooks": [],
+        "breakpoint_probe_allowed": False,
+        "promotable_validations": [],
+    }
+    _write_json(result_path, payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Material hook runtime validation script missing: {script_path}")
+
+    points_path = artifacts_dir / "material_hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        compare_out = candidate_dir / MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME
+        compare_log = candidate_dir / "material_hook_runtime_validation.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(compare_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            expected_previews.get(candidate_hex, ""),
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"MaterialHookRuntimeValidation scripted hooks {idx}: {candidate_hex}")
+        try:
+            proc = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=max(10.0, float(per_probe_timeout) + 20.0),
+            )
+            compare_log.write_text(
+                f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+                encoding="utf-8",
+            )
+        except subprocess.TimeoutExpired as exc:
+            compare_log.write_text(
+                f"[timeout]\nMaterialHookRuntimeValidation candidate timed out after {exc.timeout}s\n"
+                f"\n[stdout]\n{exc.stdout or ''}\n\n[stderr]\n{exc.stderr or ''}",
+                encoding="utf-8",
+            )
+            compare_out.write_text(
+                json.dumps(
+                    {
+                        "success": False,
+                        "summary": "MaterialHookRuntimeValidation timed out.",
+                        "candidate_hex": candidate_hex,
+                        "hook_observations": [],
+                        "error": "timeout",
+                    },
+                    ensure_ascii=True,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        observations = [
+            _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        candidate_results.append(
+            {
+                "label": f"material_hook_runtime_validation_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_observations": observations[:64],
+                "result_path": str(compare_out),
+                "log_path": str(compare_log),
+                "success": bool(compare_payload.get("success")),
+                "error": str(compare_payload.get("error", "")),
+            }
+        )
+
+    hook_validations = [
+        _material_hook_validation_for_hook(
+            hook_point=hook_point,
+            candidate_results=candidate_results,
+            expected_previews=expected_previews,
+        )
+        for hook_point in hook_points
+    ]
+    validated_hooks = [
+        hook
+        for hook in hook_validations
+        if hook.get("classification") == "confirmed_utf16le_material"
+        and compute_breakpoint_probe_allowed([_semantic_record_from_material_hook_candidate(hook)])
+    ]
+    blocked_hooks = [hook for hook in hook_validations if hook not in validated_hooks]
+    breakpoint_probe_allowed = bool(validated_hooks)
+    classification = _material_hook_runtime_validation_classification(validated_hooks, blocked_hooks)
+    next_bounded_action = (
+        "rerun bounded Base64/RC4 breakpoint probe with validated material hooks"
+        if breakpoint_probe_allowed
+        else "keep Base64/RC4 breakpoint probe blocked; inspect a different bounded transform-chain hook"
+        if classification == "BLOCKED"
+        else "reject 0x233d/0x2346 material-hook hypothesis and choose a new bounded hook window"
+    )
+    payload.update(
+        {
+            "classification": classification,
+            "runtime_backed_count": sum(1 for item in candidate_results if bool(item.get("runtime_backed"))),
+            "validated_hooks": validated_hooks,
+            "blocked_hooks": blocked_hooks,
+            "breakpoint_probe_allowed": breakpoint_probe_allowed,
+            "candidate_results": candidate_results,
+            "next_bounded_action": next_bounded_action,
+            "promotable_validations": [],
+        }
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Material hook runtime validation wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
         "promotable_validations": [],
     }
 
@@ -14747,6 +15148,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         compare_pre_compare_handoff_target_probe_artifact: ToolRunArtifact | None = None
         function_semantic_audit_run: dict[str, object] | None = None
         function_semantic_audit_artifact: ToolRunArtifact | None = None
+        material_hook_runtime_validation_run: dict[str, object] | None = None
+        material_hook_runtime_validation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_validation_run: dict[str, object] | None = None
         h1_h3_boundary_validation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_runtime_artifact: ToolRunArtifact | None = None
@@ -15535,36 +15938,112 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 derived_entries=[],
             )
             if (
-                base64_rc4_breakpoint_probe_run is None
+                material_hook_runtime_validation_run is None
                 and _function_semantic_audit_allows_breakpoint(function_semantic_payload)
                 and _pre_compare_handoff_allows_breakpoint(pre_compare_handoff_payload)
             ):
-                breakpoint_static_points = _breakpoint_static_points_from_pre_compare_handoff_payload(
-                    pre_compare_handoff_payload
-                )
-                base64_rc4_breakpoint_probe_run = run_base64_rc4_breakpoint_probe(
+                material_hook_runtime_validation_run = run_material_hook_runtime_validation(
                     target=file_path,
-                    artifacts_dir=artifacts_dir / "base64_rc4_breakpoint_probe",
+                    artifacts_dir=artifacts_dir / "material_hook_runtime_validation",
                     transform_model=transform_model,
                     per_probe_timeout=per_probe_timeout,
+                    function_semantic_payload=function_semantic_payload,
+                    pre_compare_handoff_payload=pre_compare_handoff_payload,
                     log=log,
-                    static_points=breakpoint_static_points,
                 )
-                base64_rc4_payload = dict(base64_rc4_breakpoint_probe_run.get("payload", {}))
-                base64_rc4_breakpoint_probe_artifact = _make_search_artifact(
-                    tool_name="Base64RC4BreakpointProbe",
-                    output_path=Path(str(base64_rc4_breakpoint_probe_run["result_path"])),
+                material_hook_payload = dict(material_hook_runtime_validation_run.get("payload", {}))
+                material_hook_runtime_validation_artifact = _make_search_artifact(
+                    tool_name="MaterialHookRuntimeValidation",
+                    output_path=Path(str(material_hook_runtime_validation_run["result_path"])),
                     summary=str(
-                        base64_rc4_payload.get(
+                        material_hook_payload.get(
                             "classification",
-                            "Base64/RC4 breakpoint probe complete",
+                            "material hook runtime validation complete",
                         )
                     ),
                     strategy_name=self.name,
                     evidence_kind="RuntimeCompareEvidence",
-                    payload=base64_rc4_payload,
+                    payload=material_hook_payload,
                     derived_entries=[],
                 )
+
+        current_pre_compare_handoff_payload = (
+            dict(compare_pre_compare_handoff_target_probe_run.get("payload", {}))
+            if compare_pre_compare_handoff_target_probe_run
+            else _indexed_artifact_payload("compare_pre_compare_handoff_target_probe")[0]
+        )
+        current_function_semantic_payload = (
+            dict(function_semantic_audit_run.get("payload", {}))
+            if function_semantic_audit_run
+            else _indexed_artifact_payload("function_semantic_audit")[0]
+        )
+        current_material_hook_payload = (
+            dict(material_hook_runtime_validation_run.get("payload", {}))
+            if material_hook_runtime_validation_run
+            else _indexed_artifact_payload("material_hook_runtime_validation")[0]
+        )
+        should_run_material_hook_runtime_validation = (
+            material_hook_runtime_validation_run is None
+            and not _prior_material_hook_runtime_validation_has_decision()
+            and _function_semantic_audit_allows_breakpoint(current_function_semantic_payload)
+            and _pre_compare_handoff_allows_breakpoint(current_pre_compare_handoff_payload)
+        )
+        if should_run_material_hook_runtime_validation:
+            material_hook_runtime_validation_run = run_material_hook_runtime_validation(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "material_hook_runtime_validation",
+                transform_model=transform_model,
+                per_probe_timeout=per_probe_timeout,
+                function_semantic_payload=current_function_semantic_payload,
+                pre_compare_handoff_payload=current_pre_compare_handoff_payload,
+                log=log,
+            )
+            current_material_hook_payload = dict(material_hook_runtime_validation_run.get("payload", {}))
+            material_hook_runtime_validation_artifact = _make_search_artifact(
+                tool_name="MaterialHookRuntimeValidation",
+                output_path=Path(str(material_hook_runtime_validation_run["result_path"])),
+                summary=str(
+                    current_material_hook_payload.get(
+                        "classification",
+                        "material hook runtime validation complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=current_material_hook_payload,
+                derived_entries=[],
+            )
+
+        if (
+            base64_rc4_breakpoint_probe_run is None
+            and _material_hook_runtime_validation_allows_breakpoint(current_material_hook_payload)
+        ):
+            breakpoint_static_points = _breakpoint_static_points_from_material_hook_runtime_validation_payload(
+                current_material_hook_payload
+            )
+            base64_rc4_breakpoint_probe_run = run_base64_rc4_breakpoint_probe(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "base64_rc4_breakpoint_probe",
+                transform_model=transform_model,
+                per_probe_timeout=per_probe_timeout,
+                log=log,
+                static_points=breakpoint_static_points,
+            )
+            base64_rc4_payload = dict(base64_rc4_breakpoint_probe_run.get("payload", {}))
+            base64_rc4_breakpoint_probe_artifact = _make_search_artifact(
+                tool_name="Base64RC4BreakpointProbe",
+                output_path=Path(str(base64_rc4_breakpoint_probe_run["result_path"])),
+                summary=str(
+                    base64_rc4_payload.get(
+                        "classification",
+                        "Base64/RC4 breakpoint probe complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=base64_rc4_payload,
+                derived_entries=[],
+            )
 
         should_run_h1_h3 = (
             _selected_h1_h3_target(profile_transform_audit_run)
@@ -15671,6 +16150,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(compare_pre_compare_handoff_target_probe_artifact)
         if function_semantic_audit_artifact is not None:
             artifacts.append(function_semantic_audit_artifact)
+        if material_hook_runtime_validation_artifact is not None:
+            artifacts.append(material_hook_runtime_validation_artifact)
         if h1_h3_boundary_validation_artifact is not None:
             artifacts.append(h1_h3_boundary_validation_artifact)
         if h1_h3_boundary_runtime_artifact is not None:
@@ -15711,12 +16192,15 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "compare_producer_material_confirmation": compare_producer_material_confirmation_run or {},
                 "compare_pre_compare_handoff_target_probe": compare_pre_compare_handoff_target_probe_run or {},
                 "function_semantic_audit": function_semantic_audit_run or {},
+                "material_hook_runtime_validation": material_hook_runtime_validation_run or {},
                 "h1_h3_boundary_validation": h1_h3_boundary_validation_run or {},
                 "prefix_boundary_diagnostics": prefix_boundary_diagnostics,
                 "frontier_converged_reason": frontier_converged_reason,
                 "frontier_stall_stage": frontier_stall_stage,
                 "completed_stage": "h1_h3_boundary_validation"
                 if h1_h3_boundary_validation_run
+                else "material_hook_runtime_validation"
+                if material_hook_runtime_validation_run
                 else "function_semantic_audit"
                 if function_semantic_audit_run
                 else "compare_pre_compare_handoff_target_probe"

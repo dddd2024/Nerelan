@@ -2,58 +2,70 @@
 
 ## Summary
 
-Implemented the reusable Function Semantic Audit Layer and applied it to the current `samplereverse` producer-window bottleneck.
+Implemented the bounded `material_hook_runtime_validation` gate for `samplereverse`.
 
-The new layer records compact function-level semantic facts for `0x4019e0`, `0x401b50`, `0x4018cd`, and `0x401be3`, centralizes the material hook readiness gate, and keeps Base64/RC4 breakpoint probing blocked until a function is instruction-confirmed, hookable, candidate-dependent, and connected to the compare lhs or known transform chain.
+The new layer validates only `module+0x233d` and `module+0x2346` against the fixed four-candidate set from the plan. It records register/window/frame previews, classifies each hook, and keeps Base64/RC4 breakpoint probing blocked unless the runtime artifact proves candidate-dependent transform material.
 
 ## Files Changed
 
 | area | change | behavior impact |
 |---|---|---|
-| semantic layer | Added `reverse_agent/function_semantics.py` | normalizes function semantic records and computes conservative breakpoint readiness |
-| strategy | Added `function_semantic_audit.json` generation after material confirmation | persists function/dataflow evidence without changing candidate search |
-| strategy | Tightened static/material breakpoint gates | confirmed hooks alone no longer allow Base64/RC4 capture without semantic readiness |
-| project state | Indexed and summarized `function_semantic_audit` | current bottleneck now points to semantic audit evidence |
-| negative cache | Added function-level semantic soft blocks | avoids treating the same function as Base64/RC4 material without new evidence |
-| guidance | Documented PowerShell-native search preference | avoids repeating blocked `rg.exe` attempts in this desktop environment |
-| tests | Added semantic gate and project_state coverage | protects schema, indexing, compact rendering, and conservative gating |
+| runtime probe | Added `reverse_agent/olly_scripts/material_hook_runtime_validation.py` | thin script entry for the new material hook validation pass |
+| strategy | Added `material_hook_runtime_validation.json` scheduling and schema | runs after `function_semantic_audit / material_hook_ready`, before Base64/RC4 |
+| strategy gate | Added validation-backed breakpoint gate | Base64/RC4 probe now requires `ACCEPT` plus confirmed transform material |
+| timeout guard | Added subprocess hard timeout for material validation candidates | prevents a stuck Frida/UIA child from hanging the strategy |
+| project state | Indexed and summarized material hook runtime validation | exposes `latest_material_hook_runtime_validation` in current state and task packets |
+| negative cache | Added material-hook blocked/rejected guidance | avoids rerunning Base64/RC4 when `0x233d/0x2346` fail validation |
+| tests | Added accept/block/timeout and project_state coverage | protects schema, gating, indexing, and bounded no-expansion behavior |
 
-## Artifact Result
+## Artifact Schema
 
-| item | value |
+New artifact:
+
+`material_hook_runtime_validation/material_hook_runtime_validation.json`
+
+Key fields:
+
+| field | purpose |
 |---|---|
-| source run | `samplereverse_material_confirmation_20260510_rerun2` |
-| artifact | `solve_reports\harness_runs\samplereverse_material_confirmation_20260510_rerun2\reports\tool_artifacts\samplereverse_patched\function_semantic_audit\function_semantic_audit.json` |
-| classification | `runtime_instrumentation_required` |
-| function_count | `4` |
-| material_hook_candidate_count | `0` |
-| breakpoint_probe_allowed | `false` |
-| current bottleneck | `function_semantic_audit / runtime_instrumentation_required` |
+| `classification` | `ACCEPT`, `BLOCKED`, or `REJECTED` |
+| `candidate_count` | fixed at `4` for the planned candidate set |
+| `validated_hooks` | hooks classified as confirmed transform material |
+| `blocked_hooks` | reached/readable hooks that do not satisfy transform-chain gating |
+| `breakpoint_probe_allowed` | final gate for Base64/RC4 breakpoint probe |
+| `next_bounded_action` | compact next action derived from the runtime result |
 
-Semantic facts learned:
+Per-hook classifications remain restricted to:
 
-| function | current read | missing evidence |
-|---|---|---|
-| `0x4019e0` | instruction-confirmed but not runtime-hooked in latest confirmation | prove whether it writes `[ebp-0x1168]` on the active path |
-| `0x401b50` | strongest bounded suspect; `0x2338` reached for all 3 diagnostic candidates | confirm return/branch outcome and candidate-dependent output after the call |
-| `0x4018cd` | downstream call site, not reached | explain why execution stops before `0x234e` |
-| `0x401be3` | later downstream call site, not reached | depends on resolving the missed 0x401b50/0x234e path |
+`confirmed_utf16le_material`, `candidate_dependent_but_not_transform_material`, `unreadable_or_unstable_pointer`, `not_reached`, `false_positive`.
+
+## Harness Result
+
+Attempted real run:
+
+`samplereverse_material_hook_runtime_validation_20260512`
+
+The run reached the new validation stage but candidate 1 hung inside the child runtime script before writing candidate output. I stopped the two spawned Python processes and added a strategy-level hard timeout so later runs cannot hang indefinitely at this point. The partial run only wrote the initial aggregate artifact, so project state was rebuilt against the last completed run instead:
+
+`samplereverse_pre_compare_handoff_target_20260512`
+
+Current indexed material validation remains empty until a completed run produces the new artifact.
 
 ## Tests
 
 | command | result |
 |---|---|
-| `python -m py_compile reverse_agent\function_semantics.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
-| `python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py` | `119 passed` |
-| `python -m pytest -q` | `196 passed` |
-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_material_confirmation_20260510_rerun2` | passed |
+| `python -m py_compile reverse_agent\olly_scripts\material_hook_runtime_validation.py reverse_agent\function_semantics.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+| `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` | `127 passed` |
+| `python -m pytest -q` | `204 passed` |
+| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_pre_compare_handoff_target_20260512` | passed |
 
 ## Current Best
 
-No runtime candidate improved during this architecture/evidence change. The current best remains exact2:
+No candidate generation, ranking, frontier, budget, beam, topN, or timeout expansion was introduced for search. The current best remains:
 
 `78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`.
 
 ## Next Suggested Task
 
-Add the smallest runtime/static confirmation for the `0x2338 -> 0x401b50` call outcome: determine why `0x233d`, `0x234e`, and `0x2355` are not reached, and only promote a material hook if it becomes candidate-dependent and connected to compare lhs or the transform chain.
+Rerun the real harness with the new timeout guard. If validation returns `BLOCKED` or `REJECTED`, keep Base64/RC4 probing blocked and inspect why the `0x233d/0x2346` runtime window is not exposing UTF-16LE/Base64/RC4 material.

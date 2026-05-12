@@ -713,6 +713,54 @@ def test_project_state_indexes_function_semantic_audit_and_negative_cache(tmp_pa
     assert any(item.get("scope") == "function_semantics" for item in negative_results)
 
 
+def test_project_state_indexes_material_hook_runtime_validation_and_bottleneck(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_mhrv")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "material_hook_runtime_validation").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "material_hook_runtime_validation" / "material_hook_runtime_validation.json",
+        {
+            "artifact_kind": "material_hook_runtime_validation",
+            "classification": "BLOCKED",
+            "runtime_backed_count": 4,
+            "candidate_count": 4,
+            "validated_hooks": [],
+            "blocked_hooks": [
+                {
+                    "hook_name": "producer_return_site",
+                    "module_offset": "0x233d",
+                    "classification": "candidate_dependent_but_not_transform_material",
+                    "hit_count": 4,
+                    "candidate_dependent": True,
+                    "connects_to_transform_chain": False,
+                }
+            ],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "keep Base64/RC4 breakpoint probe blocked",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["material_hook_runtime_validation"].endswith(
+        "material_hook_runtime_validation.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "material_hook_runtime_validation"
+    assert current_state["current_bottleneck"]["reason"] == "BLOCKED"
+    latest = current_state["latest_material_hook_runtime_validation"]
+    assert latest["classification"] == "BLOCKED"
+    assert latest["candidate_count"] == 4
+    assert latest["validated_hook_count"] == 0
+    assert latest["blocked_hook_count"] == 1
+    assert latest["breakpoint_probe_allowed"] is False
+    assert any(item.get("scope") == "material_hook_runtime_validation" for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

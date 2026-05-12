@@ -31,6 +31,7 @@ from reverse_agent.strategies.compare_aware_search import (
     GUIDED_POOL_TOP_VALUES,
     H1_H3_BOUNDARY_CANDIDATE_LIMIT,
     H1_H3_BOUNDARY_VALIDATION_FILE_NAME,
+    MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME,
     PRE_RC4_MATERIAL_PROBE_FILE_NAME,
     PROFILE_TRANSFORM_AUDIT_CANDIDATE_LIMIT,
     PROFILE_TRANSFORM_HYPOTHESIS_MATRIX_FILE_NAME,
@@ -73,6 +74,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_exact2_basin_value_pool_evaluation,
     run_h1_h3_boundary_validation,
     run_function_semantic_audit,
+    run_material_hook_runtime_validation,
     run_pre_rc4_material_probe,
     run_profile_transform_hypothesis_audit,
     run_transform_trace_consistency_diagnostic,
@@ -806,6 +808,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
             "compare_producer_trace_probe",
             "compare_producer_material_confirmation",
             "function_semantic_audit",
+            "material_hook_runtime_validation",
             "h1_h3_boundary_validation",
         }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -4574,6 +4577,101 @@ def _fake_pre_compare_handoff_ready_subprocess_run(*args, **kwargs):  # noqa: AN
     return _Proc()
 
 
+def _fake_material_hook_runtime_validation_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    expected_preview = command[command.index("--expected-eax-preview") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} == {
+        "producer_return_site",
+        "producer_pre_candidate_push",
+    }
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "material hook runtime validation ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "hook_name": "producer_return_site",
+                        "module_offset": "0x233d",
+                        "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+                        "registers": {"eax": "0x40", "edx": "0x40"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": expected_preview,
+                        "edx_ptr": "0x40",
+                        "edx_preview_hex": expected_preview,
+                        "expected_eax_preview_hex": expected_preview,
+                        "matched_expected_eax": bool(expected_preview),
+                    },
+                    {
+                        "hook_name": "producer_pre_candidate_push",
+                        "module_offset": "0x2346",
+                        "instruction": "push edx",
+                        "registers": {"eax": "0x40", "edx": "0x40"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": expected_preview,
+                        "edx_ptr": "0x40",
+                        "edx_preview_hex": expected_preview,
+                        "expected_eax_preview_hex": expected_preview,
+                        "matched_expected_eax": bool(expected_preview),
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
+def _fake_material_hook_runtime_validation_blocked_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    preview = "aa" * 32 if candidate_hex.startswith("78d540") else "bb" * 32
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "material hook runtime validation blocked",
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "hook_name": "producer_return_site",
+                        "module_offset": "0x233d",
+                        "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+                        "registers": {"eax": "0x40"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": preview,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
+def _fake_material_hook_runtime_validation_timeout_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    raise compare_aware_search.subprocess.TimeoutExpired(command, timeout=kwargs.get("timeout", 1.0))
+
+
 def test_base64_rc4_static_point_discovery_records_schema_and_blocks_unconfirmed_points(
     tmp_path: Path,
     monkeypatch,
@@ -5374,6 +5472,109 @@ def test_function_semantic_audit_uses_pre_compare_handoff_gate(
     assert audit["classification"] == "material_hook_ready"
     assert audit["material_hook_candidate_count"] >= 1
     assert any(item["material_hook_candidate_status"] == "ready" for item in audit["functions"])
+
+
+def test_material_hook_runtime_validation_accepts_only_transform_material(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        compare_aware_search.subprocess,
+        "run",
+        _fake_material_hook_runtime_validation_subprocess_run,
+    )
+
+    result = run_material_hook_runtime_validation(
+        target=target,
+        artifacts_dir=tmp_path / "material_hook_runtime_validation",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        function_semantic_payload={"classification": "material_hook_ready"},
+        pre_compare_handoff_payload={"classification": "next_handoff_target_identified"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME
+    assert payload["artifact_kind"] == "material_hook_runtime_validation"
+    assert payload["candidate_count"] == 4
+    assert payload["candidate_limit"] == 4
+    assert payload["classification"] == "ACCEPT"
+    assert payload["breakpoint_probe_allowed"] is True
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    assert payload["final_selection_changed"] is False
+    assert payload["search_budget_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+    assert payload["validated_hooks"][0]["classification"] == "confirmed_utf16le_material"
+    assert payload["validated_hooks"][0]["connects_to_transform_chain"] is True
+    assert compare_aware_search._material_hook_runtime_validation_allows_breakpoint(payload) is True
+    points = compare_aware_search._breakpoint_static_points_from_material_hook_runtime_validation_payload(payload)
+    assert points["utf16le_payload"][0]["module_offset"] == 0x233D
+
+
+def test_material_hook_runtime_validation_blocks_candidate_dependent_non_transform_material(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        compare_aware_search.subprocess,
+        "run",
+        _fake_material_hook_runtime_validation_blocked_subprocess_run,
+    )
+
+    result = run_material_hook_runtime_validation(
+        target=target,
+        artifacts_dir=tmp_path / "material_hook_runtime_validation",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        function_semantic_payload={"classification": "material_hook_ready"},
+        pre_compare_handoff_payload={"classification": "next_handoff_target_identified"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "BLOCKED"
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["validated_hooks"] == []
+    assert payload["blocked_hooks"][0]["classification"] == "candidate_dependent_but_not_transform_material"
+    assert compare_aware_search._material_hook_runtime_validation_allows_breakpoint(payload) is False
+    assert compare_aware_search._breakpoint_static_points_from_material_hook_runtime_validation_payload(payload) == {}
+
+
+def test_material_hook_runtime_validation_times_out_without_hanging_strategy(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        compare_aware_search.subprocess,
+        "run",
+        _fake_material_hook_runtime_validation_timeout_subprocess_run,
+    )
+
+    result = run_material_hook_runtime_validation(
+        target=target,
+        artifacts_dir=tmp_path / "material_hook_runtime_validation",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        function_semantic_payload={"classification": "material_hook_ready"},
+        pre_compare_handoff_payload={"classification": "next_handoff_target_identified"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "REJECTED"
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["candidate_results"][0]["runtime_backed"] is False
+    timed_out_candidate = Path(payload["candidate_results"][0]["result_path"])
+    timed_out_payload = json.loads(timed_out_candidate.read_text(encoding="utf-8"))
+    assert timed_out_payload["error"] == "timeout"
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(
