@@ -32,6 +32,7 @@ from reverse_agent.strategies.compare_aware_search import (
     H1_H3_BOUNDARY_CANDIDATE_LIMIT,
     H1_H3_BOUNDARY_VALIDATION_FILE_NAME,
     MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME,
+    POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME,
     PRE_RC4_MATERIAL_PROBE_FILE_NAME,
     PROFILE_TRANSFORM_AUDIT_CANDIDATE_LIMIT,
     PROFILE_TRANSFORM_HYPOTHESIS_MATRIX_FILE_NAME,
@@ -59,6 +60,7 @@ from reverse_agent.strategies.compare_aware_search import (
     _refine_anchor_plan,
     _select_smt_base_entry,
     _validated_projected_preserve_second_hop_candidates,
+    build_post_handoff_branch_outcome_audit_payload,
     build_function_semantic_audit_payload,
     run_compare_aware_smt,
     run_base64_rc4_breakpoint_probe,
@@ -75,6 +77,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_h1_h3_boundary_validation,
     run_function_semantic_audit,
     run_material_hook_runtime_validation,
+    run_post_handoff_branch_outcome_audit,
     run_pre_rc4_material_probe,
     run_profile_transform_hypothesis_audit,
     run_transform_trace_consistency_diagnostic,
@@ -809,6 +812,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
             "compare_producer_material_confirmation",
             "function_semantic_audit",
             "material_hook_runtime_validation",
+            "post_handoff_branch_outcome_audit",
             "h1_h3_boundary_validation",
         }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -5575,6 +5579,169 @@ def test_material_hook_runtime_validation_times_out_without_hanging_strategy(
     timed_out_candidate = Path(payload["candidate_results"][0]["result_path"])
     timed_out_payload = json.loads(timed_out_candidate.read_text(encoding="utf-8"))
     assert timed_out_payload["error"] == "timeout"
+
+
+def test_post_handoff_branch_outcome_audit_rejects_failed_material_window(tmp_path: Path) -> None:
+    pre_compare_payload = {
+        "classification": "next_handoff_target_identified",
+        "hook_miss_classification": "branch_exits_before_output_calls",
+        "instruction_confirmation_table": [
+            {
+                "hook_name": "producer_return_site",
+                "module_offset": "0x233d",
+                "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+                "observed_count": 3,
+                "candidate_dependent_eax": True,
+                "expected_eax_match_count": 3,
+                "instruction_confirmed": True,
+                "hookable": True,
+            },
+            {
+                "hook_name": "producer_pre_candidate_push",
+                "module_offset": "0x2346",
+                "instruction": "push edx",
+                "observed_count": 3,
+                "candidate_dependent_eax": True,
+                "expected_eax_match_count": 3,
+                "instruction_confirmed": True,
+                "hookable": True,
+            },
+            {
+                "hook_name": "producer_pre_output_call",
+                "module_offset": "0x234e",
+                "instruction": "call 0x4018cd",
+                "observed_count": 0,
+                "candidate_dependent_eax": False,
+                "expected_eax_match_count": 0,
+                "instruction_confirmed": True,
+                "hookable": False,
+            },
+            {
+                "hook_name": "producer_pre_second_call",
+                "module_offset": "0x2355",
+                "instruction": "call 0x401be3",
+                "observed_count": 0,
+                "candidate_dependent_eax": False,
+                "expected_eax_match_count": 0,
+                "instruction_confirmed": True,
+                "hookable": False,
+            },
+        ],
+    }
+    material_payload = {
+        "classification": "REJECTED",
+        "validated_hooks": [],
+        "blocked_hooks": [
+            {
+                "hook_name": "producer_return_site",
+                "module_offset": "0x233d",
+                "classification": "not_reached",
+                "hit_count": 0,
+                "candidate_dependent": False,
+                "connects_to_transform_chain": False,
+            },
+            {
+                "hook_name": "producer_pre_candidate_push",
+                "module_offset": "0x2346",
+                "classification": "not_reached",
+                "hit_count": 0,
+                "candidate_dependent": False,
+                "connects_to_transform_chain": False,
+            },
+        ],
+        "candidate_results": [{"candidate_hex": "78d540b49c59077041414141414141", "error": "timeout"}],
+    }
+
+    built = build_post_handoff_branch_outcome_audit_payload(
+        pre_compare_handoff_payload=pre_compare_payload,
+        material_hook_runtime_payload=material_payload,
+        function_semantic_payload={"classification": "material_hook_ready"},
+    )
+    result = run_post_handoff_branch_outcome_audit(
+        artifacts_dir=tmp_path / "post_handoff_branch_outcome_audit",
+        pre_compare_handoff_payload=pre_compare_payload,
+        material_hook_runtime_payload=material_payload,
+        function_semantic_payload={"classification": "material_hook_ready"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert built["classification"] == "post_handoff_window_rejected"
+    assert Path(result["result_path"]).name == POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME
+    assert payload["artifact_kind"] == "post_handoff_branch_outcome_audit"
+    assert payload["classification"] == "post_handoff_window_rejected"
+    assert payload["window"]["downstream_transform_calls_reached"] is False
+    assert payload["failed_material_hook_hypotheses"][0]["module_offset"] == "0x233d"
+    assert payload["timed_out_candidates"][0]["candidate_hex"] == "78d540b49c59077041414141414141"
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["candidate_generation_changed"] is False
+    assert "0x233d" in payload["blocked_actions"][0]
+    assert "0x2346" in payload["blocked_actions"][0]
+
+
+def test_compare_aware_strategy_runs_post_handoff_sidecar_before_search(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    pre_compare_payload = {
+        "classification": "next_handoff_target_identified",
+        "hook_miss_classification": "branch_exits_before_output_calls",
+        "instruction_confirmation_table": [
+            {
+                "hook_name": "producer_return_site",
+                "module_offset": "0x233d",
+                "observed_count": 3,
+                "candidate_dependent_eax": True,
+                "expected_eax_match_count": 3,
+                "hookable": True,
+            },
+            {
+                "hook_name": "producer_pre_output_call",
+                "module_offset": "0x234e",
+                "observed_count": 0,
+                "candidate_dependent_eax": False,
+                "expected_eax_match_count": 0,
+                "hookable": False,
+            },
+        ],
+    }
+    material_payload = {
+        "classification": "REJECTED",
+        "validated_hooks": [],
+        "blocked_hooks": [{"hook_name": "producer_return_site", "module_offset": "0x233d"}],
+    }
+
+    def fake_indexed_artifact_payload(kind):
+        return (
+            {
+                "compare_pre_compare_handoff_target_probe": pre_compare_payload,
+                "function_semantic_audit": {"classification": "material_hook_ready"},
+                "material_hook_runtime_validation": material_payload,
+            }.get(kind, {}),
+            "",
+        )
+
+    monkeypatch.setattr(compare_aware_search, "_project_state_json", lambda name: {})
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for early post-handoff sidecar"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "post_handoff_branch_outcome_audit"
+    assert result.metadata["early_sidecar"] is True
+    assert Path(str(result.artifacts[0].output_path)).name == POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

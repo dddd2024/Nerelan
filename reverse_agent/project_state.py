@@ -33,6 +33,7 @@ IMPORTANT_ARTIFACTS = {
     "compare_pre_compare_handoff_target_probe": "compare_pre_compare_handoff_target_probe.json",
     "function_semantic_audit": FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
     "material_hook_runtime_validation": "material_hook_runtime_validation.json",
+    "post_handoff_branch_outcome_audit": "post_handoff_branch_outcome_audit.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -68,6 +69,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_producer_material_confirmation",
     "compare_pre_compare_handoff_target_probe",
     "material_hook_runtime_validation",
+    "post_handoff_branch_outcome_audit",
 }
 
 STATE_JSON_NAMES = (
@@ -447,6 +449,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     )
     function_semantic_audit = _read_json(artifact_refs.get("function_semantic_audit"))
     material_hook_runtime_validation = _read_json(artifact_refs.get("material_hook_runtime_validation"))
+    post_handoff_branch_outcome_audit = _read_json(
+        artifact_refs.get("post_handoff_branch_outcome_audit")
+    )
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -549,6 +554,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if material_hook_runtime_classification:
         stage = "material_hook_runtime_validation"
         reason = material_hook_runtime_classification
+    post_handoff_classification = str(
+        post_handoff_branch_outcome_audit.get("classification") or ""
+    ).strip()
+    if post_handoff_classification:
+        stage = "post_handoff_branch_outcome_audit"
+        reason = post_handoff_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -867,6 +878,33 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": material_hook_runtime_validation.get("next_bounded_action"),
         }
         if material_hook_runtime_validation
+        else {},
+        "latest_post_handoff_branch_outcome_audit": {
+            "classification": post_handoff_classification or None,
+            "artifact": artifact_refs.get("post_handoff_branch_outcome_audit"),
+            "source_pre_compare_handoff_classification": post_handoff_branch_outcome_audit.get(
+                "source_pre_compare_handoff_classification"
+            ),
+            "source_pre_compare_handoff_hook_miss_classification": post_handoff_branch_outcome_audit.get(
+                "source_pre_compare_handoff_hook_miss_classification"
+            ),
+            "source_material_hook_runtime_classification": post_handoff_branch_outcome_audit.get(
+                "source_material_hook_runtime_classification"
+            ),
+            "failed_material_hook_hypotheses": post_handoff_branch_outcome_audit.get(
+                "failed_material_hook_hypotheses", []
+            )[:4]
+            if isinstance(post_handoff_branch_outcome_audit.get("failed_material_hook_hypotheses"), list)
+            else [],
+            "downstream_transform_calls_reached": post_handoff_branch_outcome_audit.get(
+                "window", {}
+            ).get("downstream_transform_calls_reached")
+            if isinstance(post_handoff_branch_outcome_audit.get("window"), dict)
+            else None,
+            "breakpoint_probe_allowed": post_handoff_branch_outcome_audit.get("breakpoint_probe_allowed"),
+            "next_bounded_action": post_handoff_branch_outcome_audit.get("next_bounded_action"),
+        }
+        if post_handoff_branch_outcome_audit
         else {},
         "function_semantics": function_semantics,
         "uncertainty": sorted(set(uncertainty)),
@@ -1263,6 +1301,42 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "override_reason_required": True,
             }
         )
+    post_handoff_audit = _read_json(artifacts.get("post_handoff_branch_outcome_audit"))
+    post_handoff_classification = str(post_handoff_audit.get("classification") or "").strip()
+    if post_handoff_classification:
+        results.append(
+            {
+                "direction": "reuse 0x233d/0x2346 as material-hook breakpoints after post-handoff audit rejected them",
+                "scope": "post_handoff_branch_outcome_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "post-handoff branch outcome audit consumes the material runtime rejection and keeps "
+                    "these hooks blocked until new transform-chain evidence appears"
+                ),
+                "evidence_artifact": artifacts.get("post_handoff_branch_outcome_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+        window = post_handoff_audit.get("window", {})
+        window = window if isinstance(window, dict) else {}
+        if not bool(window.get("downstream_transform_calls_reached")):
+            results.append(
+                {
+                    "direction": "probe downstream 0x234e/0x2355 Base64/RC4 hooks before branch outcome reaches them",
+                    "scope": "post_handoff_branch_outcome_audit",
+                    "severity": "soft_block",
+                    "do_not_repeat": True,
+                    "reason": (
+                        "0x234e/0x2355 remain downstream of the rejected post-handoff window; "
+                        "first identify the branch/call outcome that connects to compare lhs"
+                    ),
+                    "evidence_artifact": artifacts.get("post_handoff_branch_outcome_audit"),
+                    "override_allowed": True,
+                    "override_reason_required": True,
+                }
+            )
     function_semantic_audit = _read_json(artifacts.get("function_semantic_audit"))
     function_semantic_classification = str(function_semantic_audit.get("classification") or "").strip()
     functions = function_semantic_audit.get("functions", [])

@@ -235,6 +235,7 @@ class SamplereverseProfile(ChallengeProfile):
             snapshot_interval=_env_int("REVERSE_AGENT_COMPARE_AWARE_SNAPSHOT_INTERVAL", 10_000_000, 1),
             validate_top=_env_int("REVERSE_AGENT_COMPARE_AWARE_VALIDATE_TOP", 5, 1),
             per_probe_timeout=_env_float("REVERSE_AGENT_COMPARE_AWARE_PER_PROBE_TIMEOUT", 2.0, 0.5),
+            project_state_sidecar_enabled=True,
         )
         for artifact in strategy_result.artifacts:
             artifact.owner_profile = self.profile_id

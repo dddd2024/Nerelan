@@ -2,30 +2,39 @@
   "active_strategy": "CompareAwareSearchStrategy",
   "artifact_refs": {
     "base64_rc4_breakpoint_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_breakpoint_probe\\base64_rc4_breakpoint_probe.json",
-    "base64_rc4_static_point_discovery": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
-    "bridge_search_result": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_search_result.json",
-    "bridge_validation": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_validation\\bridge_validation.json",
+    "base64_rc4_static_point_discovery": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
+    "bridge_search_result": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_search_result.json",
+    "bridge_validation": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
-    "compare_aware_result": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\frontier_refine_2\\samplereverse_compare_aware_result.json",
+    "compare_aware_result": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_refine_1\\samplereverse_compare_aware_result.json",
+    "compare_handoff_probe": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
+    "compare_handoff_slice_probe": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
     "compare_pre_compare_handoff_target_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_pre_compare_handoff_target_probe\\compare_pre_compare_handoff_target_probe.json",
-    "compare_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_probe": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
     "compare_producer_material_confirmation": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "compare_producer_trace_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
-    "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
-    "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
-    "frontier_summary": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_frontier_summary.json",
+    "compare_stack_pivot_probe": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
+    "dynamic_compare_path_probe": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\dynamic_compare_path_probe\\dynamic_compare_path_probe.json",
+    "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
+    "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
+    "frontier_summary": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_frontier_summary.json",
     "function_semantic_audit": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
-    "guided_pool_result": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
-    "guided_pool_validation": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_2_5a3f7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
-    "pairscan_summary": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\pairscan_summary.json",
-    "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\profile_transform_hypothesis_matrix.json",
-    "run_manifest": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\run_manifest.json",
-    "smt_result": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\smt\\samplereverse_compare_aware_smt_result.json",
-    "strata_summary": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\summary.json",
-    "transform_trace_consistency": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
+    "guided_pool_result": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_1_5a3e7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
+    "guided_pool_validation": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_1_5a3e7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
+    "h1_h3_boundary_validation": "solve_reports\\harness_runs\\samplereverse_h1_h3_boundary_validation_20260504\\reports\\tool_artifacts\\samplereverse\\h1_h3_boundary_validation\\h1_h3_boundary_validation.json",
+    "h1_h3_boundary_validation_runtime": "solve_reports\\harness_runs\\samplereverse_h1_h3_boundary_validation_20260504\\reports\\tool_artifacts\\samplereverse\\h1_h3_boundary_validation\\validation\\h1_h3_boundary_validation.json",
+    "material_hook_runtime_validation": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\material_hook_runtime_validation\\material_hook_runtime_validation.json",
+    "pairscan_summary": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\pairscan_summary.json",
+    "post_handoff_branch_outcome_audit": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r4\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_branch_outcome_audit\\post_handoff_branch_outcome_audit.json",
+    "pre_rc4_material_probe": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\pre_rc4_material_probe\\pre_rc4_material_probe.json",
+    "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\profile_transform_hypothesis_matrix.json",
+    "run_manifest": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r4\\run_manifest.json",
+    "smt_result": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\smt\\samplereverse_compare_aware_smt_result.json",
+    "strata_summary": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
+    "summary": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r4\\summary.json",
+    "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
   },
   "best_candidates": {
     "exact1": {
@@ -64,8 +73,8 @@
   },
   "current_bottleneck": {
     "confidence": "medium",
-    "reason": "material_hook_ready",
-    "stage": "function_semantic_audit"
+    "reason": "post_handoff_window_rejected",
+    "stage": "post_handoff_branch_outcome_audit"
   },
   "current_mainline": "L15(prefix8)",
   "function_semantics": {
@@ -124,7 +133,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-12T08:25:00Z",
+  "generated_at": "2026-05-12T15:53:02Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -158,7 +167,7 @@
     }
   },
   "latest_base64_rc4_static_point_discovery": {
-    "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
     "best_points": [
       {
         "classification": "hookable_and_instruction_confirmed",
@@ -334,7 +343,28 @@
     "instruction_confirmed_count": 3,
     "next_bounded_action": "use compare-producer hook evidence to narrow manual Base64/RC4 disassembly before rerunning breakpoint probe"
   },
-  "latest_compare_handoff_probe": {},
+  "latest_compare_handoff_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
+    "candidate_count": 3,
+    "classification": "handoff_capture_partial",
+    "compare_stack_pivot_audit": {
+      "compare_call_rva": "0x258c",
+      "handoff_helper_rva": "0x1b50",
+      "lhs_slot": "[ebp-0x1170]",
+      "post_handoff_reload_rva": "0x2559",
+      "reason": [],
+      "static_anchor_valid": true
+    },
+    "hook_results": {
+      "compare_lhs_buffer": "available",
+      "handoff_helper_enter": "available",
+      "handoff_helper_return": "available",
+      "lhs_slot": "available",
+      "post_handoff_lhs_reload": "unavailable"
+    },
+    "next_bounded_action": "perform a narrower backward slice from 0x401b50 helper arguments",
+    "runtime_backed_count": 3
+  },
   "latest_compare_handoff_return_site_probe": {
     "artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "call_0x401b50_entered_count": 3,
@@ -506,7 +536,89 @@
       ]
     }
   },
-  "latest_compare_handoff_slice_probe": {},
+  "latest_compare_handoff_slice_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
+    "candidate_count": 3,
+    "classification": "helper_arg_slice_partial",
+    "cross_candidate_summary": {
+      "candidate_count": 3,
+      "candidate_dependent_fields": {
+        "compare_lhs.lhs_preview_hex": false,
+        "helper_return.eax_preview_hex": true,
+        "helper_return.lhs_slot_preview_hex": false,
+        "pre_call.esi_ptr": true
+      },
+      "relation_counts": {
+        "helper_return_eax_matches_compare_lhs_ptr": 0,
+        "helper_return_eax_preview_matches_compare_lhs": 0,
+        "helper_return_slot_matches_compare_lhs_ptr": 0,
+        "helper_return_slot_preview_matches_compare_lhs": 0,
+        "pre_call_slot_matches_helper_enter_slot": 0,
+        "pre_compare_esi_matches_compare_lhs_ptr": 0
+      },
+      "runtime_backed_count": 3
+    },
+    "hook_results": {
+      "compare_lhs_buffer": "available",
+      "handoff_helper_enter": "available",
+      "handoff_helper_return": "available",
+      "lhs_slot": "available",
+      "post_handoff_after_reload": "unavailable",
+      "post_handoff_lhs_reload": "unavailable",
+      "pre_compare_push_esi": "unavailable"
+    },
+    "next_bounded_action": "tighten helper argument capture before candidate refinement",
+    "runtime_backed_count": 3,
+    "static_audit": {
+      "backward_slice": [
+        {
+          "instruction": "mov dword ptr [ebp - 0x1170], eax",
+          "operation": "store candidate output pointer into [ebp-0x1170]",
+          "rva": "0x253a"
+        },
+        {
+          "instruction": "call 0x401b50",
+          "operation": "handoff/copy helper before compare buffer reload",
+          "rva": "0x2554"
+        },
+        {
+          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+          "operation": "reload compare lhs pointer from [ebp-0x1170]",
+          "rva": "0x2559"
+        },
+        {
+          "instruction": "push 5",
+          "operation": "set wide compare count",
+          "rva": "0x2584"
+        },
+        {
+          "instruction": "push 0x551c4c",
+          "operation": "push wide flag target",
+          "rva": "0x2586"
+        },
+        {
+          "instruction": "push esi",
+          "operation": "push compare lhs pointer",
+          "rva": "0x258b"
+        },
+        {
+          "instruction": "call 0x5028ac",
+          "operation": "case-insensitive wide compare call",
+          "rva": "0x258c"
+        }
+      ],
+      "classification": "static_anchor_confirmed",
+      "compare_site": {
+        "actual_call_rva": "0x258c",
+        "expected_call_rva": "0x258c",
+        "helper_classification": "case_insensitive_wchar_compare",
+        "helper_rva": "0x1028ac",
+        "helper_va": "0x5028ac"
+      },
+      "corrected_post_helper_probe": "helper onLeave plus module+0x255c fallback",
+      "prior_reload_anchor": "module+0x2559"
+    }
+  },
   "latest_compare_pre_compare_handoff_target_probe": {
     "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_pre_compare_handoff_target_probe\\compare_pre_compare_handoff_target_probe.json",
     "breakpoint_probe_allowed": true,
@@ -1302,8 +1414,148 @@
     "write_source_trace": [],
     "write_source_trace_count": 0
   },
-  "latest_compare_stack_pivot_probe": {},
-  "latest_dynamic_compare_path_probe": {},
+  "latest_compare_stack_pivot_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
+    "candidate_count": 3,
+    "classification": "compare_stack_pivot_complete",
+    "hook_results": {
+      "base64_input": "unavailable",
+      "base64_output": "unavailable",
+      "compare_buffer": "available",
+      "rc4_input": "unavailable",
+      "rc4_key": "unavailable",
+      "rc4_output": "unavailable",
+      "utf16le_payload": "available_from_compare_stack"
+    },
+    "next_bounded_action": "hook module+0x1b50 enter/return and module+0x2559 to capture the handoff into [ebp-0x1170]",
+    "next_hook_points": [
+      {
+        "address": "module+0x2559",
+        "module_offset": 9561,
+        "name": "post_handoff_lhs_reload",
+        "reason": "first instruction after call 0x401b50 reloads [ebp-0x1170] into esi"
+      },
+      {
+        "address": "module+0x1b50",
+        "module_offset": 6992,
+        "name": "handoff_helper_enter",
+        "reason": "captures arguments to the helper that runs before the compare buffer is reloaded"
+      },
+      {
+        "address": "module+0x2559",
+        "module_offset": 9561,
+        "name": "handoff_helper_return",
+        "reason": "captures [ebp-0x1170], esi, and stack payload immediately after helper return"
+      }
+    ],
+    "runtime_backed_count": 3,
+    "static_audit": {
+      "backward_slice": [
+        {
+          "instruction": "mov dword ptr [ebp - 0x1170], eax",
+          "operation": "store candidate output pointer into [ebp-0x1170]",
+          "rva": "0x253a"
+        },
+        {
+          "instruction": "call 0x401b50",
+          "operation": "handoff/copy helper before compare buffer reload",
+          "rva": "0x2554"
+        },
+        {
+          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+          "operation": "reload compare lhs pointer from [ebp-0x1170]",
+          "rva": "0x2559"
+        },
+        {
+          "instruction": "push 5",
+          "operation": "set wide compare count",
+          "rva": "0x2584"
+        },
+        {
+          "instruction": "push 0x551c4c",
+          "operation": "push wide flag target",
+          "rva": "0x2586"
+        },
+        {
+          "instruction": "push esi",
+          "operation": "push compare lhs pointer",
+          "rva": "0x258b"
+        },
+        {
+          "instruction": "call 0x5028ac",
+          "operation": "case-insensitive wide compare call",
+          "rva": "0x258c"
+        }
+      ],
+      "classification": "static_anchor_confirmed",
+      "compare_site": {
+        "actual_call_rva": "0x258c",
+        "expected_call_rva": "0x258c",
+        "helper_classification": "case_insensitive_wchar_compare",
+        "helper_rva": "0x1028ac",
+        "helper_va": "0x5028ac"
+      },
+      "errors": [],
+      "next_hook_points": [
+        {
+          "address": "module+0x2559",
+          "module_offset": 9561,
+          "name": "post_handoff_lhs_reload",
+          "reason": "first instruction after call 0x401b50 reloads [ebp-0x1170] into esi"
+        },
+        {
+          "address": "module+0x1b50",
+          "module_offset": 6992,
+          "name": "handoff_helper_enter",
+          "reason": "captures arguments to the helper that runs before the compare buffer is reloaded"
+        },
+        {
+          "address": "module+0x2559",
+          "module_offset": 9561,
+          "name": "handoff_helper_return",
+          "reason": "captures [ebp-0x1170], esi, and stack payload immediately after helper return"
+        }
+      ],
+      "wide_flag": {
+        "expected_rva": "0x151c4c",
+        "expected_va": "0x551c4c",
+        "hits": [
+          {
+            "file_offset": "0x15044c",
+            "rva": "0x151c4c",
+            "va": "0x551c4c"
+          }
+        ]
+      },
+      "wide_flag_xrefs": [
+        {
+          "file_offset": "0x1987",
+          "instruction_rva": "0x2586",
+          "rva": "0x2587"
+        }
+      ]
+    },
+    "utf16le_payload_available_count": 3
+  },
+  "latest_dynamic_compare_path_probe": {
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\dynamic_compare_path_probe\\dynamic_compare_path_probe.json",
+    "candidate_count": 3,
+    "classification": "dynamic_probe_complete",
+    "next_bounded_action": "move to lower-level dynamic instrumentation/manual reversing for pre-RC4 or key material",
+    "probe_points": {
+      "base64_material": "inferred",
+      "compare_length": "available",
+      "compare_target": "available",
+      "compare_unit": "available",
+      "post_rc4_compare_buffer": "available",
+      "pre_rc4_runtime_material": "unavailable",
+      "raw_input": "available",
+      "rc4_input": "inferred",
+      "rc4_key": "inferred",
+      "utf16le_payload": "inferred"
+    },
+    "runtime_backed_count": 3
+  },
   "latest_function_semantic_audit": {
     "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
     "breakpoint_probe_allowed": true,
@@ -1356,10 +1608,247 @@
       }
     ]
   },
-  "latest_material_hook_runtime_validation": {},
-  "latest_pre_rc4_material_probe": {},
+  "latest_material_hook_runtime_validation": {
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\material_hook_runtime_validation\\material_hook_runtime_validation.json",
+    "blocked_hook_count": 2,
+    "blocked_hooks": [
+      {
+        "address": "module+0x233d",
+        "candidate_dependent": false,
+        "classification": "not_reached",
+        "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "observed_count=0",
+          "readable_count=0",
+          "expected_utf16le_match_count=0"
+        ],
+        "function": "0x233d",
+        "hit_count": 0,
+        "hook_kind": "interceptor",
+        "hook_name": "producer_return_site",
+        "hookable": false,
+        "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+        "instruction_confirmed": true,
+        "kind": "utf16le_payload",
+        "material_kind": "utf16le_payload",
+        "module_offset": "0x233d",
+        "name": "material_hook_runtime_producer_return_site",
+        "per_candidate": [
+          {
+            "candidate_hex": "78d540b49c59077041414141414141",
+            "expected_utf16le_prefix_hex": "7f00820085007f007c007a0083007e00810086007d008300780081007f007a00",
+            "frame_slots": [],
+            "matched_expected_registers": [],
+            "observed": false,
+            "pointers": {
+              "eax": "",
+              "ecx": "",
+              "edi": "",
+              "edx": "",
+              "esi": ""
+            },
+            "preview_hex": {},
+            "registers": {},
+            "stack_words": []
+          }
+        ],
+        "readable_count": 0,
+        "rva": "0x233d"
+      },
+      {
+        "address": "module+0x2346",
+        "candidate_dependent": false,
+        "classification": "not_reached",
+        "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "observed_count=0",
+          "readable_count=0",
+          "expected_utf16le_match_count=0"
+        ],
+        "function": "0x2346",
+        "hit_count": 0,
+        "hook_kind": "interceptor",
+        "hook_name": "producer_pre_candidate_push",
+        "hookable": false,
+        "instruction": "push edx",
+        "instruction_confirmed": true,
+        "kind": "utf16le_payload",
+        "material_kind": "utf16le_payload",
+        "module_offset": "0x2346",
+        "name": "material_hook_runtime_producer_pre_candidate_push",
+        "per_candidate": [
+          {
+            "candidate_hex": "78d540b49c59077041414141414141",
+            "expected_utf16le_prefix_hex": "7f00820085007f007c007a0083007e00810086007d008300780081007f007a00",
+            "frame_slots": [],
+            "matched_expected_registers": [],
+            "observed": false,
+            "pointers": {
+              "eax": "",
+              "ecx": "",
+              "edi": "",
+              "edx": "",
+              "esi": ""
+            },
+            "preview_hex": {},
+            "registers": {},
+            "stack_words": []
+          }
+        ],
+        "readable_count": 0,
+        "rva": "0x2346"
+      }
+    ],
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 4,
+    "classification": "REJECTED",
+    "next_bounded_action": "reject 0x233d/0x2346 material-hook hypothesis and choose a new bounded hook window",
+    "runtime_backed_count": 0,
+    "validated_hook_count": 0,
+    "validated_hooks": []
+  },
+  "latest_post_handoff_branch_outcome_audit": {
+    "artifact": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r4\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_branch_outcome_audit\\post_handoff_branch_outcome_audit.json",
+    "breakpoint_probe_allowed": false,
+    "classification": "post_handoff_window_rejected",
+    "downstream_transform_calls_reached": false,
+    "failed_material_hook_hypotheses": [
+      {
+        "candidate_dependent": false,
+        "classification": "not_reached",
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "observed_count=0",
+          "readable_count=0",
+          "expected_utf16le_match_count=0"
+        ],
+        "hit_count": 0,
+        "hook_name": "producer_return_site",
+        "module_offset": "0x233d",
+        "source": "material_hook_runtime_validation"
+      },
+      {
+        "candidate_dependent": false,
+        "classification": "not_reached",
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "observed_count=0",
+          "readable_count=0",
+          "expected_utf16le_match_count=0"
+        ],
+        "hit_count": 0,
+        "hook_name": "producer_pre_candidate_push",
+        "module_offset": "0x2346",
+        "source": "material_hook_runtime_validation"
+      }
+    ],
+    "next_bounded_action": "audit the 0x233d -> 0x2346 follow-up branch/call outcome and move upstream to the [ebp-0x116c] writer if downstream 0x234e/0x2355 remains unreached",
+    "source_material_hook_runtime_classification": "REJECTED",
+    "source_pre_compare_handoff_classification": "next_handoff_target_identified",
+    "source_pre_compare_handoff_hook_miss_classification": "branch_exits_before_output_calls"
+  },
+  "latest_pre_rc4_material_probe": {
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\pre_rc4_material_probe\\pre_rc4_material_probe.json",
+    "candidate_count": 3,
+    "classification": "material_capture_partial",
+    "first_divergence_stage": "unknown",
+    "next_bounded_action": "add a narrower material hook or bounded Base64/RC4 breakpoint fallback",
+    "offline_runtime_agreement_table": [
+      {
+        "base64_agree": null,
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "first_divergence_stage": "unknown",
+        "offline_base64_ascii": "fwCCAIUAfwB8AHoAgwB+AIEAhgB9AIMAeACBAH8AegB8AHsAfAB7AHwAewB8AHsAfAB7AHwAewB8AHsA",
+        "offline_rc4_hex": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99ba4173702e4f23659def4313aa338f64",
+        "offline_utf16_hex": "7f00820085007f007c007a0083007e00810086007d008300780081007f007a007c007b007c007b007c007b007c007b007c007b007c007b007c007b00",
+        "rc4_agree": null,
+        "runtime_base64_ascii": "",
+        "runtime_rc4_hex": "",
+        "runtime_utf16_hex": "",
+        "utf16_agree": null
+      },
+      {
+        "base64_agree": null,
+        "candidate_hex": "78d540b49c59077040414141414141",
+        "first_divergence_stage": "unknown",
+        "offline_base64_ascii": "fwCCAIUAfwB8AHoAgwB+AIEAhgB9AIMAeACBAH8AegB8AHoAfAB7AHwAewB8AHsAfAB7AHwAewB8AHsA",
+        "offline_rc4_hex": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99ba4173702e4f23659def4313aa338f64",
+        "offline_utf16_hex": "7f00820085007f007c007a0083007e00810086007d008300780081007f007a007c007a007c007b007c007b007c007b007c007b007c007b007c007b00",
+        "rc4_agree": null,
+        "runtime_base64_ascii": "",
+        "runtime_rc4_hex": "",
+        "runtime_utf16_hex": "",
+        "utf16_agree": null
+      },
+      {
+        "base64_agree": null,
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "first_divergence_stage": "unknown",
+        "offline_base64_ascii": "fQCEAHsAiAB/AIkAfACAAIUAhwCFAH4AfwB+AIUAegB8AHsAfAB7AHwAewB8AHsAfAB7AHwAewB8AHsA",
+        "offline_rc4_hex": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93dd8ecaf3dfac4cc4b129de67cfb9c91b",
+        "offline_utf16_hex": "7d0084007b0088007f0089007c0080008500870085007e007f007e0085007a007c007b007c007b007c007b007c007b007c007b007c007b007c007b00",
+        "rc4_agree": null,
+        "runtime_base64_ascii": "",
+        "runtime_rc4_hex": "",
+        "runtime_utf16_hex": "",
+        "utf16_agree": null
+      }
+    ],
+    "probe_points": {
+      "base64_material": "unavailable",
+      "compare_buffer": "unavailable",
+      "expanded_bytes": "unavailable",
+      "raw_input": "unavailable",
+      "rc4_encrypted_const": "unavailable",
+      "rc4_ksa_key": "unavailable",
+      "rc4_output": "unavailable",
+      "utf16le_payload": "unavailable"
+    },
+    "producer_material_relation_table": [
+      {
+        "base64_output": "",
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "producer_eax": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701700041004100410041004100410041000000000000000000e91a19c2abae0000c000be038879be030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "producer_lhs_slot": "030002010400030005000400060005000700060008000700090008000a0009000b000a000c000b000d000c000e000d000f000e0010000f001100100012001100130012001400130015001400160015001700160018001700190018001a0019001b001a001c001b001d001c001e001d001f001e0020001f002100200023002100",
+        "rc4_output": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99ba4173702e4f23659def4313aa338f64",
+        "rc4_to_producer_eax_relation": "no_match",
+        "rc4_to_producer_lhs_slot_relation": "no_match",
+        "rc4_to_producer_relation": "no_match",
+        "utf16_material": ""
+      },
+      {
+        "base64_output": "",
+        "candidate_hex": "78d540b49c59077040414141414141",
+        "producer_eax": "",
+        "producer_lhs_slot": "",
+        "rc4_output": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99ba4173702e4f23659def4313aa338f64",
+        "rc4_to_producer_eax_relation": "no_match",
+        "rc4_to_producer_lhs_slot_relation": "no_match",
+        "rc4_to_producer_relation": "no_match",
+        "utf16_material": ""
+      },
+      {
+        "base64_output": "",
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "producer_eax": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400d001410041004100410041004100410000000000000000004a61d380f6030000c000c9038879c9030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "producer_lhs_slot": "",
+        "rc4_output": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93dd8ecaf3dfac4cc4b129de67cfb9c91b",
+        "rc4_to_producer_eax_relation": "no_match",
+        "rc4_to_producer_lhs_slot_relation": "no_match",
+        "rc4_to_producer_relation": "no_match",
+        "utf16_material": ""
+      }
+    ],
+    "rc4_input_status": "unknown",
+    "rc4_key_status": "unknown",
+    "runtime_backed_count": 3
+  },
   "latest_static_point_discovery": {
-    "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
     "best_points": [
       {
         "classification": "hookable_and_instruction_confirmed",
@@ -1536,12 +2025,12 @@
     "next_bounded_action": "use compare-producer hook evidence to narrow manual Base64/RC4 disassembly before rerunning breakpoint probe"
   },
   "latest_transform_trace_consistency": {
-    "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json",
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json",
     "candidate_count": 5,
-    "classification": "transform_model_confirmed",
-    "next_bounded_action": "stop local mutation and use a different bounded evidence source",
-    "runtime_backed_count": 5,
-    "stop_reason": "runtime-backed candidates agree with offline trace prefixes and metrics"
+    "classification": "evidence_insufficient",
+    "next_bounded_action": "capture pre-RC4/Base64 runtime buffers with a bounded dynamic probe",
+    "runtime_backed_count": 2,
+    "stop_reason": "not enough runtime-backed candidates to confirm transform consistency"
   },
   "profile": "samplereverse",
   "sample": "samplereverse",

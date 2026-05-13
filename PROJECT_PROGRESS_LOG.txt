@@ -3829,3 +3829,111 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 6) 下一轮默认方向
 - 先用新增 hard timeout 重新跑真实 harness。
 - 如果 validation 返回 `BLOCKED`/`REJECTED`，保持 Base64/RC4 blocked，并转向解释 `0x233d/0x2346` 为什么不是 transform material。
+
+## 2026-05-12 Material hook runtime validation rerun
+
+1) 执行范围
+- 执行下一步计划：重新跑真实 harness，目标是让 `material_hook_runtime_validation` 产出最终分类。
+- 保持 `samplereverse` / `L15(prefix8)` / suffix `AAAAAAA` 主线。
+- 未扩大 candidate generation、ranking、beam、budget、topN、frontier iteration；未回 old `sample_solver` blind search。
+
+2) 代码修正
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 为 compare-aware validation 写入增加 `_write_text()`，在 Windows 下支持长路径 fallback，避免长 run name + 深层 artifact 路径写 aggregate validation 时失败。
+  - `material_hook_runtime_validation` 子进程执行改为可轮询 runner，真实运行中主动 kill timeout 子进程；测试 monkeypatch `subprocess.run` 仍保持兼容。
+  - material hook runtime candidate timeout 后 fail-fast 收束本 validation，避免继续进入可能卡住的候选循环。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py reverse_agent\olly_scripts\material_hook_runtime_validation.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `127 passed`
+- `python -m pytest -q` -> `204 passed`
+
+4) Harness / project_state
+- Long-name runs exposed Windows path/process-creation problems and were stopped after timeout:
+  - `samplereverse_material_hook_runtime_validation_20260512_rerun`
+  - `samplereverse_material_hook_runtime_validation_20260512_rerun2`
+  - `samplereverse_material_hook_runtime_validation_20260512_rerun3`
+  - `samplereverse_material_hook_runtime_validation_20260512_rerun4`
+  - `samplereverse_material_hook_runtime_validation_20260512_rerun5`
+  - `samplereverse_material_hook_runtime_validation_20260512_rerun6`
+- Completed real harness run with short run name:
+  - `sr_mhrv_20260512_r7`
+- Summary:
+  - `solve_reports\harness_runs\sr_mhrv_20260512_r7\summary.json`
+  - completed 1 case, 0 errors, 1 not_found.
+- Core artifact:
+  - `solve_reports\harness_runs\sr_mhrv_20260512_r7\reports\tool_artifacts\samplereverse_patched\material_hook_runtime_validation\material_hook_runtime_validation.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_mhrv_20260512_r7` -> passed.
+- `python -m reverse_agent.project_state status` reports:
+  - `reason: REJECTED`
+  - `latest_harness_run: solve_reports\harness_runs\sr_mhrv_20260512_r7`
+  - `missing: []`
+
+5) 结论
+- `material_hook_runtime_validation` classification: `REJECTED`
+- `runtime_backed_count=0`
+- `validated_hook_count=0`
+- `blocked_hook_count=2`
+- `breakpoint_probe_allowed=false`
+- `0x233d` / `0x2346` 均为 `not_reached` in material validation; candidate 1 runtime child timed out and fail-fast wrote final rejected aggregate.
+- Base64/RC4 breakpoint probe remains blocked.
+- Current runtime best 未改善：
+  - exact2 仍为 `78d540b49c59077041414141414141`，runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不重复 `0x233d/0x2346` material-hook hypothesis；不要 rerun Base64/RC4 breakpoint probe from these hooks。
+- 保持 Base64/RC4 blocked，选择新的 bounded hook window。
+- 默认转向更窄的 branch/call outcome 审计：解释 `0x233d -> 0x2346` 后为什么没有形成 transform material，并寻找真正连接 compare lhs / transform chain 的 material construction hook。
+
+## 2026-05-12 Post-handoff branch outcome audit
+
+1) 执行范围
+- 按上一轮默认方向继续：不扩大 candidate generation / ranking / beam / budget / topN / timeout / frontier iteration。
+- 不回 old `sample_solver` blind search，不重复旧 `0x401b50 -> 0x2559` 假设。
+- 新增只消费已有证据的 sidecar audit，用来固化 `0x233d/0x2346` material-hook 失败事实，并解释 downstream `0x234e/0x2355` 为什么仍不可作为 Base64/RC4 probe 点。
+
+2) 代码修正
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `post_handoff_branch_outcome_audit.json` artifact。
+  - 新增 early sidecar 调度：profile/harness 路径在 project_state 已有 `material_hook_runtime_validation=REJECTED/BLOCKED` 且未产出 post-handoff audit 时，优先写该 audit，避免先重跑旧长链路。
+  - 当关键旧 artifact 未在当前 project_state 索引中时，按文件名定向 fallback 查找 `compare_pre_compare_handoff_target_probe` / `function_semantic_audit` / `material_hook_runtime_validation`，用于 sidecar 输入。
+- `reverse_agent/profiles/samplereverse.py`
+  - profile specialized solver 启用 `project_state_sidecar_enabled=True`。
+- `reverse_agent/pipeline.py`
+  - sidecar 完成后跳过 angr/model/runtime validation 后续求解链路，让 harness 正常收尾。
+- `reverse_agent/project_state.py`
+  - 索引 `post_handoff_branch_outcome_audit`，将其纳入 runtime validation keys、current bottleneck、latest summary 和 negative cache。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\material_hook_runtime_validation.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py reverse_agent\profiles\samplereverse.py reverse_agent\pipeline.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `130 passed`
+
+4) Harness / project_state
+- Earlier long-path attempts `sr_post_handoff_audit_20260512_r1` / `r2` timed out before the sidecar was reachable; after moving the sidecar earlier, `r3` wrote the artifact but pipeline still continued into downstream solving and was stopped.
+- Completed real harness run:
+  - `sr_post_handoff_audit_20260512_r4`
+  - elapsed ~9s, 1 case executed, 0 errors, selected `NOT_FOUND`.
+- Core artifact:
+  - `solve_reports\harness_runs\sr_post_handoff_audit_20260512_r4\reports\tool_artifacts\samplereverse_patched\post_handoff_branch_outcome_audit\post_handoff_branch_outcome_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse` -> passed.
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_post_handoff_audit_20260512_r4`
+  - `reason: post_handoff_window_rejected`
+  - `missing: []`
+
+5) 结论
+- `post_handoff_branch_outcome_audit` classification: `post_handoff_window_rejected`
+- Source material hook runtime classification: `REJECTED`
+- Failed material-hook hypotheses:
+  - `0x233d` / `producer_return_site`: `not_reached`
+  - `0x2346` / `producer_pre_candidate_push`: `not_reached`
+- Pre-compare handoff evidence still says `0x233d/0x2346` were candidate-dependent expected matches, but downstream transform calls remain unreached:
+  - `0x234e`, `0x2353`, `0x2355`, `0x235a`: `not_reached`
+- Base64/RC4 breakpoint probe remains blocked.
+- Current runtime best 未改善：
+  - exact2 remains `78d540b49c59077041414141414141`, runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不再把 `0x233d/0x2346` 当作 validated material hooks。
+- 不在没有新 branch outcome evidence 的情况下 probe downstream `0x234e/0x2355`。
+- 下一步应转向 upstream writer audit：定位 `[ebp-0x116c]` / `[ebp-0x1168]` 的真正 material writer，优先在 `0x233d` 之前的 producer window 找连接 compare lhs / transform chain 的 hook。

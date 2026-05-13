@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -59,6 +60,7 @@ COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME = "compare_producer_trace_probe.json"
 COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME = "compare_producer_material_confirmation.json"
 COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME = "compare_pre_compare_handoff_target_probe.json"
 MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME = "material_hook_runtime_validation.json"
+POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME = "post_handoff_branch_outcome_audit.json"
 
 DEFAULT_ANCHORS = (
     "78d540b49c590770",
@@ -2697,7 +2699,8 @@ def validate_compare_aware_results(
             encoding="utf-8",
             errors="replace",
         )
-        compare_log.write_text(
+        _write_text(
+            compare_log,
             f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
             encoding="utf-8",
         )
@@ -2809,7 +2812,7 @@ def validate_compare_aware_results(
         summary["validations"].append(record)
 
     validation_path = artifacts_dir / output_file_name
-    validation_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    _write_text(validation_path, json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     return validation_path, list(summary["validations"])
 
 
@@ -3286,9 +3289,30 @@ def resolve_compare_aware_anchors(
     return ordered
 
 
-def _write_json(path: Path, payload: dict[str, object]) -> None:
+def _write_text(path: Path, text: str, *, encoding: str = "utf-8") -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        path.write_text(text, encoding=encoding)
+    except FileNotFoundError:
+        if sys.platform != "win32":
+            raise
+        extended_path = _windows_extended_path(path)
+        extended_path.parent.mkdir(parents=True, exist_ok=True)
+        extended_path.write_text(text, encoding=encoding)
+
+
+def _windows_extended_path(path: Path) -> Path:
+    resolved = path.resolve(strict=False)
+    text = str(resolved)
+    if text.startswith("\\\\?\\"):
+        return resolved
+    if text.startswith("\\\\"):
+        return Path("\\\\?\\UNC\\" + text[2:])
+    return Path("\\\\?\\" + text)
+
+
+def _write_json(path: Path, payload: dict[str, object]) -> None:
+    _write_text(path, json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
 def _read_json_object(path: Path) -> dict[str, object]:
@@ -3315,6 +3339,44 @@ def _indexed_artifact_payload(kind: str) -> tuple[dict[str, object], str]:
     if not path.is_absolute():
         path = _repo_root() / path
     return _read_json_object(path), rel_path
+
+
+def _artifact_file_name_for_kind(kind: str) -> str:
+    return {
+        "compare_pre_compare_handoff_target_probe": COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME,
+        "function_semantic_audit": FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
+        "material_hook_runtime_validation": MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME,
+        "post_handoff_branch_outcome_audit": POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME,
+    }.get(kind, "")
+
+
+def _latest_report_artifact_payload(kind: str) -> tuple[dict[str, object], str]:
+    file_name = _artifact_file_name_for_kind(kind)
+    if not file_name:
+        return {}, ""
+    reports_dir = _repo_root() / "solve_reports"
+    if not reports_dir.exists():
+        return {}, ""
+    matches = [
+        path
+        for path in reports_dir.rglob(file_name)
+        if path.is_file() and not any(part.startswith("candidate_") for part in path.parts)
+    ]
+    if not matches:
+        return {}, ""
+    latest = max(matches, key=lambda path: path.stat().st_mtime)
+    try:
+        rel_path = str(latest.relative_to(_repo_root()))
+    except ValueError:
+        rel_path = str(latest)
+    return _read_json_object(latest), rel_path
+
+
+def _indexed_or_latest_report_artifact_payload(kind: str) -> tuple[dict[str, object], str]:
+    payload, ref = _indexed_artifact_payload(kind)
+    if payload:
+        return payload, ref
+    return _latest_report_artifact_payload(kind)
 
 
 def _candidate_from_project_state(label: str) -> dict[str, object]:
@@ -9898,8 +9960,10 @@ def run_material_hook_runtime_validation(
 
     points_path = artifacts_dir / "material_hook_points.json"
     _write_json(points_path, {"hook_points": hook_points})
+    subprocess_timeout = min(max(10.0, float(per_probe_timeout) + 20.0), 30.0)
     candidate_results: list[dict[str, object]] = []
     for idx, candidate_hex in enumerate(entries, 1):
+        candidate_timed_out = False
         candidate_dir = artifacts_dir / f"candidate_{idx}"
         candidate_dir.mkdir(parents=True, exist_ok=True)
         compare_out = candidate_dir / MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME
@@ -9923,19 +9987,16 @@ def run_material_hook_runtime_validation(
         if log:
             log(f"MaterialHookRuntimeValidation scripted hooks {idx}: {candidate_hex}")
         try:
-            proc = subprocess.run(
+            proc = _run_material_hook_runtime_command(
                 command,
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-                timeout=max(10.0, float(per_probe_timeout) + 20.0),
+                timeout=subprocess_timeout,
             )
             compare_log.write_text(
                 f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
                 encoding="utf-8",
             )
         except subprocess.TimeoutExpired as exc:
+            candidate_timed_out = True
             compare_log.write_text(
                 f"[timeout]\nMaterialHookRuntimeValidation candidate timed out after {exc.timeout}s\n"
                 f"\n[stdout]\n{exc.stdout or ''}\n\n[stderr]\n{exc.stderr or ''}",
@@ -9974,6 +10035,8 @@ def run_material_hook_runtime_validation(
                 "error": str(compare_payload.get("error", "")),
             }
         )
+        if candidate_timed_out:
+            break
 
     hook_validations = [
         _material_hook_validation_for_hook(
@@ -10020,6 +10083,326 @@ def run_material_hook_runtime_validation(
         "validations": candidate_results,
         "promotable_validations": [],
     }
+
+
+def _post_handoff_branch_window_rows(
+    pre_compare_handoff_payload: dict[str, object],
+) -> list[dict[str, object]]:
+    table = pre_compare_handoff_payload.get("instruction_confirmation_table", [])
+    table = table if isinstance(table, list) else []
+    hit_summary = pre_compare_handoff_payload.get("hit_summary", {})
+    hit_summary = hit_summary if isinstance(hit_summary, dict) else {}
+    window = (
+        (
+            "producer_return_site",
+            "0x233d",
+            "mov edx, dword ptr [ebp - 0x116c]",
+            "hit_producer_return_site_count",
+            "candidate_handoff_return",
+        ),
+        (
+            "producer_pre_candidate_push",
+            "0x2346",
+            "push edx",
+            "hit_producer_pre_candidate_push_count",
+            "candidate_handoff_push",
+        ),
+        (
+            "producer_pre_output_call",
+            "0x234e",
+            "call 0x4018cd",
+            "hit_producer_pre_output_call_count",
+            "first_downstream_transform_call",
+        ),
+        (
+            "producer_post_output_call",
+            "0x2353",
+            "mov ecx, eax",
+            "hit_producer_post_output_call_count",
+            "first_downstream_transform_return",
+        ),
+        (
+            "producer_pre_second_call",
+            "0x2355",
+            "call 0x401be3",
+            "hit_producer_pre_second_call_count",
+            "second_downstream_transform_call",
+        ),
+        (
+            "producer_after_second_call",
+            "0x235a",
+            "push 2",
+            "hit_producer_after_second_call_count",
+            "second_downstream_transform_return",
+        ),
+    )
+    rows: list[dict[str, object]] = []
+    for hook_name, module_offset, instruction, hit_key, role in window:
+        source = _table_row_by_hook(table, hook_name)
+        observed_count = _table_count(source, "observed_count")
+        if observed_count <= 0:
+            try:
+                observed_count = int(hit_summary.get(hit_key, 0) or 0)
+            except (TypeError, ValueError):
+                observed_count = 0
+        expected_match_count = _table_count(source, "expected_eax_match_count")
+        candidate_dependent = bool(source.get("candidate_dependent_eax"))
+        hookable = bool(source.get("hookable"))
+        status = (
+            "candidate_dependent_expected_match"
+            if observed_count > 0 and candidate_dependent and expected_match_count > 0
+            else "candidate_dependent_observed"
+            if observed_count > 0 and candidate_dependent
+            else "observed_not_candidate_dependent"
+            if observed_count > 0
+            else "not_reached"
+        )
+        rows.append(
+            {
+                "hook_name": hook_name,
+                "role": role,
+                "module_offset": str(source.get("module_offset") or module_offset),
+                "instruction": str(source.get("instruction") or instruction),
+                "observed_count": observed_count,
+                "candidate_dependent_eax": candidate_dependent,
+                "expected_eax_match_count": expected_match_count,
+                "instruction_confirmed": bool(source.get("instruction_confirmed", True)),
+                "hookable": hookable,
+                "status": status,
+            }
+        )
+    return rows
+
+
+def _post_handoff_failed_material_hooks(
+    material_hook_runtime_payload: dict[str, object],
+    window_rows: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    blocked_hooks = material_hook_runtime_payload.get("blocked_hooks", [])
+    blocked_hooks = blocked_hooks if isinstance(blocked_hooks, list) else []
+    failed: list[dict[str, object]] = []
+    for hook in blocked_hooks:
+        if not isinstance(hook, dict):
+            continue
+        module_offset = str(hook.get("module_offset", "")).lower()
+        if module_offset not in {"0x233d", "0x2346"}:
+            continue
+        failed.append(
+            {
+                "hook_name": hook.get("hook_name"),
+                "module_offset": hook.get("module_offset"),
+                "classification": hook.get("classification"),
+                "hit_count": hook.get("hit_count"),
+                "candidate_dependent": hook.get("candidate_dependent"),
+                "connects_to_transform_chain": hook.get("connects_to_transform_chain"),
+                "evidence": hook.get("evidence", []),
+                "source": "material_hook_runtime_validation",
+            }
+        )
+    if failed:
+        return failed
+    for row in window_rows:
+        if str(row.get("module_offset", "")).lower() not in {"0x233d", "0x2346"}:
+            continue
+        failed.append(
+            {
+                "hook_name": row.get("hook_name"),
+                "module_offset": row.get("module_offset"),
+                "classification": "runtime_validation_rejected_material_hook",
+                "hit_count": row.get("observed_count"),
+                "candidate_dependent": row.get("candidate_dependent_eax"),
+                "connects_to_transform_chain": False,
+                "source": "post_handoff_branch_window",
+            }
+        )
+    return failed
+
+
+def _post_handoff_downstream_reached(window_rows: Sequence[dict[str, object]]) -> bool:
+    downstream_offsets = {"0x234e", "0x2353", "0x2355", "0x235a"}
+    for row in window_rows:
+        if str(row.get("module_offset", "")).lower() not in downstream_offsets:
+            continue
+        try:
+            if int(row.get("observed_count", 0) or 0) > 0:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def build_post_handoff_branch_outcome_audit_payload(
+    *,
+    pre_compare_handoff_payload: dict[str, object],
+    material_hook_runtime_payload: dict[str, object],
+    function_semantic_payload: dict[str, object] | None = None,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    function_semantic_payload = function_semantic_payload or {}
+    window_rows = _post_handoff_branch_window_rows(pre_compare_handoff_payload)
+    failed_material_hooks = _post_handoff_failed_material_hooks(
+        material_hook_runtime_payload,
+        window_rows,
+    )
+    material_classification = str(material_hook_runtime_payload.get("classification") or "").strip()
+    pre_compare_classification = str(pre_compare_handoff_payload.get("classification") or "").strip()
+    hook_miss_classification = str(pre_compare_handoff_payload.get("hook_miss_classification") or "").strip()
+    validated_hooks = material_hook_runtime_payload.get("validated_hooks", [])
+    validated_hooks = validated_hooks if isinstance(validated_hooks, list) else []
+    downstream_reached = _post_handoff_downstream_reached(window_rows)
+    if material_classification == "ACCEPT" and validated_hooks:
+        classification = "material_hooks_validated"
+    elif material_classification in {"BLOCKED", "REJECTED"} and not downstream_reached:
+        classification = "post_handoff_window_rejected"
+    elif material_classification in {"BLOCKED", "REJECTED"}:
+        classification = "material_hook_hypothesis_failed"
+    elif pre_compare_classification:
+        classification = "branch_outcome_audit_required"
+    else:
+        classification = "evidence_insufficient"
+
+    candidate_results = material_hook_runtime_payload.get("candidate_results", [])
+    candidate_results = candidate_results if isinstance(candidate_results, list) else []
+    timed_out_candidates = [
+        {
+            "candidate_hex": item.get("candidate_hex"),
+            "error": item.get("error"),
+            "log_path": item.get("log_path"),
+        }
+        for item in candidate_results
+        if isinstance(item, dict) and str(item.get("error") or "") == "timeout"
+    ]
+    blocked_actions = [
+        "do not treat 0x233d or 0x2346 as validated material hooks without new runtime evidence",
+        "do not run Base64/RC4 breakpoint capture from 0x233d/0x2346 after material validation rejected them",
+    ]
+    if not downstream_reached:
+        blocked_actions.append(
+            "do not target 0x234e/0x2355 Base64/RC4 breakpoints until a branch/call outcome reaches them"
+        )
+    payload: dict[str, object] = {
+        "artifact_kind": "post_handoff_branch_outcome_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "classification": classification,
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "source_pre_compare_handoff_classification": pre_compare_classification,
+        "source_pre_compare_handoff_hook_miss_classification": hook_miss_classification,
+        "source_function_semantic_classification": function_semantic_payload.get("classification", ""),
+        "source_material_hook_runtime_classification": material_classification,
+        "window": {
+            "start": "0x233d",
+            "end": "0x235a",
+            "rows": window_rows,
+            "downstream_transform_calls_reached": downstream_reached,
+        },
+        "failed_material_hook_hypotheses": failed_material_hooks,
+        "timed_out_candidates": timed_out_candidates,
+        "validated_hooks": validated_hooks,
+        "breakpoint_probe_allowed": False,
+        "blocked_actions": blocked_actions,
+        "negative_cache_updates": [
+            {
+                "direction": "reuse 0x233d/0x2346 as material-hook breakpoints",
+                "scope": "post_handoff_branch_outcome_audit",
+                "reason": "runtime validation did not produce a validated transform-chain material hook",
+            },
+            {
+                "direction": "probe downstream 0x234e/0x2355 without new branch outcome evidence",
+                "scope": "post_handoff_branch_outcome_audit",
+                "reason": "pre-compare handoff evidence did not reach downstream transform calls",
+            },
+        ],
+        "next_bounded_action": (
+            "consume validated material hooks"
+            if classification == "material_hooks_validated"
+            else (
+                "audit the 0x233d -> 0x2346 follow-up branch/call outcome and move upstream to the "
+                "[ebp-0x116c] writer if downstream 0x234e/0x2355 remains unreached"
+            )
+        ),
+        "promotable_validations": [],
+    }
+    return payload
+
+
+def run_post_handoff_branch_outcome_audit(
+    *,
+    artifacts_dir: Path,
+    pre_compare_handoff_payload: dict[str, object],
+    material_hook_runtime_payload: dict[str, object],
+    function_semantic_payload: dict[str, object] | None = None,
+    run_name: str = "",
+    log=None,
+) -> dict[str, object]:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME
+    payload = build_post_handoff_branch_outcome_audit_payload(
+        pre_compare_handoff_payload=pre_compare_handoff_payload,
+        material_hook_runtime_payload=material_hook_runtime_payload,
+        function_semantic_payload=function_semantic_payload,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Post handoff branch outcome audit wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": [],
+        "promotable_validations": [],
+    }
+
+
+def _prior_post_handoff_branch_outcome_audit_has_decision() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_post_handoff_branch_outcome_audit", {})
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
+        return True
+    payload, _ = _indexed_artifact_payload("post_handoff_branch_outcome_audit")
+    return bool(str(payload.get("classification", "")).strip())
+
+
+def _run_material_hook_runtime_command(
+    command: Sequence[str],
+    *,
+    timeout: float,
+) -> subprocess.CompletedProcess[str]:
+    if getattr(subprocess.run, "__module__", "subprocess") != "subprocess":
+        return subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+
+    proc = subprocess.Popen(
+        list(command),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    deadline = time.monotonic() + timeout
+    while proc.poll() is None:
+        if time.monotonic() >= deadline:
+            proc.kill()
+            stdout, stderr = proc.communicate()
+            raise subprocess.TimeoutExpired(command, timeout=timeout, output=stdout, stderr=stderr)
+        time.sleep(0.25)
+    stdout, stderr = proc.communicate()
+    return subprocess.CompletedProcess(command, proc.returncode or 0, stdout=stdout, stderr=stderr)
 
 
 def _function_semantic_audit_allows_breakpoint(payload: dict[str, object]) -> bool:
@@ -14279,6 +14662,55 @@ class CompareAwareSearchStrategy(SolverStrategy):
         snapshot_interval = max(1, int(kwargs.get("snapshot_interval", 10_000_000)))
         validate_top = max(1, int(kwargs.get("validate_top", 5)))
         per_probe_timeout = max(0.5, float(kwargs.get("per_probe_timeout", 2.0)))
+        if bool(kwargs.get("project_state_sidecar_enabled", False)):
+            current_pre_compare_handoff_payload = _indexed_or_latest_report_artifact_payload(
+                "compare_pre_compare_handoff_target_probe"
+            )[0]
+            current_function_semantic_payload = _indexed_or_latest_report_artifact_payload("function_semantic_audit")[0]
+            current_material_hook_payload = _indexed_or_latest_report_artifact_payload(
+                "material_hook_runtime_validation"
+            )[0]
+            should_run_early_post_handoff_audit = (
+                not _prior_post_handoff_branch_outcome_audit_has_decision()
+                and str(current_material_hook_payload.get("classification") or "").strip()
+                in {"BLOCKED", "REJECTED"}
+                and bool(current_pre_compare_handoff_payload)
+            )
+            if should_run_early_post_handoff_audit:
+                post_handoff_branch_outcome_audit_run = run_post_handoff_branch_outcome_audit(
+                    artifacts_dir=artifacts_dir / "post_handoff_branch_outcome_audit",
+                    pre_compare_handoff_payload=current_pre_compare_handoff_payload,
+                    material_hook_runtime_payload=current_material_hook_payload,
+                    function_semantic_payload=current_function_semantic_payload,
+                    log=log,
+                )
+                post_handoff_payload = dict(post_handoff_branch_outcome_audit_run.get("payload", {}))
+                post_handoff_branch_outcome_audit_artifact = _make_search_artifact(
+                    tool_name="PostHandoffBranchOutcomeAudit",
+                    output_path=Path(str(post_handoff_branch_outcome_audit_run["result_path"])),
+                    summary=str(
+                        post_handoff_payload.get(
+                            "classification",
+                            "post handoff branch outcome audit complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=post_handoff_payload,
+                    derived_entries=[],
+                )
+                return StrategyResult(
+                    strategy_name=self.name,
+                    summary=post_handoff_branch_outcome_audit_artifact.summary,
+                    candidates=[],
+                    artifacts=[post_handoff_branch_outcome_audit_artifact],
+                    metadata={
+                        "resolved_anchors": discovered_anchors,
+                        "post_handoff_branch_outcome_audit": post_handoff_branch_outcome_audit_run,
+                        "completed_stage": "post_handoff_branch_outcome_audit",
+                        "early_sidecar": True,
+                    },
+                )
 
         bridge_run = run_compare_aware_bridge(
             target=file_path,
@@ -15150,6 +15582,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         function_semantic_audit_artifact: ToolRunArtifact | None = None
         material_hook_runtime_validation_run: dict[str, object] | None = None
         material_hook_runtime_validation_artifact: ToolRunArtifact | None = None
+        post_handoff_branch_outcome_audit_run: dict[str, object] | None = None
+        post_handoff_branch_outcome_audit_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_validation_run: dict[str, object] | None = None
         h1_h3_boundary_validation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_runtime_artifact: ToolRunArtifact | None = None
@@ -16014,6 +16448,36 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 derived_entries=[],
             )
 
+        should_run_post_handoff_branch_outcome_audit = (
+            post_handoff_branch_outcome_audit_run is None
+            and not _prior_post_handoff_branch_outcome_audit_has_decision()
+            and str(current_material_hook_payload.get("classification") or "").strip() in {"BLOCKED", "REJECTED"}
+            and bool(current_pre_compare_handoff_payload)
+        )
+        if should_run_post_handoff_branch_outcome_audit:
+            post_handoff_branch_outcome_audit_run = run_post_handoff_branch_outcome_audit(
+                artifacts_dir=artifacts_dir / "post_handoff_branch_outcome_audit",
+                pre_compare_handoff_payload=current_pre_compare_handoff_payload,
+                material_hook_runtime_payload=current_material_hook_payload,
+                function_semantic_payload=current_function_semantic_payload,
+                log=log,
+            )
+            post_handoff_payload = dict(post_handoff_branch_outcome_audit_run.get("payload", {}))
+            post_handoff_branch_outcome_audit_artifact = _make_search_artifact(
+                tool_name="PostHandoffBranchOutcomeAudit",
+                output_path=Path(str(post_handoff_branch_outcome_audit_run["result_path"])),
+                summary=str(
+                    post_handoff_payload.get(
+                        "classification",
+                        "post handoff branch outcome audit complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=post_handoff_payload,
+                derived_entries=[],
+            )
+
         if (
             base64_rc4_breakpoint_probe_run is None
             and _material_hook_runtime_validation_allows_breakpoint(current_material_hook_payload)
@@ -16152,6 +16616,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(function_semantic_audit_artifact)
         if material_hook_runtime_validation_artifact is not None:
             artifacts.append(material_hook_runtime_validation_artifact)
+        if post_handoff_branch_outcome_audit_artifact is not None:
+            artifacts.append(post_handoff_branch_outcome_audit_artifact)
         if h1_h3_boundary_validation_artifact is not None:
             artifacts.append(h1_h3_boundary_validation_artifact)
         if h1_h3_boundary_runtime_artifact is not None:
@@ -16193,12 +16659,15 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "compare_pre_compare_handoff_target_probe": compare_pre_compare_handoff_target_probe_run or {},
                 "function_semantic_audit": function_semantic_audit_run or {},
                 "material_hook_runtime_validation": material_hook_runtime_validation_run or {},
+                "post_handoff_branch_outcome_audit": post_handoff_branch_outcome_audit_run or {},
                 "h1_h3_boundary_validation": h1_h3_boundary_validation_run or {},
                 "prefix_boundary_diagnostics": prefix_boundary_diagnostics,
                 "frontier_converged_reason": frontier_converged_reason,
                 "frontier_stall_stage": frontier_stall_stage,
                 "completed_stage": "h1_h3_boundary_validation"
                 if h1_h3_boundary_validation_run
+                else "post_handoff_branch_outcome_audit"
+                if post_handoff_branch_outcome_audit_run
                 else "material_hook_runtime_validation"
                 if material_hook_runtime_validation_run
                 else "function_semantic_audit"

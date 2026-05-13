@@ -820,6 +820,7 @@ def run_pipeline(
     compare_candidates: list[str] = []
     compare_probe_inputs: list[str] = []
     hard_stop_due_deadline = False
+    hard_stop_due_sidecar = False
     profile_strategy_names: list[str] = []
     if active_profile:
         seed_candidates = active_profile.build_seed_candidates(
@@ -889,8 +890,12 @@ def run_pipeline(
                 line.strip() == "runtime_probe:deadline_reached=1"
                 for line in tool_evidence
             )
+            metadata = specialized_result.metadata if isinstance(specialized_result.metadata, dict) else {}
+            hard_stop_due_sidecar = bool(metadata.get("early_sidecar"))
             if hard_stop_due_deadline:
                 log("Profile specialized solver 达到截止时间，后续流程按硬截止策略终止。")
+            if hard_stop_due_sidecar:
+                log("Profile specialized solver 已完成 project_state sidecar 诊断，跳过后续求解链路。")
         compare_candidates = _extract_tool_candidates(
             [
                 line
@@ -966,7 +971,7 @@ def run_pipeline(
         ]
     success_markers, fail_markers = _collect_runtime_markers(strings, tool_evidence)
     angr_candidates: list[str] = []
-    if not hard_stop_due_deadline:
+    if not hard_stop_due_deadline and not hard_stop_due_sidecar:
         angr_candidates = solve_with_angr_stdin(
             file_path=file_path,
             success_markers=success_markers,
@@ -975,8 +980,10 @@ def run_pipeline(
             timeout_seconds=70,
             log=log,
         )
-    else:
+    elif hard_stop_due_deadline:
         log("已跳过 angr 后备求解（达到样本截止时间）。")
+    else:
+        log("已跳过 angr 后备求解（project_state sidecar 已完成）。")
     if angr_candidates:
         pre_candidates = [
             *pre_candidates,
@@ -1012,7 +1019,7 @@ def run_pipeline(
     model_output = ""
     selected_flag = compare_candidates[0] if compare_candidates else (pre_candidates[0] if pre_candidates else "")
     runtime_validation_enabled_effective = (
-        runtime_validation_enabled and not hard_stop_due_deadline
+        runtime_validation_enabled and not hard_stop_due_deadline and not hard_stop_due_sidecar
     )
 
     if model_type == "Copilot CLI":
@@ -1038,6 +1045,8 @@ def run_pipeline(
     )
     if hard_stop_due_deadline:
         log("已跳过模型调用（达到样本截止时间）。")
+    elif hard_stop_due_sidecar:
+        log("已跳过模型调用（project_state sidecar 已完成）。")
     elif skip_model_for_mass_validation:
         log("候选规模较大且将执行动态校验，跳过模型调用以优先本地验证。")
     else:
@@ -1229,6 +1238,8 @@ def run_pipeline(
     elif file_path.suffix.lower() == ".exe" and candidate_pool:
         if hard_stop_due_deadline:
             log("已跳过运行时校验（达到样本截止时间）。")
+        elif hard_stop_due_sidecar:
+            log("已跳过运行时校验（project_state sidecar 已完成）。")
         else:
             log("已跳过运行时校验（未启用“执行样本验证”开关）。")
         validation_records = [
@@ -1251,10 +1262,14 @@ def run_pipeline(
     if not runtime_validation_enabled_effective and candidate_pool:
         selected_flag = candidate_pool[0]
 
-    if hard_stop_due_deadline:
+    if hard_stop_due_deadline or hard_stop_due_sidecar:
         if candidate_pool:
             validation_records = [
-                {"candidate": cand, "validated": "deadline_stop", "evidence": ""}
+                {
+                    "candidate": cand,
+                    "validated": "deadline_stop" if hard_stop_due_deadline else "sidecar_stop",
+                    "evidence": "",
+                }
                 for cand in candidate_pool[:10]
             ]
         selected_flag = ""

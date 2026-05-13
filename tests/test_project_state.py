@@ -761,6 +761,57 @@ def test_project_state_indexes_material_hook_runtime_validation_and_bottleneck(t
     assert any(item.get("scope") == "material_hook_runtime_validation" for item in negative_results)
 
 
+def test_project_state_indexes_post_handoff_branch_outcome_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_post_handoff")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "post_handoff_branch_outcome_audit").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "post_handoff_branch_outcome_audit" / "post_handoff_branch_outcome_audit.json",
+        {
+            "artifact_kind": "post_handoff_branch_outcome_audit",
+            "classification": "post_handoff_window_rejected",
+            "source_pre_compare_handoff_classification": "next_handoff_target_identified",
+            "source_pre_compare_handoff_hook_miss_classification": "branch_exits_before_output_calls",
+            "source_material_hook_runtime_classification": "REJECTED",
+            "failed_material_hook_hypotheses": [
+                {
+                    "hook_name": "producer_return_site",
+                    "module_offset": "0x233d",
+                    "classification": "not_reached",
+                }
+            ],
+            "window": {
+                "downstream_transform_calls_reached": False,
+                "rows": [
+                    {"hook_name": "producer_return_site", "module_offset": "0x233d", "observed_count": 3},
+                    {"hook_name": "producer_pre_output_call", "module_offset": "0x234e", "observed_count": 0},
+                ],
+            },
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "audit the 0x233d -> 0x2346 follow-up branch/call outcome",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["post_handoff_branch_outcome_audit"].endswith(
+        "post_handoff_branch_outcome_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "post_handoff_branch_outcome_audit"
+    assert current_state["current_bottleneck"]["reason"] == "post_handoff_window_rejected"
+    latest = current_state["latest_post_handoff_branch_outcome_audit"]
+    assert latest["classification"] == "post_handoff_window_rejected"
+    assert latest["source_material_hook_runtime_classification"] == "REJECTED"
+    assert latest["failed_material_hook_hypotheses"][0]["module_offset"] == "0x233d"
+    assert latest["downstream_transform_calls_reached"] is False
+    assert any(item.get("scope") == "post_handoff_branch_outcome_audit" for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
