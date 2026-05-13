@@ -61,6 +61,7 @@ COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME = "compare_producer_material_co
 COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME = "compare_pre_compare_handoff_target_probe.json"
 MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME = "material_hook_runtime_validation.json"
 POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME = "post_handoff_branch_outcome_audit.json"
+COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME = "compare_lhs_producer_audit.json"
 
 DEFAULT_ANCHORS = (
     "78d540b49c590770",
@@ -204,6 +205,11 @@ COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES = (
 COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES = COMPARE_HANDOFF_RETURN_SITE_PROBE_CANDIDATES
 COMPARE_PRODUCER_MATERIAL_CONFIRMATION_CANDIDATES = COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES
 COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_CANDIDATES = COMPARE_PRODUCER_TRACE_PROBE_CANDIDATES
+COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES = (
+    "78d540b49c59077041414141414141",
+    "5a3e7f46ddd474d041414141414141",
+    "78d540b49c59076f41414141414141",
+)
 MATERIAL_HOOK_RUNTIME_VALIDATION_CANDIDATES = (
     "78d540b49c59077041414141414141",
     "5a3e7f46ddd474d041414141414141",
@@ -263,6 +269,10 @@ def _compare_producer_material_confirmation_script_path() -> Path:
 
 def _compare_pre_compare_handoff_target_probe_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_pre_compare_handoff_target_probe.py"
+
+
+def _compare_lhs_producer_audit_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_lhs_producer_audit.py"
 
 
 def _material_hook_runtime_validation_script_path() -> Path:
@@ -3347,6 +3357,7 @@ def _artifact_file_name_for_kind(kind: str) -> str:
         "function_semantic_audit": FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
         "material_hook_runtime_validation": MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME,
         "post_handoff_branch_outcome_audit": POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME,
+        "compare_lhs_producer_audit": COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
     }.get(kind, "")
 
 
@@ -10362,6 +10373,488 @@ def run_post_handoff_branch_outcome_audit(
     }
 
 
+def _compare_lhs_producer_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "pre_lhs_slot_store",
+            "module_offset": 0x253A,
+            "instruction": "mov dword ptr [ebp - 0x1170], eax",
+            "role": "eax_to_lhs_slot",
+        },
+        {
+            "name": "pre_handoff_call",
+            "module_offset": 0x2554,
+            "instruction": "call 0x401b50",
+            "role": "slot_before_handoff",
+        },
+        {
+            "name": "post_handoff_lhs_reload",
+            "module_offset": 0x2559,
+            "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+            "role": "slot_after_handoff",
+        },
+        {
+            "name": "pre_compare_lhs_push",
+            "module_offset": 0x258B,
+            "instruction": "push esi",
+            "role": "esi_to_compare_arg",
+        },
+        {
+            "name": "compare_helper_entry",
+            "module_offset": 0x1028AC,
+            "instruction": "compare helper entry",
+            "role": "compare_arg_capture",
+        },
+    ]
+
+
+def _compare_lhs_producer_static_audit(
+    target: Path,
+    hook_points: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    try:
+        data = target.read_bytes()
+    except Exception:
+        data = b""
+    sections = _pe_sections_for_rva_mapping(data)
+    producer_start = 0x253A
+    producer_end = 0x258C
+    sizes = {0x253A: 6, 0x2554: 5, 0x2559: 6, 0x258B: 1, 0x1028AC: 1}
+    instructions: list[dict[str, object]] = []
+    for point in hook_points:
+        offset = _parse_int_hex(point.get("module_offset"))
+        if offset is None:
+            continue
+        size = sizes.get(offset, 1)
+        instructions.append(
+            {
+                "name": point.get("name", ""),
+                "rva": f"0x{offset:x}",
+                "end_rva": f"0x{offset + size:x}",
+                "size": size,
+                "instruction": point.get("instruction", ""),
+                "bytes_hex": _read_rva_bytes(data, sections, offset, size),
+                "boundary_status": "instruction_confirmed",
+            }
+        )
+    return {
+        "classification": "static_compare_lhs_producer_audit_complete"
+        if data and sections
+        else "static_compare_lhs_producer_audit_partial",
+        "producer_window": {
+            "start_rva": f"0x{producer_start:x}",
+            "end_rva": f"0x{producer_end:x}",
+            "bytes_hex": _read_rva_bytes(data, sections, producer_start, producer_end - producer_start),
+        },
+        "instruction_boundaries": instructions,
+        "hook_point_audit": [
+            {
+                "name": point.get("name", ""),
+                "module_offset": f"0x{_parse_int_hex(point.get('module_offset')):x}"
+                if _parse_int_hex(point.get("module_offset")) is not None
+                else "",
+                "address": point.get("address", ""),
+                "boundary_status": "instruction_confirmed",
+                "reason": "fixed bounded compare lhs producer audit",
+            }
+            for point in hook_points
+        ],
+    }
+
+
+def _compare_lhs_frame_slot(observation: dict[str, object]) -> dict[str, object]:
+    frame_slots = observation.get("frame_slots", [])
+    frame_slots = frame_slots if isinstance(frame_slots, list) else []
+    for slot in frame_slots:
+        if not isinstance(slot, dict):
+            continue
+        name = str(slot.get("name", "")).lower().replace(" ", "")
+        offset = str(slot.get("offset", "")).lower().replace(" ", "")
+        if name == "[ebp-0x1170]" or offset in {"-0x1170", "0xffffee90"}:
+            return dict(slot)
+    return {}
+
+
+def _compare_lhs_observation(
+    result: dict[str, object],
+    hook_name: str,
+) -> dict[str, object]:
+    return next(iter(_pre_compare_observations_for_hook(result, hook_name)), {})
+
+
+def _compare_lhs_arg0(result: dict[str, object]) -> dict[str, object]:
+    compare = _compare_lhs_observation(result, "compare_helper_entry")
+    if not compare:
+        return {}
+    return _pre_compare_arg_by_index(_pre_compare_compare_args(compare), 0)
+
+
+def _compare_lhs_capture_value(
+    observation: dict[str, object],
+    hook_name: str,
+) -> dict[str, object]:
+    if hook_name == "pre_lhs_slot_store":
+        return {
+            "value": observation.get("eax_ptr", ""),
+            "preview_hex": observation.get("eax_preview_hex", ""),
+            "source": "eax",
+        }
+    if hook_name == "pre_compare_lhs_push":
+        return {
+            "value": observation.get("esi_ptr", ""),
+            "preview_hex": observation.get("esi_preview_hex", ""),
+            "source": "esi",
+        }
+    if hook_name == "compare_helper_entry":
+        return {
+            "value": "",
+            "preview_hex": "",
+            "source": "compare_arg0",
+        }
+    slot = _compare_lhs_frame_slot(observation)
+    return {
+        "value": slot.get("value", ""),
+        "preview_hex": slot.get("preview_hex", ""),
+        "source": "[ebp-0x1170]",
+    }
+
+
+def _compare_lhs_value_matches_arg0(
+    value: dict[str, object],
+    arg0: dict[str, object],
+) -> bool:
+    return _pointer_text_equal(value.get("value"), arg0.get("value")) or _preview_text_equal(
+        value.get("preview_hex"),
+        arg0.get("preview_hex"),
+    )
+
+
+def _compare_lhs_pair_matches(
+    left: dict[str, object],
+    right: dict[str, object],
+) -> bool:
+    return _pointer_text_equal(left.get("value"), right.get("value")) or _preview_text_equal(
+        left.get("preview_hex"),
+        right.get("preview_hex"),
+    )
+
+
+def _compare_lhs_relation_status(match_count: int, observed_count: int) -> str:
+    if match_count >= 3:
+        return "confirmed"
+    if observed_count >= 3 and match_count == 0:
+        return "rejected"
+    return "inconclusive"
+
+
+def _compare_lhs_candidate_value(
+    result: dict[str, object],
+    hook_name: str,
+) -> dict[str, object]:
+    observation = _compare_lhs_observation(result, hook_name)
+    if not observation:
+        return {}
+    if hook_name == "compare_helper_entry":
+        return _compare_lhs_arg0(result)
+    return _compare_lhs_capture_value(observation, hook_name)
+
+
+def _compare_lhs_checked_windows(
+    candidate_results: Sequence[dict[str, object]],
+    hook_points: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for point in hook_points:
+        hook_name = str(point.get("name", ""))
+        previews_by_candidate: dict[str, str] = {}
+        observed_count = 0
+        relation_match_count = 0
+        for result in candidate_results:
+            candidate_hex = str(result.get("candidate_hex", ""))
+            value = _compare_lhs_candidate_value(result, hook_name)
+            if not value:
+                continue
+            observed_count += 1
+            preview = str(value.get("preview_hex", "")).strip().lower()
+            pointer = str(value.get("value", "")).strip().lower()
+            if preview or pointer:
+                previews_by_candidate[candidate_hex] = preview[:64] if preview else pointer
+            arg0 = _compare_lhs_arg0(result)
+            if hook_name == "compare_helper_entry":
+                if arg0:
+                    relation_match_count += 1
+            elif arg0 and _compare_lhs_value_matches_arg0(value, arg0):
+                relation_match_count += 1
+        candidate_dependent = len({value for value in previews_by_candidate.values() if value}) > 1
+        rows.append(
+            {
+                "hook_name": hook_name,
+                "module_offset": f"0x{_parse_int_hex(point.get('module_offset')):x}"
+                if _parse_int_hex(point.get("module_offset")) is not None
+                else "",
+                "instruction": str(point.get("instruction", "")),
+                "role": str(point.get("role", "")),
+                "observed_count": observed_count,
+                "runtime_backed_count": observed_count,
+                "candidate_dependent": candidate_dependent,
+                "connects_to_compare_lhs": relation_match_count >= 3,
+                "relation_match_count": relation_match_count,
+                "instruction_confirmed": True,
+                "hookable": observed_count > 0,
+                "sample_values": previews_by_candidate,
+            }
+        )
+    return rows
+
+
+def _compare_lhs_relation_summary(candidate_results: Sequence[dict[str, object]]) -> dict[str, str]:
+    slot_matches = 0
+    slot_observed = 0
+    eax_slot_matches = 0
+    eax_slot_observed = 0
+    esi_matches = 0
+    esi_observed = 0
+    helper_return_matches = 0
+    helper_return_observed = 0
+
+    for result in candidate_results:
+        arg0 = _compare_lhs_arg0(result)
+        if not arg0:
+            continue
+        slot_value = _compare_lhs_candidate_value(result, "post_handoff_lhs_reload")
+        if not slot_value:
+            slot_value = _compare_lhs_candidate_value(result, "pre_handoff_call")
+        if slot_value:
+            slot_observed += 1
+            if _compare_lhs_value_matches_arg0(slot_value, arg0):
+                slot_matches += 1
+
+        eax_value = _compare_lhs_candidate_value(result, "pre_lhs_slot_store")
+        if eax_value and slot_value:
+            eax_slot_observed += 1
+            if _compare_lhs_pair_matches(eax_value, slot_value):
+                eax_slot_matches += 1
+
+        esi_value = _compare_lhs_candidate_value(result, "pre_compare_lhs_push")
+        if esi_value:
+            esi_observed += 1
+            if _compare_lhs_value_matches_arg0(esi_value, arg0):
+                esi_matches += 1
+
+        helper_slot_value = _compare_lhs_candidate_value(result, "post_handoff_lhs_reload")
+        if helper_slot_value:
+            helper_return_observed += 1
+            if _compare_lhs_value_matches_arg0(helper_slot_value, arg0):
+                helper_return_matches += 1
+
+    return {
+        "slot_to_compare_arg": _compare_lhs_relation_status(slot_matches, slot_observed),
+        "eax_to_slot": _compare_lhs_relation_status(eax_slot_matches, eax_slot_observed),
+        "esi_to_compare_arg": _compare_lhs_relation_status(esi_matches, esi_observed),
+        "helper_return_to_lhs": _compare_lhs_relation_status(
+            helper_return_matches,
+            helper_return_observed,
+        ),
+    }
+
+
+def build_compare_lhs_producer_audit_payload(
+    *,
+    candidate_results: Sequence[dict[str, object]],
+    hook_points: Sequence[dict[str, object]] | None = None,
+    static_audit: dict[str, object] | None = None,
+    source_post_handoff_payload: dict[str, object] | None = None,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    hook_points = list(hook_points or _compare_lhs_producer_hook_points())
+    source_post_handoff_payload = source_post_handoff_payload or {}
+    candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
+    runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
+    checked_windows = _compare_lhs_checked_windows(candidate_results, hook_points)
+    relations = _compare_lhs_relation_summary(candidate_results)
+    producer_windows = [
+        row
+        for row in checked_windows
+        if bool(row.get("instruction_confirmed"))
+        and int(row.get("runtime_backed_count", 0) or 0) >= 3
+        and bool(row.get("candidate_dependent"))
+        and bool(row.get("connects_to_compare_lhs"))
+        and str(row.get("hook_name")) != "compare_helper_entry"
+    ]
+    if producer_windows:
+        classification = "producer_identified"
+    elif runtime_backed_count >= 3:
+        classification = "producer_window_rejected"
+    else:
+        classification = "inconclusive"
+
+    next_bounded_action = (
+        "use the identified compare lhs producer as the next bounded material-hook starting point"
+        if classification == "producer_identified"
+        else "move earlier than 0x253a..0x258b to locate the producer feeding compare lhs"
+        if classification == "producer_window_rejected"
+        else "rerun compare lhs producer audit only after improving hook coverage"
+    )
+    payload: dict[str, object] = {
+        "artifact_kind": "compare_lhs_producer_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "classification": classification,
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(candidate_results),
+        "candidate_limit": len(COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES),
+        "fixed_candidates": list(COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES),
+        "source_post_handoff_classification": source_post_handoff_payload.get("classification", ""),
+        "hook_points": hook_points,
+        "static_audit": static_audit or {},
+        "runtime_backed_count": runtime_backed_count,
+        "checked_windows": checked_windows,
+        "relations": relations,
+        "identified_producers": producer_windows,
+        "breakpoint_probe_allowed": False,
+        "candidate_results": candidate_results,
+        "negative_cache_updates": [
+            {
+                "direction": "expand compare-aware search instead of auditing fixed compare lhs producer hooks",
+                "scope": "compare_lhs_producer_audit",
+                "reason": "this sidecar is bounded to three fixed candidates and five fixed hook points",
+            },
+            {
+                "direction": "probe Base64/RC4 hooks directly after compare lhs producer audit",
+                "scope": "compare_lhs_producer_audit",
+                "reason": "producer audit only identifies the next material-hook starting point",
+            },
+        ],
+        "promotable_validations": [],
+        "next_bounded_action": next_bounded_action,
+    }
+    return payload
+
+
+def run_compare_lhs_producer_audit(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel,
+    per_probe_timeout: float,
+    post_handoff_payload: dict[str, object] | None = None,
+    run_name: str = "",
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME
+    script_path = _compare_lhs_producer_audit_script_path()
+    hook_points = _compare_lhs_producer_hook_points()
+    static_audit = _compare_lhs_producer_static_audit(target, hook_points)
+    entries = list(COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES)
+    labels = ("exact2_best", "exact1_frontier", "single_byte_contrast")
+    initial_payload = build_compare_lhs_producer_audit_payload(
+        candidate_results=[],
+        hook_points=hook_points,
+        static_audit=static_audit,
+        source_post_handoff_payload=post_handoff_payload,
+        run_name=run_name,
+    )
+    initial_payload["candidate_count"] = len(entries)
+    _write_json(result_path, initial_payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Compare lhs producer audit script missing: {script_path}")
+
+    points_path = artifacts_dir / "compare_lhs_producer_hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        compare_out = candidate_dir / "compare_lhs_producer_audit.json"
+        compare_log = candidate_dir / "compare_lhs_producer_audit.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(compare_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            "",
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"CompareLHSProducerAudit scripted hooks {idx}: {candidate_hex}")
+        try:
+            proc = _run_material_hook_runtime_command(
+                command,
+                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+            )
+            error = ""
+        except subprocess.TimeoutExpired as exc:
+            proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
+            error = "timeout"
+        compare_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        observations = [
+            _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        candidate_results.append(
+            {
+                "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_observations": observations[:128],
+                "result_path": str(compare_out),
+                "log_path": str(compare_log),
+                "success": bool(compare_payload.get("success")) and not error,
+                "error": error or str(compare_payload.get("error", "")),
+            }
+        )
+
+    payload = build_compare_lhs_producer_audit_payload(
+        candidate_results=candidate_results,
+        hook_points=hook_points,
+        static_audit=static_audit,
+        source_post_handoff_payload=post_handoff_payload,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Compare lhs producer audit wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
+        "promotable_validations": [],
+    }
+
+
+def _prior_compare_lhs_producer_audit_has_decision() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_compare_lhs_producer_audit", {})
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
+        return True
+    payload, _ = _indexed_artifact_payload("compare_lhs_producer_audit")
+    return bool(str(payload.get("classification", "")).strip())
+
+
 def _prior_post_handoff_branch_outcome_audit_has_decision() -> bool:
     current_state = _project_state_json("current_state.json")
     latest = current_state.get("latest_post_handoff_branch_outcome_audit", {})
@@ -14670,6 +15163,50 @@ class CompareAwareSearchStrategy(SolverStrategy):
             current_material_hook_payload = _indexed_or_latest_report_artifact_payload(
                 "material_hook_runtime_validation"
             )[0]
+            current_post_handoff_payload = _indexed_or_latest_report_artifact_payload(
+                "post_handoff_branch_outcome_audit"
+            )[0]
+            should_run_early_compare_lhs_producer_audit = (
+                not _prior_compare_lhs_producer_audit_has_decision()
+                and str(current_post_handoff_payload.get("classification") or "").strip()
+                == "post_handoff_window_rejected"
+            )
+            if should_run_early_compare_lhs_producer_audit:
+                compare_lhs_producer_audit_run = run_compare_lhs_producer_audit(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "compare_lhs_producer_audit",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    post_handoff_payload=current_post_handoff_payload,
+                    log=log,
+                )
+                compare_lhs_payload = dict(compare_lhs_producer_audit_run.get("payload", {}))
+                compare_lhs_producer_audit_artifact = _make_search_artifact(
+                    tool_name="CompareLHSProducerAudit",
+                    output_path=Path(str(compare_lhs_producer_audit_run["result_path"])),
+                    summary=str(
+                        compare_lhs_payload.get(
+                            "classification",
+                            "compare lhs producer audit complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=compare_lhs_payload,
+                    derived_entries=[],
+                )
+                return StrategyResult(
+                    strategy_name=self.name,
+                    summary=compare_lhs_producer_audit_artifact.summary,
+                    candidates=[],
+                    artifacts=[compare_lhs_producer_audit_artifact],
+                    metadata={
+                        "resolved_anchors": discovered_anchors,
+                        "compare_lhs_producer_audit": compare_lhs_producer_audit_run,
+                        "completed_stage": "compare_lhs_producer_audit",
+                        "early_sidecar": True,
+                    },
+                )
             should_run_early_post_handoff_audit = (
                 not _prior_post_handoff_branch_outcome_audit_has_decision()
                 and str(current_material_hook_payload.get("classification") or "").strip()
@@ -15584,6 +16121,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         material_hook_runtime_validation_artifact: ToolRunArtifact | None = None
         post_handoff_branch_outcome_audit_run: dict[str, object] | None = None
         post_handoff_branch_outcome_audit_artifact: ToolRunArtifact | None = None
+        compare_lhs_producer_audit_run: dict[str, object] | None = None
+        compare_lhs_producer_audit_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_validation_run: dict[str, object] | None = None
         h1_h3_boundary_validation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_runtime_artifact: ToolRunArtifact | None = None
@@ -16478,6 +17017,42 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 derived_entries=[],
             )
 
+        current_post_handoff_payload = (
+            dict(post_handoff_branch_outcome_audit_run.get("payload", {}))
+            if post_handoff_branch_outcome_audit_run
+            else _indexed_artifact_payload("post_handoff_branch_outcome_audit")[0]
+        )
+        should_run_compare_lhs_producer_audit = (
+            compare_lhs_producer_audit_run is None
+            and not _prior_compare_lhs_producer_audit_has_decision()
+            and str(current_post_handoff_payload.get("classification") or "").strip()
+            == "post_handoff_window_rejected"
+        )
+        if should_run_compare_lhs_producer_audit:
+            compare_lhs_producer_audit_run = run_compare_lhs_producer_audit(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "compare_lhs_producer_audit",
+                transform_model=transform_model,
+                per_probe_timeout=per_probe_timeout,
+                post_handoff_payload=current_post_handoff_payload,
+                log=log,
+            )
+            compare_lhs_payload = dict(compare_lhs_producer_audit_run.get("payload", {}))
+            compare_lhs_producer_audit_artifact = _make_search_artifact(
+                tool_name="CompareLHSProducerAudit",
+                output_path=Path(str(compare_lhs_producer_audit_run["result_path"])),
+                summary=str(
+                    compare_lhs_payload.get(
+                        "classification",
+                        "compare lhs producer audit complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=compare_lhs_payload,
+                derived_entries=[],
+            )
+
         if (
             base64_rc4_breakpoint_probe_run is None
             and _material_hook_runtime_validation_allows_breakpoint(current_material_hook_payload)
@@ -16618,6 +17193,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(material_hook_runtime_validation_artifact)
         if post_handoff_branch_outcome_audit_artifact is not None:
             artifacts.append(post_handoff_branch_outcome_audit_artifact)
+        if compare_lhs_producer_audit_artifact is not None:
+            artifacts.append(compare_lhs_producer_audit_artifact)
         if h1_h3_boundary_validation_artifact is not None:
             artifacts.append(h1_h3_boundary_validation_artifact)
         if h1_h3_boundary_runtime_artifact is not None:
@@ -16660,12 +17237,15 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "function_semantic_audit": function_semantic_audit_run or {},
                 "material_hook_runtime_validation": material_hook_runtime_validation_run or {},
                 "post_handoff_branch_outcome_audit": post_handoff_branch_outcome_audit_run or {},
+                "compare_lhs_producer_audit": compare_lhs_producer_audit_run or {},
                 "h1_h3_boundary_validation": h1_h3_boundary_validation_run or {},
                 "prefix_boundary_diagnostics": prefix_boundary_diagnostics,
                 "frontier_converged_reason": frontier_converged_reason,
                 "frontier_stall_stage": frontier_stall_stage,
                 "completed_stage": "h1_h3_boundary_validation"
                 if h1_h3_boundary_validation_run
+                else "compare_lhs_producer_audit"
+                if compare_lhs_producer_audit_run
                 else "post_handoff_branch_outcome_audit"
                 if post_handoff_branch_outcome_audit_run
                 else "material_hook_runtime_validation"

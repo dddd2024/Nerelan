@@ -812,6 +812,58 @@ def test_project_state_indexes_post_handoff_branch_outcome_audit(tmp_path: Path)
     assert any(item.get("scope") == "post_handoff_branch_outcome_audit" for item in negative_results)
 
 
+def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_lhs_prod")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "compare_lhs_producer_audit").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "compare_lhs_producer_audit" / "compare_lhs_producer_audit.json",
+        {
+            "artifact_kind": "compare_lhs_producer_audit",
+            "classification": "producer_window_rejected",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "checked_windows": [
+                {
+                    "hook_name": "pre_lhs_slot_store",
+                    "module_offset": "0x253a",
+                    "runtime_backed_count": 3,
+                    "candidate_dependent": True,
+                    "connects_to_compare_lhs": False,
+                }
+            ],
+            "relations": {
+                "slot_to_compare_arg": "rejected",
+                "eax_to_slot": "rejected",
+                "esi_to_compare_arg": "rejected",
+                "helper_return_to_lhs": "rejected",
+            },
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "move earlier than 0x253a..0x258b",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_lhs_producer_audit"].endswith(
+        "compare_lhs_producer_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_lhs_producer_audit"
+    assert current_state["current_bottleneck"]["reason"] == "producer_window_rejected"
+    latest = current_state["latest_compare_lhs_producer_audit"]
+    assert latest["classification"] == "producer_window_rejected"
+    assert latest["candidate_count"] == 3
+    assert latest["runtime_backed_count"] == 3
+    assert latest["relations"]["slot_to_compare_arg"] == "rejected"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert any(item.get("scope") == "compare_lhs_producer_audit" for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

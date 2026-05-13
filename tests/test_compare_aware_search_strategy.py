@@ -17,6 +17,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_PROBE_FILE_NAME,
     COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME,
     COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME,
+    COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
     COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME,
     COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME,
     COMPARE_PRODUCER_TRACE_PROBE_FILE_NAME,
@@ -60,6 +61,7 @@ from reverse_agent.strategies.compare_aware_search import (
     _refine_anchor_plan,
     _select_smt_base_entry,
     _validated_projected_preserve_second_hop_candidates,
+    build_compare_lhs_producer_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
     build_function_semantic_audit_payload,
     run_compare_aware_smt,
@@ -68,6 +70,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_probe,
     run_compare_handoff_return_site_probe,
     run_compare_handoff_slice_probe,
+    run_compare_lhs_producer_audit,
     run_compare_pre_compare_handoff_target_probe,
     run_compare_producer_material_confirmation_probe,
     run_compare_producer_trace_probe,
@@ -813,6 +816,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
             "function_semantic_audit",
             "material_hook_runtime_validation",
             "post_handoff_branch_outcome_audit",
+            "compare_lhs_producer_audit",
             "h1_h3_boundary_validation",
         }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -4527,6 +4531,126 @@ def _fake_pre_compare_handoff_subprocess_run(*args, **kwargs):  # noqa: ANN002, 
     return _Proc()
 
 
+def _compare_lhs_candidate_result(
+    candidate_hex: str,
+    ptr: str,
+    preview: str,
+    *,
+    connect_to_arg0: bool = True,
+) -> dict[str, object]:
+    arg_ptr = ptr if connect_to_arg0 else "0x9000"
+    arg_preview = preview if connect_to_arg0 else "ff" * 32
+    slot_preview = preview
+    return {
+        "label": "test",
+        "candidate_hex": candidate_hex,
+        "candidate_prefix": candidate_hex[:16],
+        "runtime_backed": True,
+        "success": True,
+        "hook_observations": [
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "pre_lhs_slot_store",
+                "module_offset": "0x253a",
+                "instruction": "mov dword ptr [ebp - 0x1170], eax",
+                "registers": {"eax": ptr},
+                "eax_ptr": ptr,
+                "eax_preview_hex": preview,
+            },
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "pre_handoff_call",
+                "module_offset": "0x2554",
+                "instruction": "call 0x401b50",
+                "frame_slots": [
+                    {
+                        "name": "[ebp-0x1170]",
+                        "offset": "-0x1170",
+                        "value": ptr,
+                        "preview_hex": slot_preview,
+                    }
+                ],
+            },
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "post_handoff_lhs_reload",
+                "module_offset": "0x2559",
+                "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+                "frame_slots": [
+                    {
+                        "name": "[ebp-0x1170]",
+                        "offset": "-0x1170",
+                        "value": ptr,
+                        "preview_hex": slot_preview,
+                    }
+                ],
+            },
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "pre_compare_lhs_push",
+                "module_offset": "0x258b",
+                "instruction": "push esi",
+                "registers": {"esi": ptr},
+                "esi_ptr": ptr,
+                "esi_preview_hex": preview,
+            },
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "compare_helper_entry",
+                "module_offset": "0x1028ac",
+                "instruction": "compare helper entry",
+                "compare_args": {
+                    "args": [
+                        {"index": 0, "role": "arg0", "value": arg_ptr, "preview_hex": arg_preview},
+                        {"index": 1, "role": "arg1", "value": "0x5000", "preview_hex": "66006c00610067007b00"},
+                        {"index": 2, "role": "arg2", "value_u32": 5},
+                    ]
+                },
+            },
+        ],
+    }
+
+
+def _fake_compare_lhs_producer_audit_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} == {
+        "pre_lhs_slot_store",
+        "pre_handoff_call",
+        "post_handoff_lhs_reload",
+        "pre_compare_lhs_push",
+        "compare_helper_entry",
+    }
+    previews = {
+        "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
+        "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
+        "78d540b49c59076f41414141414141": ("0x3300", "cc" * 32),
+    }
+    ptr, preview = previews[candidate_hex]
+    candidate = _compare_lhs_candidate_result(candidate_hex, ptr, preview)
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "compare lhs producer audit ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": candidate["hook_observations"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
 def _fake_pre_compare_handoff_ready_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     command = list(args[0])
     out_path = Path(command[command.index("--out") + 1])
@@ -5679,6 +5803,156 @@ def test_post_handoff_branch_outcome_audit_rejects_failed_material_window(tmp_pa
     assert "0x2346" in payload["blocked_actions"][0]
 
 
+def test_compare_lhs_producer_audit_identifies_instruction_confirmed_producer(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        compare_aware_search.subprocess,
+        "run",
+        _fake_compare_lhs_producer_audit_subprocess_run,
+    )
+
+    result = run_compare_lhs_producer_audit(
+        target=target,
+        artifacts_dir=tmp_path / "compare_lhs_producer_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        post_handoff_payload={"classification": "post_handoff_window_rejected"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME
+    assert payload["artifact_kind"] == "compare_lhs_producer_audit"
+    assert payload["classification"] == "producer_identified"
+    assert payload["candidate_count"] == 3
+    assert payload["candidate_limit"] == 3
+    assert payload["runtime_backed_count"] == 3
+    assert payload["relations"] == {
+        "slot_to_compare_arg": "confirmed",
+        "eax_to_slot": "confirmed",
+        "esi_to_compare_arg": "confirmed",
+        "helper_return_to_lhs": "confirmed",
+    }
+    producer_rows = [row for row in payload["checked_windows"] if row["hook_name"] == "pre_lhs_slot_store"]
+    assert producer_rows[0]["candidate_dependent"] is True
+    assert producer_rows[0]["connects_to_compare_lhs"] is True
+    assert producer_rows[0]["runtime_backed_count"] == 3
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    assert payload["final_selection_changed"] is False
+    assert payload["search_budget_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+    assert result["promotable_validations"] == []
+
+
+def test_compare_lhs_producer_audit_rejects_unconnected_window() -> None:
+    candidates = [
+        _compare_lhs_candidate_result("78d540b49c59077041414141414141", "0x1100", "aa" * 32, connect_to_arg0=False),
+        _compare_lhs_candidate_result("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32, connect_to_arg0=False),
+        _compare_lhs_candidate_result("78d540b49c59076f41414141414141", "0x3300", "cc" * 32, connect_to_arg0=False),
+    ]
+
+    payload = build_compare_lhs_producer_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_payload={"classification": "post_handoff_window_rejected"},
+    )
+
+    assert payload["classification"] == "producer_window_rejected"
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["relations"]["slot_to_compare_arg"] == "rejected"
+    assert payload["relations"]["esi_to_compare_arg"] == "rejected"
+    assert payload["identified_producers"] == []
+
+
+def test_compare_lhs_producer_audit_inconclusive_without_runtime_coverage() -> None:
+    payload = build_compare_lhs_producer_audit_payload(
+        candidate_results=[
+            _compare_lhs_candidate_result("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ],
+        source_post_handoff_payload={"classification": "post_handoff_window_rejected"},
+    )
+
+    assert payload["classification"] == "inconclusive"
+    assert payload["candidate_count"] == 1
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_aware_strategy_runs_lhs_producer_sidecar_before_search(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    post_handoff_payload = {
+        "classification": "post_handoff_window_rejected",
+        "breakpoint_probe_allowed": False,
+    }
+    captured: dict[str, object] = {}
+
+    def fake_indexed_artifact_payload(kind):
+        return (
+            {
+                "post_handoff_branch_outcome_audit": post_handoff_payload,
+            }.get(kind, {}),
+            "",
+        )
+
+    def fake_run_compare_lhs_producer_audit(**kwargs):
+        captured["artifacts_dir"] = Path(kwargs["artifacts_dir"]).name
+        captured["post_handoff_classification"] = kwargs["post_handoff_payload"]["classification"]
+        result_path = Path(kwargs["artifacts_dir"]) / COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "artifact_kind": "compare_lhs_producer_audit",
+            "classification": "producer_window_rejected",
+            "candidate_count": 3,
+            "checked_windows": [],
+            "relations": {
+                "slot_to_compare_arg": "rejected",
+                "eax_to_slot": "rejected",
+                "esi_to_compare_arg": "rejected",
+                "helper_return_to_lhs": "rejected",
+            },
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "move earlier",
+        }
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+        return {
+            "result_path": str(result_path),
+            "payload": payload,
+            "validations": [],
+            "promotable_validations": [],
+        }
+
+    monkeypatch.setattr(compare_aware_search, "_project_state_json", lambda name: {})
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(compare_aware_search, "run_compare_lhs_producer_audit", fake_run_compare_lhs_producer_audit)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for early lhs producer sidecar"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "compare_lhs_producer_audit"
+    assert result.metadata["early_sidecar"] is True
+    assert captured["artifacts_dir"] == "compare_lhs_producer_audit"
+    assert captured["post_handoff_classification"] == "post_handoff_window_rejected"
+    assert Path(str(result.artifacts[0].output_path)).name == COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME
+
+
 def test_compare_aware_strategy_runs_post_handoff_sidecar_before_search(
     tmp_path: Path,
     monkeypatch,
@@ -5725,6 +5999,11 @@ def test_compare_aware_strategy_runs_post_handoff_sidecar_before_search(
 
     monkeypatch.setattr(compare_aware_search, "_project_state_json", lambda name: {})
     monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_indexed_or_latest_report_artifact_payload",
+        fake_indexed_artifact_payload,
+    )
     monkeypatch.setattr(
         compare_aware_search,
         "run_compare_aware_bridge",

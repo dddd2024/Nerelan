@@ -34,6 +34,7 @@ IMPORTANT_ARTIFACTS = {
     "function_semantic_audit": FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
     "material_hook_runtime_validation": "material_hook_runtime_validation.json",
     "post_handoff_branch_outcome_audit": "post_handoff_branch_outcome_audit.json",
+    "compare_lhs_producer_audit": "compare_lhs_producer_audit.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -70,6 +71,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_pre_compare_handoff_target_probe",
     "material_hook_runtime_validation",
     "post_handoff_branch_outcome_audit",
+    "compare_lhs_producer_audit",
 }
 
 STATE_JSON_NAMES = (
@@ -452,6 +454,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     post_handoff_branch_outcome_audit = _read_json(
         artifact_refs.get("post_handoff_branch_outcome_audit")
     )
+    compare_lhs_producer_audit = _read_json(artifact_refs.get("compare_lhs_producer_audit"))
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -560,6 +563,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if post_handoff_classification:
         stage = "post_handoff_branch_outcome_audit"
         reason = post_handoff_classification
+    compare_lhs_producer_classification = str(
+        compare_lhs_producer_audit.get("classification") or ""
+    ).strip()
+    if compare_lhs_producer_classification:
+        stage = "compare_lhs_producer_audit"
+        reason = compare_lhs_producer_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -905,6 +914,23 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": post_handoff_branch_outcome_audit.get("next_bounded_action"),
         }
         if post_handoff_branch_outcome_audit
+        else {},
+        "latest_compare_lhs_producer_audit": {
+            "classification": compare_lhs_producer_classification or None,
+            "artifact": artifact_refs.get("compare_lhs_producer_audit"),
+            "candidate_count": compare_lhs_producer_audit.get("candidate_count"),
+            "runtime_backed_count": compare_lhs_producer_audit.get("runtime_backed_count"),
+            "relations": compare_lhs_producer_audit.get("relations", {}),
+            "checked_windows": compare_lhs_producer_audit.get("checked_windows", [])[:5]
+            if isinstance(compare_lhs_producer_audit.get("checked_windows"), list)
+            else [],
+            "identified_producers": compare_lhs_producer_audit.get("identified_producers", [])[:3]
+            if isinstance(compare_lhs_producer_audit.get("identified_producers"), list)
+            else [],
+            "breakpoint_probe_allowed": compare_lhs_producer_audit.get("breakpoint_probe_allowed"),
+            "next_bounded_action": compare_lhs_producer_audit.get("next_bounded_action"),
+        }
+        if compare_lhs_producer_audit
         else {},
         "function_semantics": function_semantics,
         "uncertainty": sorted(set(uncertainty)),
@@ -1337,6 +1363,36 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                     "override_reason_required": True,
                 }
             )
+    compare_lhs_audit = _read_json(artifacts.get("compare_lhs_producer_audit"))
+    compare_lhs_classification = str(compare_lhs_audit.get("classification") or "").strip()
+    if compare_lhs_classification in {"producer_window_rejected", "inconclusive"}:
+        results.append(
+            {
+                "direction": "expand compare-aware search instead of using fixed compare lhs producer audit evidence",
+                "scope": "compare_lhs_producer_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "compare lhs producer audit is a bounded sidecar over three fixed candidates and five fixed hooks; "
+                    "rejected or inconclusive evidence should move the next runtime hook point, not grow search"
+                ),
+                "evidence_artifact": artifacts.get("compare_lhs_producer_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+        results.append(
+            {
+                "direction": "run Base64/RC4 breakpoint probe directly from compare lhs producer audit",
+                "scope": "compare_lhs_producer_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": "this audit never authorizes breakpoint probing; it only supplies a next bounded material-hook start",
+                "evidence_artifact": artifacts.get("compare_lhs_producer_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
     function_semantic_audit = _read_json(artifacts.get("function_semantic_audit"))
     function_semantic_classification = str(function_semantic_audit.get("classification") or "").strip()
     functions = function_semantic_audit.get("functions", [])

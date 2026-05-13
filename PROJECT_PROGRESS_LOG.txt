@@ -3937,3 +3937,64 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不再把 `0x233d/0x2346` 当作 validated material hooks。
 - 不在没有新 branch outcome evidence 的情况下 probe downstream `0x234e/0x2355`。
 - 下一步应转向 upstream writer audit：定位 `[ebp-0x116c]` / `[ebp-0x1168]` 的真正 material writer，优先在 `0x233d` 之前的 producer window 找连接 compare lhs / transform chain 的 hook。
+
+## 2026-05-13 Compare LHS producer audit
+
+1) 执行范围
+- 按计划新增 bounded sidecar `compare_lhs_producer_audit`，不扩大 candidate generation / ranking / beam / budget / topN / timeout / frontier iteration。
+- 固定 3 个候选：
+  - exact2 best: `78d540b49c59077041414141414141`
+  - exact1 frontier: `5a3e7f46ddd474d041414141414141`
+  - single-byte contrast: `78d540b49c59076f41414141414141`
+- 固定 hook 窗口：`0x253a`, `0x2554`, `0x2559`, `0x258b`, `0x1028ac`。
+- `breakpoint_probe_allowed` 固定为 false；即使 producer identified，本轮也只给下一轮 material-hook 起点，不放行 Base64/RC4 probe。
+
+2) 代码修正
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `compare_lhs_producer_audit.json` artifact contract、hook point builder、static audit、runtime runner、payload classifier。
+  - 新增 classification: `producer_identified`, `producer_window_rejected`, `inconclusive`。
+  - 新增 early sidecar 调度：当 project_state 已有 `post_handoff_window_rejected` 且尚无 lhs producer audit 时，优先运行该 sidecar，不进入 bridge/search。
+  - 新增主流程衔接：post-handoff audit 产出 `post_handoff_window_rejected` 后立即运行 lhs producer audit。
+- `reverse_agent/olly_scripts/compare_lhs_producer_audit.py`
+  - 新增 thin script entry，复用现有 `compare_pre_compare_handoff_target_probe` collector 形态。
+- `reverse_agent/project_state.py`
+  - 索引 `latest_compare_lhs_producer_audit`，将 bottleneck 推进到 `compare_lhs_producer_audit`，并为 rejected/inconclusive 写入 negative cache。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_lhs_producer_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `135 passed`
+- `python -m pytest -q` -> `212 passed`
+
+4) Harness / project_state
+- Completed real harness run:
+  - `sr_lhs_prod_20260513_r1`
+  - 1 case executed, 0 errors, selected `NOT_FOUND`.
+- Core artifact:
+  - `solve_reports\harness_runs\sr_lhs_prod_20260513_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_producer_audit\compare_lhs_producer_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_prod_20260513_r1` -> passed.
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_lhs_prod_20260513_r1`
+  - `reason: producer_window_rejected`
+  - `task: Investigate stalled compare_lhs_producer_audit path`
+  - `missing: []`
+
+5) 结论
+- `compare_lhs_producer_audit` classification: `producer_window_rejected`
+- `runtime_backed_count=3`, `candidate_count=3`
+- Checked window summary:
+  - `pre_lhs_slot_store`: reached for 3 candidates, not candidate-dependent, not connected to compare lhs.
+  - `pre_handoff_call`: reached for 1 candidate only.
+  - `post_handoff_lhs_reload`, `pre_compare_lhs_push`, `compare_helper_entry`: not reached in this audit run.
+- Relations remain `inconclusive`:
+  - `slot_to_compare_arg`
+  - `eax_to_slot`
+  - `esi_to_compare_arg`
+  - `helper_return_to_lhs`
+- Current runtime best 未改善：
+  - exact2 remains `78d540b49c59077041414141414141`, runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大 search；不要回 old `sample_solver` blind search。
+- 不复用 `0x233d/0x2346` as material hooks。
+- 不在 branch outcome 未确认前 probe `0x234e/0x2355`。
+- 下一步应 move earlier than `0x253a..0x258b`，定位真正 feeding compare lhs 的 producer。
