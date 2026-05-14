@@ -3998,3 +3998,65 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不复用 `0x233d/0x2346` as material hooks。
 - 不在 branch outcome 未确认前 probe `0x234e/0x2355`。
 - 下一步应 move earlier than `0x253a..0x258b`，定位真正 feeding compare lhs 的 producer。
+## 2026-05-14 Compare callsite re-anchor / lhs provenance audit
+
+1) 执行范围
+- 按上一轮 `candidate_dependent_upstream_observed` 继续，不扩大 candidate generation / ranking / beam / budget / topN / timeout / frontier iteration。
+- 新增 bounded sidecar `compare_callsite_reanchor_and_lhs_provenance_audit`。
+- 固定 3 个候选：
+  - exact2 best: `78d540b49c59077041414141414141`
+  - exact1 frontier: `5a3e7f46ddd474d041414141414141`
+  - single-byte contrast: `78d540b49c59076f41414141414141`
+- Base64/RC4 breakpoint probe 继续阻断；本轮只验证 actual compare callsite / lhs side / lhs provenance。
+
+2) 代码修正
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `compare_callsite_reanchor_and_lhs_provenance_audit.json` artifact contract、hook point builder、static audit、runtime runner、payload classifier。
+  - 新增 classification: `lhs_producer_identified`, `callsite_reanchored_but_producer_unknown`, `frame_anchor_rejected`, `inconclusive`。
+  - 新增 early sidecar 调度：当 current_state 中 `latest_compare_lhs_upstream_writer_audit.classification == candidate_dependent_upstream_observed` 且尚无 callsite reanchor 决策时，优先运行该 sidecar，不进入 bridge/search。
+  - 修正分类门槛：必须实际捕获 `actual_compare_entry` 观察，才允许把 compare callsite 标为 confirmed；仅 upstream hooks runtime-backed 不算 reanchored。
+- `reverse_agent/olly_scripts/compare_callsite_reanchor_and_lhs_provenance_audit.py`
+  - 新增 thin script entry，复用现有 bounded Frida/UIA collector 形态。
+- `reverse_agent/project_state.py`
+  - 索引 `latest_compare_callsite_reanchor_and_lhs_provenance_audit`。
+  - 将其纳入 runtime validation keys、current bottleneck、latest summary 和 negative cache。
+- `tests/test_compare_aware_search_strategy.py`
+  - 增加 payload builder、runner、scheduler ordering 覆盖。
+- `tests/test_project_state.py`
+  - 增加 artifact indexing / bottleneck / negative cache 覆盖。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_callsite_reanchor_and_lhs_provenance_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `144 passed`
+- `python -m pytest -q` -> `221 passed`
+
+4) Harness / project_state
+- Completed real harness run:
+  - `sr_callsite_reanchor_20260514_r5`
+  - 1 case executed, 0 errors, selected `NOT_FOUND`。
+- Core artifact:
+  - `solve_reports\harness_runs\sr_callsite_reanchor_20260514_r5\reports\tool_artifacts\samplereverse_patched\compare_callsite_reanchor_and_lhs_provenance_audit\compare_callsite_reanchor_and_lhs_provenance_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_callsite_reanchor_20260514_r5` -> passed。
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_callsite_reanchor_20260514_r5`
+  - `reason: inconclusive`
+  - `task: Investigate stalled compare_callsite_reanchor_and_lhs_provenance_audit path`
+  - `missing: []`
+
+5) 结论
+- `compare_callsite_reanchor_and_lhs_provenance_audit` classification: `inconclusive`
+- `runtime_backed_count=3`，但 runtime backing 来自 upstream hooks，不来自 actual compare entry。
+- `actual_compare.entry_status=rejected`
+- `actual_compare.observed_count=0`
+- `actual_compare.lhs_side=unknown`
+- `actual_compare.flag_side=unknown`
+- `[ebp-0x1170]` old slot relation 仍 `inconclusive`，没有被重新确认。
+- Base64/RC4 breakpoint probe remains blocked。
+- Current runtime best 未改善：
+  - exact2 remains `78d540b49c59077041414141414141`, runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大 search；不要回 old `sample_solver` blind search。
+- 不直接跑 Base64/RC4 breakpoint probe。
+- 不把 `0x2312` / `0x2325` / `0x2338` 直接升级为 material producer。
+- 下一步应先修 actual compare entry hook coverage / argument capture：解释为什么 `0x1028ac` hook 在本 sidecar 未产出 arg0/arg1，而 CompareProbe 仍可捕获 compare 前真值；优先复用 CompareProbe 的实际 compare hook/argument capture 机制来重锚定 lhs side。

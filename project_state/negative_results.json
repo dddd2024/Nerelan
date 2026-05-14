@@ -80,26 +80,6 @@
     "severity": "soft_block"
   },
   {
-    "direction": "expand compare-aware search instead of following upstream writer evidence",
-    "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\compare_lhs_upstream_writer_audit.json",
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "upstream writer audit is bounded to fixed candidates and hook points; unresolved evidence should move or narrow runtime instrumentation rather than grow search",
-    "scope": "compare_lhs_upstream_writer_audit",
-    "severity": "soft_block"
-  },
-  {
-    "direction": "run Base64/RC4 breakpoint probe directly from upstream writer audit",
-    "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\compare_lhs_upstream_writer_audit.json",
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "upstream writer evidence still needs compare-lhs and transform-chain semantic confirmation before breakpoint probing is allowed",
-    "scope": "compare_lhs_upstream_writer_audit",
-    "severity": "soft_block"
-  },
-  {
     "direction": "treat 0x4019e0 as Base64/RC4 material producer without new semantic evidence",
     "do_not_repeat": true,
     "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
@@ -141,6 +121,26 @@
     "override_reason_required": true,
     "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
     "scope": "function_semantics",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "reuse old [ebp-0x1170] frame anchor without actual compare re-anchor evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_callsite_reanchor_20260514_r5\\reports\\tool_artifacts\\samplereverse_patched\\compare_callsite_reanchor_and_lhs_provenance_audit\\compare_callsite_reanchor_and_lhs_provenance_audit.json",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "the real compare lhs side and frame source must be confirmed before following old frame assumptions",
+    "scope": "compare_callsite_reanchor_and_lhs_provenance_audit",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "run Base64/RC4 breakpoint probe directly from callsite re-anchor audit",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_callsite_reanchor_20260514_r5\\reports\\tool_artifacts\\samplereverse_patched\\compare_callsite_reanchor_and_lhs_provenance_audit\\compare_callsite_reanchor_and_lhs_provenance_audit.json",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "breakpoint probing still requires a runtime-backed lhs producer connected to compare lhs",
+    "scope": "compare_callsite_reanchor_and_lhs_provenance_audit",
     "severity": "soft_block"
   }
 ]

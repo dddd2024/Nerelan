@@ -920,6 +920,73 @@ def test_project_state_indexes_compare_lhs_upstream_writer_audit_and_negative_ca
     assert any(item.get("scope") == "compare_lhs_upstream_writer_audit" for item in negative_results)
 
 
+def test_project_state_indexes_compare_callsite_reanchor_audit_and_negative_cache(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_callsite_reanchor")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_callsite_reanchor_and_lhs_provenance_audit.json",
+        {
+            "artifact_kind": "compare_callsite_reanchor_and_lhs_provenance_audit",
+            "classification": "frame_anchor_rejected",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {
+                "entry_status": "confirmed",
+                "caller_module_offset": "0x258c",
+                "lhs_side": "arg0",
+                "flag_side": "arg1",
+                "lhs_preview_varies_by_candidate": True,
+            },
+            "frame_anchor": {
+                "old_slot_ebp_minus_1170_valid": False,
+                "old_slot_ebp_minus_1170_status": "rejected",
+            },
+            "provenance": {
+                "candidate_dependent": False,
+                "connects_to_compare_lhs": False,
+                "producer_instruction": "",
+                "producer_call": "",
+                "evidence": [
+                    {
+                        "hook_name": "upstream_slot_1168_reload",
+                        "candidate_dependent": True,
+                        "connects_to_compare_lhs": False,
+                    }
+                ],
+            },
+            "relation_table": [{"field": "lhs_side", "status": "arg0"}],
+            "identified_producers": [],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "narrow real lhs provenance",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_callsite_reanchor_and_lhs_provenance_audit"].endswith(
+        "compare_callsite_reanchor_and_lhs_provenance_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == (
+        "compare_callsite_reanchor_and_lhs_provenance_audit"
+    )
+    assert current_state["current_bottleneck"]["reason"] == "frame_anchor_rejected"
+    latest = current_state["latest_compare_callsite_reanchor_and_lhs_provenance_audit"]
+    assert latest["classification"] == "frame_anchor_rejected"
+    assert latest["actual_compare"]["lhs_side"] == "arg0"
+    assert latest["frame_anchor"]["old_slot_ebp_minus_1170_valid"] is False
+    assert latest["provenance"]["evidence"][0]["hook_name"] == "upstream_slot_1168_reload"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert any(
+        item.get("scope") == "compare_callsite_reanchor_and_lhs_provenance_audit"
+        for item in negative_results
+    )
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

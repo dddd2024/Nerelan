@@ -63,6 +63,9 @@ MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME = "material_hook_runtime_validation.j
 POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME = "post_handoff_branch_outcome_audit.json"
 COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME = "compare_lhs_producer_audit.json"
 COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME = "compare_lhs_upstream_writer_audit.json"
+COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
+    "compare_callsite_reanchor_and_lhs_provenance_audit.json"
+)
 
 DEFAULT_ANCHORS = (
     "78d540b49c590770",
@@ -212,6 +215,7 @@ COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES = (
     "78d540b49c59076f41414141414141",
 )
 COMPARE_LHS_UPSTREAM_WRITER_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 MATERIAL_HOOK_RUNTIME_VALIDATION_CANDIDATES = (
     "78d540b49c59077041414141414141",
     "5a3e7f46ddd474d041414141414141",
@@ -279,6 +283,14 @@ def _compare_lhs_producer_audit_script_path() -> Path:
 
 def _compare_lhs_upstream_writer_audit_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_lhs_upstream_writer_audit.py"
+
+
+def _compare_callsite_reanchor_and_lhs_provenance_audit_script_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[1]
+        / "olly_scripts"
+        / "compare_callsite_reanchor_and_lhs_provenance_audit.py"
+    )
 
 
 def _material_hook_runtime_validation_script_path() -> Path:
@@ -3365,6 +3377,9 @@ def _artifact_file_name_for_kind(kind: str) -> str:
         "post_handoff_branch_outcome_audit": POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME,
         "compare_lhs_producer_audit": COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
         "compare_lhs_upstream_writer_audit": COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
+        "compare_callsite_reanchor_and_lhs_provenance_audit": (
+            COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME
+        ),
     }.get(kind, "")
 
 
@@ -11289,6 +11304,537 @@ def run_compare_lhs_upstream_writer_audit(
     }
 
 
+def _compare_callsite_reanchor_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "actual_compare_entry",
+            "module_offset": 0x1028AC,
+            "instruction": "case-insensitive wide compare helper entry",
+            "role": "actual_compare_arg_capture",
+        },
+        {
+            "name": "static_compare_callsite",
+            "module_offset": 0x258C,
+            "instruction": "call 0x5028ac",
+            "role": "static_callsite_check",
+        },
+        {
+            "name": "old_lhs_slot_store",
+            "module_offset": 0x253A,
+            "instruction": "mov dword ptr [ebp - 0x1170], eax",
+            "role": "old_frame_anchor_store",
+        },
+        {
+            "name": "old_lhs_reload",
+            "module_offset": 0x2559,
+            "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+            "role": "old_frame_anchor_reload",
+        },
+        {
+            "name": "upstream_candidate_context",
+            "module_offset": 0x2312,
+            "instruction": "sub eax, dword ptr [edx - 4]",
+            "role": "candidate_dependent_upstream_context",
+        },
+        {
+            "name": "upstream_slot_1168_reload",
+            "module_offset": 0x2325,
+            "instruction": "mov edx, dword ptr [ebp - 0x1168]",
+            "role": "slot_1168_after_transform",
+        },
+        {
+            "name": "upstream_material_call",
+            "module_offset": 0x2338,
+            "instruction": "call 0x401b50",
+            "role": "slot_116c_material_call_input",
+        },
+    ]
+
+
+def _compare_callsite_reanchor_static_audit(
+    target: Path,
+    hook_points: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    try:
+        data = target.read_bytes()
+    except Exception:
+        data = b""
+    sections = _pe_sections_for_rva_mapping(data)
+    sizes = {0x1028AC: 1, 0x258C: 5, 0x253A: 6, 0x2559: 6, 0x2312: 3, 0x2325: 6, 0x2338: 5}
+    instructions: list[dict[str, object]] = []
+    for point in hook_points:
+        offset = _parse_int_hex(point.get("module_offset"))
+        if offset is None:
+            continue
+        size = sizes.get(offset, 1)
+        instructions.append(
+            {
+                "name": point.get("name", ""),
+                "rva": f"0x{offset:x}",
+                "end_rva": f"0x{offset + size:x}",
+                "size": size,
+                "instruction": point.get("instruction", ""),
+                "bytes_hex": _read_rva_bytes(data, sections, offset, size),
+                "boundary_status": "instruction_confirmed",
+            }
+        )
+    return {
+        "classification": "static_compare_callsite_reanchor_audit_complete"
+        if data and sections
+        else "static_compare_callsite_reanchor_audit_partial",
+        "windows": {
+            "upstream": {
+                "start_rva": "0x2312",
+                "end_rva": "0x233d",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x2312, 0x233D - 0x2312),
+            },
+            "old_lhs_frame": {
+                "start_rva": "0x253a",
+                "end_rva": "0x2591",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x253A, 0x2591 - 0x253A),
+            },
+        },
+        "instruction_boundaries": instructions,
+        "hook_point_audit": [
+            {
+                "name": point.get("name", ""),
+                "module_offset": f"0x{_parse_int_hex(point.get('module_offset')):x}"
+                if _parse_int_hex(point.get("module_offset")) is not None
+                else "",
+                "address": point.get("address", ""),
+                "boundary_status": "instruction_confirmed",
+                "reason": "fixed bounded compare callsite re-anchor/provenance audit",
+            }
+            for point in hook_points
+        ],
+    }
+
+
+def _actual_compare_observation(result: dict[str, object]) -> dict[str, object]:
+    return _compare_lhs_observation(result, "actual_compare_entry")
+
+
+def _actual_compare_args(result: dict[str, object]) -> list[dict[str, object]]:
+    observation = _actual_compare_observation(result)
+    return _pre_compare_compare_args(observation) if observation else []
+
+
+def _actual_compare_arg(result: dict[str, object], side: str) -> dict[str, object]:
+    try:
+        index = int(side.replace("arg", ""))
+    except ValueError:
+        return {}
+    return _pre_compare_arg_by_index(_actual_compare_args(result), index)
+
+
+def _actual_compare_return_slot(observation: dict[str, object]) -> dict[str, object]:
+    entry = observation.get("compare_entry", {})
+    slots = entry.get("slots", []) if isinstance(entry, dict) else []
+    if isinstance(slots, list):
+        for item in slots:
+            if isinstance(item, dict) and str(item.get("role", "")) == "return_address":
+                return dict(item)
+    stack_words = observation.get("stack_words", [])
+    if isinstance(stack_words, list) and stack_words and isinstance(stack_words[0], dict):
+        return dict(stack_words[0])
+    return {}
+
+
+def _candidate_dependent_by_side(
+    candidate_results: Sequence[dict[str, object]],
+) -> dict[str, bool]:
+    out: dict[str, bool] = {}
+    for side in ("arg0", "arg1"):
+        values = {
+            str(_actual_compare_arg(result, side).get("preview_hex", "") or "").strip().lower()[:64]
+            or str(_actual_compare_arg(result, side).get("value", "") or "").strip().lower()
+            for result in candidate_results
+            if _actual_compare_arg(result, side)
+        }
+        out[side] = len({value for value in values if value}) > 1
+    return out
+
+
+def _compare_callsite_side_summary(candidate_results: Sequence[dict[str, object]]) -> dict[str, object]:
+    arg_previews: dict[str, dict[str, str]] = {"arg0": {}, "arg1": {}}
+    arg_values: dict[str, dict[str, str]] = {"arg0": {}, "arg1": {}}
+    flag_counts = {"arg0": 0, "arg1": 0}
+    caller_offsets: dict[str, str] = {}
+    actual_compare_observed_count = 0
+    for result in candidate_results:
+        candidate_hex = str(result.get("candidate_hex", ""))
+        observation = _actual_compare_observation(result)
+        if observation:
+            actual_compare_observed_count += 1
+        return_slot = _actual_compare_return_slot(observation)
+        if return_slot:
+            caller_offsets[candidate_hex] = str(return_slot.get("module_offset", ""))
+        for side in ("arg0", "arg1"):
+            arg = _actual_compare_arg(result, side)
+            if not arg:
+                continue
+            preview = str(arg.get("preview_hex", "") or "").strip().lower()
+            value = str(arg.get("value", "") or "").strip().lower()
+            arg_previews[side][candidate_hex] = preview[:96]
+            arg_values[side][candidate_hex] = value
+            if _preview_has_flag_prefix(arg):
+                flag_counts[side] += 1
+    candidate_dependent = _candidate_dependent_by_side(candidate_results)
+    candidate_count = len(candidate_results)
+    flag_side = "unknown"
+    if candidate_count and flag_counts["arg0"] >= candidate_count:
+        flag_side = "arg0"
+    elif candidate_count and flag_counts["arg1"] >= candidate_count:
+        flag_side = "arg1"
+    lhs_side = "unknown"
+    if flag_side == "arg0" and candidate_dependent.get("arg1"):
+        lhs_side = "arg1"
+    elif flag_side == "arg1" and candidate_dependent.get("arg0"):
+        lhs_side = "arg0"
+    elif candidate_dependent.get("arg0") and not candidate_dependent.get("arg1"):
+        lhs_side = "arg0"
+    elif candidate_dependent.get("arg1") and not candidate_dependent.get("arg0"):
+        lhs_side = "arg1"
+    return {
+        "entry": "0x1028ac",
+        "entry_status": "confirmed"
+        if actual_compare_observed_count >= 3
+        else "rejected"
+        if candidate_count >= 3 and actual_compare_observed_count == 0
+        else "inconclusive",
+        "observed_count": actual_compare_observed_count,
+        "caller_return_module_offsets": caller_offsets,
+        "caller_module_offset": next(iter(caller_offsets.values()), ""),
+        "arg0_preview_by_candidate": arg_previews["arg0"],
+        "arg1_preview_by_candidate": arg_previews["arg1"],
+        "arg0_value_by_candidate": arg_values["arg0"],
+        "arg1_value_by_candidate": arg_values["arg1"],
+        "arg0_candidate_dependent": candidate_dependent.get("arg0", False),
+        "arg1_candidate_dependent": candidate_dependent.get("arg1", False),
+        "lhs_preview_varies_by_candidate": bool(lhs_side != "unknown" and candidate_dependent.get(lhs_side)),
+        "lhs_side": lhs_side,
+        "flag_side": flag_side,
+    }
+
+
+def _lhs_arg_for_result(result: dict[str, object], lhs_side: str) -> dict[str, object]:
+    return _actual_compare_arg(result, lhs_side)
+
+
+def _old_frame_anchor_summary(
+    candidate_results: Sequence[dict[str, object]],
+    lhs_side: str,
+) -> dict[str, object]:
+    match_count = 0
+    observed_count = 0
+    sample_values: dict[str, str] = {}
+    for result in candidate_results:
+        candidate_hex = str(result.get("candidate_hex", ""))
+        lhs_arg = _lhs_arg_for_result(result, lhs_side)
+        if not lhs_arg:
+            continue
+        for hook_name in ("old_lhs_slot_store", "old_lhs_reload"):
+            observation = _compare_lhs_observation(result, hook_name)
+            if not observation:
+                continue
+            slot = _frame_slot_by_offset(observation, 0x1170)
+            value = {
+                "value": slot.get("value", "") if slot else observation.get("eax_ptr", ""),
+                "preview_hex": slot.get("preview_hex", "") if slot else observation.get("eax_preview_hex", ""),
+            }
+            if value.get("value") or value.get("preview_hex"):
+                observed_count += 1
+                sample_values[candidate_hex] = str(value.get("preview_hex") or value.get("value") or "")[:96]
+                if _compare_lhs_value_matches_arg0(value, lhs_arg):
+                    match_count += 1
+                break
+    status = _compare_lhs_relation_status(match_count, observed_count)
+    return {
+        "old_slot_ebp_minus_1170_valid": status == "confirmed",
+        "old_slot_ebp_minus_1170_status": status,
+        "old_slot_observed_count": observed_count,
+        "old_slot_match_count": match_count,
+        "actual_lhs_source": "stack_slot" if status == "confirmed" else "unknown",
+        "actual_lhs_source_detail": "[ebp-0x1170]" if status == "confirmed" else "",
+        "sample_values": sample_values,
+    }
+
+
+def _provenance_rows(
+    candidate_results: Sequence[dict[str, object]],
+    hook_points: Sequence[dict[str, object]],
+    lhs_side: str,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for point in hook_points:
+        hook_name = str(point.get("name", ""))
+        if hook_name in {"actual_compare_entry", "static_compare_callsite"}:
+            continue
+        observed_count = 0
+        match_count = 0
+        values_by_candidate: dict[str, str] = {}
+        for result in candidate_results:
+            candidate_hex = str(result.get("candidate_hex", ""))
+            lhs_arg = _lhs_arg_for_result(result, lhs_side)
+            observation = _compare_lhs_observation(result, hook_name)
+            if not lhs_arg or not observation:
+                continue
+            observed_count += 1
+            values = _upstream_writer_capture_values(observation)
+            best_value = _upstream_writer_best_value(observation)
+            preview = str(best_value.get("preview_hex", "") or best_value.get("value", "") or "").strip().lower()
+            if preview:
+                values_by_candidate[candidate_hex] = preview[:96]
+            if any(_compare_lhs_value_matches_arg0(value, lhs_arg) for value in values):
+                match_count += 1
+        candidate_dependent = len({value for value in values_by_candidate.values() if value}) > 1
+        rows.append(
+            {
+                "hook_name": hook_name,
+                "module_offset": f"0x{_parse_int_hex(point.get('module_offset')):x}"
+                if _parse_int_hex(point.get("module_offset")) is not None
+                else "",
+                "instruction": str(point.get("instruction", "")),
+                "role": str(point.get("role", "")),
+                "observed_count": observed_count,
+                "runtime_backed_count": observed_count,
+                "candidate_dependent": candidate_dependent,
+                "connects_to_compare_lhs": match_count >= 3,
+                "compare_lhs_match_count": match_count,
+                "instruction_confirmed": True,
+                "hookable": observed_count > 0,
+                "sample_values": values_by_candidate,
+            }
+        )
+    return rows
+
+
+def build_compare_callsite_reanchor_and_lhs_provenance_audit_payload(
+    *,
+    candidate_results: Sequence[dict[str, object]],
+    hook_points: Sequence[dict[str, object]] | None = None,
+    static_audit: dict[str, object] | None = None,
+    source_upstream_writer_payload: dict[str, object] | None = None,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    hook_points = list(hook_points or _compare_callsite_reanchor_hook_points())
+    source_upstream_writer_payload = source_upstream_writer_payload or {}
+    candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
+    runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
+    actual_compare = _compare_callsite_side_summary(candidate_results)
+    lhs_side = str(actual_compare.get("lhs_side") or "unknown")
+    frame_anchor = _old_frame_anchor_summary(candidate_results, lhs_side)
+    rows = _provenance_rows(candidate_results, hook_points, lhs_side)
+    identified = [
+        row
+        for row in rows
+        if str(row.get("hook_name")) not in {"old_lhs_slot_store", "old_lhs_reload"}
+        and int(row.get("runtime_backed_count", 0) or 0) >= 3
+        and bool(row.get("candidate_dependent"))
+        and bool(row.get("connects_to_compare_lhs"))
+    ]
+    lhs_confirmed = lhs_side in {"arg0", "arg1"} and bool(actual_compare.get("lhs_preview_varies_by_candidate"))
+    actual_compare_confirmed = str(actual_compare.get("entry_status", "")) == "confirmed"
+    if runtime_backed_count < 3:
+        classification = "inconclusive"
+    elif not actual_compare_confirmed:
+        classification = "inconclusive"
+    elif identified and lhs_confirmed:
+        classification = "lhs_producer_identified"
+    elif frame_anchor.get("old_slot_ebp_minus_1170_status") == "rejected":
+        classification = "frame_anchor_rejected"
+    else:
+        classification = "callsite_reanchored_but_producer_unknown"
+
+    producer = identified[0] if identified else {}
+    next_bounded_action = {
+        "lhs_producer_identified": "use the identified lhs producer as the next bounded material-hook start",
+        "frame_anchor_rejected": "keep old [ebp-0x1170] frame anchor blocked and add a narrower real-lhs provenance audit",
+        "callsite_reanchored_but_producer_unknown": "narrow provenance from the confirmed lhs side before any material probe",
+        "inconclusive": "rerun callsite re-anchor audit only after improving actual compare hook coverage",
+    }.get(classification, "inspect compare callsite re-anchor artifact")
+    payload: dict[str, object] = {
+        "artifact_kind": "compare_callsite_reanchor_and_lhs_provenance_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "classification": classification,
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(candidate_results),
+        "candidate_limit": len(COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_CANDIDATES),
+        "fixed_candidates": list(COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_CANDIDATES),
+        "source_upstream_writer_classification": source_upstream_writer_payload.get("classification", ""),
+        "hook_points": hook_points,
+        "static_audit": static_audit or {},
+        "runtime_backed_count": runtime_backed_count,
+        "actual_compare": actual_compare,
+        "frame_anchor": frame_anchor,
+        "provenance": {
+            "candidate_dependent": bool(producer.get("candidate_dependent")),
+            "connects_to_compare_lhs": bool(producer.get("connects_to_compare_lhs")),
+            "producer_instruction": str(producer.get("instruction", "")),
+            "producer_call": str(producer.get("module_offset", "")),
+            "evidence": rows,
+        },
+        "relation_table": [
+            {
+                "field": "actual_compare_entry",
+                "status": actual_compare.get("entry_status", "inconclusive"),
+            },
+            {
+                "field": "actual_compare_caller_rva",
+                "status": actual_compare.get("caller_module_offset", ""),
+            },
+            {
+                "field": "arg0_candidate_dependent",
+                "status": bool(actual_compare.get("arg0_candidate_dependent")),
+            },
+            {
+                "field": "arg1_candidate_dependent",
+                "status": bool(actual_compare.get("arg1_candidate_dependent")),
+            },
+            {"field": "flag_side", "status": actual_compare.get("flag_side", "unknown")},
+            {"field": "lhs_side", "status": actual_compare.get("lhs_side", "unknown")},
+            {
+                "field": "lhs_preview_varies_by_candidate",
+                "status": bool(actual_compare.get("lhs_preview_varies_by_candidate")),
+            },
+        ],
+        "identified_producers": identified,
+        "breakpoint_probe_allowed": False,
+        "candidate_results": candidate_results,
+        "negative_cache_updates": [
+            {
+                "direction": "reuse old [ebp-0x1170] frame anchor without actual compare re-anchor evidence",
+                "scope": "compare_callsite_reanchor_and_lhs_provenance_audit",
+                "reason": "old frame anchor must be proven against the real compare lhs side",
+            },
+            {
+                "direction": "run Base64/RC4 breakpoint probe directly from callsite re-anchor audit",
+                "scope": "compare_callsite_reanchor_and_lhs_provenance_audit",
+                "reason": "material probing requires a runtime-backed lhs producer connected to compare lhs",
+            },
+        ],
+        "promotable_validations": [],
+        "next_bounded_action": next_bounded_action,
+    }
+    return payload
+
+
+def run_compare_callsite_reanchor_and_lhs_provenance_audit(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel,
+    per_probe_timeout: float,
+    upstream_writer_payload: dict[str, object] | None = None,
+    run_name: str = "",
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME
+    script_path = _compare_callsite_reanchor_and_lhs_provenance_audit_script_path()
+    hook_points = _compare_callsite_reanchor_hook_points()
+    static_audit = _compare_callsite_reanchor_static_audit(target, hook_points)
+    entries = list(COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_CANDIDATES)
+    labels = ("exact2_best", "exact1_frontier", "single_byte_contrast")
+    initial_payload = build_compare_callsite_reanchor_and_lhs_provenance_audit_payload(
+        candidate_results=[],
+        hook_points=hook_points,
+        static_audit=static_audit,
+        source_upstream_writer_payload=upstream_writer_payload,
+        run_name=run_name,
+    )
+    initial_payload["candidate_count"] = len(entries)
+    _write_json(result_path, initial_payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Compare callsite reanchor audit script missing: {script_path}")
+
+    points_path = artifacts_dir / "compare_callsite_reanchor_hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        compare_out = candidate_dir / "compare_callsite_reanchor_and_lhs_provenance_audit.json"
+        compare_log = candidate_dir / "compare_callsite_reanchor_and_lhs_provenance_audit.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(compare_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            "",
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"CompareCallsiteReanchorAndLHSProvenanceAudit scripted hooks {idx}: {candidate_hex}")
+        try:
+            proc = _run_material_hook_runtime_command(
+                command,
+                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+            )
+            error = ""
+        except subprocess.TimeoutExpired as exc:
+            proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
+            error = "timeout"
+        compare_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        observations = [
+            _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        candidate_results.append(
+            {
+                "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_observations": observations[:160],
+                "result_path": str(compare_out),
+                "log_path": str(compare_log),
+                "success": bool(compare_payload.get("success")) and not error,
+                "error": error or str(compare_payload.get("error", "")),
+            }
+        )
+
+    payload = build_compare_callsite_reanchor_and_lhs_provenance_audit_payload(
+        candidate_results=candidate_results,
+        hook_points=hook_points,
+        static_audit=static_audit,
+        source_upstream_writer_payload=upstream_writer_payload,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Compare callsite reanchor and lhs provenance audit wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
+        "promotable_validations": [],
+    }
+
+
 def _prior_compare_lhs_producer_audit_has_decision() -> bool:
     current_state = _project_state_json("current_state.json")
     latest = current_state.get("latest_compare_lhs_producer_audit", {})
@@ -11304,6 +11850,15 @@ def _prior_compare_lhs_upstream_writer_audit_has_decision() -> bool:
     if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
         return True
     payload, _ = _indexed_artifact_payload("compare_lhs_upstream_writer_audit")
+    return bool(str(payload.get("classification", "")).strip())
+
+
+def _prior_compare_callsite_reanchor_and_lhs_provenance_audit_has_decision() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_compare_callsite_reanchor_and_lhs_provenance_audit", {})
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
+        return True
+    payload, _ = _indexed_artifact_payload("compare_callsite_reanchor_and_lhs_provenance_audit")
     return bool(str(payload.get("classification", "")).strip())
 
 
@@ -15621,6 +16176,55 @@ class CompareAwareSearchStrategy(SolverStrategy):
             current_compare_lhs_payload = _indexed_or_latest_report_artifact_payload(
                 "compare_lhs_producer_audit"
             )[0]
+            current_upstream_writer_payload = _indexed_or_latest_report_artifact_payload(
+                "compare_lhs_upstream_writer_audit"
+            )[0]
+            current_state = _project_state_json("current_state.json")
+            current_state_upstream_writer = current_state.get("latest_compare_lhs_upstream_writer_audit", {})
+            current_state_upstream_writer = (
+                current_state_upstream_writer if isinstance(current_state_upstream_writer, dict) else {}
+            )
+            should_run_early_compare_callsite_reanchor_audit = (
+                not _prior_compare_callsite_reanchor_and_lhs_provenance_audit_has_decision()
+                and str(current_state_upstream_writer.get("classification") or "").strip()
+                == "candidate_dependent_upstream_observed"
+            )
+            if should_run_early_compare_callsite_reanchor_audit:
+                callsite_reanchor_run = run_compare_callsite_reanchor_and_lhs_provenance_audit(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "compare_callsite_reanchor_and_lhs_provenance_audit",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    upstream_writer_payload=current_upstream_writer_payload or current_state_upstream_writer,
+                    log=log,
+                )
+                callsite_payload = dict(callsite_reanchor_run.get("payload", {}))
+                callsite_reanchor_artifact = _make_search_artifact(
+                    tool_name="CompareCallsiteReanchorAndLHSProvenanceAudit",
+                    output_path=Path(str(callsite_reanchor_run["result_path"])),
+                    summary=str(
+                        callsite_payload.get(
+                            "classification",
+                            "compare callsite reanchor and lhs provenance audit complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=callsite_payload,
+                    derived_entries=[],
+                )
+                return StrategyResult(
+                    strategy_name=self.name,
+                    summary=callsite_reanchor_artifact.summary,
+                    candidates=[],
+                    artifacts=[callsite_reanchor_artifact],
+                    metadata={
+                        "resolved_anchors": discovered_anchors,
+                        "compare_callsite_reanchor_and_lhs_provenance_audit": callsite_reanchor_run,
+                        "completed_stage": "compare_callsite_reanchor_and_lhs_provenance_audit",
+                        "early_sidecar": True,
+                    },
+                )
             should_run_early_compare_lhs_producer_audit = (
                 not _prior_compare_lhs_producer_audit_has_decision()
                 and str(current_post_handoff_payload.get("classification") or "").strip()
@@ -15700,6 +16304,47 @@ class CompareAwareSearchStrategy(SolverStrategy):
                         "resolved_anchors": discovered_anchors,
                         "compare_lhs_upstream_writer_audit": upstream_writer_audit_run,
                         "completed_stage": "compare_lhs_upstream_writer_audit",
+                        "early_sidecar": True,
+                    },
+                )
+            should_run_early_compare_callsite_reanchor_audit = (
+                not _prior_compare_callsite_reanchor_and_lhs_provenance_audit_has_decision()
+                and str(current_upstream_writer_payload.get("classification") or "").strip()
+                == "candidate_dependent_upstream_observed"
+            )
+            if should_run_early_compare_callsite_reanchor_audit:
+                callsite_reanchor_run = run_compare_callsite_reanchor_and_lhs_provenance_audit(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "compare_callsite_reanchor_and_lhs_provenance_audit",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    upstream_writer_payload=current_upstream_writer_payload,
+                    log=log,
+                )
+                callsite_payload = dict(callsite_reanchor_run.get("payload", {}))
+                callsite_reanchor_artifact = _make_search_artifact(
+                    tool_name="CompareCallsiteReanchorAndLHSProvenanceAudit",
+                    output_path=Path(str(callsite_reanchor_run["result_path"])),
+                    summary=str(
+                        callsite_payload.get(
+                            "classification",
+                            "compare callsite reanchor and lhs provenance audit complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=callsite_payload,
+                    derived_entries=[],
+                )
+                return StrategyResult(
+                    strategy_name=self.name,
+                    summary=callsite_reanchor_artifact.summary,
+                    candidates=[],
+                    artifacts=[callsite_reanchor_artifact],
+                    metadata={
+                        "resolved_anchors": discovered_anchors,
+                        "compare_callsite_reanchor_and_lhs_provenance_audit": callsite_reanchor_run,
+                        "completed_stage": "compare_callsite_reanchor_and_lhs_provenance_audit",
                         "early_sidecar": True,
                     },
                 )

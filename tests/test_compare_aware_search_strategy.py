@@ -17,6 +17,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_PROBE_FILE_NAME,
     COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME,
     COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME,
+    COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
     COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
     COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME,
@@ -62,6 +63,7 @@ from reverse_agent.strategies.compare_aware_search import (
     _refine_anchor_plan,
     _select_smt_base_entry,
     _validated_projected_preserve_second_hop_candidates,
+    build_compare_callsite_reanchor_and_lhs_provenance_audit_payload,
     build_compare_lhs_producer_audit_payload,
     build_compare_lhs_upstream_writer_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
@@ -72,6 +74,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_probe,
     run_compare_handoff_return_site_probe,
     run_compare_handoff_slice_probe,
+    run_compare_callsite_reanchor_and_lhs_provenance_audit,
     run_compare_lhs_producer_audit,
     run_compare_lhs_upstream_writer_audit,
     run_compare_pre_compare_handoff_target_probe,
@@ -4777,6 +4780,119 @@ def _fake_compare_lhs_upstream_writer_audit_subprocess_run(*args, **kwargs):  # 
     return _Proc()
 
 
+def _compare_callsite_reanchor_candidate_result(
+    candidate_hex: str,
+    ptr: str,
+    preview: str,
+    *,
+    old_frame_matches: bool = False,
+    producer_matches: bool = True,
+) -> dict[str, object]:
+    old_ptr = ptr if old_frame_matches else "0x8800"
+    old_preview = preview if old_frame_matches else "ee" * 32
+    producer_ptr = ptr if producer_matches else "0x9900"
+    producer_preview = preview if producer_matches else "dd" * 32
+    return {
+        "label": "test",
+        "candidate_hex": candidate_hex,
+        "candidate_prefix": candidate_hex[:16],
+        "runtime_backed": True,
+        "success": True,
+        "hook_observations": [
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "actual_compare_entry",
+                "module_offset": "0x1028ac",
+                "instruction": "case-insensitive wide compare helper entry",
+                "compare_entry": {
+                    "slots": [
+                        {"index": 0, "role": "return_address", "value": "0x40258c", "module_offset": "0x258c"},
+                        {"index": 1, "role": "arg0", "value": ptr, "preview_hex": preview},
+                        {"index": 2, "role": "arg1", "value": "0x5000", "preview_hex": "66006c00610067007b00"},
+                        {"index": 3, "role": "arg2", "value_u32": 5},
+                    ]
+                },
+                "compare_args": {
+                    "args": [
+                        {"index": 0, "role": "arg0", "value": ptr, "preview_hex": preview},
+                        {"index": 1, "role": "arg1", "value": "0x5000", "preview_hex": "66006c00610067007b00"},
+                        {"index": 2, "role": "arg2", "value_u32": 5},
+                    ]
+                },
+            },
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "old_lhs_slot_store",
+                "module_offset": "0x253a",
+                "instruction": "mov dword ptr [ebp - 0x1170], eax",
+                "eax_ptr": old_ptr,
+                "eax_preview_hex": old_preview,
+                "frame_slots": [
+                    {"name": "[ebp-0x1170]", "offset": "-0x1170", "value": old_ptr, "preview_hex": old_preview}
+                ],
+            },
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "upstream_slot_1168_reload",
+                "module_offset": "0x2325",
+                "instruction": "mov edx, dword ptr [ebp - 0x1168]",
+                "edx_ptr": producer_ptr,
+                "edx_preview_hex": producer_preview,
+                "frame_slots": [
+                    {
+                        "name": "[ebp-0x1168]",
+                        "offset": "-0x1168",
+                        "value": producer_ptr,
+                        "preview_hex": producer_preview,
+                    }
+                ],
+            },
+        ],
+    }
+
+
+def _fake_compare_callsite_reanchor_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} == {
+        "actual_compare_entry",
+        "static_compare_callsite",
+        "old_lhs_slot_store",
+        "old_lhs_reload",
+        "upstream_candidate_context",
+        "upstream_slot_1168_reload",
+        "upstream_material_call",
+    }
+    previews = {
+        "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
+        "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
+        "78d540b49c59076f41414141414141": ("0x3300", "cc" * 32),
+    }
+    ptr, preview = previews[candidate_hex]
+    candidate = _compare_callsite_reanchor_candidate_result(candidate_hex, ptr, preview)
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "compare callsite reanchor audit ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": candidate["hook_observations"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
 def _fake_pre_compare_handoff_ready_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     command = list(args[0])
     out_path = Path(command[command.index("--out") + 1])
@@ -6111,6 +6227,84 @@ def test_compare_lhs_upstream_writer_audit_rejects_non_candidate_dependent_windo
     assert payload["identified_writers"] == []
 
 
+def test_compare_callsite_reanchor_audit_identifies_lhs_producer(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        compare_aware_search.subprocess,
+        "run",
+        _fake_compare_callsite_reanchor_subprocess_run,
+    )
+
+    result = run_compare_callsite_reanchor_and_lhs_provenance_audit(
+        target=target,
+        artifacts_dir=tmp_path / "compare_callsite_reanchor_and_lhs_provenance_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        upstream_writer_payload={"classification": "candidate_dependent_upstream_observed"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME
+    assert payload["artifact_kind"] == "compare_callsite_reanchor_and_lhs_provenance_audit"
+    assert payload["classification"] == "lhs_producer_identified"
+    assert payload["candidate_count"] == 3
+    assert payload["candidate_limit"] == 3
+    assert payload["runtime_backed_count"] == 3
+    assert payload["actual_compare"]["entry_status"] == "confirmed"
+    assert payload["actual_compare"]["caller_module_offset"] == "0x258c"
+    assert payload["actual_compare"]["lhs_side"] == "arg0"
+    assert payload["actual_compare"]["flag_side"] == "arg1"
+    assert payload["actual_compare"]["lhs_preview_varies_by_candidate"] is True
+    assert payload["frame_anchor"]["old_slot_ebp_minus_1170_valid"] is False
+    assert payload["provenance"]["connects_to_compare_lhs"] is True
+    assert payload["identified_producers"][0]["hook_name"] == "upstream_slot_1168_reload"
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    assert payload["final_selection_changed"] is False
+    assert payload["search_budget_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+
+
+def test_compare_callsite_reanchor_audit_rejects_old_frame_anchor_without_producer() -> None:
+    candidates = [
+        _compare_callsite_reanchor_candidate_result(
+            "78d540b49c59077041414141414141",
+            "0x1100",
+            "aa" * 32,
+            producer_matches=False,
+        ),
+        _compare_callsite_reanchor_candidate_result(
+            "5a3e7f46ddd474d041414141414141",
+            "0x2200",
+            "bb" * 32,
+            producer_matches=False,
+        ),
+        _compare_callsite_reanchor_candidate_result(
+            "78d540b49c59076f41414141414141",
+            "0x3300",
+            "cc" * 32,
+            producer_matches=False,
+        ),
+    ]
+
+    payload = build_compare_callsite_reanchor_and_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_upstream_writer_payload={"classification": "candidate_dependent_upstream_observed"},
+    )
+
+    assert payload["classification"] == "frame_anchor_rejected"
+    assert payload["actual_compare"]["lhs_side"] == "arg0"
+    assert payload["frame_anchor"]["old_slot_ebp_minus_1170_status"] == "rejected"
+    assert payload["identified_producers"] == []
+    assert payload["breakpoint_probe_allowed"] is False
+
+
 def test_compare_aware_strategy_runs_lhs_producer_sidecar_before_search(
     tmp_path: Path,
     monkeypatch,
@@ -6260,6 +6454,91 @@ def test_compare_aware_strategy_runs_upstream_writer_sidecar_after_lhs_rejection
     assert captured["artifacts_dir"] == "compare_lhs_upstream_writer_audit"
     assert captured["source_classification"] == "producer_window_rejected"
     assert Path(str(result.artifacts[0].output_path)).name == COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME
+
+
+def test_compare_aware_strategy_runs_callsite_reanchor_sidecar_after_upstream_observation(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    upstream_payload = {
+        "classification": "candidate_dependent_upstream_observed",
+        "breakpoint_probe_allowed": False,
+    }
+    captured: dict[str, object] = {}
+
+    def fake_indexed_artifact_payload(kind):
+        return (
+            {
+                "compare_lhs_upstream_writer_audit": upstream_payload,
+            }.get(kind, {}),
+            "",
+        )
+
+    def fake_run_callsite_reanchor_audit(**kwargs):
+        captured["artifacts_dir"] = Path(kwargs["artifacts_dir"]).name
+        captured["source_classification"] = kwargs["upstream_writer_payload"]["classification"]
+        result_path = Path(kwargs["artifacts_dir"]) / COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "artifact_kind": "compare_callsite_reanchor_and_lhs_provenance_audit",
+            "classification": "frame_anchor_rejected",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {"lhs_side": "arg0", "flag_side": "arg1"},
+            "frame_anchor": {"old_slot_ebp_minus_1170_valid": False},
+            "provenance": {"evidence": []},
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "narrow real lhs provenance",
+        }
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+        return {
+            "result_path": str(result_path),
+            "payload": payload,
+            "validations": [],
+            "promotable_validations": [],
+        }
+
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {"latest_compare_lhs_upstream_writer_audit": upstream_payload}
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_indexed_or_latest_report_artifact_payload",
+        fake_indexed_artifact_payload,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_callsite_reanchor_and_lhs_provenance_audit",
+        fake_run_callsite_reanchor_audit,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for early callsite reanchor sidecar"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "compare_callsite_reanchor_and_lhs_provenance_audit"
+    assert result.metadata["early_sidecar"] is True
+    assert captured["artifacts_dir"] == "compare_callsite_reanchor_and_lhs_provenance_audit"
+    assert captured["source_classification"] == "candidate_dependent_upstream_observed"
+    assert Path(str(result.artifacts[0].output_path)).name == (
+        COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME
+    )
 
 
 def test_compare_aware_strategy_runs_post_handoff_sidecar_before_search(
