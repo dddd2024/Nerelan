@@ -80,23 +80,23 @@
     "severity": "soft_block"
   },
   {
-    "direction": "expand compare-aware search instead of using fixed compare lhs producer audit evidence",
+    "direction": "expand compare-aware search instead of following upstream writer evidence",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_producer_audit\\compare_lhs_producer_audit.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\compare_lhs_upstream_writer_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "compare lhs producer audit is a bounded sidecar over three fixed candidates and five fixed hooks; rejected or inconclusive evidence should move the next runtime hook point, not grow search",
-    "scope": "compare_lhs_producer_audit",
+    "reason": "upstream writer audit is bounded to fixed candidates and hook points; unresolved evidence should move or narrow runtime instrumentation rather than grow search",
+    "scope": "compare_lhs_upstream_writer_audit",
     "severity": "soft_block"
   },
   {
-    "direction": "run Base64/RC4 breakpoint probe directly from compare lhs producer audit",
+    "direction": "run Base64/RC4 breakpoint probe directly from upstream writer audit",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_producer_audit\\compare_lhs_producer_audit.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\compare_lhs_upstream_writer_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "this audit never authorizes breakpoint probing; it only supplies a next bounded material-hook start",
-    "scope": "compare_lhs_producer_audit",
+    "reason": "upstream writer evidence still needs compare-lhs and transform-chain semantic confirmation before breakpoint probing is allowed",
+    "scope": "compare_lhs_upstream_writer_audit",
     "severity": "soft_block"
   },
   {

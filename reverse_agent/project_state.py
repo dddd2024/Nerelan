@@ -35,6 +35,7 @@ IMPORTANT_ARTIFACTS = {
     "material_hook_runtime_validation": "material_hook_runtime_validation.json",
     "post_handoff_branch_outcome_audit": "post_handoff_branch_outcome_audit.json",
     "compare_lhs_producer_audit": "compare_lhs_producer_audit.json",
+    "compare_lhs_upstream_writer_audit": "compare_lhs_upstream_writer_audit.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -72,6 +73,7 @@ RUNTIME_VALIDATION_KEYS = {
     "material_hook_runtime_validation",
     "post_handoff_branch_outcome_audit",
     "compare_lhs_producer_audit",
+    "compare_lhs_upstream_writer_audit",
 }
 
 STATE_JSON_NAMES = (
@@ -455,6 +457,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
         artifact_refs.get("post_handoff_branch_outcome_audit")
     )
     compare_lhs_producer_audit = _read_json(artifact_refs.get("compare_lhs_producer_audit"))
+    compare_lhs_upstream_writer_audit = _read_json(artifact_refs.get("compare_lhs_upstream_writer_audit"))
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -569,6 +572,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if compare_lhs_producer_classification:
         stage = "compare_lhs_producer_audit"
         reason = compare_lhs_producer_classification
+    upstream_writer_classification = str(
+        compare_lhs_upstream_writer_audit.get("classification") or ""
+    ).strip()
+    if upstream_writer_classification:
+        stage = "compare_lhs_upstream_writer_audit"
+        reason = upstream_writer_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -931,6 +940,28 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": compare_lhs_producer_audit.get("next_bounded_action"),
         }
         if compare_lhs_producer_audit
+        else {},
+        "latest_compare_lhs_upstream_writer_audit": {
+            "classification": upstream_writer_classification or None,
+            "artifact": artifact_refs.get("compare_lhs_upstream_writer_audit"),
+            "candidate_count": compare_lhs_upstream_writer_audit.get("candidate_count"),
+            "runtime_backed_count": compare_lhs_upstream_writer_audit.get("runtime_backed_count"),
+            "relations": compare_lhs_upstream_writer_audit.get("relations", {}),
+            "checked_writers": compare_lhs_upstream_writer_audit.get("checked_writers", [])[:6]
+            if isinstance(compare_lhs_upstream_writer_audit.get("checked_writers"), list)
+            else [],
+            "identified_writers": compare_lhs_upstream_writer_audit.get("identified_writers", [])[:3]
+            if isinstance(compare_lhs_upstream_writer_audit.get("identified_writers"), list)
+            else [],
+            "candidate_dependent_writers": compare_lhs_upstream_writer_audit.get(
+                "candidate_dependent_writers", []
+            )[:3]
+            if isinstance(compare_lhs_upstream_writer_audit.get("candidate_dependent_writers"), list)
+            else [],
+            "breakpoint_probe_allowed": compare_lhs_upstream_writer_audit.get("breakpoint_probe_allowed"),
+            "next_bounded_action": compare_lhs_upstream_writer_audit.get("next_bounded_action"),
+        }
+        if compare_lhs_upstream_writer_audit
         else {},
         "function_semantics": function_semantics,
         "uncertainty": sorted(set(uncertainty)),
@@ -1389,6 +1420,43 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "do_not_repeat": True,
                 "reason": "this audit never authorizes breakpoint probing; it only supplies a next bounded material-hook start",
                 "evidence_artifact": artifacts.get("compare_lhs_producer_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    upstream_writer_audit = _read_json(artifacts.get("compare_lhs_upstream_writer_audit"))
+    upstream_writer_classification = str(upstream_writer_audit.get("classification") or "").strip()
+    if upstream_writer_classification in {
+        "upstream_window_rejected",
+        "candidate_dependent_upstream_observed",
+        "inconclusive",
+    }:
+        results.append(
+            {
+                "direction": "expand compare-aware search instead of following upstream writer evidence",
+                "scope": "compare_lhs_upstream_writer_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "upstream writer audit is bounded to fixed candidates and hook points; unresolved evidence "
+                    "should move or narrow runtime instrumentation rather than grow search"
+                ),
+                "evidence_artifact": artifacts.get("compare_lhs_upstream_writer_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+        results.append(
+            {
+                "direction": "run Base64/RC4 breakpoint probe directly from upstream writer audit",
+                "scope": "compare_lhs_upstream_writer_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "upstream writer evidence still needs compare-lhs and transform-chain semantic confirmation "
+                    "before breakpoint probing is allowed"
+                ),
+                "evidence_artifact": artifacts.get("compare_lhs_upstream_writer_audit"),
                 "override_allowed": True,
                 "override_reason_required": True,
             }

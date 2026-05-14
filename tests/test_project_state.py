@@ -864,6 +864,62 @@ def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp
     assert any(item.get("scope") == "compare_lhs_producer_audit" for item in negative_results)
 
 
+def test_project_state_indexes_compare_lhs_upstream_writer_audit_and_negative_cache(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_lhs_upstream")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "compare_lhs_upstream_writer_audit").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "compare_lhs_upstream_writer_audit" / "compare_lhs_upstream_writer_audit.json",
+        {
+            "artifact_kind": "compare_lhs_upstream_writer_audit",
+            "classification": "candidate_dependent_upstream_observed",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "checked_writers": [
+                {
+                    "hook_name": "producer_post_transform_slot_reload",
+                    "module_offset": "0x2325",
+                    "runtime_backed_count": 3,
+                    "candidate_dependent": True,
+                    "connects_to_compare_lhs": False,
+                    "connects_to_lhs_store": False,
+                }
+            ],
+            "relations": {
+                "slot_1168_to_lhs_store": "inconclusive",
+                "slot_116c_to_lhs_store": "inconclusive",
+                "upstream_to_compare_arg": "inconclusive",
+            },
+            "candidate_dependent_writers": [
+                {"hook_name": "producer_post_transform_slot_reload", "module_offset": "0x2325"}
+            ],
+            "identified_writers": [],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "add relation audit",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_lhs_upstream_writer_audit"].endswith(
+        "compare_lhs_upstream_writer_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_lhs_upstream_writer_audit"
+    assert current_state["current_bottleneck"]["reason"] == "candidate_dependent_upstream_observed"
+    latest = current_state["latest_compare_lhs_upstream_writer_audit"]
+    assert latest["classification"] == "candidate_dependent_upstream_observed"
+    assert latest["candidate_count"] == 3
+    assert latest["runtime_backed_count"] == 3
+    assert latest["candidate_dependent_writers"][0]["hook_name"] == "producer_post_transform_slot_reload"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert any(item.get("scope") == "compare_lhs_upstream_writer_audit" for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

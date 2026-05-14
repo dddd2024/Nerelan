@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-13T13:08:15Z",
+  "generated_at": "2026-05-14T14:17:12Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -10,10 +10,11 @@
     "compare_handoff_probe": null,
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_handoff_slice_probe": null,
-    "compare_lhs_producer_audit": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_producer_audit\\compare_lhs_producer_audit.json",
+    "compare_lhs_producer_audit": null,
+    "compare_lhs_upstream_writer_audit": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\compare_lhs_upstream_writer_audit.json",
     "compare_pre_compare_handoff_target_probe": null,
-    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.log",
     "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "compare_producer_trace_probe": null,
     "compare_stack_pivot_probe": null,
@@ -30,66 +31,66 @@
     "post_handoff_branch_outcome_audit": null,
     "pre_rc4_material_probe": null,
     "profile_transform_hypothesis_matrix": null,
-    "run_manifest": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\run_manifest.json",
+    "run_manifest": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\run_manifest.json",
     "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
     "smt_validation": null,
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\summary.json",
+    "summary": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\summary.json",
     "transform_trace_consistency": null
   },
   "latest_case_results": [
-    "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\case_results\\samplereverse-compare-producer-backtrace.json"
+    "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\case_results\\samplereverse-upstream-writer.json"
   ],
-  "latest_harness_run": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1",
-  "latest_summary": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\summary.json",
+  "latest_harness_run": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1",
+  "latest_summary": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\summary.json",
   "missing": [],
   "recent_artifacts": [
     {
       "kind": "summary",
-      "modified_at": "2026-05-13T13:08:05Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\summary.json",
-      "size_bytes": 857
+      "modified_at": "2026-05-14T14:16:45Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\summary.json",
+      "size_bytes": 901
     },
     {
       "kind": "run_manifest",
-      "modified_at": "2026-05-13T13:08:05Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\run_manifest.json",
-      "size_bytes": 2062
+      "modified_at": "2026-05-14T14:16:45Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\run_manifest.json",
+      "size_bytes": 2049
     },
     {
-      "kind": "compare_lhs_producer_audit",
-      "modified_at": "2026-05-13T13:08:05Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_producer_audit\\compare_lhs_producer_audit.json",
-      "size_bytes": 40368
+      "kind": "compare_lhs_upstream_writer_audit",
+      "modified_at": "2026-05-14T14:16:45Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\compare_lhs_upstream_writer_audit.json",
+      "size_bytes": 46957
     },
     {
-      "kind": "compare_lhs_producer_audit",
-      "modified_at": "2026-05-13T13:08:05Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_producer_audit\\candidate_3\\compare_lhs_producer_audit.json",
-      "size_bytes": 8465
+      "kind": "compare_lhs_upstream_writer_audit",
+      "modified_at": "2026-05-14T14:16:44Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\candidate_3\\compare_lhs_upstream_writer_audit.json",
+      "size_bytes": 7552
     },
     {
-      "kind": "compare_lhs_producer_audit",
-      "modified_at": "2026-05-13T13:07:59Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_producer_audit\\candidate_2\\compare_lhs_producer_audit.json",
-      "size_bytes": 8465
+      "kind": "compare_lhs_upstream_writer_audit",
+      "modified_at": "2026-05-14T14:16:35Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\candidate_2\\compare_lhs_upstream_writer_audit.json",
+      "size_bytes": 8471
     },
     {
-      "kind": "compare_lhs_producer_audit",
-      "modified_at": "2026-05-13T13:07:52Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_producer_audit\\candidate_1\\compare_lhs_producer_audit.json",
-      "size_bytes": 15736
+      "kind": "compare_lhs_upstream_writer_audit",
+      "modified_at": "2026-05-14T14:16:29Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\candidate_1\\compare_lhs_upstream_writer_audit.json",
+      "size_bytes": 15504
     },
     {
       "kind": "compare_probe",
-      "modified_at": "2026-05-13T13:07:45Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-      "size_bytes": 2208
+      "modified_at": "2026-05-14T14:16:23Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.json",
+      "size_bytes": 2231
     },
     {
       "kind": "compare_probe_log",
-      "modified_at": "2026-05-13T13:07:45Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_prod_20260513_r1\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+      "modified_at": "2026-05-14T14:16:23Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_upstream_writer_20260514_r1\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.log",
       "size_bytes": 22
     },
     {

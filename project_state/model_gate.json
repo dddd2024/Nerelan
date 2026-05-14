@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-13T13:08:16Z",
+  "generated_at": "2026-05-14T14:17:13Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "producer_window_rejected",
+  "reason": "candidate_dependent_upstream_observed",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }
