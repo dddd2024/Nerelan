@@ -6,36 +6,51 @@ Generated for `samplereverse` from the latest `project_state` facts.
 
 本轮目标：
 
-**围绕 `post_handoff_branch_outcome_audit` 的 `post_handoff_window_rejected` 结果，定位 compare lhs 的真实 producer / branch outcome。**
+**实现一个 bounded `compare_callsite_reanchor_and_lhs_provenance_audit`，从真实 compare 调用和 lhs 参数出发，重新锚定 compare callsite、caller frame、lhs pointer 来源。**
 
-不要继续把 `0x233d / 0x2346` 当作 material-hook 主方向，也不要提前探测 `0x234e / 0x2355`。当前证据已经表明这些方向在现阶段被阻塞，下一步应先解释：
+当前不要再假设：
 
 ```text
-compare lhs 是从哪个 branch / call outcome 进入 [ebp-0x1170] 或 compare 参数的？
+[ebp-0x1170] / 0x253a / 0x2554 / 0x2559 / 0x258b
 ```
 
-核心目标不是扩大候选搜索，而是把 compare-only 捕获向上游回溯一层，找出真正连接 transform chain 的生产点。
+这一组窗口就是真实 compare lhs producer。上一轮 `compare_lhs_producer_audit` 已经把该窗口分类为：
+
+```text
+classification = producer_window_rejected
+next_bounded_action = move earlier than 0x253a..0x258b
+```
+
+本轮的核心问题是：
+
+```text
+真实 compare helper 被调用时：
+1. 调用点到底是不是 module+0x258c？
+2. compare lhs 是 arg0 还是 arg1？
+3. lhs 指针来自哪个 caller/frame/stack slot/register？
+4. lhs buffer 最近一次候选相关写入来自哪个上游 instruction/call？
+```
+
+目标不是搜索新候选，而是修正动态证据链的锚点。
 
 ## 2. Current Evidence
 
-当前 active strategy：
+当前策略：
 
 ```text
 CompareAwareSearchStrategy
 ```
 
-当前任务：
+当前样本：
 
 ```text
-Investigate stalled post_handoff_branch_outcome_audit path
+samplereverse
 ```
 
-当前瓶颈：
+当前主线：
 
 ```text
-stage: post_handoff_branch_outcome_audit
-reason: post_handoff_window_rejected
-confidence: medium
+L15(prefix8)
 ```
 
 当前最佳候选仍然是：
@@ -47,36 +62,65 @@ runtime_ci_distance5 = 246
 compare_semantics_agree = true
 ```
 
-frontier 候选是：
+当前瓶颈：
 
 ```text
-5a3e7f46ddd474d041414141414141
-runtime_ci_exact_wchars = 1
-runtime_ci_distance5 = 258
-compare_semantics_agree = true
+stage = compare_lhs_producer_audit
+reason = producer_window_rejected
+confidence = medium
 ```
 
-已知变换链：
+最新 artifact 已经确认：
+
+```text
+compare_lhs_producer_audit.runtime_backed_count = 3
+compare_lhs_producer_audit.classification = producer_window_rejected
+breakpoint_probe_allowed = false
+identified_producers = []
+```
+
+上一轮 checked windows 结果：
+
+```text
+0x253a pre_lhs_slot_store:
+  runtime_backed = 3
+  candidate_dependent = false
+  connects_to_compare_lhs = false
+
+0x2554 pre_handoff_call:
+  runtime_backed = 1
+  candidate_dependent = false
+  connects_to_compare_lhs = false
+
+0x2559 post_handoff_lhs_reload:
+  runtime_backed = 0
+  hookable = false
+
+0x258b pre_compare_lhs_push:
+  runtime_backed = 0
+  hookable = false
+
+0x1028ac compare_helper_entry:
+  runtime_backed = 0
+  hookable = false
+```
+
+现有 relation 均未闭合：
+
+```text
+eax_to_slot = inconclusive
+slot_to_compare_arg = inconclusive
+esi_to_compare_arg = inconclusive
+helper_return_to_lhs = inconclusive
+```
+
+已知变换链仍是：
 
 ```text
 input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix
 ```
 
-但目前 Base64/RC4 probe 仍是 compare-only：
-
-```text
-compare_buffer = available
-utf16le_payload = unavailable
-base64_input = unavailable
-base64_output = unavailable
-rc4_input = unavailable
-rc4_key = unavailable
-rc4_output = unavailable
-```
-
-`0x233d / 0x2346` 曾被标记为 candidate-dependent、hookable、instruction-confirmed，但后续 negative cache 已经明确：不要在 post-handoff audit 已拒绝之后继续复用它们作为 material-hook breakpoints。
-
-Codex 上轮已经实现了 `material_hook_runtime_validation` gate，并加了 timeout guard，测试通过；但这个方向现在不应继续原样重复。
+但 Base64/RC4 breakpoint 仍未被授权，因为没有 instruction-confirmed、candidate-dependent、connects_to_compare_lhs 的 material hook。最新 artifact 索引显示 `compare_lhs_producer_audit` 是最新有效产物，而 `base64_rc4_breakpoint_probe`、`compare_producer_trace_probe`、`compare_pre_compare_handoff_target_probe` 等仍为空或不可作为当前直接突破点。
 
 ## 3. Do Not Do
 
@@ -84,36 +128,31 @@ Codex 上轮已经实现了 `material_hook_runtime_validation` gate，并加了 
 
 ```text
 不要回到 old sample_solver blind search
-不要只扩大 beam / budget / guided pool
-不要使用 compare_semantics_agree=false 候选作为主 frontier
+不要扩大 beam / budget / topN / timeout
+不要用 compare_semantics_agree=false 候选作为主 frontier
 不要提交完整 solve_reports
-不要重复 exact2 basin value-pool
+不要重复 exact2 basin value-pool evaluation
 不要重复 H1/H3 fixed contrast set
 不要重复 transform trace consistency audit
-不要重复旧 Base64/RC4 breakpoint probe
-不要重复 focused dynamic compare-path probe
-不要重复 memory-scan lower-level pre-RC4/key material probe
-不要继续沿用旧 0x401b50 -> 0x2559 helper 假设
-不要复用 0x233d/0x2346 作为 material-hook breakpoints
-不要在 branch outcome 未到达前 probe downstream 0x234e/0x2355
+不要直接 rerun Base64/RC4 breakpoint probe
+不要重复 compare return-site audit
+不要重复 producer material confirmation，除非新增 instruction-level evidence
+不要把 0x4019e0 / 0x401b50 / 0x4018cd / 0x401be3 直接当作 Base64/RC4 producer
 不要扫描完整 PROJECT_PROGRESS_LOG.txt
 不要扫描完整 solve_reports
 ```
 
-这些方向已经进入 negative cache，其中部分是 hard block。
+这些方向已写入 negative cache，尤其是：
+
+```text
+run Base64/RC4 breakpoint probe directly from compare lhs producer audit
+```
+
+已经被明确禁止；该 audit 只提供下一步 bounded material-hook start，不授权 Base64/RC4 probe。
 
 ## 4. Files To Inspect
 
-优先检查：
-
-```text
-reverse_agent/function_semantics.py
-reverse_agent/strategies/compare_aware_search.py
-tests/test_compare_aware_search_strategy.py
-tests/test_project_state.py
-```
-
-必须读取的 project_state：
+必须先读：
 
 ```text
 project_state/task_packet.json
@@ -123,197 +162,259 @@ project_state/negative_results.json
 project_state/codex_execution_report.md
 ```
 
-只在必要时读取这些 artifact，不要展开完整 `solve_reports`：
+代码侧优先检查：
 
 ```text
-solve_reports\harness_runs\sr_post_handoff_audit_20260512_r4\reports\tool_artifacts\samplereverse_patched\post_handoff_branch_outcome_audit\post_handoff_branch_outcome_audit.json
-
-solve_reports\harness_runs\sr_post_handoff_audit_20260512_r4\reports\tool_artifacts\samplereverse_patched\samplereverse_patched_compare_probe.json
-
-solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\reports\tool_artifacts\samplereverse_patched\compare_pre_compare_handoff_target_probe\compare_pre_compare_handoff_target_probe.json
-
-solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\reports\tool_artifacts\samplereverse_patched\compare_producer_trace_probe\compare_producer_trace_probe.json
-
-solve_reports\harness_runs\samplereverse_pre_compare_handoff_target_20260512\reports\tool_artifacts\samplereverse_patched\compare_producer_material_confirmation\compare_producer_material_confirmation.json
+reverse_agent/strategies/compare_aware_search.py
+reverse_agent/function_semantics.py
+reverse_agent/project_state.py
+reverse_agent/olly_scripts/compare_lhs_producer_audit.py
+tests/test_compare_aware_search_strategy.py
+tests/test_project_state.py
 ```
+
+只按需读取 indexed artifacts，不要展开完整 `solve_reports`：
+
+```text
+solve_reports\harness_runs\sr_lhs_prod_20260513_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_producer_audit\compare_lhs_producer_audit.json
+
+solve_reports\harness_runs\sr_lhs_prod_20260513_r1\reports\tool_artifacts\samplereverse_patched\samplereverse_patched_compare_probe.json
+
+solve_reports\harness_runs\sr_lhs_prod_20260513_r1\case_results\samplereverse-compare-producer-backtrace.json
+```
+
+如果这些 runtime artifacts 未被提交到仓库，则在本地读取；不要让 GPT 端猜测其内容。
 
 ## 5. Required Audit
 
-### A. 审计 `post_handoff_branch_outcome_audit` 的 rejected 原因
+### A. Compare callsite re-anchor
 
-Codex 需要先明确回答：
-
-```text
-post_handoff_window_rejected 具体拒绝了哪个窗口？
-哪些 hook 点 hit？
-哪些 hook 点 missed？
-哪些寄存器 / 栈槽 / compare 参数关系不成立？
-```
-
-重点整理以下关系：
+Codex 必须先回答：
 
 ```text
-[ebp-0x1170] 是否仍是 compare lhs slot
-0x253a 是否稳定写入 candidate output pointer
-0x2554 call 0x401b50 后是否真的影响 compare lhs
-0x2559 reload 的值是否与 compare arg0 / arg1 对齐
-0x258b push esi 前 esi 是否可解释为 compare lhs
-0x258c compare call 参数是否能稳定捕获
+实际 compare helper 的入口地址是什么？
+实际 compare call 的 caller return address 是什么？
+实际 caller module offset 是否等于 0x258c 附近？
+compare arg0 / arg1 哪一侧是 flag target？
+compare arg0 / arg1 哪一侧是 candidate-dependent lhs？
 ```
 
-不要只复述 artifact，要形成一个小的 relation table。
-
-### B. 重新建立 compare lhs producer 候选表
-
-本轮要产出一个新的 compact artifact，建议命名：
+输出一个 relation table：
 
 ```text
-compare_lhs_producer_audit.json
+field                         status
+actual_compare_entry           confirmed / rejected / inconclusive
+actual_compare_caller_rva      ...
+arg0_candidate_dependent       true / false / unknown
+arg1_candidate_dependent       true / false / unknown
+flag_side                      arg0 / arg1 / unknown
+lhs_side                       arg0 / arg1 / unknown
+lhs_preview_varies_by_candidate true / false
 ```
 
-建议字段：
+### B. Frame re-anchor
+
+上一轮 `[ebp-0x1170]` 方向被 rejected 后，本轮必须确认：
+
+```text
+当前 hook 读到的 EBP 是否属于真实 compare caller frame？
+[ebp-0x1170] 是否确实是本次 compare 的 lhs slot？
+如果不是，真实 lhs pointer 来自哪个 register / stack slot？
+```
+
+不要继续沿用旧 frame 假设。
+
+### C. LHS pointer provenance
+
+以真实 compare lhs pointer 为起点，做 bounded provenance：
+
+```text
+1. 捕获 compare 入口 arg0/arg1 pointer 和 preview
+2. 找出 candidate-dependent 的 lhs pointer
+3. 在同一进程/同一 invocation 中，向上游追踪 lhs buffer 最近一次写入
+4. 优先限定到当前函数或 caller 前后小窗口，不做全局内存扫描
+```
+
+建议 artifact 名称：
+
+```text
+compare_callsite_reanchor_and_lhs_provenance_audit.json
+```
+
+建议 schema：
 
 ```json
 {
-  "classification": "producer_identified | producer_window_rejected | inconclusive",
+  "classification": "lhs_producer_identified | callsite_reanchored_but_producer_unknown | frame_anchor_rejected | inconclusive",
   "candidate_count": 3,
-  "checked_windows": [
-    {
-      "name": "pre_lhs_slot_store",
-      "rva": "0x253a",
-      "hit": true,
-      "candidate_dependent": true,
-      "connects_to_compare_lhs": true
-    }
-  ],
-  "relations": {
-    "slot_to_compare_arg": "confirmed | rejected | inconclusive",
-    "eax_to_slot": "confirmed | rejected | inconclusive",
-    "esi_to_compare_arg": "confirmed | rejected | inconclusive",
-    "helper_return_to_lhs": "confirmed | rejected | inconclusive"
+  "runtime_backed_count": 0,
+  "actual_compare": {
+    "entry": "",
+    "caller_return_address": "",
+    "caller_module_offset": "",
+    "arg0_preview_by_candidate": {},
+    "arg1_preview_by_candidate": {},
+    "lhs_side": "arg0 | arg1 | unknown",
+    "flag_side": "arg0 | arg1 | unknown"
   },
-  "next_bounded_action": "..."
+  "frame_anchor": {
+    "old_slot_ebp_minus_1170_valid": false,
+    "actual_lhs_source": "register | stack_slot | heap_ptr | unknown",
+    "actual_lhs_source_detail": ""
+  },
+  "provenance": {
+    "candidate_dependent": false,
+    "connects_to_compare_lhs": false,
+    "producer_instruction": "",
+    "producer_call": "",
+    "evidence": []
+  },
+  "breakpoint_probe_allowed": false,
+  "next_bounded_action": ""
 }
 ```
 
-### C. 对 3 个候选做最小 cross-candidate 差分
+### D. Candidate set
 
-至少使用：
+使用固定 3 个候选即可：
 
 ```text
 78d540b49c59077041414141414141
 5a3e7f46ddd474d041414141414141
-一个单字节扰动候选，例如修改第 8 或第 9 字节
+78d540b49c59076f41414141414141
 ```
 
-需要记录：
+不要生成新候选集；第三个只作为单点扰动对照。
+
+### E. Gate for next step
+
+只有满足以下条件，下一轮才允许进入 material hook / Base64 / RC4 方向：
 
 ```text
-0x253a 前后 EAX / [ebp-0x1170]
-0x2559 后 ESI / [ebp-0x1170]
-0x258b push esi 前 ESI
-0x258c compare call arg0 / arg1 preview
-compare lhs preview
-```
-
-目标是确认哪个字段真正随候选变化，并且能流入 compare。
-
-### D. 如果 producer 明确，才允许下一步走 material hook
-
-只有当 Codex 能证明某个 producer window 同时满足：
-
-```text
-candidate_dependent = true
-connects_to_compare_lhs = true
-instruction_confirmed = true
+actual compare callsite confirmed
+lhs side confirmed
+lhs preview candidate-dependent
+producer instruction/call connects_to_compare_lhs
 runtime_backed_count >= 3
 ```
 
-才允许下一轮以该 producer 为基础继续寻找 UTF-16LE/Base64/RC4 material。
-
-否则不允许继续 Base64/RC4 probe。
+否则继续阻断 Base64/RC4 breakpoint probe。
 
 ## 6. Implementation Scope
 
-本轮实现范围要小：
+本轮允许的修改范围：
 
 ```text
-1. 新增或修正一个 bounded audit step：compare_lhs_producer_audit
-2. 只围绕 compare lhs producer / slot / compare args 做审计
-3. 不改候选搜索主逻辑
-4. 不扩大 beam / budget
-5. 不引入新的大规模 candidate generation
-6. 不提交完整 solve_reports
-7. 更新 project_state/current_state.json
-8. 更新 project_state/artifact_index.json
-9. 更新 project_state/task_packet.json
-10. 如果发现明确失败方向，追加 negative_results.json
+1. 新增一个 bounded audit step：
+   compare_callsite_reanchor_and_lhs_provenance_audit
+
+2. 复用已有 compare probe / Frida / UIA collector 形状
+
+3. 只增加 compact artifact，不提交完整 solve_reports
+
+4. 更新 project_state indexing：
+   latest_compare_callsite_reanchor_and_lhs_provenance_audit
+
+5. 更新 current_state / task_packet 的 current_bottleneck
+
+6. 必要时追加 negative_results：
+   old frame anchor rejected
+   0x253a..0x258b rejected as lhs producer
 ```
 
-如果已有类似 audit step，不要重复造轮子，优先复用并补 relation classification。
+不允许改：
+
+```text
+candidate ranking
+frontier strategy
+beam / budget / timeout
+sample_solver blind search
+offline transform model
+```
 
 ## 7. Tests
 
 至少运行：
 
 ```powershell
-python -m py_compile reverse_agent\function_semantics.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py
+python -m py_compile reverse_agent\olly_scripts\compare_lhs_producer_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py
 ```
+
+如果新增脚本，例如：
+
+```text
+reverse_agent\olly_scripts\compare_callsite_reanchor_and_lhs_provenance_audit.py
+```
+
+则加入：
 
 ```powershell
-python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_project_state.py
+python -m py_compile reverse_agent\olly_scripts\compare_callsite_reanchor_and_lhs_provenance_audit.py
 ```
 
-如果新增 artifact schema 或 strategy step，再运行：
+再运行：
+
+```powershell
+python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py
+```
+
+如果新增 artifact schema / project_state index：
 
 ```powershell
 python -m pytest -q
 ```
 
-最后重建 project_state：
+最后本地重建状态：
 
 ```powershell
 python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name <new_run_name>
+python -m reverse_agent.project_state status
 ```
 
-上轮全量测试基线是：
+上轮测试基线：
 
 ```text
-204 passed
+212 passed
 ```
 
 ## 8. Stop Conditions
 
 ### 成功停止
 
-满足任一条件就停止并生成 `CODEX_EXECUTION_REPORT`：
+满足任一条件即停止：
 
 ```text
-确认 compare lhs 的真实 producer window
-确认某个 instruction-confirmed hook 点 candidate-dependent 且 connects_to_compare_lhs
-确认新的 upstream window 可作为下一轮 UTF-16LE/Base64/RC4 material hook 起点
+确认真实 compare callsite 和 lhs side
+确认旧 [ebp-0x1170] frame anchor 是错误假设
+确认真实 lhs producer instruction/call
+确认一个 candidate-dependent 且 connects_to_compare_lhs 的上游 hook
 ```
+
+此时生成 `CODEX_EXECUTION_REPORT`，并把下一步收敛到该 producer 的 material hook。
 
 ### 有效失败停止
 
 满足任一条件也停止：
 
 ```text
-确认 0x253a / 0x2559 / 0x258b / 0x258c 这一组窗口无法解释真实 compare lhs 来源
-确认当前 post-handoff window 只能得到 compare-only，无法连接 transform chain
-确认需要回到更早的 branch/call outcome，但当前 artifact 不足以定位
+实际 compare callsite 无法稳定捕获
+lhs side 无法区分
+lhs preview 不随候选变化
+旧 0x253a..0x258b 窗口被再次证明确实不是 producer
+artifact 不足以继续 provenance
 ```
 
-此时必须写入 negative cache，并给出下一个最小 bounded action。
+此时必须写入 negative cache，并给出下一个 bounded action。
 
 ### 禁止继续条件
 
 ```text
-没有新增 runtime evidence，不允许扩大搜索
-没有确认 producer，不允许 Base64/RC4 breakpoint probe
-没有确认 branch outcome 到达，不允许 probe 0x234e / 0x2355
-不能重复 0x233d / 0x2346 material hook
-不能扫描完整 solve_reports
+没有确认 actual compare callsite，不允许继续上游 material probe
+没有确认 lhs side，不允许 Base64/RC4 breakpoint probe
+没有 candidate-dependent lhs preview，不允许扩大搜索
+没有 connects_to_compare_lhs，不允许把任何 0x4019e0 / 0x401b50 / 0x4018cd / 0x401be3 标为 material producer
 ```
 
-这轮的核心判断：**先把 compare lhs 的真实来源钉死，再谈 Base64/RC4。现在继续猜候选或继续探旧 material hook，收益很低。**
+本轮核心判断：
+
+**先从真实 compare 调用重新锚定 lhs 指针，再追 producer。旧的 post-handoff 窗口已经被 rejected，继续沿旧窗口或扩大搜索都不是有效下一步。**
