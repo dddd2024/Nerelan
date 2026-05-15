@@ -4,78 +4,81 @@ Generated for `samplereverse` from the latest `project_state` facts.
 
 ## 1. Goal
 
-当前目标：从已经确认的 compare LHS 侧 `arg0` 反向追踪真实 producer，证明 `arg0` 的候选相关 buffer 是由哪个 instruction / call / frame slot 产生，并判断它是否连接到 UTF-16LE/Base64/RC4 transform chain。
+当前目标：定位 `module+0x258b: push esi` 之前真正把 compare LHS 指针装入 `ESI` 的来源。
 
-上一轮目标已经完成：最新状态显示 compare callsite 已经 re-anchor 成功，`actual_compare.entry_status = confirmed`，`observed_count = 3`，`lhs_side = arg0`，`flag_side = arg1`，`arg0_candidate_dependent = true`，`arg1_candidate_dependent = false`。当前 bottleneck 已经变成 `callsite_reanchored_but_producer_unknown`。
+最新状态已经排除旧 frame anchor：`compare_real_lhs_provenance_audit` 的 classification 是 `old_frame_anchor_rejected`，`old_slot_ebp_minus_1170_valid = false`，`identified_producers = []`，并且 next action 明确要求：keep old `[ebp-0x1170]` blocked and hook the earlier source that loads ESI before `module+0x258b`。
 
-本轮不要再修 callsite 参数捕获。下一步应新增或扩展一个 bounded provenance trace：
+本轮核心问题：
 
-`compare_lhs_arg0_provenance_trace.json`
+> 在 `module+0x258b: push esi` 之前，哪条 instruction / 哪个 basic block / 哪个 helper return 真正写入了 `ESI`，使其成为最终 compare `arg0`？
 
-核心问题：
+Expected output artifact:
 
-> 已确认的 compare `arg0` 指针分别为 `0x480cdd0`、`0x41bcdd0`、`0x3cccdd0` 等候选相关 buffer。这个 buffer 是从哪个 producer 写入/返回/拷贝出来的？它是否来自 `0x2312..0x2338` 附近的 upstream material，还是来自更靠近 compare callsite 的其他路径？
+`compare_esi_source_before_push_audit.json`
+
+或如果 Codex 认为更适合复用现有 sidecar，也可以窄幅扩展 `compare_real_lhs_provenance_audit`，但必须避免把旧 `[ebp-0x1170]` 重新作为默认 anchor。
 
 ## 2. Current Evidence
 
-当前 active strategy 是 `CompareAwareSearchStrategy`。当前 best 仍然是 exact2 candidate `78d540b49c59077041414141414141`，runtime exact wchar count 为 2，distance5 为 246；frontier / exact1 candidate 仍是 `5a3e7f46ddd474d041414141414141`。
+当前 active strategy 是 `CompareAwareSearchStrategy`。当前 best candidate 没有变化：
 
-最新 harness run 是：
+- exact2:
+  - `78d540b49c59077041414141414141`
+  - runtime exact wchar count: `2`
+  - runtime distance5: `246`
+- exact1/frontier:
+  - `5a3e7f46ddd474d041414141414141`
+  - runtime exact wchar count: `1`
+  - runtime distance5: `258`
 
-`sr_cmpcap_20260515_r4`
+这说明仍然没有证据支持扩大候选搜索。
 
-最新核心 artifact 是：
+最新 harness run:
 
-`solve_reports\harness_runs\sr_cmpcap_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_callsite_reanchor_and_lhs_provenance_audit\compare_callsite_reanchor_and_lhs_provenance_audit.json`
+`sr_lhs_arg0_provenance_20260515_r4`
 
-已确认 compare callsite：
+最新核心 artifact:
 
-- `actual_compare.entry = 0x258c`
-- `caller_module_offset = 0x258c`
-- `entry_status = confirmed`
-- `observed_count = 3`
-- `lhs_side = arg0`
-- `flag_side = arg1`
-- `arg0_candidate_dependent = true`
-- `arg1_candidate_dependent = false`
-- `lhs_preview_varies_by_candidate = true`
-- `classification = callsite_reanchored_but_producer_unknown`
-- `breakpoint_probe_allowed = false`
+`solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
 
-已确认参数关系：
+该 artifact 是当前最新 indexed artifact，大小约 69KB，project_state missing 为空。
 
-- `arg0` 是候选相关 LHS buffer。
-- `arg1` 是常量 flag side，preview 为 UTF-16LE 风格的 `flag{...}` 固定字符串。
-- `arg0_value_by_candidate` 随候选变化：
-  - `78d540b49c59077041414141414141` -> `0x480cdd0`
-  - `78d540b49c59076f41414141414141` -> `0x41bcdd0`
-  - `5a3e7f46ddd474d041414141414141` -> `0x3cccdd0`
+当前 bottleneck:
 
-但 producer 仍未确认：
+- stage: `compare_real_lhs_provenance_audit`
+- reason: `old_frame_anchor_rejected`
+- confidence: `medium`
 
-- `identified_producers = []`
-- `provenance.connects_to_compare_lhs = false`
-- `provenance.candidate_dependent = false`
-- old `[ebp-0x1170]` 仍然不能作为可信 anchor。
-- `next_bounded_action = narrow provenance from the confirmed lhs side before any material probe`
+task packet 也明确本轮任务是调查 `compare_real_lhs_provenance_audit` 卡点。
 
-已有负面约束仍然生效：不能直接从 callsite re-anchor audit 进入 Base64/RC4 breakpoint probe，因为还缺少 runtime-backed lhs producer connected to compare lhs。
+已确认事实：
+
+- compare callsite 已确认，不再是当前问题。
+- `arg0` 是 candidate-dependent LHS。
+- `arg1` 是 constant flag side。
+- 旧 `[ebp-0x1170]` 被拒绝。
+- `breakpoint_probe_allowed = false`。
+- `identified_producers = []`。
+- 下一步应 hook `0x258b` 前更早的 ESI source。
+
+旧报告 `codex_execution_report.md` 仍停留在 2026-05-14，记录的是更早的 `sr_callsite_reanchor_20260514_r5 / inconclusive` 状态，已经落后于当前 `current_state.json`。Codex 本轮结束时必须补写新的 CODEX_EXECUTION_REPORT。
 
 ## 3. Do Not Do
 
-1. 不要回到旧 `sample_solver` blind search。
-2. 不要只增加 beam、budget、timeout、topN 或候选池。
-3. 不要使用 `compare_semantics_agree=false` 候选作为主 frontier。
-4. 不要提交完整 `solve_reports`。
-5. 不要重复 exact2 basin value-pool evaluation。
-6. 不要重复 H1/H3 fixed 8-candidate Base64 boundary contrast set。
-7. 不要重复 transform trace consistency audit，除非有新 runtime evidence。
-8. 不要再重复“修 callsite 参数捕获”的任务；它已经确认成功。
-9. 不要复用旧 `[ebp-0x1170]` frame anchor，除非能证明它实际连接到 compare `arg0`。
-10. 不要直接运行 Base64/RC4 breakpoint probe。
-11. 不要把 `0x4019e0`、`0x401b50`、`0x4018cd`、`0x401be3` 当成 Base64/RC4 material producer，除非新增语义/runtime 证据。
-12. 不要扫描完整 `PROJECT_PROGRESS_LOG.txt` 或完整 `solve_reports`。
-13. 不要把 `arg0` 的候选相关性误解为“已经找到 producer”；现在只证明了 compare LHS 侧，不等于证明来源。
+1. Do not return to old `sample_solver` blind search.
+2. Do not only increase beam / budget / timeout / topN.
+3. Do not use `compare_semantics_agree=false` candidates as primary frontier.
+4. Do not commit full `solve_reports`.
+5. Do not repeat exact2 basin value-pool evaluation.
+6. Do not repeat H1/H3 fixed 8-candidate Base64 boundary contrast set.
+7. Do not repeat transform trace consistency audit without new runtime evidence.
+8. Do not rerun Base64/RC4 breakpoint probe before real LHS producer identification.
+9. Do not reuse old `[ebp-0x1170]` without real-lhs provenance evidence.
+10. Do not treat `0x4019e0`, `0x401b50`, `0x4018cd`, or `0x401be3` as Base64/RC4 material producers without new semantic evidence.
+11. Do not scan entire `solve_reports` unless explicitly needed.
+12. Do not re-run the previous arg0 provenance audit unchanged; it already classified `old_frame_anchor_rejected`.
+
+Negative cache 已明确新增两条约束：不要复用旧 `[ebp-0x1170]`，不要在 real lhs producer identification 之前运行 Base64/RC4 breakpoint probe。
 
 ## 4. Files To Inspect
 
@@ -87,78 +90,76 @@ Generated for `samplereverse` from the latest `project_state` facts.
 - `project_state/negative_results.json`
 - `project_state/codex_execution_report.md`
 
-注意：`codex_execution_report.md` 目前仍停留在 2026-05-14 的旧报告，其中还记录 r5 为 `inconclusive`；但最新 `current_state.json` 和 `artifact_index.json` 已经指向 2026-05-15 的 `sr_cmpcap_20260515_r4`，状态比报告更新。Codex 本轮结束时必须补写最新 CODEX_EXECUTION_REPORT。
-
-再检查代码：
+重点代码：
 
 - `reverse_agent/strategies/compare_aware_search.py`
 - `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
 - `reverse_agent/olly_scripts/compare_callsite_reanchor_and_lhs_provenance_audit.py`
+- `reverse_agent/olly_scripts/*lhs*provenance*.py` if present
 - `reverse_agent/function_semantics.py`
 - `reverse_agent/project_state.py`
 - `tests/test_compare_aware_search_strategy.py`
 - `tests/test_project_state.py`
 
-只读取以下 targeted artifacts：
+只读取 targeted artifacts：
 
-- `solve_reports\harness_runs\sr_cmpcap_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_callsite_reanchor_and_lhs_provenance_audit\compare_callsite_reanchor_and_lhs_provenance_audit.json`
-- `solve_reports\harness_runs\sr_cmpcap_20260515_r4\summary.json`
-- `solve_reports\harness_runs\sr_cmpcap_20260515_r4\run_manifest.json`
-- `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\compare_producer_material_confirmation\compare_producer_material_confirmation.json`
+- `solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+- `solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4\summary.json`
+- `solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4\run_manifest.json`
 - `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\compare_handoff_return_site_probe\compare_handoff_return_site_probe.json`
+- `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\compare_producer_material_confirmation\compare_producer_material_confirmation.json`
 - `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\function_semantic_audit\function_semantic_audit.json`
+
+Do not load full `PROJECT_PROGRESS_LOG.txt` or full `solve_reports`.
 
 ## 5. Required Audit
 
-实现或扩展一个 bounded audit：`compare_lhs_arg0_provenance_trace`。
+实现一个 bounded audit：`compare_esi_source_before_push_audit`。
 
-### A. 从 confirmed compare arg0 反向追踪
+### A. Static ESI definition slice
 
-以每个候选的 compare `arg0_value` 为目标指针：
+以 `module+0x258b: push esi` 为 sink，向前做局部静态切片，只找能到达 `0x258b` 的 ESI writer。
 
-- `0x480cdd0`
-- `0x41bcdd0`
-- `0x3cccdd0`
+必须识别以下类型：
 
-在 runtime 中围绕以下 hook 点观察这些指针何时出现、从哪里被复制、何时进入 `esi`、何时进入 stack arg0：
+- `mov esi, ...`
+- `lea esi, ...`
+- `pop esi`
+- `xchg esi, ...`
+- `call` 后 callee / return convention 是否可能改变 `esi`
+- string/memory helper 是否通过 side effect 影响 `esi`
+- predecessor basic blocks 中最后一次写 `esi`
 
-- `module+0x2312`
-- `module+0x2320`
-- `module+0x2325`
-- `module+0x2338`
-- `module+0x233d`
-- `module+0x2346`
-- `module+0x253a`
-- `module+0x2554`
-- `module+0x2559`
-- `module+0x2584`
-- `module+0x2586`
-- `module+0x258b`
-- `module+0x258c`
+输出应列出：
 
-### B. 必须区分三类关系
+- `esi_sink = module+0x258b`
+- predecessor block range
+- each candidate ESI writer:
+  - module offset
+  - instruction
+  - instruction boundary status
+  - basic block / path to `0x258b`
+  - whether hookable
+  - why selected
+  - whether it is before final compare call
 
-对每个 hook 点，判断：
+不要全局扫描，只做 bounded CFG slice。
 
-1. Pointer identity match
-   - register / stack slot / frame slot 的值是否等于 confirmed compare `arg0` 指针。
+### B. Runtime ESI writer validation
 
-2. Preview/content match
-   - hook 点处的 buffer preview 是否与 compare `arg0_preview` 相同或具有稳定前缀关系。
+对 static slice 产出的候选 ESI writer 做 runtime hook，固定三候选：
 
-3. Candidate dependence
-   - 同一 hook 点的值或 preview 是否随三候选变化。
+- `78d540b49c59077041414141414141`
+- `78d540b49c59076f41414141414141`
+- `5a3e7f46ddd474d041414141414141`
 
-不能只看 candidate-dependent；必须证明它连接到 compare `arg0`。
-
-### C. 采集字段
-
-每个候选、每个 hook 点至少采集：
+每个 hook 采集：
 
 - hit count
+- candidate hex
 - module offset
 - instruction
-- register values:
+- before/after registers:
   - `eax`
   - `ecx`
   - `edx`
@@ -166,185 +167,186 @@ Generated for `samplereverse` from the latest `project_state` facts.
   - `edi`
   - `esp`
   - `ebp`
-- register previews:
-  - `eax_preview`
-  - `ecx_preview`
-  - `edx_preview`
+- pointer previews:
   - `esi_preview`
-  - `edi_preview`
-- stack words:
-  - `[esp]`
-  - `[esp+4]`
-  - `[esp+8]`
-  - `[esp+0xc]`
-  - `[esp+0x10]`
-- frame slots:
+  - candidate compare arg0 preview
+- stack words around `esp`
+- frame slots only as diagnostic:
   - `[ebp-0x1168]`
   - `[ebp-0x116c]`
   - `[ebp-0x1170]`
-- compare arg0 target pointer for this candidate
-- whether each observed value equals compare arg0 pointer
-- whether preview matches compare arg0 preview
-- whether hook appears before or after callsite `0x258c`
+- whether `esi` equals confirmed compare arg0 pointer
+- whether `esi_preview` matches confirmed compare arg0 preview
+- whether observed value varies by candidate
 
-### D. Classification
+### C. Confirmed compare arg0 reference
 
-Artifact 顶层 classification 必须是以下之一：
+Use latest `compare_real_lhs_provenance_audit` as reference, not old frame anchor.
 
-1. `lhs_producer_identified`
-   - 找到 runtime-backed hook；
-   - 该 hook 的 register/slot pointer 或 output preview 连接到 confirmed compare `arg0`；
-   - 三候选上关系成立。
+For each candidate, import:
 
-2. `lhs_producer_candidate_dependent_but_unconnected`
-   - 找到候选相关 material；
-   - 但 pointer/preview 不能连接到 confirmed compare `arg0`。
+- compare `arg0_value_by_candidate`
+- compare `arg0_preview_by_candidate`
+- compare `arg1_value_by_candidate`
+- compare `arg1_preview_by_candidate`
+- `lhs_side = arg0`
+- `flag_side = arg1`
 
-3. `lhs_producer_window_rejected`
-   - 当前 `0x2312..0x258c` bounded window 内没有 producer 连接到 compare `arg0`。
+The audit must compare every candidate ESI writer observation against confirmed compare `arg0`, not against `[ebp-0x1170]`.
 
-4. `lhs_producer_hook_coverage_failed`
-   - 关键 hook 未命中或无法读，不得据此推断语义。
+### D. Classifications
+
+Top-level classification must be one of:
+
+1. `esi_source_identified`
+   - a runtime-backed ESI writer is observed;
+   - its resulting `ESI` equals confirmed compare `arg0` pointer or preview;
+   - relation holds across the fixed three candidates.
+
+2. `esi_source_candidates_identified_static_only`
+   - static slice found plausible ESI writers;
+   - runtime validation did not complete or did not hit;
+   - no semantic rejection should be inferred.
+
+3. `esi_source_window_rejected`
+   - bounded slice around known compare path does not contain a real ESI writer connected to arg0;
+   - next action should move earlier in CFG, not expand search.
+
+4. `esi_source_hook_coverage_failed`
+   - key hooks failed because of address, boundary, timeout, UI, or path issue.
 
 5. `inconclusive`
-   - 有部分证据，但不足以判断 producer。
+   - partial observations exist but insufficient to classify.
 
-Artifact 顶层字段：
+Top-level fields:
 
 - `classification`
 - `candidate_count`
 - `runtime_backed_count`
-- `confirmed_lhs_side`
-- `confirmed_flag_side`
-- `compare_arg0_by_candidate`
-- `compare_arg0_preview_by_candidate`
-- `producer_candidates`
-- `producer_connected_points`
-- `candidate_dependent_unconnected_points`
-- `rejected_points`
+- `esi_sink`
+- `confirmed_compare_arg0_by_candidate`
+- `confirmed_compare_arg0_preview_by_candidate`
+- `static_esi_writer_candidates`
+- `runtime_validated_esi_sources`
+- `unconnected_candidate_dependent_points`
 - `hook_coverage_failures`
+- `old_frame_anchor_status`
 - `breakpoint_probe_allowed`
 - `next_bounded_action`
 
-`breakpoint_probe_allowed` 仍然必须默认为 false。只有当 producer 已识别并且能证明其是 transform material，才允许下一轮考虑 Base64/RC4 probe。
+`breakpoint_probe_allowed` must remain false unless the audit identifies a runtime-backed ESI source and proves it is transform material, not just a compare-side copy.
 
 ## 6. Implementation Scope
 
-允许：
+Allowed:
 
-- 新增一个 bounded sidecar：`compare_lhs_arg0_provenance_trace`。
-- 或窄幅扩展 `compare_callsite_reanchor_and_lhs_provenance_audit`，但不要让该 artifact 变得语义混乱。
-- 新增一个薄 runtime script。
-- 在 strategy 中只加入固定三候选调度。
-- project_state 增加 latest artifact indexing。
-- negative_results 增加 producer trace 相关 blocks。
-- 更新 `codex_execution_report.md` 到最新 2026-05-15 状态。
+- Add one bounded sidecar: `compare_esi_source_before_push_audit`.
+- Or narrowly extend `compare_real_lhs_provenance_audit` with a separate ESI source section.
+- Add one thin runtime script if required.
+- Add project_state indexing for the new artifact.
+- Add negative-cache entries for:
+  - repeating old frame anchor after rejection;
+  - running Base64/RC4 before ESI source / real lhs producer is identified.
+- Update `codex_execution_report.md` with the latest 2026-05-15 run status.
 
-不允许：
+Not allowed:
 
-- 不允许生成新候选。
-- 不允许搜索扩展。
-- 不允许直接运行 Base64/RC4 breakpoint probe。
-- 不允许扫描全量 `solve_reports`。
-- 不允许把旧 `[ebp-0x1170]` 当成事实来源。
-- 不允许仅凭 `candidate_dependent=true` 就分类为 producer。
-
-固定候选集：
-
-- `78d540b49c59077041414141414141`
-- `78d540b49c59076f41414141414141`
-- `5a3e7f46ddd474d041414141414141`
-
-这些候选来自最新 compare callsite audit 的三候选观测，不要临时替换。
+- no new candidate generation
+- no search expansion
+- no Base64/RC4 breakpoint probe
+- no full solve_reports scan
+- no reuse of `[ebp-0x1170]` as primary source
+- no classification based only on candidate dependence
+- no assumption that `0x401b50` is material producer without new evidence
 
 ## 7. Tests
 
-至少运行：
+Minimum compile checks:
 
 ```bat
 python -m py_compile reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py reverse_agent\function_semantics.py
 ```
 
-如果新增 runtime script：
+If new runtime script is added:
 
 ```bat
 python -m py_compile reverse_agent\olly_scripts\<new_script>.py
 ```
 
-定向测试：
+Targeted tests:
 
 ```bat
 python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py
 ```
 
-全量测试：
+Full tests:
 
 ```bat
 python -m pytest -q
 ```
 
-真实 harness：
+Runtime validation:
 
 ```bat
-python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_lhs_arg0_provenance_20260515_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled
+python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_esi_source_before_push_20260515_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled
 ```
 
-重建状态：
+Rebuild state:
 
 ```bat
-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_arg0_provenance_20260515_r1
+python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_esi_source_before_push_20260515_r1
 python -m reverse_agent.project_state status
 ```
 
-测试必须覆盖：
+Required test coverage:
 
-1. `lhs_producer_identified`
-   - 三候选都观测到 producer；
-   - producer pointer 或 preview 连接到 compare `arg0`；
-   - `breakpoint_probe_allowed` 仍需受 transform material gate 控制。
+1. `esi_source_identified`
+   - static writer candidate exists;
+   - runtime ESI equals confirmed compare arg0;
+   - relation holds for three candidates;
+   - Base64/RC4 remains blocked unless transform material is proven.
 
-2. `lhs_producer_candidate_dependent_but_unconnected`
-   - hook 点 candidate-dependent；
-   - 但不匹配 compare `arg0` pointer/preview；
-   - 不允许进入 Base64/RC4 probe。
+2. `esi_source_candidates_identified_static_only`
+   - static slice returns hookable candidates;
+   - runtime absent or not run;
+   - classification does not imply semantic rejection.
 
-3. `lhs_producer_window_rejected`
-   - bounded window 内没有连接点；
-   - next action 指向更早/更窄的 provenance slice，而不是候选搜索。
+3. `esi_source_window_rejected`
+   - runtime evidence proves candidate writers do not connect to compare arg0;
+   - next action moves earlier in CFG.
 
-4. `lhs_producer_hook_coverage_failed`
-   - hook 未命中；
-   - artifact 必须报告 hook failure 原因；
-   - 不得误判为 semantic rejection。
+4. `esi_source_hook_coverage_failed`
+   - hooks fail due to address/boundary/path/timeout/UI;
+   - no semantic inference.
 
 5. project_state indexing
-   - 新 artifact 被纳入 `current_state.json`；
-   - bottleneck reason 更新为新分类。
+   - latest artifact appears in `current_state.json`;
+   - bottleneck reason updates.
 
 ## 8. Stop Conditions
 
-Codex 本轮在以下情况停止并提交报告：
+Stop and report if:
 
-1. 找到 compare `arg0` producer。
-   - 报告 producer offset、instruction、register/slot、三候选 evidence。
-   - 报告是否只是 compare-side producer，还是已经接近 transform material。
-   - 不要自动运行 Base64/RC4 probe，除非 gate 明确满足。
+1. ESI source is identified.
+   - Report exact instruction offset.
+   - Report before/after ESI.
+   - Report compare arg0 pointer / preview match for all three candidates.
+   - Keep Base64/RC4 blocked unless transform material is also proven.
 
-2. 找到 candidate-dependent 但不连接 compare `arg0` 的 material。
-   - 分类为 unconnected。
-   - 报告为什么不能作为 producer。
-   - 不要围绕它重复 probe。
+2. Only static ESI candidates are found.
+   - Report candidate offsets and hookability.
+   - Do not infer semantics.
+   - Recommend runtime validation next.
 
-3. 当前 window 被排除。
-   - 分类为 `lhs_producer_window_rejected`。
-   - 给出下一段 bounded slice，而不是扩大搜索。
+3. Current bounded window is rejected.
+   - Report why no ESI writer connects to compare arg0.
+   - Move earlier in CFG, not into candidate search.
 
-4. hook coverage 失败。
-   - 报告失败原因：地址错误、inside-instruction、ASLR/base mismatch、path not reached、timeout、pointer unreadable 或 UI launch failure。
-   - 不要据此推断语义。
+4. Hook coverage fails.
+   - Report address, module base, instruction boundary, path reachability, timeout, UI/runtime errors.
 
-5. 测试失败。
-   - 停止并报告失败输出。
-   - 不继续 harness。
+5. Tests fail.
+   - Stop after collecting failure output.
+   - Do not run harness until fixed.
 
-本轮核心判断：compare callsite 已经解决，`arg0` 就是 LHS，`arg1` 就是 flag side。下一步只追一个问题：谁生产了 `arg0` 这个 buffer。追不到 producer，就不能进入 Base64/RC4；追到 producer，下一轮再判断它是不是 transform material。
+本轮核心判断：`old [ebp-0x1170]` 已经被拒绝；真正要找的是 `0x258b push esi` 前谁把最终 compare LHS buffer 放进了 `ESI`。只有找到这个来源，后面才有资格继续判断它是 copy/handoff 还是 UTF-16LE/Base64/RC4 transform material。
