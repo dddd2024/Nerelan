@@ -4,23 +4,23 @@ Generated for `samplereverse` from the latest `project_state` facts.
 
 ## 1. Goal
 
-当前目标：定位 `module+0x258b: push esi` 之前真正把 compare LHS 指针装入 `ESI` 的来源。
+当前目标：继续追踪 `ESI` 在 `0x2559..0x258b` 窗口内如何成为最终 compare LHS，也就是明确 `module+0x258b: push esi` 处的 `ESI` 是从哪里来的、是否只是 compare-side handoff/copy，还是已经接近 transform material。
 
-最新状态已经排除旧 frame anchor：`compare_real_lhs_provenance_audit` 的 classification 是 `old_frame_anchor_rejected`，`old_slot_ebp_minus_1170_valid = false`，`identified_producers = []`，并且 next action 明确要求：keep old `[ebp-0x1170]` blocked and hook the earlier source that loads ESI before `module+0x258b`。
-
-本轮核心问题：
-
-> 在 `module+0x258b: push esi` 之前，哪条 instruction / 哪个 basic block / 哪个 helper return 真正写入了 `ESI`，使其成为最终 compare `arg0`？
+最新状态已经前进：`compare_real_lhs_provenance_audit` 的当前 reason 是 `lhs_register_source_confirmed`，说明 `ESI` 在 `0x258b` 处已经被确认是 compare `arg0` 来源。当前 task 也变为 `Trace ESI source window 0x2559..0x258b`。这轮不应再做“找 ESI 是否等于 arg0”的重复验证，而应进一步缩小 `0x2559..0x258b` 内部的数据来源。
 
 Expected output artifact:
 
-`compare_esi_source_before_push_audit.json`
+`compare_esi_feeding_window_audit.json`
 
-或如果 Codex 认为更适合复用现有 sidecar，也可以窄幅扩展 `compare_real_lhs_provenance_audit`，但必须避免把旧 `[ebp-0x1170]` 重新作为默认 anchor。
+或窄幅扩展现有：
+
+`compare_real_lhs_provenance_audit.json`
+
+但必须单独输出 `esi_feeding_window` section。
 
 ## 2. Current Evidence
 
-当前 active strategy 是 `CompareAwareSearchStrategy`。当前 best candidate 没有变化：
+当前 active strategy 仍是 `CompareAwareSearchStrategy`。当前 best candidate 没有变化：
 
 - exact2:
   - `78d540b49c59077041414141414141`
@@ -35,33 +35,45 @@ Expected output artifact:
 
 最新 harness run:
 
-`sr_lhs_arg0_provenance_20260515_r4`
+`sr_esi_snapshot_20260515_r4`
 
 最新核心 artifact:
 
-`solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+`solve_reports\harness_runs\sr_esi_snapshot_20260515_r4\reports\tool_artifacts\samplereverse\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
 
-该 artifact 是当前最新 indexed artifact，大小约 69KB，project_state missing 为空。
+artifact index 显示该 run 是当前最新 run，`compare_real_lhs_provenance_audit` 是当前最新核心 artifact，且 `missing = []`。
 
 当前 bottleneck:
 
 - stage: `compare_real_lhs_provenance_audit`
-- reason: `old_frame_anchor_rejected`
+- reason: `lhs_register_source_confirmed`
 - confidence: `medium`
 
-task packet 也明确本轮任务是调查 `compare_real_lhs_provenance_audit` 卡点。
+最新 `compare_real_lhs_provenance_audit` 中已经确认：
 
-已确认事实：
+- `entry = 0x258c`
+- `entry_status = confirmed`
+- `lhs_side = arg0`
+- `flag_side = arg1`
+- `arg0_candidate_dependent = true`
+- `arg1_candidate_dependent = false`
+- `lhs_preview_varies_by_candidate = true`
+- `classification = lhs_register_source_confirmed`
+- `pre_compare_lhs_push` at `module+0x258b`:
+  - `instruction = push esi`
+  - `candidate_dependent = true`
+  - `connects_to_compare_lhs = true`
+  - `compare_lhs_match_count = 3`
+  - `runtime_backed_count = 3`
 
-- compare callsite 已确认，不再是当前问题。
-- `arg0` 是 candidate-dependent LHS。
-- `arg1` 是 constant flag side。
-- 旧 `[ebp-0x1170]` 被拒绝。
-- `breakpoint_probe_allowed = false`。
-- `identified_producers = []`。
-- 下一步应 hook `0x258b` 前更早的 ESI source。
+但仍未确认真正 producer：
 
-旧报告 `codex_execution_report.md` 仍停留在 2026-05-14，记录的是更早的 `sr_callsite_reanchor_20260514_r5 / inconclusive` 状态，已经落后于当前 `current_state.json`。Codex 本轮结束时必须补写新的 CODEX_EXECUTION_REPORT。
+- `identified_producers = []`
+- `old_slot_ebp_minus_1170_status = rejected`
+- `old_slot_ebp_minus_1170_valid = false`
+- `breakpoint_probe_allowed = false`
+- `next_producer_window = 0x2559..0x258b`
+- `next_bounded_action = hook the narrower window feeding ESI before module+0x258b, starting at module+0x2559 and the instruction range immediately before the compare push`
 
 ## 3. Do Not Do
 
@@ -73,12 +85,18 @@ task packet 也明确本轮任务是调查 `compare_real_lhs_provenance_audit` �
 6. Do not repeat H1/H3 fixed 8-candidate Base64 boundary contrast set.
 7. Do not repeat transform trace consistency audit without new runtime evidence.
 8. Do not rerun Base64/RC4 breakpoint probe before real LHS producer identification.
-9. Do not reuse old `[ebp-0x1170]` without real-lhs provenance evidence.
-10. Do not treat `0x4019e0`, `0x401b50`, `0x4018cd`, or `0x401be3` as Base64/RC4 material producers without new semantic evidence.
-11. Do not scan entire `solve_reports` unless explicitly needed.
-12. Do not re-run the previous arg0 provenance audit unchanged; it already classified `old_frame_anchor_rejected`.
+9. Do not reuse old `[ebp-0x1170]` as primary anchor.
+10. Do not re-run the previous ESI snapshot unchanged; it already proved `ESI` at `0x258b` connects to compare `arg0`.
+11. Do not treat `0x4019e0`, `0x401b50`, `0x4018cd`, or `0x401be3` as Base64/RC4 material producers without new semantic/runtime evidence.
+12. Do not scan entire `solve_reports` unless explicitly needed.
+13. Do not classify a source as transform material merely because it is candidate-dependent.
 
-Negative cache 已明确新增两条约束：不要复用旧 `[ebp-0x1170]`，不要在 real lhs producer identification 之前运行 Base64/RC4 breakpoint probe。
+Negative cache still blocks:
+
+- old solver blind search;
+- budget-only expansion;
+- stale `[ebp-0x1170]` reuse;
+- Base64/RC4 breakpoint probe before real LHS producer identification.
 
 ## 4. Files To Inspect
 
@@ -95,7 +113,7 @@ Negative cache 已明确新增两条约束：不要复用旧 `[ebp-0x1170]`，�
 - `reverse_agent/strategies/compare_aware_search.py`
 - `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
 - `reverse_agent/olly_scripts/compare_callsite_reanchor_and_lhs_provenance_audit.py`
-- `reverse_agent/olly_scripts/*lhs*provenance*.py` if present
+- `reverse_agent/olly_scripts/*lhs*provenance*.py`
 - `reverse_agent/function_semantics.py`
 - `reverse_agent/project_state.py`
 - `tests/test_compare_aware_search_strategy.py`
@@ -103,9 +121,10 @@ Negative cache 已明确新增两条约束：不要复用旧 `[ebp-0x1170]`，�
 
 只读取 targeted artifacts：
 
-- `solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
-- `solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4\summary.json`
-- `solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4\run_manifest.json`
+- `solve_reports\harness_runs\sr_esi_snapshot_20260515_r4\reports\tool_artifacts\samplereverse\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+- `solve_reports\harness_runs\sr_esi_snapshot_20260515_r4\summary.json`
+- `solve_reports\harness_runs\sr_esi_snapshot_20260515_r4\run_manifest.json`
+- `solve_reports\harness_runs\sr_esi_snapshot_20260515_r4\reports\tool_artifacts\samplereverse\samplereverse_compare_probe.json`
 - `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\compare_handoff_return_site_probe\compare_handoff_return_site_probe.json`
 - `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\compare_producer_material_confirmation\compare_producer_material_confirmation.json`
 - `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\function_semantic_audit\function_semantic_audit.json`
@@ -114,109 +133,134 @@ Do not load full `PROJECT_PROGRESS_LOG.txt` or full `solve_reports`.
 
 ## 5. Required Audit
 
-实现一个 bounded audit：`compare_esi_source_before_push_audit`。
+实现一个 bounded audit：`compare_esi_feeding_window_audit`。
 
-### A. Static ESI definition slice
+### A. Static window audit: `0x2559..0x258b`
 
-以 `module+0x258b: push esi` 为 sink，向前做局部静态切片，只找能到达 `0x258b` 的 ESI writer。
+以 `module+0x258b: push esi` 为 sink，精确审计 `0x2559..0x258b` 之间所有可能影响 `ESI` 或 compare arg0 的指令。
 
-必须识别以下类型：
+必须输出：
 
-- `mov esi, ...`
-- `lea esi, ...`
-- `pop esi`
-- `xchg esi, ...`
-- `call` 后 callee / return convention 是否可能改变 `esi`
-- string/memory helper 是否通过 side effect 影响 `esi`
-- predecessor basic blocks 中最后一次写 `esi`
-
-输出应列出：
-
-- `esi_sink = module+0x258b`
-- predecessor block range
-- each candidate ESI writer:
-  - module offset
+- instruction list:
+  - rva
+  - bytes
   - instruction
-  - instruction boundary status
-  - basic block / path to `0x258b`
-  - whether hookable
-  - why selected
-  - whether it is before final compare call
+  - size
+  - boundary status
+  - whether writes `ESI`
+  - whether reads `[ebp-*]`
+  - whether calls helper
+  - whether may alter `ESI` by side effect
+- control-flow relation:
+  - does execution fall through from `0x2559` to `0x258b`
+  - any branch into/out of this window
+  - any call in this window
+  - predecessor basic blocks of `0x258b`
+- dataflow hypothesis:
+  - `ESI` loaded directly in window
+  - `ESI` preserved from earlier block
+  - `ESI` altered by helper side effect
+  - `ESI` copied from stack/frame slot
+  - `ESI` is stale/carry-over from earlier candidate material
 
-不要全局扫描，只做 bounded CFG slice。
+### B. Runtime hook points
 
-### B. Runtime ESI writer validation
-
-对 static slice 产出的候选 ESI writer 做 runtime hook，固定三候选：
+固定三候选：
 
 - `78d540b49c59077041414141414141`
 - `78d540b49c59076f41414141414141`
 - `5a3e7f46ddd474d041414141414141`
 
+在以下点做 runtime snapshot：
+
+- `module+0x2559`
+- every instruction boundary between `0x2559` and `0x258b`
+- `module+0x2584`
+- `module+0x2586`
+- `module+0x258b`
+- `module+0x258c`
+
+如果 window 内存在 call，则额外 hook：
+
+- call before
+- callee enter if in module and hookable
+- return site
+- call after
+
 每个 hook 采集：
 
-- hit count
 - candidate hex
+- hit count
 - module offset
 - instruction
-- before/after registers:
+- EIP / ESP / EBP
+- before/after registers if possible:
   - `eax`
   - `ecx`
   - `edx`
   - `esi`
   - `edi`
-  - `esp`
-  - `ebp`
-- pointer previews:
+- previews:
   - `esi_preview`
-  - candidate compare arg0 preview
-- stack words around `esp`
-- frame slots only as diagnostic:
+  - `eax_preview`
+  - `edx_preview`
+  - confirmed compare arg0 preview
+- stack words:
+  - `[esp]`
+  - `[esp+4]`
+  - `[esp+8]`
+  - `[esp+0xc]`
+  - `[esp+0x10]`
+- diagnostic frame slots:
   - `[ebp-0x1168]`
   - `[ebp-0x116c]`
   - `[ebp-0x1170]`
-- whether `esi` equals confirmed compare arg0 pointer
-- whether `esi_preview` matches confirmed compare arg0 preview
-- whether observed value varies by candidate
+- whether `ESI == confirmed compare arg0`
+- whether `ESI preview == confirmed compare arg0 preview`
+- whether value or preview varies by candidate
 
 ### C. Confirmed compare arg0 reference
 
-Use latest `compare_real_lhs_provenance_audit` as reference, not old frame anchor.
+Use latest `compare_real_lhs_provenance_audit` as source of truth.
 
 For each candidate, import:
 
-- compare `arg0_value_by_candidate`
-- compare `arg0_preview_by_candidate`
-- compare `arg1_value_by_candidate`
-- compare `arg1_preview_by_candidate`
+- `actual_compare.arg0_value_by_candidate`
+- `actual_compare.arg0_preview_by_candidate`
+- `actual_compare.arg1_value_by_candidate`
+- `actual_compare.arg1_preview_by_candidate`
 - `lhs_side = arg0`
 - `flag_side = arg1`
 
-The audit must compare every candidate ESI writer observation against confirmed compare `arg0`, not against `[ebp-0x1170]`.
+The audit must compare all ESI/window observations against confirmed compare `arg0`, not against `[ebp-0x1170]`.
 
-### D. Classifications
+### D. Required classification
 
 Top-level classification must be one of:
 
-1. `esi_source_identified`
-   - a runtime-backed ESI writer is observed;
-   - its resulting `ESI` equals confirmed compare `arg0` pointer or preview;
-   - relation holds across the fixed three candidates.
+1. `esi_feeding_instruction_identified`
+   - a specific instruction in `0x2559..0x258b` writes or establishes `ESI`;
+   - runtime-backed;
+   - connects to compare `arg0` across fixed candidates.
 
-2. `esi_source_candidates_identified_static_only`
-   - static slice found plausible ESI writers;
-   - runtime validation did not complete or did not hit;
-   - no semantic rejection should be inferred.
+2. `esi_preserved_from_earlier_block`
+   - `ESI` already equals confirmed compare `arg0` at first hook in this window;
+   - no instruction in `0x2559..0x258b` creates it;
+   - next action must move earlier in CFG.
 
-3. `esi_source_window_rejected`
-   - bounded slice around known compare path does not contain a real ESI writer connected to arg0;
-   - next action should move earlier in CFG, not expand search.
+3. `esi_helper_side_effect_suspected`
+   - a call in or immediately before the window changes or establishes `ESI`;
+   - needs a narrower helper return/entry audit.
 
-4. `esi_source_hook_coverage_failed`
-   - key hooks failed because of address, boundary, timeout, UI, or path issue.
+4. `esi_window_rejected`
+   - bounded window does not explain ESI source;
+   - next action moves to predecessor block, not search expansion.
 
-5. `inconclusive`
-   - partial observations exist but insufficient to classify.
+5. `esi_window_hook_coverage_failed`
+   - hooks did not hit or were unreadable due to address/boundary/path/timeout/UI issue.
+
+6. `inconclusive`
+   - partial evidence exists but not enough to classify.
 
 Top-level fields:
 
@@ -224,40 +268,53 @@ Top-level fields:
 - `candidate_count`
 - `runtime_backed_count`
 - `esi_sink`
+- `window_start`
+- `window_end`
 - `confirmed_compare_arg0_by_candidate`
 - `confirmed_compare_arg0_preview_by_candidate`
-- `static_esi_writer_candidates`
-- `runtime_validated_esi_sources`
-- `unconnected_candidate_dependent_points`
-- `hook_coverage_failures`
+- `window_instruction_table`
+- `runtime_snapshots_by_offset`
+- `esi_value_by_offset_and_candidate`
+- `esi_matches_arg0_by_offset`
+- `esi_transition_points`
+- `helper_side_effect_candidates`
+- `predecessor_blocks`
 - `old_frame_anchor_status`
 - `breakpoint_probe_allowed`
 - `next_bounded_action`
 
-`breakpoint_probe_allowed` must remain false unless the audit identifies a runtime-backed ESI source and proves it is transform material, not just a compare-side copy.
+`breakpoint_probe_allowed` must stay false unless this audit proves both:
+
+- real LHS producer is runtime-backed;
+- producer is transform material, not merely compare-side handoff/copy.
+
+本轮预期大概率仍然不允许 Base64/RC4 probe。
 
 ## 6. Implementation Scope
 
 Allowed:
 
-- Add one bounded sidecar: `compare_esi_source_before_push_audit`.
-- Or narrowly extend `compare_real_lhs_provenance_audit` with a separate ESI source section.
-- Add one thin runtime script if required.
-- Add project_state indexing for the new artifact.
-- Add negative-cache entries for:
-  - repeating old frame anchor after rejection;
-  - running Base64/RC4 before ESI source / real lhs producer is identified.
-- Update `codex_execution_report.md` with the latest 2026-05-15 run status.
+- Add one bounded sidecar: `compare_esi_feeding_window_audit`.
+- Or narrowly extend `compare_real_lhs_provenance_audit` with an `esi_feeding_window` section.
+- Add one thin runtime script if needed.
+- Add project_state indexing for new artifact if new artifact name is used.
+- Add tests for:
+  - static window table
+  - ESI match across candidates
+  - preserved-from-earlier classification
+  - helper-side-effect classification
+  - project_state indexing
+- Update `codex_execution_report.md` to reflect the latest 2026-05-15 run and this new result.
 
 Not allowed:
 
-- no new candidate generation
+- no candidate generation
 - no search expansion
 - no Base64/RC4 breakpoint probe
 - no full solve_reports scan
 - no reuse of `[ebp-0x1170]` as primary source
 - no classification based only on candidate dependence
-- no assumption that `0x401b50` is material producer without new evidence
+- no assumption that `0x401b50` is transform material without new evidence
 
 ## 7. Tests
 
@@ -288,65 +345,69 @@ python -m pytest -q
 Runtime validation:
 
 ```bat
-python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_esi_source_before_push_20260515_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled
+python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_esi_feeding_window_20260515_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled
 ```
 
 Rebuild state:
 
 ```bat
-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_esi_source_before_push_20260515_r1
+python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_esi_feeding_window_20260515_r1
 python -m reverse_agent.project_state status
 ```
 
 Required test coverage:
 
-1. `esi_source_identified`
-   - static writer candidate exists;
-   - runtime ESI equals confirmed compare arg0;
-   - relation holds for three candidates;
-   - Base64/RC4 remains blocked unless transform material is proven.
+1. `esi_feeding_instruction_identified`
+   - runtime-backed instruction establishes ESI;
+   - ESI matches compare arg0 across three candidates.
 
-2. `esi_source_candidates_identified_static_only`
-   - static slice returns hookable candidates;
-   - runtime absent or not run;
-   - classification does not imply semantic rejection.
+2. `esi_preserved_from_earlier_block`
+   - ESI already matches compare arg0 at window entry;
+   - no write in window;
+   - next action points earlier in CFG.
 
-3. `esi_source_window_rejected`
-   - runtime evidence proves candidate writers do not connect to compare arg0;
-   - next action moves earlier in CFG.
+3. `esi_helper_side_effect_suspected`
+   - call/return relation changes ESI or related pointer;
+   - next action narrows to helper.
 
-4. `esi_source_hook_coverage_failed`
-   - hooks fail due to address/boundary/path/timeout/UI;
-   - no semantic inference.
+4. `esi_window_rejected`
+   - window cannot explain source;
+   - no search expansion triggered.
 
-5. project_state indexing
-   - latest artifact appears in `current_state.json`;
-   - bottleneck reason updates.
+5. `esi_window_hook_coverage_failed`
+   - hooks fail for path/address/boundary/runtime reason;
+   - no semantic rejection inferred.
+
+6. project_state indexing
+   - new artifact appears in current_state;
+   - bottleneck reason reflects classification.
 
 ## 8. Stop Conditions
 
 Stop and report if:
 
-1. ESI source is identified.
-   - Report exact instruction offset.
-   - Report before/after ESI.
-   - Report compare arg0 pointer / preview match for all three candidates.
-   - Keep Base64/RC4 blocked unless transform material is also proven.
+1. A specific ESI-feeding instruction is identified.
+   - Report offset, instruction, before/after ESI, and three-candidate match.
+   - State whether it is copy/handoff or potential transform material.
+   - Keep Base64/RC4 blocked unless transform material is proven.
 
-2. Only static ESI candidates are found.
-   - Report candidate offsets and hookability.
-   - Do not infer semantics.
-   - Recommend runtime validation next.
+2. ESI is preserved from an earlier block.
+   - Report first hook where ESI already equals arg0.
+   - Provide next predecessor block/window to inspect.
 
-3. Current bounded window is rejected.
-   - Report why no ESI writer connects to compare arg0.
+3. Helper side effect is suspected.
+   - Report call offset, return site, ESI before/after.
+   - Propose a bounded helper enter/return audit.
+
+4. Current window is rejected.
+   - Report why.
    - Move earlier in CFG, not into candidate search.
 
-4. Hook coverage fails.
-   - Report address, module base, instruction boundary, path reachability, timeout, UI/runtime errors.
+5. Hook coverage fails.
+   - Report address, module base, boundary, timeout, UI/runtime errors.
 
-5. Tests fail.
+6. Tests fail.
    - Stop after collecting failure output.
    - Do not run harness until fixed.
 
-本轮核心判断：`old [ebp-0x1170]` 已经被拒绝；真正要找的是 `0x258b push esi` 前谁把最终 compare LHS buffer 放进了 `ESI`。只有找到这个来源，后面才有资格继续判断它是 copy/handoff 还是 UTF-16LE/Base64/RC4 transform material。
+本轮核心判断：`0x258b: push esi` 已经证明 `ESI` 是 compare LHS。现在要回答的是：`0x2559..0x258b` 这段窗口内到底是谁让 `ESI` 变成该 LHS；如果窗口入口处 ESI 已经是 LHS，就继续往更早 predecessor block 追，而不是回到候选搜索或 Base64/RC4 probe。
