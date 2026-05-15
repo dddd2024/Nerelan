@@ -4,111 +4,82 @@ Generated for `samplereverse` from the latest `project_state` facts.
 
 ## 1. Goal
 
-修正当前 `compare_callsite_reanchor_and_lhs_provenance_audit` 的真实 compare 入口覆盖问题。
+当前目标：从已经确认的 compare LHS 侧 `arg0` 反向追踪真实 producer，证明 `arg0` 的候选相关 buffer 是由哪个 instruction / call / frame slot 产生，并判断它是否连接到 UTF-16LE/Base64/RC4 transform chain。
 
-当前瓶颈不是候选搜索不足，而是实际 compare 入口没有被稳定观测：最新 r5 结果中 `actual_compare.entry_status = rejected`、`observed_count = 0`、`lhs_side = unknown`、`flag_side = unknown`，因此不能继续信任旧 `[ebp-0x1170]` anchor，也不能放开 Base64/RC4 breakpoint probe。
+上一轮目标已经完成：最新状态显示 compare callsite 已经 re-anchor 成功，`actual_compare.entry_status = confirmed`，`observed_count = 3`，`lhs_side = arg0`，`flag_side = arg1`，`arg0_candidate_dependent = true`，`arg1_candidate_dependent = false`。当前 bottleneck 已经变成 `callsite_reanchored_but_producer_unknown`。
 
-本轮目标：在不扩展候选搜索的前提下，增加或修正一个 bounded compare-entry / callsite argument capture probe，使 Codex 能确认：
+本轮不要再修 callsite 参数捕获。下一步应新增或扩展一个 bounded provenance trace：
 
-1. `module+0x258c call 0x5028ac` 是否真的执行；
-2. callsite 前 `push esi` 与 `push 0x551c4c` 是否能直接捕获 compare 两侧参数；
-3. compare callee entry 是否因为 attach 地址、模块基址、导入/跳板、调用约定或位宽问题导致未命中；
-4. 哪一侧是 candidate-dependent lhs，哪一侧是 flag prefix constant。
+`compare_lhs_arg0_provenance_trace.json`
 
-Expected output artifact: reuse or extend `compare_callsite_reanchor_and_lhs_provenance_audit.json`, or add one bounded artifact named along the lines of:
+核心问题：
 
-`compare_actual_callsite_argument_capture.json`
-
-Do not create a broad duplicate audit if the current sidecar can be narrowly extended.
+> 已确认的 compare `arg0` 指针分别为 `0x480cdd0`、`0x41bcdd0`、`0x3cccdd0` 等候选相关 buffer。这个 buffer 是从哪个 producer 写入/返回/拷贝出来的？它是否来自 `0x2312..0x2338` 附近的 upstream material，还是来自更靠近 compare callsite 的其他路径？
 
 ## 2. Current Evidence
 
-Current active strategy is `CompareAwareSearchStrategy`.
+当前 active strategy 是 `CompareAwareSearchStrategy`。当前 best 仍然是 exact2 candidate `78d540b49c59077041414141414141`，runtime exact wchar count 为 2，distance5 为 246；frontier / exact1 candidate 仍是 `5a3e7f46ddd474d041414141414141`。
 
-Current best candidate remains:
+最新 harness run 是：
 
-- exact2 candidate:
-  - `78d540b49c59077041414141414141`
-  - prefix: `78d540b49c590770`
-  - runtime exact wchar count: `2`
-  - runtime distance5: `246`
+`sr_cmpcap_20260515_r4`
 
-Current frontier / exact1 candidate remains:
+最新核心 artifact 是：
 
-- `5a3e7f46ddd474d041414141414141`
-- prefix: `5a3e7f46ddd474d0`
-- runtime exact wchar count: `1`
-- runtime distance5: `258`
+`solve_reports\harness_runs\sr_cmpcap_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_callsite_reanchor_and_lhs_provenance_audit\compare_callsite_reanchor_and_lhs_provenance_audit.json`
 
-Known transform hypothesis is still:
+已确认 compare callsite：
 
-`input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix`
+- `actual_compare.entry = 0x258c`
+- `caller_module_offset = 0x258c`
+- `entry_status = confirmed`
+- `observed_count = 3`
+- `lhs_side = arg0`
+- `flag_side = arg1`
+- `arg0_candidate_dependent = true`
+- `arg1_candidate_dependent = false`
+- `lhs_preview_varies_by_candidate = true`
+- `classification = callsite_reanchored_but_producer_unknown`
+- `breakpoint_probe_allowed = false`
 
-Latest bottleneck:
+已确认参数关系：
 
-- stage: `compare_callsite_reanchor_and_lhs_provenance_audit`
-- reason: `inconclusive`
-- confidence: medium
+- `arg0` 是候选相关 LHS buffer。
+- `arg1` 是常量 flag side，preview 为 UTF-16LE 风格的 `flag{...}` 固定字符串。
+- `arg0_value_by_candidate` 随候选变化：
+  - `78d540b49c59077041414141414141` -> `0x480cdd0`
+  - `78d540b49c59076f41414141414141` -> `0x41bcdd0`
+  - `5a3e7f46ddd474d041414141414141` -> `0x3cccdd0`
 
-Latest r5 audit evidence:
+但 producer 仍未确认：
 
-- `classification`: `inconclusive`
-- `candidate_count`: `3`
-- `runtime_backed_count`: `3`
-- `actual_compare.entry`: `0x1028ac`
-- `actual_compare.entry_status`: `rejected`
-- `actual_compare.observed_count`: `0`
-- `actual_compare.lhs_side`: `unknown`
-- `actual_compare.flag_side`: `unknown`
-- `frame_anchor.old_slot_ebp_minus_1170_status`: `inconclusive`
-- `breakpoint_probe_allowed`: `false`
+- `identified_producers = []`
+- `provenance.connects_to_compare_lhs = false`
+- `provenance.candidate_dependent = false`
+- old `[ebp-0x1170]` 仍然不能作为可信 anchor。
+- `next_bounded_action = narrow provenance from the confirmed lhs side before any material probe`
 
-Important correction from the latest Codex run:
-
-- The first implementation incorrectly treated a three-candidate run as actual compare confirmation even when only upstream hooks fired.
-- The classifier now correctly requires actual compare entry observations before reporting re-anchor success.
-- Therefore, the next task is not to rerun the same audit unchanged; it must improve actual compare hook coverage or capture arguments at the callsite before callee entry.
-
-Static compare window from the current state:
-
-- `module+0x253a`: `mov dword ptr [ebp - 0x1170], eax`
-- `module+0x2554`: `call 0x401b50`
-- `module+0x2559`: `mov esi, dword ptr [ebp - 0x1170]`
-- `module+0x2584`: `push 5`
-- `module+0x2586`: `push 0x551c4c`
-- `module+0x258b`: `push esi`
-- `module+0x258c`: `call 0x5028ac`
-
-This means that even if the callee entry hook at `0x5028ac` or `module+0x1028ac` fails, the callsite should expose compare arguments immediately before the call.
-
-Current script situation:
-
-- `reverse_agent/olly_scripts/compare_callsite_reanchor_and_lhs_provenance_audit.py` is only a thin entry point that imports `main` from `compare_pre_compare_handoff_target_probe.py`.
-- Actual Frida/UIA collection logic is in `compare_pre_compare_handoff_target_probe.py`.
-- That script already has `compareEntrySlots(sp, moduleBase)`, but it only applies compare-argument interpretation when the hook name is `compare_helper_entry`.
-- Because `compare_helper_entry` did not observe hits in r5, this round should add direct callsite-level argument capture.
+已有负面约束仍然生效：不能直接从 callsite re-anchor audit 进入 Base64/RC4 breakpoint probe，因为还缺少 runtime-backed lhs producer connected to compare lhs。
 
 ## 3. Do Not Do
 
-Do not do any of the following:
-
-1. Do not return to old `sample_solver` blind search.
-2. Do not only increase beam, budget, timeout, topN, or candidate pool size.
-3. Do not use `compare_semantics_agree=false` candidates as primary frontier.
-4. Do not commit the full `solve_reports` directory.
-5. Do not repeat the exact2 basin value-pool evaluation.
-6. Do not repeat the H1/H3 fixed 8-candidate Base64 boundary contrast set.
-7. Do not repeat the current transform trace consistency audit without new runtime evidence.
-8. Do not rerun Base64/RC4 breakpoint probe before confirming a runtime-backed lhs producer connected to compare lhs.
-9. Do not repeat compare return-site audit without using its `wrong_helper_assumption` classification.
-10. Do not repeat producer material confirmation unless adding new instruction-level evidence.
-11. Do not reuse old `[ebp-0x1170]` frame anchor without actual compare re-anchor evidence.
-12. Do not treat `0x4019e0`, `0x401b50`, `0x4018cd`, or `0x401be3` as Base64/RC4 material producers without new semantic/runtime evidence.
-13. Do not scan full `solve_reports` unless a specific artifact is required.
+1. 不要回到旧 `sample_solver` blind search。
+2. 不要只增加 beam、budget、timeout、topN 或候选池。
+3. 不要使用 `compare_semantics_agree=false` 候选作为主 frontier。
+4. 不要提交完整 `solve_reports`。
+5. 不要重复 exact2 basin value-pool evaluation。
+6. 不要重复 H1/H3 fixed 8-candidate Base64 boundary contrast set。
+7. 不要重复 transform trace consistency audit，除非有新 runtime evidence。
+8. 不要再重复“修 callsite 参数捕获”的任务；它已经确认成功。
+9. 不要复用旧 `[ebp-0x1170]` frame anchor，除非能证明它实际连接到 compare `arg0`。
+10. 不要直接运行 Base64/RC4 breakpoint probe。
+11. 不要把 `0x4019e0`、`0x401b50`、`0x4018cd`、`0x401be3` 当成 Base64/RC4 material producer，除非新增语义/runtime 证据。
+12. 不要扫描完整 `PROJECT_PROGRESS_LOG.txt` 或完整 `solve_reports`。
+13. 不要把 `arg0` 的候选相关性误解为“已经找到 producer”；现在只证明了 compare LHS 侧，不等于证明来源。
 
 ## 4. Files To Inspect
 
-First inspect project state:
+先读 project state：
 
 - `project_state/task_packet.json`
 - `project_state/current_state.json`
@@ -116,238 +87,264 @@ First inspect project state:
 - `project_state/negative_results.json`
 - `project_state/codex_execution_report.md`
 
-Then inspect code:
+注意：`codex_execution_report.md` 目前仍停留在 2026-05-14 的旧报告，其中还记录 r5 为 `inconclusive`；但最新 `current_state.json` 和 `artifact_index.json` 已经指向 2026-05-15 的 `sr_cmpcap_20260515_r4`，状态比报告更新。Codex 本轮结束时必须补写最新 CODEX_EXECUTION_REPORT。
 
+再检查代码：
+
+- `reverse_agent/strategies/compare_aware_search.py`
 - `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
 - `reverse_agent/olly_scripts/compare_callsite_reanchor_and_lhs_provenance_audit.py`
-- `reverse_agent/strategies/compare_aware_search.py`
+- `reverse_agent/function_semantics.py`
 - `reverse_agent/project_state.py`
 - `tests/test_compare_aware_search_strategy.py`
 - `tests/test_project_state.py`
 
-Targeted artifacts only:
+只读取以下 targeted artifacts：
 
-- `solve_reports\harness_runs\sr_callsite_reanchor_20260514_r5\reports\tool_artifacts\samplereverse_patched\compare_callsite_reanchor_and_lhs_provenance_audit\compare_callsite_reanchor_and_lhs_provenance_audit.json`
-- `solve_reports\harness_runs\sr_callsite_reanchor_20260514_r5\reports\tool_artifacts\samplereverse_patched\samplereverse_patched_compare_probe.json`
-- `solve_reports\harness_runs\sr_callsite_reanchor_20260514_r5\summary.json`
+- `solve_reports\harness_runs\sr_cmpcap_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_callsite_reanchor_and_lhs_provenance_audit\compare_callsite_reanchor_and_lhs_provenance_audit.json`
+- `solve_reports\harness_runs\sr_cmpcap_20260515_r4\summary.json`
+- `solve_reports\harness_runs\sr_cmpcap_20260515_r4\run_manifest.json`
+- `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\compare_producer_material_confirmation\compare_producer_material_confirmation.json`
 - `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\compare_handoff_return_site_probe\compare_handoff_return_site_probe.json`
-
-Do not load the full `solve_reports` tree.
+- `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\function_semantic_audit\function_semantic_audit.json`
 
 ## 5. Required Audit
 
-Codex must audit before modifying search logic.
+实现或扩展一个 bounded audit：`compare_lhs_arg0_provenance_trace`。
 
-### A. Compare entry address audit
+### A. 从 confirmed compare arg0 反向追踪
 
-Answer:
+以每个候选的 compare `arg0_value` 为目标指针：
 
-1. How is the `compare_helper_entry` hook point generated?
-2. Was absolute VA `0x5028ac` accidentally converted into wrong module offset form?
-3. Does current `actual_compare.entry = 0x1028ac` correspond to `0x5028ac - image_base`?
-4. Does `mainModule.base.add(offset)` land at the actual compare callee entry?
-5. Is the callee in the main module, an import thunk, another module, or a wrapper?
-6. Is target process bitness consistent with the current register and stack reader?
-7. Is `per-probe-timeout` long enough to observe the compare call after UI trigger?
+- `0x480cdd0`
+- `0x41bcdd0`
+- `0x3cccdd0`
 
-### B. Callsite argument capture audit
+在 runtime 中围绕以下 hook 点观察这些指针何时出现、从哪里被复制、何时进入 `esi`、何时进入 stack arg0：
 
-Add or fix hooks so that `module+0x258c` is captured directly.
+- `module+0x2312`
+- `module+0x2320`
+- `module+0x2325`
+- `module+0x2338`
+- `module+0x233d`
+- `module+0x2346`
+- `module+0x253a`
+- `module+0x2554`
+- `module+0x2559`
+- `module+0x2584`
+- `module+0x2586`
+- `module+0x258b`
+- `module+0x258c`
 
-At minimum inspect:
+### B. 必须区分三类关系
 
-- `module+0x2584`: `push 5`
-- `module+0x2586`: `push 0x551c4c`
-- `module+0x258b`: `push esi`
-- `module+0x258c`: `call 0x5028ac`
-- `module+0x1028ac`: callee entry, only if confirmed as the correct module offset
+对每个 hook 点，判断：
 
-At `module+0x258c`, read:
+1. Pointer identity match
+   - register / stack slot / frame slot 的值是否等于 confirmed compare `arg0` 指针。
 
-- registers: `eax`, `ecx`, `edx`, `esi`, `edi`, `esp`, `ebp`, `eip`
-- stack slots: `[esp]`, `[esp+4]`, `[esp+8]`, `[esp+0xc]`, `[esp+0x10]`
-- previews for:
+2. Preview/content match
+   - hook 点处的 buffer preview 是否与 compare `arg0_preview` 相同或具有稳定前缀关系。
+
+3. Candidate dependence
+   - 同一 hook 点的值或 preview 是否随三候选变化。
+
+不能只看 candidate-dependent；必须证明它连接到 compare `arg0`。
+
+### C. 采集字段
+
+每个候选、每个 hook 点至少采集：
+
+- hit count
+- module offset
+- instruction
+- register values:
+  - `eax`
+  - `ecx`
+  - `edx`
   - `esi`
+  - `edi`
+  - `esp`
+  - `ebp`
+- register previews:
+  - `eax_preview`
+  - `ecx_preview`
+  - `edx_preview`
+  - `esi_preview`
+  - `edi_preview`
+- stack words:
   - `[esp]`
   - `[esp+4]`
   - `[esp+8]`
-  - constant pointer `0x551c4c`
+  - `[esp+0xc]`
+  - `[esp+0x10]`
+- frame slots:
+  - `[ebp-0x1168]`
+  - `[ebp-0x116c]`
+  - `[ebp-0x1170]`
+- compare arg0 target pointer for this candidate
+- whether each observed value equals compare arg0 pointer
+- whether preview matches compare arg0 preview
+- whether hook appears before or after callsite `0x258c`
 
-Expected callsite stack interpretation:
+### D. Classification
 
-- Before `call 0x5028ac`, the return address has not yet been pushed.
-- Because `push esi` is the last push, `[esp]` should correspond to lhs candidate pointer.
-- `[esp+4]` should correspond to `0x551c4c` flag-prefix constant.
-- `[esp+8]` should correspond to count `5`, if the push sequence is complete and stack tracking is correct.
+Artifact 顶层 classification 必须是以下之一：
 
-Callee-entry interpretation remains separate:
+1. `lhs_producer_identified`
+   - 找到 runtime-backed hook；
+   - 该 hook 的 register/slot pointer 或 output preview 连接到 confirmed compare `arg0`；
+   - 三候选上关系成立。
 
-- At callee entry, `[esp]` is return address.
-- `[esp+4]` is arg0.
-- `[esp+8]` is arg1.
-- `[esp+0xc]` may be count.
+2. `lhs_producer_candidate_dependent_but_unconnected`
+   - 找到候选相关 material；
+   - 但 pointer/preview 不能连接到 confirmed compare `arg0`。
 
-The artifact must not mix these two layouts.
+3. `lhs_producer_window_rejected`
+   - 当前 `0x2312..0x258c` bounded window 内没有 producer 连接到 compare `arg0`。
 
-### C. Required output fields
+4. `lhs_producer_hook_coverage_failed`
+   - 关键 hook 未命中或无法读，不得据此推断语义。
 
-The new or extended artifact must explicitly report:
+5. `inconclusive`
+   - 有部分证据，但不足以判断 producer。
+
+Artifact 顶层字段：
 
 - `classification`
 - `candidate_count`
 - `runtime_backed_count`
-- `callee_entry_observed`
-- `callee_entry_observed_count`
-- `callsite_pre_call_observed`
-- `callsite_pre_call_observed_count`
-- `callsite_stack_args_observed`
-- `lhs_side`
-- `flag_side`
-- `candidate_dependent_side`
-- `constant_flag_prefix_side`
-- `arg_layout`
-- `module_base`
-- `callee_entry_address_audit`
+- `confirmed_lhs_side`
+- `confirmed_flag_side`
+- `compare_arg0_by_candidate`
+- `compare_arg0_preview_by_candidate`
+- `producer_candidates`
+- `producer_connected_points`
+- `candidate_dependent_unconnected_points`
+- `rejected_points`
+- `hook_coverage_failures`
 - `breakpoint_probe_allowed`
 - `next_bounded_action`
 
-### D. Classification rules
-
-Use these classifications or equivalent explicit names:
-
-1. `compare_callsite_args_identified`
-   - callsite pre-call observed for the fixed candidates;
-   - one side varies by candidate;
-   - one side matches the flag wide-prefix constant;
-   - lhs/flag side can be classified.
-
-2. `callee_entry_hook_missed_but_callsite_args_identified`
-   - callee entry observed count is zero;
-   - callsite pre-call is observed and sufficient to classify args.
-
-3. `compare_hook_coverage_failed`
-   - neither callsite nor callee entry is observed;
-   - next action must be address/module-base/hook-runtime diagnosis, not Base64/RC4 probing.
-
-4. `inconclusive`
-   - some data observed, but not enough to classify lhs/flag side.
-
-`breakpoint_probe_allowed` must remain false unless both of these are true:
-
-- real compare lhs side is confirmed;
-- a runtime-backed producer is connected to that compare lhs.
-
-This round is expected to keep Base64/RC4 probing blocked.
+`breakpoint_probe_allowed` 仍然必须默认为 false。只有当 producer 已识别并且能证明其是 transform material，才允许下一轮考虑 Base64/RC4 probe。
 
 ## 6. Implementation Scope
 
-Allowed:
+允许：
 
-- Extend `compare_callsite_reanchor_and_lhs_provenance_audit` with direct callsite argument capture.
-- Or add one bounded sidecar, if extension would be messy.
-- Add a thin runtime script only if needed.
-- Add project_state indexing for the new artifact if a new artifact name is introduced.
-- Add negative-cache guidance so failed hook coverage does not trigger candidate expansion or Base64/RC4 probing.
-- Add tests for schema, classification, fixed candidates, and project_state indexing.
+- 新增一个 bounded sidecar：`compare_lhs_arg0_provenance_trace`。
+- 或窄幅扩展 `compare_callsite_reanchor_and_lhs_provenance_audit`，但不要让该 artifact 变得语义混乱。
+- 新增一个薄 runtime script。
+- 在 strategy 中只加入固定三候选调度。
+- project_state 增加 latest artifact indexing。
+- negative_results 增加 producer trace 相关 blocks。
+- 更新 `codex_execution_report.md` 到最新 2026-05-15 状态。
 
-Not allowed:
+不允许：
 
-- no candidate search expansion
-- no new solver/ranker
-- no full solve_reports commit
-- no broad disassembly scan
-- no Base64/RC4 breakpoint probe
-- no reuse of old `[ebp-0x1170]` as trusted compare lhs without actual compare-side evidence
+- 不允许生成新候选。
+- 不允许搜索扩展。
+- 不允许直接运行 Base64/RC4 breakpoint probe。
+- 不允许扫描全量 `solve_reports`。
+- 不允许把旧 `[ebp-0x1170]` 当成事实来源。
+- 不允许仅凭 `candidate_dependent=true` 就分类为 producer。
 
-Fixed candidate set:
+固定候选集：
 
-- Use the existing three-candidate set already used by the r5 audit.
-- Do not generate new candidates.
-- At minimum this should include:
-  - `78d540b49c59077041414141414141`
-  - `5a3e7f46ddd474d041414141414141`
-- Read the third fixed candidate from the existing r5 runner/artifact rather than inventing a new one.
+- `78d540b49c59077041414141414141`
+- `78d540b49c59076f41414141414141`
+- `5a3e7f46ddd474d041414141414141`
+
+这些候选来自最新 compare callsite audit 的三候选观测，不要临时替换。
 
 ## 7. Tests
 
-Run at minimum:
+至少运行：
 
 ```bat
-python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\olly_scripts\compare_callsite_reanchor_and_lhs_provenance_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py
+python -m py_compile reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py reverse_agent\function_semantics.py
 ```
 
-Targeted tests:
+如果新增 runtime script：
+
+```bat
+python -m py_compile reverse_agent\olly_scripts\<new_script>.py
+```
+
+定向测试：
 
 ```bat
 python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py
 ```
 
-Full tests:
+全量测试：
 
 ```bat
 python -m pytest -q
 ```
 
-Runtime validation, using the existing samplereverse dataset if available locally:
+真实 harness：
 
 ```bat
-python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_compare_callsite_arg_capture_20260515_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled
+python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_lhs_arg0_provenance_20260515_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled
 ```
 
-Then rebuild state:
+重建状态：
 
 ```bat
-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_compare_callsite_arg_capture_20260515_r1
+python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_arg0_provenance_20260515_r1
 python -m reverse_agent.project_state status
 ```
 
-Required unit coverage:
+测试必须覆盖：
 
-1. `compare_callsite_args_identified`
-   - three candidates observed at callsite;
-   - lhs preview varies;
-   - flag side preview is constant;
-   - classification is correct;
-   - `breakpoint_probe_allowed` remains false unless producer connection is also proven.
+1. `lhs_producer_identified`
+   - 三候选都观测到 producer；
+   - producer pointer 或 preview 连接到 compare `arg0`；
+   - `breakpoint_probe_allowed` 仍需受 transform material gate 控制。
 
-2. `callee_entry_hook_missed_but_callsite_args_identified`
-   - callee observed count is zero;
-   - callsite observed count is three;
-   - artifact must not remain generic `inconclusive`.
+2. `lhs_producer_candidate_dependent_but_unconnected`
+   - hook 点 candidate-dependent；
+   - 但不匹配 compare `arg0` pointer/preview；
+   - 不允许进入 Base64/RC4 probe。
 
-3. `compare_hook_coverage_failed`
-   - neither callsite nor callee entry hits;
-   - next action points to hook address/module base audit;
-   - no search expansion and no Base64/RC4 probe.
+3. `lhs_producer_window_rejected`
+   - bounded window 内没有连接点；
+   - next action 指向更早/更窄的 provenance slice，而不是候选搜索。
 
-4. project_state indexing
-   - latest artifact appears in `current_state.json`;
-   - bottleneck reason reflects the new classification.
+4. `lhs_producer_hook_coverage_failed`
+   - hook 未命中；
+   - artifact 必须报告 hook failure 原因；
+   - 不得误判为 semantic rejection。
+
+5. project_state indexing
+   - 新 artifact 被纳入 `current_state.json`；
+   - bottleneck reason 更新为新分类。
 
 ## 8. Stop Conditions
 
-Stop and report if any of the following happens:
+Codex 本轮在以下情况停止并提交报告：
 
-1. Compare callsite args are identified.
-   - Report exact hook offset.
-   - Report lhs side and flag side.
-   - Report which side varies across candidates.
-   - Keep Base64/RC4 probe blocked unless lhs producer connection is also proven.
+1. 找到 compare `arg0` producer。
+   - 报告 producer offset、instruction、register/slot、三候选 evidence。
+   - 报告是否只是 compare-side producer，还是已经接近 transform material。
+   - 不要自动运行 Base64/RC4 probe，除非 gate 明确满足。
 
-2. Callee entry hook is proven wrong but callsite args are identified.
-   - Report correct module/VA/RVA interpretation.
-   - Preserve callsite result as valid evidence.
-   - Do not block progress merely because callee entry hook missed.
+2. 找到 candidate-dependent 但不连接 compare `arg0` 的 material。
+   - 分类为 unconnected。
+   - 报告为什么不能作为 producer。
+   - 不要围绕它重复 probe。
 
-3. Hook coverage still fails.
-   - Report attach address, module base, target bitness, timeout, and hook error messages.
-   - Do not continue to candidate search or Base64/RC4 probe.
+3. 当前 window 被排除。
+   - 分类为 `lhs_producer_window_rejected`。
+   - 给出下一段 bounded slice，而不是扩大搜索。
 
-4. Implementation requires full `solve_reports` scan or candidate expansion.
-   - Stop and explain why this violates current project_state constraints.
+4. hook coverage 失败。
+   - 报告失败原因：地址错误、inside-instruction、ASLR/base mismatch、path not reached、timeout、pointer unreadable 或 UI launch failure。
+   - 不要据此推断语义。
 
-5. Tests fail.
-   - Stop after collecting failure output.
-   - Do not proceed to harness run until unit failures are resolved.
+5. 测试失败。
+   - 停止并报告失败输出。
+   - 不继续 harness。
 
-本轮核心判断：下一步不是继续找更多候选，而是把 `module+0x258c` 这个 compare callsite 的参数抓实。只要能在 call 前确认 `esi` 和 `0x551c4c` 两侧关系，后续才有资格继续追 lhs producer；否则 Base64/RC4 探针仍然应该封锁。
+本轮核心判断：compare callsite 已经解决，`arg0` 就是 LHS，`arg1` 就是 flag side。下一步只追一个问题：谁生产了 `arg0` 这个 buffer。追不到 producer，就不能进入 Base64/RC4；追到 producer，下一轮再判断它是不是 transform material。
