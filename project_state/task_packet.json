@@ -6,20 +6,20 @@
     "bridge_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
     "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
-    "compare_callsite_reanchor_and_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_cmpcap_20260515_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_callsite_reanchor_and_lhs_provenance_audit\\compare_callsite_reanchor_and_lhs_provenance_audit.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
-    "compare_probe": "solve_reports\\harness_runs\\sr_cmpcap_20260515_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\sr_cmpcap_20260515_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_arg0_provenance_20260515_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_arg0_provenance_20260515_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
     "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
+    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_lhs_arg0_provenance_20260515_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
     "frontier_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_frontier_summary.json",
     "function_semantic_audit": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
     "guided_pool_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\samplereverse_compare_aware_guided_pool_result.json",
     "guided_pool_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
     "pairscan_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\pairscan_summary.json",
-    "run_manifest": "solve_reports\\harness_runs\\sr_cmpcap_20260515_r4\\run_manifest.json",
+    "run_manifest": "solve_reports\\harness_runs\\sr_lhs_arg0_provenance_20260515_r4\\run_manifest.json",
     "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\sr_cmpcap_20260515_r4\\summary.json"
+    "summary": "solve_reports\\harness_runs\\sr_lhs_arg0_provenance_20260515_r4\\summary.json"
   },
   "current_best": {
     "exact1": {
@@ -58,8 +58,8 @@
   },
   "current_bottleneck": {
     "confidence": "medium",
-    "reason": "callsite_reanchored_but_producer_unknown",
-    "stage": "compare_callsite_reanchor_and_lhs_provenance_audit"
+    "reason": "old_frame_anchor_rejected",
+    "stage": "compare_real_lhs_provenance_audit"
   },
   "do_not_do": [
     "do not return to old sample_solver blind search",
@@ -76,12 +76,12 @@
     "do not repeat: treat 0x401b50 as Base64/RC4 material producer without new semantic evidence",
     "do not repeat: treat 0x4018cd as Base64/RC4 material producer without new semantic evidence",
     "do not repeat: treat 0x401be3 as Base64/RC4 material producer without new semantic evidence",
-    "do not repeat: reuse old [ebp-0x1170] frame anchor without actual compare re-anchor evidence",
-    "do not repeat: run Base64/RC4 breakpoint probe directly from callsite re-anchor audit",
+    "do not repeat: reuse old [ebp-0x1170] without real-lhs provenance evidence",
+    "do not repeat: run Base64/RC4 breakpoint probe before real lhs producer identification",
     "do not scan entire solve_reports unless explicitly needed"
   ],
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-05-15T11:48:06Z",
+  "generated_at": "2026-05-15T12:38:15Z",
   "included": [
     "current state",
     "best candidates",
@@ -91,7 +91,7 @@
   ],
   "model_gate": {
     "context_level": 2,
-    "reason": "callsite_reanchored_but_producer_unknown",
+    "reason": "old_frame_anchor_rejected",
     "should_call_model": true
   },
   "omitted": [
@@ -119,5 +119,5 @@
     "has_runtime_validation": true,
     "has_stall_stage": true
   },
-  "task": "Investigate stalled compare_callsite_reanchor_and_lhs_provenance_audit path"
+  "task": "Investigate stalled compare_real_lhs_provenance_audit path"
 }

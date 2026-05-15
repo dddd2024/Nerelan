@@ -4119,3 +4119,62 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不直接跑 Base64/RC4 breakpoint probe。
 - 不把 `0x2312` / `0x2325` / `0x2338` 直接升级为 material producer。
 - 下一步应基于 confirmed `lhs_side=arg0` 做更窄 real-lhs provenance audit：向上追踪 CompareProbe fallback 捕获到的真实 lhs pointer，不再依赖旧 `[ebp-0x1170]` frame anchor。
+
+## 2026-05-15 Real-LHS provenance audit sidecar
+
+1) 执行范围
+- 实现 bounded `compare_real_lhs_provenance_audit`，继续固定 L15(prefix8) / suffix `AAAAAAA`。
+- 固定 3 个候选不变：
+  - `78d540b49c59077041414141414141`
+  - `5a3e7f46ddd474d041414141414141`
+  - `78d540b49c59076f41414141414141`
+- 未扩大 search / beam / budget / topN / timeout / frontier iteration。
+- Base64/RC4 breakpoint probe 继续阻断。
+
+2) 代码变更
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 `compare_real_lhs_provenance_audit.json` sidecar。
+  - 触发条件：最新 indexed `compare_callsite_reanchor_and_lhs_provenance_audit.classification == "callsite_reanchored_but_producer_unknown"` 且新 artifact 尚无决策。
+  - hook 点限定为 `0x258c` / `0x258b` / `0x2559` / `0x253a`，并保留 `0x2312` / `0x2325` / `0x2338` 为 context-only。
+  - payload 分类限定为 `real_lhs_producer_identified`、`lhs_register_source_confirmed`、`old_frame_anchor_rejected`、`inconclusive`。
+- `reverse_agent/olly_scripts/compare_real_lhs_provenance_audit.py`
+  - 新增 thin entry，复用现有 compare capture runner。
+- `reverse_agent/project_state.py`
+  - 索引新 artifact，并将 `current_bottleneck`、task packet、negative cache 接到新分类。
+  - 未识别 producer 时继续阻断 Base64/RC4 breakpoint probe，并记录不要复用旧 `[ebp-0x1170]` anchor。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_real_lhs_provenance_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `151 passed`
+- `python -m pytest -q` -> `228 passed`
+
+4) Harness / project_state
+- Completed target real harness run:
+  - `sr_lhs_arg0_provenance_20260515_r4`
+  - 1 case executed, 0 errors, selected `NOT_FOUND`。
+- Core artifact:
+  - `solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_arg0_provenance_20260515_r4` -> passed。
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_lhs_arg0_provenance_20260515_r4`
+  - `reason: old_frame_anchor_rejected`
+  - `task: Investigate stalled compare_real_lhs_provenance_audit path`
+  - `missing: []`
+
+5) 结论
+- `compare_real_lhs_provenance_audit` classification: `old_frame_anchor_rejected`
+- `runtime_backed_count=3`，CompareProbe fallback 继续确认真实 compare arg0/arg1。
+- `actual_compare.entry=0x258c`
+- `actual_compare.entry_status=confirmed`
+- `actual_compare.lhs_side=arg0`
+- `actual_compare.flag_side=arg1`
+- `esi_to_compare_arg0=inconclusive`
+- `old_frame_anchor_to_compare_arg0=rejected`
+- `breakpoint_probe_allowed=false`
+- 未将 `0x2312` / `0x2325` / `0x2338` 升级为 material producer。
+
+6) 下一轮默认方向
+- 不扩大 search；不要回 old `sample_solver` blind search。
+- 不直接跑 Base64/RC4 breakpoint probe。
+- 不复用旧 `[ebp-0x1170]`，除非能拿到 real-lhs provenance evidence。
+- 下一步应改进 `0x258b push esi` 或更早真实 lhs source 的 runtime capture，让 `esi -> compare arg0` 先变成 runtime-backed，再追下一跳 producer。

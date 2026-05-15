@@ -987,6 +987,73 @@ def test_project_state_indexes_compare_callsite_reanchor_audit_and_negative_cach
     )
 
 
+def test_project_state_indexes_compare_real_lhs_provenance_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_real_lhs")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_real_lhs_provenance_audit.json",
+        {
+            "artifact_kind": "compare_real_lhs_provenance_audit",
+            "classification": "lhs_register_source_confirmed",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {
+                "entry_status": "confirmed",
+                "caller_module_offset": "0x258c",
+                "lhs_side": "arg0",
+                "flag_side": "arg1",
+                "lhs_preview_varies_by_candidate": True,
+            },
+            "frame_anchor": {
+                "old_slot_ebp_minus_1170_valid": False,
+                "old_slot_ebp_minus_1170_status": "rejected",
+            },
+            "relations": {
+                "esi_to_compare_arg0": "confirmed",
+                "old_frame_anchor_to_compare_arg0": "rejected",
+            },
+            "provenance": {
+                "candidate_dependent": False,
+                "connects_to_compare_lhs": False,
+                "producer_instruction": "",
+                "producer_call": "",
+                "evidence": [
+                    {
+                        "hook_name": "pre_compare_lhs_push",
+                        "candidate_dependent": True,
+                        "connects_to_compare_lhs": True,
+                    }
+                ],
+            },
+            "relation_table": [{"field": "esi_to_compare_arg0", "status": "confirmed"}],
+            "identified_producers": [],
+            "next_producer_window": {"start_rva": "0x2559", "end_rva": "0x258b"},
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "hook ESI source",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_real_lhs_provenance_audit"].endswith(
+        "compare_real_lhs_provenance_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_real_lhs_provenance_audit"
+    assert current_state["current_bottleneck"]["reason"] == "lhs_register_source_confirmed"
+    latest = current_state["latest_compare_real_lhs_provenance_audit"]
+    assert latest["classification"] == "lhs_register_source_confirmed"
+    assert latest["actual_compare"]["lhs_side"] == "arg0"
+    assert latest["relations"]["esi_to_compare_arg0"] == "confirmed"
+    assert latest["next_producer_window"]["start_rva"] == "0x2559"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert any(item.get("scope") == "compare_real_lhs_provenance_audit" for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

@@ -39,6 +39,7 @@ IMPORTANT_ARTIFACTS = {
     "compare_callsite_reanchor_and_lhs_provenance_audit": (
         "compare_callsite_reanchor_and_lhs_provenance_audit.json"
     ),
+    "compare_real_lhs_provenance_audit": "compare_real_lhs_provenance_audit.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -78,6 +79,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_lhs_producer_audit",
     "compare_lhs_upstream_writer_audit",
     "compare_callsite_reanchor_and_lhs_provenance_audit",
+    "compare_real_lhs_provenance_audit",
 }
 
 STATE_JSON_NAMES = (
@@ -465,6 +467,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_callsite_reanchor_audit = _read_json(
         artifact_refs.get("compare_callsite_reanchor_and_lhs_provenance_audit")
     )
+    compare_real_lhs_provenance_audit = _read_json(
+        artifact_refs.get("compare_real_lhs_provenance_audit")
+    )
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -591,6 +596,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if callsite_reanchor_classification:
         stage = "compare_callsite_reanchor_and_lhs_provenance_audit"
         reason = callsite_reanchor_classification
+    real_lhs_provenance_classification = str(
+        compare_real_lhs_provenance_audit.get("classification") or ""
+    ).strip()
+    if real_lhs_provenance_classification:
+        stage = "compare_real_lhs_provenance_audit"
+        reason = real_lhs_provenance_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -1006,6 +1017,39 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": compare_callsite_reanchor_audit.get("next_bounded_action"),
         }
         if compare_callsite_reanchor_audit
+        else {},
+        "latest_compare_real_lhs_provenance_audit": {
+            "classification": real_lhs_provenance_classification or None,
+            "artifact": artifact_refs.get("compare_real_lhs_provenance_audit"),
+            "candidate_count": compare_real_lhs_provenance_audit.get("candidate_count"),
+            "runtime_backed_count": compare_real_lhs_provenance_audit.get("runtime_backed_count"),
+            "actual_compare": compare_real_lhs_provenance_audit.get("actual_compare", {}),
+            "frame_anchor": compare_real_lhs_provenance_audit.get("frame_anchor", {}),
+            "relations": compare_real_lhs_provenance_audit.get("relations", {}),
+            "provenance": {
+                **(
+                    compare_real_lhs_provenance_audit.get("provenance", {})
+                    if isinstance(compare_real_lhs_provenance_audit.get("provenance"), dict)
+                    else {}
+                ),
+                "evidence": (
+                    compare_real_lhs_provenance_audit.get("provenance", {}).get("evidence", [])[:7]
+                    if isinstance(compare_real_lhs_provenance_audit.get("provenance"), dict)
+                    and isinstance(compare_real_lhs_provenance_audit.get("provenance", {}).get("evidence"), list)
+                    else []
+                ),
+            },
+            "relation_table": compare_real_lhs_provenance_audit.get("relation_table", [])[:8]
+            if isinstance(compare_real_lhs_provenance_audit.get("relation_table"), list)
+            else [],
+            "identified_producers": compare_real_lhs_provenance_audit.get("identified_producers", [])[:3]
+            if isinstance(compare_real_lhs_provenance_audit.get("identified_producers"), list)
+            else [],
+            "next_producer_window": compare_real_lhs_provenance_audit.get("next_producer_window", {}),
+            "breakpoint_probe_allowed": compare_real_lhs_provenance_audit.get("breakpoint_probe_allowed"),
+            "next_bounded_action": compare_real_lhs_provenance_audit.get("next_bounded_action"),
+        }
+        if compare_real_lhs_provenance_audit
         else {},
         "function_semantics": function_semantics,
         "uncertainty": sorted(set(uncertainty)),
@@ -1582,6 +1626,37 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "do_not_repeat": True,
                 "reason": "breakpoint probing still requires a runtime-backed lhs producer connected to compare lhs",
                 "evidence_artifact": artifacts.get("compare_callsite_reanchor_and_lhs_provenance_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+    real_lhs_provenance_audit = _read_json(artifacts.get("compare_real_lhs_provenance_audit"))
+    real_lhs_provenance_classification = str(real_lhs_provenance_audit.get("classification") or "").strip()
+    if real_lhs_provenance_classification in {
+        "lhs_register_source_confirmed",
+        "old_frame_anchor_rejected",
+        "inconclusive",
+    }:
+        results.append(
+            {
+                "direction": "reuse old [ebp-0x1170] without real-lhs provenance evidence",
+                "scope": "compare_real_lhs_provenance_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": "old frame anchor still is not a runtime-backed source for confirmed compare arg0",
+                "evidence_artifact": artifacts.get("compare_real_lhs_provenance_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+        results.append(
+            {
+                "direction": "run Base64/RC4 breakpoint probe before real lhs producer identification",
+                "scope": "compare_real_lhs_provenance_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": "breakpoint probing remains blocked until a runtime-backed real lhs producer is identified",
+                "evidence_artifact": artifacts.get("compare_real_lhs_provenance_audit"),
                 "override_allowed": True,
                 "override_reason_required": True,
             }
