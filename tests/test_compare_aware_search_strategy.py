@@ -5297,6 +5297,82 @@ def _fake_material_hook_runtime_validation_blocked_subprocess_run(*args, **kwarg
     return _Proc()
 
 
+def _fake_esi_material_hook_runtime_validation_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    expected_preview = command[command.index("--expected-eax-preview") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert [point["name"] for point in points_payload["hook_points"]] == ["initial_lhs_reload"]
+    assert points_payload["hook_points"][0]["kind"] == "rc4_output"
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "ESI material hook runtime validation ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "hook_name": "initial_lhs_reload",
+                        "module_offset": "0x2559",
+                        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+                        "registers": {"eax": "0x40", "esi": "0x44"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": expected_preview,
+                        "esi_ptr": "0x44",
+                        "esi_preview_hex": "aa" * 32,
+                        "expected_eax_preview_hex": expected_preview,
+                        "matched_expected_eax": bool(expected_preview),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
+def _fake_esi_material_hook_runtime_validation_blocked_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    preview = "aa" * 32 if candidate_hex.startswith("78d540") else "bb" * 32
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "ESI material hook runtime validation blocked",
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "hook_name": "initial_lhs_reload",
+                        "module_offset": "0x2559",
+                        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+                        "registers": {"eax": "0x40"},
+                        "eax_ptr": "0x40",
+                        "eax_preview_hex": preview,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
 def _fake_material_hook_runtime_validation_timeout_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     command = list(args[0])
     raise compare_aware_search.subprocess.TimeoutExpired(command, timeout=kwargs.get("timeout", 1.0))
@@ -6205,6 +6281,92 @@ def test_material_hook_runtime_validation_times_out_without_hanging_strategy(
     timed_out_candidate = Path(payload["candidate_results"][0]["result_path"])
     timed_out_payload = json.loads(timed_out_candidate.read_text(encoding="utf-8"))
     assert timed_out_payload["error"] == "timeout"
+
+
+def test_material_hook_runtime_validation_accepts_promoted_esi_source(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        compare_aware_search.subprocess,
+        "run",
+        _fake_esi_material_hook_runtime_validation_subprocess_run,
+    )
+
+    result = run_material_hook_runtime_validation(
+        target=target,
+        artifacts_dir=tmp_path / "material_hook_runtime_validation",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        compare_esi_source_window_payload={
+            "classification": "esi_source_identified",
+            "promotable_validations": [
+                {
+                    "hook_name": "initial_lhs_reload",
+                    "module_offset": "0x2559",
+                    "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+                    "candidate_dependent": True,
+                    "connects_to_compare_lhs": True,
+                }
+            ],
+        },
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "ACCEPT"
+    assert payload["candidate_count"] == 3
+    assert payload["candidate_limit"] == 3
+    assert payload["source_compare_esi_source_window_classification"] == "esi_source_identified"
+    assert payload["material_kind"] == "rc4_output"
+    assert payload["hook_points"][0]["module_offset"] == 0x2559
+    assert payload["static_audit"]["classification"].startswith("static_compare_esi_source_window")
+    assert payload["validated_hooks"][0]["classification"] == "confirmed_rc4_output_material"
+    assert payload["validated_hooks"][0]["connects_to_compare_lhs"] is True
+    assert payload["breakpoint_probe_allowed"] is True
+    points = compare_aware_search._breakpoint_static_points_from_material_hook_runtime_validation_payload(payload)
+    assert points["rc4_output"][0]["module_offset"] == 0x2559
+
+
+def test_material_hook_runtime_validation_blocks_promoted_esi_source_mismatch(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        compare_aware_search.subprocess,
+        "run",
+        _fake_esi_material_hook_runtime_validation_blocked_subprocess_run,
+    )
+
+    result = run_material_hook_runtime_validation(
+        target=target,
+        artifacts_dir=tmp_path / "material_hook_runtime_validation",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        compare_esi_source_window_payload={
+            "classification": "esi_source_identified",
+            "promotable_validations": [
+                {
+                    "hook_name": "initial_lhs_reload",
+                    "module_offset": "0x2559",
+                    "candidate_dependent": True,
+                    "connects_to_compare_lhs": True,
+                }
+            ],
+        },
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "BLOCKED"
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["validated_hooks"] == []
+    assert payload["blocked_hooks"][0]["classification"] == "candidate_dependent_but_not_transform_material"
+    assert "0x2559" in payload["next_bounded_action"]
 
 
 def test_post_handoff_branch_outcome_audit_rejects_failed_material_window(tmp_path: Path) -> None:
@@ -7280,6 +7442,96 @@ def test_compare_aware_strategy_runs_esi_source_window_sidecar_after_real_lhs(
     assert captured["artifacts_dir"] == "compare_esi_source_window_audit"
     assert captured["source_classification"] == "lhs_register_source_confirmed"
     assert Path(str(result.artifacts[0].output_path)).name == COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME
+
+
+def test_compare_aware_strategy_runs_esi_material_hook_sidecar_before_search(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    esi_source_payload = {
+        "artifact_kind": "compare_esi_source_window_audit",
+        "classification": "esi_source_identified",
+        "promotable_validations": [
+            {
+                "hook_name": "initial_lhs_reload",
+                "module_offset": "0x2559",
+                "candidate_dependent": True,
+                "connects_to_compare_lhs": True,
+            }
+        ],
+    }
+    captured: dict[str, object] = {}
+
+    def fake_indexed_artifact_payload(kind):
+        return (
+            {
+                "compare_esi_source_window_audit": esi_source_payload,
+            }.get(kind, {}),
+            "",
+        )
+
+    def fake_run_material_hook_runtime_validation(**kwargs):
+        captured["artifacts_dir"] = Path(kwargs["artifacts_dir"]).name
+        captured["source_classification"] = kwargs["compare_esi_source_window_payload"]["classification"]
+        result_path = Path(kwargs["artifacts_dir"]) / MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "artifact_kind": "material_hook_runtime_validation",
+            "classification": "BLOCKED",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "source_compare_esi_source_window_classification": "esi_source_identified",
+            "validated_hooks": [],
+            "blocked_hooks": [{"hook_name": "initial_lhs_reload", "module_offset": "0x2559"}],
+            "breakpoint_probe_allowed": False,
+        }
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+        return {
+            "result_path": str(result_path),
+            "payload": payload,
+            "validations": [],
+            "promotable_validations": [],
+        }
+
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {"latest_compare_esi_source_window_audit": esi_source_payload}
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_indexed_or_latest_report_artifact_payload",
+        fake_indexed_artifact_payload,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_material_hook_runtime_validation",
+        fake_run_material_hook_runtime_validation,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for early ESI material-hook sidecar"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "material_hook_runtime_validation"
+    assert result.metadata["early_sidecar"] is True
+    assert captured["artifacts_dir"] == "material_hook_runtime_validation"
+    assert captured["source_classification"] == "esi_source_identified"
+    assert Path(str(result.artifacts[0].output_path)).name == MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME
 
 
 def test_compare_aware_strategy_runs_post_handoff_sidecar_before_search(

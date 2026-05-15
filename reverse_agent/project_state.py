@@ -915,6 +915,10 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "artifact": artifact_refs.get("material_hook_runtime_validation"),
             "runtime_backed_count": material_hook_runtime_validation.get("runtime_backed_count"),
             "candidate_count": material_hook_runtime_validation.get("candidate_count"),
+            "source_compare_esi_source_window_classification": material_hook_runtime_validation.get(
+                "source_compare_esi_source_window_classification"
+            ),
+            "material_kind": material_hook_runtime_validation.get("material_kind"),
             "validated_hook_count": len(material_hook_runtime_validation.get("validated_hooks", []))
             if isinstance(material_hook_runtime_validation.get("validated_hooks"), list)
             else 0,
@@ -1452,6 +1456,10 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
     material_hook_runtime_validation = _read_json(artifacts.get("material_hook_runtime_validation"))
     material_hook_runtime_classification = str(material_hook_runtime_validation.get("classification") or "").strip()
     if material_hook_runtime_classification in {"BLOCKED", "REJECTED"}:
+        source_esi = (
+            str(material_hook_runtime_validation.get("source_compare_esi_source_window_classification") or "").strip()
+            == "esi_source_identified"
+        )
         results.append(
             {
                 "direction": "rerun Base64/RC4 breakpoint probe after material hook runtime validation blocked it",
@@ -1459,8 +1467,13 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "severity": "soft_block",
                 "do_not_repeat": True,
                 "reason": (
-                    "0x233d/0x2346 did not confirm instruction-backed, candidate-dependent transform material; "
-                    "Base64/RC4 probing remains gated until a different material hook is validated"
+                    "0x2559 did not confirm instruction-backed post-RC4 compare material; "
+                    "Base64/RC4 probing remains gated until the writer/source before [ebp-0x1170] is traced"
+                    if source_esi
+                    else (
+                        "0x233d/0x2346 did not confirm instruction-backed, candidate-dependent transform material; "
+                        "Base64/RC4 probing remains gated until a different material hook is validated"
+                    )
                 ),
                 "evidence_artifact": artifacts.get("material_hook_runtime_validation"),
                 "override_allowed": True,
@@ -1883,8 +1896,15 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
     reason = str(bottleneck.get("reason") or "")
     text = f"{stage} {reason}".lower()
     has_exact1 = isinstance(best_candidates.get("exact1"), dict) and bool(best_candidates.get("exact1"))
+    latest_material_hook = current_state.get("latest_material_hook_runtime_validation", {})
+    latest_material_hook = latest_material_hook if isinstance(latest_material_hook, dict) else {}
+    source_esi = str(latest_material_hook.get("source_compare_esi_source_window_classification") or "")
     if stage == "compare_real_lhs_provenance_audit" and reason == "lhs_register_source_confirmed":
         return "Trace ESI source window 0x2559..0x258b"
+    if stage == "material_hook_runtime_validation" and reason == "ACCEPT" and source_esi == "esi_source_identified":
+        return "Run bounded Base64/RC4 breakpoint probe with validated 0x2559 hook"
+    if stage == "material_hook_runtime_validation" and reason in {"BLOCKED", "REJECTED"} and source_esi == "esi_source_identified":
+        return "Trace writer/source before 0x2559 / [ebp-0x1170]"
     if stage == "compare_esi_source_window_audit" and reason == "esi_source_identified":
         return "Promote identified ESI source into bounded material-hook validation"
     if stage == "compare_esi_source_window_audit":

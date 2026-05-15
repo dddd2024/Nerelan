@@ -761,6 +761,79 @@ def test_project_state_indexes_material_hook_runtime_validation_and_bottleneck(t
     assert any(item.get("scope") == "material_hook_runtime_validation" for item in negative_results)
 
 
+def test_project_state_tracks_esi_source_material_hook_task(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_esi_mhrv")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "material_hook_runtime_validation").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "material_hook_runtime_validation" / "material_hook_runtime_validation.json",
+        {
+            "artifact_kind": "material_hook_runtime_validation",
+            "classification": "ACCEPT",
+            "runtime_backed_count": 3,
+            "candidate_count": 3,
+            "source_compare_esi_source_window_classification": "esi_source_identified",
+            "material_kind": "rc4_output",
+            "validated_hooks": [
+                {
+                    "hook_name": "initial_lhs_reload",
+                    "module_offset": "0x2559",
+                    "classification": "confirmed_rc4_output_material",
+                }
+            ],
+            "blocked_hooks": [],
+            "breakpoint_probe_allowed": True,
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    latest = current_state["latest_material_hook_runtime_validation"]
+    assert latest["source_compare_esi_source_window_classification"] == "esi_source_identified"
+    assert latest["material_kind"] == "rc4_output"
+    assert task_packet["task"] == "Run bounded Base64/RC4 breakpoint probe with validated 0x2559 hook"
+
+
+def test_project_state_tracks_blocked_esi_source_material_hook_task(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_esi_mhrv_blocked")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "material_hook_runtime_validation").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "material_hook_runtime_validation" / "material_hook_runtime_validation.json",
+        {
+            "artifact_kind": "material_hook_runtime_validation",
+            "classification": "BLOCKED",
+            "runtime_backed_count": 3,
+            "candidate_count": 3,
+            "source_compare_esi_source_window_classification": "esi_source_identified",
+            "material_kind": "rc4_output",
+            "validated_hooks": [],
+            "blocked_hooks": [
+                {
+                    "hook_name": "initial_lhs_reload",
+                    "module_offset": "0x2559",
+                    "classification": "candidate_dependent_but_not_transform_material",
+                    "hit_count": 3,
+                }
+            ],
+            "breakpoint_probe_allowed": False,
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    task_packet = _read_json(state_dir / "task_packet.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert task_packet["task"] == "Trace writer/source before 0x2559 / [ebp-0x1170]"
+    assert any("0x2559" in item.get("reason", "") for item in negative_results)
+
+
 def test_project_state_indexes_post_handoff_branch_outcome_audit(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
