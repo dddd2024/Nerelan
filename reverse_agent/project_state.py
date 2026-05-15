@@ -40,6 +40,7 @@ IMPORTANT_ARTIFACTS = {
         "compare_callsite_reanchor_and_lhs_provenance_audit.json"
     ),
     "compare_real_lhs_provenance_audit": "compare_real_lhs_provenance_audit.json",
+    "compare_esi_source_window_audit": "compare_esi_source_window_audit.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -80,6 +81,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_lhs_upstream_writer_audit",
     "compare_callsite_reanchor_and_lhs_provenance_audit",
     "compare_real_lhs_provenance_audit",
+    "compare_esi_source_window_audit",
 }
 
 STATE_JSON_NAMES = (
@@ -470,6 +472,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_real_lhs_provenance_audit = _read_json(
         artifact_refs.get("compare_real_lhs_provenance_audit")
     )
+    compare_esi_source_window_audit = _read_json(
+        artifact_refs.get("compare_esi_source_window_audit")
+    )
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -602,6 +607,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if real_lhs_provenance_classification:
         stage = "compare_real_lhs_provenance_audit"
         reason = real_lhs_provenance_classification
+    esi_source_window_classification = str(
+        compare_esi_source_window_audit.get("classification") or ""
+    ).strip()
+    if esi_source_window_classification:
+        stage = "compare_esi_source_window_audit"
+        reason = esi_source_window_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -1050,6 +1061,29 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": compare_real_lhs_provenance_audit.get("next_bounded_action"),
         }
         if compare_real_lhs_provenance_audit
+        else {},
+        "latest_compare_esi_source_window_audit": {
+            "classification": esi_source_window_classification or None,
+            "artifact": artifact_refs.get("compare_esi_source_window_audit"),
+            "candidate_count": compare_esi_source_window_audit.get("candidate_count"),
+            "runtime_backed_count": compare_esi_source_window_audit.get("runtime_backed_count"),
+            "actual_compare": compare_esi_source_window_audit.get("actual_compare", {}),
+            "relations": compare_esi_source_window_audit.get("relations", {}),
+            "window_rows": compare_esi_source_window_audit.get("window_rows", [])[:12]
+            if isinstance(compare_esi_source_window_audit.get("window_rows"), list)
+            else [],
+            "relation_table": compare_esi_source_window_audit.get("relation_table", [])[:8]
+            if isinstance(compare_esi_source_window_audit.get("relation_table"), list)
+            else [],
+            "identified_producers": compare_esi_source_window_audit.get("identified_producers", [])[:3]
+            if isinstance(compare_esi_source_window_audit.get("identified_producers"), list)
+            else [],
+            "branch_summary": compare_esi_source_window_audit.get("branch_summary", {}),
+            "next_producer_window": compare_esi_source_window_audit.get("next_producer_window", {}),
+            "breakpoint_probe_allowed": compare_esi_source_window_audit.get("breakpoint_probe_allowed"),
+            "next_bounded_action": compare_esi_source_window_audit.get("next_bounded_action"),
+        }
+        if compare_esi_source_window_audit
         else {},
         "function_semantics": function_semantics,
         "uncertainty": sorted(set(uncertainty)),
@@ -1661,6 +1695,38 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                 "override_reason_required": True,
             }
         )
+    esi_source_window_audit = _read_json(artifacts.get("compare_esi_source_window_audit"))
+    esi_source_window_classification = str(esi_source_window_audit.get("classification") or "").strip()
+    if esi_source_window_classification in {
+        "repair_call_updates_lhs",
+        "pre_compare_branch_bypasses_repair",
+        "window_observed_but_source_unknown",
+        "inconclusive",
+    }:
+        results.append(
+            {
+                "direction": "run Base64/RC4 breakpoint probe before ESI source window identification",
+                "scope": "compare_esi_source_window_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": "breakpoint probing remains blocked until a runtime-backed ESI source connects to compare arg0",
+                "evidence_artifact": artifacts.get("compare_esi_source_window_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+        results.append(
+            {
+                "direction": "reuse old [ebp-0x1170] as proven source without ESI window evidence",
+                "scope": "compare_esi_source_window_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": "the old frame slot must be re-proven inside 0x2559..0x258b before guiding material hooks",
+                "evidence_artifact": artifacts.get("compare_esi_source_window_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
     return results
 
 
@@ -1819,6 +1885,10 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
     has_exact1 = isinstance(best_candidates.get("exact1"), dict) and bool(best_candidates.get("exact1"))
     if stage == "compare_real_lhs_provenance_audit" and reason == "lhs_register_source_confirmed":
         return "Trace ESI source window 0x2559..0x258b"
+    if stage == "compare_esi_source_window_audit" and reason == "esi_source_identified":
+        return "Promote identified ESI source into bounded material-hook validation"
+    if stage == "compare_esi_source_window_audit":
+        return "Investigate stalled ESI source window path"
     if ("exact1" in text and ("pair" in text or "projected" in text)) or (has_exact1 and "pair" in text):
         return "Generate next decision for exact1 pair_pool bottleneck"
     if stage or reason:

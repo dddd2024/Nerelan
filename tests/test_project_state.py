@@ -1058,6 +1058,70 @@ def test_project_state_indexes_compare_real_lhs_provenance_audit(tmp_path: Path)
     assert any("Base64/RC4 breakpoint probe" in item["direction"] for item in negative_results)
 
 
+def test_project_state_indexes_compare_esi_source_window_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_esi_source")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_esi_source_window_audit.json",
+        {
+            "artifact_kind": "compare_esi_source_window_audit",
+            "classification": "pre_compare_branch_bypasses_repair",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {
+                "entry_status": "confirmed",
+                "caller_module_offset": "0x258c",
+                "lhs_side": "arg0",
+                "flag_side": "arg1",
+            },
+            "relations": {
+                "actual_compare_arg0": "confirmed",
+                "pre_compare_esi_to_arg0": "confirmed",
+                "repair_path_observed": "rejected",
+            },
+            "window_rows": [
+                {
+                    "hook_name": "pre_compare_branch",
+                    "observed_count": 3,
+                    "connects_to_compare_lhs": False,
+                }
+            ],
+            "relation_table": [{"field": "repair_path_observed", "status": "rejected"}],
+            "identified_producers": [],
+            "branch_summary": {
+                "pre_compare_branch_observed_count": 3,
+                "repair_call_observed_count": 0,
+            },
+            "next_producer_window": {"start_rva": "0x2559", "end_rva": "0x258b"},
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "trace initial ESI source",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert artifact_index["latest_artifacts"]["compare_esi_source_window_audit"].endswith(
+        "compare_esi_source_window_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_esi_source_window_audit"
+    assert current_state["current_bottleneck"]["reason"] == "pre_compare_branch_bypasses_repair"
+    latest = current_state["latest_compare_esi_source_window_audit"]
+    assert latest["classification"] == "pre_compare_branch_bypasses_repair"
+    assert latest["relations"]["pre_compare_esi_to_arg0"] == "confirmed"
+    assert latest["branch_summary"]["repair_call_observed_count"] == 0
+    assert latest["next_producer_window"]["start_rva"] == "0x2559"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert task_packet["task"] == "Investigate stalled ESI source window path"
+    assert any(item.get("scope") == "compare_esi_source_window_audit" for item in negative_results)
+    assert any("ESI source window" in item["direction"] for item in negative_results)
+
+
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

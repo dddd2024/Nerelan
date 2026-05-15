@@ -18,6 +18,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME,
     COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME,
     COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
+    COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
     COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
     COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
     COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME,
@@ -67,6 +68,7 @@ from reverse_agent.strategies.compare_aware_search import (
     build_compare_callsite_reanchor_and_lhs_provenance_audit_payload,
     build_compare_lhs_producer_audit_payload,
     build_compare_lhs_upstream_writer_audit_payload,
+    build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
     build_function_semantic_audit_payload,
@@ -79,6 +81,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_callsite_reanchor_and_lhs_provenance_audit,
     run_compare_lhs_producer_audit,
     run_compare_lhs_upstream_writer_audit,
+    run_compare_esi_source_window_audit,
     run_compare_real_lhs_provenance_audit,
     run_compare_pre_compare_handoff_target_probe,
     run_compare_producer_material_confirmation_probe,
@@ -828,6 +831,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
             "compare_lhs_producer_audit",
             "compare_lhs_upstream_writer_audit",
             "compare_real_lhs_provenance_audit",
+            "compare_esi_source_window_audit",
             "h1_h3_boundary_validation",
         }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -4977,6 +4981,178 @@ def _fake_compare_real_lhs_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN
     return _Proc()
 
 
+def _compare_esi_source_window_candidate_result(
+    candidate_hex: str,
+    ptr: str,
+    preview: str,
+    *,
+    initial_matches: bool = True,
+    final_matches: bool = False,
+    repair_observed: bool = False,
+    branch_observed: bool = True,
+) -> dict[str, object]:
+    result = _compare_callsite_reanchor_candidate_result(
+        candidate_hex,
+        ptr,
+        preview,
+        old_frame_matches=False,
+        producer_matches=False,
+        compare_hook_name="static_compare_callsite",
+    )
+    observations = list(result["hook_observations"])
+    initial_ptr = ptr if initial_matches else "0xa000"
+    initial_preview = preview if initial_matches else "10" * 32
+    final_ptr = ptr if final_matches else initial_ptr
+    final_preview = preview if final_matches else initial_preview
+    observations.extend(
+        [
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "initial_lhs_reload",
+                "module_offset": "0x2559",
+                "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+                "esi_ptr": initial_ptr,
+                "esi_preview_hex": initial_preview,
+            },
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "pre_compare_lhs_push",
+                "module_offset": "0x258b",
+                "instruction": "push esi",
+                "esi_ptr": ptr,
+                "esi_preview_hex": preview,
+            },
+        ]
+    )
+    if branch_observed:
+        observations.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "pre_compare_branch",
+                "module_offset": "0x256f",
+                "instruction": "jge 0x2584",
+                "esi_ptr": initial_ptr,
+                "esi_preview_hex": initial_preview,
+            }
+        )
+    if repair_observed:
+        observations.extend(
+            [
+                {
+                    "candidate_hex": candidate_hex,
+                    "hook_name": "repair_call_input",
+                    "module_offset": "0x2573",
+                    "instruction": "lea ecx, [ebp - 0x1170]",
+                    "ecx_ptr": "0x7000",
+                    "frame_slots": [
+                        {
+                            "name": "[ebp-0x1170]",
+                            "offset": "-0x1170",
+                            "value": final_ptr,
+                            "preview_hex": final_preview,
+                        }
+                    ],
+                },
+                {
+                    "candidate_hex": candidate_hex,
+                    "hook_name": "repair_call_site",
+                    "module_offset": "0x2579",
+                    "instruction": "call 0x4019e0",
+                    "ecx_ptr": "0x7000",
+                    "frame_slots": [
+                        {
+                            "name": "[ebp-0x1170]",
+                            "offset": "-0x1170",
+                            "value": final_ptr,
+                            "preview_hex": final_preview,
+                        }
+                    ],
+                },
+            ]
+        )
+    observations.append(
+        {
+            "candidate_hex": candidate_hex,
+            "hook_name": "final_lhs_reload",
+            "module_offset": "0x257e",
+            "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+            "esi_ptr": final_ptr,
+            "esi_preview_hex": final_preview,
+        }
+    )
+    result["hook_observations"] = observations
+    return result
+
+
+def _compare_esi_source_window_candidates(**kwargs) -> list[dict[str, object]]:
+    return [
+        _compare_esi_source_window_candidate_result(
+            "78d540b49c59077041414141414141",
+            "0x1100",
+            "aa" * 32,
+            **kwargs,
+        ),
+        _compare_esi_source_window_candidate_result(
+            "5a3e7f46ddd474d041414141414141",
+            "0x2200",
+            "bb" * 32,
+            **kwargs,
+        ),
+        _compare_esi_source_window_candidate_result(
+            "78d540b49c59076f41414141414141",
+            "0x3300",
+            "cc" * 32,
+            **kwargs,
+        ),
+    ]
+
+
+def _fake_compare_esi_source_window_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} == {
+        "static_compare_callsite",
+        "initial_lhs_reload",
+        "esi_length_load",
+        "esi_length_sub",
+        "pre_compare_branch",
+        "repair_call_input",
+        "repair_call_site",
+        "final_lhs_reload",
+        "compare_count_push",
+        "compare_flag_push",
+        "pre_compare_lhs_push",
+    }
+    previews = {
+        "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
+        "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
+        "78d540b49c59076f41414141414141": ("0x3300", "cc" * 32),
+    }
+    ptr, preview = previews[candidate_hex]
+    candidate = _compare_esi_source_window_candidate_result(candidate_hex, ptr, preview)
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "compare ESI source window audit ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": candidate["hook_observations"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
 def _fake_pre_compare_handoff_ready_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     command = list(args[0])
     out_path = Path(command[command.index("--out") + 1])
@@ -6614,6 +6790,102 @@ def test_run_compare_real_lhs_provenance_audit_uses_fixed_candidates(tmp_path: P
     ]
 
 
+def test_compare_esi_source_window_identifies_initial_source() -> None:
+    payload = build_compare_esi_source_window_audit_payload(
+        candidate_results=_compare_esi_source_window_candidates(initial_matches=True),
+        source_real_lhs_payload={"classification": "lhs_register_source_confirmed"},
+    )
+
+    assert payload["classification"] == "esi_source_identified"
+    assert payload["relations"]["initial_reload_to_arg0"] == "confirmed"
+    assert payload["relations"]["pre_compare_esi_to_arg0"] == "confirmed"
+    assert payload["breakpoint_probe_allowed"] is True
+    assert payload["candidate_generation_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+
+
+def test_compare_esi_source_window_classifies_repair_call_update() -> None:
+    payload = build_compare_esi_source_window_audit_payload(
+        candidate_results=_compare_esi_source_window_candidates(
+            initial_matches=False,
+            final_matches=True,
+            repair_observed=True,
+        ),
+        source_real_lhs_payload={"classification": "lhs_register_source_confirmed"},
+    )
+
+    assert payload["classification"] == "repair_call_updates_lhs"
+    assert payload["relations"]["initial_reload_to_arg0"] == "inconclusive"
+    assert payload["relations"]["final_reload_to_arg0"] == "confirmed"
+    assert payload["relations"]["repair_path_observed"] == "confirmed"
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_esi_source_window_classifies_branch_bypass() -> None:
+    payload = build_compare_esi_source_window_audit_payload(
+        candidate_results=_compare_esi_source_window_candidates(
+            initial_matches=False,
+            final_matches=False,
+            repair_observed=False,
+        ),
+        source_real_lhs_payload={"classification": "lhs_register_source_confirmed"},
+    )
+
+    assert payload["classification"] == "pre_compare_branch_bypasses_repair"
+    assert payload["relations"]["repair_path_observed"] == "rejected"
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_esi_source_window_classifies_observed_unknown() -> None:
+    payload = build_compare_esi_source_window_audit_payload(
+        candidate_results=_compare_esi_source_window_candidates(
+            initial_matches=False,
+            final_matches=False,
+            repair_observed=False,
+            branch_observed=False,
+        ),
+        source_real_lhs_payload={"classification": "lhs_register_source_confirmed"},
+    )
+
+    assert payload["classification"] == "window_observed_but_source_unknown"
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_esi_source_window_classifies_inconclusive_without_runtime() -> None:
+    payload = build_compare_esi_source_window_audit_payload(
+        candidate_results=[],
+        source_real_lhs_payload={"classification": "lhs_register_source_confirmed"},
+    )
+
+    assert payload["classification"] == "inconclusive"
+    assert payload["runtime_backed_count"] == 0
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_run_compare_esi_source_window_audit_uses_fixed_candidates(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_compare_esi_source_window_subprocess_run)
+
+    result = run_compare_esi_source_window_audit(
+        target=target,
+        artifacts_dir=tmp_path / "compare_esi_source_window_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        real_lhs_payload={"classification": "lhs_register_source_confirmed"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(str(result["result_path"])).name == COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME
+    assert payload["classification"] == "esi_source_identified"
+    assert payload["fixed_candidates"] == [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+        "78d540b49c59076f41414141414141",
+    ]
+
+
 def test_compare_aware_strategy_runs_lhs_producer_sidecar_before_search(
     tmp_path: Path,
     monkeypatch,
@@ -6928,6 +7200,86 @@ def test_compare_aware_strategy_runs_real_lhs_sidecar_after_callsite_reanchor(
     assert captured["artifacts_dir"] == "compare_real_lhs_provenance_audit"
     assert captured["source_classification"] == "callsite_reanchored_but_producer_unknown"
     assert Path(str(result.artifacts[0].output_path)).name == COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME
+
+
+def test_compare_aware_strategy_runs_esi_source_window_sidecar_after_real_lhs(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    real_lhs_payload = {
+        "classification": "lhs_register_source_confirmed",
+        "breakpoint_probe_allowed": False,
+    }
+    captured: dict[str, object] = {}
+
+    def fake_indexed_artifact_payload(kind):
+        return (
+            {
+                "compare_real_lhs_provenance_audit": real_lhs_payload,
+            }.get(kind, {}),
+            "",
+        )
+
+    def fake_run_esi_source_audit(**kwargs):
+        captured["artifacts_dir"] = Path(kwargs["artifacts_dir"]).name
+        captured["source_classification"] = kwargs["real_lhs_payload"]["classification"]
+        result_path = Path(kwargs["artifacts_dir"]) / COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "artifact_kind": "compare_esi_source_window_audit",
+            "classification": "esi_source_identified",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {"lhs_side": "arg0", "flag_side": "arg1"},
+            "relations": {"initial_reload_to_arg0": "confirmed"},
+            "window_rows": [],
+            "identified_producers": [],
+            "breakpoint_probe_allowed": True,
+            "next_bounded_action": "promote source",
+        }
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+        return {
+            "result_path": str(result_path),
+            "payload": payload,
+            "validations": [],
+            "promotable_validations": [],
+        }
+
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {"latest_compare_real_lhs_provenance_audit": real_lhs_payload}
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_indexed_or_latest_report_artifact_payload",
+        fake_indexed_artifact_payload,
+    )
+    monkeypatch.setattr(compare_aware_search, "run_compare_esi_source_window_audit", fake_run_esi_source_audit)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for early ESI source sidecar"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "compare_esi_source_window_audit"
+    assert result.metadata["early_sidecar"] is True
+    assert captured["artifacts_dir"] == "compare_esi_source_window_audit"
+    assert captured["source_classification"] == "lhs_register_source_confirmed"
+    assert Path(str(result.artifacts[0].output_path)).name == COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME
 
 
 def test_compare_aware_strategy_runs_post_handoff_sidecar_before_search(
