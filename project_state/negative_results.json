@@ -80,6 +80,16 @@
     "severity": "soft_block"
   },
   {
+    "direction": "rerun Base64/RC4 breakpoint probe after material hook runtime validation blocked it",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\reports\\tool_artifacts\\samplereverse\\material_hook_runtime_validation\\material_hook_runtime_validation.json",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "0x2559 did not confirm instruction-backed post-RC4 compare material; Base64/RC4 probing remains gated until the writer/source before [ebp-0x1170] is traced",
+    "scope": "material_hook_runtime_validation",
+    "severity": "soft_block"
+  },
+  {
     "direction": "treat 0x4019e0 as Base64/RC4 material producer without new semantic evidence",
     "do_not_repeat": true,
     "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",

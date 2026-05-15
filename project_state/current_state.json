@@ -6,20 +6,20 @@
     "bridge_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
     "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
-    "compare_esi_source_window_audit": "solve_reports\\harness_runs\\sr_esi_source_window_20260515_r1\\reports\\tool_artifacts\\samplereverse\\compare_esi_source_window_audit\\compare_esi_source_window_audit.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
-    "compare_probe": "solve_reports\\harness_runs\\sr_esi_source_window_20260515_r1\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\sr_esi_source_window_20260515_r1\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.log",
+    "compare_probe": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\reports\\tool_artifacts\\samplereverse\\samplereverse_compare_probe.log",
     "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "frontier_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_frontier_summary.json",
     "function_semantic_audit": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
     "guided_pool_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\samplereverse_compare_aware_guided_pool_result.json",
     "guided_pool_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
+    "material_hook_runtime_validation": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\reports\\tool_artifacts\\samplereverse\\material_hook_runtime_validation\\material_hook_runtime_validation.json",
     "pairscan_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\pairscan_summary.json",
-    "run_manifest": "solve_reports\\harness_runs\\sr_esi_source_window_20260515_r1\\run_manifest.json",
+    "run_manifest": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\run_manifest.json",
     "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\sr_esi_source_window_20260515_r1\\summary.json"
+    "summary": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\summary.json"
   },
   "best_candidates": {
     "exact1": {
@@ -58,8 +58,8 @@
   },
   "current_bottleneck": {
     "confidence": "medium",
-    "reason": "esi_source_identified",
-    "stage": "compare_esi_source_window_audit"
+    "reason": "REJECTED",
+    "stage": "material_hook_runtime_validation"
   },
   "current_mainline": "L15(prefix8)",
   "function_semantics": {
@@ -100,7 +100,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-15T14:46:03Z",
+  "generated_at": "2026-05-15T16:21:09Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -267,541 +267,7 @@
     "next_bounded_action": "use compare-producer hook evidence to narrow manual Base64/RC4 disassembly before rerunning breakpoint probe"
   },
   "latest_compare_callsite_reanchor_and_lhs_provenance_audit": {},
-  "latest_compare_esi_source_window_audit": {
-    "actual_compare": {
-      "arg0_candidate_dependent": true,
-      "arg0_preview_by_candidate": {
-        "5a3e7f46ddd474d041414141414141": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93",
-        "78d540b49c59076f41414141414141": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481cfd15ef81092633b4cad6c11c03807ff0",
-        "78d540b49c59077041414141414141": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99"
-      },
-      "arg0_value_by_candidate": {
-        "5a3e7f46ddd474d041414141414141": "0x3b4ce38",
-        "78d540b49c59076f41414141414141": "0x3a0ce38",
-        "78d540b49c59077041414141414141": "0x4f4ce38"
-      },
-      "arg1_candidate_dependent": false,
-      "arg1_preview_by_candidate": {
-        "5a3e7f46ddd474d041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a89500",
-        "78d540b49c59076f41414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a89500",
-        "78d540b49c59077041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a89500"
-      },
-      "arg1_value_by_candidate": {
-        "5a3e7f46ddd474d041414141414141": "0x951c4c",
-        "78d540b49c59076f41414141414141": "0x951c4c",
-        "78d540b49c59077041414141414141": "0x951c4c"
-      },
-      "caller_module_offset": "0x258c",
-      "caller_return_module_offsets": {
-        "5a3e7f46ddd474d041414141414141": "0x258c",
-        "78d540b49c59076f41414141414141": "0x258c",
-        "78d540b49c59077041414141414141": "0x258c"
-      },
-      "entry": "0x258c",
-      "entry_module_offsets": {
-        "5a3e7f46ddd474d041414141414141": "0x258c",
-        "78d540b49c59076f41414141414141": "0x258c",
-        "78d540b49c59077041414141414141": "0x258c"
-      },
-      "entry_status": "confirmed",
-      "flag_side": "arg1",
-      "lhs_preview_varies_by_candidate": true,
-      "lhs_side": "arg0",
-      "observed_count": 3
-    },
-    "artifact": "solve_reports\\harness_runs\\sr_esi_source_window_20260515_r1\\reports\\tool_artifacts\\samplereverse\\compare_esi_source_window_audit\\compare_esi_source_window_audit.json",
-    "branch_summary": {
-      "pre_compare_branch_observed_count": 0,
-      "repair_call_observed_count": 0,
-      "repair_input_observed_count": 0
-    },
-    "breakpoint_probe_allowed": true,
-    "candidate_count": 3,
-    "classification": "esi_source_identified",
-    "identified_producers": [
-      {
-        "candidate_dependent": true,
-        "candidate_dependent_fields": {
-          "[ebp-0x1168]": true,
-          "[ebp-0x116c]": true,
-          "[ebp-0x1170]": true,
-          "eax": true,
-          "ecx": false,
-          "edi": true,
-          "edx": false,
-          "esi": true
-        },
-        "compare_lhs_match_count": 3,
-        "connects_to_compare_lhs": true,
-        "hook_name": "initial_lhs_reload",
-        "hookable": true,
-        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
-        "instruction_confirmed": true,
-        "module_offset": "0x2559",
-        "observed_count": 3,
-        "role": "initial_esi_source",
-        "runtime_backed_count": 3,
-        "sample_values": {
-          "5a3e7f46ddd474d041414141414141": {
-            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
-            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "eax": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "ecx": "0x0",
-            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
-            "edx": "0x73",
-            "esi": "186713e2f4aecb44f8a32a8e7e1a9d60588f300bb075b56489545129eb47cec5"
-          },
-          "78d540b49c59076f41414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "eax": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "ecx": "0x0",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
-            "edx": "0x73",
-            "esi": "66f02f1e7efea9c93f82a7348af36198bd2d529dd579413839eccf4b4fede965"
-          },
-          "78d540b49c59077041414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "eax": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "ecx": "0x0",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
-            "edx": "0x73",
-            "esi": "669e09956ff4b99dcaaef19c93b8c6d14ec183d5d3282aeb8b7f6c05186bcd76"
-          }
-        }
-      },
-      {
-        "candidate_dependent": true,
-        "candidate_dependent_fields": {
-          "[ebp-0x1168]": true,
-          "[ebp-0x116c]": true,
-          "[ebp-0x1170]": true,
-          "eax": true,
-          "ecx": false,
-          "edi": true,
-          "edx": false,
-          "esi": true
-        },
-        "compare_lhs_match_count": 3,
-        "connects_to_compare_lhs": true,
-        "hook_name": "esi_length_load",
-        "hookable": true,
-        "instruction": "mov ecx, dword ptr [esi - 8]",
-        "instruction_confirmed": true,
-        "module_offset": "0x255f",
-        "observed_count": 3,
-        "role": "esi_length_check",
-        "runtime_backed_count": 3,
-        "sample_values": {
-          "5a3e7f46ddd474d041414141414141": {
-            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
-            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "eax": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "ecx": "0x0",
-            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
-            "edx": "0x73",
-            "esi": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed"
-          },
-          "78d540b49c59076f41414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "eax": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "ecx": "0x0",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
-            "edx": "0x73",
-            "esi": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c"
-          },
-          "78d540b49c59077041414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "eax": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "ecx": "0x0",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
-            "edx": "0x73",
-            "esi": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038"
-          }
-        }
-      },
-      {
-        "candidate_dependent": true,
-        "candidate_dependent_fields": {
-          "[ebp-0x1168]": true,
-          "[ebp-0x116c]": true,
-          "[ebp-0x1170]": true,
-          "eax": false,
-          "ecx": false,
-          "edi": true,
-          "edx": false,
-          "esi": true
-        },
-        "compare_lhs_match_count": 3,
-        "connects_to_compare_lhs": true,
-        "hook_name": "esi_length_sub",
-        "hookable": true,
-        "instruction": "sub eax, dword ptr [esi - 4]",
-        "instruction_confirmed": true,
-        "module_offset": "0x2567",
-        "observed_count": 3,
-        "role": "esi_length_check",
-        "runtime_backed_count": 3,
-        "sample_values": {
-          "5a3e7f46ddd474d041414141414141": {
-            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
-            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "eax": "0x1",
-            "ecx": "0x31",
-            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
-            "edx": "0x73",
-            "esi": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed"
-          },
-          "78d540b49c59076f41414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "eax": "0x1",
-            "ecx": "0x31",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
-            "edx": "0x73",
-            "esi": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c"
-          },
-          "78d540b49c59077041414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "eax": "0x1",
-            "ecx": "0x31",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
-            "edx": "0x73",
-            "esi": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038"
-          }
-        }
-      }
-    ],
-    "next_bounded_action": "promote the identified ESI source as the next bounded material-hook start",
-    "next_producer_window": {
-      "end_rva": "0x258b",
-      "reason": "ESI source remains bounded to the pre-compare window",
-      "start_rva": "0x2559"
-    },
-    "relation_table": [
-      {
-        "field": "actual_compare_entry",
-        "status": "confirmed"
-      },
-      {
-        "field": "actual_compare_caller_rva",
-        "status": "0x258c"
-      },
-      {
-        "field": "lhs_side",
-        "status": "arg0"
-      },
-      {
-        "field": "pre_compare_esi_to_arg0",
-        "status": "inconclusive"
-      },
-      {
-        "field": "initial_reload_to_arg0",
-        "status": "confirmed"
-      },
-      {
-        "field": "final_reload_to_arg0",
-        "status": "inconclusive"
-      },
-      {
-        "field": "repair_path_observed",
-        "status": "rejected"
-      }
-    ],
-    "relations": {
-      "actual_compare_arg0": "confirmed",
-      "final_reload_to_arg0": "inconclusive",
-      "initial_reload_to_arg0": "confirmed",
-      "pre_compare_esi_to_arg0": "inconclusive",
-      "repair_path_observed": "rejected"
-    },
-    "runtime_backed_count": 3,
-    "window_rows": [
-      {
-        "candidate_dependent": true,
-        "candidate_dependent_fields": {
-          "[ebp-0x1168]": true,
-          "[ebp-0x116c]": true,
-          "[ebp-0x1170]": true,
-          "eax": true,
-          "ecx": false,
-          "edi": true,
-          "edx": false,
-          "esi": true
-        },
-        "compare_lhs_match_count": 3,
-        "connects_to_compare_lhs": true,
-        "hook_name": "initial_lhs_reload",
-        "hookable": true,
-        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
-        "instruction_confirmed": true,
-        "module_offset": "0x2559",
-        "observed_count": 3,
-        "role": "initial_esi_source",
-        "runtime_backed_count": 3,
-        "sample_values": {
-          "5a3e7f46ddd474d041414141414141": {
-            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
-            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "eax": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "ecx": "0x0",
-            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
-            "edx": "0x73",
-            "esi": "186713e2f4aecb44f8a32a8e7e1a9d60588f300bb075b56489545129eb47cec5"
-          },
-          "78d540b49c59076f41414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "eax": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "ecx": "0x0",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
-            "edx": "0x73",
-            "esi": "66f02f1e7efea9c93f82a7348af36198bd2d529dd579413839eccf4b4fede965"
-          },
-          "78d540b49c59077041414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "eax": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "ecx": "0x0",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
-            "edx": "0x73",
-            "esi": "669e09956ff4b99dcaaef19c93b8c6d14ec183d5d3282aeb8b7f6c05186bcd76"
-          }
-        }
-      },
-      {
-        "candidate_dependent": true,
-        "candidate_dependent_fields": {
-          "[ebp-0x1168]": true,
-          "[ebp-0x116c]": true,
-          "[ebp-0x1170]": true,
-          "eax": true,
-          "ecx": false,
-          "edi": true,
-          "edx": false,
-          "esi": true
-        },
-        "compare_lhs_match_count": 3,
-        "connects_to_compare_lhs": true,
-        "hook_name": "esi_length_load",
-        "hookable": true,
-        "instruction": "mov ecx, dword ptr [esi - 8]",
-        "instruction_confirmed": true,
-        "module_offset": "0x255f",
-        "observed_count": 3,
-        "role": "esi_length_check",
-        "runtime_backed_count": 3,
-        "sample_values": {
-          "5a3e7f46ddd474d041414141414141": {
-            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
-            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "eax": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "ecx": "0x0",
-            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
-            "edx": "0x73",
-            "esi": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed"
-          },
-          "78d540b49c59076f41414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "eax": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "ecx": "0x0",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
-            "edx": "0x73",
-            "esi": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c"
-          },
-          "78d540b49c59077041414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "eax": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "ecx": "0x0",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
-            "edx": "0x73",
-            "esi": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038"
-          }
-        }
-      },
-      {
-        "candidate_dependent": true,
-        "candidate_dependent_fields": {
-          "[ebp-0x1168]": true,
-          "[ebp-0x116c]": true,
-          "[ebp-0x1170]": true,
-          "eax": false,
-          "ecx": false,
-          "edi": true,
-          "edx": false,
-          "esi": true
-        },
-        "compare_lhs_match_count": 3,
-        "connects_to_compare_lhs": true,
-        "hook_name": "esi_length_sub",
-        "hookable": true,
-        "instruction": "sub eax, dword ptr [esi - 4]",
-        "instruction_confirmed": true,
-        "module_offset": "0x2567",
-        "observed_count": 3,
-        "role": "esi_length_check",
-        "runtime_backed_count": 3,
-        "sample_values": {
-          "5a3e7f46ddd474d041414141414141": {
-            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
-            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
-            "eax": "0x1",
-            "ecx": "0x31",
-            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
-            "edx": "0x73",
-            "esi": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed"
-          },
-          "78d540b49c59076f41414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
-            "eax": "0x1",
-            "ecx": "0x31",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
-            "edx": "0x73",
-            "esi": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c"
-          },
-          "78d540b49c59077041414141414141": {
-            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
-            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
-            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
-            "eax": "0x1",
-            "ecx": "0x31",
-            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
-            "edx": "0x73",
-            "esi": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038"
-          }
-        }
-      },
-      {
-        "candidate_dependent": false,
-        "candidate_dependent_fields": {},
-        "compare_lhs_match_count": 0,
-        "connects_to_compare_lhs": false,
-        "hook_name": "pre_compare_branch",
-        "hookable": false,
-        "instruction": "jge 0x2584",
-        "instruction_confirmed": true,
-        "module_offset": "0x256f",
-        "observed_count": 0,
-        "role": "repair_branch",
-        "runtime_backed_count": 0,
-        "sample_values": {}
-      },
-      {
-        "candidate_dependent": false,
-        "candidate_dependent_fields": {},
-        "compare_lhs_match_count": 0,
-        "connects_to_compare_lhs": false,
-        "hook_name": "repair_call_input",
-        "hookable": false,
-        "instruction": "lea ecx, [ebp - 0x1170]",
-        "instruction_confirmed": true,
-        "module_offset": "0x2573",
-        "observed_count": 0,
-        "role": "repair_call_slot_input",
-        "runtime_backed_count": 0,
-        "sample_values": {}
-      },
-      {
-        "candidate_dependent": false,
-        "candidate_dependent_fields": {},
-        "compare_lhs_match_count": 0,
-        "connects_to_compare_lhs": false,
-        "hook_name": "repair_call_site",
-        "hookable": false,
-        "instruction": "call 0x4019e0",
-        "instruction_confirmed": true,
-        "module_offset": "0x2579",
-        "observed_count": 0,
-        "role": "repair_call",
-        "runtime_backed_count": 0,
-        "sample_values": {}
-      },
-      {
-        "candidate_dependent": false,
-        "candidate_dependent_fields": {},
-        "compare_lhs_match_count": 0,
-        "connects_to_compare_lhs": false,
-        "hook_name": "final_lhs_reload",
-        "hookable": false,
-        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
-        "instruction_confirmed": true,
-        "module_offset": "0x257e",
-        "observed_count": 0,
-        "role": "final_esi_source",
-        "runtime_backed_count": 0,
-        "sample_values": {}
-      },
-      {
-        "candidate_dependent": false,
-        "candidate_dependent_fields": {},
-        "compare_lhs_match_count": 0,
-        "connects_to_compare_lhs": false,
-        "hook_name": "compare_count_push",
-        "hookable": false,
-        "instruction": "push 5",
-        "instruction_confirmed": true,
-        "module_offset": "0x2584",
-        "observed_count": 0,
-        "role": "compare_arg_count",
-        "runtime_backed_count": 0,
-        "sample_values": {}
-      },
-      {
-        "candidate_dependent": false,
-        "candidate_dependent_fields": {},
-        "compare_lhs_match_count": 0,
-        "connects_to_compare_lhs": false,
-        "hook_name": "compare_flag_push",
-        "hookable": false,
-        "instruction": "push 0x551c4c",
-        "instruction_confirmed": true,
-        "module_offset": "0x2586",
-        "observed_count": 0,
-        "role": "compare_flag_arg",
-        "runtime_backed_count": 0,
-        "sample_values": {}
-      },
-      {
-        "candidate_dependent": false,
-        "candidate_dependent_fields": {},
-        "compare_lhs_match_count": 0,
-        "connects_to_compare_lhs": false,
-        "hook_name": "pre_compare_lhs_push",
-        "hookable": false,
-        "instruction": "push esi",
-        "instruction_confirmed": true,
-        "module_offset": "0x258b",
-        "observed_count": 0,
-        "role": "esi_to_compare_arg0",
-        "runtime_backed_count": 0,
-        "sample_values": {}
-      }
-    ]
-  },
+  "latest_compare_esi_source_window_audit": {},
   "latest_compare_handoff_probe": {},
   "latest_compare_handoff_return_site_probe": {
     "artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
@@ -1143,7 +609,66 @@
       }
     ]
   },
-  "latest_material_hook_runtime_validation": {},
+  "latest_material_hook_runtime_validation": {
+    "artifact": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\reports\\tool_artifacts\\samplereverse\\material_hook_runtime_validation\\material_hook_runtime_validation.json",
+    "blocked_hook_count": 1,
+    "blocked_hooks": [
+      {
+        "address": "module+0x2559",
+        "candidate_dependent": false,
+        "classification": "not_reached",
+        "confidence": "low",
+        "connects_to_compare_lhs": true,
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "observed_count=0",
+          "readable_count=0",
+          "expected_rc4_output_match_count=0"
+        ],
+        "function": "0x2559",
+        "hit_count": 0,
+        "hook_kind": "interceptor",
+        "hook_name": "initial_lhs_reload",
+        "hookable": false,
+        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+        "instruction_confirmed": true,
+        "kind": "rc4_output",
+        "material_kind": "rc4_output",
+        "module_offset": "0x2559",
+        "name": "material_hook_runtime_initial_lhs_reload",
+        "per_candidate": [
+          {
+            "candidate_hex": "78d540b49c59077041414141414141",
+            "expected_rc4_output_prefix_hex": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "frame_slots": [],
+            "matched_expected_registers": [],
+            "observed": false,
+            "pointers": {
+              "eax": "",
+              "ecx": "",
+              "edi": "",
+              "edx": "",
+              "esi": ""
+            },
+            "preview_hex": {},
+            "registers": {},
+            "stack_words": []
+          }
+        ],
+        "readable_count": 0,
+        "rva": "0x2559"
+      }
+    ],
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "classification": "REJECTED",
+    "material_kind": "rc4_output",
+    "next_bounded_action": "reject 0x2559 material-hook hypothesis and trace writer/source before 0x2559 / [ebp-0x1170]",
+    "runtime_backed_count": 0,
+    "source_compare_esi_source_window_classification": "esi_source_identified",
+    "validated_hook_count": 0,
+    "validated_hooks": []
+  },
   "latest_post_handoff_branch_outcome_audit": {},
   "latest_pre_rc4_material_probe": {},
   "latest_static_point_discovery": {
