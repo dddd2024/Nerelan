@@ -4178,3 +4178,46 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不直接跑 Base64/RC4 breakpoint probe。
 - 不复用旧 `[ebp-0x1170]`，除非能拿到 real-lhs provenance evidence。
 - 下一步应改进 `0x258b push esi` 或更早真实 lhs source 的 runtime capture，让 `esi -> compare arg0` 先变成 runtime-backed，再追下一跳 producer。
+
+## 2026-05-15 CompareProbe ESI snapshot instrumentation
+
+1) 执行范围
+- 按计划只修 instrumentation / project_state 语义。
+- 未扩大 search / beam / budget / topN / timeout / frontier iteration。
+- 未运行 Base64/RC4 breakpoint probe；旧 `[ebp-0x1170]` 继续阻断。
+
+2) 代码变更
+- `reverse_agent/olly_scripts/compare_probe.py`
+  - 在 `0x258c` CompareProbe 捕获中新增 `esi_ptr` / `esi_preview_hex` 输出。
+  - 保留现有 `lhs_ptr` / `rhs_ptr` / `compare_count` 字段兼容旧消费者。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - CompareProbe fallback 合成的 `static_compare_callsite` observation 现在携带 ESI 快照。
+  - `compare_real_lhs_provenance_audit` 在 `0x258b` 未直接命中时，可用 `static_compare_callsite` 的 ESI 快照作为 `pre_compare_lhs_push` 的 runtime-backed 替代证据。
+  - 仅当 3 个固定候选均证明 `ESI -> compare arg0` 时升级为 `lhs_register_source_confirmed`。
+- `reverse_agent/project_state.py`
+  - `lhs_register_source_confirmed` 的 task packet 改为追踪 `0x2559..0x258b` ESI 来源窗口。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `153 passed`
+- `python -m pytest -q` -> `230 passed`
+
+4) Harness / project_state
+- Completed real harness sidecar ladder:
+  - `sr_esi_snapshot_20260515_r1`: `compare_lhs_producer_audit -> producer_window_rejected`
+  - `sr_esi_snapshot_20260515_r2`: `compare_lhs_upstream_writer_audit -> candidate_dependent_upstream_observed`
+  - `sr_esi_snapshot_20260515_r3`: `compare_callsite_reanchor_and_lhs_provenance_audit -> callsite_reanchored_but_producer_unknown`
+  - `sr_esi_snapshot_20260515_r4`: `compare_real_lhs_provenance_audit -> lhs_register_source_confirmed`
+- Final core artifact:
+  - `solve_reports\harness_runs\sr_esi_snapshot_20260515_r4\reports\tool_artifacts\samplereverse\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_esi_snapshot_20260515_r4` -> passed。
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_esi_snapshot_20260515_r4`
+  - `reason: lhs_register_source_confirmed`
+  - `task: Trace ESI source window 0x2559..0x258b`
+  - `missing: []`
+
+5) 下一轮默认方向
+- `compare_real_lhs_provenance_audit` 已达到 `lhs_register_source_confirmed`。
+- `relations.esi_to_compare_arg0=confirmed`，`runtime_backed_count=3`，固定 3 候选保持不变。
+- 下一步继续追 `0x2559..0x258b` 之间真实 ESI 来源；仍不直接跑 Base64/RC4 breakpoint probe。

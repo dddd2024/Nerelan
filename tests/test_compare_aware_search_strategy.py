@@ -6467,6 +6467,65 @@ def test_compare_real_lhs_provenance_confirms_esi_source_without_promoting_conte
     assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
 
 
+def test_compare_real_lhs_provenance_confirms_esi_from_static_callsite_snapshot() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        result = _compare_callsite_reanchor_candidate_result(
+            candidate_hex,
+            ptr,
+            preview,
+            old_frame_matches=False,
+            producer_matches=False,
+            compare_hook_name="static_compare_callsite",
+        )
+        result["hook_observations"] = [
+            item for item in result["hook_observations"] if item["hook_name"] == "static_compare_callsite"
+        ]
+        result["hook_observations"][0]["esi_ptr"] = ptr
+        result["hook_observations"][0]["esi_preview_hex"] = preview
+        candidates.append(result)
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_callsite_reanchor_payload={"classification": "callsite_reanchored_but_producer_unknown"},
+    )
+
+    esi_evidence = next(
+        row for row in payload["provenance"]["evidence"] if row["hook_name"] == "pre_compare_lhs_push"
+    )
+    assert payload["classification"] == "lhs_register_source_confirmed"
+    assert payload["relations"]["esi_to_compare_arg0"] == "confirmed"
+    assert payload["next_producer_window"]["start_rva"] == "0x2559"
+    assert esi_evidence["runtime_backed_count"] == 3
+    assert esi_evidence["connects_to_compare_lhs"] is True
+
+
+def test_compare_probe_fallback_observation_carries_esi_snapshot() -> None:
+    observation = compare_aware_search._compare_probe_payload_to_static_callsite_observation(
+        {
+            "success": True,
+            "compare_site": "0x40258c",
+            "lhs_ptr": "0x1100",
+            "rhs_ptr": "0x5000",
+            "compare_count": 5,
+            "lhs_wide_hex": "aa" * 32,
+            "rhs_wide_hex": "66006c00610067007b00",
+            "esi_ptr": "0x1100",
+            "esi_preview_hex": "aa" * 32,
+        },
+        "78d540b49c59077041414141414141",
+    )
+
+    assert observation["hook_name"] == "static_compare_callsite"
+    assert observation["esi_ptr"] == "0x1100"
+    assert observation["esi_preview_hex"] == "aa" * 32
+    assert observation["registers"]["esi"] == "0x1100"
+
+
 def test_compare_real_lhs_provenance_rejects_old_frame_without_esi() -> None:
     candidates = [
         _compare_real_lhs_candidate_result(

@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-15T12:38:15Z",
+  "generated_at": "2026-05-15T14:11:06Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "old_frame_anchor_rejected",
+  "reason": "lhs_register_source_confirmed",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }

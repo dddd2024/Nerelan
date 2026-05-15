@@ -120,6 +120,8 @@ def _build_payload(
     input_text: str = "",
     lhs_ptr: str = "",
     rhs_ptr: str = "",
+    esi_ptr: str = "",
+    esi_preview_hex: str = "",
     compare_count: int | None = None,
     lhs_wide_text: str = "",
     lhs_wide_hex: str = "",
@@ -145,6 +147,8 @@ def _build_payload(
         "input_text": input_text,
         "lhs_ptr": lhs_ptr,
         "rhs_ptr": rhs_ptr,
+        "esi_ptr": esi_ptr,
+        "esi_preview_hex": esi_preview_hex,
         "compare_count": compare_count,
         "lhs_wide_text": lhs_wide_text,
         "lhs_wide_hex": lhs_wide_hex,
@@ -320,11 +324,14 @@ Interceptor.attach(compareSite, {{
         const lhsPtr = stackBase.readPointer();
         const rhsPtr = stackBase.add(4).readPointer();
         const count = stackBase.add(8).readU32();
+        const esiPtr = ptr(this.context.esi || this.context.rsi || 0);
         send({{
             type: "compare",
             compare_site: compareSite.toString(),
             lhs_ptr: lhsPtr.toString(),
             rhs_ptr: rhsPtr.toString(),
+            esi_ptr: esiPtr.toString(),
+            esi_preview_hex: readWideHex(esiPtr),
             count: count,
             lhs_wide_text: readWide(lhsPtr),
             lhs_wide_hex: readWideHex(lhsPtr),
@@ -410,6 +417,8 @@ Interceptor.attach(compareSite, {{
         compare_site = str(captured.get("compare_site", "") or "")
         lhs_ptr = str(captured.get("lhs_ptr", "") or "")
         rhs_ptr = str(captured.get("rhs_ptr", "") or "")
+        esi_ptr = str(captured.get("esi_ptr", "") or "")
+        esi_preview_hex = str(captured.get("esi_preview_hex", "") or "")
         try:
             compare_count = int(captured.get("count", 0) or 0)
         except (TypeError, ValueError):
@@ -433,6 +442,7 @@ Interceptor.attach(compareSite, {{
                 f"runtime_compare:rhs={_escape_runtime_text(rhs_wide_text)}",
                 f"runtime_compare:lhs_ptr={captured.get('lhs_ptr', '')}",
                 f"runtime_compare:rhs_ptr={captured.get('rhs_ptr', '')}",
+                f"runtime_compare:esi_ptr={captured.get('esi_ptr', '')}",
                 f"runtime_compare:count={captured.get('count', '')}",
                 f"runtime_compare:gui_output={_escape_runtime_text(captured_output[:220])}",
                 f"runtime_compare:runtime_ci_exact_wchars={runtime_ci_exact_wchars}",
@@ -475,6 +485,8 @@ Interceptor.attach(compareSite, {{
                 input_text=captured_input,
                 lhs_ptr=lhs_ptr,
                 rhs_ptr=rhs_ptr,
+                esi_ptr=esi_ptr,
+                esi_preview_hex=esi_preview_hex,
                 compare_count=compare_count,
                 lhs_wide_text=lhs_wide_text,
                 lhs_wide_hex=lhs_wide_hex,

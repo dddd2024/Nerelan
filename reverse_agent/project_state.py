@@ -1817,6 +1817,8 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
     reason = str(bottleneck.get("reason") or "")
     text = f"{stage} {reason}".lower()
     has_exact1 = isinstance(best_candidates.get("exact1"), dict) and bool(best_candidates.get("exact1"))
+    if stage == "compare_real_lhs_provenance_audit" and reason == "lhs_register_source_confirmed":
+        return "Trace ESI source window 0x2559..0x258b"
     if ("exact1" in text and ("pair" in text or "projected" in text)) or (has_exact1 and "pair" in text):
         return "Generate next decision for exact1 pair_pool bottleneck"
     if stage or reason:

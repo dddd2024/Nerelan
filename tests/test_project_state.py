@@ -1040,6 +1040,7 @@ def test_project_state_indexes_compare_real_lhs_provenance_audit(tmp_path: Path)
     artifact_index = _read_json(state_dir / "artifact_index.json")
     current_state = _read_json(state_dir / "current_state.json")
     negative_results = _read_json(state_dir / "negative_results.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
     assert artifact_index["latest_artifacts"]["compare_real_lhs_provenance_audit"].endswith(
         "compare_real_lhs_provenance_audit.json"
     )
@@ -1050,8 +1051,11 @@ def test_project_state_indexes_compare_real_lhs_provenance_audit(tmp_path: Path)
     assert latest["actual_compare"]["lhs_side"] == "arg0"
     assert latest["relations"]["esi_to_compare_arg0"] == "confirmed"
     assert latest["next_producer_window"]["start_rva"] == "0x2559"
+    assert latest["next_producer_window"]["end_rva"] == "0x258b"
     assert latest["breakpoint_probe_allowed"] is False
+    assert task_packet["task"] == "Trace ESI source window 0x2559..0x258b"
     assert any(item.get("scope") == "compare_real_lhs_provenance_audit" for item in negative_results)
+    assert any("Base64/RC4 breakpoint probe" in item["direction"] for item in negative_results)
 
 
 def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:

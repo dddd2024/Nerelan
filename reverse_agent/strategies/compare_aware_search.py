@@ -11599,6 +11599,8 @@ def _provenance_rows(
             candidate_hex = str(result.get("candidate_hex", ""))
             lhs_arg = _lhs_arg_for_result(result, lhs_side)
             observation = _compare_lhs_observation(result, hook_name)
+            if not observation and hook_name == "pre_compare_lhs_push":
+                observation = _static_callsite_esi_as_pre_compare_lhs_push(result)
             if not lhs_arg or not observation:
                 continue
             observed_count += 1
@@ -11767,8 +11769,10 @@ def _compare_probe_payload_to_static_callsite_observation(
         return {}
     lhs_ptr = str(payload.get("lhs_ptr", "") or "")
     rhs_ptr = str(payload.get("rhs_ptr", "") or "")
+    esi_ptr = str(payload.get("esi_ptr", "") or "")
     lhs_preview = str(payload.get("lhs_wide_hex", "") or payload.get("runtime_lhs_prefix_hex", "") or "")
     rhs_preview = str(payload.get("rhs_wide_hex", "") or "")
+    esi_preview = str(payload.get("esi_preview_hex", "") or "")
     compare_site = str(payload.get("compare_site", "") or "")
     try:
         compare_count = int(payload.get("compare_count", 0) or 0)
@@ -11803,9 +11807,11 @@ def _compare_probe_payload_to_static_callsite_observation(
         "address": compare_site,
         "module_offset": "0x258c",
         "instruction": "call 0x5028ac",
-        "registers": {},
+        "registers": {"esi": esi_ptr} if esi_ptr else {},
         "stack_words": [],
         "frame_slots": [],
+        "esi_ptr": esi_ptr,
+        "esi_preview_hex": esi_preview,
         "compare_entry": {
             "slots": [
                 {
@@ -11826,6 +11832,25 @@ def _compare_probe_payload_to_static_callsite_observation(
         "expected_eax_preview_hex": "",
         "matched_expected_eax": False,
         "source": "compare_probe_fallback",
+    }
+
+
+def _static_callsite_esi_as_pre_compare_lhs_push(result: dict[str, object]) -> dict[str, object]:
+    static_callsite = _compare_lhs_observation(result, "static_compare_callsite")
+    if not static_callsite:
+        return {}
+    esi_ptr = str(static_callsite.get("esi_ptr", "") or "").strip()
+    esi_preview = str(static_callsite.get("esi_preview_hex", "") or "").strip()
+    if not esi_ptr and not esi_preview:
+        return {}
+    return {
+        "candidate_hex": result.get("candidate_hex", ""),
+        "hook_name": "pre_compare_lhs_push",
+        "module_offset": "0x258b",
+        "instruction": "push esi",
+        "esi_ptr": esi_ptr,
+        "esi_preview_hex": esi_preview,
+        "source": "static_compare_callsite_esi_snapshot",
     }
 
 
