@@ -285,6 +285,39 @@ function compareEntrySlots(sp, moduleBase) {{
     return slots;
 }}
 
+function compareCallsiteSlots(sp, address, moduleBase) {{
+    let slots = [{{
+        index: 0,
+        role: "return_address",
+        value: address.toString(),
+        module_offset: moduleOffsetText(address, moduleBase),
+        preview_hex: "",
+    }}];
+    for (let i = 0; i < 3; i++) {{
+        try {{
+            const slot = sp.add(i * Process.pointerSize);
+            if (i === 2) {{
+                slots.push({{
+                    index: i + 1,
+                    role: "arg" + i.toString(),
+                    value_u32: slot.readU32(),
+                }});
+            }} else {{
+                const value = slot.readPointer();
+                slots.push({{
+                    index: i + 1,
+                    role: "arg" + i.toString(),
+                    value: value.toString(),
+                    module_offset: moduleOffsetText(value, moduleBase),
+                    preview_hex: readBytes(value, 128),
+                }});
+            }}
+        }} catch (error) {{
+        }}
+    }}
+    return slots;
+}}
+
 function observe(point, address, context) {{
     const mainModule = Process.enumerateModules()[0];
     const sp = ptr(context.sp || context.esp || 0);
@@ -295,10 +328,17 @@ function observe(point, address, context) {{
     const esi = safePointer(context.esi || context.rsi || 0);
     const edi = safePointer(context.edi || context.rdi || 0);
     const eaxPreview = readBytes(eax, 128);
-    const isCompare = String(point.name || "") === "compare_helper_entry";
+    const pointName = String(point.name || "");
+    const isHelperCompare = pointName === "compare_helper_entry" || pointName === "actual_compare_entry";
+    const isStaticCompareCallsite = pointName === "static_compare_callsite";
+    const compareSlots = isStaticCompareCallsite
+        ? compareCallsiteSlots(sp, address, mainModule.base)
+        : isHelperCompare
+            ? compareEntrySlots(sp, mainModule.base)
+            : [];
     send({{
         type: "compare_pre_compare_handoff_target_observation",
-        hook_name: String(point.name || ""),
+        hook_name: pointName,
         address: address.toString(),
         module_offset: moduleOffsetText(address, mainModule.base),
         instruction: String(point.instruction || ""),
@@ -315,8 +355,11 @@ function observe(point, address, context) {{
         esi_preview_hex: readBytes(esi, 128),
         edi_ptr: edi.toString(),
         edi_preview_hex: readBytes(edi, 128),
-        compare_entry: isCompare ? {{ slots: compareEntrySlots(sp, mainModule.base) }} : {{}},
-        compare_args: isCompare ? {{ args: compareEntrySlots(sp, mainModule.base).slice(1) }} : {{}},
+        compare_entry: compareSlots.length > 0 ? {{ slots: compareSlots }} : {{}},
+        compare_args: compareSlots.length > 0 ? {{ args: compareSlots.slice(1).map((slot, index) => Object.assign({{}}, slot, {{
+            index: index,
+            role: "arg" + index.toString(),
+        }})) }} : {{}},
         expected_eax_preview_hex: expectedEaxPreview,
         matched_expected_eax: expectedEaxPreview.length > 0 && eaxPreview.toLowerCase().startsWith(expectedEaxPreview.slice(0, 32)),
     }});

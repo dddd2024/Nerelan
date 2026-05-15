@@ -11410,8 +11410,19 @@ def _compare_callsite_reanchor_static_audit(
     }
 
 
+ACTUAL_COMPARE_OBSERVATION_HOOKS = (
+    "static_compare_callsite",
+    "actual_compare_entry",
+    "compare_helper_entry",
+)
+
+
 def _actual_compare_observation(result: dict[str, object]) -> dict[str, object]:
-    return _compare_lhs_observation(result, "actual_compare_entry")
+    for hook_name in ACTUAL_COMPARE_OBSERVATION_HOOKS:
+        observation = _compare_lhs_observation(result, hook_name)
+        if observation:
+            return observation
+    return {}
 
 
 def _actual_compare_args(result: dict[str, object]) -> list[dict[str, object]]:
@@ -11460,12 +11471,14 @@ def _compare_callsite_side_summary(candidate_results: Sequence[dict[str, object]
     arg_values: dict[str, dict[str, str]] = {"arg0": {}, "arg1": {}}
     flag_counts = {"arg0": 0, "arg1": 0}
     caller_offsets: dict[str, str] = {}
+    entry_offsets: dict[str, str] = {}
     actual_compare_observed_count = 0
     for result in candidate_results:
         candidate_hex = str(result.get("candidate_hex", ""))
         observation = _actual_compare_observation(result)
         if observation:
             actual_compare_observed_count += 1
+            entry_offsets[candidate_hex] = str(observation.get("module_offset", "") or "")
         return_slot = _actual_compare_return_slot(observation)
         if return_slot:
             caller_offsets[candidate_hex] = str(return_slot.get("module_offset", ""))
@@ -11495,14 +11508,16 @@ def _compare_callsite_side_summary(candidate_results: Sequence[dict[str, object]
         lhs_side = "arg0"
     elif candidate_dependent.get("arg1") and not candidate_dependent.get("arg0"):
         lhs_side = "arg1"
+    observed_entry = next((offset for offset in entry_offsets.values() if offset), "0x1028ac")
     return {
-        "entry": "0x1028ac",
+        "entry": observed_entry,
         "entry_status": "confirmed"
         if actual_compare_observed_count >= 3
         else "rejected"
         if candidate_count >= 3 and actual_compare_observed_count == 0
         else "inconclusive",
         "observed_count": actual_compare_observed_count,
+        "entry_module_offsets": entry_offsets,
         "caller_return_module_offsets": caller_offsets,
         "caller_module_offset": next(iter(caller_offsets.values()), ""),
         "arg0_preview_by_candidate": arg_previews["arg0"],
@@ -11728,6 +11743,85 @@ def build_compare_callsite_reanchor_and_lhs_provenance_audit_payload(
     return payload
 
 
+def _has_actual_compare_args(observations: Sequence[dict[str, object]]) -> bool:
+    for observation in observations:
+        if str(observation.get("hook_name", "")) not in ACTUAL_COMPARE_OBSERVATION_HOOKS:
+            continue
+        if _pre_compare_compare_args(observation):
+            return True
+    return False
+
+
+def _compare_probe_payload_to_static_callsite_observation(
+    payload: dict[str, object],
+    candidate_hex: str,
+) -> dict[str, object]:
+    if not bool(payload.get("success")):
+        return {}
+    lhs_ptr = str(payload.get("lhs_ptr", "") or "")
+    rhs_ptr = str(payload.get("rhs_ptr", "") or "")
+    lhs_preview = str(payload.get("lhs_wide_hex", "") or payload.get("runtime_lhs_prefix_hex", "") or "")
+    rhs_preview = str(payload.get("rhs_wide_hex", "") or "")
+    compare_site = str(payload.get("compare_site", "") or "")
+    try:
+        compare_count = int(payload.get("compare_count", 0) or 0)
+    except (TypeError, ValueError):
+        compare_count = 0
+    if not lhs_ptr or not rhs_ptr or not compare_site:
+        return {}
+    args = [
+        {
+            "index": 0,
+            "role": "arg0",
+            "value": lhs_ptr,
+            "module_offset": "",
+            "preview_hex": lhs_preview,
+        },
+        {
+            "index": 1,
+            "role": "arg1",
+            "value": rhs_ptr,
+            "module_offset": "",
+            "preview_hex": rhs_preview,
+        },
+        {
+            "index": 2,
+            "role": "arg2",
+            "value_u32": compare_count,
+        },
+    ]
+    return {
+        "candidate_hex": candidate_hex,
+        "hook_name": "static_compare_callsite",
+        "address": compare_site,
+        "module_offset": "0x258c",
+        "instruction": "call 0x5028ac",
+        "registers": {},
+        "stack_words": [],
+        "frame_slots": [],
+        "compare_entry": {
+            "slots": [
+                {
+                    "index": 0,
+                    "role": "return_address",
+                    "value": compare_site,
+                    "module_offset": "0x258c",
+                    "preview_hex": "",
+                },
+                *args,
+            ]
+        },
+        "compare_args": {"args": args},
+        "argument_previews": {
+            "arg0_preview_hex": lhs_preview[:128],
+            "arg1_preview_hex": rhs_preview[:128],
+        },
+        "expected_eax_preview_hex": "",
+        "matched_expected_eax": False,
+        "source": "compare_probe_fallback",
+    }
+
+
 def run_compare_callsite_reanchor_and_lhs_provenance_audit(
     *,
     target: Path,
@@ -11742,6 +11836,7 @@ def run_compare_callsite_reanchor_and_lhs_provenance_audit(
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     result_path = artifacts_dir / COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME
     script_path = _compare_callsite_reanchor_and_lhs_provenance_audit_script_path()
+    compare_probe_script = _compare_probe_script_path()
     hook_points = _compare_callsite_reanchor_hook_points()
     static_audit = _compare_callsite_reanchor_static_audit(target, hook_points)
     entries = list(COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_CANDIDATES)
@@ -11757,6 +11852,8 @@ def run_compare_callsite_reanchor_and_lhs_provenance_audit(
     _write_json(result_path, initial_payload)
     if not script_path.exists():
         raise RuntimeError(f"Compare callsite reanchor audit script missing: {script_path}")
+    if not compare_probe_script.exists():
+        raise RuntimeError(f"compare probe script missing: {compare_probe_script}")
 
     points_path = artifacts_dir / "compare_callsite_reanchor_hook_points.json"
     _write_json(points_path, {"hook_points": hook_points})
@@ -11803,6 +11900,50 @@ def run_compare_callsite_reanchor_and_lhs_provenance_audit(
             for item in compare_payload.get("hook_observations", [])
             if isinstance(item, dict)
         ]
+        if not _has_actual_compare_args(observations):
+            probe_out = candidate_dir / "compare_probe_static_callsite.json"
+            probe_log = candidate_dir / "compare_probe_static_callsite.log"
+            probe_command = [
+                sys.executable,
+                str(compare_probe_script),
+                "--target",
+                str(target),
+                "--out",
+                str(probe_out),
+                "--probe-hex",
+                candidate_hex,
+                "--per-probe-timeout",
+                str(max(float(per_probe_timeout), 2.0)),
+                "--capture-prefix-bytes",
+                str(RUNTIME_PREFIX_BYTES),
+            ]
+            if log:
+                log(f"CompareCallsiteReanchorAndLHSProvenanceAudit CompareProbe fallback {idx}: {candidate_hex}")
+            try:
+                probe_proc = _run_material_hook_runtime_command(
+                    probe_command,
+                    timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+                )
+            except subprocess.TimeoutExpired as exc:
+                probe_proc = subprocess.CompletedProcess(
+                    probe_command,
+                    returncode=124,
+                    stdout=exc.stdout or "",
+                    stderr=exc.stderr or "",
+                )
+            probe_log.write_text(
+                f"[stdout]\n{probe_proc.stdout or ''}\n\n[stderr]\n{probe_proc.stderr or ''}",
+                encoding="utf-8",
+            )
+            probe_payload = _read_json_object(probe_out) if probe_out.exists() else {}
+            fallback_observation = _compare_probe_payload_to_static_callsite_observation(
+                probe_payload,
+                candidate_hex,
+            )
+            if fallback_observation:
+                observations.append(
+                    _normalize_pre_compare_handoff_observation(fallback_observation, candidate_hex)
+                )
         candidate_results.append(
             {
                 "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",

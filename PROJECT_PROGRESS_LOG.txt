@@ -4060,3 +4060,62 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - 不直接跑 Base64/RC4 breakpoint probe。
 - 不把 `0x2312` / `0x2325` / `0x2338` 直接升级为 material producer。
 - 下一步应先修 actual compare entry hook coverage / argument capture：解释为什么 `0x1028ac` hook 在本 sidecar 未产出 arg0/arg1，而 CompareProbe 仍可捕获 compare 前真值；优先复用 CompareProbe 的实际 compare hook/argument capture 机制来重锚定 lhs side。
+
+## 2026-05-15 CompareProbe-backed callsite re-anchor capture
+
+1) 执行范围
+- 按上一轮默认方向修 instrumentation，不扩大 candidate generation / ranking / beam / budget / topN / timeout / frontier iteration。
+- 固定 3 个候选不变：
+  - exact2 best: `78d540b49c59077041414141414141`
+  - exact1 frontier: `5a3e7f46ddd474d041414141414141`
+  - single-byte contrast: `78d540b49c59076f41414141414141`
+- Base64/RC4 breakpoint probe 继续阻断；本轮只修真实 compare callsite 参数捕获和 lhs side 重锚定。
+
+2) 代码修正
+- `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
+  - `actual_compare_entry` / `compare_helper_entry` 继续按 helper-entry 栈布局解析。
+  - `static_compare_callsite` 改为按 CompareProbe 同款 `0x258c` callsite 语义解析：`[esp]=lhs`, `[esp+4]=rhs`, `[esp+8]=count`。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - callsite re-anchor payload 优先接受 `static_compare_callsite` 作为实际 compare 观察。
+  - 当 bounded sidecar 未捕获 compare args 时，对同一固定候选补跑 CompareProbe，并将 `lhs_ptr/rhs_ptr/count` 合成为 `static_compare_callsite` 观察。
+  - `actual_compare.entry` 可记录为 `0x258c` confirmed；`lhs_side/flag_side` 从 callsite 参数预览和候选相关性判定。
+- `tests/test_compare_aware_search_strategy.py`
+  - 增加 `static_compare_callsite` 命中但 helper entry 不命中的 re-anchor 覆盖。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `145 passed`
+- `python -m pytest -q` -> `222 passed`
+
+4) Harness / project_state
+- `sr_cmpcap_20260515_r1` 补跑前置 `compare_lhs_producer_audit`，classification `producer_window_rejected`。
+- `sr_cmpcap_20260515_r2` 补跑前置 `compare_lhs_upstream_writer_audit`，classification `candidate_dependent_upstream_observed`。
+- Completed target real harness run:
+  - `sr_cmpcap_20260515_r4`
+  - 1 case executed, 0 errors, selected `NOT_FOUND`。
+- Core artifact:
+  - `solve_reports\harness_runs\sr_cmpcap_20260515_r4\reports\tool_artifacts\samplereverse_patched\compare_callsite_reanchor_and_lhs_provenance_audit\compare_callsite_reanchor_and_lhs_provenance_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_cmpcap_20260515_r4` -> passed。
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_cmpcap_20260515_r4`
+  - `reason: callsite_reanchored_but_producer_unknown`
+  - `task: Investigate stalled compare_callsite_reanchor_and_lhs_provenance_audit path`
+  - `missing: []`
+
+5) 结论
+- `compare_callsite_reanchor_and_lhs_provenance_audit` classification: `callsite_reanchored_but_producer_unknown`
+- `actual_compare.entry=0x258c`
+- `actual_compare.entry_status=confirmed`
+- `actual_compare.observed_count=3`
+- `actual_compare.lhs_side=arg0`
+- `actual_compare.flag_side=arg1`
+- `arg0_candidate_dependent=true`; `arg1_candidate_dependent=false`
+- `[ebp-0x1170]` old slot relation 仍 `inconclusive`，因为旧 frame hooks 未在本 sidecar 观察到。
+- Current runtime best 未改善：
+  - exact2 remains `78d540b49c59077041414141414141`, runtime exact2 / distance5 246。
+
+6) 下一轮默认方向
+- 不扩大 search；不要回 old `sample_solver` blind search。
+- 不直接跑 Base64/RC4 breakpoint probe。
+- 不把 `0x2312` / `0x2325` / `0x2338` 直接升级为 material producer。
+- 下一步应基于 confirmed `lhs_side=arg0` 做更窄 real-lhs provenance audit：向上追踪 CompareProbe fallback 捕获到的真实 lhs pointer，不再依赖旧 `[ebp-0x1170]` frame anchor。

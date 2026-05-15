@@ -126,7 +126,7 @@
   {
     "direction": "reuse old [ebp-0x1170] frame anchor without actual compare re-anchor evidence",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_callsite_reanchor_20260514_r5\\reports\\tool_artifacts\\samplereverse_patched\\compare_callsite_reanchor_and_lhs_provenance_audit\\compare_callsite_reanchor_and_lhs_provenance_audit.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_cmpcap_20260515_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_callsite_reanchor_and_lhs_provenance_audit\\compare_callsite_reanchor_and_lhs_provenance_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
     "reason": "the real compare lhs side and frame source must be confirmed before following old frame assumptions",
@@ -136,7 +136,7 @@
   {
     "direction": "run Base64/RC4 breakpoint probe directly from callsite re-anchor audit",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_callsite_reanchor_20260514_r5\\reports\\tool_artifacts\\samplereverse_patched\\compare_callsite_reanchor_and_lhs_provenance_audit\\compare_callsite_reanchor_and_lhs_provenance_audit.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_cmpcap_20260515_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_callsite_reanchor_and_lhs_provenance_audit\\compare_callsite_reanchor_and_lhs_provenance_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
     "reason": "breakpoint probing still requires a runtime-backed lhs producer connected to compare lhs",

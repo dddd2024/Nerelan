@@ -4787,11 +4787,26 @@ def _compare_callsite_reanchor_candidate_result(
     *,
     old_frame_matches: bool = False,
     producer_matches: bool = True,
+    compare_hook_name: str = "actual_compare_entry",
 ) -> dict[str, object]:
     old_ptr = ptr if old_frame_matches else "0x8800"
     old_preview = preview if old_frame_matches else "ee" * 32
     producer_ptr = ptr if producer_matches else "0x9900"
     producer_preview = preview if producer_matches else "dd" * 32
+    compare_module_offset = "0x258c" if compare_hook_name == "static_compare_callsite" else "0x1028ac"
+    compare_args = (
+        [
+            {"index": 0, "role": "arg0", "value": ptr, "preview_hex": preview},
+            {"index": 1, "role": "arg1", "value": "0x5000", "preview_hex": "66006c00610067007b00"},
+            {"index": 2, "role": "arg2", "value_u32": 5},
+        ]
+        if compare_hook_name == "static_compare_callsite"
+        else [
+            {"index": 0, "role": "arg0", "value": ptr, "preview_hex": preview},
+            {"index": 1, "role": "arg1", "value": "0x5000", "preview_hex": "66006c00610067007b00"},
+            {"index": 2, "role": "arg2", "value_u32": 5},
+        ]
+    )
     return {
         "label": "test",
         "candidate_hex": candidate_hex,
@@ -4801,24 +4816,16 @@ def _compare_callsite_reanchor_candidate_result(
         "hook_observations": [
             {
                 "candidate_hex": candidate_hex,
-                "hook_name": "actual_compare_entry",
-                "module_offset": "0x1028ac",
+                "hook_name": compare_hook_name,
+                "module_offset": compare_module_offset,
                 "instruction": "case-insensitive wide compare helper entry",
                 "compare_entry": {
                     "slots": [
                         {"index": 0, "role": "return_address", "value": "0x40258c", "module_offset": "0x258c"},
-                        {"index": 1, "role": "arg0", "value": ptr, "preview_hex": preview},
-                        {"index": 2, "role": "arg1", "value": "0x5000", "preview_hex": "66006c00610067007b00"},
-                        {"index": 3, "role": "arg2", "value_u32": 5},
+                        *compare_args,
                     ]
                 },
-                "compare_args": {
-                    "args": [
-                        {"index": 0, "role": "arg0", "value": ptr, "preview_hex": preview},
-                        {"index": 1, "role": "arg1", "value": "0x5000", "preview_hex": "66006c00610067007b00"},
-                        {"index": 2, "role": "arg2", "value_u32": 5},
-                    ]
-                },
+                "compare_args": {"args": compare_args},
             },
             {
                 "candidate_hex": candidate_hex,
@@ -6269,6 +6276,45 @@ def test_compare_callsite_reanchor_audit_identifies_lhs_producer(
     assert payload["final_selection_changed"] is False
     assert payload["search_budget_changed"] is False
     assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+
+
+def test_compare_callsite_reanchor_audit_uses_static_callsite_capture() -> None:
+    candidates = [
+        _compare_callsite_reanchor_candidate_result(
+            "78d540b49c59077041414141414141",
+            "0x1100",
+            "aa" * 32,
+            producer_matches=False,
+            compare_hook_name="static_compare_callsite",
+        ),
+        _compare_callsite_reanchor_candidate_result(
+            "5a3e7f46ddd474d041414141414141",
+            "0x2200",
+            "bb" * 32,
+            producer_matches=False,
+            compare_hook_name="static_compare_callsite",
+        ),
+        _compare_callsite_reanchor_candidate_result(
+            "78d540b49c59076f41414141414141",
+            "0x3300",
+            "cc" * 32,
+            producer_matches=False,
+            compare_hook_name="static_compare_callsite",
+        ),
+    ]
+
+    payload = build_compare_callsite_reanchor_and_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_upstream_writer_payload={"classification": "candidate_dependent_upstream_observed"},
+    )
+
+    assert payload["classification"] == "frame_anchor_rejected"
+    assert payload["actual_compare"]["entry"] == "0x258c"
+    assert payload["actual_compare"]["entry_status"] == "confirmed"
+    assert payload["actual_compare"]["observed_count"] == 3
+    assert payload["actual_compare"]["caller_module_offset"] == "0x258c"
+    assert payload["actual_compare"]["lhs_side"] == "arg0"
+    assert payload["actual_compare"]["flag_side"] == "arg1"
 
 
 def test_compare_callsite_reanchor_audit_rejects_old_frame_anchor_without_producer() -> None:
