@@ -4,41 +4,37 @@ Generated for `samplereverse` from the latest `project_state` facts.
 
 ## 1. Goal
 
-本轮目标：追踪 `0x2559` 之前 `[ebp-0x1170]` 的写入者和真实 source。
+本轮目标：调查 `compare_lhs_slot_writer_source_audit` 为什么卡在 `writer_hook_not_reached`，并修正 writer/source 路径的 hook 选择。
 
-上一轮已经验证失败：
+最新状态已经推进到：
 
-- `module+0x2559`
-- instruction: `mov esi, dword ptr [ebp - 0x1170]`
-- hook name: `initial_lhs_reload`
-- material kind: `rc4_output`
-- classification: `REJECTED`
-- observed_count: `0`
-- readable_count: `0`
-- expected_rc4_output_match_count: `0`
+- stage: `compare_lhs_slot_writer_source_audit`
+- reason: `writer_hook_not_reached`
+- task: `Investigate stalled compare lhs slot writer/source path`
 
-因此下一步不是继续把 `0x2559` 当 RC4/Base64 material hook，而是定位：
+因此下一步不是重复追 `[ebp-0x1170]` 的旧计划，而是处理一个更具体的问题：
 
-1. 谁在 `0x2559` 之前写入 `[ebp-0x1170]`
-2. 写入值来自哪个寄存器 / 调用返回值 / frame slot
-3. 该 source 是否比最终 compare LHS 更接近 UTF-16LE / Base64 / RC4 transform material
-4. 如果 `[ebp-0x1170]` 只是 compare-side final buffer 指针，则继续往更早的 producer 追
+`0x253a: mov dword ptr [ebp-0x1170], eax` 被静态识别为 slot writer，但 runtime hook 没有命中。需要判断是 hook 地址 / module base / patched sample 路径错了，还是实际执行路径绕过了 `0x253a`。
 
 Expected output artifact:
 
-`compare_lhs_upstream_writer_audit.json`
+`compare_lhs_slot_writer_hook_coverage_audit.json`
 
-或者如果已有同名框架，扩展现有：
+或者如果更适合复用现有框架，也可以扩展：
 
-`compare_lhs_upstream_writer_audit`
+`compare_lhs_slot_writer_source_audit.json`
+
+但必须明确标记本轮是在处理：
+
+`writer_hook_not_reached`
 
 ## 2. Current Evidence
 
-当前 active strategy 是：
+当前 active strategy 仍是：
 
 `CompareAwareSearchStrategy`
 
-当前 best candidate 仍无变化：
+当前 best candidate 未变：
 
 - exact2:
   - `78d540b49c59077041414141414141`
@@ -49,30 +45,46 @@ Expected output artifact:
   - runtime exact wchar count: `1`
   - runtime distance5: `258`
 
-说明目前没有理由扩展候选搜索。当前真正瓶颈是 runtime material hook 没有确认。
+说明目前没有理由扩展候选搜索。
 
-最新可用 harness run：
+最新 harness run：
 
-`sr_esi_material_hook_20260515_r3`
+`sr_lhs_slot_writer_source_20260516_r2`
 
 核心 artifact：
 
-`solve_reports\harness_runs\sr_esi_material_hook_20260515_r3\reports\tool_artifacts\samplereverse\material_hook_runtime_validation\material_hook_runtime_validation.json`
+`solve_reports\harness_runs\sr_lhs_slot_writer_source_20260516_r2\reports\tool_artifacts\samplereverse_patched\compare_lhs_slot_writer_source_audit\compare_lhs_slot_writer_source_audit.json`
 
-artifact index 显示该 run 是最新 harness run，且 `missing = []`。
+artifact index 显示该 artifact 已成为最新核心结果，且 `missing = []`。
 
-关键事实：
+当前关键结果：
 
-- `material_hook_runtime_validation.classification = REJECTED`
-- blocked hook: `module+0x2559`
-- `connects_to_compare_lhs = true`
-- `connects_to_transform_chain = false`
-- `candidate_dependent = false`
-- `hit_count = 0`
+- `classification = writer_hook_not_reached`
 - `breakpoint_probe_allowed = false`
-- `next_bounded_action = reject 0x2559 material-hook hypothesis and trace writer/source before 0x2559 / [ebp-0x1170]`
+- `runtime_backed_count = 3`
+- actual compare entry 已确认：
+  - `actual_compare.entry_status = confirmed`
+  - `actual_compare.observed_count = 3`
+  - `lhs_side = arg0`
+  - `flag_side = arg1`
+  - `arg0_candidate_dependent = true`
+  - `arg1_candidate_dependent = false`
+- slot writer 未命中：
+  - hook name: `slot_writer`
+  - module offset: `0x253a`
+  - instruction: `mov dword ptr [ebp - 0x1170], eax`
+  - observed_count: `0`
+  - runtime_backed_count: `0`
+- 但上游 context hook 命中：
+  - hook name: `upstream_candidate_context`
+  - module offset: `0x2312`
+  - instruction: `sub eax, dword ptr [edx - 4]`
+  - observed_count: `3`
+  - candidate-dependent fields include `[ebp-0x1168]`, `[ebp-0x1170]`, `edi`, `edx`
 
-旧 `decision_packet.md` 要求验证 ESI source，但这个阶段已经完成并失败；不能继续执行旧 packet。旧 packet 的核心目标仍是 “Promote identified ESI source into bounded material-hook validation”，这与当前 `task_packet/current_state` 不一致。
+重要判断：`0x258c` compare 参数已经能抓到，说明 compare entry / arg capture 已经可用。问题集中在 slot writer hook 没有命中，不是 compare 入口不可达。
+
+`project_state/codex_execution_report.md` 仍停留在 2026-05-14 / 2026-05-13 旧记录，没有同步最新 `sr_lhs_slot_writer_source_20260516_r2`。Codex 本轮结束必须补写最新 CODEX_EXECUTION_REPORT。
 
 ## 3. Do Not Do
 
@@ -82,15 +94,18 @@ artifact index 显示该 run 是最新 harness run，且 `missing = []`。
 4. Do not commit full `solve_reports`.
 5. Do not repeat exact2 basin value-pool evaluation.
 6. Do not repeat H1/H3 fixed 8-candidate Base64 boundary contrast set.
-7. Do not rerun Base64/RC4 breakpoint probe before confirming a real material construction hook.
-8. Do not repeat current transform trace consistency audit without new runtime evidence.
+7. Do not repeat current 5-candidate transform trace consistency audit without new runtime evidence.
+8. Do not rerun Base64/RC4 breakpoint probe before confirming a real material construction hook.
 9. Do not repeat compare return-site audit.
 10. Do not repeat producer material confirmation without instruction-level evidence.
-11. Do not treat `0x4019e0`, `0x401b50`, `0x4018cd`, or `0x401be3` as Base64/RC4 material producers without new semantic evidence.
-12. Do not treat `0x2559` as RC4 output material after the latest validation rejected it.
-13. Do not scan full `solve_reports` unless specifically needed.
+11. Do not rerun old `0x2559` material hook after slot writer/source audit.
+12. Do not run Base64/RC4 breakpoint probe before slot writer/source validation.
+13. Do not treat `0x4019e0`, `0x401b50`, `0x4018cd`, or `0x401be3` as Base64/RC4 material producers without new semantic evidence.
+14. Do not treat `0x2312` as material producer unless it is connected to compare arg0 by runtime-backed evidence.
+15. Do not treat static existence of `0x253a` as runtime writer proof.
+16. Do not scan entire `solve_reports` unless explicitly needed.
 
-这些限制已经写入 negative cache，尤其是：不能在 `0x2559` material hook 被拒绝后继续跑 Base64/RC4 probe。
+Negative cache already blocks old blind search, budget-only expansion, old `0x2559` material-hook repetition, and Base64/RC4 probe before slot writer/source validation.
 
 ## 4. Files To Inspect
 
@@ -107,175 +122,165 @@ artifact index 显示该 run 是最新 harness run，且 `missing = []`。
 - `reverse_agent/strategies/compare_aware_search.py`
 - `reverse_agent/project_state.py`
 - `reverse_agent/function_semantics.py`
-- `reverse_agent/olly_scripts/material_hook_runtime_validation.py`
-- `reverse_agent/olly_scripts/*lhs*writer*.py`
-- `reverse_agent/olly_scripts/*lhs*producer*.py`
+- `reverse_agent/olly_scripts/*slot*writer*.py`
+- `reverse_agent/olly_scripts/*writer*source*.py`
 - `reverse_agent/olly_scripts/*provenance*.py`
+- `reverse_agent/olly_scripts/*compare*.py`
 - `tests/test_compare_aware_search_strategy.py`
 - `tests/test_project_state.py`
 
 Targeted artifacts only：
 
-- `solve_reports\harness_runs\sr_esi_material_hook_20260515_r3\summary.json`
-- `solve_reports\harness_runs\sr_esi_material_hook_20260515_r3\run_manifest.json`
-- `solve_reports\harness_runs\sr_esi_material_hook_20260515_r3\reports\tool_artifacts\samplereverse\material_hook_runtime_validation\material_hook_runtime_validation.json`
-- `solve_reports\harness_runs\sr_esi_material_hook_20260515_r3\reports\tool_artifacts\samplereverse\samplereverse_compare_probe.json`
+- `solve_reports\harness_runs\sr_lhs_slot_writer_source_20260516_r2\summary.json`
+- `solve_reports\harness_runs\sr_lhs_slot_writer_source_20260516_r2\run_manifest.json`
+- `solve_reports\harness_runs\sr_lhs_slot_writer_source_20260516_r2\reports\tool_artifacts\samplereverse_patched\compare_lhs_slot_writer_source_audit\compare_lhs_slot_writer_source_audit.json`
+- `solve_reports\harness_runs\sr_lhs_slot_writer_source_20260516_r2\reports\tool_artifacts\samplereverse_patched\samplereverse_patched_compare_probe.json`
 - `solve_reports\tool_artifacts\samplereverse_base64_rc4_static_point_discovery_20260508\base64_rc4_static_point_discovery.json`
 - `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\function_semantic_audit\function_semantic_audit.json`
-- `solve_reports\tool_artifacts\samplereverse_handoff_return_outcome_manual_20260510\compare_producer_material_confirmation\compare_producer_material_confirmation.json`
 
-不要读取完整 `PROJECT_PROGRESS_LOG.txt`。当前 `context_level = 2`，事实文件足够。
+Do not load full `PROJECT_PROGRESS_LOG.txt` or full `solve_reports`.
 
 ## 5. Required Audit
 
-实现或补全一个 bounded audit：
+实现一个 bounded debug pass：
 
-`compare_lhs_upstream_writer_audit`
+`compare_lhs_slot_writer_hook_coverage_audit`
 
-目标是追 `[ebp-0x1170]` 的写入链，而不是验证 `0x2559` 本身。
+目标不是重新证明 compare LHS，而是解释：
 
-### A. Static audit
+为什么 actual compare 已命中 3 次，但 `0x253a` slot writer hook 没命中？
 
-从当前已知窗口出发：
+### A. Hook coverage audit
 
-- `0x253a`: `mov dword ptr [ebp - 0x1170], eax`
-- `0x2554`: `call 0x401b50`
-- `0x2559`: `mov esi, dword ptr [ebp - 0x1170]`
-- `0x258b`: `push esi`
-- `0x258c`: compare call
+必须检查：
 
-必须确认：
+1. `0x253a` 是否真在当前 `samplereverse_patched` binary / current module 中。
+2. `samplereverse` 与 `samplereverse_patched` 的 module offset 是否有偏移差异。
+3. runtime script 是否把 `0x253a` 绑定到了错误 module base。
+4. `0x253a` 是否因为 instruction boundary / delayed attach / breakpoint timing 导致 miss。
+5. `0x253a` 是否不是当前执行路径上的 writer，只是静态窗口里的候选 writer。
+6. 是否存在另一个实际 writer，直接导致 compare arg0 变成 candidate-dependent buffer。
 
-1. `[ebp-0x1170]` 在 `0x253a` 被写入时，`eax` 来自哪里。
-2. `0x253a` 之前最近的 `eax` producer 是：
-   - call return?
-   - stack/frame load?
-   - string/BSTR allocation?
-   - transform function output?
-   - copy/handoff output?
-3. `0x2554 call 0x401b50` 是否修改 `[ebp-0x1170]`、`eax`、`esi` 或相关 frame slot。
-4. `[ebp-0x1168]`、`[ebp-0x116c]` 是否是更早的 material pointer 或只是 metadata / temporary pointer。
+### B. Compare-backed backtrace
 
-### B. Runtime audit
+由于 actual compare 已确认：
 
-固定三候选，不扩展搜索：
+- compare call at `0x258c`
+- lhs = arg0
+- flag = arg1
+- arg0 varies by candidate
 
-- `78d540b49c59077041414141414141`
-- `78d540b49c59076f41414141414141`
-- `5a3e7f46ddd474d041414141414141`
+下一步应从 `actual_compare.arg0_value_by_candidate` 反推来源：
 
-在以下点采集 runtime state：
+1. 在 compare entry 处记录 arg0 pointer。
+2. 向前追最近一次写入该 pointer 的 frame slot / register。
+3. 对比 `[ebp-0x1170]`、`[ebp-0x1168]`、`[ebp-0x116c]` 是否等于 compare arg0。
+4. 若 `[ebp-0x1170]` 不等于 compare arg0，则旧 slot 假设要降级。
+5. 若 `[ebp-0x1170]` 等于 compare arg0，但 `0x253a` 未命中，则优先修 hook coverage，而不是换方向。
 
-- `module+0x253a` before/after
-- `module+0x2554` before call
-- `module+0x2559` before reload
-- 若可稳定 hook：`0x401b50` entry/return
-- 若静态分析发现更早 eax writer，则添加该 writer 的 before/after hook
+### C. Use existing runtime evidence
 
-每个候选至少采集：
+必须复用当前 `compare_lhs_slot_writer_source_audit` 的发现：
 
-- hit count
-- `eax/ecx/edx/esi/edi/esp/ebp`
-- `[ebp-0x1170]`
-- `[ebp-0x1168]`
-- `[ebp-0x116c]`
-- `eax_preview`
-- `esi_preview`
-- `[ebp-0x1170]_preview`
-- `[ebp-0x1168]_preview`
-- `[ebp-0x116c]_preview`
-- compare arg0 / arg1 pointer and preview if available
-- whether each preview is candidate-dependent
-- whether each preview equals compare LHS
-- whether each preview resembles:
-  - UTF-16LE input
-  - Base64 text
-  - binary RC4 output
-  - final compare-side wide buffer
-  - BSTR/string metadata only
-  - unknown
+- `0x2312` 命中 3 次；
+- `[ebp-0x1168]`、`edx` 呈现候选相关；
+- actual compare arg0 呈现候选相关；
+- slot writer `0x253a` 未命中。
 
-### C. Classification
+不要重新做大范围搜索。只允许围绕：
 
-Top-level `classification` must be one of：
+`0x2312 -> 0x253a -> 0x258c`
 
-1. `UPSTREAM_WRITER_IDENTIFIED`
-   - `[ebp-0x1170]` writer is confirmed.
-   - writer source is runtime-backed.
-   - next action can validate the writer source as material hook.
+增加小窗口 hook。
 
-2. `FINAL_COMPARE_BUFFER_CONFIRMED`
-   - `[ebp-0x1170]` only feeds final compare LHS.
-   - no transform material is exposed at this slot.
-   - next action must move earlier than the writer.
+### D. Required classification
 
-3. `COPY_OR_HANDOFF_CONFIRMED`
-   - `[ebp-0x1170]` receives copied/handoff pointer.
-   - next action must trace the source of the copied pointer.
+新 artifact 顶层 classification 必须是以下之一：
 
-4. `METADATA_OR_LENGTH_ONLY`
-   - observed operations are only string/BSTR length/capacity metadata reads.
+1. `HOOK_ADDRESS_FIXED`
+   - 证明原 `0x253a` hook 地址或 module base 错；
+   - 已修正并命中 writer。
 
-5. `HOOK_COVERAGE_FAILED`
-   - hook missed, bad boundary, timeout, or unreadable pointer.
+2. `STATIC_WRITER_NOT_ON_RUNTIME_PATH`
+   - 证明 `0x253a` 不是当前 runtime path 的 writer；
+   - 需要转向实际 writer。
 
-6. `INCONCLUSIVE`
+3. `SLOT_WRITER_CONFIRMED`
+   - 修复 hook 后 `0x253a` 命中；
+   - `[ebp-0x1170]` 与 compare arg0 建立 runtime-backed relation。
 
-Required top-level fields：
+4. `ARG0_SOURCE_IDENTIFIED`
+   - 不依赖 `0x253a`，直接从 compare arg0 反推出实际 source。
+
+5. `UPSTREAM_CONTEXT_ONLY`
+   - 只能确认 `0x2312` candidate-dependent context，但无法连接到 compare arg0。
+
+6. `HOOK_COVERAGE_FAILED`
+
+7. `INCONCLUSIVE`
+
+### E. Required fields
+
+artifact 必须包含：
 
 - `classification`
 - `candidate_count`
 - `runtime_backed_count`
-- `writer_instruction`
-- `writer_offset`
-- `writer_source_register`
-- `writer_source_slot`
-- `source_preview_by_candidate`
-- `candidate_dependent_fields`
-- `compare_lhs_connection`
-- `transform_material_evidence`
-- `blocked_reason`
+- `actual_compare`
+- `slot_writer_probe`
+- `hook_address_audit`
+- `module_base_check`
+- `patched_binary_check`
+- `arg0_backtrace`
+- `slot_to_arg0_relation`
+- `upstream_context_relation`
+- `identified_actual_writer`
 - `breakpoint_probe_allowed`
 - `next_bounded_action`
 
-`breakpoint_probe_allowed` must remain `false` unless the audit identifies a runtime-backed source that is candidate-dependent and connected to transform material, not merely final compare LHS.
+`breakpoint_probe_allowed` 仍必须保持 `false`，除非实际 writer/source 已被 runtime-backed 证明为 transform material。
 
 ## 6. Implementation Scope
 
 Allowed：
 
-- Add or complete `compare_lhs_upstream_writer_audit`.
-- Add one thin runtime script if needed.
-- Reuse existing Frida/UIA collection patterns from previous sidecars.
-- Add project_state indexing for:
-  - `latest_compare_lhs_upstream_writer_audit`
-- Add negative cache entries for:
-  - rejected `[ebp-0x1170]` final-buffer-only reuse
-  - failed `0x2559` material-hook repetition
-- Update `project_state/codex_execution_report.md` after execution.
-- Update `project_state/decision_packet.md` only if Codex is asked to persist the new plan.
+- 增加或修正 `compare_lhs_slot_writer_source_audit`。
+- 或新增一个薄层 audit：
+  - `compare_lhs_slot_writer_hook_coverage_audit`
+- 只加小窗口 runtime hooks：
+  - `0x2312`
+  - `0x253a`
+  - `0x2554`
+  - `0x2559`
+  - `0x258b`
+  - `0x258c`
+- 增加 module base / patched binary offset 检查。
+- 增加 project_state indexing。
+- 更新 negative cache，避免再次重复未命中的 `0x253a` hook。
+- 更新 `codex_execution_report.md`，补上 2026-05-16 最新执行结果。
 
 Not allowed：
 
-- no new candidate generation
-- no beam/budget expansion
-- no broad Base64/RC4 probe
-- no full `solve_reports` commit
-- no classifying compare-side buffer as transform material
-- no rerunning old ESI material validation unchanged
+- 不生成新候选。
+- 不扩 beam/budget。
+- 不跑 Base64/RC4 breakpoint probe。
+- 不提交 runtime artifact 目录。
+- 不把 `0x2312` 直接当 material producer，除非能连接到 compare arg0。
+- 不把 `0x253a` 静态存在当作 runtime writer 证据。
 
 ## 7. Tests
 
-Minimum compile checks：
+Compile checks：
 
 ```bat
 python -m py_compile reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py reverse_agent\function_semantics.py
 ```
 
-If runtime script is added or modified：
+如果新增或修改 runtime script：
 
 ```bat
-python -m py_compile reverse_agent\olly_scripts\compare_lhs_upstream_writer_audit.py
+python -m py_compile reverse_agent\olly_scripts\compare_lhs_slot_writer_source_audit.py
+python -m py_compile reverse_agent\olly_scripts\<new_script>.py
 ```
 
 Targeted tests：
@@ -293,50 +298,51 @@ python -m pytest -q
 Runtime validation：
 
 ```bat
-python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_lhs_upstream_writer_20260516_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled
+python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_lhs_slot_writer_coverage_20260516_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled
 ```
 
 Rebuild state：
 
 ```bat
-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_upstream_writer_20260516_r1
+python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_slot_writer_coverage_20260516_r1
 python -m reverse_agent.project_state status
 ```
 
 Required test coverage：
 
-1. `[ebp-0x1170]` writer identified.
-2. writer is final compare buffer only.
-3. writer is copy/handoff only.
-4. hook coverage failure does not become semantic rejection.
-5. Base64/RC4 gate remains blocked unless transform material is proven.
-6. project_state correctly indexes `latest_compare_lhs_upstream_writer_audit`.
+1. writer hook not reached -> classified as hook coverage issue, not semantic rejection.
+2. corrected hook address -> `HOOK_ADDRESS_FIXED`.
+3. static writer not on runtime path -> `STATIC_WRITER_NOT_ON_RUNTIME_PATH`.
+4. actual compare arg0 source identified -> `ARG0_SOURCE_IDENTIFIED`.
+5. Base64/RC4 gate remains blocked.
+6. project_state indexes latest audit.
 
 ## 8. Stop Conditions
 
 Stop and report if：
 
-1. `[ebp-0x1170]` writer is identified.
-   - Report writer offset.
-   - Report source register/slot.
-   - Report whether source is candidate-dependent.
-   - Report whether source connects to transform material or only compare LHS.
+1. `0x253a` hook 地址问题被确认。
+   - 报告正确 offset / module base。
+   - 报告是否已经命中 writer。
 
-2. The slot is final compare buffer only.
-   - Report `FINAL_COMPARE_BUFFER_CONFIRMED`.
-   - Keep Base64/RC4 blocked.
-   - Next action: move earlier than the writer source.
+2. `0x253a` 被证明不在 runtime path。
+   - 报告实际 writer/source。
+   - 下一步转向 actual writer。
 
-3. The slot is copy/handoff only.
-   - Report copied pointer source.
-   - Next action: trace copied pointer’s upstream producer.
+3. compare arg0 source 被识别。
+   - 报告 source slot/register。
+   - 报告是否 candidate-dependent。
+   - 报告是否连接 transform material。
 
-4. Hook coverage fails.
-   - Report exact hook, boundary, timeout, or unreadable pointer reason.
-   - Do not infer semantics from missing hits.
+4. 只能确认 `0x2312` 上游 context。
+   - 报告为什么不能连到 compare arg0。
+   - 下一步继续小窗口追踪，不扩大搜索。
 
-5. Tests fail.
-   - Stop after collecting failure output.
-   - Do not run harness until compile/unit tests pass.
+5. hook coverage 仍失败。
+   - 报告具体失败原因：module base、patched binary、bad boundary、timing、UI/runtime error。
 
-本轮一句话：不要再验证 `0x2559` 是不是 material hook；最新结果已经拒绝。下一步应该追 `0x253a` 写入 `[ebp-0x1170]` 时 `eax` 的来源，并判断这个 upstream writer 是否才是真正的 transform material 入口。
+6. 测试失败。
+   - 停止并给出失败输出。
+   - 不运行 harness。
+
+本轮一句话：不要重复追 `[ebp-0x1170]` 的旧计划；现在要专门解释为什么 `0x253a` writer hook 没命中，并从已确认的 `0x258c arg0` 反向定位真实 writer/source。
