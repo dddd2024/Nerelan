@@ -80,13 +80,23 @@
     "severity": "soft_block"
   },
   {
-    "direction": "rerun Base64/RC4 breakpoint probe after material hook runtime validation blocked it",
+    "direction": "rerun old 0x2559 material hook after slot writer/source audit",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\reports\\tool_artifacts\\samplereverse\\material_hook_runtime_validation\\material_hook_runtime_validation.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_slot_writer_source_20260516_r2\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_source_audit\\compare_lhs_slot_writer_source_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "0x2559 did not confirm instruction-backed post-RC4 compare material; Base64/RC4 probing remains gated until the writer/source before [ebp-0x1170] is traced",
-    "scope": "material_hook_runtime_validation",
+    "reason": "0x2559 was rejected as direct post-RC4 material; use the writer/source audit evidence to choose any next material hook",
+    "scope": "compare_lhs_slot_writer_source_audit",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "run Base64/RC4 breakpoint probe before slot writer/source validation",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_slot_writer_source_20260516_r2\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_source_audit\\compare_lhs_slot_writer_source_audit.json",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "breakpoint probing remains gated until a runtime-backed writer/source is promoted and validated as material",
+    "scope": "compare_lhs_slot_writer_source_audit",
     "severity": "soft_block"
   },
   {

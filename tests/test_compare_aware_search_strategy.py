@@ -20,6 +20,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
     COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
+    COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME,
     COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
     COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME,
@@ -67,6 +68,7 @@ from reverse_agent.strategies.compare_aware_search import (
     _validated_projected_preserve_second_hop_candidates,
     build_compare_callsite_reanchor_and_lhs_provenance_audit_payload,
     build_compare_lhs_producer_audit_payload,
+    build_compare_lhs_slot_writer_source_audit_payload,
     build_compare_lhs_upstream_writer_audit_payload,
     build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
@@ -80,6 +82,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_slice_probe,
     run_compare_callsite_reanchor_and_lhs_provenance_audit,
     run_compare_lhs_producer_audit,
+    run_compare_lhs_slot_writer_source_audit,
     run_compare_lhs_upstream_writer_audit,
     run_compare_esi_source_window_audit,
     run_compare_real_lhs_provenance_audit,
@@ -832,6 +835,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
             "compare_lhs_upstream_writer_audit",
             "compare_real_lhs_provenance_audit",
             "compare_esi_source_window_audit",
+            "compare_lhs_slot_writer_source_audit",
             "h1_h3_boundary_validation",
         }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -5153,6 +5157,121 @@ def _fake_compare_esi_source_window_subprocess_run(*args, **kwargs):  # noqa: AN
     return _Proc()
 
 
+def _compare_lhs_slot_writer_source_candidate_result(
+    candidate_hex: str,
+    ptr: str,
+    preview: str,
+    *,
+    slot_writer_observed: bool = True,
+    slot_writer_matches: bool = True,
+    source_matches: bool = False,
+) -> dict[str, object]:
+    result = _compare_callsite_reanchor_candidate_result(
+        candidate_hex,
+        ptr,
+        preview,
+        old_frame_matches=False,
+        producer_matches=source_matches,
+        compare_hook_name="static_compare_callsite",
+    )
+    observations = [
+        item
+        for item in result["hook_observations"]
+        if item["hook_name"] in {"static_compare_callsite", "upstream_slot_1168_reload"}
+    ]
+    if slot_writer_observed:
+        writer_ptr = ptr if slot_writer_matches else "0xa000"
+        writer_preview = preview if slot_writer_matches else "10" * 32
+        observations.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "slot_writer",
+                "module_offset": "0x253a",
+                "instruction": "mov dword ptr [ebp - 0x1170], eax",
+                "eax_ptr": writer_ptr,
+                "eax_preview_hex": writer_preview,
+                "frame_slots": [
+                    {
+                        "name": "[ebp-0x1170]",
+                        "offset": "-0x1170",
+                        "value": writer_ptr,
+                        "preview_hex": writer_preview,
+                    }
+                ],
+            }
+        )
+    return {
+        **result,
+        "hook_observations": observations,
+    }
+
+
+def _compare_lhs_slot_writer_source_candidates(**kwargs) -> list[dict[str, object]]:
+    return [
+        _compare_lhs_slot_writer_source_candidate_result(
+            "78d540b49c59077041414141414141",
+            "0x1100",
+            "aa" * 32,
+            **kwargs,
+        ),
+        _compare_lhs_slot_writer_source_candidate_result(
+            "5a3e7f46ddd474d041414141414141",
+            "0x2200",
+            "bb" * 32,
+            **kwargs,
+        ),
+        _compare_lhs_slot_writer_source_candidate_result(
+            "78d540b49c59076f41414141414141",
+            "0x3300",
+            "cc" * 32,
+            **kwargs,
+        ),
+    ]
+
+
+def _fake_compare_lhs_slot_writer_source_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} == {
+        "static_compare_callsite",
+        "slot_writer",
+        "upstream_candidate_context",
+        "upstream_slot_1168_reload",
+        "upstream_material_call",
+        "upstream_output_call",
+        "upstream_output_return",
+        "upstream_second_call",
+    }
+    previews = {
+        "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
+        "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
+        "78d540b49c59076f41414141414141": ("0x3300", "cc" * 32),
+    }
+    ptr, preview = previews[candidate_hex]
+    candidate = _compare_lhs_slot_writer_source_candidate_result(candidate_hex, ptr, preview)
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "compare lhs slot writer/source audit ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": candidate["hook_observations"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
 def _fake_pre_compare_handoff_ready_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     command = list(args[0])
     out_path = Path(command[command.index("--out") + 1])
@@ -7048,6 +7167,66 @@ def test_run_compare_esi_source_window_audit_uses_fixed_candidates(tmp_path: Pat
     ]
 
 
+def test_compare_lhs_slot_writer_source_confirms_slot_writer() -> None:
+    payload = build_compare_lhs_slot_writer_source_audit_payload(
+        candidate_results=_compare_lhs_slot_writer_source_candidates(),
+        source_material_hook_payload={
+            "classification": "REJECTED",
+            "source_compare_esi_source_window_classification": "esi_source_identified",
+        },
+    )
+
+    assert payload["classification"] == "slot_writer_confirmed"
+    assert payload["slot_writer"]["hook_name"] == "slot_writer"
+    assert payload["slot_writer"]["compare_lhs_match_count"] == 3
+    assert payload["relations"]["slot_writer_to_compare_arg0"] == "confirmed"
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["promotable_validations"][0]["hook_name"] == "slot_writer"
+
+
+def test_compare_lhs_slot_writer_source_classifies_writer_not_reached() -> None:
+    payload = build_compare_lhs_slot_writer_source_audit_payload(
+        candidate_results=_compare_lhs_slot_writer_source_candidates(slot_writer_observed=False),
+        source_material_hook_payload={
+            "classification": "REJECTED",
+            "source_compare_esi_source_window_classification": "esi_source_identified",
+        },
+    )
+
+    assert payload["classification"] == "writer_hook_not_reached"
+    assert payload["slot_writer"]["observed_count"] == 0
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_run_compare_lhs_slot_writer_source_audit_uses_fixed_candidates(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_compare_lhs_slot_writer_source_subprocess_run)
+
+    result = run_compare_lhs_slot_writer_source_audit(
+        target=target,
+        artifacts_dir=tmp_path / "compare_lhs_slot_writer_source_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        material_hook_payload={
+            "classification": "REJECTED",
+            "source_compare_esi_source_window_classification": "esi_source_identified",
+        },
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(str(result["result_path"])).name == COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME
+    assert payload["classification"] == "slot_writer_confirmed"
+    assert payload["fixed_candidates"] == [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+        "78d540b49c59076f41414141414141",
+    ]
+    assert payload["candidate_generation_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+
+
 def test_compare_aware_strategy_runs_lhs_producer_sidecar_before_search(
     tmp_path: Path,
     monkeypatch,
@@ -7097,6 +7276,11 @@ def test_compare_aware_strategy_runs_lhs_producer_sidecar_before_search(
 
     monkeypatch.setattr(compare_aware_search, "_project_state_json", lambda name: {})
     monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_indexed_or_latest_report_artifact_payload",
+        fake_indexed_artifact_payload,
+    )
     monkeypatch.setattr(compare_aware_search, "run_compare_lhs_producer_audit", fake_run_compare_lhs_producer_audit)
     monkeypatch.setattr(
         compare_aware_search,
@@ -7532,6 +7716,92 @@ def test_compare_aware_strategy_runs_esi_material_hook_sidecar_before_search(
     assert captured["artifacts_dir"] == "material_hook_runtime_validation"
     assert captured["source_classification"] == "esi_source_identified"
     assert Path(str(result.artifacts[0].output_path)).name == MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME
+
+
+def test_compare_aware_strategy_runs_lhs_slot_writer_source_sidecar_before_search(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    material_payload = {
+        "artifact_kind": "material_hook_runtime_validation",
+        "classification": "REJECTED",
+        "candidate_count": 3,
+        "runtime_backed_count": 0,
+        "source_compare_esi_source_window_classification": "esi_source_identified",
+        "validated_hooks": [],
+        "blocked_hooks": [{"hook_name": "initial_lhs_reload", "module_offset": "0x2559"}],
+        "breakpoint_probe_allowed": False,
+    }
+    captured: dict[str, object] = {}
+
+    def fake_indexed_artifact_payload(kind):
+        return (
+            {
+                "material_hook_runtime_validation": material_payload,
+            }.get(kind, {}),
+            "",
+        )
+
+    def fake_run_slot_writer_source_audit(**kwargs):
+        captured["artifacts_dir"] = Path(kwargs["artifacts_dir"]).name
+        captured["source_classification"] = kwargs["material_hook_payload"]["classification"]
+        result_path = Path(kwargs["artifacts_dir"]) / COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "artifact_kind": "compare_lhs_slot_writer_source_audit",
+            "classification": "slot_writer_confirmed",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "slot_writer": {"hook_name": "slot_writer", "module_offset": "0x253a"},
+            "breakpoint_probe_allowed": False,
+        }
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+        return {
+            "result_path": str(result_path),
+            "payload": payload,
+            "validations": [],
+            "promotable_validations": [],
+        }
+
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {"latest_material_hook_runtime_validation": material_payload}
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_indexed_or_latest_report_artifact_payload",
+        fake_indexed_artifact_payload,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_lhs_slot_writer_source_audit",
+        fake_run_slot_writer_source_audit,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for early slot writer/source sidecar"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "compare_lhs_slot_writer_source_audit"
+    assert result.metadata["early_sidecar"] is True
+    assert captured["artifacts_dir"] == "compare_lhs_slot_writer_source_audit"
+    assert captured["source_classification"] == "REJECTED"
+    assert Path(str(result.artifacts[0].output_path)).name == COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME
 
 
 def test_compare_aware_strategy_runs_post_handoff_sidecar_before_search(

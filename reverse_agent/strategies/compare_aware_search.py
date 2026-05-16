@@ -68,6 +68,7 @@ COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
 )
 COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME = "compare_real_lhs_provenance_audit.json"
 COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME = "compare_esi_source_window_audit.json"
+COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME = "compare_lhs_slot_writer_source_audit.json"
 
 DEFAULT_ANCHORS = (
     "78d540b49c590770",
@@ -220,6 +221,7 @@ COMPARE_LHS_UPSTREAM_WRITER_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDID
 COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_ESI_SOURCE_WINDOW_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 MATERIAL_HOOK_RUNTIME_VALIDATION_CANDIDATES = (
     "78d540b49c59077041414141414141",
     "5a3e7f46ddd474d041414141414141",
@@ -303,6 +305,10 @@ def _compare_real_lhs_provenance_audit_script_path() -> Path:
 
 def _compare_esi_source_window_audit_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_esi_source_window_audit.py"
+
+
+def _compare_lhs_slot_writer_source_audit_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_lhs_slot_writer_source_audit.py"
 
 
 def _material_hook_runtime_validation_script_path() -> Path:
@@ -3394,6 +3400,7 @@ def _artifact_file_name_for_kind(kind: str) -> str:
         ),
         "compare_real_lhs_provenance_audit": COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME,
         "compare_esi_source_window_audit": COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
+        "compare_lhs_slot_writer_source_audit": COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME,
     }.get(kind, "")
 
 
@@ -12992,6 +12999,469 @@ def run_compare_esi_source_window_audit(
     }
 
 
+def _compare_lhs_slot_writer_source_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "static_compare_callsite",
+            "module_offset": 0x258C,
+            "instruction": "call 0x5028ac",
+            "role": "static_callsite_check",
+        },
+        {
+            "name": "slot_writer",
+            "module_offset": 0x253A,
+            "instruction": "mov dword ptr [ebp - 0x1170], eax",
+            "role": "primary_slot_writer",
+        },
+        {
+            "name": "upstream_candidate_context",
+            "module_offset": 0x2312,
+            "instruction": "sub eax, dword ptr [edx - 4]",
+            "role": "context_only_candidate_dependent_upstream",
+        },
+        {
+            "name": "upstream_slot_1168_reload",
+            "module_offset": 0x2325,
+            "instruction": "mov edx, dword ptr [ebp - 0x1168]",
+            "role": "context_only_slot_1168_after_transform",
+        },
+        {
+            "name": "upstream_material_call",
+            "module_offset": 0x2338,
+            "instruction": "call 0x401b50",
+            "role": "context_only_slot_116c_material_call_input",
+        },
+        {
+            "name": "upstream_output_call",
+            "module_offset": 0x234E,
+            "instruction": "call 0x4018cd",
+            "role": "context_only_output_call",
+        },
+        {
+            "name": "upstream_output_return",
+            "module_offset": 0x2353,
+            "instruction": "mov ecx, eax",
+            "role": "context_only_output_return",
+        },
+        {
+            "name": "upstream_second_call",
+            "module_offset": 0x2355,
+            "instruction": "call 0x401be3",
+            "role": "context_only_second_call",
+        },
+    ]
+
+
+def _compare_lhs_slot_writer_source_static_audit(
+    target: Path,
+    hook_points: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    try:
+        data = target.read_bytes()
+    except Exception:
+        data = b""
+    sections = _pe_sections_for_rva_mapping(data)
+    sizes = {
+        0x2312: 3,
+        0x2325: 6,
+        0x2338: 5,
+        0x234E: 5,
+        0x2353: 3,
+        0x2355: 5,
+        0x253A: 6,
+        0x258C: 5,
+    }
+    instructions: list[dict[str, object]] = []
+    for point in hook_points:
+        offset = _parse_int_hex(point.get("module_offset"))
+        if offset is None:
+            continue
+        size = sizes.get(offset, 1)
+        instructions.append(
+            {
+                "name": point.get("name", ""),
+                "rva": f"0x{offset:x}",
+                "end_rva": f"0x{offset + size:x}",
+                "size": size,
+                "instruction": point.get("instruction", ""),
+                "bytes_hex": _read_rva_bytes(data, sections, offset, size),
+                "boundary_status": "instruction_confirmed",
+            }
+        )
+    return {
+        "classification": "static_compare_lhs_slot_writer_source_audit_complete"
+        if data and sections
+        else "static_compare_lhs_slot_writer_source_audit_partial",
+        "windows": {
+            "upstream_context": {
+                "start_rva": "0x2312",
+                "end_rva": "0x235a",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x2312, 0x235A - 0x2312),
+            },
+            "slot_writer": {
+                "start_rva": "0x253a",
+                "end_rva": "0x2540",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x253A, 0x2540 - 0x253A),
+            },
+            "compare_callsite": {
+                "start_rva": "0x258b",
+                "end_rva": "0x2591",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x258B, 0x2591 - 0x258B),
+            },
+        },
+        "instruction_boundaries": instructions,
+        "hook_point_audit": [
+            {
+                "name": point.get("name", ""),
+                "module_offset": f"0x{_parse_int_hex(point.get('module_offset')):x}"
+                if _parse_int_hex(point.get("module_offset")) is not None
+                else "",
+                "address": point.get("address", ""),
+                "boundary_status": "instruction_confirmed",
+                "reason": "fixed bounded compare lhs slot writer/source audit",
+            }
+            for point in hook_points
+        ],
+    }
+
+
+def _slot_writer_source_rows(
+    candidate_results: Sequence[dict[str, object]],
+    hook_points: Sequence[dict[str, object]],
+    lhs_side: str,
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for point in hook_points:
+        hook_name = str(point.get("name", ""))
+        if hook_name == "static_compare_callsite":
+            continue
+        observed_count = 0
+        compare_lhs_match_count = 0
+        values_by_field: dict[str, dict[str, str]] = {}
+        sample_values: dict[str, dict[str, str]] = {}
+        for result in candidate_results:
+            candidate_hex = str(result.get("candidate_hex", ""))
+            lhs_arg = _lhs_arg_for_result(result, lhs_side)
+            observation = _compare_lhs_observation(result, hook_name)
+            if not observation:
+                continue
+            observed_count += 1
+            preferred_sources = ("eax", "[ebp-0x1170]") if hook_name == "slot_writer" else ()
+            values = _upstream_writer_capture_values(observation)
+            best_value = _upstream_writer_best_value(observation, preferred_sources=preferred_sources)
+            candidate_samples: dict[str, str] = {}
+            for value in values:
+                source, preview_or_pointer = _upstream_writer_candidate_field_values(value)
+                if not source or not preview_or_pointer:
+                    continue
+                values_by_field.setdefault(source, {})[candidate_hex] = preview_or_pointer
+                candidate_samples[source] = preview_or_pointer
+            if candidate_samples:
+                sample_values[candidate_hex] = candidate_samples
+            if lhs_arg and best_value and _compare_lhs_value_matches_arg0(best_value, lhs_arg):
+                compare_lhs_match_count += 1
+            elif lhs_arg and any(_compare_lhs_value_matches_arg0(value, lhs_arg) for value in values):
+                compare_lhs_match_count += 1
+        candidate_dependent_fields = {
+            field: len({value for value in per_candidate.values() if value}) > 1
+            for field, per_candidate in values_by_field.items()
+        }
+        rows.append(
+            {
+                "hook_name": hook_name,
+                "module_offset": f"0x{_parse_int_hex(point.get('module_offset')):x}"
+                if _parse_int_hex(point.get("module_offset")) is not None
+                else "",
+                "instruction": str(point.get("instruction", "")),
+                "role": str(point.get("role", "")),
+                "observed_count": observed_count,
+                "runtime_backed_count": observed_count,
+                "candidate_dependent": any(candidate_dependent_fields.values()),
+                "candidate_dependent_fields": candidate_dependent_fields,
+                "connects_to_compare_lhs": compare_lhs_match_count >= 3,
+                "compare_lhs_match_count": compare_lhs_match_count,
+                "instruction_confirmed": True,
+                "hookable": observed_count > 0,
+                "sample_values": sample_values,
+            }
+        )
+    return rows
+
+
+def build_compare_lhs_slot_writer_source_audit_payload(
+    *,
+    candidate_results: Sequence[dict[str, object]],
+    hook_points: Sequence[dict[str, object]] | None = None,
+    static_audit: dict[str, object] | None = None,
+    source_material_hook_payload: dict[str, object] | None = None,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    hook_points = list(hook_points or _compare_lhs_slot_writer_source_hook_points())
+    source_material_hook_payload = source_material_hook_payload or {}
+    candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
+    runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
+    actual_compare = _compare_callsite_side_summary(candidate_results)
+    lhs_side = str(actual_compare.get("lhs_side") or "unknown")
+    rows = _slot_writer_source_rows(candidate_results, hook_points, lhs_side)
+    slot_writer = _real_lhs_row(rows, "slot_writer")
+    actual_compare_confirmed = str(actual_compare.get("entry_status", "")) == "confirmed"
+    lhs_confirmed = lhs_side == "arg0" and bool(actual_compare.get("lhs_preview_varies_by_candidate"))
+    source_rows = [
+        row
+        for row in rows
+        if str(row.get("hook_name")) != "slot_writer"
+        and int(row.get("runtime_backed_count", 0) or 0) >= 3
+        and bool(row.get("candidate_dependent"))
+        and bool(row.get("connects_to_compare_lhs"))
+    ]
+    slot_observed_count = int(slot_writer.get("observed_count", 0) or 0)
+    slot_connects = bool(slot_writer.get("connects_to_compare_lhs"))
+    slot_candidate_dependent = bool(slot_writer.get("candidate_dependent"))
+
+    if runtime_backed_count < 3 or not actual_compare_confirmed or not lhs_confirmed:
+        classification = "inconclusive"
+    elif slot_observed_count <= 0:
+        classification = "writer_hook_not_reached"
+    elif slot_connects and slot_candidate_dependent:
+        classification = "slot_writer_confirmed"
+    elif source_rows:
+        classification = "eax_source_identified"
+    else:
+        classification = "writer_observed_but_source_unknown"
+
+    eax_source = source_rows[0] if source_rows else {}
+    promotable = [slot_writer] if classification == "slot_writer_confirmed" else source_rows[:3]
+    next_bounded_action = {
+        "slot_writer_confirmed": "validate bounded material hook from confirmed slot writer/source",
+        "eax_source_identified": "validate bounded material hook from confirmed upstream eax source",
+        "writer_hook_not_reached": "move one step earlier than module+0x253a because the slot writer hook was not reached",
+        "writer_observed_but_source_unknown": "narrow field-level capture around module+0x253a before any Base64/RC4 probe",
+        "inconclusive": "rerun slot writer/source audit only after improving actual compare or slot-writer hook coverage",
+    }.get(classification, "inspect compare lhs slot writer/source artifact")
+    payload: dict[str, object] = {
+        "artifact_kind": "compare_lhs_slot_writer_source_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "classification": classification,
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(candidate_results),
+        "candidate_limit": len(COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_CANDIDATES),
+        "fixed_candidates": list(COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_CANDIDATES),
+        "source_material_hook_runtime_classification": source_material_hook_payload.get("classification", ""),
+        "source_compare_esi_source_window_classification": source_material_hook_payload.get(
+            "source_compare_esi_source_window_classification",
+            "",
+        ),
+        "hook_points": hook_points,
+        "static_audit": static_audit or {},
+        "runtime_backed_count": runtime_backed_count,
+        "actual_compare": actual_compare,
+        "slot_writer": slot_writer,
+        "eax_source": eax_source,
+        "writer_rows": rows,
+        "relations": {
+            "actual_compare_arg0": "confirmed" if actual_compare_confirmed and lhs_confirmed else "inconclusive",
+            "slot_writer_to_compare_arg0": "confirmed" if slot_connects else "inconclusive",
+            "slot_writer_candidate_dependent": "confirmed" if slot_candidate_dependent else "inconclusive",
+            "upstream_source_to_compare_arg0": "confirmed" if source_rows else "inconclusive",
+        },
+        "relation_table": [
+            {"field": "actual_compare_entry", "status": actual_compare.get("entry_status", "inconclusive")},
+            {"field": "lhs_side", "status": actual_compare.get("lhs_side", "unknown")},
+            {"field": "flag_side", "status": actual_compare.get("flag_side", "unknown")},
+            {
+                "field": "slot_writer_to_compare_arg0",
+                "status": "confirmed" if slot_connects else "inconclusive",
+            },
+            {
+                "field": "slot_writer_candidate_dependent",
+                "status": "confirmed" if slot_candidate_dependent else "inconclusive",
+            },
+        ],
+        "identified_writers": [slot_writer] if classification == "slot_writer_confirmed" else [],
+        "identified_sources": source_rows[:3],
+        "breakpoint_probe_allowed": False,
+        "candidate_results": candidate_results,
+        "negative_cache_updates": [
+            {
+                "direction": "rerun old 0x2559 material hook after slot writer/source audit",
+                "scope": "compare_lhs_slot_writer_source_audit",
+                "reason": "0x2559 was rejected as direct post-RC4 material; use the writer/source evidence instead",
+            },
+            {
+                "direction": "run Base64/RC4 breakpoint probe before validating the confirmed slot writer/source",
+                "scope": "compare_lhs_slot_writer_source_audit",
+                "reason": "breakpoint probing remains gated until a material hook is validated from writer/source evidence",
+            },
+        ],
+        "promotable_validations": promotable,
+        "next_bounded_action": next_bounded_action,
+    }
+    return payload
+
+
+def run_compare_lhs_slot_writer_source_audit(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel,
+    per_probe_timeout: float,
+    material_hook_payload: dict[str, object] | None = None,
+    run_name: str = "",
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME
+    script_path = _compare_lhs_slot_writer_source_audit_script_path()
+    compare_probe_script = _compare_probe_script_path()
+    hook_points = _compare_lhs_slot_writer_source_hook_points()
+    static_audit = _compare_lhs_slot_writer_source_static_audit(target, hook_points)
+    entries = list(COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_CANDIDATES)
+    labels = ("exact2_best", "exact1_frontier", "single_byte_contrast")
+    initial_payload = build_compare_lhs_slot_writer_source_audit_payload(
+        candidate_results=[],
+        hook_points=hook_points,
+        static_audit=static_audit,
+        source_material_hook_payload=material_hook_payload,
+        run_name=run_name,
+    )
+    initial_payload["candidate_count"] = len(entries)
+    _write_json(result_path, initial_payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Compare lhs slot writer/source audit script missing: {script_path}")
+    if not compare_probe_script.exists():
+        raise RuntimeError(f"compare probe script missing: {compare_probe_script}")
+
+    points_path = artifacts_dir / "compare_lhs_slot_writer_source_hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        compare_out = candidate_dir / COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME
+        compare_log = candidate_dir / "compare_lhs_slot_writer_source_audit.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(compare_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            "",
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"CompareLHSSlotWriterSourceAudit scripted hooks {idx}: {candidate_hex}")
+        try:
+            proc = _run_material_hook_runtime_command(
+                command,
+                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+            )
+            error = ""
+        except subprocess.TimeoutExpired as exc:
+            proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
+            error = "timeout"
+        compare_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        observations = [
+            _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        if not _has_actual_compare_args(observations):
+            probe_out = candidate_dir / "compare_probe_static_callsite.json"
+            probe_log = candidate_dir / "compare_probe_static_callsite.log"
+            probe_command = [
+                sys.executable,
+                str(compare_probe_script),
+                "--target",
+                str(target),
+                "--out",
+                str(probe_out),
+                "--probe-hex",
+                candidate_hex,
+                "--per-probe-timeout",
+                str(max(float(per_probe_timeout), 2.0)),
+                "--capture-prefix-bytes",
+                str(RUNTIME_PREFIX_BYTES),
+            ]
+            if log:
+                log(f"CompareLHSSlotWriterSourceAudit CompareProbe fallback {idx}: {candidate_hex}")
+            try:
+                probe_proc = _run_material_hook_runtime_command(
+                    probe_command,
+                    timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+                )
+            except subprocess.TimeoutExpired as exc:
+                probe_proc = subprocess.CompletedProcess(
+                    probe_command,
+                    returncode=124,
+                    stdout=exc.stdout or "",
+                    stderr=exc.stderr or "",
+                )
+            probe_log.write_text(
+                f"[stdout]\n{probe_proc.stdout or ''}\n\n[stderr]\n{probe_proc.stderr or ''}",
+                encoding="utf-8",
+            )
+            probe_payload = _read_json_object(probe_out) if probe_out.exists() else {}
+            fallback_observation = _compare_probe_payload_to_static_callsite_observation(
+                probe_payload,
+                candidate_hex,
+            )
+            if fallback_observation:
+                observations.append(
+                    _normalize_pre_compare_handoff_observation(fallback_observation, candidate_hex)
+                )
+        candidate_results.append(
+            {
+                "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_observations": observations[:200],
+                "result_path": str(compare_out),
+                "log_path": str(compare_log),
+                "success": bool(compare_payload.get("success")) and not error,
+                "error": error or str(compare_payload.get("error", "")),
+            }
+        )
+
+    payload = build_compare_lhs_slot_writer_source_audit_payload(
+        candidate_results=candidate_results,
+        hook_points=hook_points,
+        static_audit=static_audit,
+        source_material_hook_payload=material_hook_payload,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Compare lhs slot writer/source audit wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
+        "promotable_validations": payload.get("promotable_validations", []),
+    }
+
+
 def _prior_compare_lhs_producer_audit_has_decision() -> bool:
     current_state = _project_state_json("current_state.json")
     latest = current_state.get("latest_compare_lhs_producer_audit", {})
@@ -13045,6 +13515,21 @@ def _prior_compare_esi_source_window_audit_has_decision() -> bool:
     if isinstance(latest, dict) and str(latest.get("classification", "")).strip() in decision_classifications:
         return True
     payload, _ = _indexed_artifact_payload("compare_esi_source_window_audit")
+    return str(payload.get("classification", "")).strip() in decision_classifications
+
+
+def _prior_compare_lhs_slot_writer_source_audit_has_decision() -> bool:
+    decision_classifications = {
+        "slot_writer_confirmed",
+        "eax_source_identified",
+        "writer_hook_not_reached",
+        "writer_observed_but_source_unknown",
+    }
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_compare_lhs_slot_writer_source_audit", {})
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip() in decision_classifications:
+        return True
+    payload, _ = _indexed_artifact_payload("compare_lhs_slot_writer_source_audit")
     return str(payload.get("classification", "")).strip() in decision_classifications
 
 
@@ -17405,6 +17890,10 @@ class CompareAwareSearchStrategy(SolverStrategy):
             current_state_esi_source = current_state.get("latest_compare_esi_source_window_audit", {})
             current_state_esi_source = current_state_esi_source if isinstance(current_state_esi_source, dict) else {}
             current_esi_source_window_payload = current_esi_source_window_payload or current_state_esi_source
+            current_slot_writer_payload = _indexed_artifact_payload("compare_lhs_slot_writer_source_audit")[0]
+            current_state_slot_writer = current_state.get("latest_compare_lhs_slot_writer_source_audit", {})
+            current_state_slot_writer = current_state_slot_writer if isinstance(current_state_slot_writer, dict) else {}
+            current_slot_writer_payload = current_slot_writer_payload or current_state_slot_writer
             should_run_early_esi_material_hook_validation = (
                 not _prior_material_hook_runtime_validation_has_decision()
                 and str(current_esi_source_window_payload.get("classification") or "").strip()
@@ -17445,6 +17934,54 @@ class CompareAwareSearchStrategy(SolverStrategy):
                         "resolved_anchors": discovered_anchors,
                         "material_hook_runtime_validation": material_hook_runtime_validation_run,
                         "completed_stage": "material_hook_runtime_validation",
+                        "early_sidecar": True,
+                    },
+                )
+            should_run_early_lhs_slot_writer_source_audit = (
+                not _prior_compare_lhs_slot_writer_source_audit_has_decision()
+                and str(current_material_hook_payload.get("classification") or "").strip()
+                in {"BLOCKED", "REJECTED"}
+                and str(
+                    current_material_hook_payload.get(
+                        "source_compare_esi_source_window_classification",
+                        "",
+                    )
+                ).strip()
+                == "esi_source_identified"
+            )
+            if should_run_early_lhs_slot_writer_source_audit:
+                slot_writer_run = run_compare_lhs_slot_writer_source_audit(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "compare_lhs_slot_writer_source_audit",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    material_hook_payload=current_material_hook_payload,
+                    log=log,
+                )
+                slot_writer_payload = dict(slot_writer_run.get("payload", {}))
+                slot_writer_artifact = _make_search_artifact(
+                    tool_name="CompareLHSSlotWriterSourceAudit",
+                    output_path=Path(str(slot_writer_run["result_path"])),
+                    summary=str(
+                        slot_writer_payload.get(
+                            "classification",
+                            "compare lhs slot writer/source audit complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=slot_writer_payload,
+                    derived_entries=[],
+                )
+                return StrategyResult(
+                    strategy_name=self.name,
+                    summary=slot_writer_artifact.summary,
+                    candidates=[],
+                    artifacts=[slot_writer_artifact],
+                    metadata={
+                        "resolved_anchors": discovered_anchors,
+                        "compare_lhs_slot_writer_source_audit": slot_writer_run,
+                        "completed_stage": "compare_lhs_slot_writer_source_audit",
                         "early_sidecar": True,
                     },
                 )
@@ -18616,6 +19153,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         compare_real_lhs_provenance_audit_artifact: ToolRunArtifact | None = None
         compare_esi_source_window_audit_run: dict[str, object] | None = None
         compare_esi_source_window_audit_artifact: ToolRunArtifact | None = None
+        compare_lhs_slot_writer_source_audit_run: dict[str, object] | None = None
+        compare_lhs_slot_writer_source_audit_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_validation_run: dict[str, object] | None = None
         h1_h3_boundary_validation_artifact: ToolRunArtifact | None = None
         h1_h3_boundary_runtime_artifact: ToolRunArtifact | None = None
@@ -19497,9 +20036,47 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 derived_entries=[],
             )
 
+        should_run_compare_lhs_slot_writer_source_audit = (
+            compare_lhs_slot_writer_source_audit_run is None
+            and not _prior_compare_lhs_slot_writer_source_audit_has_decision()
+            and str(current_material_hook_payload.get("classification") or "").strip() in {"BLOCKED", "REJECTED"}
+            and str(
+                current_material_hook_payload.get(
+                    "source_compare_esi_source_window_classification",
+                    "",
+                )
+            ).strip()
+            == "esi_source_identified"
+        )
+        if should_run_compare_lhs_slot_writer_source_audit:
+            compare_lhs_slot_writer_source_audit_run = run_compare_lhs_slot_writer_source_audit(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "compare_lhs_slot_writer_source_audit",
+                transform_model=transform_model,
+                per_probe_timeout=per_probe_timeout,
+                material_hook_payload=current_material_hook_payload,
+                log=log,
+            )
+            slot_writer_payload = dict(compare_lhs_slot_writer_source_audit_run.get("payload", {}))
+            compare_lhs_slot_writer_source_audit_artifact = _make_search_artifact(
+                tool_name="CompareLHSSlotWriterSourceAudit",
+                output_path=Path(str(compare_lhs_slot_writer_source_audit_run["result_path"])),
+                summary=str(
+                    slot_writer_payload.get(
+                        "classification",
+                        "compare lhs slot writer/source audit complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=slot_writer_payload,
+                derived_entries=[],
+            )
+
         should_run_post_handoff_branch_outcome_audit = (
             post_handoff_branch_outcome_audit_run is None
             and not _prior_post_handoff_branch_outcome_audit_has_decision()
+            and compare_lhs_slot_writer_source_audit_run is None
             and str(current_material_hook_payload.get("classification") or "").strip() in {"BLOCKED", "REJECTED"}
             and bool(current_pre_compare_handoff_payload)
         )
@@ -19817,6 +20394,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(compare_real_lhs_provenance_audit_artifact)
         if compare_esi_source_window_audit_artifact is not None:
             artifacts.append(compare_esi_source_window_audit_artifact)
+        if compare_lhs_slot_writer_source_audit_artifact is not None:
+            artifacts.append(compare_lhs_slot_writer_source_audit_artifact)
         if h1_h3_boundary_validation_artifact is not None:
             artifacts.append(h1_h3_boundary_validation_artifact)
         if h1_h3_boundary_runtime_artifact is not None:
@@ -19863,12 +20442,15 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "compare_lhs_upstream_writer_audit": compare_lhs_upstream_writer_audit_run or {},
                 "compare_real_lhs_provenance_audit": compare_real_lhs_provenance_audit_run or {},
                 "compare_esi_source_window_audit": compare_esi_source_window_audit_run or {},
+                "compare_lhs_slot_writer_source_audit": compare_lhs_slot_writer_source_audit_run or {},
                 "h1_h3_boundary_validation": h1_h3_boundary_validation_run or {},
                 "prefix_boundary_diagnostics": prefix_boundary_diagnostics,
                 "frontier_converged_reason": frontier_converged_reason,
                 "frontier_stall_stage": frontier_stall_stage,
                 "completed_stage": "h1_h3_boundary_validation"
                 if h1_h3_boundary_validation_run
+                else "compare_lhs_slot_writer_source_audit"
+                if compare_lhs_slot_writer_source_audit_run
                 else "compare_esi_source_window_audit"
                 if compare_esi_source_window_audit_run
                 else "compare_real_lhs_provenance_audit"

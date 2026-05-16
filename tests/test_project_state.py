@@ -834,6 +834,57 @@ def test_project_state_tracks_blocked_esi_source_material_hook_task(tmp_path: Pa
     assert any("0x2559" in item.get("reason", "") for item in negative_results)
 
 
+def test_project_state_indexes_lhs_slot_writer_source_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_slot_writer")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "compare_lhs_slot_writer_source_audit").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "compare_lhs_slot_writer_source_audit" / "compare_lhs_slot_writer_source_audit.json",
+        {
+            "artifact_kind": "compare_lhs_slot_writer_source_audit",
+            "classification": "slot_writer_confirmed",
+            "runtime_backed_count": 3,
+            "candidate_count": 3,
+            "actual_compare": {"lhs_side": "arg0", "flag_side": "arg1"},
+            "relations": {"slot_writer_to_compare_arg0": "confirmed"},
+            "slot_writer": {
+                "hook_name": "slot_writer",
+                "module_offset": "0x253a",
+                "compare_lhs_match_count": 3,
+            },
+            "writer_rows": [
+                {
+                    "hook_name": "slot_writer",
+                    "module_offset": "0x253a",
+                    "candidate_dependent": True,
+                }
+            ],
+            "identified_writers": [{"hook_name": "slot_writer", "module_offset": "0x253a"}],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "validate bounded material hook from confirmed slot writer/source",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_lhs_slot_writer_source_audit"].endswith(
+        "compare_lhs_slot_writer_source_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_lhs_slot_writer_source_audit"
+    assert current_state["current_bottleneck"]["reason"] == "slot_writer_confirmed"
+    latest = current_state["latest_compare_lhs_slot_writer_source_audit"]
+    assert latest["classification"] == "slot_writer_confirmed"
+    assert latest["slot_writer"]["module_offset"] == "0x253a"
+    assert task_packet["task"] == "Validate bounded material hook from confirmed slot writer/source"
+    assert any(item.get("scope") == "compare_lhs_slot_writer_source_audit" for item in negative_results)
+
+
 def test_project_state_indexes_post_handoff_branch_outcome_audit(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
