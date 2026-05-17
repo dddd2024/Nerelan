@@ -4,47 +4,78 @@ Generated for `samplereverse` from the latest `project_state` facts.
 
 ## 1. Goal
 
-Trace the `0x401b50` post-handoff exception/unwind path and identify the real branch/call outcome that connects candidate-dependent material to the actual compare lhs.
+Trace the last-writer / memory provenance of the actual compare lhs immediately before `0x258c`.
 
-本轮目标不是生成新候选，也不是扩大 beam/budget，而是把当前瓶颈 `post_handoff_branch_outcome_audit / handoff_exception_or_unwind` 变成更明确的运行时分类：
+当前 bottleneck 已经从 `handoff_exception_or_unwind` 推进到：
 
-- `normal_return_to_compare_path`
-- `exception_dispatch_to_compare_path`
-- `seh_unwind_to_compare_path`
-- `alternate_return_to_compare_path`
-- `compare_reached_but_path_unresolved`
-- `compare_not_reached`
-- `inconclusive`
+```text
+stage: post_handoff_exception_unwind_audit
+reason: compare_reached_but_path_unresolved
+```
+
+Current `task_packet.json` also states the next task as:
+
+```text
+Trace last-writer memory provenance before 0x258c
+```
+
+本轮目标不是找新候选，不是扩大搜索，而是解释：
+
+```text
+compare 0x258c arg0
+<- 由哪个寄存器 / 栈槽 / heap buffer 提供
+<- 该值最后一次被谁写入
+<- 该 writer 是否 candidate-dependent
+<- 该 writer 是否连接到 UTF-16LE/Base64/RC4 transform material
+```
 
 ## 2. Current Evidence
 
-- Active strategy: `CompareAwareSearchStrategy`.
-- Profile/sample: `samplereverse`.
-- Current task: `Trace 0x401b50 exception or unwind handler`.
-- Current bottleneck:
-  - stage: `post_handoff_branch_outcome_audit`
-  - reason: `handoff_exception_or_unwind`
-  - confidence: `medium`
-- Current best candidates:
-  - exact2: `78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`, `compare_semantics_agree=true`
-  - frontier/exact1: `5a3e7f46ddd474d041414141414141`, runtime exact1 / distance5 `258`, `compare_semantics_agree=true`
-- Known transform mainline remains:
-  - `input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix`
-- Function semantics currently mark `0x401b50` as:
-  - `candidate_dependent=true`
-  - `hookable=true`
-  - `semantic_guess=copy_or_handoff`
-  - still blocked by `missing_transform_chain_connection`
-- Latest actual compare evidence anchors compare at `0x258c`:
-  - actual compare `arg0` is candidate-dependent
-  - actual compare `arg1` is the stable flag-side constant
-  - lhs preview varies by candidate
-- Latest indexed harness run:
-  - `solve_reports\harness_runs\sr_401b50_outcome_20260517_r1`
-- Core latest artifact class:
-  - `post_handoff_branch_outcome_audit`
-- Important limitation:
-  - Do not assume uncommitted full `solve_reports` contents. Use committed `project_state` summaries and indexed artifacts as the fact source.
+Active strategy remains:
+
+```text
+CompareAwareSearchStrategy
+```
+
+Current best remains unchanged:
+
+```text
+exact2:
+78d540b49c59077041414141414141
+runtime_ci_exact_wchars = 2
+runtime_ci_distance5 = 246
+compare_semantics_agree = true
+
+exact1/frontier:
+5a3e7f46ddd474d041414141414141
+runtime_ci_exact_wchars = 1
+runtime_ci_distance5 = 258
+compare_semantics_agree = true
+```
+
+Latest `post_handoff_exception_unwind_audit` confirms:
+
+```text
+compare entry = 0x258c
+lhs side = arg0
+flag side = arg1
+arg0 candidate-dependent = true
+arg1 candidate-dependent = false
+```
+
+Known transform mainline remains:
+
+```text
+input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix
+```
+
+However, Base64/RC4 breakpoint probing remains blocked because no runtime-backed connected material producer has been confirmed.
+
+Important prior observations:
+
+- `0x401b50` remains candidate-dependent and hookable, but still blocked by missing transform-chain connection.
+- Tentative exception / handler hooks `0x1913`, `0x19bb`, `0x19fe`, and `0x1a30` were not promoted to confirmed runtime evidence.
+- The latest classification is no longer an exception/unwind classification; it is a compare-lhs provenance problem.
 
 ## 3. Do Not Do
 
@@ -57,113 +88,155 @@ Do not:
 - repeat exact2 basin value-pool evaluation
 - repeat H1/H3 fixed 8-candidate prefix8 plus Base64 boundary contrast set
 - repeat the current transform trace consistency audit without new runtime evidence
-- rerun Base64/RC4 breakpoint probe before confirming an instruction-level Base64/RC4 or material-construction hook
+- rerun Base64/RC4 breakpoint probe before confirming an instruction-level material producer
 - repeat compare return-site audit without using its classification
 - repeat producer material confirmation without adding instruction-level evidence
-- reuse `0x233d` / `0x2346` as material-hook breakpoints after the post-handoff audit rejected them
-- probe downstream `0x234e` / `0x2355` Base64/RC4 hooks before branch outcome reaches them
+- continue chasing `0x1913` / `0x19bb` / `0x19fe` / `0x1a30` as confirmed exception/handler facts
 - treat `0x4019e0`, `0x401b50`, `0x4018cd`, or `0x401be3` as Base64/RC4 material producers without new semantic evidence
-- scan the entire `solve_reports` tree unless a missing artifact lookup explicitly forces it
+- scan the entire `solve_reports` tree unless an indexed artifact lookup is insufficient
 
 ## 4. Files To Inspect
 
-Inspect only the bounded files needed for this task:
+Codex should inspect only the bounded files required for this task:
 
 1. `reverse_agent/strategies/compare_aware_search.py`
-   - Find existing sidecar scheduling patterns.
-   - Reuse fixed-candidate audit conventions.
-   - Add or refine a bounded sidecar only if no existing audit already covers this exact exception/unwind outcome classification.
+   - Check existing sidecar scheduling and artifact naming.
+   - Reuse fixed-candidate conventions.
+   - Add a narrow last-writer provenance audit only if no existing sidecar already provides this.
 
-2. `reverse_agent/function_semantics.py`
-   - Check whether `0x401b50` metadata can be extended with path outcome evidence.
-   - Do not reinterpret it as a material producer without runtime proof.
+2. `reverse_agent/olly_scripts/`
+   - Reuse the existing Frida/UIA collector style.
+   - Add only a thin runtime entry if needed.
 
 3. `reverse_agent/project_state.py`
-   - Index `latest_post_handoff_exception_unwind_audit` if a new artifact is introduced.
-   - Ensure `current_bottleneck.reason` advances from `handoff_exception_or_unwind` to a more concrete runtime classification.
+   - Index the new artifact if a new artifact kind is introduced.
+   - Ensure the bottleneck advances away from `post_handoff_exception_unwind_audit / compare_reached_but_path_unresolved`.
 
-4. `reverse_agent/olly_scripts/`
-   - Inspect existing runtime sidecar scripts.
-   - Implement a narrow `0x401b50` path outcome probe by reusing existing Frida/UIA collector style.
+4. `tests/test_compare_aware_search_strategy.py`
+   - Add scheduler, classifier, fixed-candidate, no-expansion, and gating tests.
 
-5. `tests/test_compare_aware_search_strategy.py`
-   - Add scheduler/classifier/artifact tests.
+5. `tests/test_project_state.py`
+   - Add project_state indexing and task routing coverage.
 
-6. `tests/test_project_state.py`
-   - Add project_state indexing/status tests if a new artifact key is added.
+Suggested artifact name:
 
-Do not inspect full historical solve reports by default.
+```text
+compare_arg0_last_writer_memory_provenance_audit
+```
+
+Acceptable existing-name alternative:
+
+```text
+compare_real_lhs_provenance_audit
+```
+
+`latest_compare_real_lhs_provenance_audit` is currently empty, so it may be the cleanest existing continuation point.
 
 ## 5. Required Audit
 
-Create or refine a bounded sidecar tentatively named:
+The audit must work backwards from actual compare arg capture.
 
-`post_handoff_exception_unwind_audit`
+Use the fixed three candidates:
 
-It should consume the current `post_handoff_branch_outcome_audit / handoff_exception_or_unwind` bottleneck and use the fixed candidate set already present in current state. Do not expand candidate search.
+```text
+78d540b49c59077041414141414141
+5a3e7f46ddd474d041414141414141
+78d540b49c59076f41414141414141
+```
 
-For each fixed candidate, capture:
+For each candidate, capture at minimum:
 
-- `0x401b50` enter count
-- `0x401b50` leave/return count if observable
-- return address on entering `0x401b50`
-- actual return target if it differs from expected post-handoff site
-- whether expected post-handoff linear sites are reached
-- whether exception dispatcher / SEH handler / unwind-like path / alternate return path is observed
-- whether compare entry `0x258c` is reached
-- actual compare `arg0` pointer/value preview
-- actual compare `arg1` pointer/value preview
-- whether compare lhs material remains candidate-dependent
-- last observed module offset before compare
-- stack/register preview around the divergence point
+```text
+0x258c compare entry
+arg0 pointer
+arg0 preview_hex
+arg1 pointer
+arg1 preview_hex
+0x258b pre-compare push esi
+esi value / preview
+0x2559 post-handoff lhs reload
+[ebp-0x1170] value / preview
+0x253a lhs slot store
+eax value / preview
+nearby memory writes to arg0 buffer before 0x258c
+last observed module offset before compare
+```
 
-The classifier should distinguish:
+The audit should classify the result as one of:
 
-- `normal_return_to_compare_path`
-- `exception_dispatch_to_compare_path`
-- `seh_unwind_to_compare_path`
-- `alternate_return_to_compare_path`
-- `compare_reached_but_path_unresolved`
-- `compare_not_reached`
-- `instrumentation_missed_return`
-- `inconclusive`
+```text
+arg0_last_writer_identified
+arg0_last_writer_is_copy_only
+arg0_writer_window_rejected
+arg0_writer_unobserved_but_compare_confirmed
+instrumentation_missing_memory_write
+inconclusive
+```
 
-Critical classifier rule:
+Classification evidence gates:
 
-Actual compare confirmation must require observed compare entry and argument capture. Do not classify success merely because upstream hooks fired. A previous implementation class already required this correction, so preserve that discipline.
+```text
+arg0_last_writer_identified:
+  must observe 0x258c compare args
+  must identify a writer/copy point whose pointer or preview matches arg0
+  must be runtime-backed for all 3 candidates
 
-The audit must not authorize Base64/RC4 probing unless it proves all of the following with runtime-backed evidence:
+arg0_last_writer_is_copy_only:
+  must identify writer to arg0
+  writer/copy evidence is runtime-backed
+  writer material does not yet match UTF-16LE/Base64/RC4 model
 
-1. actual compare lhs side confirmed
-2. connected producer confirmed
-3. candidate-dependent transform material confirmed
+arg0_writer_window_rejected:
+  must observe checked hooks
+  none connects to compare arg0 pointer or preview
+
+arg0_writer_unobserved_but_compare_confirmed:
+  must observe 0x258c arg0/arg1
+  no writer hook fires in the bounded checked window
+
+instrumentation_missing_memory_write:
+  must show compare arg0 is valid and candidate-dependent
+  current hook style cannot observe the write source
+
+inconclusive:
+  insufficient runtime-backed observations
+```
+
+The artifact must explicitly report:
+
+- whether `arg0` remains candidate-dependent
+- whether a concrete writer was found
+- whether the writer connects to compare `arg0`
+- whether the writer is likely copy-only or transform-material
+- whether Base64/RC4 breakpoint probe remains blocked
+- the next bounded action
 
 ## 6. Implementation Scope
 
-Minimal implementation only.
+Allowed:
 
-Acceptable changes:
-
-- Add one narrow runtime probe script if no existing script can capture the `0x401b50` exception/unwind outcome.
-- Add one artifact schema/classifier in `compare_aware_search.py`.
-- Add sidecar scheduling only for the current `handoff_exception_or_unwind` bottleneck.
+- Add one bounded sidecar for `0x258c` arg0 last-writer provenance.
+- Reuse existing runtime collector logic where possible.
+- Add hook points around:
+  - `0x258b`
+  - `0x258c`
+  - `0x2559`
+  - `0x253a`
+  - selected earlier writer candidates only when justified by current artifacts
 - Add project_state indexing for the new artifact.
-- Add negative-cache entries to prevent blindly repeating this probe if it returns `inconclusive` without new hook evidence.
-- Add tests for:
-  - no candidate expansion
-  - fixed candidate set
-  - breakpoint probe remains blocked
-  - classifier transitions
-  - project_state bottleneck update
+- Add negative-cache entries to prevent repeating this audit if it rejects the checked window without new evidence.
+- Add tests for fixed candidates, no search expansion, compare-arg requirements, breakpoint blocking, and state routing.
 
-Not acceptable:
+Not allowed:
 
 - candidate generation changes
-- scoring/ranking changes
+- ranking changes
 - optimizer changes
+- beam / budget / topN / timeout expansion
+- Base64/RC4 breakpoint probe
 - broad disassembly sweep
 - full `solve_reports` commit
-- Base64/RC4 breakpoint probe run
+- claiming a material producer without runtime-backed writer evidence
 
 ## 7. Tests
 
@@ -173,10 +246,16 @@ Run at minimum:
 python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/project_state.py
 ```
 
-If a new runtime script is added:
+If a new runtime script is added, run the corresponding compile check, for example:
 
 ```bash
-python -m py_compile reverse_agent/olly_scripts/post_handoff_exception_unwind_audit.py
+python -m py_compile reverse_agent/olly_scripts/compare_arg0_last_writer_memory_provenance_audit.py
+```
+
+or:
+
+```bash
+python -m py_compile reverse_agent/olly_scripts/compare_real_lhs_provenance_audit.py
 ```
 
 Then run:
@@ -186,66 +265,61 @@ python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_proje
 python -m pytest -q
 ```
 
-Then run one bounded harness execution using the existing `samplereverse` dataset and runtime validation. Suggested run name:
+Suggested harness run name:
 
-```bash
-sr_401b50_exception_unwind_20260517_r1
+```text
+sr_arg0_last_writer_20260517_r1
 ```
 
-Suggested harness command:
+Suggested harness command on Windows:
 
-```bash
-python -m reverse_agent.harness \
-  --dataset solve_reports/samplereverse_compare_producer_backtrace_20260508_dataset.json \
-  --run-name sr_401b50_exception_unwind_20260517_r1 \
-  --reports-dir solve_reports \
-  --analysis-mode Auto \
-  --model-type "Copilot CLI" \
-  --runtime-validation-enabled \
+```bat
+python -m reverse_agent.harness ^
+  --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json ^
+  --run-name sr_arg0_last_writer_20260517_r1 ^
+  --reports-dir solve_reports ^
+  --analysis-mode Auto ^
+  --model-type "Copilot CLI" ^
+  --runtime-validation-enabled ^
   --tool-enabled
 ```
 
 After the harness run:
 
-```bash
-python -m reverse_agent.project_state build \
-  --reports-dir solve_reports \
-  --sample samplereverse \
-  --run-name sr_401b50_exception_unwind_20260517_r1
-
+```bat
+python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_last_writer_20260517_r1
 python -m reverse_agent.project_state status
 ```
 
-Expected state outcome:
+Expected state:
 
-- `missing: []`
-- current bottleneck reason changes away from raw `handoff_exception_or_unwind`
-- new artifact appears in `artifact_index.json`
-- `breakpoint_probe_allowed` remains false unless a real connected material source is proven
+```text
+missing: []
+current_bottleneck.stage != post_handoff_exception_unwind_audit
+current_bottleneck.reason != compare_reached_but_path_unresolved
+```
+
+Acceptable next reasons include:
+
+```text
+arg0_last_writer_identified
+arg0_last_writer_is_copy_only
+arg0_writer_window_rejected
+arg0_writer_unobserved_but_compare_confirmed
+instrumentation_missing_memory_write
+```
 
 ## 8. Stop Conditions
 
-Stop immediately and report if any of the following happens:
+Stop immediately and report if:
 
-1. `0x401b50` returns to a non-expected address.
-   - Report the actual target and supporting register/stack evidence.
+1. `0x258c` compare entry cannot be observed.
+2. compare args cannot be captured.
+3. `arg0` no longer appears candidate-dependent.
+4. writer hooks fire but none can be connected to arg0 pointer or preview.
+5. current hook system cannot observe memory writes before `0x258c`.
+6. any result suggests running Base64/RC4 probe without connected producer evidence.
+7. tests fail.
+8. harness hangs or child runtime stalls.
 
-2. `0x401b50` does not return normally.
-   - Report exception/unwind evidence.
-
-3. Expected hooks are not hit but compare still occurs.
-   - Report whether this is likely instrumentation miss, wrong module base, wrong offset, or control-flow divergence.
-
-4. A runtime-backed predecessor/source path is identified.
-   - Do not proceed to Base64/RC4 probe automatically.
-   - Report the candidate source and request the next decision.
-
-5. The harness hangs or child runtime stalls.
-   - Add or verify timeout guard.
-   - Report partial artifact status.
-   - Do not manually keep rerunning.
-
-6. Tests fail.
-   - Stop after the first concrete failing test group and report the failure.
-
-本轮一句话：不要继续找更好的 candidate，先把 `0x401b50` 后的真实控制流去向钉住。
+本轮一句话：不要继续追异常路径；现在 compare 已经到了，下一步必须找 `0x258c arg0` 的最后写入者。
