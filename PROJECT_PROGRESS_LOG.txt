@@ -4375,3 +4375,57 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 6) 下一轮默认方向
 - 只追 `0x401b50` exception / unwind handler，解释 `0x19bb` access violation 与后续 compare lhs 的连接。
 - 不直接把 `0x233d` / `0x2346` / `0x234e` / `0x2355` 当作 material hook；必须先用异常/展开路径证据确认真实 material/source route。
+
+## 2026-05-17 0x401b50 exception/unwind audit
+
+1) 执行范围
+- 按计划新增 bounded sidecar：`post_handoff_exception_unwind_audit.json`。
+- 触发条件固定为最新 `post_handoff_branch_outcome_audit.classification == "handoff_exception_or_unwind"`。
+- 固定主线 `L15(prefix8)`、suffix `AAAAAAA`、3 个 runtime-backed candidates。
+- `0x1913`、`0x19bb`、`0x19fe`、`0x1a30` 仅作为 tentative hook candidates；未扩大 search / beam / budget / topN / timeout / frontier iteration。
+- 未运行 Base64/RC4 breakpoint probe，未回退 old `sample_solver`。
+
+2) 代码变更
+- `reverse_agent/olly_scripts/post_handoff_exception_unwind_audit.py`
+  - 新增 thin script entry，复用现有 Frida/UIA collector。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 exception/unwind hook points、static audit、payload builder、runner、evidence-gated classifier 和 early sidecar scheduling。
+  - 分类必须通过显式 evidence gate：compare-path 需要 `0x258c` entry + arg0/arg1，exception/SEH 分类需要 exception/handler/unwind evidence。
+  - 新 artifact 保留 `breakpoint_probe_allowed=false`，除非 actual compare lhs、connected producer、candidate-dependent transform material 全部 runtime-backed。
+- `reverse_agent/project_state.py`
+  - 新增 `latest_post_handoff_exception_unwind_audit` 索引。
+  - 将新分类接入 bottleneck、task routing、negative cache。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\post_handoff_exception_unwind_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `195 passed`
+- `python -m pytest -q` -> `272 passed`
+
+4) Harness / project_state
+- Completed target real harness run:
+  - `sr_401b50_exception_unwind_20260517_r1`
+  - 1 case executed, 0 errors, selected `NOT_FOUND` because sidecar hard-stop intentionally skipped solve/validation chain。
+- Core artifact:
+  - `solve_reports\harness_runs\sr_401b50_exception_unwind_20260517_r1\reports\tool_artifacts\samplereverse_patched\post_handoff_exception_unwind_audit\post_handoff_exception_unwind_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_401b50_exception_unwind_20260517_r1` -> passed。
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_401b50_exception_unwind_20260517_r1`
+  - `reason: compare_reached_but_path_unresolved`
+  - `task: Trace last-writer memory provenance before 0x258c`
+  - `missing: []`
+
+5) 结论
+- `post_handoff_exception_unwind_audit` classification: `compare_reached_but_path_unresolved`
+- `runtime_backed_count=3`，固定 3 候选均 runtime-backed。
+- `evidence_gate.compare_entry_observed=true`
+- `evidence_gate.compare_args_captured=true`
+- `evidence_gate.exception_evidence=false`
+- `evidence_gate.handler_unwind_evidence=false`
+- `evidence_gate.connected_producer_runtime_backed=false`
+- `evidence_gate.candidate_dependent_transform_material_runtime_backed=false`
+- tentative hooks `0x1913` / `0x19bb` / `0x19fe` / `0x1a30` 均为 `tentative_not_observed`，没有 runtime evidence ref 可提升为 confirmed。
+- `breakpoint_probe_allowed=false`；仍不运行 Base64/RC4 probe。
+
+6) 下一轮默认方向
+- 不跑 Base64/RC4 probe，不回 old `sample_solver`，不扩大 search。
+- 下一步追 `0x258c` 前 last-writer / memory provenance，解释 compare arg0 的真实写入来源。

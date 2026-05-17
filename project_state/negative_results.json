@@ -80,23 +80,13 @@
     "severity": "soft_block"
   },
   {
-    "direction": "reuse 0x233d/0x2346 as material-hook breakpoints after post-handoff audit rejected them",
+    "direction": "run Base64/RC4 breakpoint probe before exception/unwind material gates close",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_401b50_outcome_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_branch_outcome_audit\\post_handoff_branch_outcome_audit.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_401b50_exception_unwind_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\post_handoff_exception_unwind_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "post-handoff branch outcome audit consumes the material runtime rejection and keeps these hooks blocked until new transform-chain evidence appears",
-    "scope": "post_handoff_branch_outcome_audit",
-    "severity": "soft_block"
-  },
-  {
-    "direction": "probe downstream 0x234e/0x2355 Base64/RC4 hooks before branch outcome reaches them",
-    "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_401b50_outcome_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_branch_outcome_audit\\post_handoff_branch_outcome_audit.json",
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "0x234e/0x2355 remain downstream of the rejected post-handoff window; first identify the branch/call outcome that connects to compare lhs",
-    "scope": "post_handoff_branch_outcome_audit",
+    "reason": "exception/unwind audit keeps breakpoint probing blocked until actual compare lhs, connected producer, and candidate-dependent transform material are all runtime-backed",
+    "scope": "post_handoff_exception_unwind_audit",
     "severity": "soft_block"
   },
   {

@@ -40,6 +40,7 @@ from reverse_agent.strategies.compare_aware_search import (
     H1_H3_BOUNDARY_VALIDATION_FILE_NAME,
     MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME,
     POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME,
+    POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME,
     PRE_RC4_MATERIAL_PROBE_FILE_NAME,
     PROFILE_TRANSFORM_AUDIT_CANDIDATE_LIMIT,
     PROFILE_TRANSFORM_HYPOTHESIS_MATRIX_FILE_NAME,
@@ -75,6 +76,7 @@ from reverse_agent.strategies.compare_aware_search import (
     build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
+    build_post_handoff_exception_unwind_audit_payload,
     build_function_semantic_audit_payload,
     run_compare_aware_smt,
     run_base64_rc4_breakpoint_probe,
@@ -99,6 +101,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_function_semantic_audit,
     run_material_hook_runtime_validation,
     run_post_handoff_branch_outcome_audit,
+    run_post_handoff_exception_unwind_audit,
     run_pre_rc4_material_probe,
     run_profile_transform_hypothesis_audit,
     run_transform_trace_consistency_diagnostic,
@@ -840,6 +843,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
             "compare_esi_source_window_audit",
             "compare_lhs_slot_writer_source_audit",
             "compare_lhs_slot_writer_predecessor_audit",
+            "post_handoff_exception_unwind_audit",
             "h1_h3_boundary_validation",
         }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -6942,6 +6946,218 @@ def test_run_post_handoff_branch_outcome_audit_uses_runtime_sidecar(
     assert payload["exit_summary"]["return_address_module_offsets"]
 
 
+def _exception_unwind_compare_observation(candidate_hex: str) -> dict[str, object]:
+    return {
+        "hook_name": "static_compare_callsite",
+        "module_offset": "0x258c",
+        "event": "enter",
+        "compare_args": {
+            "args": [
+                {"index": 0, "role": "arg0", "value": f"0x{candidate_hex[:4]}", "preview_hex": candidate_hex[:64]},
+                {"index": 1, "role": "arg1", "value": "0x711c4c", "preview_hex": "66" * 32},
+                {"index": 2, "role": "arg2", "value_u32": 5},
+            ]
+        },
+    }
+
+
+def _exception_unwind_candidate_results(kind: str) -> list[dict[str, object]]:
+    candidates = [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+        "78d540b49c59076f41414141414141",
+    ]
+    rows: list[dict[str, object]] = []
+    for candidate_hex in candidates:
+        observations: list[dict[str, object]] = [
+            {"hook_name": "predecessor_handoff_call", "module_offset": "0x2338", "event": "enter"},
+            {
+                "hook_name": "handoff_helper_entry",
+                "module_offset": "0x1b50",
+                "event": "enter",
+                "return_address_module_offset": "0x233d",
+            },
+        ]
+        if kind == "normal":
+            observations.append(
+                {
+                    "hook_name": "handoff_helper_entry",
+                    "module_offset": "0x1b50",
+                    "event": "leave",
+                    "return_address_module_offset": "0x233d",
+                    "current_module_offset": "0x233d",
+                }
+            )
+            observations.append(_exception_unwind_compare_observation(candidate_hex))
+        elif kind == "alternate":
+            observations.append(
+                {
+                    "hook_name": "handoff_helper_entry",
+                    "module_offset": "0x1b50",
+                    "event": "leave",
+                    "return_address_module_offset": "0x2400",
+                    "current_module_offset": "0x2400",
+                }
+            )
+            observations.append(_exception_unwind_compare_observation(candidate_hex))
+        elif kind == "exception":
+            observations.append(
+                {
+                    "hook_name": "process_exception",
+                    "module_offset": "0x1913",
+                    "current_module_offset": "0x1913",
+                    "event": "exception",
+                    "exception": {"type": "access-violation", "memory": "0x0"},
+                }
+            )
+            observations.append(_exception_unwind_compare_observation(candidate_hex))
+        elif kind == "seh":
+            observations.append(
+                {
+                    "hook_name": "process_exception",
+                    "module_offset": "0x19bb",
+                    "current_module_offset": "0x19bb",
+                    "event": "exception",
+                    "exception": {"type": "access-violation", "memory": "0x0"},
+                }
+            )
+            observations.append(
+                {
+                    "hook_name": "tentative_handler_1a30",
+                    "module_offset": "0x1a30",
+                    "event": "enter",
+                }
+            )
+            observations.append(_exception_unwind_compare_observation(candidate_hex))
+        elif kind == "compare_without_args":
+            observations.append(
+                {
+                    "hook_name": "process_exception",
+                    "module_offset": "0x1913",
+                    "current_module_offset": "0x1913",
+                    "event": "exception",
+                    "exception": {"type": "access-violation", "memory": "0x0"},
+                }
+            )
+            observations.append({"hook_name": "static_compare_callsite", "module_offset": "0x258c"})
+        rows.append(_post_handoff_candidate_result(candidate_hex, observations))
+    return rows
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected", "route"),
+    [
+        ("normal", "normal_return_to_compare_path", "lhs_producer_provenance"),
+        ("alternate", "alternate_return_to_compare_path", "alternate_target_slice"),
+        ("exception", "exception_dispatch_to_compare_path", "handler_to_lhs_dataflow"),
+        ("seh", "seh_unwind_to_compare_path", "handler_to_lhs_dataflow"),
+        ("unknown", "instrumentation_missed_return", "hook_reliability_fix"),
+    ],
+)
+def test_post_handoff_exception_unwind_evidence_gated_classifications(
+    kind: str,
+    expected: str,
+    route: str,
+) -> None:
+    payload = build_post_handoff_exception_unwind_audit_payload(
+        post_handoff_payload={"classification": "handoff_exception_or_unwind"},
+        candidate_results=_exception_unwind_candidate_results(kind),
+    )
+
+    assert payload["classification"] == expected
+    assert payload["post_classification_route"] == route
+    assert payload["candidate_count"] == 3
+    assert payload["runtime_backed_count"] == 3
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_post_handoff_exception_unwind_requires_compare_args_for_compare_path() -> None:
+    payload = build_post_handoff_exception_unwind_audit_payload(
+        post_handoff_payload={"classification": "handoff_exception_or_unwind"},
+        candidate_results=_exception_unwind_candidate_results("compare_without_args"),
+    )
+
+    assert payload["evidence_gate"]["compare_entry_observed"] is True
+    assert payload["evidence_gate"]["compare_args_captured"] is False
+    assert payload["classification"] == "compare_not_reached"
+    assert payload["post_classification_route"] == "stop_missing_evidence"
+
+
+def test_post_handoff_exception_unwind_records_tentative_hook_evidence_refs() -> None:
+    results = _exception_unwind_candidate_results("seh")
+    for index, result in enumerate(results, 1):
+        result["result_path"] = f"artifact/candidate_{index}/post_handoff_exception_unwind_audit.json"
+    payload = build_post_handoff_exception_unwind_audit_payload(
+        post_handoff_payload={"classification": "handoff_exception_or_unwind"},
+        candidate_results=results,
+    )
+
+    observed = [
+        row for row in payload["tentative_hook_candidates"]
+        if row.get("module_offset") == "0x1a30" and row.get("status") == "runtime_observed"
+    ]
+    assert observed
+    assert observed[0]["evidence_ref"]["artifact"].endswith("post_handoff_exception_unwind_audit.json")
+
+
+def _fake_post_handoff_exception_unwind_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} >= {
+        "handoff_helper_entry",
+        "tentative_exception_site_1913",
+        "tentative_exception_site_19bb",
+        "tentative_resume_19fe",
+        "tentative_handler_1a30",
+        "static_compare_callsite",
+    }
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "post handoff exception/unwind audit ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": _exception_unwind_candidate_results("seh")[0]["hook_observations"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
+def test_run_post_handoff_exception_unwind_audit_uses_runtime_sidecar(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", _fake_post_handoff_exception_unwind_subprocess_run)
+
+    result = run_post_handoff_exception_unwind_audit(
+        target=target,
+        artifacts_dir=tmp_path / "post_handoff_exception_unwind_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        post_handoff_payload={"classification": "handoff_exception_or_unwind"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME
+    assert payload["artifact_kind"] == "post_handoff_exception_unwind_audit"
+    assert payload["classification"] == "seh_unwind_to_compare_path"
+    assert payload["candidate_count"] == 3
+
+
 def test_compare_lhs_producer_audit_identifies_instruction_confirmed_producer(
     tmp_path: Path,
     monkeypatch,
@@ -8447,6 +8663,77 @@ def test_compare_aware_strategy_runs_post_handoff_sidecar_from_predecessor(
     assert captured["target"] == "samplereverse.exe"
     assert captured["predecessor_classification"] == "handoff_call_does_not_return_to_linear_path"
     assert Path(str(result.artifacts[0].output_path)).name == POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME
+
+
+def test_compare_aware_strategy_runs_exception_unwind_sidecar_before_search(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    post_handoff_payload = {
+        "artifact_kind": "post_handoff_branch_outcome_audit",
+        "classification": "handoff_exception_or_unwind",
+        "runtime_backed_count": 3,
+        "candidate_count": 3,
+    }
+    captured: dict[str, object] = {}
+
+    def fake_indexed_artifact_payload(kind):
+        return (
+            {
+                "post_handoff_branch_outcome_audit": post_handoff_payload,
+                "compare_pre_compare_handoff_target_probe": {},
+                "function_semantic_audit": {},
+                "material_hook_runtime_validation": {},
+            }.get(kind, {}),
+            "",
+        )
+
+    def fake_run_exception_unwind(**kwargs):
+        captured["source_classification"] = kwargs["post_handoff_payload"]["classification"]
+        result_path = Path(kwargs["artifacts_dir"]) / POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "artifact_kind": "post_handoff_exception_unwind_audit",
+            "classification": "compare_reached_but_path_unresolved",
+            "runtime_backed_count": 3,
+            "candidate_count": 3,
+            "breakpoint_probe_allowed": False,
+        }
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+        return {"result_path": str(result_path), "payload": payload, "validations": []}
+
+    monkeypatch.setattr(compare_aware_search, "_project_state_json", lambda name: {})
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_indexed_or_latest_report_artifact_payload",
+        fake_indexed_artifact_payload,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_post_handoff_exception_unwind_audit",
+        fake_run_exception_unwind,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for exception/unwind sidecar"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "post_handoff_exception_unwind_audit"
+    assert result.metadata["early_sidecar"] is True
+    assert captured["source_classification"] == "handoff_exception_or_unwind"
+    assert Path(str(result.artifacts[0].output_path)).name == POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

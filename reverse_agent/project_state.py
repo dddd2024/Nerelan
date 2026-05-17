@@ -34,6 +34,7 @@ IMPORTANT_ARTIFACTS = {
     "function_semantic_audit": FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
     "material_hook_runtime_validation": "material_hook_runtime_validation.json",
     "post_handoff_branch_outcome_audit": "post_handoff_branch_outcome_audit.json",
+    "post_handoff_exception_unwind_audit": "post_handoff_exception_unwind_audit.json",
     "compare_lhs_producer_audit": "compare_lhs_producer_audit.json",
     "compare_lhs_upstream_writer_audit": "compare_lhs_upstream_writer_audit.json",
     "compare_callsite_reanchor_and_lhs_provenance_audit": (
@@ -79,6 +80,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_pre_compare_handoff_target_probe",
     "material_hook_runtime_validation",
     "post_handoff_branch_outcome_audit",
+    "post_handoff_exception_unwind_audit",
     "compare_lhs_producer_audit",
     "compare_lhs_upstream_writer_audit",
     "compare_callsite_reanchor_and_lhs_provenance_audit",
@@ -468,6 +470,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     post_handoff_branch_outcome_audit = _read_json(
         artifact_refs.get("post_handoff_branch_outcome_audit")
     )
+    post_handoff_exception_unwind_audit = _read_json(
+        artifact_refs.get("post_handoff_exception_unwind_audit")
+    )
     compare_lhs_producer_audit = _read_json(artifact_refs.get("compare_lhs_producer_audit"))
     compare_lhs_upstream_writer_audit = _read_json(artifact_refs.get("compare_lhs_upstream_writer_audit"))
     compare_callsite_reanchor_audit = _read_json(
@@ -593,6 +598,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if post_handoff_classification:
         stage = "post_handoff_branch_outcome_audit"
         reason = post_handoff_classification
+    exception_unwind_classification = str(
+        post_handoff_exception_unwind_audit.get("classification") or ""
+    ).strip()
+    if exception_unwind_classification:
+        stage = "post_handoff_exception_unwind_audit"
+        reason = exception_unwind_classification
     compare_lhs_producer_classification = str(
         compare_lhs_producer_audit.get("classification") or ""
     ).strip()
@@ -992,6 +1003,32 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": post_handoff_branch_outcome_audit.get("next_bounded_action"),
         }
         if post_handoff_branch_outcome_audit
+        else {},
+        "latest_post_handoff_exception_unwind_audit": {
+            "classification": exception_unwind_classification or None,
+            "artifact": artifact_refs.get("post_handoff_exception_unwind_audit"),
+            "source_post_handoff_branch_outcome_classification": post_handoff_exception_unwind_audit.get(
+                "source_post_handoff_branch_outcome_classification"
+            ),
+            "candidate_count": post_handoff_exception_unwind_audit.get("candidate_count"),
+            "runtime_backed_count": post_handoff_exception_unwind_audit.get("runtime_backed_count"),
+            "evidence_gate": post_handoff_exception_unwind_audit.get("evidence_gate", {}),
+            "actual_compare": post_handoff_exception_unwind_audit.get("actual_compare", {}),
+            "exception_path": post_handoff_exception_unwind_audit.get("exception_path", {}),
+            "tentative_hook_candidates": post_handoff_exception_unwind_audit.get(
+                "tentative_hook_candidates", []
+            )[:8]
+            if isinstance(post_handoff_exception_unwind_audit.get("tentative_hook_candidates"), list)
+            else [],
+            "post_classification_route": post_handoff_exception_unwind_audit.get(
+                "post_classification_route"
+            ),
+            "breakpoint_probe_allowed": post_handoff_exception_unwind_audit.get(
+                "breakpoint_probe_allowed"
+            ),
+            "next_bounded_action": post_handoff_exception_unwind_audit.get("next_bounded_action"),
+        }
+        if post_handoff_exception_unwind_audit
         else {},
         "latest_compare_lhs_producer_audit": {
             "classification": compare_lhs_producer_classification or None,
@@ -1666,6 +1703,37 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                     "override_reason_required": True,
                 }
             )
+    exception_unwind_audit = _read_json(artifacts.get("post_handoff_exception_unwind_audit"))
+    exception_unwind_classification = str(exception_unwind_audit.get("classification") or "").strip()
+    if exception_unwind_classification:
+        results.append(
+            {
+                "direction": "run Base64/RC4 breakpoint probe before exception/unwind material gates close",
+                "scope": "post_handoff_exception_unwind_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "exception/unwind audit keeps breakpoint probing blocked until actual compare lhs, "
+                    "connected producer, and candidate-dependent transform material are all runtime-backed"
+                ),
+                "evidence_artifact": artifacts.get("post_handoff_exception_unwind_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+        if exception_unwind_classification in {"inconclusive", "instrumentation_missed_return"}:
+            results.append(
+                {
+                    "direction": "repeat exception/unwind audit without new hook reliability evidence",
+                    "scope": "post_handoff_exception_unwind_audit",
+                    "severity": "soft_block",
+                    "do_not_repeat": True,
+                    "reason": "the current exception/unwind artifact explicitly routes to missing evidence or hook reliability",
+                    "evidence_artifact": artifacts.get("post_handoff_exception_unwind_audit"),
+                    "override_allowed": True,
+                    "override_reason_required": True,
+                }
+            )
     compare_lhs_audit = _read_json(artifacts.get("compare_lhs_producer_audit"))
     compare_lhs_classification = str(compare_lhs_audit.get("classification") or "").strip()
     if compare_lhs_classification in {"producer_window_rejected", "inconclusive"}:
@@ -2069,6 +2137,21 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         return "Improve bounded 0x401b50 exit coverage"
     if stage == "post_handoff_branch_outcome_audit" and reason == "inconclusive":
         return "Improve post-handoff branch outcome evidence"
+    if stage == "post_handoff_exception_unwind_audit" and reason == "normal_return_to_compare_path":
+        return "Trace lhs producer provenance from normal 0x401b50 return path"
+    if stage == "post_handoff_exception_unwind_audit" and reason in {
+        "exception_dispatch_to_compare_path",
+        "seh_unwind_to_compare_path",
+    }:
+        return "Trace handler-to-lhs dataflow"
+    if stage == "post_handoff_exception_unwind_audit" and reason == "alternate_return_to_compare_path":
+        return "Slice confirmed 0x401b50 alternate return target"
+    if stage == "post_handoff_exception_unwind_audit" and reason == "compare_reached_but_path_unresolved":
+        return "Trace last-writer memory provenance before 0x258c"
+    if stage == "post_handoff_exception_unwind_audit" and reason == "instrumentation_missed_return":
+        return "Fix 0x401b50 exception/unwind hook reliability"
+    if stage == "post_handoff_exception_unwind_audit":
+        return "Collect missing 0x401b50 exception/unwind evidence"
     if stage == "compare_esi_source_window_audit" and reason == "esi_source_identified":
         return "Promote identified ESI source into bounded material-hook validation"
     if stage == "compare_esi_source_window_audit":

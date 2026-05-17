@@ -61,6 +61,7 @@ COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME = "compare_producer_material_co
 COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME = "compare_pre_compare_handoff_target_probe.json"
 MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME = "material_hook_runtime_validation.json"
 POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME = "post_handoff_branch_outcome_audit.json"
+POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME = "post_handoff_exception_unwind_audit.json"
 COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME = "compare_lhs_producer_audit.json"
 COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME = "compare_lhs_upstream_writer_audit.json"
 COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
@@ -225,6 +226,7 @@ COMPARE_ESI_SOURCE_WINDOW_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDAT
 COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 POST_HANDOFF_BRANCH_OUTCOME_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 MATERIAL_HOOK_RUNTIME_VALIDATION_CANDIDATES = (
     "78d540b49c59077041414141414141",
     "5a3e7f46ddd474d041414141414141",
@@ -288,6 +290,10 @@ def _compare_pre_compare_handoff_target_probe_script_path() -> Path:
 
 def _post_handoff_branch_outcome_audit_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "post_handoff_branch_outcome_audit.py"
+
+
+def _post_handoff_exception_unwind_audit_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "post_handoff_exception_unwind_audit.py"
 
 
 def _compare_lhs_producer_audit_script_path() -> Path:
@@ -3404,6 +3410,7 @@ def _artifact_file_name_for_kind(kind: str) -> str:
         "function_semantic_audit": FUNCTION_SEMANTIC_AUDIT_FILE_NAME,
         "material_hook_runtime_validation": MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME,
         "post_handoff_branch_outcome_audit": POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME,
+        "post_handoff_exception_unwind_audit": POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME,
         "compare_lhs_producer_audit": COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
         "compare_lhs_upstream_writer_audit": COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
         "compare_callsite_reanchor_and_lhs_provenance_audit": (
@@ -10892,6 +10899,551 @@ def run_post_handoff_branch_outcome_audit(
     }
 
 
+POST_HANDOFF_EXCEPTION_UNWIND_TENTATIVE_OFFSETS = {
+    0x1913: "tentative_exception_site_1913",
+    0x19BB: "tentative_exception_site_19bb",
+    0x19FE: "tentative_resume_19fe",
+    0x1A30: "tentative_handler_1a30",
+}
+
+
+def _post_handoff_exception_unwind_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "predecessor_handoff_call",
+            "module_offset": 0x2338,
+            "instruction": "call 0x401b50",
+            "role": "upstream_handoff_call",
+        },
+        {
+            "name": "handoff_helper_entry",
+            "module_offset": 0x1B50,
+            "instruction": "0x401b50 entry",
+            "role": "callee_entry_leave",
+            "capture_leave": True,
+        },
+        {
+            "name": "tentative_exception_site_1913",
+            "module_offset": 0x1913,
+            "instruction": "tentative exception site",
+            "role": "tentative_exception_site",
+        },
+        {
+            "name": "tentative_exception_site_19bb",
+            "module_offset": 0x19BB,
+            "instruction": "tentative exception site",
+            "role": "tentative_exception_site",
+        },
+        {
+            "name": "tentative_resume_19fe",
+            "module_offset": 0x19FE,
+            "instruction": "tentative resume site",
+            "role": "tentative_resume_or_handler",
+        },
+        {
+            "name": "tentative_handler_1a30",
+            "module_offset": 0x1A30,
+            "instruction": "tentative handler site",
+            "role": "tentative_resume_or_handler",
+        },
+        {
+            "name": "predecessor_handoff_return",
+            "module_offset": 0x233D,
+            "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+            "role": "linear_return_after_handoff",
+        },
+        {
+            "name": "post_handoff_lhs_reload",
+            "module_offset": 0x2559,
+            "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+            "role": "post_handoff_lhs_reload",
+        },
+        {
+            "name": "pre_compare_lhs_push",
+            "module_offset": 0x258B,
+            "instruction": "push esi",
+            "role": "pre_compare_lhs_push",
+        },
+        {
+            "name": "static_compare_callsite",
+            "module_offset": 0x258C,
+            "instruction": "call 0x5028ac",
+            "role": "actual_compare_callsite",
+        },
+    ]
+
+
+def _post_handoff_exception_unwind_static_audit(
+    target: Path,
+    hook_points: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    try:
+        data = target.read_bytes()
+    except Exception:
+        data = b""
+    sections = _pe_sections_for_rva_mapping(data)
+    sizes = {
+        0x1913: 1,
+        0x19BB: 1,
+        0x19FE: 1,
+        0x1A30: 1,
+        0x1B50: 1,
+        0x2338: 5,
+        0x233D: 6,
+        0x2559: 6,
+        0x258B: 1,
+        0x258C: 5,
+    }
+    return {
+        "classification": "static_post_handoff_exception_unwind_audit_complete"
+        if data and sections
+        else "static_post_handoff_exception_unwind_audit_partial",
+        "windows": {
+            "tentative_exception_window": {
+                "start_rva": "0x1913",
+                "end_rva": "0x1a30",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x1913, 0x1A30 - 0x1913),
+            },
+            "compare_callsite": {
+                "start_rva": "0x258b",
+                "end_rva": "0x2591",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x258B, 0x2591 - 0x258B),
+            },
+        },
+        "instruction_boundaries": [
+            {
+                "name": point.get("name", ""),
+                "rva": f"0x{offset:x}",
+                "end_rva": f"0x{offset + sizes.get(offset, 1):x}",
+                "size": sizes.get(offset, 1),
+                "instruction": point.get("instruction", ""),
+                "bytes_hex": _read_rva_bytes(data, sections, offset, sizes.get(offset, 1)),
+                "boundary_status": "tentative_hook_candidate"
+                if offset in POST_HANDOFF_EXCEPTION_UNWIND_TENTATIVE_OFFSETS
+                else "instruction_confirmed",
+            }
+            for point in hook_points
+            for offset in [_parse_int_hex(point.get("module_offset"))]
+            if offset is not None
+        ],
+    }
+
+
+def _observation_module_offset_int(observation: dict[str, object]) -> int | None:
+    value = observation.get("module_offset") or observation.get("current_module_offset")
+    return _parse_int_hex(value)
+
+
+def _post_handoff_exception_tentative_hook_candidates(
+    candidate_results: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for result in candidate_results:
+        candidate_hex = str(result.get("candidate_hex") or "")
+        result_path = str(result.get("result_path") or "")
+        observations = result.get("hook_observations", [])
+        observations = observations if isinstance(observations, list) else []
+        for index, observation in enumerate(observations):
+            if not isinstance(observation, dict):
+                continue
+            offset = _observation_module_offset_int(observation)
+            hook_name = str(observation.get("hook_name") or "")
+            if offset not in POST_HANDOFF_EXCEPTION_UNWIND_TENTATIVE_OFFSETS:
+                continue
+            rows.append(
+                {
+                    "candidate_hex": candidate_hex,
+                    "hook_name": hook_name or POST_HANDOFF_EXCEPTION_UNWIND_TENTATIVE_OFFSETS[offset],
+                    "module_offset": f"0x{offset:x}",
+                    "event": observation.get("event", ""),
+                    "exception": observation.get("exception", {}),
+                    "evidence_ref": {
+                        "artifact": result_path,
+                        "field": f"hook_observations[{index}]",
+                    },
+                    "status": "runtime_observed",
+                }
+            )
+    observed_offsets = {str(row.get("module_offset")) for row in rows}
+    for offset, name in POST_HANDOFF_EXCEPTION_UNWIND_TENTATIVE_OFFSETS.items():
+        offset_text = f"0x{offset:x}"
+        if offset_text not in observed_offsets:
+            rows.append(
+                {
+                    "hook_name": name,
+                    "module_offset": offset_text,
+                    "status": "tentative_not_observed",
+                    "evidence_ref": {},
+                }
+            )
+    return rows
+
+
+def _post_handoff_exception_path(
+    candidate_results: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    observed_exception_offsets: dict[str, list[str]] = {}
+    handler_resume_candidates: dict[str, list[str]] = {}
+    last_before_compare: dict[str, str] = {}
+    for result in candidate_results:
+        candidate_hex = str(result.get("candidate_hex") or "")
+        observations = result.get("hook_observations", [])
+        observations = observations if isinstance(observations, list) else []
+        offsets: list[str] = []
+        handler_offsets: list[str] = []
+        compare_index: int | None = None
+        for index, observation in enumerate(observations):
+            if not isinstance(observation, dict):
+                continue
+            hook_name = str(observation.get("hook_name") or "")
+            if hook_name == "static_compare_callsite" and compare_index is None:
+                compare_index = index
+            offset = _observation_module_offset_int(observation)
+            if hook_name == "process_exception" or hook_name.startswith("tentative_exception_site_"):
+                if offset is not None:
+                    offsets.append(f"0x{offset:x}")
+            if hook_name in {"tentative_resume_19fe", "tentative_handler_1a30"} and offset is not None:
+                handler_offsets.append(f"0x{offset:x}")
+        if compare_index is not None:
+            for observation in reversed(observations[:compare_index]):
+                if not isinstance(observation, dict):
+                    continue
+                offset = _observation_module_offset_int(observation)
+                if offset is not None:
+                    last_before_compare[candidate_hex] = f"0x{offset:x}"
+                    break
+        observed_exception_offsets[candidate_hex] = sorted(set(offsets))
+        handler_resume_candidates[candidate_hex] = sorted(set(handler_offsets))
+    return {
+        "observed_exception_offsets": observed_exception_offsets,
+        "handler_resume_candidates": handler_resume_candidates,
+        "last_observed_offset_before_compare": last_before_compare,
+    }
+
+
+def _post_handoff_exception_evidence_gate(
+    *,
+    candidate_results: Sequence[dict[str, object]],
+    actual_compare: dict[str, object],
+    exception_path: dict[str, object],
+) -> dict[str, object]:
+    path_counts = _post_handoff_path_observed_counts(candidate_results)
+    compare_observed = int(actual_compare.get("observed_count", 0) or 0) > 0
+    arg0_values = actual_compare.get("arg0_value_by_candidate", {})
+    arg1_values = actual_compare.get("arg1_value_by_candidate", {})
+    arg0_values = arg0_values if isinstance(arg0_values, dict) else {}
+    arg1_values = arg1_values if isinstance(arg1_values, dict) else {}
+    args_captured = compare_observed and bool(arg0_values) and bool(arg1_values)
+    exception_offsets = exception_path.get("observed_exception_offsets", {})
+    exception_offsets = exception_offsets if isinstance(exception_offsets, dict) else {}
+    handler_offsets = exception_path.get("handler_resume_candidates", {})
+    handler_offsets = handler_offsets if isinstance(handler_offsets, dict) else {}
+    exception_evidence = path_counts.get("process_exception", 0) > 0 or any(
+        bool(value) for value in exception_offsets.values()
+    )
+    handler_unwind_evidence = any(bool(value) for value in handler_offsets.values())
+    actual_compare_lhs = compare_observed and str(actual_compare.get("lhs_side") or "") == "arg0"
+    candidate_material = bool(actual_compare.get("arg0_candidate_dependent"))
+    connected_producer = False
+    return {
+        "upstream_hits": path_counts.get("predecessor_handoff_call", 0) > 0
+        or path_counts.get("handoff_helper_entry", 0) > 0,
+        "compare_entry_observed": compare_observed,
+        "compare_args_captured": args_captured,
+        "exception_evidence": exception_evidence,
+        "handler_unwind_evidence": handler_unwind_evidence,
+        "actual_compare_lhs_runtime_backed": actual_compare_lhs,
+        "connected_producer_runtime_backed": connected_producer,
+        "candidate_dependent_transform_material_runtime_backed": candidate_material and connected_producer,
+        "path_observed_counts": path_counts,
+    }
+
+
+def _post_handoff_exception_route(classification: str) -> str:
+    return {
+        "normal_return_to_compare_path": "lhs_producer_provenance",
+        "exception_dispatch_to_compare_path": "handler_to_lhs_dataflow",
+        "seh_unwind_to_compare_path": "handler_to_lhs_dataflow",
+        "alternate_return_to_compare_path": "alternate_target_slice",
+        "compare_reached_but_path_unresolved": "last_writer_memory_provenance_before_0x258c",
+        "compare_not_reached": "stop_missing_evidence",
+        "instrumentation_missed_return": "hook_reliability_fix",
+        "inconclusive": "stop_missing_evidence",
+    }.get(classification, "stop_missing_evidence")
+
+
+def _classify_post_handoff_exception_unwind(
+    *,
+    candidate_results: Sequence[dict[str, object]],
+    actual_compare: dict[str, object],
+    evidence_gate: dict[str, object],
+    exception_path: dict[str, object],
+) -> str:
+    runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
+    if runtime_backed_count < len(POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_CANDIDATES):
+        return "inconclusive"
+    compare_path_ready = bool(evidence_gate.get("compare_entry_observed")) and bool(
+        evidence_gate.get("compare_args_captured")
+    )
+    path_counts = evidence_gate.get("path_observed_counts", {})
+    path_counts = path_counts if isinstance(path_counts, dict) else {}
+    exit_summary = _post_handoff_exit_summary(candidate_results)
+    returned_offsets = exit_summary.get("return_address_module_offsets", {})
+    returned_offsets = returned_offsets if isinstance(returned_offsets, dict) else {}
+    normal_return = returned_offsets and all(
+        str(offset).strip().lower() == "0x233d" for offset in returned_offsets.values()
+    )
+    alternate_return = any(
+        str(offset).strip().lower() and str(offset).strip().lower() != "0x233d"
+        for offset in returned_offsets.values()
+    )
+    if compare_path_ready and normal_return:
+        return "normal_return_to_compare_path"
+    if compare_path_ready and alternate_return:
+        return "alternate_return_to_compare_path"
+    if compare_path_ready and bool(evidence_gate.get("handler_unwind_evidence")):
+        return "seh_unwind_to_compare_path"
+    if compare_path_ready and bool(evidence_gate.get("exception_evidence")):
+        return "exception_dispatch_to_compare_path"
+    if compare_path_ready:
+        return "compare_reached_but_path_unresolved"
+    if bool(evidence_gate.get("exception_evidence")):
+        return "compare_not_reached"
+    if (
+        bool(evidence_gate.get("upstream_hits"))
+        and path_counts.get("handoff_helper_entry", 0) > 0
+        and int(exit_summary.get("callee_leave_count", 0) or 0) == 0
+    ):
+        return "instrumentation_missed_return"
+    return "inconclusive"
+
+
+def build_post_handoff_exception_unwind_audit_payload(
+    *,
+    post_handoff_payload: dict[str, object],
+    candidate_results: Sequence[dict[str, object]] | None = None,
+    hook_points: Sequence[dict[str, object]] | None = None,
+    static_audit: dict[str, object] | None = None,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    candidate_results = [dict(item) for item in (candidate_results or []) if isinstance(item, dict)]
+    hook_points = list(hook_points or _post_handoff_exception_unwind_hook_points())
+    actual_compare = _compare_callsite_side_summary(candidate_results) if candidate_results else {}
+    exception_path = _post_handoff_exception_path(candidate_results)
+    evidence_gate = _post_handoff_exception_evidence_gate(
+        candidate_results=candidate_results,
+        actual_compare=actual_compare,
+        exception_path=exception_path,
+    )
+    classification = _classify_post_handoff_exception_unwind(
+        candidate_results=candidate_results,
+        actual_compare=actual_compare,
+        evidence_gate=evidence_gate,
+        exception_path=exception_path,
+    )
+    all_material_gates = (
+        bool(evidence_gate.get("actual_compare_lhs_runtime_backed"))
+        and bool(evidence_gate.get("connected_producer_runtime_backed"))
+        and bool(evidence_gate.get("candidate_dependent_transform_material_runtime_backed"))
+    )
+    return {
+        "artifact_kind": "post_handoff_exception_unwind_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "classification": classification,
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "source_post_handoff_branch_outcome_classification": post_handoff_payload.get("classification", ""),
+        "candidate_count": len(candidate_results),
+        "candidate_limit": len(POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_CANDIDATES),
+        "fixed_candidates": list(POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_CANDIDATES),
+        "runtime_backed_count": sum(1 for item in candidate_results if bool(item.get("runtime_backed"))),
+        "hook_points": hook_points,
+        "static_audit": static_audit or {},
+        "tentative_hook_candidates": _post_handoff_exception_tentative_hook_candidates(candidate_results),
+        "evidence_gate": evidence_gate,
+        "actual_compare": actual_compare,
+        "exception_path": exception_path,
+        "post_classification_route": _post_handoff_exception_route(classification),
+        "candidate_results": candidate_results,
+        "breakpoint_probe_allowed": bool(all_material_gates),
+        "blocked_actions": [
+            "do not classify from upstream hook hits alone",
+            "do not treat tentative hooks 0x1913/0x19bb/0x19fe/0x1a30 as confirmed without runtime evidence refs",
+            "do not run Base64/RC4 breakpoint probe until compare lhs, connected producer, and candidate-dependent transform material are runtime-backed",
+        ],
+        "next_bounded_action": {
+            "normal_return_to_compare_path": "trace lhs producer provenance from normal return path",
+            "exception_dispatch_to_compare_path": "trace exception handler to compare lhs dataflow",
+            "seh_unwind_to_compare_path": "trace SEH/unwind handler to compare lhs dataflow",
+            "alternate_return_to_compare_path": "slice confirmed alternate return target",
+            "compare_reached_but_path_unresolved": "trace last writer or memory provenance before 0x258c",
+            "compare_not_reached": "stop and capture missing compare path evidence",
+            "instrumentation_missed_return": "fix 0x401b50 hook reliability before new semantic claims",
+            "inconclusive": "stop with missing exception/unwind evidence",
+        }.get(classification, "stop with missing exception/unwind evidence"),
+    }
+
+
+def run_post_handoff_exception_unwind_audit(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    post_handoff_payload: dict[str, object],
+    transform_model: SamplereverseTransformModel | None = None,
+    per_probe_timeout: float = 2.2,
+    run_name: str = "",
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME
+    script_path = _post_handoff_exception_unwind_audit_script_path()
+    compare_probe_script = _compare_probe_script_path()
+    hook_points = _post_handoff_exception_unwind_hook_points()
+    static_audit = _post_handoff_exception_unwind_static_audit(target, hook_points)
+    entries = list(POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_CANDIDATES)
+    labels = ("exact2_best", "exact1_frontier", "single_byte_contrast")
+    initial_payload = build_post_handoff_exception_unwind_audit_payload(
+        post_handoff_payload=post_handoff_payload,
+        candidate_results=[],
+        hook_points=hook_points,
+        static_audit=static_audit,
+        run_name=run_name,
+    )
+    initial_payload["candidate_count"] = len(entries)
+    _write_json(result_path, initial_payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Post handoff exception/unwind audit script missing: {script_path}")
+    if not compare_probe_script.exists():
+        raise RuntimeError(f"compare probe script missing: {compare_probe_script}")
+    points_path = artifacts_dir / "post_handoff_exception_unwind_hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        audit_out = candidate_dir / POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME
+        audit_log = candidate_dir / "post_handoff_exception_unwind_audit.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(audit_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            "",
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"PostHandoffExceptionUnwindAudit scripted hooks {idx}: {candidate_hex}")
+        try:
+            proc = _run_material_hook_runtime_command(
+                command,
+                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+            )
+            error = ""
+        except subprocess.TimeoutExpired as exc:
+            proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
+            error = "timeout"
+        audit_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        audit_payload = _read_json_object(audit_out) if audit_out.exists() else {}
+        observations = [
+            _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
+            for item in audit_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        if not _has_actual_compare_args(observations):
+            probe_out = candidate_dir / "compare_probe_static_callsite.json"
+            probe_log = candidate_dir / "compare_probe_static_callsite.log"
+            probe_command = [
+                sys.executable,
+                str(compare_probe_script),
+                "--target",
+                str(target),
+                "--out",
+                str(probe_out),
+                "--probe-hex",
+                candidate_hex,
+                "--per-probe-timeout",
+                str(max(float(per_probe_timeout), 2.0)),
+                "--capture-prefix-bytes",
+                str(RUNTIME_PREFIX_BYTES),
+            ]
+            if log:
+                log(f"PostHandoffExceptionUnwindAudit CompareProbe fallback {idx}: {candidate_hex}")
+            try:
+                probe_proc = _run_material_hook_runtime_command(
+                    probe_command,
+                    timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+                )
+            except subprocess.TimeoutExpired as exc:
+                probe_proc = subprocess.CompletedProcess(
+                    probe_command,
+                    returncode=124,
+                    stdout=exc.stdout or "",
+                    stderr=exc.stderr or "",
+                )
+            probe_log.write_text(
+                f"[stdout]\n{probe_proc.stdout or ''}\n\n[stderr]\n{probe_proc.stderr or ''}",
+                encoding="utf-8",
+            )
+            probe_payload = _read_json_object(probe_out) if probe_out.exists() else {}
+            fallback_observation = _compare_probe_payload_to_static_callsite_observation(
+                probe_payload,
+                candidate_hex,
+            )
+            if fallback_observation:
+                observations.append(
+                    _normalize_pre_compare_handoff_observation(fallback_observation, candidate_hex)
+                )
+        candidate_results.append(
+            {
+                "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_observations": observations[:240],
+                "result_path": str(audit_out),
+                "log_path": str(audit_log),
+                "success": bool(audit_payload.get("success")) and not error,
+                "error": error or str(audit_payload.get("error", "")),
+            }
+        )
+    payload = build_post_handoff_exception_unwind_audit_payload(
+        post_handoff_payload=post_handoff_payload,
+        candidate_results=candidate_results,
+        hook_points=hook_points,
+        static_audit=static_audit,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Post handoff exception/unwind audit wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
+        "promotable_validations": [],
+    }
+
+
 def _compare_lhs_producer_hook_points() -> list[dict[str, object]]:
     return [
         {
@@ -14404,6 +14956,15 @@ def _prior_post_handoff_branch_outcome_audit_has_decision() -> bool:
     if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
         return True
     payload, _ = _indexed_artifact_payload("post_handoff_branch_outcome_audit")
+    return bool(str(payload.get("classification", "")).strip())
+
+
+def _prior_post_handoff_exception_unwind_audit_has_decision() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_post_handoff_exception_unwind_audit", {})
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
+        return True
+    payload, _ = _indexed_artifact_payload("post_handoff_exception_unwind_audit")
     return bool(str(payload.get("classification", "")).strip())
 
 
@@ -18848,6 +19409,47 @@ class CompareAwareSearchStrategy(SolverStrategy):
                         "early_sidecar": True,
                     },
                 )
+            should_run_early_exception_unwind_audit = (
+                not _prior_post_handoff_exception_unwind_audit_has_decision()
+                and str(current_post_handoff_payload.get("classification") or "").strip()
+                == "handoff_exception_or_unwind"
+            )
+            if should_run_early_exception_unwind_audit:
+                exception_unwind_run = run_post_handoff_exception_unwind_audit(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "post_handoff_exception_unwind_audit",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    post_handoff_payload=current_post_handoff_payload,
+                    log=log,
+                )
+                exception_unwind_payload = dict(exception_unwind_run.get("payload", {}))
+                exception_unwind_artifact = _make_search_artifact(
+                    tool_name="PostHandoffExceptionUnwindAudit",
+                    output_path=Path(str(exception_unwind_run["result_path"])),
+                    summary=str(
+                        exception_unwind_payload.get(
+                            "classification",
+                            "post handoff exception/unwind audit complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=exception_unwind_payload,
+                    derived_entries=[],
+                )
+                return StrategyResult(
+                    strategy_name=self.name,
+                    summary=exception_unwind_artifact.summary,
+                    candidates=[],
+                    artifacts=[exception_unwind_artifact],
+                    metadata={
+                        "resolved_anchors": discovered_anchors,
+                        "post_handoff_exception_unwind_audit": exception_unwind_run,
+                        "completed_stage": "post_handoff_exception_unwind_audit",
+                        "early_sidecar": True,
+                    },
+                )
             should_run_early_esi_material_hook_validation = (
                 not _prior_material_hook_runtime_validation_has_decision()
                 and str(current_esi_source_window_payload.get("classification") or "").strip()
@@ -20099,6 +20701,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
         material_hook_runtime_validation_artifact: ToolRunArtifact | None = None
         post_handoff_branch_outcome_audit_run: dict[str, object] | None = None
         post_handoff_branch_outcome_audit_artifact: ToolRunArtifact | None = None
+        post_handoff_exception_unwind_audit_run: dict[str, object] | None = None
+        post_handoff_exception_unwind_audit_artifact: ToolRunArtifact | None = None
         compare_lhs_producer_audit_run: dict[str, object] | None = None
         compare_lhs_producer_audit_artifact: ToolRunArtifact | None = None
         compare_lhs_upstream_writer_audit_run: dict[str, object] | None = None
@@ -21122,6 +21726,36 @@ class CompareAwareSearchStrategy(SolverStrategy):
             if post_handoff_branch_outcome_audit_run
             else _indexed_artifact_payload("post_handoff_branch_outcome_audit")[0]
         )
+        should_run_post_handoff_exception_unwind_audit = (
+            post_handoff_exception_unwind_audit_run is None
+            and not _prior_post_handoff_exception_unwind_audit_has_decision()
+            and str(current_post_handoff_payload.get("classification") or "").strip()
+            == "handoff_exception_or_unwind"
+        )
+        if should_run_post_handoff_exception_unwind_audit:
+            post_handoff_exception_unwind_audit_run = run_post_handoff_exception_unwind_audit(
+                target=file_path,
+                artifacts_dir=artifacts_dir / "post_handoff_exception_unwind_audit",
+                transform_model=transform_model,
+                per_probe_timeout=per_probe_timeout,
+                post_handoff_payload=current_post_handoff_payload,
+                log=log,
+            )
+            exception_unwind_payload = dict(post_handoff_exception_unwind_audit_run.get("payload", {}))
+            post_handoff_exception_unwind_audit_artifact = _make_search_artifact(
+                tool_name="PostHandoffExceptionUnwindAudit",
+                output_path=Path(str(post_handoff_exception_unwind_audit_run["result_path"])),
+                summary=str(
+                    exception_unwind_payload.get(
+                        "classification",
+                        "post handoff exception/unwind audit complete",
+                    )
+                ),
+                strategy_name=self.name,
+                evidence_kind="RuntimeCompareEvidence",
+                payload=exception_unwind_payload,
+                derived_entries=[],
+            )
         should_run_compare_lhs_producer_audit = (
             compare_lhs_producer_audit_run is None
             and not _prior_compare_lhs_producer_audit_has_decision()
@@ -21399,6 +22033,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
             artifacts.append(material_hook_runtime_validation_artifact)
         if post_handoff_branch_outcome_audit_artifact is not None:
             artifacts.append(post_handoff_branch_outcome_audit_artifact)
+        if post_handoff_exception_unwind_audit_artifact is not None:
+            artifacts.append(post_handoff_exception_unwind_audit_artifact)
         if compare_lhs_producer_audit_artifact is not None:
             artifacts.append(compare_lhs_producer_audit_artifact)
         if compare_lhs_upstream_writer_audit_artifact is not None:
@@ -21453,6 +22089,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "function_semantic_audit": function_semantic_audit_run or {},
                 "material_hook_runtime_validation": material_hook_runtime_validation_run or {},
                 "post_handoff_branch_outcome_audit": post_handoff_branch_outcome_audit_run or {},
+                "post_handoff_exception_unwind_audit": post_handoff_exception_unwind_audit_run or {},
                 "compare_lhs_producer_audit": compare_lhs_producer_audit_run or {},
                 "compare_lhs_upstream_writer_audit": compare_lhs_upstream_writer_audit_run or {},
                 "compare_real_lhs_provenance_audit": compare_real_lhs_provenance_audit_run or {},
@@ -21477,6 +22114,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 if compare_lhs_upstream_writer_audit_run
                 else "compare_lhs_producer_audit"
                 if compare_lhs_producer_audit_run
+                else "post_handoff_exception_unwind_audit"
+                if post_handoff_exception_unwind_audit_run
                 else "post_handoff_branch_outcome_audit"
                 if post_handoff_branch_outcome_audit_run
                 else "material_hook_runtime_validation"

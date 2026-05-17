@@ -1,5 +1,79 @@
 # CODEX_EXECUTION_REPORT
 
+## 2026-05-17 Summary
+
+Implemented the bounded `post_handoff_exception_unwind_audit` sidecar for `samplereverse`.
+
+The new layer consumes `post_handoff_branch_outcome_audit / handoff_exception_or_unwind`, keeps the fixed three-candidate set, does not expand search, and keeps Base64/RC4 probing blocked unless actual compare lhs, connected producer, and candidate-dependent transform material are all runtime-backed.
+
+## Files Changed This Round
+
+| area | change | behavior impact |
+|---|---|---|
+| strategy | Added `post_handoff_exception_unwind_audit.json` schema, classifier, runner, and early sidecar scheduling | advances from broad exception/unwind evidence to an evidence-gated path route |
+| runtime probe | Added `reverse_agent/olly_scripts/post_handoff_exception_unwind_audit.py` | thin entry reusing the bounded Frida/UIA collector shape |
+| project state | Indexed `latest_post_handoff_exception_unwind_audit` and task routing | bottleneck now advances to the new artifact when present |
+| negative cache | Added blocks for Base64/RC4 probing before material gates and for repeating inconclusive/hook-miss audits | preserves bounded evidence-driven iteration |
+| tests | Added strategy and project_state coverage | protects fixed candidates, evidence gates, routing, early sidecar hard-stop, and state indexing |
+
+## Latest Harness Result
+
+Run:
+
+`sr_401b50_exception_unwind_20260517_r1`
+
+Core artifact:
+
+`solve_reports\harness_runs\sr_401b50_exception_unwind_20260517_r1\reports\tool_artifacts\samplereverse_patched\post_handoff_exception_unwind_audit\post_handoff_exception_unwind_audit.json`
+
+Result:
+
+| field | value |
+|---|---|
+| `classification` | `compare_reached_but_path_unresolved` |
+| `candidate_count` | `3` |
+| `runtime_backed_count` | `3` |
+| `post_classification_route` | `last_writer_memory_provenance_before_0x258c` |
+| `evidence_gate.compare_entry_observed` | `true` |
+| `evidence_gate.compare_args_captured` | `true` |
+| `evidence_gate.exception_evidence` | `false` |
+| `evidence_gate.handler_unwind_evidence` | `false` |
+| `evidence_gate.connected_producer_runtime_backed` | `false` |
+| `evidence_gate.candidate_dependent_transform_material_runtime_backed` | `false` |
+| `breakpoint_probe_allowed` | `false` |
+
+Tentative hook status:
+
+| tentative offset | artifact field | status |
+|---|---|---|
+| `0x1913` | `tentative_hook_candidates[].module_offset == "0x1913"` | `tentative_not_observed` |
+| `0x19bb` | `tentative_hook_candidates[].module_offset == "0x19bb"` | `tentative_not_observed` |
+| `0x19fe` | `tentative_hook_candidates[].module_offset == "0x19fe"` | `tentative_not_observed` |
+| `0x1a30` | `tentative_hook_candidates[].module_offset == "0x1a30"` | `tentative_not_observed` |
+
+No candidate generation, ranking, frontier, beam, topN, or search timeout expansion was introduced. The current best remains:
+
+`78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`.
+
+Project state now reports:
+
+`reason: compare_reached_but_path_unresolved`, `task: Trace last-writer memory provenance before 0x258c`, `missing: []`.
+
+## Verification This Round
+
+| command | result |
+|---|---|
+| `python -m py_compile reverse_agent\olly_scripts\post_handoff_exception_unwind_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+| `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` | `195 passed` |
+| `python -m pytest -q` | `272 passed` |
+| `python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_401b50_exception_unwind_20260517_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled` | completed, 1 case, 0 errors, selected `NOT_FOUND` |
+| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_401b50_exception_unwind_20260517_r1` | passed |
+| `python -m reverse_agent.project_state status` | `reason: compare_reached_but_path_unresolved`, `missing: []` |
+
+## Next Suggested Task
+
+Keep Base64/RC4 probing blocked. Trace last-writer or memory provenance immediately before `0x258c`, because this run confirmed compare entry and arg capture but did not prove the tentative exception/handler offsets or a connected producer.
+
 ## 2026-05-14 Summary
 
 Implemented the bounded `compare_callsite_reanchor_and_lhs_provenance_audit` sidecar for `samplereverse`.

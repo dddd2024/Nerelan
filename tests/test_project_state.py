@@ -1029,6 +1029,73 @@ def test_project_state_indexes_post_handoff_runtime_outcome(tmp_path: Path) -> N
     assert task_packet["task"] == "Validate bounded material/source hook from confirmed 0x401b50 alternate return site"
 
 
+def test_project_state_indexes_post_handoff_exception_unwind_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_exc_unwind")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "post_handoff_exception_unwind_audit").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "post_handoff_exception_unwind_audit" / "post_handoff_exception_unwind_audit.json",
+        {
+            "artifact_kind": "post_handoff_exception_unwind_audit",
+            "classification": "exception_dispatch_to_compare_path",
+            "source_post_handoff_branch_outcome_classification": "handoff_exception_or_unwind",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "evidence_gate": {
+                "upstream_hits": True,
+                "compare_entry_observed": True,
+                "compare_args_captured": True,
+                "exception_evidence": True,
+                "handler_unwind_evidence": False,
+                "actual_compare_lhs_runtime_backed": True,
+                "connected_producer_runtime_backed": False,
+                "candidate_dependent_transform_material_runtime_backed": False,
+            },
+            "actual_compare": {"lhs_side": "arg0", "flag_side": "arg1"},
+            "exception_path": {
+                "observed_exception_offsets": {
+                    "78d540b49c59077041414141414141": ["0x1913"],
+                },
+                "last_observed_offset_before_compare": {
+                    "78d540b49c59077041414141414141": "0x1913",
+                },
+            },
+            "tentative_hook_candidates": [
+                {
+                    "module_offset": "0x1913",
+                    "status": "runtime_observed",
+                    "evidence_ref": {
+                        "artifact": "candidate_1/post_handoff_exception_unwind_audit.json",
+                        "field": "hook_observations[2]",
+                    },
+                }
+            ],
+            "post_classification_route": "handler_to_lhs_dataflow",
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "trace exception handler to compare lhs dataflow",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["post_handoff_exception_unwind_audit"].endswith(
+        "post_handoff_exception_unwind_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "post_handoff_exception_unwind_audit"
+    assert current_state["current_bottleneck"]["reason"] == "exception_dispatch_to_compare_path"
+    latest = current_state["latest_post_handoff_exception_unwind_audit"]
+    assert latest["post_classification_route"] == "handler_to_lhs_dataflow"
+    assert latest["tentative_hook_candidates"][0]["evidence_ref"]["field"] == "hook_observations[2]"
+    assert task_packet["task"] == "Trace handler-to-lhs dataflow"
+    assert any(item.get("scope") == "post_handoff_exception_unwind_audit" for item in negative_results)
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
