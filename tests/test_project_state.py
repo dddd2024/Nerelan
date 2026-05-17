@@ -885,6 +885,60 @@ def test_project_state_indexes_lhs_slot_writer_source_audit(tmp_path: Path) -> N
     assert any(item.get("scope") == "compare_lhs_slot_writer_source_audit" for item in negative_results)
 
 
+def test_project_state_indexes_lhs_slot_writer_predecessor_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_pred")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    artifact_path = (
+        artifacts_dir
+        / "pred"
+        / "compare_lhs_slot_writer_predecessor_audit.json"
+    )
+    artifact_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifact_path,
+        {
+            "artifact_kind": "compare_lhs_slot_writer_predecessor_audit",
+            "classification": "handoff_call_does_not_return_to_linear_path",
+            "runtime_backed_count": 3,
+            "candidate_count": 3,
+            "actual_compare": {"lhs_side": "arg0", "flag_side": "arg1"},
+            "relations": {"handoff_return_to_linear_path": "rejected"},
+            "path_observed_counts": {
+                "predecessor_handoff_call": 3,
+                "predecessor_handoff_return": 0,
+            },
+            "predecessor_rows": [
+                {
+                    "hook_name": "predecessor_handoff_call",
+                    "module_offset": "0x2338",
+                    "observed_count": 3,
+                }
+            ],
+            "identified_sources": [],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "trace 0x401b50 return, branch, or exception outcome before any Base64/RC4 probe",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    negative_results = _read_json(state_dir / "negative_results.json")
+    assert artifact_index["latest_artifacts"]["compare_lhs_slot_writer_predecessor_audit"].endswith(
+        "compare_lhs_slot_writer_predecessor_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_lhs_slot_writer_predecessor_audit"
+    assert current_state["current_bottleneck"]["reason"] == "handoff_call_does_not_return_to_linear_path"
+    latest = current_state["latest_compare_lhs_slot_writer_predecessor_audit"]
+    assert latest["path_observed_counts"]["predecessor_handoff_call"] == 3
+    assert task_packet["task"] == "Trace 0x401b50 return, branch, or exception outcome"
+    assert any(item.get("scope") == "compare_lhs_slot_writer_predecessor_audit" for item in negative_results)
+
+
 def test_project_state_indexes_post_handoff_branch_outcome_audit(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

@@ -80,23 +80,23 @@
     "severity": "soft_block"
   },
   {
-    "direction": "rerun old 0x2559 material hook after slot writer/source audit",
+    "direction": "run Base64/RC4 breakpoint probe before predecessor path validation",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_slot_writer_source_20260516_r2\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_source_audit\\compare_lhs_slot_writer_source_audit.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_slot_pred_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_predecessor_audit\\compare_lhs_slot_writer_predecessor_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "0x2559 was rejected as direct post-RC4 material; use the writer/source audit evidence to choose any next material hook",
-    "scope": "compare_lhs_slot_writer_source_audit",
+    "reason": "breakpoint probing remains gated until the pre-slot predecessor path either identifies a runtime-backed source or explains the 0x401b50 path divergence",
+    "scope": "compare_lhs_slot_writer_predecessor_audit",
     "severity": "soft_block"
   },
   {
-    "direction": "run Base64/RC4 breakpoint probe before slot writer/source validation",
+    "direction": "validate 0x253a direct material hook after predecessor path rejected it",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_slot_writer_source_20260516_r2\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_source_audit\\compare_lhs_slot_writer_source_audit.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_slot_pred_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_predecessor_audit\\compare_lhs_slot_writer_predecessor_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
-    "reason": "breakpoint probing remains gated until a runtime-backed writer/source is promoted and validated as material",
-    "scope": "compare_lhs_slot_writer_source_audit",
+    "reason": "0x253a was not reached; the next hook must come from predecessor runtime evidence",
+    "scope": "compare_lhs_slot_writer_predecessor_audit",
     "severity": "soft_block"
   },
   {

@@ -42,6 +42,7 @@ IMPORTANT_ARTIFACTS = {
     "compare_real_lhs_provenance_audit": "compare_real_lhs_provenance_audit.json",
     "compare_esi_source_window_audit": "compare_esi_source_window_audit.json",
     "compare_lhs_slot_writer_source_audit": "compare_lhs_slot_writer_source_audit.json",
+    "compare_lhs_slot_writer_predecessor_audit": "compare_lhs_slot_writer_predecessor_audit.json",
     "profile_transform_hypothesis_matrix": "profile_transform_hypothesis_matrix.json",
     "h1_h3_boundary_validation": "h1_h3_boundary_validation.json",
     "exact2_basin_value_pool_result": "samplereverse_exact2_basin_value_pool_result.json",
@@ -84,6 +85,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_real_lhs_provenance_audit",
     "compare_esi_source_window_audit",
     "compare_lhs_slot_writer_source_audit",
+    "compare_lhs_slot_writer_predecessor_audit",
 }
 
 STATE_JSON_NAMES = (
@@ -480,6 +482,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_lhs_slot_writer_source_audit = _read_json(
         artifact_refs.get("compare_lhs_slot_writer_source_audit")
     )
+    compare_lhs_slot_writer_predecessor_audit = _read_json(
+        artifact_refs.get("compare_lhs_slot_writer_predecessor_audit")
+    )
     uncertainty: list[str] = []
 
     exact2 = _compact_candidate(strata_summary.get("best_exact2_runtime"))
@@ -624,6 +629,12 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if slot_writer_source_classification:
         stage = "compare_lhs_slot_writer_source_audit"
         reason = slot_writer_source_classification
+    slot_writer_predecessor_classification = str(
+        compare_lhs_slot_writer_predecessor_audit.get("classification") or ""
+    ).strip()
+    if slot_writer_predecessor_classification:
+        stage = "compare_lhs_slot_writer_predecessor_audit"
+        reason = slot_writer_predecessor_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -1123,6 +1134,25 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
         }
         if compare_lhs_slot_writer_source_audit
         else {},
+        "latest_compare_lhs_slot_writer_predecessor_audit": {
+            "classification": slot_writer_predecessor_classification or None,
+            "artifact": artifact_refs.get("compare_lhs_slot_writer_predecessor_audit"),
+            "candidate_count": compare_lhs_slot_writer_predecessor_audit.get("candidate_count"),
+            "runtime_backed_count": compare_lhs_slot_writer_predecessor_audit.get("runtime_backed_count"),
+            "actual_compare": compare_lhs_slot_writer_predecessor_audit.get("actual_compare", {}),
+            "relations": compare_lhs_slot_writer_predecessor_audit.get("relations", {}),
+            "path_observed_counts": compare_lhs_slot_writer_predecessor_audit.get("path_observed_counts", {}),
+            "predecessor_rows": compare_lhs_slot_writer_predecessor_audit.get("predecessor_rows", [])[:10]
+            if isinstance(compare_lhs_slot_writer_predecessor_audit.get("predecessor_rows"), list)
+            else [],
+            "identified_sources": compare_lhs_slot_writer_predecessor_audit.get("identified_sources", [])[:3]
+            if isinstance(compare_lhs_slot_writer_predecessor_audit.get("identified_sources"), list)
+            else [],
+            "breakpoint_probe_allowed": compare_lhs_slot_writer_predecessor_audit.get("breakpoint_probe_allowed"),
+            "next_bounded_action": compare_lhs_slot_writer_predecessor_audit.get("next_bounded_action"),
+        }
+        if compare_lhs_slot_writer_predecessor_audit
+        else {},
         "function_semantics": function_semantics,
         "uncertainty": sorted(set(uncertainty)),
         "artifact_refs": artifact_refs,
@@ -1561,6 +1591,37 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
                     "override_reason_required": True,
                 }
             )
+    predecessor_audit = _read_json(artifacts.get("compare_lhs_slot_writer_predecessor_audit"))
+    predecessor_classification = str(predecessor_audit.get("classification") or "").strip()
+    if predecessor_classification:
+        results.append(
+            {
+                "direction": "run Base64/RC4 breakpoint probe before predecessor path validation",
+                "scope": "compare_lhs_slot_writer_predecessor_audit",
+                "severity": "soft_block",
+                "do_not_repeat": True,
+                "reason": (
+                    "breakpoint probing remains gated until the pre-slot predecessor path either identifies "
+                    "a runtime-backed source or explains the 0x401b50 path divergence"
+                ),
+                "evidence_artifact": artifacts.get("compare_lhs_slot_writer_predecessor_audit"),
+                "override_allowed": True,
+                "override_reason_required": True,
+            }
+        )
+        if predecessor_classification != "pre_slot_source_identified":
+            results.append(
+                {
+                    "direction": "validate 0x253a direct material hook after predecessor path rejected it",
+                    "scope": "compare_lhs_slot_writer_predecessor_audit",
+                    "severity": "soft_block",
+                    "do_not_repeat": True,
+                    "reason": "0x253a was not reached; the next hook must come from predecessor runtime evidence",
+                    "evidence_artifact": artifacts.get("compare_lhs_slot_writer_predecessor_audit"),
+                    "override_allowed": True,
+                    "override_reason_required": True,
+                }
+            )
     post_handoff_audit = _read_json(artifacts.get("post_handoff_branch_outcome_audit"))
     post_handoff_classification = str(post_handoff_audit.get("classification") or "").strip()
     if post_handoff_classification:
@@ -1978,8 +2039,18 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         "eax_source_identified",
     }:
         return "Validate bounded material hook from confirmed slot writer/source"
+    if stage == "compare_lhs_slot_writer_source_audit" and reason == "writer_hook_not_reached":
+        return "Trace 0x2338..0x253a predecessor path before slot writer"
     if stage == "compare_lhs_slot_writer_source_audit":
         return "Investigate stalled compare lhs slot writer/source path"
+    if stage == "compare_lhs_slot_writer_predecessor_audit" and reason == "pre_slot_source_identified":
+        return "Validate bounded material hook from confirmed pre-slot predecessor source"
+    if stage == "compare_lhs_slot_writer_predecessor_audit" and reason == "handoff_call_does_not_return_to_linear_path":
+        return "Trace 0x401b50 return, branch, or exception outcome"
+    if stage == "compare_lhs_slot_writer_predecessor_audit" and reason == "linear_path_diverges_before_output_call":
+        return "Trace linear path divergence between 0x233d and output calls"
+    if stage == "compare_lhs_slot_writer_predecessor_audit":
+        return "Investigate stalled compare lhs slot writer predecessor path"
     if stage == "compare_esi_source_window_audit" and reason == "esi_source_identified":
         return "Promote identified ESI source into bounded material-hook validation"
     if stage == "compare_esi_source_window_audit":

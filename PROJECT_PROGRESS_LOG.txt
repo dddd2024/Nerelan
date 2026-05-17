@@ -4273,3 +4273,53 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 6) 下一轮默认方向
 - 将已识别的 ESI source 提升为下一轮 bounded material-hook validation 起点。
 - 可围绕 `0x2559` / `[ebp-0x1170]` 重新做 material producer hook，但不要回退到旧 anchor 假设；必须保留本轮 runtime-backed 连接证据。
+
+## 2026-05-17 Compare LHS slot writer predecessor audit
+
+1) 执行范围
+- 按计划新增 bounded sidecar：`compare_lhs_slot_writer_predecessor_audit.json`。
+- 触发条件固定为最新 `compare_lhs_slot_writer_source_audit.classification == "writer_hook_not_reached"`。
+- Hook 路径固定为 `0x2338 -> 0x253a` 前驱窗口：`0x2338`, `0x233d`, `0x2343`, `0x2346`, `0x234c`, `0x234e`, `0x2353`, `0x2355`, `0x235a`，保留 `0x258c` CompareProbe fallback。
+- 固定 3 个 runtime-backed candidates；未扩大 search / beam / budget / topN / timeout / frontier iteration。
+- 未运行 Base64/RC4 breakpoint probe，未回退 old `sample_solver`。
+
+2) 代码变更
+- `reverse_agent/olly_scripts/compare_lhs_slot_writer_predecessor_audit.py`
+  - 新增 thin script entry，复用现有 pre-compare handoff target collector。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 predecessor audit hook point、static audit、payload builder、runner 和 artifact mapping。
+  - 在 slot-writer source 分类为 `writer_hook_not_reached` 且无 predecessor 决策 artifact 时，优先运行该 sidecar 并 hard-stop 后续 search。
+  - 分类固定为 `handoff_call_does_not_return_to_linear_path` / `linear_path_diverges_before_output_call` / `pre_slot_source_identified` / `pre_slot_path_observed_source_unknown` / `inconclusive`。
+- `reverse_agent/project_state.py`
+  - 新增 `latest_compare_lhs_slot_writer_predecessor_audit` 索引。
+  - 将新分类接入 current bottleneck、task packet、negative cache。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_lhs_slot_writer_predecessor_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `177 passed`
+- `python -m pytest -q` -> `254 passed`
+
+4) Harness / project_state
+- Completed target real harness run:
+  - `sr_slot_pred_20260517_r1`
+  - 1 case executed, 0 errors, selected `NOT_FOUND` because sidecar hard-stop intentionally skipped solve/validation chain。
+- Core artifact:
+  - `solve_reports\harness_runs\sr_slot_pred_20260517_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_slot_writer_predecessor_audit\compare_lhs_slot_writer_predecessor_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_slot_pred_20260517_r1` -> passed。
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_slot_pred_20260517_r1`
+  - `reason: handoff_call_does_not_return_to_linear_path`
+  - `task: Trace 0x401b50 return, branch, or exception outcome`
+  - `missing: []`
+
+5) 结论
+- `compare_lhs_slot_writer_predecessor_audit` classification: `handoff_call_does_not_return_to_linear_path`
+- `runtime_backed_count=3`，固定 3 候选均 runtime-backed。
+- `actual_compare_arg0=confirmed`，`pre_slot_source_to_compare_arg0=inconclusive`。
+- `handoff_return_to_linear_path=rejected`。
+- Path counts: `0x2338` observed, `0x233d` / downstream linear path not observed。
+- `breakpoint_probe_allowed=false`；直接 `0x253a` material hook 继续阻断。
+
+6) 下一轮默认方向
+- 不跑 Base64/RC4 probe，不回 old `sample_solver`，不扩大 search。
+- 下一步只追 `0x401b50` return / branch / exception outcome，解释为什么 `0x2338` 命中后不回到 `0x233d` 线性路径。

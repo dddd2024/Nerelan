@@ -20,6 +20,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
     COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
+    COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME,
     COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME,
     COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
     COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME,
@@ -68,6 +69,7 @@ from reverse_agent.strategies.compare_aware_search import (
     _validated_projected_preserve_second_hop_candidates,
     build_compare_callsite_reanchor_and_lhs_provenance_audit_payload,
     build_compare_lhs_producer_audit_payload,
+    build_compare_lhs_slot_writer_predecessor_audit_payload,
     build_compare_lhs_slot_writer_source_audit_payload,
     build_compare_lhs_upstream_writer_audit_payload,
     build_compare_esi_source_window_audit_payload,
@@ -82,6 +84,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_slice_probe,
     run_compare_callsite_reanchor_and_lhs_provenance_audit,
     run_compare_lhs_producer_audit,
+    run_compare_lhs_slot_writer_predecessor_audit,
     run_compare_lhs_slot_writer_source_audit,
     run_compare_lhs_upstream_writer_audit,
     run_compare_esi_source_window_audit,
@@ -836,6 +839,7 @@ def test_compare_aware_strategy_runs_refine_then_smt_and_uses_promoted_anchors(
             "compare_real_lhs_provenance_audit",
             "compare_esi_source_window_audit",
             "compare_lhs_slot_writer_source_audit",
+            "compare_lhs_slot_writer_predecessor_audit",
             "h1_h3_boundary_validation",
         }
     assert result.metadata["smt"]["payload"]["exact2_basin_smt"]["base_anchor"] == "78d540b49c590770"
@@ -5272,6 +5276,158 @@ def _fake_compare_lhs_slot_writer_source_subprocess_run(*args, **kwargs):  # noq
     return _Proc()
 
 
+def _compare_lhs_slot_writer_predecessor_candidate_result(
+    candidate_hex: str,
+    ptr: str,
+    preview: str,
+    *,
+    handoff_return_observed: bool = True,
+    downstream_output_observed: bool = False,
+    source_matches: bool = False,
+) -> dict[str, object]:
+    result = _compare_lhs_slot_writer_source_candidate_result(
+        candidate_hex,
+        ptr,
+        preview,
+        slot_writer_observed=False,
+    )
+    observations = [
+        item
+        for item in result["hook_observations"]
+        if item["hook_name"] == "static_compare_callsite"
+    ]
+    observations.append(
+        {
+            "candidate_hex": candidate_hex,
+            "hook_name": "predecessor_handoff_call",
+            "module_offset": "0x2338",
+            "instruction": "call 0x401b50",
+            "edx_ptr": ptr,
+            "edx_preview_hex": preview,
+        }
+    )
+    if handoff_return_observed:
+        observations.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "predecessor_handoff_return",
+                "module_offset": "0x233d",
+                "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+                "edx_ptr": "0xa000",
+                "edx_preview_hex": "10" * 32,
+            }
+        )
+        observations.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "predecessor_stack_cleanup",
+                "module_offset": "0x2343",
+                "instruction": "add esp, 0xc",
+                "edx_ptr": "0xa000",
+                "edx_preview_hex": "10" * 32,
+            }
+        )
+    if downstream_output_observed:
+        source_ptr = ptr if source_matches else "0xb000"
+        source_preview = preview if source_matches else "20" * 32
+        observations.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_name": "predecessor_output_call",
+                "module_offset": "0x234e",
+                "instruction": "call 0x4018cd",
+                "eax_ptr": source_ptr,
+                "eax_preview_hex": source_preview,
+                "frame_slots": [
+                    {
+                        "name": "[ebp-0x1170]",
+                        "offset": "-0x1170",
+                        "value": source_ptr,
+                        "preview_hex": source_preview,
+                    }
+                ],
+            }
+        )
+    return {
+        **result,
+        "hook_observations": observations,
+    }
+
+
+def _compare_lhs_slot_writer_predecessor_candidates(**kwargs) -> list[dict[str, object]]:
+    return [
+        _compare_lhs_slot_writer_predecessor_candidate_result(
+            "78d540b49c59077041414141414141",
+            "0x1100",
+            "aa" * 32,
+            **kwargs,
+        ),
+        _compare_lhs_slot_writer_predecessor_candidate_result(
+            "5a3e7f46ddd474d041414141414141",
+            "0x2200",
+            "bb" * 32,
+            **kwargs,
+        ),
+        _compare_lhs_slot_writer_predecessor_candidate_result(
+            "78d540b49c59076f41414141414141",
+            "0x3300",
+            "cc" * 32,
+            **kwargs,
+        ),
+    ]
+
+
+def _fake_compare_lhs_slot_writer_predecessor_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
+    command = list(args[0])
+    out_path = Path(command[command.index("--out") + 1])
+    points_path = Path(command[command.index("--points") + 1])
+    candidate_hex = command[command.index("--probe-hex") + 1]
+    points_payload = json.loads(points_path.read_text(encoding="utf-8"))
+    assert {point["name"] for point in points_payload["hook_points"]} == {
+        "static_compare_callsite",
+        "predecessor_handoff_call",
+        "predecessor_handoff_return",
+        "predecessor_stack_cleanup",
+        "predecessor_candidate_push",
+        "predecessor_output_setup",
+        "predecessor_output_call",
+        "predecessor_output_return",
+        "predecessor_second_call",
+        "predecessor_after_second_call",
+    }
+    previews = {
+        "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
+        "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
+        "78d540b49c59076f41414141414141": ("0x3300", "cc" * 32),
+    }
+    ptr, preview = previews[candidate_hex]
+    candidate = _compare_lhs_slot_writer_predecessor_candidate_result(
+        candidate_hex,
+        ptr,
+        preview,
+        downstream_output_observed=True,
+        source_matches=True,
+    )
+    out_path.write_text(
+        json.dumps(
+            {
+                "success": True,
+                "summary": "compare lhs slot writer predecessor audit ok",
+                "candidate_hex": candidate_hex,
+                "hook_observations": candidate["hook_observations"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _Proc:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    return _Proc()
+
+
 def _fake_pre_compare_handoff_ready_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     command = list(args[0])
     out_path = Path(command[command.index("--out") + 1])
@@ -7227,6 +7383,75 @@ def test_run_compare_lhs_slot_writer_source_audit_uses_fixed_candidates(tmp_path
     assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
 
 
+def test_compare_lhs_slot_writer_predecessor_classifies_handoff_no_return() -> None:
+    payload = build_compare_lhs_slot_writer_predecessor_audit_payload(
+        candidate_results=_compare_lhs_slot_writer_predecessor_candidates(handoff_return_observed=False),
+        source_slot_writer_payload={"classification": "writer_hook_not_reached"},
+    )
+
+    assert payload["classification"] == "handoff_call_does_not_return_to_linear_path"
+    assert payload["path_observed_counts"]["predecessor_handoff_call"] == 3
+    assert payload["path_observed_counts"]["predecessor_handoff_return"] == 0
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_lhs_slot_writer_predecessor_classifies_linear_path_divergence() -> None:
+    payload = build_compare_lhs_slot_writer_predecessor_audit_payload(
+        candidate_results=_compare_lhs_slot_writer_predecessor_candidates(
+            handoff_return_observed=True,
+            downstream_output_observed=False,
+        ),
+        source_slot_writer_payload={"classification": "writer_hook_not_reached"},
+    )
+
+    assert payload["classification"] == "linear_path_diverges_before_output_call"
+    assert payload["path_observed_counts"]["predecessor_handoff_return"] == 3
+    assert payload["path_observed_counts"]["predecessor_output_call"] == 0
+
+
+def test_compare_lhs_slot_writer_predecessor_identifies_pre_slot_source() -> None:
+    payload = build_compare_lhs_slot_writer_predecessor_audit_payload(
+        candidate_results=_compare_lhs_slot_writer_predecessor_candidates(
+            handoff_return_observed=True,
+            downstream_output_observed=True,
+            source_matches=True,
+        ),
+        source_slot_writer_payload={"classification": "writer_hook_not_reached"},
+    )
+
+    assert payload["classification"] == "pre_slot_source_identified"
+    assert payload["relations"]["pre_slot_source_to_compare_arg0"] == "confirmed"
+    assert payload["promotable_validations"][0]["hook_name"] == "predecessor_output_call"
+
+
+def test_run_compare_lhs_slot_writer_predecessor_audit_uses_fixed_candidates(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    monkeypatch.setattr(
+        compare_aware_search.subprocess,
+        "run",
+        _fake_compare_lhs_slot_writer_predecessor_subprocess_run,
+    )
+
+    result = run_compare_lhs_slot_writer_predecessor_audit(
+        target=target,
+        artifacts_dir=tmp_path / "compare_lhs_slot_writer_predecessor_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        slot_writer_payload={"classification": "writer_hook_not_reached"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(str(result["result_path"])).name == COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME
+    assert payload["classification"] == "pre_slot_source_identified"
+    assert payload["fixed_candidates"] == [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+        "78d540b49c59076f41414141414141",
+    ]
+
+
 def test_compare_aware_strategy_runs_lhs_producer_sidecar_before_search(
     tmp_path: Path,
     monkeypatch,
@@ -7802,6 +8027,88 @@ def test_compare_aware_strategy_runs_lhs_slot_writer_source_sidecar_before_searc
     assert captured["artifacts_dir"] == "compare_lhs_slot_writer_source_audit"
     assert captured["source_classification"] == "REJECTED"
     assert Path(str(result.artifacts[0].output_path)).name == COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME
+
+
+def test_compare_aware_strategy_runs_lhs_slot_writer_predecessor_sidecar_before_search(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    slot_writer_payload = {
+        "artifact_kind": "compare_lhs_slot_writer_source_audit",
+        "classification": "writer_hook_not_reached",
+        "candidate_count": 3,
+        "runtime_backed_count": 3,
+        "breakpoint_probe_allowed": False,
+    }
+    captured: dict[str, object] = {}
+
+    def fake_indexed_artifact_payload(kind):
+        return (
+            {
+                "compare_lhs_slot_writer_source_audit": slot_writer_payload,
+            }.get(kind, {}),
+            "",
+        )
+
+    def fake_run_predecessor_audit(**kwargs):
+        captured["artifacts_dir"] = Path(kwargs["artifacts_dir"]).name
+        captured["source_classification"] = kwargs["slot_writer_payload"]["classification"]
+        result_path = Path(kwargs["artifacts_dir"]) / COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "artifact_kind": "compare_lhs_slot_writer_predecessor_audit",
+            "classification": "handoff_call_does_not_return_to_linear_path",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "breakpoint_probe_allowed": False,
+        }
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+        return {
+            "result_path": str(result_path),
+            "payload": payload,
+            "validations": [],
+            "promotable_validations": [],
+        }
+
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {"latest_compare_lhs_slot_writer_source_audit": slot_writer_payload}
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_indexed_or_latest_report_artifact_payload",
+        fake_indexed_artifact_payload,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_lhs_slot_writer_predecessor_audit",
+        fake_run_predecessor_audit,
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for early predecessor sidecar"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "compare_lhs_slot_writer_predecessor_audit"
+    assert result.metadata["early_sidecar"] is True
+    assert captured["artifacts_dir"] == "compare_lhs_slot_writer_predecessor_audit"
+    assert captured["source_classification"] == "writer_hook_not_reached"
+    assert Path(str(result.artifacts[0].output_path)).name == COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME
 
 
 def test_compare_aware_strategy_runs_post_handoff_sidecar_before_search(
