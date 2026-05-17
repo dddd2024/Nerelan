@@ -4323,3 +4323,55 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 6) 下一轮默认方向
 - 不跑 Base64/RC4 probe，不回 old `sample_solver`，不扩大 search。
 - 下一步只追 `0x401b50` return / branch / exception outcome，解释为什么 `0x2338` 命中后不回到 `0x233d` 线性路径。
+
+## 2026-05-17 0x401b50 post-handoff branch outcome audit
+
+1) 执行范围
+- 按计划复用并升级 `post_handoff_branch_outcome_audit.json` 为 bounded runtime sidecar。
+- 固定主线 `L15(prefix8)`、suffix `AAAAAAA`、3 个 runtime-backed candidates。
+- Hook 覆盖 caller side `0x2338`, `0x233d`, `0x2343`, `0x2346`, `0x234e`, `0x2355`, `0x258c`，callee side `0x401b50` entry/leave，并启用 Frida exception capture。
+- 未扩大 search / beam / budget / topN / timeout / frontier iteration；未运行 Base64/RC4 breakpoint probe；未回退 old `sample_solver`。
+
+2) 代码变更
+- `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
+  - 为 hook point 增加 opt-in `capture_leave`，并记录 enter/leave/exception 事件、return address、current module offset、return value。
+- `reverse_agent/olly_scripts/post_handoff_branch_outcome_audit.py`
+  - 新增 thin script entry，复用 bounded Frida/UIA collector。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 新增 post-handoff runtime hook points、static audit、runner、payload builder 分类和 predecessor-triggered early sidecar。
+  - 在最新 predecessor 分类为 `handoff_call_does_not_return_to_linear_path` 且无 post-handoff decision artifact 时，优先运行该 sidecar 并 hard-stop 后续 search。
+  - 分类固定为 `handoff_returns_to_alternate_site` / `handoff_tailcalls_or_jumps` / `handoff_exception_or_unwind` / `callee_observed_but_exit_unknown` / `inconclusive`。
+- `reverse_agent/project_state.py`
+  - 将 post-handoff runtime fields 接入 compact state，并映射新分类到下一步任务。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\post_handoff_branch_outcome_audit.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `185 passed`
+- `python -m pytest -q` -> `262 passed`
+
+4) Harness / project_state
+- Completed target real harness run:
+  - `sr_401b50_outcome_20260517_r1`
+  - 1 case executed, 0 errors, selected `NOT_FOUND` because sidecar hard-stop intentionally skipped solve/validation chain。
+- Core artifact:
+  - `solve_reports\harness_runs\sr_401b50_outcome_20260517_r1\reports\tool_artifacts\samplereverse_patched\post_handoff_branch_outcome_audit\post_handoff_branch_outcome_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_401b50_outcome_20260517_r1` -> passed。
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_401b50_outcome_20260517_r1`
+  - `reason: handoff_exception_or_unwind`
+  - `task: Trace 0x401b50 exception or unwind handler`
+  - `missing: []`
+
+5) 结论
+- `post_handoff_branch_outcome_audit` classification: `handoff_exception_or_unwind`
+- `runtime_backed_count=3`，固定 3 候选均 runtime-backed。
+- `actual_compare.entry=0x258c`
+- `actual_compare.lhs_side=arg0`
+- `actual_compare.flag_side=arg1`
+- `path_observed_counts`: `predecessor_handoff_call=3`, `handoff_helper_entry=3`, `predecessor_handoff_return=0`, `static_compare_callsite=3`, `process_exception=3`。
+- `exit_summary.callee_leave_count=0`，3 个候选均进入 `process_exception`；observed exception type 为 `access-violation`，exception module offset 包含 `0x19bb`。
+- `breakpoint_probe_allowed=false`；仍不运行 Base64/RC4 probe。
+
+6) 下一轮默认方向
+- 只追 `0x401b50` exception / unwind handler，解释 `0x19bb` access violation 与后续 compare lhs 的连接。
+- 不直接把 `0x233d` / `0x2346` / `0x234e` / `0x2355` 当作 material hook；必须先用异常/展开路径证据确认真实 material/source route。

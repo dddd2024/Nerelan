@@ -27,6 +27,8 @@ def _normalize_hook_point(item: dict[str, object] | None) -> dict[str, object]:
         "module_offset": module_offset_int,
         "instruction": str(item.get("instruction", "")),
         "reason": str(item.get("reason", "")),
+        "role": str(item.get("role", "")),
+        "capture_leave": bool(item.get("capture_leave")),
     }
 
 
@@ -57,6 +59,12 @@ def _normalize_observation(item: dict[str, object] | None) -> dict[str, object]:
         else {},
         "expected_eax_preview_hex": str(item.get("expected_eax_preview_hex", "")),
         "matched_expected_eax": bool(item.get("matched_expected_eax")),
+        "event": str(item.get("event", "")),
+        "return_address": str(item.get("return_address", "")),
+        "return_address_module_offset": str(item.get("return_address_module_offset", "")),
+        "current_module_offset": str(item.get("current_module_offset", "")),
+        "return_value": str(item.get("return_value", "")),
+        "exception": dict(item.get("exception", {})) if isinstance(item.get("exception"), dict) else {},
     }
 
 
@@ -318,7 +326,8 @@ function compareCallsiteSlots(sp, address, moduleBase) {{
     return slots;
 }}
 
-function observe(point, address, context) {{
+function observe(point, address, context, eventName, extra) {{
+    extra = extra || {{}};
     const mainModule = Process.enumerateModules()[0];
     const sp = ptr(context.sp || context.esp || 0);
     const bp = ptr(context.bp || context.ebp || 0);
@@ -327,6 +336,7 @@ function observe(point, address, context) {{
     const edx = safePointer(context.edx || context.rdx || 0);
     const esi = safePointer(context.esi || context.rsi || 0);
     const edi = safePointer(context.edi || context.rdi || 0);
+    const ip = safePointer(context.eip || context.rip || context.pc || 0);
     const eaxPreview = readBytes(eax, 128);
     const pointName = String(point.name || "");
     const isHelperCompare = pointName === "compare_helper_entry" || pointName === "actual_compare_entry";
@@ -339,6 +349,7 @@ function observe(point, address, context) {{
     send({{
         type: "compare_pre_compare_handoff_target_observation",
         hook_name: pointName,
+        event: eventName || "enter",
         address: address.toString(),
         module_offset: moduleOffsetText(address, mainModule.base),
         instruction: String(point.instruction || ""),
@@ -362,10 +373,30 @@ function observe(point, address, context) {{
         }})) }} : {{}},
         expected_eax_preview_hex: expectedEaxPreview,
         matched_expected_eax: expectedEaxPreview.length > 0 && eaxPreview.toLowerCase().startsWith(expectedEaxPreview.slice(0, 32)),
+        return_address: String(extra.return_address || ""),
+        return_address_module_offset: String(extra.return_address_module_offset || ""),
+        current_module_offset: moduleOffsetText(ip, mainModule.base),
+        return_value: String(extra.return_value || ""),
+        exception: extra.exception || {{}},
     }});
 }}
 
 const mainModule = Process.enumerateModules()[0];
+try {{
+    Process.setExceptionHandler(function(details) {{
+        const address = safePointer(details.address || 0);
+        const context = details.context || {{}};
+        observe({{ name: "process_exception", instruction: String(details.type || "exception") }}, address, context, "exception", {{
+            exception: {{
+                type: String(details.type || ""),
+                address: address.toString(),
+                memory: details.memory ? String(details.memory.address || "") : "",
+            }},
+        }});
+        return false;
+    }});
+}} catch (error) {{
+}}
 for (const point of hookPoints) {{
     try {{
         const offset = Number(point.module_offset || 0);
@@ -375,8 +406,27 @@ for (const point of hookPoints) {{
         const address = mainModule.base.add(offset);
         Interceptor.attach(address, {{
             onEnter(args) {{
-                observe(point, address, this.context);
-            }}
+                try {{
+                    const sp = ptr(this.context.sp || this.context.esp || 0);
+                    this.returnAddressForAudit = sp.readPointer();
+                }} catch (error) {{
+                    this.returnAddressForAudit = ptr(0);
+                }}
+                observe(point, address, this.context, "enter", {{
+                    return_address: this.returnAddressForAudit.toString(),
+                    return_address_module_offset: moduleOffsetText(this.returnAddressForAudit, mainModule.base),
+                }});
+            }},
+            onLeave(retval) {{
+                if (!point.capture_leave) {{
+                    return;
+                }}
+                observe(point, address, this.context, "leave", {{
+                    return_address: this.returnAddressForAudit ? this.returnAddressForAudit.toString() : "",
+                    return_address_module_offset: this.returnAddressForAudit ? moduleOffsetText(this.returnAddressForAudit, mainModule.base) : "",
+                    return_value: retval ? retval.toString() : "",
+                }});
+            }},
         }});
     }} catch (error) {{
         send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});

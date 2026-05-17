@@ -970,6 +970,14 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "source_material_hook_runtime_classification": post_handoff_branch_outcome_audit.get(
                 "source_material_hook_runtime_classification"
             ),
+            "source_predecessor_classification": post_handoff_branch_outcome_audit.get(
+                "source_predecessor_classification"
+            ),
+            "candidate_count": post_handoff_branch_outcome_audit.get("candidate_count"),
+            "runtime_backed_count": post_handoff_branch_outcome_audit.get("runtime_backed_count"),
+            "actual_compare": post_handoff_branch_outcome_audit.get("actual_compare", {}),
+            "path_observed_counts": post_handoff_branch_outcome_audit.get("path_observed_counts", {}),
+            "exit_summary": post_handoff_branch_outcome_audit.get("exit_summary", {}),
             "failed_material_hook_hypotheses": post_handoff_branch_outcome_audit.get(
                 "failed_material_hook_hypotheses", []
             )[:4]
@@ -2051,6 +2059,16 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         return "Trace linear path divergence between 0x233d and output calls"
     if stage == "compare_lhs_slot_writer_predecessor_audit":
         return "Investigate stalled compare lhs slot writer predecessor path"
+    if stage == "post_handoff_branch_outcome_audit" and reason == "handoff_returns_to_alternate_site":
+        return "Validate bounded material/source hook from confirmed 0x401b50 alternate return site"
+    if stage == "post_handoff_branch_outcome_audit" and reason == "handoff_tailcalls_or_jumps":
+        return "Trace 0x401b50 tail-call or jump target"
+    if stage == "post_handoff_branch_outcome_audit" and reason == "handoff_exception_or_unwind":
+        return "Trace 0x401b50 exception or unwind handler"
+    if stage == "post_handoff_branch_outcome_audit" and reason == "callee_observed_but_exit_unknown":
+        return "Improve bounded 0x401b50 exit coverage"
+    if stage == "post_handoff_branch_outcome_audit" and reason == "inconclusive":
+        return "Improve post-handoff branch outcome evidence"
     if stage == "compare_esi_source_window_audit" and reason == "esi_source_identified":
         return "Promote identified ESI source into bounded material-hook validation"
     if stage == "compare_esi_source_window_audit":

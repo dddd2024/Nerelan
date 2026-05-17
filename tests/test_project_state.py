@@ -990,6 +990,45 @@ def test_project_state_indexes_post_handoff_branch_outcome_audit(tmp_path: Path)
     assert any(item.get("scope") == "post_handoff_branch_outcome_audit" for item in negative_results)
 
 
+def test_project_state_indexes_post_handoff_runtime_outcome(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_401b50_outcome")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "post_handoff_branch_outcome_audit").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "post_handoff_branch_outcome_audit" / "post_handoff_branch_outcome_audit.json",
+        {
+            "artifact_kind": "post_handoff_branch_outcome_audit",
+            "classification": "handoff_returns_to_alternate_site",
+            "source_predecessor_classification": "handoff_call_does_not_return_to_linear_path",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {"lhs_side": "arg0", "flag_side": "arg1"},
+            "path_observed_counts": {"handoff_helper_entry": 3, "static_compare_callsite": 3},
+            "exit_summary": {
+                "return_address_module_offsets": {
+                    "78d540b49c59077041414141414141": "0x2400",
+                }
+            },
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "validate bounded material/source hook from confirmed 0x401b50 alternate return site",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    latest = current_state["latest_post_handoff_branch_outcome_audit"]
+    assert current_state["current_bottleneck"]["stage"] == "post_handoff_branch_outcome_audit"
+    assert current_state["current_bottleneck"]["reason"] == "handoff_returns_to_alternate_site"
+    assert latest["source_predecessor_classification"] == "handoff_call_does_not_return_to_linear_path"
+    assert latest["runtime_backed_count"] == 3
+    assert latest["exit_summary"]["return_address_module_offsets"]["78d540b49c59077041414141414141"] == "0x2400"
+    assert task_packet["task"] == "Validate bounded material/source hook from confirmed 0x401b50 alternate return site"
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

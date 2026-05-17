@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-17T11:46:13Z",
+  "generated_at": "2026-05-17T12:16:15Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "handoff_call_does_not_return_to_linear_path",
+  "reason": "handoff_exception_or_unwind",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }
