@@ -4,68 +4,66 @@ Generated for `samplereverse` from the latest `project_state` facts.
 
 ## 1. Goal
 
-Trace the real runtime outcome of the `call 0x401b50` path in `samplereverse`.
+Trace the `0x401b50` post-handoff exception/unwind path and identify the real branch/call outcome that connects candidate-dependent material to the actual compare lhs.
 
-The immediate objective is not to generate new candidates. The objective is to determine where execution goes after entering `0x401b50`, because the latest predecessor audit observed `predecessor_handoff_call` at `module+0x2338`, but did not observe the expected linear return path at `module+0x233d` / `0x2343` / `0x2346`.
+本轮目标不是生成新候选，也不是扩大 beam/budget，而是把当前瓶颈 `post_handoff_branch_outcome_audit / handoff_exception_or_unwind` 变成更明确的运行时分类：
 
-Required result: produce a bounded runtime artifact that classifies the `0x401b50` outcome as one of:
-
-- returns to expected linear path
-- returns to a non-linear return site
-- branches internally to another helper
-- throws / unwinds / exception path
-- hook failure / instrumentation artifact
-- inconclusive, with concrete missing evidence
+- `normal_return_to_compare_path`
+- `exception_dispatch_to_compare_path`
+- `seh_unwind_to_compare_path`
+- `alternate_return_to_compare_path`
+- `compare_reached_but_path_unresolved`
+- `compare_not_reached`
+- `inconclusive`
 
 ## 2. Current Evidence
 
-The current active strategy is `CompareAwareSearchStrategy`.
-
-Current best candidates remain unchanged:
-
-- exact2 best:
-  - `78d540b49c59077041414141414141`
-  - runtime exact wide chars: `2`
-  - runtime distance5: `246`
-- frontier / exact1 best:
-  - `5a3e7f46ddd474d041414141414141`
-  - runtime exact wide chars: `1`
-  - runtime distance5: `258`
-
-No current evidence justifies beam expansion or old blind search. The current bottleneck is:
-
-- stage: `compare_lhs_slot_writer_predecessor_audit`
-- reason: `handoff_call_does_not_return_to_linear_path`
-- confidence: medium
-
-The latest predecessor audit found:
-
-- actual compare entry confirmed at `0x258c`
-- compare lhs is `arg0`
-- flag side is `arg1`
-- lhs preview varies by candidate
-- `predecessor_handoff_call` at `0x2338` observed once
-- expected successor hooks after `0x2338` were not observed
-- `breakpoint_probe_allowed=false`
-- next bounded action: trace `0x401b50` return, branch, or exception outcome before any Base64/RC4 probe
-
-`artifact_index.json` also shows that `post_handoff_branch_outcome_audit` is still null, so this is the missing next artifact class rather than a repeated already-completed audit.
+- Active strategy: `CompareAwareSearchStrategy`.
+- Profile/sample: `samplereverse`.
+- Current task: `Trace 0x401b50 exception or unwind handler`.
+- Current bottleneck:
+  - stage: `post_handoff_branch_outcome_audit`
+  - reason: `handoff_exception_or_unwind`
+  - confidence: `medium`
+- Current best candidates:
+  - exact2: `78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`, `compare_semantics_agree=true`
+  - frontier/exact1: `5a3e7f46ddd474d041414141414141`, runtime exact1 / distance5 `258`, `compare_semantics_agree=true`
+- Known transform mainline remains:
+  - `input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix`
+- Function semantics currently mark `0x401b50` as:
+  - `candidate_dependent=true`
+  - `hookable=true`
+  - `semantic_guess=copy_or_handoff`
+  - still blocked by `missing_transform_chain_connection`
+- Latest actual compare evidence anchors compare at `0x258c`:
+  - actual compare `arg0` is candidate-dependent
+  - actual compare `arg1` is the stable flag-side constant
+  - lhs preview varies by candidate
+- Latest indexed harness run:
+  - `solve_reports\harness_runs\sr_401b50_outcome_20260517_r1`
+- Core latest artifact class:
+  - `post_handoff_branch_outcome_audit`
+- Important limitation:
+  - Do not assume uncommitted full `solve_reports` contents. Use committed `project_state` summaries and indexed artifacts as the fact source.
 
 ## 3. Do Not Do
 
 Do not:
 
 - return to old `sample_solver` blind search
-- increase beam, budget, topN, or timeout as the main action
-- use `compare_semantics_agree=false` candidates as the primary frontier
+- only increase beam, budget, topN, or timeout
+- use `compare_semantics_agree=false` candidates as primary frontier
 - commit the full `solve_reports` directory
-- rerun Base64/RC4 breakpoint probing before the `0x401b50` path divergence is explained
-- validate `0x253a` as a direct material hook after predecessor evidence rejected it
-- treat `0x401b50`, `0x4018cd`, `0x4019e0`, or `0x401be3` as confirmed Base64/RC4 material producers without new semantic evidence
-- rerun the same compare return-site audit without using the current classification
-- rescan the entire `solve_reports` tree unless a missing artifact lookup forces it
-
-These blocks are already encoded in `negative_results.json`; obey them unless there is a written override reason.
+- repeat exact2 basin value-pool evaluation
+- repeat H1/H3 fixed 8-candidate prefix8 plus Base64 boundary contrast set
+- repeat the current transform trace consistency audit without new runtime evidence
+- rerun Base64/RC4 breakpoint probe before confirming an instruction-level Base64/RC4 or material-construction hook
+- repeat compare return-site audit without using its classification
+- repeat producer material confirmation without adding instruction-level evidence
+- reuse `0x233d` / `0x2346` as material-hook breakpoints after the post-handoff audit rejected them
+- probe downstream `0x234e` / `0x2355` Base64/RC4 hooks before branch outcome reaches them
+- treat `0x4019e0`, `0x401b50`, `0x4018cd`, or `0x401be3` as Base64/RC4 material producers without new semantic evidence
+- scan the entire `solve_reports` tree unless a missing artifact lookup explicitly forces it
 
 ## 4. Files To Inspect
 
@@ -74,18 +72,18 @@ Inspect only the bounded files needed for this task:
 1. `reverse_agent/strategies/compare_aware_search.py`
    - Find existing sidecar scheduling patterns.
    - Reuse fixed-candidate audit conventions.
-   - Add a new bounded audit only if no existing audit already covers this exact path-outcome classification.
+   - Add or refine a bounded sidecar only if no existing audit already covers this exact exception/unwind outcome classification.
 
 2. `reverse_agent/function_semantics.py`
    - Check whether `0x401b50` metadata can be extended with path outcome evidence.
    - Do not reinterpret it as a material producer without runtime proof.
 
 3. `reverse_agent/project_state.py`
-   - Add/index the new artifact key only if a new artifact is introduced.
-   - Ensure `current_bottleneck.reason` advances from `handoff_call_does_not_return_to_linear_path` to the new classification.
+   - Index `latest_post_handoff_exception_unwind_audit` if a new artifact is introduced.
+   - Ensure `current_bottleneck.reason` advances from `handoff_exception_or_unwind` to a more concrete runtime classification.
 
 4. `reverse_agent/olly_scripts/`
-   - Inspect the existing runtime sidecar scripts.
+   - Inspect existing runtime sidecar scripts.
    - Implement a narrow `0x401b50` path outcome probe by reusing existing Frida/UIA collector style.
 
 5. `tests/test_compare_aware_search_strategy.py`
@@ -98,39 +96,47 @@ Do not inspect full historical solve reports by default.
 
 ## 5. Required Audit
 
-Create or reuse a bounded audit tentatively named:
+Create or refine a bounded sidecar tentatively named:
 
-`post_handoff_branch_outcome_audit`
+`post_handoff_exception_unwind_audit`
 
-The audit must use the fixed three-candidate set from the current state:
+It should consume the current `post_handoff_branch_outcome_audit / handoff_exception_or_unwind` bottleneck and use the fixed candidate set already present in current state. Do not expand candidate search.
 
-- `78d540b49c59077041414141414141`
-- `78d540b49c59076f41414141414141`
-- `5a3e7f46ddd474d041414141414141`
+For each fixed candidate, capture:
 
-For each candidate, capture:
-
-- entry count for `0x401b50`
+- `0x401b50` enter count
+- `0x401b50` leave/return count if observable
 - return address on entering `0x401b50`
-- whether `0x233d` is reached
-- whether `0x2343` is reached
-- whether `0x2346` is reached
-- whether execution reaches known compare entry `0x258c`
-- actual return target if different from expected
-- EIP / stack preview around return or unwind
-- exception / SEH / abnormal termination indicators if available
-- candidate-dependent fields only if the hook is runtime-backed
+- actual return target if it differs from expected post-handoff site
+- whether expected post-handoff linear sites are reached
+- whether exception dispatcher / SEH handler / unwind-like path / alternate return path is observed
+- whether compare entry `0x258c` is reached
+- actual compare `arg0` pointer/value preview
+- actual compare `arg1` pointer/value preview
+- whether compare lhs material remains candidate-dependent
+- last observed module offset before compare
+- stack/register preview around the divergence point
 
 The classifier should distinguish:
 
-- `returns_to_expected_linear_path`
-- `returns_to_unexpected_site`
-- `branches_or_tailcalls_before_linear_return`
-- `exception_or_unwind_path`
+- `normal_return_to_compare_path`
+- `exception_dispatch_to_compare_path`
+- `seh_unwind_to_compare_path`
+- `alternate_return_to_compare_path`
+- `compare_reached_but_path_unresolved`
+- `compare_not_reached`
 - `instrumentation_missed_return`
 - `inconclusive`
 
-The audit must not authorize Base64/RC4 probing unless it produces a runtime-backed, instruction-confirmed path that reconnects to the actual compare lhs provenance.
+Critical classifier rule:
+
+Actual compare confirmation must require observed compare entry and argument capture. Do not classify success merely because upstream hooks fired. A previous implementation class already required this correction, so preserve that discipline.
+
+The audit must not authorize Base64/RC4 probing unless it proves all of the following with runtime-backed evidence:
+
+1. actual compare lhs side confirmed
+2. connected producer confirmed
+3. candidate-dependent transform material confirmed
 
 ## 6. Implementation Scope
 
@@ -138,10 +144,11 @@ Minimal implementation only.
 
 Acceptable changes:
 
-- Add one narrow runtime probe script if no existing script can capture the `0x401b50` path outcome.
+- Add one narrow runtime probe script if no existing script can capture the `0x401b50` exception/unwind outcome.
 - Add one artifact schema/classifier in `compare_aware_search.py`.
+- Add sidecar scheduling only for the current `handoff_exception_or_unwind` bottleneck.
 - Add project_state indexing for the new artifact.
-- Add negative-cache entries to prevent repeating this probe blindly if it returns `inconclusive` without new hooks.
+- Add negative-cache entries to prevent blindly repeating this probe if it returns `inconclusive` without new hook evidence.
 - Add tests for:
   - no candidate expansion
   - fixed candidate set
@@ -169,7 +176,7 @@ python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_ag
 If a new runtime script is added:
 
 ```bash
-python -m py_compile reverse_agent/olly_scripts/post_handoff_branch_outcome_audit.py
+python -m py_compile reverse_agent/olly_scripts/post_handoff_exception_unwind_audit.py
 ```
 
 Then run:
@@ -179,23 +186,40 @@ python -m pytest -q tests/test_compare_aware_search_strategy.py tests/test_proje
 python -m pytest -q
 ```
 
-Then run one bounded harness execution using the existing samplereverse dataset and runtime validation. Use a new run name such as:
+Then run one bounded harness execution using the existing `samplereverse` dataset and runtime validation. Suggested run name:
 
 ```bash
-sr_post_handoff_branch_20260517_r1
+sr_401b50_exception_unwind_20260517_r1
+```
+
+Suggested harness command:
+
+```bash
+python -m reverse_agent.harness \
+  --dataset solve_reports/samplereverse_compare_producer_backtrace_20260508_dataset.json \
+  --run-name sr_401b50_exception_unwind_20260517_r1 \
+  --reports-dir solve_reports \
+  --analysis-mode Auto \
+  --model-type "Copilot CLI" \
+  --runtime-validation-enabled \
+  --tool-enabled
 ```
 
 After the harness run:
 
 ```bash
-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_post_handoff_branch_20260517_r1
+python -m reverse_agent.project_state build \
+  --reports-dir solve_reports \
+  --sample samplereverse \
+  --run-name sr_401b50_exception_unwind_20260517_r1
+
 python -m reverse_agent.project_state status
 ```
 
 Expected state outcome:
 
 - `missing: []`
-- current bottleneck reason changes away from raw `handoff_call_does_not_return_to_linear_path`
+- current bottleneck reason changes away from raw `handoff_exception_or_unwind`
 - new artifact appears in `artifact_index.json`
 - `breakpoint_probe_allowed` remains false unless a real connected material source is proven
 
@@ -212,16 +236,16 @@ Stop immediately and report if any of the following happens:
 3. Expected hooks are not hit but compare still occurs.
    - Report whether this is likely instrumentation miss, wrong module base, wrong offset, or control-flow divergence.
 
-4. A runtime-backed predecessor source is identified.
+4. A runtime-backed predecessor/source path is identified.
    - Do not proceed to Base64/RC4 probe automatically.
    - Report the candidate source and request the next decision.
 
 5. The harness hangs or child runtime stalls.
-   - Add/verify timeout guard.
+   - Add or verify timeout guard.
    - Report partial artifact status.
    - Do not manually keep rerunning.
 
 6. Tests fail.
    - Stop after the first concrete failing test group and report the failure.
 
-本轮一句话：不要继续找更好的 candidate，先把 `0x401b50` 的真实控制流去向钉住。
+本轮一句话：不要继续找更好的 candidate，先把 `0x401b50` 后的真实控制流去向钉住。
