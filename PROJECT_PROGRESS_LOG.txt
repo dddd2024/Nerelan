@@ -4429,3 +4429,67 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 6) 下一轮默认方向
 - 不跑 Base64/RC4 probe，不回 old `sample_solver`，不扩大 search。
 - 下一步追 `0x258c` 前 last-writer / memory provenance，解释 compare arg0 的真实写入来源。
+
+## 2026-05-18 bounded compare real-LHS last-writer provenance audit
+
+1) 执行范围
+- 按计划复用既有 artifact kind/name：`compare_real_lhs_provenance_audit.json`。
+- 触发条件为最新 `post_handoff_exception_unwind_audit.classification == "compare_reached_but_path_unresolved"`。
+- 固定主线 `L15(prefix8)`、suffix `AAAAAAA`、3 个候选：
+  - `78d540b49c59077041414141414141`
+  - `5a3e7f46ddd474d041414141414141`
+  - `78d540b49c59076f41414141414141`
+- collector 在 `0x258c` 前启用 bounded write ring-buffer capture；到 `0x258c` 捕获 actual arg0 pointer/range 后再过滤 retained writes。
+- 未新增 artifact kind；未运行 Base64/RC4 breakpoint probe；未回退 old `sample_solver`；未扩大 search / beam / budget。
+
+2) 代码变更
+- `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
+  - 为 hook point 增加 opt-in `capture_write_ring`，用 Frida Stalker 做 bounded write ring-buffer capture。
+  - 在 actual compare arg0 已知后，按 arg0 pointer/range 过滤 retained writes，并补 `after_preview_hex`。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 扩展 `compare_real_lhs_provenance_audit`，新增 exception-unwind trigger、last-writer summary/candidates/write-ring fields 与严格 classification gate。
+  - `last_writer_identified` 必须满足 3/3 runtime-backed、最终 intersecting write 连接 actual arg0、after-preview 匹配候选依赖 arg0 material。
+  - `breakpoint_probe_allowed` 仅在 writer connected + candidate-dependent + transform-material backed 时允许。
+  - 修正 project_state early sidecar 顺序，确保 `compare_reached_but_path_unresolved` 优先运行 real-LHS last-writer audit，而不是旧 slot-writer source audit。
+- `reverse_agent/project_state.py`
+  - 将 `last_writer_summary` / `last_writer_candidates` 接入 compact state。
+  - 将 `last_writer_identified` 路由到 bounded material-hook validation；writer missing / unconnected / incomplete 路由到 instrumentation refinement。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_real_lhs_provenance_audit.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `202 passed`
+- `python -m pytest -q` -> `279 passed`
+
+4) Harness / project_state
+- First integration run `sr_lhs_last_writer_20260518_r1` exposed old early-sidecar precedence: it produced `compare_lhs_slot_writer_source_audit.json` instead of the requested artifact. Code was patched before accepting the result.
+- Completed target harness run:
+  - `sr_lhs_last_writer_20260518_r2`
+  - 1 case executed, 0 errors, selected `NOT_FOUND` because sidecar hard-stop intentionally skipped solve/validation chain。
+- Core artifact:
+  - `solve_reports\harness_runs\sr_lhs_last_writer_20260518_r2\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_20260518_r2` -> passed。
+- `project_state\artifact_index.json` now indexes:
+  - `compare_real_lhs_provenance_audit -> solve_reports\harness_runs\sr_lhs_last_writer_20260518_r2\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+- Compact state reports:
+  - `stage: compare_real_lhs_provenance_audit`
+  - `reason: compare_lhs_runtime_backed_writer_missing`
+  - `task: Improve compare lhs last-writer instrumentation`
+
+5) 结论
+- `compare_real_lhs_provenance_audit` classification: `compare_lhs_runtime_backed_writer_missing`
+- `runtime_backed_count=3`，固定 3 候选均 runtime-backed。
+- `actual_compare.entry=0x258c`
+- `actual_compare.lhs_side=arg0`
+- `actual_compare.arg0_candidate_dependent=true`
+- `last_writer_summary.enabled=true`
+- `last_writer_summary.actual_compare_arg0_runtime_backed=true`
+- `last_writer_summary.retained_write_count=0`
+- `last_writer_summary.intersecting_write_candidate_count=0`
+- Missing candidates are all 3 fixed candidates, because no retained write intersected actual arg0 range.
+- `breakpoint_probe_allowed=false`
+- Best runtime candidate changed: no. Current best remains the prior `exact2`/frontier state; this run was diagnostic-only.
+
+6) 下一轮默认方向
+- Improve bounded write ring-buffer coverage before `0x258c`.
+- Do not run Base64/RC4 breakpoint probe until an actual arg0-connected, candidate-dependent, transform-material backed writer is identified.
+- Do not return to old `sample_solver`; do not expand search/beam/budget as a substitute for instrumentation evidence.

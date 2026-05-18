@@ -1342,6 +1342,84 @@ def test_project_state_indexes_compare_real_lhs_provenance_audit(tmp_path: Path)
     assert any("Base64/RC4 breakpoint probe" in item["direction"] for item in negative_results)
 
 
+def test_project_state_routes_compare_real_lhs_last_writer(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_real_lhs_last_writer")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_real_lhs_provenance_audit.json",
+        {
+            "artifact_kind": "compare_real_lhs_provenance_audit",
+            "classification": "last_writer_identified",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {
+                "entry_status": "confirmed",
+                "caller_module_offset": "0x258c",
+                "lhs_side": "arg0",
+                "flag_side": "arg1",
+                "lhs_preview_varies_by_candidate": True,
+            },
+            "last_writer_summary": {
+                "runtime_backed_count": 3,
+                "connects_to_actual_arg0": True,
+                "candidate_dependent": True,
+                "transform_material_backed": False,
+            },
+            "last_writer_candidates": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "module_offset": "0x2400",
+                    "after_preview_matches_arg0": True,
+                }
+            ],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "validate bounded material hook from confirmed compare lhs last writer",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    latest = current_state["latest_compare_real_lhs_provenance_audit"]
+    assert latest["classification"] == "last_writer_identified"
+    assert latest["last_writer_summary"]["runtime_backed_count"] == 3
+    assert latest["last_writer_candidates"][0]["module_offset"] == "0x2400"
+    assert task_packet["task"] == "Validate bounded material hook from confirmed compare lhs last writer"
+
+
+def test_project_state_routes_compare_real_lhs_last_writer_incomplete(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_real_lhs_writer_incomplete")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_real_lhs_provenance_audit.json",
+        {
+            "artifact_kind": "compare_real_lhs_provenance_audit",
+            "classification": "instrumentation_incomplete",
+            "candidate_count": 3,
+            "runtime_backed_count": 2,
+            "actual_compare": {"entry_status": "inconclusive", "lhs_side": "arg0"},
+            "last_writer_summary": {"runtime_backed_count": 0, "missing_candidates": ["candidate"]},
+            "last_writer_candidates": [],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "fix compare lhs last-writer instrumentation before new semantic claims",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    latest = current_state["latest_compare_real_lhs_provenance_audit"]
+    assert latest["classification"] == "instrumentation_incomplete"
+    assert latest["last_writer_summary"]["runtime_backed_count"] == 0
+    assert task_packet["task"] == "Improve compare lhs last-writer instrumentation"
+
+
 def test_project_state_indexes_compare_esi_source_window_audit(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

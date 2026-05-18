@@ -8758,6 +8758,9 @@ def _normalize_material_confirmation_observation(item: dict[str, object], candid
         "current_module_offset": str(item.get("current_module_offset", "")),
         "return_value": str(item.get("return_value", "")),
         "exception": dict(item.get("exception", {})) if isinstance(item.get("exception"), dict) else {},
+        "write_ring_buffer": list(item.get("write_ring_buffer", []))
+        if isinstance(item.get("write_ring_buffer"), list)
+        else [],
     }
 
 
@@ -13057,6 +13060,7 @@ def _compare_real_lhs_provenance_hook_points() -> list[dict[str, object]]:
             "module_offset": 0x258C,
             "instruction": "call 0x5028ac",
             "role": "static_callsite_check",
+            "capture_write_ring": True,
         },
         {
             "name": "pre_compare_lhs_push",
@@ -13163,18 +13167,186 @@ def _real_lhs_row(rows: Sequence[dict[str, object]], hook_name: str) -> dict[str
     return {}
 
 
+def _hex_preview_matches_material(left: object, right: object) -> bool:
+    left_text = str(left or "").strip().lower()
+    right_text = str(right or "").strip().lower()
+    if not left_text or not right_text:
+        return False
+    for size in (96, 64, 48, 32, 24, 16):
+        if len(left_text) >= size and len(right_text) >= size and left_text[:size] == right_text[:size]:
+            return True
+    return False
+
+
+def _address_range_intersects(
+    left_start: int | None,
+    left_size: int,
+    right_start: int | None,
+    right_size: int,
+) -> bool:
+    if left_start is None or right_start is None:
+        return False
+    left_end = left_start + max(int(left_size or 1), 1)
+    right_end = right_start + max(int(right_size or 1), 1)
+    return left_start < right_end and right_start < left_end
+
+
+def _compare_real_lhs_write_ring_events(result: dict[str, object]) -> list[dict[str, object]]:
+    candidate_hex = str(result.get("candidate_hex", ""))
+    lhs_arg = _actual_compare_arg(result, "arg0")
+    arg0_ptr = _parse_int_hex(lhs_arg.get("value")) if lhs_arg else None
+    arg0_preview = str(lhs_arg.get("preview_hex", "") if lhs_arg else "")
+    arg0_size = max(len(arg0_preview) // 2, 16) if arg0_preview else 0
+    events: list[dict[str, object]] = []
+    for observation in result.get("hook_observations", []):
+        if not isinstance(observation, dict):
+            continue
+        ring = observation.get("write_ring_buffer", [])
+        ring = ring if isinstance(ring, list) else []
+        for raw_event in ring:
+            if not isinstance(raw_event, dict):
+                continue
+            event = dict(raw_event)
+            event["candidate_hex"] = candidate_hex
+            event_address = _parse_int_hex(event.get("address")) or _parse_int_hex(event.get("address_u64"))
+            try:
+                event_size = int(event.get("size", 1) or 1)
+            except (TypeError, ValueError):
+                event_size = 1
+            intersects = bool(event.get("intersects_arg0")) or _address_range_intersects(
+                event_address,
+                event_size,
+                arg0_ptr,
+                arg0_size,
+            )
+            event["intersects_arg0"] = intersects
+            event["arg0_value"] = event.get("arg0_value") or lhs_arg.get("value", "") if lhs_arg else ""
+            event["arg0_preview_hex"] = event.get("arg0_preview_hex") or arg0_preview
+            event["after_preview_matches_arg0"] = _hex_preview_matches_material(
+                event.get("after_preview_hex"),
+                event.get("arg0_preview_hex"),
+            )
+            events.append(event)
+    return events
+
+
+def _compare_real_lhs_last_writer_summary(
+    candidate_results: Sequence[dict[str, object]],
+    actual_compare: dict[str, object],
+) -> tuple[dict[str, object], list[dict[str, object]], list[dict[str, object]], bool]:
+    expected_count = len(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES)
+    actual_compare_ready = (
+        str(actual_compare.get("entry_status", "")) == "confirmed"
+        and str(actual_compare.get("lhs_side", "")) == "arg0"
+    )
+    writer_rows: list[dict[str, object]] = []
+    retained_ring: list[dict[str, object]] = []
+    missing_candidates: list[str] = []
+    final_previews: dict[str, str] = {}
+    transform_backed_count = 0
+
+    for result in candidate_results:
+        candidate_hex = str(result.get("candidate_hex", ""))
+        events = _compare_real_lhs_write_ring_events(result)
+        retained_ring.extend(events[-64:])
+        intersecting = [event for event in events if bool(event.get("intersects_arg0"))]
+        if not intersecting:
+            missing_candidates.append(candidate_hex)
+            continue
+        final = max(
+            intersecting,
+            key=lambda item: int(item.get("sequence", 0) or 0),
+        )
+        final_preview = str(final.get("after_preview_hex", "") or "")
+        if final_preview:
+            final_previews[candidate_hex] = final_preview[:96]
+        transform_backed = bool(
+            final.get("transform_material_backed")
+            or final.get("connects_to_transform_chain")
+            or str(final.get("material_kind", "")) in BASE64_RC4_BREAKPOINT_READY_KINDS
+        )
+        if transform_backed:
+            transform_backed_count += 1
+        writer_rows.append(
+            {
+                "candidate_hex": candidate_hex,
+                "runtime_backed": True,
+                "sequence": final.get("sequence"),
+                "address": final.get("address", ""),
+                "size": final.get("size", 0),
+                "instruction_address": final.get("instruction_address", ""),
+                "module_offset": final.get("module_offset", ""),
+                "instruction": final.get("instruction", ""),
+                "before_preview_hex": final.get("before_preview_hex", ""),
+                "after_preview_hex": final_preview,
+                "arg0_value": final.get("arg0_value", ""),
+                "arg0_preview_hex": final.get("arg0_preview_hex", ""),
+                "after_preview_matches_arg0": bool(final.get("after_preview_matches_arg0")),
+                "transform_material_backed": transform_backed,
+            }
+        )
+
+    runtime_backed_count = len(writer_rows)
+    match_count = sum(1 for row in writer_rows if bool(row.get("after_preview_matches_arg0")))
+    candidate_dependent = len({value for value in final_previews.values() if value}) > 1
+    connected = runtime_backed_count >= expected_count and match_count >= expected_count
+    transform_material_backed = transform_backed_count >= expected_count
+    summary = {
+        "enabled": True,
+        "expected_candidate_count": expected_count,
+        "runtime_backed_count": runtime_backed_count,
+        "intersecting_write_candidate_count": runtime_backed_count,
+        "match_count": match_count,
+        "missing_candidates": missing_candidates,
+        "candidate_dependent": candidate_dependent,
+        "connects_to_actual_arg0": connected,
+        "transform_material_backed": transform_material_backed,
+        "actual_compare_arg0_runtime_backed": actual_compare_ready,
+        "final_writer_previews": final_previews,
+        "retained_write_count": len(retained_ring),
+    }
+    breakpoint_allowed = bool(connected and candidate_dependent and transform_material_backed)
+    return summary, writer_rows, retained_ring[-192:], breakpoint_allowed
+
+
+def _compare_real_lhs_last_writer_classification(
+    *,
+    runtime_backed_count: int,
+    actual_compare: dict[str, object],
+    last_writer_summary: dict[str, object],
+    last_writer_candidates: Sequence[dict[str, object]],
+) -> str:
+    expected_count = len(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES)
+    actual_compare_ready = bool(last_writer_summary.get("actual_compare_arg0_runtime_backed"))
+    if runtime_backed_count < expected_count or not actual_compare_ready:
+        return "instrumentation_incomplete"
+    if not last_writer_candidates:
+        return "compare_lhs_runtime_backed_writer_missing"
+    if int(last_writer_summary.get("runtime_backed_count", 0) or 0) < expected_count:
+        return "compare_lhs_runtime_backed_writer_missing"
+    if bool(last_writer_summary.get("connects_to_actual_arg0")) and bool(
+        last_writer_summary.get("candidate_dependent")
+    ):
+        return "last_writer_identified"
+    if int(last_writer_summary.get("retained_write_count", 0) or 0) > 0:
+        return "writer_path_observed_but_unconnected"
+    return "compare_lhs_runtime_backed_writer_missing"
+
+
 def build_compare_real_lhs_provenance_audit_payload(
     *,
     candidate_results: Sequence[dict[str, object]],
     hook_points: Sequence[dict[str, object]] | None = None,
     static_audit: dict[str, object] | None = None,
     source_callsite_reanchor_payload: dict[str, object] | None = None,
+    source_post_handoff_exception_payload: dict[str, object] | None = None,
     sample: str = "samplereverse",
     profile: str = "samplereverse",
     run_name: str = "",
 ) -> dict[str, object]:
     hook_points = list(hook_points or _compare_real_lhs_provenance_hook_points())
     source_callsite_reanchor_payload = source_callsite_reanchor_payload or {}
+    source_post_handoff_exception_payload = source_post_handoff_exception_payload or {}
     candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
     runtime_backed_count = sum(1 for item in candidate_results if bool(item.get("runtime_backed")))
     actual_compare = _compare_callsite_side_summary(candidate_results)
@@ -13203,6 +13375,15 @@ def build_compare_real_lhs_provenance_audit_payload(
     lhs_confirmed = lhs_side == "arg0" and bool(actual_compare.get("lhs_preview_varies_by_candidate"))
     actual_compare_confirmed = str(actual_compare.get("entry_status", "")) == "confirmed"
     old_frame_rejected = lhs_confirmed and not bool(frame_anchor.get("old_slot_ebp_minus_1170_valid"))
+    source_exception_classification = str(
+        source_post_handoff_exception_payload.get("classification") or ""
+    ).strip()
+    last_writer_mode = source_exception_classification == "compare_reached_but_path_unresolved"
+    last_writer_summary, last_writer_candidates, write_ring_buffer, last_writer_breakpoint_allowed = (
+        _compare_real_lhs_last_writer_summary(candidate_results, actual_compare)
+        if last_writer_mode
+        else ({}, [], [], False)
+    )
     if old_frame_rejected:
         frame_anchor = {
             **frame_anchor,
@@ -13215,7 +13396,14 @@ def build_compare_real_lhs_provenance_audit_payload(
         and bool(esi_row.get("connects_to_compare_lhs"))
         and bool(esi_row.get("candidate_dependent"))
     )
-    if runtime_backed_count < 3 or not actual_compare_confirmed:
+    if last_writer_mode:
+        classification = _compare_real_lhs_last_writer_classification(
+            runtime_backed_count=runtime_backed_count,
+            actual_compare=actual_compare,
+            last_writer_summary=last_writer_summary,
+            last_writer_candidates=last_writer_candidates,
+        )
+    elif runtime_backed_count < 3 or not actual_compare_confirmed:
         classification = "inconclusive"
     elif identified and lhs_confirmed:
         classification = "real_lhs_producer_identified"
@@ -13236,6 +13424,16 @@ def build_compare_real_lhs_provenance_audit_payload(
         "old_frame_anchor_rejected": (
             "keep old [ebp-0x1170] blocked and hook the earlier source that loads ESI before module+0x258b"
         ),
+        "last_writer_identified": "validate bounded material hook from confirmed compare lhs last writer",
+        "writer_path_observed_but_unconnected": (
+            "narrow the retained write window before 0x258c and connect the final writer to actual arg0"
+        ),
+        "compare_lhs_runtime_backed_writer_missing": (
+            "improve bounded write ring-buffer coverage before 0x258c"
+        ),
+        "instrumentation_incomplete": (
+            "fix compare lhs last-writer instrumentation before new semantic claims"
+        ),
         "inconclusive": "rerun real-lhs provenance only after improving pre-compare push or static callsite capture",
     }.get(classification, "inspect real-lhs provenance artifact")
     payload: dict[str, object] = {
@@ -13254,6 +13452,7 @@ def build_compare_real_lhs_provenance_audit_payload(
         "candidate_limit": len(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES),
         "fixed_candidates": list(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES),
         "source_callsite_reanchor_classification": source_callsite_reanchor_payload.get("classification", ""),
+        "source_post_handoff_exception_unwind_classification": source_exception_classification,
         "hook_points": hook_points,
         "static_audit": static_audit or {},
         "runtime_backed_count": runtime_backed_count,
@@ -13288,6 +13487,9 @@ def build_compare_real_lhs_provenance_audit_payload(
             },
         ],
         "identified_producers": identified,
+        "write_ring_buffer": write_ring_buffer,
+        "last_writer_candidates": last_writer_candidates,
+        "last_writer_summary": last_writer_summary,
         "next_producer_window": {
             "start_rva": "0x2559",
             "end_rva": "0x258b",
@@ -13295,7 +13497,7 @@ def build_compare_real_lhs_provenance_audit_payload(
         }
         if classification == "lhs_register_source_confirmed"
         else {},
-        "breakpoint_probe_allowed": False,
+        "breakpoint_probe_allowed": bool(last_writer_breakpoint_allowed),
         "candidate_results": candidate_results,
         "negative_cache_updates": [
             {
@@ -13322,6 +13524,7 @@ def run_compare_real_lhs_provenance_audit(
     transform_model: SamplereverseTransformModel,
     per_probe_timeout: float,
     callsite_reanchor_payload: dict[str, object] | None = None,
+    post_handoff_exception_payload: dict[str, object] | None = None,
     run_name: str = "",
     log=None,
 ) -> dict[str, object]:
@@ -13339,6 +13542,7 @@ def run_compare_real_lhs_provenance_audit(
         hook_points=hook_points,
         static_audit=static_audit,
         source_callsite_reanchor_payload=callsite_reanchor_payload,
+        source_post_handoff_exception_payload=post_handoff_exception_payload,
         run_name=run_name,
     )
     initial_payload["candidate_count"] = len(entries)
@@ -13393,6 +13597,15 @@ def run_compare_real_lhs_provenance_audit(
             for item in compare_payload.get("hook_observations", [])
             if isinstance(item, dict)
         ]
+        if not observations and isinstance(compare_payload.get("write_ring_buffer"), list):
+            observations.append(
+                {
+                    "candidate_hex": candidate_hex,
+                    "hook_name": "static_compare_callsite",
+                    "module_offset": "0x258c",
+                    "write_ring_buffer": list(compare_payload.get("write_ring_buffer", [])),
+                }
+            )
         if not _has_actual_compare_args(observations):
             probe_out = candidate_dir / "compare_probe_static_callsite.json"
             probe_log = candidate_dir / "compare_probe_static_callsite.log"
@@ -13437,6 +13650,13 @@ def run_compare_real_lhs_provenance_audit(
                 observations.append(
                     _normalize_pre_compare_handoff_observation(fallback_observation, candidate_hex)
                 )
+        if observations and isinstance(compare_payload.get("write_ring_buffer"), list):
+            for observation in observations:
+                if str(observation.get("hook_name", "")) == "static_compare_callsite":
+                    existing_ring = observation.get("write_ring_buffer", [])
+                    if not existing_ring:
+                        observation["write_ring_buffer"] = list(compare_payload.get("write_ring_buffer", []))
+                    break
         candidate_results.append(
             {
                 "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
@@ -13456,6 +13676,7 @@ def run_compare_real_lhs_provenance_audit(
         hook_points=hook_points,
         static_audit=static_audit,
         source_callsite_reanchor_payload=callsite_reanchor_payload,
+        source_post_handoff_exception_payload=post_handoff_exception_payload,
         run_name=run_name,
     )
     _write_json(result_path, payload)
@@ -14896,6 +15117,10 @@ def _prior_compare_real_lhs_provenance_audit_has_decision() -> bool:
         "real_lhs_producer_identified",
         "lhs_register_source_confirmed",
         "old_frame_anchor_rejected",
+        "last_writer_identified",
+        "writer_path_observed_but_unconnected",
+        "compare_lhs_runtime_backed_writer_missing",
+        "instrumentation_incomplete",
     }
     current_state = _project_state_json("current_state.json")
     latest = current_state.get("latest_compare_real_lhs_provenance_audit", {})
@@ -19286,6 +19511,9 @@ class CompareAwareSearchStrategy(SolverStrategy):
             current_post_handoff_payload = _indexed_or_latest_report_artifact_payload(
                 "post_handoff_branch_outcome_audit"
             )[0]
+            current_exception_unwind_payload = _indexed_or_latest_report_artifact_payload(
+                "post_handoff_exception_unwind_audit"
+            )[0]
             current_compare_lhs_payload = _indexed_or_latest_report_artifact_payload(
                 "compare_lhs_producer_audit"
             )[0]
@@ -19312,6 +19540,11 @@ class CompareAwareSearchStrategy(SolverStrategy):
             current_state_real_lhs = current_state.get("latest_compare_real_lhs_provenance_audit", {})
             current_state_real_lhs = current_state_real_lhs if isinstance(current_state_real_lhs, dict) else {}
             current_real_lhs_payload = current_real_lhs_payload or current_state_real_lhs
+            current_state_exception_unwind = current_state.get("latest_post_handoff_exception_unwind_audit", {})
+            current_state_exception_unwind = (
+                current_state_exception_unwind if isinstance(current_state_exception_unwind, dict) else {}
+            )
+            current_exception_unwind_payload = current_exception_unwind_payload or current_state_exception_unwind
             current_esi_source_window_payload = _indexed_artifact_payload("compare_esi_source_window_audit")[0]
             current_state_esi_source = current_state.get("latest_compare_esi_source_window_audit", {})
             current_state_esi_source = current_state_esi_source if isinstance(current_state_esi_source, dict) else {}
@@ -19450,6 +19683,55 @@ class CompareAwareSearchStrategy(SolverStrategy):
                         "early_sidecar": True,
                     },
                 )
+            early_real_lhs_last_writer_decisions = {
+                "last_writer_identified",
+                "writer_path_observed_but_unconnected",
+                "compare_lhs_runtime_backed_writer_missing",
+                "instrumentation_incomplete",
+            }
+            should_run_early_real_lhs_after_exception_unwind = (
+                str(current_exception_unwind_payload.get("classification") or "").strip()
+                == "compare_reached_but_path_unresolved"
+                and str(current_real_lhs_payload.get("classification") or "").strip()
+                not in early_real_lhs_last_writer_decisions
+            )
+            if should_run_early_real_lhs_after_exception_unwind:
+                real_lhs_run = run_compare_real_lhs_provenance_audit(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "compare_real_lhs_provenance_audit",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    callsite_reanchor_payload=current_callsite_reanchor_payload,
+                    post_handoff_exception_payload=current_exception_unwind_payload,
+                    log=log,
+                )
+                real_lhs_payload = dict(real_lhs_run.get("payload", {}))
+                real_lhs_artifact = _make_search_artifact(
+                    tool_name="CompareRealLHSProvenanceAudit",
+                    output_path=Path(str(real_lhs_run["result_path"])),
+                    summary=str(
+                        real_lhs_payload.get(
+                            "classification",
+                            "compare real-lhs provenance audit complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=real_lhs_payload,
+                    derived_entries=[],
+                )
+                return StrategyResult(
+                    strategy_name=self.name,
+                    summary=real_lhs_artifact.summary,
+                    candidates=[],
+                    artifacts=[real_lhs_artifact],
+                    metadata={
+                        "resolved_anchors": discovered_anchors,
+                        "compare_real_lhs_provenance_audit": real_lhs_run,
+                        "completed_stage": "compare_real_lhs_provenance_audit",
+                        "early_sidecar": True,
+                    },
+                )
             should_run_early_esi_material_hook_validation = (
                 not _prior_material_hook_runtime_validation_has_decision()
                 and str(current_esi_source_window_payload.get("classification") or "").strip()
@@ -19543,6 +19825,8 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 )
             should_run_early_esi_source_window_audit = (
                 not _prior_compare_esi_source_window_audit_has_decision()
+                and str(current_exception_unwind_payload.get("classification") or "").strip()
+                != "compare_reached_but_path_unresolved"
                 and str(current_real_lhs_payload.get("classification") or "").strip()
                 == "lhs_register_source_confirmed"
             )
@@ -19582,10 +19866,30 @@ class CompareAwareSearchStrategy(SolverStrategy):
                         "early_sidecar": True,
                     },
                 )
-            should_run_early_real_lhs_provenance_audit = (
-                not _prior_compare_real_lhs_provenance_audit_has_decision()
-                and str(current_callsite_reanchor_payload.get("classification") or "").strip()
+            real_lhs_last_writer_decisions = {
+                "last_writer_identified",
+                "writer_path_observed_but_unconnected",
+                "compare_lhs_runtime_backed_writer_missing",
+                "instrumentation_incomplete",
+            }
+            exception_unwind_requires_real_lhs = (
+                str(current_exception_unwind_payload.get("classification") or "").strip()
+                == "compare_reached_but_path_unresolved"
+            )
+            callsite_requires_real_lhs = (
+                str(current_callsite_reanchor_payload.get("classification") or "").strip()
                 == "callsite_reanchored_but_producer_unknown"
+            )
+            should_run_early_real_lhs_provenance_audit = (
+                (
+                    exception_unwind_requires_real_lhs
+                    and str(current_real_lhs_payload.get("classification") or "").strip()
+                    not in real_lhs_last_writer_decisions
+                )
+                or (
+                    callsite_requires_real_lhs
+                    and not _prior_compare_real_lhs_provenance_audit_has_decision()
+                )
             )
             if should_run_early_real_lhs_provenance_audit:
                 real_lhs_run = run_compare_real_lhs_provenance_audit(
@@ -19594,6 +19898,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
                     transform_model=transform_model,
                     per_probe_timeout=per_probe_timeout,
                     callsite_reanchor_payload=current_callsite_reanchor_payload,
+                    post_handoff_exception_payload=current_exception_unwind_payload,
                     log=log,
                 )
                 real_lhs_payload = dict(real_lhs_run.get("payload", {}))
@@ -21756,6 +22061,11 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 payload=exception_unwind_payload,
                 derived_entries=[],
             )
+        current_exception_unwind_payload = (
+            dict(post_handoff_exception_unwind_audit_run.get("payload", {}))
+            if post_handoff_exception_unwind_audit_run
+            else _indexed_artifact_payload("post_handoff_exception_unwind_audit")[0]
+        )
         should_run_compare_lhs_producer_audit = (
             compare_lhs_producer_audit_run is None
             and not _prior_compare_lhs_producer_audit_has_decision()
@@ -21826,11 +22136,34 @@ class CompareAwareSearchStrategy(SolverStrategy):
         current_callsite_reanchor_payload = _indexed_artifact_payload(
             "compare_callsite_reanchor_and_lhs_provenance_audit"
         )[0]
+        current_real_lhs_payload_for_trigger = _indexed_artifact_payload("compare_real_lhs_provenance_audit")[0]
+        real_lhs_last_writer_decisions = {
+            "last_writer_identified",
+            "writer_path_observed_but_unconnected",
+            "compare_lhs_runtime_backed_writer_missing",
+            "instrumentation_incomplete",
+        }
+        exception_unwind_requires_real_lhs = (
+            str(current_exception_unwind_payload.get("classification") or "").strip()
+            == "compare_reached_but_path_unresolved"
+        )
+        callsite_requires_real_lhs = (
+            str(current_callsite_reanchor_payload.get("classification") or "").strip()
+            == "callsite_reanchored_but_producer_unknown"
+        )
         should_run_compare_real_lhs_provenance_audit = (
             compare_real_lhs_provenance_audit_run is None
-            and not _prior_compare_real_lhs_provenance_audit_has_decision()
-            and str(current_callsite_reanchor_payload.get("classification") or "").strip()
-            == "callsite_reanchored_but_producer_unknown"
+            and (
+                (
+                    exception_unwind_requires_real_lhs
+                    and str(current_real_lhs_payload_for_trigger.get("classification") or "").strip()
+                    not in real_lhs_last_writer_decisions
+                )
+                or (
+                    callsite_requires_real_lhs
+                    and not _prior_compare_real_lhs_provenance_audit_has_decision()
+                )
+            )
         )
         if should_run_compare_real_lhs_provenance_audit:
             compare_real_lhs_provenance_audit_run = run_compare_real_lhs_provenance_audit(
@@ -21839,6 +22172,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 transform_model=transform_model,
                 per_probe_timeout=per_probe_timeout,
                 callsite_reanchor_payload=current_callsite_reanchor_payload,
+                post_handoff_exception_payload=current_exception_unwind_payload,
                 log=log,
             )
             real_lhs_payload = dict(compare_real_lhs_provenance_audit_run.get("payload", {}))
@@ -21865,6 +22199,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
         should_run_compare_esi_source_window_audit = (
             compare_esi_source_window_audit_run is None
             and not _prior_compare_esi_source_window_audit_has_decision()
+            and not exception_unwind_requires_real_lhs
             and str(current_real_lhs_payload.get("classification") or "").strip()
             == "lhs_register_source_confirmed"
         )

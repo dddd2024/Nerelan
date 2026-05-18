@@ -80,16 +80,6 @@
     "severity": "soft_block"
   },
   {
-    "direction": "run Base64/RC4 breakpoint probe before exception/unwind material gates close",
-    "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_401b50_exception_unwind_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\post_handoff_exception_unwind_audit.json",
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "exception/unwind audit keeps breakpoint probing blocked until actual compare lhs, connected producer, and candidate-dependent transform material are all runtime-backed",
-    "scope": "post_handoff_exception_unwind_audit",
-    "severity": "soft_block"
-  },
-  {
     "direction": "treat 0x4019e0 as Base64/RC4 material producer without new semantic evidence",
     "do_not_repeat": true,
     "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
@@ -131,6 +121,26 @@
     "override_reason_required": true,
     "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
     "scope": "function_semantics",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "reuse old [ebp-0x1170] without real-lhs provenance evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_last_writer_20260518_r2\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "old frame anchor still is not a runtime-backed source for confirmed compare arg0",
+    "scope": "compare_real_lhs_provenance_audit",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "run Base64/RC4 breakpoint probe before real lhs producer identification",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_last_writer_20260518_r2\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "breakpoint probing remains blocked until a runtime-backed real lhs producer is identified",
+    "scope": "compare_real_lhs_provenance_audit",
     "severity": "soft_block"
   }
 ]

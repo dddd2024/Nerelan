@@ -4927,6 +4927,7 @@ def _compare_real_lhs_candidate_result(
     *,
     esi_matches: bool = True,
     old_frame_matches: bool = False,
+    write_events: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
     result = _compare_callsite_reanchor_candidate_result(
         candidate_hex,
@@ -4948,6 +4949,11 @@ def _compare_real_lhs_candidate_result(
             "esi_preview_hex": esi_preview,
         }
     )
+    if write_events is not None:
+        for observation in result["hook_observations"]:
+            if observation["hook_name"] == "static_compare_callsite":
+                observation["write_ring_buffer"] = write_events
+                break
     return result
 
 
@@ -7533,6 +7539,151 @@ def test_compare_real_lhs_provenance_confirms_esi_from_static_callsite_snapshot(
     assert esi_evidence["connects_to_compare_lhs"] is True
 
 
+def _last_writer_event(
+    ptr: str,
+    preview: str,
+    *,
+    sequence: int = 1,
+    address: str | None = None,
+    after_preview: str | None = None,
+    transform_material_backed: bool = False,
+) -> dict[str, object]:
+    return {
+        "sequence": sequence,
+        "address": address or ptr,
+        "size": 8,
+        "instruction_address": "0x402400",
+        "module_offset": "0x2400",
+        "instruction": "mov dword ptr [edi], eax",
+        "before_preview_hex": "00" * 32,
+        "after_preview_hex": after_preview if after_preview is not None else preview,
+        "arg0_value": ptr,
+        "arg0_preview_hex": preview,
+        "intersects_arg0": address is None,
+        "transform_material_backed": transform_material_backed,
+    }
+
+
+def test_compare_real_lhs_last_writer_requires_all_three_candidates() -> None:
+    candidates = [
+        _compare_real_lhs_candidate_result(
+            "78d540b49c59077041414141414141",
+            "0x1100",
+            "aa" * 32,
+            write_events=[_last_writer_event("0x1100", "aa" * 32)],
+        ),
+        _compare_real_lhs_candidate_result(
+            "5a3e7f46ddd474d041414141414141",
+            "0x2200",
+            "bb" * 32,
+            write_events=[_last_writer_event("0x2200", "bb" * 32)],
+        ),
+        _compare_real_lhs_candidate_result(
+            "78d540b49c59076f41414141414141",
+            "0x3300",
+            "cc" * 32,
+            write_events=[],
+        ),
+    ]
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
+    assert payload["last_writer_summary"]["runtime_backed_count"] == 2
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_real_lhs_last_writer_filters_retained_writes_after_arg0_known() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[
+                    _last_writer_event(ptr, preview, sequence=1, address="0x9000", after_preview="11" * 32),
+                    _last_writer_event(ptr, preview, sequence=2),
+                ],
+            )
+        )
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    assert payload["classification"] == "last_writer_identified"
+    assert payload["last_writer_summary"]["runtime_backed_count"] == 3
+    assert all(row["sequence"] == 2 for row in payload["last_writer_candidates"])
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_real_lhs_last_writer_rejects_after_preview_mismatch() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[_last_writer_event(ptr, preview, after_preview="dd" * 32)],
+            )
+        )
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    assert payload["classification"] == "writer_path_observed_but_unconnected"
+    assert payload["last_writer_summary"]["match_count"] == 0
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_real_lhs_last_writer_breakpoint_gate_requires_transform_material() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[
+                    _last_writer_event(
+                        ptr,
+                        preview,
+                        transform_material_backed=True,
+                    )
+                ],
+            )
+        )
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    assert payload["classification"] == "last_writer_identified"
+    assert payload["last_writer_summary"]["transform_material_backed"] is True
+    assert payload["breakpoint_probe_allowed"] is True
+
+
 def test_compare_probe_fallback_observation_carries_esi_snapshot() -> None:
     observation = compare_aware_search._compare_probe_payload_to_static_callsite_observation(
         {
@@ -8186,6 +8337,102 @@ def test_compare_aware_strategy_runs_real_lhs_sidecar_after_callsite_reanchor(
     assert result.metadata["early_sidecar"] is True
     assert captured["artifacts_dir"] == "compare_real_lhs_provenance_audit"
     assert captured["source_classification"] == "callsite_reanchored_but_producer_unknown"
+    assert Path(str(result.artifacts[0].output_path)).name == COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME
+
+
+def test_compare_aware_strategy_runs_real_lhs_sidecar_after_exception_unwind(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    exception_payload = {
+        "classification": "compare_reached_but_path_unresolved",
+        "breakpoint_probe_allowed": False,
+    }
+    material_payload = {
+        "artifact_kind": "material_hook_runtime_validation",
+        "classification": "REJECTED",
+        "candidate_count": 3,
+        "runtime_backed_count": 0,
+        "source_compare_esi_source_window_classification": "esi_source_identified",
+        "breakpoint_probe_allowed": False,
+    }
+    captured: dict[str, object] = {}
+
+    def fake_indexed_artifact_payload(kind):
+        return (
+            {
+                "post_handoff_exception_unwind_audit": exception_payload,
+                "material_hook_runtime_validation": material_payload,
+            }.get(kind, {}),
+            "",
+        )
+
+    def fake_run_real_lhs_audit(**kwargs):
+        captured["artifacts_dir"] = Path(kwargs["artifacts_dir"]).name
+        captured["source_classification"] = kwargs["post_handoff_exception_payload"]["classification"]
+        result_path = Path(kwargs["artifacts_dir"]) / COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "artifact_kind": "compare_real_lhs_provenance_audit",
+            "classification": "compare_lhs_runtime_backed_writer_missing",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {"lhs_side": "arg0", "flag_side": "arg1"},
+            "last_writer_summary": {"runtime_backed_count": 0},
+            "last_writer_candidates": [],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "improve bounded write ring-buffer coverage before 0x258c",
+        }
+        result_path.write_text(json.dumps(payload), encoding="utf-8")
+        return {
+            "result_path": str(result_path),
+            "payload": payload,
+            "validations": [],
+            "promotable_validations": [],
+        }
+
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_project_state_json",
+        lambda name: {
+            "latest_post_handoff_exception_unwind_audit": exception_payload,
+            "latest_material_hook_runtime_validation": material_payload,
+        }
+        if name == "current_state.json"
+        else {},
+    )
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed_artifact_payload)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "_indexed_or_latest_report_artifact_payload",
+        fake_indexed_artifact_payload,
+    )
+    monkeypatch.setattr(compare_aware_search, "run_compare_real_lhs_provenance_audit", fake_run_real_lhs_audit)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_lhs_slot_writer_source_audit",
+        lambda **kwargs: pytest.fail("slot writer source audit should not preempt exception-triggered real-lhs audit"),
+    )
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for exception-triggered real-lhs sidecar"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "compare_real_lhs_provenance_audit"
+    assert result.metadata["early_sidecar"] is True
+    assert captured["artifacts_dir"] == "compare_real_lhs_provenance_audit"
+    assert captured["source_classification"] == "compare_reached_but_path_unresolved"
     assert Path(str(result.artifacts[0].output_path)).name == COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME
 
 

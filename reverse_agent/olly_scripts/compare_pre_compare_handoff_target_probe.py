@@ -29,6 +29,7 @@ def _normalize_hook_point(item: dict[str, object] | None) -> dict[str, object]:
         "reason": str(item.get("reason", "")),
         "role": str(item.get("role", "")),
         "capture_leave": bool(item.get("capture_leave")),
+        "capture_write_ring": bool(item.get("capture_write_ring")),
     }
 
 
@@ -65,6 +66,9 @@ def _normalize_observation(item: dict[str, object] | None) -> dict[str, object]:
         "current_module_offset": str(item.get("current_module_offset", "")),
         "return_value": str(item.get("return_value", "")),
         "exception": dict(item.get("exception", {})) if isinstance(item.get("exception"), dict) else {},
+        "write_ring_buffer": list(item.get("write_ring_buffer", []))
+        if isinstance(item.get("write_ring_buffer"), list)
+        else [],
     }
 
 
@@ -181,6 +185,10 @@ def main() -> int:
 const hookPoints = {points_json};
 const expectedEaxPreview = "{expected_preview}";
 const frameSlotOffsets = {json.dumps(list(FRAME_SLOT_OFFSETS))};
+const writeRingEnabled = hookPoints.some(point => Boolean(point.capture_write_ring));
+const writeRingLimit = 4096;
+const writeRing = [];
+let writeSequence = 0;
 
 function hexBytes(raw) {{
     if (!raw) {{
@@ -220,6 +228,174 @@ function moduleOffsetText(value, moduleBase) {{
     }} catch (error) {{
         return "";
     }}
+}}
+
+function pointerValue(value) {{
+    try {{
+        if (!value || value.isNull()) {{
+            return 0;
+        }}
+        return parseInt(value.toString(), 16);
+    }} catch (error) {{
+        return 0;
+    }}
+}}
+
+function rangesIntersect(aStart, aSize, bStart, bSize) {{
+    const aEnd = aStart + Math.max(aSize || 1, 1);
+    const bEnd = bStart + Math.max(bSize || 1, 1);
+    return aStart < bEnd && bStart < aEnd;
+}}
+
+function contextRegisterValue(context, name) {{
+    try {{
+        if (!name) {{
+            return ptr(0);
+        }}
+        const normalized = String(name).toLowerCase();
+        if (context[normalized] !== undefined) {{
+            return safePointer(context[normalized]);
+        }}
+        const aliases = {{
+            eip: "pc",
+            rip: "pc",
+            esp: "sp",
+            rsp: "sp",
+            ebp: "bp",
+            rbp: "bp",
+        }};
+        const alias = aliases[normalized] || "";
+        if (alias && context[alias] !== undefined) {{
+            return safePointer(context[alias]);
+        }}
+    }} catch (error) {{
+    }}
+    return ptr(0);
+}}
+
+function operandSizeBytes(instruction, operand) {{
+    try {{
+        if (operand && operand.size) {{
+            return Number(operand.size);
+        }}
+    }} catch (error) {{
+    }}
+    const text = String(instruction || "").toLowerCase();
+    if (text.indexOf("xmmword ptr") >= 0) {{
+        return 16;
+    }}
+    if (text.indexOf("qword ptr") >= 0) {{
+        return 8;
+    }}
+    if (text.indexOf("dword ptr") >= 0) {{
+        return 4;
+    }}
+    if (text.indexOf("word ptr") >= 0) {{
+        return 2;
+    }}
+    if (text.indexOf("byte ptr") >= 0) {{
+        return 1;
+    }}
+    return Process.pointerSize;
+}}
+
+function memoryWriteDescriptor(instruction) {{
+    try {{
+        const operands = instruction.operands || [];
+        if (!operands.length) {{
+            return null;
+        }}
+        const operand = operands[0];
+        const access = String(operand.access || "");
+        if (operand.type !== "mem" || (access && access.indexOf("w") < 0)) {{
+            return null;
+        }}
+        const mem = operand.value || {{}};
+        return {{
+            base: String(mem.base || ""),
+            index: String(mem.index || ""),
+            scale: Number(mem.scale || 1),
+            disp: Number(mem.disp || mem.displacement || 0),
+            size: operandSizeBytes(instruction, operand),
+            instruction: instruction.toString(),
+            module_offset: moduleOffsetText(instruction.address, mainModule.base),
+            address: instruction.address.toString(),
+        }};
+    }} catch (error) {{
+        return null;
+    }}
+}}
+
+function memoryAddressFromDescriptor(context, descriptor) {{
+    try {{
+        let value = 0;
+        if (descriptor.base) {{
+            value += pointerValue(contextRegisterValue(context, descriptor.base));
+        }}
+        if (descriptor.index) {{
+            value += pointerValue(contextRegisterValue(context, descriptor.index)) * Number(descriptor.scale || 1);
+        }}
+        if (descriptor.disp) {{
+            value += Number(descriptor.disp || 0);
+        }}
+        return ptr(value);
+    }} catch (error) {{
+        return ptr(0);
+    }}
+}}
+
+function recordMemoryWrite(context, descriptor) {{
+    if (!writeRingEnabled || !descriptor) {{
+        return;
+    }}
+    try {{
+        const address = memoryAddressFromDescriptor(context, descriptor);
+        if (!address || address.isNull()) {{
+            return;
+        }}
+        writeRing.push({{
+            sequence: writeSequence++,
+            address: address.toString(),
+            address_u64: pointerValue(address),
+            size: Number(descriptor.size || Process.pointerSize),
+            instruction_address: descriptor.address,
+            module_offset: descriptor.module_offset,
+            instruction: descriptor.instruction,
+            before_preview_hex: readBytes(address, 96),
+        }});
+        if (writeRing.length > writeRingLimit) {{
+            writeRing.shift();
+        }}
+    }} catch (error) {{
+    }}
+}}
+
+function filteredWriteRing(compareSlots) {{
+    if (!writeRingEnabled || !compareSlots || compareSlots.length < 2) {{
+        return [];
+    }}
+    const arg0 = compareSlots[1] || {{}};
+    const arg0Start = pointerValue(safePointer(arg0.value || 0));
+    const previewHex = String(arg0.preview_hex || "");
+    const arg0Size = Math.max(Math.floor(previewHex.length / 2), 16);
+    if (!arg0Start) {{
+        return [];
+    }}
+    let out = [];
+    for (const item of writeRing) {{
+        const itemStart = Number(item.address_u64 || 0);
+        const itemSize = Number(item.size || 1);
+        if (!itemStart || !rangesIntersect(itemStart, itemSize, arg0Start, arg0Size)) {{
+            continue;
+        }}
+        out.push(Object.assign({{}}, item, {{
+            intersects_arg0: true,
+            arg0_value: String(arg0.value || ""),
+            arg0_preview_hex: previewHex,
+            after_preview_hex: readBytes(safePointer(item.address || 0), 96),
+        }}));
+    }}
+    return out.slice(-64);
 }}
 
 function contextRegs(context) {{
@@ -378,10 +554,34 @@ function observe(point, address, context, eventName, extra) {{
         current_module_offset: moduleOffsetText(ip, mainModule.base),
         return_value: String(extra.return_value || ""),
         exception: extra.exception || {{}},
+        write_ring_buffer: isStaticCompareCallsite ? filteredWriteRing(compareSlots) : [],
     }});
 }}
 
 const mainModule = Process.enumerateModules()[0];
+if (writeRingEnabled) {{
+    try {{
+        for (const thread of Process.enumerateThreads()) {{
+            Stalker.follow(thread.id, {{
+                transform(iterator) {{
+                    let instruction = iterator.next();
+                    while (instruction !== null) {{
+                        const descriptor = memoryWriteDescriptor(instruction);
+                        if (descriptor) {{
+                            iterator.putCallout(function(context) {{
+                                recordMemoryWrite(context, descriptor);
+                            }});
+                        }}
+                        iterator.keep();
+                        instruction = iterator.next();
+                    }}
+                }},
+            }});
+        }}
+    }} catch (error) {{
+        send({{ type: "compare_pre_compare_handoff_target_error", hook_name: "write_ring_buffer", error: String(error) }});
+    }}
+}}
 try {{
     Process.setExceptionHandler(function(details) {{
         const address = safePointer(details.address || 0);

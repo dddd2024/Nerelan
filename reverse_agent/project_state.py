@@ -1124,6 +1124,10 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "relation_table": compare_real_lhs_provenance_audit.get("relation_table", [])[:8]
             if isinstance(compare_real_lhs_provenance_audit.get("relation_table"), list)
             else [],
+            "last_writer_summary": compare_real_lhs_provenance_audit.get("last_writer_summary", {}),
+            "last_writer_candidates": compare_real_lhs_provenance_audit.get("last_writer_candidates", [])[:3]
+            if isinstance(compare_real_lhs_provenance_audit.get("last_writer_candidates"), list)
+            else [],
             "identified_producers": compare_real_lhs_provenance_audit.get("identified_producers", [])[:3]
             if isinstance(compare_real_lhs_provenance_audit.get("identified_producers"), list)
             else [],
@@ -1887,6 +1891,9 @@ def build_negative_results(artifact_index: dict[str, Any] | None = None) -> list
     if real_lhs_provenance_classification in {
         "lhs_register_source_confirmed",
         "old_frame_anchor_rejected",
+        "writer_path_observed_but_unconnected",
+        "compare_lhs_runtime_backed_writer_missing",
+        "instrumentation_incomplete",
         "inconclusive",
     }:
         results.append(
@@ -2104,6 +2111,14 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
     latest_material_hook = current_state.get("latest_material_hook_runtime_validation", {})
     latest_material_hook = latest_material_hook if isinstance(latest_material_hook, dict) else {}
     source_esi = str(latest_material_hook.get("source_compare_esi_source_window_classification") or "")
+    if stage == "compare_real_lhs_provenance_audit" and reason == "last_writer_identified":
+        return "Validate bounded material hook from confirmed compare lhs last writer"
+    if stage == "compare_real_lhs_provenance_audit" and reason in {
+        "writer_path_observed_but_unconnected",
+        "compare_lhs_runtime_backed_writer_missing",
+        "instrumentation_incomplete",
+    }:
+        return "Improve compare lhs last-writer instrumentation"
     if stage == "compare_real_lhs_provenance_audit" and reason == "lhs_register_source_confirmed":
         return "Trace ESI source window 0x2559..0x258b"
     if stage == "material_hook_runtime_validation" and reason == "ACCEPT" and source_esi == "esi_source_identified":
