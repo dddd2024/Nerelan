@@ -8758,6 +8758,9 @@ def _normalize_material_confirmation_observation(item: dict[str, object], candid
         "current_module_offset": str(item.get("current_module_offset", "")),
         "return_value": str(item.get("return_value", "")),
         "exception": dict(item.get("exception", {})) if isinstance(item.get("exception"), dict) else {},
+        "write_monitor_health": dict(item.get("write_monitor_health", {}))
+        if isinstance(item.get("write_monitor_health"), dict)
+        else {},
         "write_ring_buffer": list(item.get("write_ring_buffer", []))
         if isinstance(item.get("write_ring_buffer"), list)
         else [],
@@ -13230,6 +13233,55 @@ def _compare_real_lhs_write_ring_events(result: dict[str, object]) -> list[dict[
     return events
 
 
+def _compare_real_lhs_write_monitor_health(result: dict[str, object]) -> dict[str, object]:
+    health_rows: list[dict[str, object]] = []
+    for observation in result.get("hook_observations", []):
+        if not isinstance(observation, dict):
+            continue
+        health = observation.get("write_monitor_health", {})
+        if isinstance(health, dict) and health:
+            health_rows.append(dict(health))
+    if not health_rows:
+        return {"observed": False}
+
+    def _sum_int(field: str) -> int:
+        total = 0
+        for row in health_rows:
+            try:
+                total += int(row.get(field, 0) or 0)
+            except (TypeError, ValueError):
+                continue
+        return total
+
+    def _max_int(field: str) -> int:
+        values: list[int] = []
+        for row in health_rows:
+            try:
+                values.append(int(row.get(field, 0) or 0))
+            except (TypeError, ValueError):
+                continue
+        return max(values) if values else 0
+
+    samples: list[dict[str, object]] = []
+    for row in health_rows:
+        row_samples = row.get("last_raw_write_samples", [])
+        if isinstance(row_samples, list):
+            samples.extend([dict(item) for item in row_samples if isinstance(item, dict)])
+    return {
+        "observed": True,
+        "enabled": any(bool(row.get("enabled")) for row in health_rows),
+        "followed_thread_count": _sum_int("followed_thread_count"),
+        "raw_write_count": _sum_int("raw_write_count"),
+        "ring_capacity": _max_int("ring_capacity"),
+        "eviction_count": _sum_int("eviction_count"),
+        "descriptor_decode_failures": _sum_int("descriptor_decode_failures"),
+        "address_decode_failures": _sum_int("address_decode_failures"),
+        "follow_failures": _sum_int("follow_failures"),
+        "last_raw_write_samples": samples[-8:],
+        "filtered_intersecting_write_count": _sum_int("filtered_intersecting_write_count"),
+    }
+
+
 def _compare_real_lhs_last_writer_summary(
     candidate_results: Sequence[dict[str, object]],
     actual_compare: dict[str, object],
@@ -13244,12 +13296,15 @@ def _compare_real_lhs_last_writer_summary(
     missing_candidates: list[str] = []
     final_previews: dict[str, str] = {}
     transform_backed_count = 0
+    monitor_rows: list[dict[str, object]] = []
 
     for result in candidate_results:
         candidate_hex = str(result.get("candidate_hex", ""))
+        monitor_health = _compare_real_lhs_write_monitor_health(result)
+        monitor_rows.append({"candidate_hex": candidate_hex, **monitor_health})
         events = _compare_real_lhs_write_ring_events(result)
-        retained_ring.extend(events[-64:])
         intersecting = [event for event in events if bool(event.get("intersects_arg0"))]
+        retained_ring.extend(intersecting[-64:])
         if not intersecting:
             missing_candidates.append(candidate_hex)
             continue
@@ -13291,6 +13346,32 @@ def _compare_real_lhs_last_writer_summary(
     candidate_dependent = len({value for value in final_previews.values() if value}) > 1
     connected = runtime_backed_count >= expected_count and match_count >= expected_count
     transform_material_backed = transform_backed_count >= expected_count
+    observed_monitor_rows = [row for row in monitor_rows if bool(row.get("observed"))]
+    write_monitor_health = {
+        "observed_candidate_count": len(observed_monitor_rows),
+        "enabled": any(bool(row.get("enabled")) for row in observed_monitor_rows),
+        "followed_thread_count": sum(int(row.get("followed_thread_count", 0) or 0) for row in observed_monitor_rows),
+        "raw_write_count": sum(int(row.get("raw_write_count", 0) or 0) for row in observed_monitor_rows),
+        "ring_capacity": max([int(row.get("ring_capacity", 0) or 0) for row in observed_monitor_rows] or [0]),
+        "eviction_count": sum(int(row.get("eviction_count", 0) or 0) for row in observed_monitor_rows),
+        "descriptor_decode_failures": sum(
+            int(row.get("descriptor_decode_failures", 0) or 0) for row in observed_monitor_rows
+        ),
+        "address_decode_failures": sum(
+            int(row.get("address_decode_failures", 0) or 0) for row in observed_monitor_rows
+        ),
+        "follow_failures": sum(int(row.get("follow_failures", 0) or 0) for row in observed_monitor_rows),
+        "last_raw_write_samples": [
+            sample
+            for row in observed_monitor_rows
+            for sample in row.get("last_raw_write_samples", [])
+            if isinstance(sample, dict)
+        ][-8:],
+        "filtered_intersecting_write_count": sum(
+            int(row.get("filtered_intersecting_write_count", 0) or 0) for row in observed_monitor_rows
+        ),
+        "per_candidate": monitor_rows,
+    }
     summary = {
         "enabled": True,
         "expected_candidate_count": expected_count,
@@ -13304,6 +13385,7 @@ def _compare_real_lhs_last_writer_summary(
         "actual_compare_arg0_runtime_backed": actual_compare_ready,
         "final_writer_previews": final_previews,
         "retained_write_count": len(retained_ring),
+        "write_monitor_health": write_monitor_health,
     }
     breakpoint_allowed = bool(connected and candidate_dependent and transform_material_backed)
     return summary, writer_rows, retained_ring[-192:], breakpoint_allowed
@@ -13318,12 +13400,20 @@ def _compare_real_lhs_last_writer_classification(
 ) -> str:
     expected_count = len(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES)
     actual_compare_ready = bool(last_writer_summary.get("actual_compare_arg0_runtime_backed"))
+    monitor_health = last_writer_summary.get("write_monitor_health", {})
+    monitor_health = monitor_health if isinstance(monitor_health, dict) else {}
+    monitor_observed_count = int(monitor_health.get("observed_candidate_count", 0) or 0)
+    monitor_enabled = bool(monitor_health.get("enabled"))
+    followed_thread_count = int(monitor_health.get("followed_thread_count", 0) or 0)
+    raw_write_count = int(monitor_health.get("raw_write_count", 0) or 0)
     if runtime_backed_count < expected_count or not actual_compare_ready:
+        return "instrumentation_incomplete"
+    if monitor_observed_count > 0 and (not monitor_enabled or followed_thread_count <= 0 or raw_write_count <= 0):
         return "instrumentation_incomplete"
     if not last_writer_candidates:
         return "compare_lhs_runtime_backed_writer_missing"
     if int(last_writer_summary.get("runtime_backed_count", 0) or 0) < expected_count:
-        return "compare_lhs_runtime_backed_writer_missing"
+        return "writer_path_observed_but_unconnected"
     if bool(last_writer_summary.get("connects_to_actual_arg0")) and bool(
         last_writer_summary.get("candidate_dependent")
     ):
@@ -13487,6 +13577,9 @@ def build_compare_real_lhs_provenance_audit_payload(
             },
         ],
         "identified_producers": identified,
+        "write_monitor_health": last_writer_summary.get("write_monitor_health", {})
+        if isinstance(last_writer_summary, dict)
+        else {},
         "write_ring_buffer": write_ring_buffer,
         "last_writer_candidates": last_writer_candidates,
         "last_writer_summary": last_writer_summary,
@@ -13603,6 +13696,9 @@ def run_compare_real_lhs_provenance_audit(
                     "candidate_hex": candidate_hex,
                     "hook_name": "static_compare_callsite",
                     "module_offset": "0x258c",
+                    "write_monitor_health": dict(compare_payload.get("write_monitor_health", {}))
+                    if isinstance(compare_payload.get("write_monitor_health"), dict)
+                    else {},
                     "write_ring_buffer": list(compare_payload.get("write_ring_buffer", [])),
                 }
             )
@@ -13653,6 +13749,11 @@ def run_compare_real_lhs_provenance_audit(
         if observations and isinstance(compare_payload.get("write_ring_buffer"), list):
             for observation in observations:
                 if str(observation.get("hook_name", "")) == "static_compare_callsite":
+                    if (
+                        not observation.get("write_monitor_health")
+                        and isinstance(compare_payload.get("write_monitor_health"), dict)
+                    ):
+                        observation["write_monitor_health"] = dict(compare_payload.get("write_monitor_health", {}))
                     existing_ring = observation.get("write_ring_buffer", [])
                     if not existing_ring:
                         observation["write_ring_buffer"] = list(compare_payload.get("write_ring_buffer", []))

@@ -1367,6 +1367,12 @@ def test_project_state_routes_compare_real_lhs_last_writer(tmp_path: Path) -> No
                 "candidate_dependent": True,
                 "transform_material_backed": False,
             },
+            "write_monitor_health": {
+                "enabled": True,
+                "followed_thread_count": 3,
+                "raw_write_count": 24,
+                "filtered_intersecting_write_count": 3,
+            },
             "last_writer_candidates": [
                 {
                     "candidate_hex": "78d540b49c59077041414141414141",
@@ -1386,6 +1392,7 @@ def test_project_state_routes_compare_real_lhs_last_writer(tmp_path: Path) -> No
     latest = current_state["latest_compare_real_lhs_provenance_audit"]
     assert latest["classification"] == "last_writer_identified"
     assert latest["last_writer_summary"]["runtime_backed_count"] == 3
+    assert latest["write_monitor_health"]["raw_write_count"] == 24
     assert latest["last_writer_candidates"][0]["module_offset"] == "0x2400"
     assert task_packet["task"] == "Validate bounded material hook from confirmed compare lhs last writer"
 

@@ -66,6 +66,9 @@ def _normalize_observation(item: dict[str, object] | None) -> dict[str, object]:
         "current_module_offset": str(item.get("current_module_offset", "")),
         "return_value": str(item.get("return_value", "")),
         "exception": dict(item.get("exception", {})) if isinstance(item.get("exception"), dict) else {},
+        "write_monitor_health": dict(item.get("write_monitor_health", {}))
+        if isinstance(item.get("write_monitor_health"), dict)
+        else {},
         "write_ring_buffer": list(item.get("write_ring_buffer", []))
         if isinstance(item.get("write_ring_buffer"), list)
         else [],
@@ -188,7 +191,14 @@ const frameSlotOffsets = {json.dumps(list(FRAME_SLOT_OFFSETS))};
 const writeRingEnabled = hookPoints.some(point => Boolean(point.capture_write_ring));
 const writeRingLimit = 4096;
 const writeRing = [];
+const lastRawWriteSamples = [];
 let writeSequence = 0;
+let writeMonitorFollowedThreadCount = 0;
+let writeMonitorRawWriteCount = 0;
+let writeMonitorEvictionCount = 0;
+let writeMonitorDescriptorDecodeFailures = 0;
+let writeMonitorAddressDecodeFailures = 0;
+let writeMonitorFollowFailures = 0;
 
 function hexBytes(raw) {{
     if (!raw) {{
@@ -322,6 +332,7 @@ function memoryWriteDescriptor(instruction) {{
             address: instruction.address.toString(),
         }};
     }} catch (error) {{
+        writeMonitorDescriptorDecodeFailures++;
         return null;
     }}
 }}
@@ -340,6 +351,7 @@ function memoryAddressFromDescriptor(context, descriptor) {{
         }}
         return ptr(value);
     }} catch (error) {{
+        writeMonitorAddressDecodeFailures++;
         return ptr(0);
     }}
 }}
@@ -351,9 +363,11 @@ function recordMemoryWrite(context, descriptor) {{
     try {{
         const address = memoryAddressFromDescriptor(context, descriptor);
         if (!address || address.isNull()) {{
+            writeMonitorAddressDecodeFailures++;
             return;
         }}
-        writeRing.push({{
+        writeMonitorRawWriteCount++;
+        const event = {{
             sequence: writeSequence++,
             address: address.toString(),
             address_u64: pointerValue(address),
@@ -362,11 +376,26 @@ function recordMemoryWrite(context, descriptor) {{
             module_offset: descriptor.module_offset,
             instruction: descriptor.instruction,
             before_preview_hex: readBytes(address, 96),
+        }};
+        writeRing.push(event);
+        lastRawWriteSamples.push({{
+            sequence: event.sequence,
+            address: event.address,
+            size: event.size,
+            instruction_address: event.instruction_address,
+            module_offset: event.module_offset,
+            instruction: event.instruction,
+            before_preview_hex: event.before_preview_hex,
         }});
+        if (lastRawWriteSamples.length > 8) {{
+            lastRawWriteSamples.shift();
+        }}
         if (writeRing.length > writeRingLimit) {{
             writeRing.shift();
+            writeMonitorEvictionCount++;
         }}
     }} catch (error) {{
+        writeMonitorAddressDecodeFailures++;
     }}
 }}
 
@@ -396,6 +425,21 @@ function filteredWriteRing(compareSlots) {{
         }}));
     }}
     return out.slice(-64);
+}}
+
+function writeMonitorHealth(filteredWrites) {{
+    return {{
+        enabled: Boolean(writeRingEnabled),
+        followed_thread_count: writeMonitorFollowedThreadCount,
+        raw_write_count: writeMonitorRawWriteCount,
+        ring_capacity: writeRingLimit,
+        eviction_count: writeMonitorEvictionCount,
+        descriptor_decode_failures: writeMonitorDescriptorDecodeFailures,
+        address_decode_failures: writeMonitorAddressDecodeFailures,
+        follow_failures: writeMonitorFollowFailures,
+        last_raw_write_samples: lastRawWriteSamples.slice(-8),
+        filtered_intersecting_write_count: filteredWrites ? filteredWrites.length : 0,
+    }};
 }}
 
 function contextRegs(context) {{
@@ -522,6 +566,7 @@ function observe(point, address, context, eventName, extra) {{
         : isHelperCompare
             ? compareEntrySlots(sp, mainModule.base)
             : [];
+    const filteredWrites = isStaticCompareCallsite ? filteredWriteRing(compareSlots) : [];
     send({{
         type: "compare_pre_compare_handoff_target_observation",
         hook_name: pointName,
@@ -554,7 +599,8 @@ function observe(point, address, context, eventName, extra) {{
         current_module_offset: moduleOffsetText(ip, mainModule.base),
         return_value: String(extra.return_value || ""),
         exception: extra.exception || {{}},
-        write_ring_buffer: isStaticCompareCallsite ? filteredWriteRing(compareSlots) : [],
+        write_monitor_health: isStaticCompareCallsite ? writeMonitorHealth(filteredWrites) : {{}},
+        write_ring_buffer: filteredWrites,
     }});
 }}
 
@@ -562,21 +608,26 @@ const mainModule = Process.enumerateModules()[0];
 if (writeRingEnabled) {{
     try {{
         for (const thread of Process.enumerateThreads()) {{
-            Stalker.follow(thread.id, {{
-                transform(iterator) {{
-                    let instruction = iterator.next();
-                    while (instruction !== null) {{
-                        const descriptor = memoryWriteDescriptor(instruction);
-                        if (descriptor) {{
-                            iterator.putCallout(function(context) {{
-                                recordMemoryWrite(context, descriptor);
-                            }});
+            try {{
+                Stalker.follow(thread.id, {{
+                    transform(iterator) {{
+                        let instruction = iterator.next();
+                        while (instruction !== null) {{
+                            const descriptor = memoryWriteDescriptor(instruction);
+                            if (descriptor) {{
+                                iterator.putCallout(function(context) {{
+                                    recordMemoryWrite(context, descriptor);
+                                }});
+                            }}
+                            iterator.keep();
+                            instruction = iterator.next();
                         }}
-                        iterator.keep();
-                        instruction = iterator.next();
-                    }}
-                }},
-            }});
+                    }},
+                }});
+                writeMonitorFollowedThreadCount++;
+            }} catch (error) {{
+                writeMonitorFollowFailures++;
+            }}
         }}
     }} catch (error) {{
         send({{ type: "compare_pre_compare_handoff_target_error", hook_name: "write_ring_buffer", error: String(error) }});

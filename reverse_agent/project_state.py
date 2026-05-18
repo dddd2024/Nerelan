@@ -1125,6 +1125,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             if isinstance(compare_real_lhs_provenance_audit.get("relation_table"), list)
             else [],
             "last_writer_summary": compare_real_lhs_provenance_audit.get("last_writer_summary", {}),
+            "write_monitor_health": compare_real_lhs_provenance_audit.get("write_monitor_health", {}),
             "last_writer_candidates": compare_real_lhs_provenance_audit.get("last_writer_candidates", [])[:3]
             if isinstance(compare_real_lhs_provenance_audit.get("last_writer_candidates"), list)
             else [],

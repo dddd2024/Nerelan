@@ -4928,6 +4928,7 @@ def _compare_real_lhs_candidate_result(
     esi_matches: bool = True,
     old_frame_matches: bool = False,
     write_events: list[dict[str, object]] | None = None,
+    write_monitor_health: dict[str, object] | None = None,
 ) -> dict[str, object]:
     result = _compare_callsite_reanchor_candidate_result(
         candidate_hex,
@@ -4953,6 +4954,8 @@ def _compare_real_lhs_candidate_result(
         for observation in result["hook_observations"]:
             if observation["hook_name"] == "static_compare_callsite":
                 observation["write_ring_buffer"] = write_events
+                if write_monitor_health is not None:
+                    observation["write_monitor_health"] = dict(write_monitor_health)
                 break
     return result
 
@@ -7564,6 +7567,94 @@ def _last_writer_event(
     }
 
 
+def _write_monitor_health(
+    *,
+    raw_write_count: int,
+    filtered_intersecting_write_count: int = 0,
+    followed_thread_count: int = 1,
+) -> dict[str, object]:
+    return {
+        "enabled": True,
+        "followed_thread_count": followed_thread_count,
+        "raw_write_count": raw_write_count,
+        "ring_capacity": 4096,
+        "eviction_count": 0,
+        "descriptor_decode_failures": 0,
+        "last_raw_write_samples": [
+            {
+                "sequence": max(raw_write_count - 1, 0),
+                "address": "0x9000",
+                "size": 8,
+                "module_offset": "0x2400",
+                "instruction": "mov dword ptr [edi], eax",
+            }
+        ]
+        if raw_write_count
+        else [],
+        "filtered_intersecting_write_count": filtered_intersecting_write_count,
+    }
+
+
+def test_compare_real_lhs_last_writer_raw_write_zero_is_instrumentation_incomplete() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[],
+                write_monitor_health=_write_monitor_health(raw_write_count=0),
+            )
+        )
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["write_monitor_health"]["raw_write_count"] == 0
+    assert payload["write_monitor_health"]["followed_thread_count"] == 3
+    assert payload["last_writer_summary"]["write_monitor_health"]["enabled"] is True
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_writer_missing() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[
+                    _last_writer_event(ptr, preview, sequence=1, address="0x9000", after_preview="11" * 32),
+                ],
+                write_monitor_health=_write_monitor_health(raw_write_count=7),
+            )
+        )
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
+    assert payload["write_monitor_health"]["raw_write_count"] == 21
+    assert payload["write_monitor_health"]["filtered_intersecting_write_count"] == 0
+    assert payload["last_writer_summary"]["retained_write_count"] == 0
+    assert payload["breakpoint_probe_allowed"] is False
+
+
 def test_compare_real_lhs_last_writer_requires_all_three_candidates() -> None:
     candidates = [
         _compare_real_lhs_candidate_result(
@@ -7591,7 +7682,7 @@ def test_compare_real_lhs_last_writer_requires_all_three_candidates() -> None:
         source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
     )
 
-    assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
+    assert payload["classification"] == "writer_path_observed_but_unconnected"
     assert payload["last_writer_summary"]["runtime_backed_count"] == 2
     assert payload["breakpoint_probe_allowed"] is False
 
@@ -7639,6 +7730,10 @@ def test_compare_real_lhs_last_writer_rejects_after_preview_mismatch() -> None:
                 ptr,
                 preview,
                 write_events=[_last_writer_event(ptr, preview, after_preview="dd" * 32)],
+                write_monitor_health=_write_monitor_health(
+                    raw_write_count=5,
+                    filtered_intersecting_write_count=1,
+                ),
             )
         )
 
@@ -7648,6 +7743,8 @@ def test_compare_real_lhs_last_writer_rejects_after_preview_mismatch() -> None:
     )
 
     assert payload["classification"] == "writer_path_observed_but_unconnected"
+    assert payload["write_monitor_health"]["raw_write_count"] == 15
+    assert payload["write_monitor_health"]["filtered_intersecting_write_count"] == 3
     assert payload["last_writer_summary"]["match_count"] == 0
     assert payload["breakpoint_probe_allowed"] is False
 

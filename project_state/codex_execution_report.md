@@ -1,5 +1,70 @@
 # CODEX_EXECUTION_REPORT
 
+## 2026-05-18 Summary
+
+Implemented the observability repair for `compare_real_lhs_provenance_audit` before any new semantic probe.
+
+This pass does not run Base64/RC4 probing, does not return to `sample_solver`, and does not expand search, beam, topN, budget, timeout, or frontier iteration. It keeps the existing artifact kind/name: `compare_real_lhs_provenance_audit.json`.
+
+## Files Changed This Round
+
+| area | change | behavior impact |
+|---|---|---|
+| runtime probe | Added `write_monitor_health` to the bounded write-ring collector | exposes whether Stalker was enabled, how many threads were followed, raw write volume, ring capacity, evictions, decode failures, last raw samples, and filtered/intersecting count |
+| strategy | Aggregates write monitor health into `write_monitor_health` and `last_writer_summary.write_monitor_health` | separates collector failure from true writer absence |
+| classifier | Tightened last-writer classification | `raw_write_count == 0` now reports `instrumentation_incomplete`; raw writes with zero arg0 intersections report `compare_lhs_runtime_backed_writer_missing`; intersecting but non-matching/partial paths report `writer_path_observed_but_unconnected` |
+| project state | Surfaces `write_monitor_health` in compact state | future handoffs can inspect collector health without opening full artifacts |
+| tests | Added raw-write health classification coverage | protects `instrumentation_incomplete`, writer-missing, unconnected, and `breakpoint_probe_allowed=false` gates |
+
+## Latest Harness Result
+
+Run:
+
+`sr_lhs_last_writer_20260518_r2`
+
+Core artifact:
+
+`solve_reports\harness_runs\sr_lhs_last_writer_20260518_r2\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+
+Result from the r2 artifact:
+
+| field | value |
+|---|---|
+| `classification` | `compare_lhs_runtime_backed_writer_missing` |
+| `candidate_count` | `3` |
+| `runtime_backed_count` | `3` |
+| `actual_compare.entry` | `0x258c` |
+| `actual_compare.lhs_side` | `arg0` |
+| `actual_compare.arg0_candidate_dependent` | `true` |
+| `last_writer_summary.enabled` | `true` |
+| `last_writer_summary.actual_compare_arg0_runtime_backed` | `true` |
+| `last_writer_summary.retained_write_count` | `0` |
+| `last_writer_summary.intersecting_write_candidate_count` | `0` |
+| `breakpoint_probe_allowed` | `false` |
+
+Important observability note:
+
+The r2 artifact was produced before this repair and therefore does not contain raw write monitor health. The old artifact can prove `filtered/intersecting == 0`, but it cannot distinguish “no writes occurred” from “Stalker/write decoding failed.” The code now exports the required health fields so the next bounded rerun can classify that distinction correctly.
+
+Project state after r2 reported:
+
+`reason: compare_lhs_runtime_backed_writer_missing`, `task: Improve compare lhs last-writer instrumentation`, `missing: []`.
+
+Current best runtime candidate changed: no. The run was diagnostic-only; the current best remains:
+
+`78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`.
+
+## Verification This Round
+
+| command | result |
+|---|---|
+| `python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+| `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` | `204 passed` |
+
+## Next Suggested Task
+
+Rerun only the bounded `compare_real_lhs_provenance_audit` path when ready to refresh runtime evidence with the new `write_monitor_health` fields. Keep `breakpoint_probe_allowed=false` unless the final arg0-intersecting writer is connected to actual arg0, candidate-dependent, and transform-material backed for all three fixed candidates.
+
 ## 2026-05-17 Summary
 
 Implemented the bounded `post_handoff_exception_unwind_audit` sidecar for `samplereverse`.
