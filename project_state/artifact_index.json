@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-18T05:04:02Z",
+  "generated_at": "2026-05-18T09:47:45Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -17,11 +17,11 @@
     "compare_lhs_slot_writer_source_audit": null,
     "compare_lhs_upstream_writer_audit": null,
     "compare_pre_compare_handoff_target_probe": null,
-    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
     "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "compare_producer_trace_probe": null,
-    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
     "compare_stack_pivot_probe": null,
     "dynamic_compare_path_probe": null,
     "exact2_basin_value_pool_result": null,
@@ -37,49 +37,67 @@
     "post_handoff_exception_unwind_audit": null,
     "pre_rc4_material_probe": null,
     "profile_transform_hypothesis_matrix": null,
-    "run_manifest": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\run_manifest.json",
+    "run_manifest": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\run_manifest.json",
     "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
     "smt_validation": null,
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\summary.json",
+    "summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\summary.json",
     "transform_trace_consistency": null
   },
   "latest_case_results": [
-    "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\case_results\\samplereverse-compare-producer-backtrace.json"
+    "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\case_results\\samplereverse-compare-producer-backtrace.json"
   ],
-  "latest_harness_run": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2",
-  "latest_summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\summary.json",
+  "latest_harness_run": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3",
+  "latest_summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\summary.json",
   "missing": [],
   "recent_artifacts": [
     {
       "kind": "summary",
-      "modified_at": "2026-05-18T05:03:50Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\summary.json",
-      "size_bytes": 927
+      "modified_at": "2026-05-18T09:47:21Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\summary.json",
+      "size_bytes": 948
     },
     {
       "kind": "run_manifest",
-      "modified_at": "2026-05-18T05:03:50Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\run_manifest.json",
-      "size_bytes": 2104
+      "modified_at": "2026-05-18T09:47:21Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\run_manifest.json",
+      "size_bytes": 2118
     },
     {
       "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-18T05:03:50Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 28940
+      "modified_at": "2026-05-18T09:47:21Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 39569
     },
     {
-      "kind": "compare_probe",
-      "modified_at": "2026-05-18T05:02:35Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-      "size_bytes": 2431
+      "kind": "compare_real_lhs_provenance_audit",
+      "modified_at": "2026-05-18T09:46:52Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_3\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 3252
+    },
+    {
+      "kind": "compare_real_lhs_provenance_audit",
+      "modified_at": "2026-05-18T09:46:13Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_2\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 3252
+    },
+    {
+      "kind": "compare_real_lhs_provenance_audit",
+      "modified_at": "2026-05-18T09:45:45Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_1\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 3252
     },
     {
       "kind": "compare_probe_log",
-      "modified_at": "2026-05-18T05:02:35Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_20260518_r2\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+      "modified_at": "2026-05-18T09:45:43Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
       "size_bytes": 22
+    },
+    {
+      "kind": "compare_probe",
+      "modified_at": "2026-05-18T09:45:42Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+      "size_bytes": 2431
     },
     {
       "kind": "compare_producer_material_confirmation",
@@ -152,24 +170,6 @@
       "modified_at": "2026-04-22T05:17:01Z",
       "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_frontier_summary.json",
       "size_bytes": 39895
-    },
-    {
-      "kind": "strata_summary",
-      "modified_at": "2026-04-22T05:17:01Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-      "size_bytes": 24414
-    },
-    {
-      "kind": "compare_aware_result",
-      "modified_at": "2026-04-22T05:16:35Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
-      "size_bytes": 21920
-    },
-    {
-      "kind": "guided_pool_validation",
-      "modified_at": "2026-04-22T05:14:33Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
-      "size_bytes": 16755
     }
   ],
   "reports_dir": "solve_reports",

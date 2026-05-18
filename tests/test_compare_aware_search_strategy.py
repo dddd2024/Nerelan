@@ -4975,6 +4975,8 @@ def _fake_compare_real_lhs_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN
         "upstream_slot_1168_reload",
         "upstream_material_call",
     }
+    static_point = next(point for point in points_payload["hook_points"] if point["name"] == "static_compare_callsite")
+    assert static_point["capture_write_ring"] is True
     previews = {
         "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
         "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
@@ -7624,6 +7626,29 @@ def test_compare_real_lhs_last_writer_raw_write_zero_is_instrumentation_incomple
     assert payload["breakpoint_probe_allowed"] is False
 
 
+def test_compare_real_lhs_last_writer_uses_top_level_write_monitor_health() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidate = _compare_real_lhs_candidate_result(candidate_hex, ptr, preview, write_events=[])
+        candidate["write_monitor_health"] = _write_monitor_health(raw_write_count=0)
+        candidates.append(candidate)
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["write_monitor_health"]["observed_candidate_count"] == 3
+    assert payload["write_monitor_health"]["enabled"] is True
+    assert payload["write_monitor_health"]["ring_capacity"] == 4096
+    assert payload["last_writer_summary"]["write_monitor_health"]["enabled"] is True
+
+
 def test_compare_real_lhs_last_writer_missing_write_monitor_health_is_instrumentation_incomplete() -> None:
     candidates = []
     for candidate_hex, ptr, preview in [
@@ -7680,6 +7705,138 @@ def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_write
     assert payload["write_monitor_health"]["filtered_intersecting_write_count"] == 0
     assert payload["last_writer_summary"]["retained_write_count"] == 0
     assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_run_compare_real_lhs_no_script_output_marks_fallback_non_provenance(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+
+    def fake_run(*args, **kwargs):  # noqa: ANN002, ANN003
+        command = list(args[0])
+        script_name = Path(command[1]).name
+        out_path = Path(command[command.index("--out") + 1])
+        candidate_hex = command[command.index("--probe-hex") + 1]
+        previews = {
+            "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
+            "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
+            "78d540b49c59076f41414141414141": ("0x3300", "cc" * 32),
+        }
+        if script_name == "compare_probe.py":
+            ptr, preview = previews[candidate_hex]
+            out_path.write_text(
+                json.dumps(
+                    {
+                        "success": True,
+                        "compare_site": "0x40258c",
+                        "lhs_ptr": ptr,
+                        "rhs_ptr": "0x5000",
+                        "compare_count": 5,
+                        "lhs_wide_hex": preview,
+                        "rhs_wide_hex": "66006c00610067007b00",
+                        "esi_ptr": ptr,
+                        "esi_preview_hex": preview,
+                    }
+                ),
+                encoding="utf-8",
+            )
+        return subprocess.CompletedProcess(command, 0, stdout="script stdout", stderr="")
+
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", fake_run)
+
+    result = run_compare_real_lhs_provenance_audit(
+        target=target,
+        artifacts_dir=tmp_path / "compare_real_lhs_provenance_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["write_monitor_health"]["observed_candidate_count"] == 0
+    assert payload["candidate_execution_health"][0]["scripted_hook_status"] == "scripted_hook_missing"
+    assert (
+        payload["candidate_execution_health"][0]["compare_probe_fallback_status"]
+        == "compare_probe_fallback_captured_compare_args"
+    )
+    assert payload["candidate_execution_health"][0]["compare_probe_fallback_is_provenance"] is False
+    assert payload["last_writer_summary"]["retained_write_count"] == 0
+    assert all(
+        any(
+            observation.get("source") == "compare_probe_fallback"
+            for observation in candidate["hook_observations"]
+        )
+        for candidate in payload["candidate_results"]
+    )
+
+
+def test_run_compare_real_lhs_script_health_survives_compare_probe_fallback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+
+    def fake_run(*args, **kwargs):  # noqa: ANN002, ANN003
+        command = list(args[0])
+        script_name = Path(command[1]).name
+        out_path = Path(command[command.index("--out") + 1])
+        candidate_hex = command[command.index("--probe-hex") + 1]
+        previews = {
+            "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
+            "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
+            "78d540b49c59076f41414141414141": ("0x3300", "cc" * 32),
+        }
+        if script_name == "compare_real_lhs_provenance_audit.py":
+            out_path.write_text(
+                json.dumps(
+                    {
+                        "success": False,
+                        "hook_observations": [],
+                        "write_monitor_health": _write_monitor_health(raw_write_count=0),
+                        "write_ring_buffer": [],
+                    }
+                ),
+                encoding="utf-8",
+            )
+        elif script_name == "compare_probe.py":
+            ptr, preview = previews[candidate_hex]
+            out_path.write_text(
+                json.dumps(
+                    {
+                        "success": True,
+                        "compare_site": "0x40258c",
+                        "lhs_ptr": ptr,
+                        "rhs_ptr": "0x5000",
+                        "compare_count": 5,
+                        "lhs_wide_hex": preview,
+                        "rhs_wide_hex": "66006c00610067007b00",
+                        "esi_ptr": ptr,
+                        "esi_preview_hex": preview,
+                    }
+                ),
+                encoding="utf-8",
+            )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", fake_run)
+
+    result = run_compare_real_lhs_provenance_audit(
+        target=target,
+        artifacts_dir=tmp_path / "compare_real_lhs_provenance_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["write_monitor_health"]["observed_candidate_count"] == 3
+    assert payload["write_monitor_health"]["enabled"] is True
+    assert payload["write_monitor_health"]["ring_capacity"] == 4096
+    assert payload["candidate_execution_health"][0]["scripted_hook_status"] == "scripted_hook_no_observations"
+    assert payload["candidate_execution_health"][0]["compare_probe_fallback_is_provenance"] is False
 
 
 def test_compare_real_lhs_last_writer_requires_all_three_candidates() -> None:

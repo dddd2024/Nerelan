@@ -8734,6 +8734,7 @@ def _normalize_material_confirmation_observation(item: dict[str, object], candid
     return {
         "candidate_hex": candidate_hex,
         "hook_name": str(item.get("hook_name", "")),
+        "source": str(item.get("source", "")),
         "address": str(item.get("address", "")),
         "module_offset": str(item.get("module_offset", "")),
         "instruction": str(item.get("instruction", "")),
@@ -13201,11 +13202,17 @@ def _compare_real_lhs_write_ring_events(result: dict[str, object]) -> list[dict[
     arg0_preview = str(lhs_arg.get("preview_hex", "") if lhs_arg else "")
     arg0_size = max(len(arg0_preview) // 2, 16) if arg0_preview else 0
     events: list[dict[str, object]] = []
+    rings: list[list[object]] = []
     for observation in result.get("hook_observations", []):
         if not isinstance(observation, dict):
             continue
         ring = observation.get("write_ring_buffer", [])
-        ring = ring if isinstance(ring, list) else []
+        if isinstance(ring, list) and ring:
+            rings.append(ring)
+    top_level_ring = result.get("write_ring_buffer", [])
+    if not rings and isinstance(top_level_ring, list) and top_level_ring:
+        rings.append(top_level_ring)
+    for ring in rings:
         for raw_event in ring:
             if not isinstance(raw_event, dict):
                 continue
@@ -13235,6 +13242,9 @@ def _compare_real_lhs_write_ring_events(result: dict[str, object]) -> list[dict[
 
 def _compare_real_lhs_write_monitor_health(result: dict[str, object]) -> dict[str, object]:
     health_rows: list[dict[str, object]] = []
+    top_level_health = result.get("write_monitor_health", {})
+    if isinstance(top_level_health, dict) and top_level_health:
+        health_rows.append(dict(top_level_health))
     for observation in result.get("hook_observations", []):
         if not isinstance(observation, dict):
             continue
@@ -13280,6 +13290,34 @@ def _compare_real_lhs_write_monitor_health(result: dict[str, object]) -> dict[st
         "last_raw_write_samples": samples[-8:],
         "filtered_intersecting_write_count": _sum_int("filtered_intersecting_write_count"),
     }
+
+
+def _compare_real_lhs_candidate_execution_health(
+    candidate_results: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    rows: list[dict[str, object]] = []
+    for result in candidate_results:
+        row = {
+            "candidate_hex": str(result.get("candidate_hex", "")),
+            "label": str(result.get("label", "")),
+            "scripted_hook_status": str(result.get("scripted_hook_status", "")),
+            "scripted_output_exists": bool(result.get("scripted_output_exists")),
+            "scripted_returncode": result.get("scripted_returncode", None),
+            "scripted_observation_count": int(result.get("scripted_observation_count", 0) or 0),
+            "scripted_error": str(result.get("scripted_error", "")),
+            "scripted_stdout_preview": str(result.get("scripted_stdout_preview", "")),
+            "scripted_stderr_preview": str(result.get("scripted_stderr_preview", "")),
+            "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
+            "compare_probe_fallback_status": str(result.get("compare_probe_fallback_status", "")),
+            "compare_probe_fallback_is_provenance": False,
+            "result_path": str(result.get("result_path", "")),
+            "log_path": str(result.get("log_path", "")),
+        }
+        health = result.get("write_monitor_health", {})
+        if isinstance(health, dict) and health:
+            row["write_monitor_health"] = dict(health)
+        rows.append(row)
+    return rows
 
 
 def _compare_real_lhs_last_writer_summary(
@@ -13582,6 +13620,7 @@ def build_compare_real_lhs_provenance_audit_payload(
         "write_monitor_health": last_writer_summary.get("write_monitor_health", {})
         if isinstance(last_writer_summary, dict)
         else {},
+        "candidate_execution_health": _compare_real_lhs_candidate_execution_health(candidate_results),
         "write_ring_buffer": write_ring_buffer,
         "last_writer_candidates": last_writer_candidates,
         "last_writer_summary": last_writer_summary,
@@ -13682,6 +13721,7 @@ def run_compare_real_lhs_provenance_audit(
         except subprocess.TimeoutExpired as exc:
             proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
             error = "timeout"
+        scripted_output_exists = compare_out.exists()
         compare_log.write_text(
             f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
             encoding="utf-8",
@@ -13692,18 +13732,30 @@ def run_compare_real_lhs_provenance_audit(
             for item in compare_payload.get("hook_observations", [])
             if isinstance(item, dict)
         ]
+        scripted_observation_count = len(observations)
+        scripted_write_monitor_health = (
+            dict(compare_payload.get("write_monitor_health", {}))
+            if isinstance(compare_payload.get("write_monitor_health"), dict)
+            else {}
+        )
+        scripted_write_ring_buffer = (
+            list(compare_payload.get("write_ring_buffer", []))
+            if isinstance(compare_payload.get("write_ring_buffer"), list)
+            else []
+        )
         if not observations and isinstance(compare_payload.get("write_ring_buffer"), list):
             observations.append(
                 {
                     "candidate_hex": candidate_hex,
                     "hook_name": "static_compare_callsite",
                     "module_offset": "0x258c",
-                    "write_monitor_health": dict(compare_payload.get("write_monitor_health", {}))
-                    if isinstance(compare_payload.get("write_monitor_health"), dict)
-                    else {},
-                    "write_ring_buffer": list(compare_payload.get("write_ring_buffer", [])),
+                    "source": "scripted_write_monitor_health_only",
+                    "write_monitor_health": scripted_write_monitor_health,
+                    "write_ring_buffer": scripted_write_ring_buffer,
                 }
             )
+        compare_probe_fallback_used = False
+        compare_probe_fallback_status = ""
         if not _has_actual_compare_args(observations):
             probe_out = candidate_dir / "compare_probe_static_callsite.json"
             probe_log = candidate_dir / "compare_probe_static_callsite.log"
@@ -13744,10 +13796,15 @@ def run_compare_real_lhs_provenance_audit(
                 probe_payload,
                 candidate_hex,
             )
+            compare_probe_fallback_used = True
             if fallback_observation:
+                fallback_observation["source"] = "compare_probe_fallback"
+                compare_probe_fallback_status = "compare_probe_fallback_captured_compare_args"
                 observations.append(
                     _normalize_pre_compare_handoff_observation(fallback_observation, candidate_hex)
                 )
+            else:
+                compare_probe_fallback_status = "compare_probe_fallback_no_compare_args"
         if observations and isinstance(compare_payload.get("write_ring_buffer"), list):
             for observation in observations:
                 if str(observation.get("hook_name", "")) == "static_compare_callsite":
@@ -13760,6 +13817,14 @@ def run_compare_real_lhs_provenance_audit(
                     if not existing_ring:
                         observation["write_ring_buffer"] = list(compare_payload.get("write_ring_buffer", []))
                     break
+        if not scripted_output_exists:
+            scripted_hook_status = "scripted_hook_missing"
+        elif scripted_observation_count <= 0:
+            scripted_hook_status = "scripted_hook_no_observations"
+        else:
+            scripted_hook_status = "scripted_hook_observed"
+        stdout_preview = str(getattr(proc, "stdout", "") or "")[:2000]
+        stderr_preview = str(getattr(proc, "stderr", "") or "")[:2000]
         candidate_results.append(
             {
                 "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
@@ -13767,6 +13832,17 @@ def run_compare_real_lhs_provenance_audit(
                 "candidate_prefix": candidate_hex[:16],
                 "runtime_backed": bool(observations),
                 "hook_observations": observations[:160],
+                "write_monitor_health": scripted_write_monitor_health,
+                "write_ring_buffer": scripted_write_ring_buffer,
+                "scripted_hook_status": scripted_hook_status,
+                "scripted_output_exists": scripted_output_exists,
+                "scripted_returncode": int(getattr(proc, "returncode", 0) or 0),
+                "scripted_observation_count": scripted_observation_count,
+                "scripted_error": error or str(compare_payload.get("error", "")),
+                "scripted_stdout_preview": stdout_preview,
+                "scripted_stderr_preview": stderr_preview,
+                "compare_probe_fallback_used": compare_probe_fallback_used,
+                "compare_probe_fallback_status": compare_probe_fallback_status,
                 "result_path": str(compare_out),
                 "log_path": str(compare_log),
                 "success": bool(compare_payload.get("success")) and not error,

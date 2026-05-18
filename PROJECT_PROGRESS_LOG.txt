@@ -4493,3 +4493,73 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
 - Improve bounded write ring-buffer coverage before `0x258c`.
 - Do not run Base64/RC4 breakpoint probe until an actual arg0-connected, candidate-dependent, transform-material backed writer is identified.
 - Do not return to old `sample_solver`; do not expand search/beam/budget as a substitute for instrumentation evidence.
+
+## 2026-05-18 real-LHS write monitor health preservation fix
+
+1) 执行范围
+- 按计划只修 `compare_real_lhs_provenance_audit` instrumentation observability。
+- 固定主线 `L15(prefix8)`、suffix `AAAAAAA`、3 个 runtime-backed candidates。
+- 未修改 candidate generation / ranking / beam / budget / topN / timeout / frontier iteration。
+- 未运行 Base64/RC4 breakpoint probe，未回退 old `sample_solver`。
+
+2) 代码变更
+- `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
+  - 在 Frida/UIA runtime 前先写 initial payload，保留 `write_monitor_health` 顶层字段。
+  - 将 write ring capacity 统一为 `WRITE_RING_LIMIT=4096`。
+  - 即使未命中 `static_compare_callsite` observation，也周期性发送顶层 write monitor health。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 聚合 candidate 顶层 `write_monitor_health` / `write_ring_buffer`，不再只依赖 hook observation。
+  - 新增 `candidate_execution_health`，记录 scripted hook output、returncode、timeout/error、fallback 状态。
+  - 将 CompareProbe fallback 标记为 `source=compare_probe_fallback`，并显式声明 `compare_probe_fallback_is_provenance=false`。
+- `tests/test_compare_aware_search_strategy.py`
+  - 增加 capture_write_ring points 写入检查、顶层 health 聚合、missing scripted output、fallback 非 provenance 等回归。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "real_lhs or write_monitor or compare_probe_fallback"` -> `19 passed, 154 deselected`
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` -> `208 passed`
+- `python -m pytest -q` -> `285 passed`
+
+4) Harness / project_state
+- First harness:
+  - `sr_lhs_last_writer_health_fix_20260518_r1`
+  - Produced `post_handoff_exception_unwind_audit`, classification `compare_reached_but_path_unresolved`; used to rebuild project_state trigger chain.
+- Second harness:
+  - `sr_lhs_last_writer_health_fix_20260518_r2`
+  - Produced `compare_real_lhs_provenance_audit`, but before the initial-payload fix the scripted hook timeout still left no output JSON.
+- Final accepted harness:
+  - `sr_lhs_last_writer_health_fix_20260518_r3`
+  - 1 case executed, 0 errors, selected `NOT_FOUND` because the sidecar remained diagnostic-only.
+- Core artifact:
+  - `solve_reports\harness_runs\sr_lhs_last_writer_health_fix_20260518_r3\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` -> passed。
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_lhs_last_writer_health_fix_20260518_r3`
+  - `reason: instrumentation_incomplete`
+  - `task: Improve compare lhs last-writer instrumentation`
+  - `missing: []`
+
+5) 结论
+- `compare_real_lhs_provenance_audit` classification: `instrumentation_incomplete`
+- `runtime_backed_count=3` via CompareProbe fallback compare-arg capture。
+- `write_monitor_health.enabled=true`
+- `write_monitor_health.ring_capacity=4096`
+- `write_monitor_health.followed_thread_count=0`
+- `write_monitor_health.raw_write_count=0`
+- All 3 fixed candidates have:
+  - `scripted_hook_status=scripted_hook_no_observations`
+  - `scripted_output_exists=true`
+  - `scripted_returncode=124`
+  - `scripted_error=timeout`
+  - `compare_probe_fallback_status=compare_probe_fallback_captured_compare_args`
+  - `compare_probe_fallback_is_provenance=false`
+- `breakpoint_probe_allowed=false`
+- Best runtime candidate changed: no. Current best remains `78d540b49c59077041414141414141` with prior exact2 metrics.
+
+6) 下一轮默认方向
+- 现在 monitor health is preserved; 下一步不再是 artifact field loss，而是 Stalker follow / thread timing timeout。
+- Investigate why scripted hook process times out before observing `static_compare_callsite`:
+  - narrow Stalker to current/GUI thread instead of all enumerated threads, or
+  - delay follow until after UI attach/input setup, or
+  - temporarily disable Stalker transform and confirm plain hook observations first.
+- 仍不跑 Base64/RC4 probe，不回 old `sample_solver`，不扩大 search/beam/budget。

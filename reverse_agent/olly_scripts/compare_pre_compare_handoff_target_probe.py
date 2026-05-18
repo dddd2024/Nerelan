@@ -12,6 +12,7 @@ except ImportError:  # pragma: no cover - exercised by subprocess execution
 
 
 FRAME_SLOT_OFFSETS = (0x1160, 0x1164, 0x1168, 0x116C, 0x1170)
+WRITE_RING_LIMIT = 4096
 
 
 def _normalize_hook_point(item: dict[str, object] | None) -> dict[str, object]:
@@ -82,6 +83,8 @@ def _build_payload(
     candidate_hex: str = "",
     hook_points: list[dict[str, object]] | None = None,
     hook_observations: list[dict[str, object]] | None = None,
+    write_monitor_health: dict[str, object] | None = None,
+    write_ring_buffer: list[dict[str, object]] | None = None,
     evidence: list[str] | None = None,
     error: str = "",
 ) -> dict[str, object]:
@@ -92,6 +95,8 @@ def _build_payload(
         "candidate_hex": candidate_hex,
         "hook_points": hook_points or [],
         "hook_observations": observations,
+        "write_monitor_health": dict(write_monitor_health or {}),
+        "write_ring_buffer": list(write_ring_buffer or []),
         "evidence": evidence or [],
         "error": error,
     }
@@ -114,6 +119,25 @@ def _read_points(path: Path) -> list[dict[str, object]]:
     if not isinstance(raw_points, list):
         return []
     return [_normalize_hook_point(item) for item in raw_points if isinstance(item, dict)]
+
+
+def _initial_write_monitor_health(hook_points: list[dict[str, object]]) -> dict[str, object]:
+    requested = any(bool(point.get("capture_write_ring")) for point in hook_points)
+    return {
+        "observed": False,
+        "enabled": requested,
+        "requested": requested,
+        "activation_status": "script_started",
+        "followed_thread_count": 0,
+        "raw_write_count": 0,
+        "ring_capacity": WRITE_RING_LIMIT if requested else 0,
+        "eviction_count": 0,
+        "descriptor_decode_failures": 0,
+        "address_decode_failures": 0,
+        "follow_failures": 0,
+        "last_raw_write_samples": [],
+        "filtered_intersecting_write_count": 0,
+    }
 
 
 def main() -> int:
@@ -164,6 +188,18 @@ def main() -> int:
             ),
         )
 
+    _write_payload(
+        out_path,
+        _build_payload(
+            success=False,
+            summary="ComparePreCompareHandoffTargetProbe started; waiting for bounded handoff observations.",
+            candidate_hex=args.probe_hex,
+            hook_points=hook_points,
+            write_monitor_health=_initial_write_monitor_health(hook_points),
+            evidence=[*evidence, "compare_pre_compare_handoff_target_probe:script_started"],
+        ),
+    )
+
     messages: list[dict[str, object]] = []
     script_errors: list[str] = []
     pid: int | None = None
@@ -189,7 +225,7 @@ const hookPoints = {points_json};
 const expectedEaxPreview = "{expected_preview}";
 const frameSlotOffsets = {json.dumps(list(FRAME_SLOT_OFFSETS))};
 const writeRingEnabled = hookPoints.some(point => Boolean(point.capture_write_ring));
-const writeRingLimit = 4096;
+const writeRingLimit = {WRITE_RING_LIMIT};
 const writeRing = [];
 const lastRawWriteSamples = [];
 let writeSequence = 0;
@@ -442,6 +478,17 @@ function writeMonitorHealth(filteredWrites) {{
     }};
 }}
 
+function sendWriteMonitorHealth() {{
+    try {{
+        send({{
+            type: "compare_pre_compare_handoff_target_write_monitor_health",
+            write_monitor_health: writeMonitorHealth([]),
+            write_ring_buffer: writeRing.slice(-64),
+        }});
+    }} catch (error) {{
+    }}
+}}
+
 function contextRegs(context) {{
     let regs = {{}};
     for (const name of ["eax", "ebx", "ecx", "edx", "esi", "edi", "esp", "ebp", "eip", "rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rsp", "rbp", "rip"]) {{
@@ -633,6 +680,10 @@ if (writeRingEnabled) {{
         send({{ type: "compare_pre_compare_handoff_target_error", hook_name: "write_ring_buffer", error: String(error) }});
     }}
 }}
+sendWriteMonitorHealth();
+if (writeRingEnabled) {{
+    setInterval(sendWriteMonitorHealth, 100);
+}}
 try {{
     Process.setExceptionHandler(function(details) {{
         const address = safePointer(details.address || 0);
@@ -736,6 +787,18 @@ for (const point of hookPoints) {{
         for item in messages
         if str(item.get("type", "")) == "compare_pre_compare_handoff_target_observation"
     ]
+    health_messages = [
+        item
+        for item in messages
+        if str(item.get("type", "")) == "compare_pre_compare_handoff_target_write_monitor_health"
+    ]
+    latest_health = {}
+    latest_ring: list[dict[str, object]] = []
+    if health_messages:
+        health = health_messages[-1].get("write_monitor_health", {})
+        ring = health_messages[-1].get("write_ring_buffer", [])
+        latest_health = dict(health) if isinstance(health, dict) else {}
+        latest_ring = [dict(item) for item in ring if isinstance(item, dict)] if isinstance(ring, list) else []
     errors = [
         f"{item.get('hook_name', '')}:{item.get('error', '')}"
         for item in messages
@@ -755,6 +818,8 @@ for (const point of hookPoints) {{
             candidate_hex=args.probe_hex,
             hook_points=hook_points,
             hook_observations=observations,
+            write_monitor_health=latest_health,
+            write_ring_buffer=latest_ring,
             evidence=[*evidence, *errors, *script_errors],
             error="; ".join([*errors, *script_errors]),
         ),
