@@ -1,0 +1,48 @@
+{
+  "archived_at": "2026-05-18T11:10:09Z",
+  "files": {
+    "artifact_index.json": {
+      "path": "project_state\\artifact_index.json",
+      "sha256": "5024c86facd5af27235741a3d8468dbc6f1bdfb64d262da294fec1c8ee7dd9f8"
+    },
+    "codex_execution_report.md": {
+      "path": "project_state\\codex_execution_report.md",
+      "sha256": "9e1e6a4be6c5ce38a0e1793be2340933bffd50f1f4ce0e9a4a63f0b515b97200"
+    },
+    "current_state.json": {
+      "path": "project_state\\current_state.json",
+      "sha256": "860dbcdfa403edeef16d02f265ce1a70fc0fb6bdad7ba98ed1b03e41d623f67a"
+    },
+    "decision_packet.md": {
+      "path": "project_state\\decision_packet.md",
+      "sha256": "040a62aa2475d3f849510e1124a056e0fbd6d128e94c3b0bc5a8c083abeac034"
+    },
+    "git_diff.patch": {
+      "path": "project_state\\rounds\\round_20260518_111005\\git_diff.patch",
+      "sha256": "ab496988ac0e1624b0e26af3dd64fe741cc17e32012654a858064ef9e502b96b"
+    },
+    "model_gate.json": {
+      "path": "project_state\\model_gate.json",
+      "sha256": "471123e1d77706cfcf8e710f73c1017dd5f7050b4b44b6543c3ba596006bd093"
+    },
+    "negative_results.json": {
+      "path": "project_state\\negative_results.json",
+      "sha256": "a4412d52b025c688dc989b7de7bea15773887af6fdc615868a7898d8db7ed73b"
+    },
+    "pytest_result.txt": {
+      "path": "project_state\\rounds\\round_20260518_111005\\pytest_result.txt",
+      "sha256": "54347066b99e0bf29e77e0515dc03afff1e0f8a91d26f634f3cd6153fe3dc3ea"
+    },
+    "task_packet.json": {
+      "path": "project_state\\task_packet.json",
+      "sha256": "1993b3ca74e77a5dae153993e37e392a8accfe13940747fa2d5c1a9abe1ef704"
+    }
+  },
+  "round_id": "round_20260518_111005",
+  "schema_version": 1,
+  "source_git_commit": "b3e717b43cd4",
+  "source_harness_run": "sr_lhs_last_writer_health_fix_20260518_r3",
+  "state_build_id": "state_20260518_111005_88dd828c4995",
+  "state_digest": "88dd828c49955e8a909dad5a37a69b8f4b5c98f189d3baac6b2a3e500537f437",
+  "workflow_status": "REPORT_AVAILABLE"
+}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import subprocess
 import zipfile
@@ -107,6 +108,16 @@ DEFAULT_SAMPLE = "samplereverse"
 DEFAULT_REPORTS_DIR = Path("solve_reports")
 DEFAULT_PROGRESS_LOG = Path("PROJECT_PROGRESS_LOG.txt")
 DEFAULT_PACK_NAME = "gpt_context_pack.zip"
+STATE_SCHEMA_VERSION = 2
+DEFAULT_WORKFLOW_STATUS = "REPORT_AVAILABLE"
+DEFAULT_CURRENT_OWNER = "web_gpt"
+DEFAULT_REVIEW_STATUS = "PENDING_REVIEW"
+STATE_DIGEST_EXCLUDED_KEYS = {
+    "generated_at",
+    "round_id",
+    "state_build_id",
+    "state_digest",
+}
 
 DECISION_PACKET_TEMPLATE = """# DECISION_PACKET
 
@@ -208,6 +219,63 @@ def _write_json(path: Path, payload: Any) -> None:
 def _write_text(path: Path, content: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content.rstrip() + "\n", encoding="utf-8")
+
+
+def _canonical_json_bytes(payload: Any) -> bytes:
+    return json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    return _sha256_bytes(path.read_bytes())
+
+
+def _without_digest_volatile_fields(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            key: _without_digest_volatile_fields(item)
+            for key, item in value.items()
+            if key not in STATE_DIGEST_EXCLUDED_KEYS
+        }
+    if isinstance(value, list):
+        return [_without_digest_volatile_fields(item) for item in value]
+    return value
+
+
+def _state_digest(current_state: dict[str, Any]) -> str:
+    stable_state = _without_digest_volatile_fields(current_state)
+    return _sha256_bytes(_canonical_json_bytes(stable_state))
+
+
+def _git_commit() -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short=12", "HEAD"],
+            shell=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return (proc.stdout or "").strip()
+
+
+def _source_harness_run_name(artifact_index: dict[str, Any]) -> str:
+    latest_harness_run = str(artifact_index.get("latest_harness_run") or "")
+    return Path(latest_harness_run.replace("\\", "/")).name if latest_harness_run else ""
+
+
+def _identity_timestamp() -> tuple[str, str]:
+    now = datetime.now(timezone.utc).replace(microsecond=0)
+    return now.strftime("%Y%m%d_%H%M%S"), now.isoformat().replace("+00:00", "Z")
 
 
 def _is_missing_or_default(path: Path, default_content: str) -> bool:
@@ -2286,6 +2354,44 @@ def build_task_packet(
     }
 
 
+def apply_state_identity(
+    *,
+    artifact_index: dict[str, Any],
+    current_state: dict[str, Any],
+    task_packet: dict[str, Any],
+) -> None:
+    stamp, generated_at = _identity_timestamp()
+    source_harness_run = _source_harness_run_name(artifact_index)
+    source_git_commit = _git_commit()
+    current_state.update(
+        {
+            "schema_version": STATE_SCHEMA_VERSION,
+            "workflow_status": DEFAULT_WORKFLOW_STATUS,
+            "current_owner": DEFAULT_CURRENT_OWNER,
+            "review_status": DEFAULT_REVIEW_STATUS,
+            "source_git_commit": source_git_commit,
+            "source_harness_run": source_harness_run,
+            "generated_at": generated_at,
+        }
+    )
+    digest = _state_digest(current_state)
+    current_state.update(
+        {
+            "state_build_id": f"state_{stamp}_{digest[:12]}",
+            "round_id": f"round_{stamp}",
+            "state_digest": digest,
+        }
+    )
+    task_packet.update(
+        {
+            "schema_version": STATE_SCHEMA_VERSION,
+            "state_build_id": current_state["state_build_id"],
+            "round_id": current_state["round_id"],
+            "based_on_state_digest": digest,
+        }
+    )
+
+
 def build_project_state(
     *,
     reports_dir: Path,
@@ -2310,6 +2416,11 @@ def build_project_state(
         current_state=current_state,
         negative_results=negative_results,
         model_gate=model_gate,
+    )
+    apply_state_identity(
+        artifact_index=artifact_index,
+        current_state=current_state,
+        task_packet=task_packet,
     )
 
     outputs = {
@@ -2337,10 +2448,7 @@ def _resolve_round_dir(state_dir: Path, round_id: str = "") -> Path:
     rounds_dir = state_dir / "rounds"
     rounds_dir.mkdir(parents=True, exist_ok=True)
     if round_id:
-        candidate = rounds_dir / round_id
-        if candidate.exists():
-            raise FileExistsError(f"round already exists: {candidate}")
-        return candidate
+        return rounds_dir / round_id
     index = 1
     while True:
         candidate = rounds_dir / f"round_{index:03d}"
@@ -2367,6 +2475,61 @@ def _git_diff_text() -> str:
     return proc.stdout or ""
 
 
+def _archive_source_file_bytes(state_dir: Path, pytest_result: Path | None) -> dict[str, bytes]:
+    files: dict[str, bytes] = {}
+    for name in ARCHIVE_STATE_NAMES:
+        src = state_dir / name
+        if src.exists():
+            files[name] = src.read_bytes()
+    files["git_diff.patch"] = _git_diff_text().encode("utf-8")
+    result_src = pytest_result or (state_dir / "pytest_result.txt")
+    if result_src.exists():
+        files["pytest_result.txt"] = result_src.read_bytes()
+    else:
+        files["pytest_result.txt"] = b"No pytest_result.txt was available for this round.\n"
+    return files
+
+
+def _archive_file_manifest(state_dir: Path, round_id: str, files: dict[str, bytes]) -> dict[str, dict[str, str]]:
+    manifest: dict[str, dict[str, str]] = {}
+    for name, data in sorted(files.items()):
+        source_path = state_dir / name
+        if name not in ARCHIVE_STATE_NAMES:
+            source_path = state_dir / "rounds" / round_id / name
+        manifest[name] = {
+            "path": _path_for_json(source_path),
+            "sha256": _sha256_bytes(data),
+        }
+    return manifest
+
+
+def _build_round_manifest(
+    *,
+    round_id: str,
+    state_dir: Path,
+    archived_at: str,
+    files: dict[str, bytes],
+) -> dict[str, Any]:
+    current_state = _read_json(state_dir / "current_state.json")
+    return {
+        "schema_version": 1,
+        "round_id": round_id,
+        "archived_at": archived_at,
+        "source_git_commit": current_state.get("source_git_commit") or _git_commit(),
+        "source_harness_run": current_state.get("source_harness_run") or "",
+        "state_build_id": current_state.get("state_build_id") or "",
+        "state_digest": current_state.get("state_digest") or "",
+        "workflow_status": current_state.get("workflow_status") or "",
+        "files": _archive_file_manifest(state_dir, round_id, files),
+    }
+
+
+def _manifest_for_compare(manifest: dict[str, Any]) -> dict[str, Any]:
+    comparable = dict(manifest)
+    comparable.pop("archived_at", None)
+    return comparable
+
+
 def archive_round(
     *,
     state_dir: Path,
@@ -2374,25 +2537,43 @@ def archive_round(
     pytest_result: Path | None = None,
 ) -> dict[str, Any]:
     ensure_state_layout(state_dir)
-    round_dir = _resolve_round_dir(state_dir, round_id=round_id)
+    current_state = _read_json(state_dir / "current_state.json")
+    selected_round_id = round_id or str(current_state.get("round_id") or "")
+    round_dir = _resolve_round_dir(state_dir, round_id=selected_round_id)
+    files = _archive_source_file_bytes(state_dir, pytest_result)
+    existing_manifest = _read_json(round_dir / "round_manifest.json")
+    archived_at = str(existing_manifest.get("archived_at") or _now_iso())
+    manifest = _build_round_manifest(
+        round_id=round_dir.name,
+        state_dir=state_dir,
+        archived_at=archived_at,
+        files=files,
+    )
+    if round_dir.exists():
+        if not existing_manifest:
+            raise FileExistsError(f"round already exists without round_manifest.json: {round_dir}")
+        if _manifest_for_compare(existing_manifest) == _manifest_for_compare(manifest):
+            return {
+                "round_id": round_dir.name,
+                "round_dir": _path_for_json(round_dir),
+                "copied": [],
+                "manifest": _path_for_json(round_dir / "round_manifest.json"),
+                "status": "no-op",
+            }
+        raise FileExistsError(f"round manifest differs; refusing to overwrite: {round_dir}")
+
     round_dir.mkdir(parents=True, exist_ok=False)
     copied: list[str] = []
-    for name in ARCHIVE_STATE_NAMES:
-        src = state_dir / name
-        dst = round_dir / name
-        if src.exists():
-            dst.write_bytes(src.read_bytes())
-            copied.append(name)
-    _write_text(round_dir / "git_diff.patch", _git_diff_text())
-    result_src = pytest_result or (state_dir / "pytest_result.txt")
-    if result_src.exists():
-        (round_dir / "pytest_result.txt").write_bytes(result_src.read_bytes())
-    else:
-        _write_text(round_dir / "pytest_result.txt", "No pytest_result.txt was available for this round.")
+    for name, data in files.items():
+        (round_dir / name).write_bytes(data)
+        copied.append(name)
+    _write_json(round_dir / "round_manifest.json", manifest)
     return {
         "round_id": round_dir.name,
         "round_dir": _path_for_json(round_dir),
         "copied": copied,
+        "manifest": _path_for_json(round_dir / "round_manifest.json"),
+        "status": "created",
     }
 
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import zipfile
 from pathlib import Path
@@ -12,6 +13,10 @@ def _write_json(path: Path, payload: object) -> None:
 
 def _read_json(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _make_minimal_harness_run(reports_dir: Path, run_name: str = "samplereverse_stalled") -> Path:
@@ -1533,6 +1538,78 @@ def test_current_state_negative_results_model_gate_and_task_packet_are_generated
     assert "do not commit full solve_reports directory" in task_packet["do_not_do"]
 
 
+def test_current_state_has_identity_fields(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    assert current_state["schema_version"] == 2
+    assert current_state["state_build_id"].startswith("state_")
+    assert current_state["round_id"].startswith("round_")
+    assert current_state["workflow_status"] == "REPORT_AVAILABLE"
+    assert current_state["current_owner"] == "web_gpt"
+    assert current_state["review_status"] == "PENDING_REVIEW"
+    assert current_state["source_git_commit"]
+    assert current_state["source_harness_run"] == "samplereverse_stalled"
+    assert len(current_state["state_digest"]) == 64
+
+
+def test_task_packet_has_based_on_state_digest(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert task_packet["schema_version"] == 2
+    assert task_packet["state_build_id"] == current_state["state_build_id"]
+    assert task_packet["round_id"] == current_state["round_id"]
+    assert task_packet["based_on_state_digest"] == current_state["state_digest"]
+
+
+def test_state_digest_is_stable_for_same_inputs(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    first_digest = _read_json(state_dir / "current_state.json")["state_digest"]
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    second_digest = _read_json(state_dir / "current_state.json")["state_digest"]
+
+    assert second_digest == first_digest
+
+
+def test_state_digest_changes_when_current_state_changes(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir)
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    first_digest = _read_json(state_dir / "current_state.json")["state_digest"]
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "samplereverse_compare_aware_frontier_summary.json",
+        {
+            "frontier_active_lane": "frontier_exact1",
+            "frontier_stall_stage": "changed_stage",
+            "frontier_exact1_stall_reason": "changed_reason",
+            "frontier_converged_reason": "changed_reason",
+            "frontier_anchor_candidates": [],
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    second_digest = _read_json(state_dir / "current_state.json")["state_digest"]
+
+    assert second_digest != first_digest
+
+
 def test_task_packet_omits_full_progress_log_and_full_solve_reports(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
@@ -1604,8 +1681,10 @@ def test_new_round_status_and_archive_round_create_expected_files(tmp_path: Path
     assert "expected_gpt_output:" in output
 
     result = archive_round(state_dir=state_dir)
-    round_dir = state_dir / "rounds" / "round_001"
-    assert result["round_id"] == "round_001"
+    current_state = _read_json(state_dir / "current_state.json")
+    round_dir = state_dir / "rounds" / current_state["round_id"]
+    assert result["round_id"] == current_state["round_id"]
+    assert result["status"] == "created"
     assert round_dir.exists()
     assert (round_dir / "current_state.json").exists()
     assert (round_dir / "artifact_index.json").exists()
@@ -1616,21 +1695,93 @@ def test_new_round_status_and_archive_round_create_expected_files(tmp_path: Path
     assert (round_dir / "codex_execution_report.md").exists()
     assert (round_dir / "git_diff.patch").exists()
     assert (round_dir / "pytest_result.txt").exists()
+    assert (round_dir / "round_manifest.json").exists()
 
 
-def test_archive_round_does_not_overwrite_existing_round(tmp_path: Path) -> None:
+def test_archive_round_writes_round_manifest(tmp_path: Path) -> None:
     state_dir = tmp_path / "project_state"
     reports_dir = tmp_path / "solve_reports"
     _make_minimal_harness_run(reports_dir)
     build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    result = archive_round(state_dir=state_dir)
+    manifest = _read_json(Path(result["round_dir"]) / "round_manifest.json")
+    current_state = _read_json(state_dir / "current_state.json")
+
+    assert manifest["schema_version"] == 1
+    assert manifest["round_id"] == current_state["round_id"]
+    assert manifest["source_git_commit"] == current_state["source_git_commit"]
+    assert manifest["source_harness_run"] == current_state["source_harness_run"]
+    assert manifest["state_build_id"] == current_state["state_build_id"]
+    assert manifest["state_digest"] == current_state["state_digest"]
+    assert manifest["workflow_status"] == "REPORT_AVAILABLE"
+
+
+def test_round_manifest_contains_expected_files(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    result = archive_round(state_dir=state_dir)
+    manifest = _read_json(Path(result["round_dir"]) / "round_manifest.json")
+
+    assert {
+        "artifact_index.json",
+        "current_state.json",
+        "negative_results.json",
+        "model_gate.json",
+        "task_packet.json",
+        "decision_packet.md",
+        "codex_execution_report.md",
+        "git_diff.patch",
+        "pytest_result.txt",
+    }.issubset(set(manifest["files"]))
+
+
+def test_round_manifest_file_digests_match(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    result = archive_round(state_dir=state_dir)
+    round_dir = Path(result["round_dir"])
+    manifest = _read_json(round_dir / "round_manifest.json")
+
+    for name, info in manifest["files"].items():
+        assert info["sha256"] == _sha256_file(round_dir / name)
+
+
+def test_archive_round_is_idempotent_for_same_round(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    first = archive_round(state_dir=state_dir)
+
+    second = archive_round(state_dir=state_dir)
+
+    assert second["round_id"] == first["round_id"]
+    assert second["status"] == "no-op"
+    assert _read_json(Path(first["round_dir"]) / "round_manifest.json") == _read_json(
+        Path(second["round_dir"]) / "round_manifest.json"
+    )
+
+
+def test_archive_round_uses_incrementing_round_for_legacy_state(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    current_state.pop("round_id", None)
+    _write_json(state_dir / "current_state.json", current_state)
     archive_round(state_dir=state_dir)
-    sentinel = state_dir / "rounds" / "round_001" / "sentinel.txt"
-    sentinel.write_text("keep me", encoding="utf-8")
 
     result = archive_round(state_dir=state_dir)
 
     assert result["round_id"] == "round_002"
-    assert sentinel.read_text(encoding="utf-8") == "keep me"
     assert (state_dir / "rounds" / "round_002" / "task_packet.json").exists()
 
 
