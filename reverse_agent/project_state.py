@@ -2490,14 +2490,28 @@ def _archive_source_file_bytes(state_dir: Path, pytest_result: Path | None) -> d
     return files
 
 
-def _archive_file_manifest(state_dir: Path, round_id: str, files: dict[str, bytes]) -> dict[str, dict[str, str]]:
-    manifest: dict[str, dict[str, str]] = {}
+def _archive_file_source_path(state_dir: Path, name: str, pytest_result: Path | None) -> Path | None:
+    if name in ARCHIVE_STATE_NAMES:
+        return state_dir / name
+    if name == "pytest_result.txt":
+        result_src = pytest_result or (state_dir / "pytest_result.txt")
+        return result_src if result_src.exists() else None
+    return None
+
+
+def _archive_file_manifest(
+    state_dir: Path,
+    round_id: str,
+    files: dict[str, bytes],
+    pytest_result: Path | None,
+) -> dict[str, dict[str, str | None]]:
+    manifest: dict[str, dict[str, str | None]] = {}
     for name, data in sorted(files.items()):
-        source_path = state_dir / name
-        if name not in ARCHIVE_STATE_NAMES:
-            source_path = state_dir / "rounds" / round_id / name
+        source_path = _archive_file_source_path(state_dir, name, pytest_result)
+        archived_path = state_dir / "rounds" / round_id / name
         manifest[name] = {
-            "path": _path_for_json(source_path),
+            "source_path": _path_for_json(source_path) if source_path is not None else None,
+            "archived_path": _path_for_json(archived_path),
             "sha256": _sha256_bytes(data),
         }
     return manifest
@@ -2509,6 +2523,7 @@ def _build_round_manifest(
     state_dir: Path,
     archived_at: str,
     files: dict[str, bytes],
+    pytest_result: Path | None,
 ) -> dict[str, Any]:
     current_state = _read_json(state_dir / "current_state.json")
     return {
@@ -2520,7 +2535,7 @@ def _build_round_manifest(
         "state_build_id": current_state.get("state_build_id") or "",
         "state_digest": current_state.get("state_digest") or "",
         "workflow_status": current_state.get("workflow_status") or "",
-        "files": _archive_file_manifest(state_dir, round_id, files),
+        "files": _archive_file_manifest(state_dir, round_id, files, pytest_result),
     }
 
 
@@ -2548,6 +2563,7 @@ def archive_round(
         state_dir=state_dir,
         archived_at=archived_at,
         files=files,
+        pytest_result=pytest_result,
     )
     if round_dir.exists():
         if not existing_manifest:

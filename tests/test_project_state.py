@@ -3,6 +3,8 @@ import json
 import zipfile
 from pathlib import Path
 
+import pytest
+
 from reverse_agent.project_state import archive_round, build_project_state, main, pack_context
 
 
@@ -1750,7 +1752,55 @@ def test_round_manifest_file_digests_match(tmp_path: Path) -> None:
     manifest = _read_json(round_dir / "round_manifest.json")
 
     for name, info in manifest["files"].items():
-        assert info["sha256"] == _sha256_file(round_dir / name)
+        archived_path = Path(info["archived_path"])
+        assert archived_path == round_dir / name
+        assert archived_path.exists()
+        assert info["sha256"] == _sha256_file(archived_path)
+
+
+def test_round_manifest_records_source_and_archived_paths(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    result = archive_round(state_dir=state_dir)
+    round_dir = Path(result["round_dir"])
+    manifest = _read_json(round_dir / "round_manifest.json")
+
+    for name in (
+        "artifact_index.json",
+        "current_state.json",
+        "negative_results.json",
+        "model_gate.json",
+        "task_packet.json",
+        "decision_packet.md",
+        "codex_execution_report.md",
+    ):
+        info = manifest["files"][name]
+        assert info["source_path"] == str(state_dir / name)
+        assert info["archived_path"] == str(round_dir / name)
+
+    assert manifest["files"]["git_diff.patch"]["source_path"] is None
+    assert manifest["files"]["git_diff.patch"]["archived_path"] == str(round_dir / "git_diff.patch")
+    assert manifest["files"]["pytest_result.txt"]["source_path"] is None
+    assert manifest["files"]["pytest_result.txt"]["archived_path"] == str(round_dir / "pytest_result.txt")
+
+
+def test_round_manifest_records_pytest_result_source_when_present(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    (state_dir / "pytest_result.txt").write_text("pytest passed\n", encoding="utf-8")
+
+    result = archive_round(state_dir=state_dir)
+    round_dir = Path(result["round_dir"])
+    manifest = _read_json(round_dir / "round_manifest.json")
+
+    assert manifest["files"]["pytest_result.txt"]["source_path"] == str(state_dir / "pytest_result.txt")
+    assert manifest["files"]["pytest_result.txt"]["archived_path"] == str(round_dir / "pytest_result.txt")
+    assert manifest["files"]["pytest_result.txt"]["sha256"] == _sha256_file(round_dir / "pytest_result.txt")
 
 
 def test_archive_round_is_idempotent_for_same_round(tmp_path: Path) -> None:
@@ -1767,6 +1817,18 @@ def test_archive_round_is_idempotent_for_same_round(tmp_path: Path) -> None:
     assert _read_json(Path(first["round_dir"]) / "round_manifest.json") == _read_json(
         Path(second["round_dir"]) / "round_manifest.json"
     )
+
+
+def test_archive_round_refuses_to_overwrite_changed_round(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    archive_round(state_dir=state_dir)
+    (state_dir / "codex_execution_report.md").write_text("changed report\n", encoding="utf-8")
+
+    with pytest.raises(FileExistsError, match="round manifest differs"):
+        archive_round(state_dir=state_dir)
 
 
 def test_archive_round_uses_incrementing_round_for_legacy_state(tmp_path: Path) -> None:
