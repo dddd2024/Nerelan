@@ -1,355 +1,258 @@
 # DECISION_PACKET.md
 
-Generated for `samplereverse` from the latest `project_state` facts.
+本轮是 Phase 1A + Phase 1D 的返工任务，不推进 `samplereverse` 逆向主线，不进入 Phase 2，也不实现 Phase 1B/1C/1E/1F。
 
 ## 1. Goal
 
-Fix `compare_real_lhs_provenance_audit` write-monitor instrumentation so the `static_compare_callsite / 0x258c` sidecar itself emits `write_monitor_health` for all 3 fixed candidates.
+修复上一次 Phase 1A + Phase 1D 实现中的状态一致性与归档语义问题，使 `project_state` 的身份锚点和 `archive-round` 结果可以被 GPT/Codex 稳定接力使用。
 
-Current goal is not to search for new candidates and not to run Base64/RC4 probes. The immediate blocker is:
+本轮目标只包括：
 
-```text
-stage: compare_real_lhs_provenance_audit
-reason: instrumentation_incomplete
-```
+1. 修正 `round_manifest.json` 的文件路径语义。
+2. 让归档 manifest 同时记录 `source_path` 与 `archived_path`，避免 replay 时混淆当前文件和归档副本。
+3. 补充测试，确保 manifest 记录的 `archived_path` 指向 `project_state/rounds/<round_id>/...` 下的归档文件，并且 sha256 与归档副本一致。
+4. 更新 `codex_execution_report.md`，明确 Phase 1A + Phase 1D 的实际完成情况、测试结果和仍未完成项。
+5. 写入真实测试结果到 `project_state/pytest_result.txt`，再执行 `archive-round`。
+6. 重新生成并提交一致的 `project_state` 状态文件。
 
-Latest runtime state shows:
-
-```text
-write_monitor_health.observed_candidate_count = 0
-write_monitor_health.enabled = false
-write_monitor_health.followed_thread_count = 0
-write_monitor_health.raw_write_count = 0
-write_monitor_health.filtered_intersecting_write_count = 0
-```
-
-This means the last-writer monitor was not effectively observed. Current evidence cannot be interpreted as “arg0 writer missing.” It must be treated as instrumentation incomplete.
+不要把本轮任务解释为继续追 `0x401b50`、`0x258c`、Base64/RC4、last-writer 或其他逆向主线。
 
 ## 2. Current Evidence
 
-Latest indexed harness run:
+上一轮实现已经完成一部分 Phase 1A + Phase 1D 原型：
 
-```text
-sr_lhs_last_writer_health_20260518_r2
-```
+- `reverse_agent/project_state.py` 已增加：
+  - `STATE_SCHEMA_VERSION = 2`
+  - `DEFAULT_WORKFLOW_STATUS = "REPORT_AVAILABLE"`
+  - `DEFAULT_CURRENT_OWNER = "web_gpt"`
+  - `DEFAULT_REVIEW_STATUS = "PENDING_REVIEW"`
+  - `STATE_DIGEST_EXCLUDED_KEYS`
+  - `_state_digest()`
+  - `apply_state_identity()`
+- `build_project_state()` 会把 `schema_version`、`state_build_id`、`round_id`、`state_digest` 写入 `current_state.json`，并把 `based_on_state_digest` 写入 `task_packet.json`。
+- `archive_round()` 已经能生成 `project_state/rounds/<round_id>/round_manifest.json`。
+- `tests/test_project_state.py` 已补充身份字段、digest、round_manifest 和 archive 幂等测试。
 
-Latest artifact:
+但是审查发现当前实现仍有阻断问题：
 
-```text
-solve_reports\harness_runs\sr_lhs_last_writer_health_20260518_r2\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json
-```
+1. `task_packet.json`、`decision_packet.md`、`codex_execution_report.md` 三者语义不一致。
+   - `task_packet.json` 当前指向 `Trace 0x401b50 return, branch, or exception outcome`。
+   - 旧 `decision_packet.md` 指向 `compare_real_lhs_provenance_audit` write-monitor 修复。
+   - `codex_execution_report.md` 仍描述旧的 observability repair。
+2. `current_state.json` 和 `task_packet.json` 混入大量历史 artifact，导致当前状态过度膨胀。
+3. `round_manifest.json` 的 `files.*.path` 当前指向 `project_state/current_state.json` 等当前工作区文件，而不是归档副本，replay 语义不清。
+4. `round_manifest.json` 的 `source_git_commit` 是生成状态时的 HEAD，而不是提交后的 commit；需要在报告中明确该字段语义，必要时增加 `state_generated_from_git_commit` 命名或说明。
+5. `project_state/rounds/<round_id>/pytest_result.txt` 只有占位文本：`No pytest_result.txt was available for this round.`，不能证明本轮测试已运行。
 
-Latest `compare_real_lhs_provenance_audit` evidence:
-
-```text
-classification = instrumentation_incomplete
-breakpoint_probe_allowed = false
-candidate_count = 3
-actual_compare.entry = 0x258c
-actual_compare.entry_status = confirmed
-actual_compare.lhs_side = arg0
-actual_compare.flag_side = arg1
-actual_compare.arg0_candidate_dependent = true
-actual_compare.observed_count = 3
-```
-
-Last-writer monitor state:
-
-```text
-last_writer_summary.runtime_backed_count = 0
-last_writer_summary.retained_write_count = 0
-last_writer_summary.intersecting_write_candidate_count = 0
-last_writer_summary.write_monitor_health.observed_candidate_count = 0
-last_writer_summary.write_monitor_health.enabled = false
-last_writer_summary.write_monitor_health.followed_thread_count = 0
-last_writer_summary.write_monitor_health.raw_write_count = 0
-last_writer_summary.write_monitor_health.ring_capacity = 0
-```
-
-Confirmed useful fact:
-
-```text
-0x258c compare arg0 is the candidate-dependent real LHS.
-0x258c compare arg1 is the flag side.
-```
-
-Confirmed blocked fact:
-
-```text
-No runtime-backed arg0 last-writer has been identified.
-No transform-material producer is connected to compare arg0.
-Base64/RC4 breakpoint probe remains blocked.
-```
-
-Fact-source inconsistency to fix:
-
-```text
-project_state/current_state.json and artifact_index.json point to sr_lhs_last_writer_health_20260518_r2,
-but project_state/codex_execution_report.md still describes the earlier pre-health rerun and says the next task is to rerun.
-```
+本轮只返工这些问题。
 
 ## 3. Do Not Do
 
-Do not:
+不要做以下事情：
 
-- run Base64/RC4 breakpoint probe
-- return to old `sample_solver` blind search
-- expand beam, budget, topN, timeout, or frontier iteration
-- treat `retained_write_count = 0` as proof that no writer exists
-- treat `0x4019e0`, `0x401b50`, `0x4018cd`, or `0x401be3` as Base64/RC4 material producers without new runtime-backed semantic evidence
-- reuse old `[ebp-0x1170]` as the real LHS source
-- commit the full `solve_reports` directory
-- scan the entire `solve_reports` tree unless indexed artifacts are insufficient
-- let `compare_probe` fallback silently mask missing sidecar write-monitor evidence
+- 不要进入 Phase 2。
+- 不要实现 `lint-decision`。
+- 不要实现 `latest_artifacts_v2` / freshness。
+- 不要实现 `decision_meta` / `codex_report_summary`。
+- 不要新增 `project_state/schema.md`，除非只做极小文档说明且不影响本轮代码范围。
+- 不要修改 `reverse_agent/strategies/compare_aware_search.py`。
+- 不要修改 `reverse_agent/olly_scripts/*`。
+- 不要运行 Base64/RC4 breakpoint probe。
+- 不要回旧 `sample_solver`。
+- 不要扩大 beam、topN、budget、timeout、frontier iteration。
+- 不要提交完整 `solve_reports/`。
+- 不要默认读取完整 `PROJECT_PROGRESS_LOG.txt`。
+- 不要把本轮状态重建成新的逆向任务。
 
 ## 4. Files To Inspect
 
-Inspect only the bounded files required for this repair:
+优先审计这些文件：
 
 ```text
-reverse_agent/strategies/compare_aware_search.py
-reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
-reverse_agent/olly_scripts/compare_real_lhs_provenance_audit.py
 reverse_agent/project_state.py
-tests/test_compare_aware_search_strategy.py
 tests/test_project_state.py
+project_state/task_packet.json
+project_state/current_state.json
+project_state/decision_packet.md
 project_state/codex_execution_report.md
+project_state/rounds/round_20260518_111005/round_manifest.json
+project_state/rounds/round_20260518_111005/pytest_result.txt
 ```
 
-Do not default to full `PROJECT_PROGRESS_LOG.txt` or full `solve_reports`.
+只在必要时查看：
+
+```text
+README.txt
+docs/phase1_project_state_stability_plan.md
+project_state/artifact_index.json
+project_state/negative_results.json
+project_state/model_gate.json
+```
+
+不要默认读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
 
 ## 5. Required Audit
 
-First explain why latest run produced:
+实现前必须先审计并在 `codex_execution_report.md` 中说明：
 
-```text
-observed_candidate_count = 0
-enabled = false
-followed_thread_count = 0
-raw_write_count = 0
-ring_capacity = 0
-```
-
-Audit these specific paths:
-
-1. Whether `compare_real_lhs_provenance_audit.py` actually invokes the collector with `capture_write_ring = true` for `static_compare_callsite / 0x258c`.
-2. Whether the `0x258c` sidecar hook fires for each fixed candidate.
-3. Whether `compare_pre_compare_handoff_target_probe.py` emits `write_monitor_health` even when `filteredWrites` is empty.
-4. Whether `run_compare_real_lhs_provenance_audit()` falls back to `compare_probe` and thereby obtains compare args without preserving sidecar health.
-5. Whether fallback compare args are currently making `actual_compare` look runtime-backed while write-monitor health remains missing.
-6. Whether `actual_compare_ready` requires `arg0_candidate_dependent == true`.
-
-Required classification behavior:
-
-```text
-static_compare_callsite hook missing
-=> instrumentation_incomplete
-=> reason: static_compare_callsite_hook_missing
-
-fallback compare args present but write_monitor_health missing
-=> instrumentation_incomplete
-=> reason: fallback_compare_without_write_monitor_health
-
-write_monitor_health observed for fewer than 3 candidates
-=> instrumentation_incomplete
-
-write_monitor_health observed for all 3 candidates but raw_write_count == 0
-=> instrumentation_incomplete
-=> reason: write_monitor_raw_write_zero
-
-write_monitor_health observed for all 3 candidates and raw_write_count > 0 but no arg0 intersections
-=> compare_lhs_runtime_backed_writer_missing
-
-arg0-intersecting writes found but after-preview does not match arg0
-=> writer_path_observed_but_unconnected
-
-all 3 candidates have final arg0-connected writer with matching after-preview and candidate-dependent previews
-=> last_writer_identified
-```
+1. `archive_round()` 当前如何选择 `round_id`。
+2. `archive_round()` 当前是否先复制文件再写 `round_manifest.json`。
+3. `round_manifest.json` 中 `files.*.path` 当前指向的是源文件还是归档副本。
+4. `tests/test_project_state.py` 当前为什么没有发现 `path` 语义问题。
+5. `source_git_commit` 当前语义是“state 生成时 HEAD”还是“提交后 HEAD”。
+6. `project_state/pytest_result.txt` 是否存在；如果不存在，为什么归档中出现占位文本。
+7. 当前 `task_packet.json` 为什么会从 Phase 1 架构任务变成 `Trace 0x401b50 return, branch, or exception outcome`。
+8. 是否需要在本轮避免重建 `task_packet.json` 为逆向任务；如果必须重建，则要在 `codex_execution_report.md` 中明确说明生成命令、run-name 和产生该任务的原因。
 
 ## 6. Implementation Scope
 
-### 6.1 Update report fact source
-
-Update `project_state/codex_execution_report.md` with the latest harness result:
+允许修改：
 
 ```text
-run_name = sr_lhs_last_writer_health_20260518_r2
-classification = instrumentation_incomplete
-actual_compare.entry = 0x258c
-actual_compare.lhs_side = arg0
-actual_compare.arg0_candidate_dependent = true
-write_monitor_health.observed_candidate_count = 0
-write_monitor_health.enabled = false
-write_monitor_health.followed_thread_count = 0
-write_monitor_health.raw_write_count = 0
-write_monitor_health.filtered_intersecting_write_count = 0
-breakpoint_probe_allowed = false
-next task = fix static_compare_callsite write-monitor observation
+reverse_agent/project_state.py
+tests/test_project_state.py
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
+project_state/rounds/<new_round_id>/round_manifest.json
+project_state/rounds/<new_round_id>/pytest_result.txt
 ```
 
-### 6.2 Fix sidecar health emission
+允许重新生成：
 
-Ensure the `compare_real_lhs_provenance_audit` hook point for `0x258c` is equivalent to:
+```text
+project_state/artifact_index.json
+project_state/current_state.json
+project_state/negative_results.json
+project_state/model_gate.json
+project_state/task_packet.json
+```
+
+但如果重新生成这些状态文件导致当前任务再次跳回逆向主线，必须在报告中说明，并不要把它标记为 Phase 1 完成。
+
+### 6.1 修正 round_manifest 路径语义
+
+将 manifest 中每个文件条目从：
 
 ```json
 {
-  "name": "static_compare_callsite",
-  "module_offset": 9612,
-  "instruction": "call 0x5028ac",
-  "role": "static_callsite_check",
-  "capture_write_ring": true
+  "path": "project_state\\current_state.json",
+  "sha256": "..."
 }
 ```
 
-At `static_compare_callsite`, emit `write_monitor_health` even when no intersecting writes are found:
+改为类似：
 
 ```json
 {
-  "write_monitor_health": {
-    "enabled": true,
-    "followed_thread_count": 1,
-    "raw_write_count": 0,
-    "ring_capacity": 4096,
-    "eviction_count": 0,
-    "descriptor_decode_failures": 0,
-    "address_decode_failures": 0,
-    "follow_failures": 0,
-    "filtered_intersecting_write_count": 0
-  },
-  "write_ring_buffer": []
+  "source_path": "project_state\\current_state.json",
+  "archived_path": "project_state\\rounds\\round_20260518_111005\\current_state.json",
+  "sha256": "..."
 }
 ```
 
-### 6.3 Make fallback explicit
+对于 `git_diff.patch` 和 `pytest_result.txt` 这种只在 round 目录中生成或补充的文件，也应保持一致结构：
 
-If `compare_probe` fallback is used, record this explicitly:
+```json
+{
+  "source_path": null,
+  "archived_path": "project_state\\rounds\\round_20260518_111005\\git_diff.patch",
+  "sha256": "..."
+}
+```
+
+或者如果实现更简单，也可以保留 `path` 字段但必须让它指向归档副本路径；不过推荐使用 `source_path + archived_path`，语义更清楚。
+
+### 6.2 补充 archive_round 测试
+
+新增或修改测试，确保：
+
+1. `round_manifest["files"][name]["archived_path"]` 指向 `project_state/rounds/<round_id>/<name>`。
+2. `archived_path` 文件存在。
+3. `sha256` 与 `archived_path` 文件内容一致。
+4. 对于源文件类状态文件，`source_path` 指向 `project_state/<name>`。
+5. 对于 `git_diff.patch` 和没有源文件的占位/运行结果，`source_path` 可以为 `null` 或按实现约定明确记录。
+6. 同一 round 重复归档时，如果 manifest 等价，应返回 `no-op`；如果文件内容变化，应拒绝覆盖。
+
+### 6.3 写入真实 pytest_result
+
+运行测试后，将真实输出写入：
 
 ```text
-actual_compare_source = compare_probe_fallback
-write_monitor_health_source = missing
-instrumentation_gap = fallback_compare_without_write_monitor_health
-classification = instrumentation_incomplete
+project_state/pytest_result.txt
 ```
 
-Fallback compare args can confirm `arg0`, but cannot prove write-monitor coverage.
+建议命令：
 
-### 6.4 Tighten gate
-
-In last-writer mode, require candidate-dependent arg0:
-
-```python
-actual_compare_ready = (
-    str(actual_compare.get("entry_status", "")) == "confirmed"
-    and str(actual_compare.get("lhs_side", "")) == "arg0"
-    and bool(actual_compare.get("arg0_candidate_dependent"))
-)
+```powershell
+python -m py_compile reverse_agent\project_state.py
+python -m pytest -q tests\test_project_state.py
 ```
 
-Keep or add:
+可接受的 `pytest_result.txt` 至少应包含：
 
-```python
-if monitor_observed_count < expected_count:
-    return "instrumentation_incomplete"
+```text
+python -m py_compile reverse_agent\project_state.py -> passed
+python -m pytest -q tests\test_project_state.py -> <真实结果>
 ```
 
-### 6.5 Preserve hard stop
+然后再运行：
 
-After running this sidecar, hard-stop. Do not continue into bridge/search/refine/Base64/RC4 logic in the same run.
+```powershell
+python -m reverse_agent.project_state archive-round
+```
+
+确保新 round 的 `pytest_result.txt` 不再是占位文本。
+
+### 6.4 更新 codex_execution_report.md
+
+报告必须明确：
+
+- 本轮是 Phase 1A + Phase 1D 返工。
+- 已修正 `round_manifest` 路径语义。
+- 已补测试。
+- 已运行哪些命令，结果是什么。
+- 是否重新 build 了 `project_state`。
+- 如果 `task_packet.json` 仍然指向逆向任务，要说明这是由当前 `samplereverse` artifact 事实生成的，而不是 Phase 1 架构任务本身。
+- Phase 1B/1C/1E/1F 未实现，不得声称 Phase 1 完成。
 
 ## 7. Tests
 
-Add or update focused tests:
+必须运行并记录输出：
 
-```text
-1. fallback compare args present but write_monitor_health missing
-   => instrumentation_incomplete
-
-2. static_compare_callsite hook missing
-   => instrumentation_incomplete
-
-3. write_monitor_health missing for any candidate
-   => instrumentation_incomplete
-
-4. write_monitor_health observed for all 3 but raw_write_count == 0
-   => instrumentation_incomplete
-
-5. write_monitor_health observed for all 3, raw_write_count > 0, filtered_intersecting_write_count == 0
-   => compare_lhs_runtime_backed_writer_missing
-
-6. arg0-intersecting writes found but after_preview does not match arg0
-   => writer_path_observed_but_unconnected
-
-7. last_writer_identified only when all 3 candidates have:
-   - actual compare arg0 runtime-backed
-   - arg0 candidate-dependent
-   - final arg0-intersecting writer
-   - after_preview matches arg0
-   - candidate-dependent final writer previews
-
-8. breakpoint_probe_allowed remains false unless connected + candidate-dependent + transform-material backed.
-
-9. project_state exposes latest write_monitor_health and routes task to instrumentation repair when classification is instrumentation_incomplete.
+```powershell
+python -m py_compile reverse_agent\project_state.py
+python -m pytest -q tests\test_project_state.py
 ```
 
-Run:
+如果本地有 `solve_reports`，再运行：
 
-```bat
-python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\olly_scripts\compare_real_lhs_provenance_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py
-
-python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py
-
-python -m pytest -q
-```
-
-Then run only the bounded harness after the code fix:
-
-```bat
-python -m reverse_agent.harness ^
-  --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json ^
-  --run-name sr_lhs_last_writer_health_fix_20260518_r1 ^
-  --reports-dir solve_reports ^
-  --analysis-mode Auto ^
-  --model-type "Copilot CLI" ^
-  --runtime-validation-enabled ^
-  --tool-enabled
-```
-
-Rebuild project state:
-
-```bat
-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r1
+```powershell
+python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3
 python -m reverse_agent.project_state status
+python -m reverse_agent.project_state archive-round
 ```
+
+如果本地没有 `solve_reports`，不要伪造完整运行结果；使用测试 fixture 验证即可，并在报告中说明本地缺少运行产物。
 
 ## 8. Stop Conditions
 
-Stop and report if any of these occur:
+遇到以下情况必须停止并报告：
 
-```text
-A. 0x258c static_compare_callsite hook does not fire for all 3 candidates
-   => classification = instrumentation_incomplete
-   => next action = fix static callsite hook attachment
+1. 需要大规模重构 `build_artifact_index()` 才能修复本轮问题。
+2. 需要修改 `compare_aware_search` 主策略。
+3. 需要修改 Olly/Frida/UIA sidecar 脚本。
+4. 需要读取完整 `solve_reports/` 才能完成测试。
+5. `round_manifest` 新旧结构会破坏现有测试或下游读取方，但无法以兼容方式双写。
+6. 无法获得真实 pytest 输出。
+7. `task_packet.json`、`decision_packet.md`、`codex_execution_report.md` 无法在本轮保持一致。
 
-B. static_compare_callsite fires but write_monitor_health missing for any candidate
-   => classification = instrumentation_incomplete
-   => next action = fix health emission / observation normalization
+## Acceptance Criteria
 
-C. write_monitor_health observed for all 3 but raw_write_count == 0
-   => classification = instrumentation_incomplete
-   => next action = fix Stalker coverage or memory-write descriptor coverage
+本轮返工可接受的条件：
 
-D. write_monitor_health observed for all 3 and raw_write_count > 0 but no arg0 intersections
-   => classification = compare_lhs_runtime_backed_writer_missing
-   => next action = inspect ring start time, arg0 range, or writer-before-ring possibility
-
-E. arg0-intersecting writes found but after_preview mismatch
-   => classification = writer_path_observed_but_unconnected
-   => next action = narrow write window and verify range/sequence
-
-F. final arg0-connected writer is found for all 3 candidates
-   => classification = last_writer_identified
-   => next action = validate bounded material hook from confirmed compare lhs last writer
-```
-
-本轮一句话：先修 `0x258c` sidecar 的 `write_monitor_health` 可观测性，不允许让 `compare_probe` fallback 掩盖 write-monitor 缺失。
+1. `round_manifest.json` 的文件路径语义清楚，不再只指向当前工作区源文件。
+2. `tests/test_project_state.py` 能验证 manifest 中归档路径存在，并且 sha256 匹配归档副本。
+3. `project_state/pytest_result.txt` 或新 round 中的 `pytest_result.txt` 包含真实测试输出。
+4. `codex_execution_report.md` 明确说明 Phase 1A + 1D 完成状态和未完成项。
+5. 不修改逆向主策略，不引入 Phase 2 内容。
+6. 不把 Phase 1B/1C/1E/1F 声称为完成。
