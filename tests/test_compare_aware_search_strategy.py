@@ -7624,6 +7624,33 @@ def test_compare_real_lhs_last_writer_raw_write_zero_is_instrumentation_incomple
     assert payload["breakpoint_probe_allowed"] is False
 
 
+def test_compare_real_lhs_last_writer_missing_write_monitor_health_is_instrumentation_incomplete() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[],
+            )
+        )
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["write_monitor_health"]["observed_candidate_count"] == 0
+    assert payload["write_monitor_health"]["raw_write_count"] == 0
+    assert payload["breakpoint_probe_allowed"] is False
+
+
 def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_writer_missing() -> None:
     candidates = []
     for candidate_hex, ptr, preview in [
@@ -7662,18 +7689,21 @@ def test_compare_real_lhs_last_writer_requires_all_three_candidates() -> None:
             "0x1100",
             "aa" * 32,
             write_events=[_last_writer_event("0x1100", "aa" * 32)],
+            write_monitor_health=_write_monitor_health(raw_write_count=5, filtered_intersecting_write_count=1),
         ),
         _compare_real_lhs_candidate_result(
             "5a3e7f46ddd474d041414141414141",
             "0x2200",
             "bb" * 32,
             write_events=[_last_writer_event("0x2200", "bb" * 32)],
+            write_monitor_health=_write_monitor_health(raw_write_count=5, filtered_intersecting_write_count=1),
         ),
         _compare_real_lhs_candidate_result(
             "78d540b49c59076f41414141414141",
             "0x3300",
             "cc" * 32,
             write_events=[],
+            write_monitor_health=_write_monitor_health(raw_write_count=5),
         ),
     ]
 
@@ -7703,6 +7733,10 @@ def test_compare_real_lhs_last_writer_filters_retained_writes_after_arg0_known()
                     _last_writer_event(ptr, preview, sequence=1, address="0x9000", after_preview="11" * 32),
                     _last_writer_event(ptr, preview, sequence=2),
                 ],
+                write_monitor_health=_write_monitor_health(
+                    raw_write_count=7,
+                    filtered_intersecting_write_count=1,
+                ),
             )
         )
 
@@ -7768,6 +7802,10 @@ def test_compare_real_lhs_last_writer_breakpoint_gate_requires_transform_materia
                         transform_material_backed=True,
                     )
                 ],
+                write_monitor_health=_write_monitor_health(
+                    raw_write_count=5,
+                    filtered_intersecting_write_count=1,
+                ),
             )
         )
 

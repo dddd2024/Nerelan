@@ -13408,7 +13408,9 @@ def _compare_real_lhs_last_writer_classification(
     raw_write_count = int(monitor_health.get("raw_write_count", 0) or 0)
     if runtime_backed_count < expected_count or not actual_compare_ready:
         return "instrumentation_incomplete"
-    if monitor_observed_count > 0 and (not monitor_enabled or followed_thread_count <= 0 or raw_write_count <= 0):
+    if monitor_observed_count < expected_count:
+        return "instrumentation_incomplete"
+    if not monitor_enabled or followed_thread_count <= 0 or raw_write_count <= 0:
         return "instrumentation_incomplete"
     if not last_writer_candidates:
         return "compare_lhs_runtime_backed_writer_missing"

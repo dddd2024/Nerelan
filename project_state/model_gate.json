@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-18T04:01:02Z",
+  "generated_at": "2026-05-18T05:04:02Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "compare_lhs_runtime_backed_writer_missing",
+  "reason": "instrumentation_incomplete",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }
