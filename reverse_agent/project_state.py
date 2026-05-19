@@ -511,6 +511,87 @@ def _resolve_latest_run(reports_dir: Path, run_name: str = "") -> Path | None:
     return _latest_path(run_dirs)
 
 
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+        return True
+    except ValueError:
+        return False
+
+
+def _path_from_json(path: str) -> Path:
+    parsed = Path(path)
+    return parsed if parsed.is_absolute() else Path.cwd() / parsed
+
+
+def _artifact_source_run(path: Path, reports_dir: Path) -> str:
+    try:
+        parts = path.resolve().relative_to(reports_dir.resolve()).parts
+    except ValueError:
+        return ""
+    lowered = tuple(part.lower() for part in parts)
+    if len(parts) >= 2 and lowered[0] == "harness_runs":
+        return parts[1]
+    if lowered and lowered[0] == "tool_artifacts":
+        return "legacy_tool_artifacts"
+    return ""
+
+
+def _artifact_freshness(path: Path | None, *, reports_dir: Path, latest_run: Path | None) -> str:
+    if path is None or not path.exists():
+        return "missing"
+    source_run = _artifact_source_run(path, reports_dir)
+    if not source_run:
+        return "unknown"
+    if latest_run is not None and _is_relative_to(path, latest_run):
+        return "current"
+    return "stale"
+
+
+def _artifact_metadata_entry(
+    *,
+    kind: str,
+    path: Path | None,
+    reports_dir: Path,
+    latest_run: Path | None,
+) -> dict[str, Any]:
+    if path is None or not path.exists():
+        return {
+            "path": _path_for_json(path) if path is not None else None,
+            "kind": kind,
+            "source_run": "",
+            "modified_at": None,
+            "size_bytes": None,
+            "sha256": None,
+            "freshness": "missing",
+        }
+    return {
+        "path": _path_for_json(path),
+        "kind": kind,
+        "source_run": _artifact_source_run(path, reports_dir),
+        "modified_at": datetime.fromtimestamp(_safe_mtime(path), tz=timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
+        "size_bytes": path.stat().st_size,
+        "sha256": _sha256_file(path),
+        "freshness": _artifact_freshness(path, reports_dir=reports_dir, latest_run=latest_run),
+    }
+
+
+def _artifact_freshness_counts(artifact_index: dict[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    latest_artifacts_v2 = artifact_index.get("latest_artifacts_v2", {})
+    if not isinstance(latest_artifacts_v2, dict):
+        return counts
+    for item in latest_artifacts_v2.values():
+        if not isinstance(item, dict):
+            continue
+        freshness = str(item.get("freshness") or "unknown")
+        counts[freshness] = counts.get(freshness, 0) + 1
+    return dict(sorted(counts.items()))
+
+
 def build_artifact_index(
     *,
     reports_dir: Path,
@@ -528,6 +609,15 @@ def build_artifact_index(
             "latest_summary": None,
             "latest_case_results": [],
             "latest_artifacts": {key: None for key in LATEST_ARTIFACT_KEYS},
+            "latest_artifacts_v2": {
+                key: _artifact_metadata_entry(
+                    kind=key,
+                    path=None,
+                    reports_dir=reports_dir,
+                    latest_run=None,
+                )
+                for key in LATEST_ARTIFACT_KEYS
+            },
             "recent_artifacts": [],
             "missing": ["reports_dir"],
             "generated_at": generated_at,
@@ -575,6 +665,16 @@ def build_artifact_index(
     if manifest and manifest.exists() and not latest_artifacts.get("run_manifest"):
         latest_artifacts["run_manifest"] = _path_for_json(manifest)
 
+    latest_artifacts_v2 = {
+        kind: _artifact_metadata_entry(
+            kind=kind,
+            path=_path_from_json(path) if path else None,
+            reports_dir=reports_dir,
+            latest_run=latest_run,
+        )
+        for kind, path in latest_artifacts.items()
+    }
+
     if not latest_run:
         missing.append("latest_harness_run")
     if not latest_summary:
@@ -595,6 +695,7 @@ def build_artifact_index(
         "latest_summary": _path_for_json(latest_summary) if latest_summary else None,
         "latest_case_results": [_path_for_json(path) for path in latest_case_results],
         "latest_artifacts": latest_artifacts,
+        "latest_artifacts_v2": latest_artifacts_v2,
         "recent_artifacts": recent_artifacts[: max(0, max_artifacts)],
         "missing": sorted(set(missing)),
         "generated_at": generated_at,
@@ -2784,6 +2885,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "state_dir": _path_for_json(state_dir),
         "latest_harness_run": artifact_index.get("latest_harness_run"),
         "missing": artifact_index.get("missing", []),
+        "artifact_freshness": _artifact_freshness_counts(artifact_index),
         "should_call_model": model_gate.get("should_call_model"),
         "context_level": model_gate.get("context_level"),
         "model_gate_reason": model_gate.get("reason"),
@@ -2814,6 +2916,7 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"state_dir: {summary.get('state_dir')}")
     print(f"latest_harness_run: {summary.get('latest_harness_run')}")
     print(f"missing: {summary.get('missing')}")
+    print(f"artifact_freshness: {summary.get('artifact_freshness')}")
     print(f"should_call_model: {summary.get('should_call_model')}")
     print(f"context_level: {summary.get('context_level')}")
     print(f"reason: {summary.get('model_gate_reason')}")

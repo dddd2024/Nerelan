@@ -142,7 +142,10 @@ def test_build_missing_solve_reports_does_not_crash_and_writes_files(tmp_path: P
     assert (state_dir / "codex_execution_report.md").exists()
     assert (state_dir / "README.md").exists()
     assert (state_dir / "rounds" / ".gitkeep").exists()
-    assert _read_json(state_dir / "artifact_index.json")["missing"] == ["reports_dir"]
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    assert artifact_index["missing"] == ["reports_dir"]
+    assert artifact_index["latest_artifacts_v2"]["summary"]["freshness"] == "missing"
+    assert artifact_index["latest_artifacts_v2"]["summary"]["path"] is None
     assert _read_json(state_dir / "model_gate.json")["should_call_model"] is False
 
 
@@ -1524,6 +1527,79 @@ def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
     assert artifact_index["latest_artifacts"]["guided_pool_validation"].endswith(
         "samplereverse_compare_aware_guided_pool_validation.json"
     )
+
+
+def test_artifact_index_v2_contains_source_run_freshness_and_hash(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="current_run")
+    legacy_artifact = (
+        reports_dir
+        / "tool_artifacts"
+        / "samplereverse_legacy_static"
+        / "base64_rc4_static_point_discovery.json"
+    )
+    _write_json(
+        legacy_artifact,
+        {
+            "artifact_kind": "base64_rc4_static_point_discovery",
+            "classification": "legacy_static_context",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    latest_artifacts = artifact_index["latest_artifacts"]
+    latest_artifacts_v2 = artifact_index["latest_artifacts_v2"]
+    assert isinstance(latest_artifacts["frontier_summary"], str)
+
+    summary = latest_artifacts_v2["summary"]
+    summary_path = run_dir / "summary.json"
+    assert summary["path"] == latest_artifacts["summary"]
+    assert summary["kind"] == "summary"
+    assert summary["source_run"] == "current_run"
+    assert summary["freshness"] == "current"
+    assert summary["size_bytes"] == summary_path.stat().st_size
+    assert summary["sha256"] == _sha256_file(summary_path)
+    assert summary["modified_at"].endswith("Z")
+
+    frontier = latest_artifacts_v2["frontier_summary"]
+    assert frontier["source_run"] == "current_run"
+    assert frontier["freshness"] == "current"
+    assert frontier["sha256"] == _sha256_file(Path(frontier["path"]))
+
+    legacy = latest_artifacts_v2["base64_rc4_static_point_discovery"]
+    assert legacy["source_run"] == "legacy_tool_artifacts"
+    assert legacy["freshness"] == "stale"
+    assert legacy["size_bytes"] == legacy_artifact.stat().st_size
+    assert legacy["sha256"] == _sha256_file(legacy_artifact)
+
+    missing = latest_artifacts_v2["compare_real_lhs_provenance_audit"]
+    assert missing["path"] is None
+    assert missing["source_run"] == ""
+    assert missing["freshness"] == "missing"
+    assert missing["sha256"] is None
+
+
+def test_artifact_index_v2_marks_explicit_run_name_as_current(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    selected_run = _make_minimal_harness_run(reports_dir, run_name="selected_run")
+    _make_minimal_harness_run(reports_dir, run_name="other_run")
+
+    build_project_state(
+        reports_dir=reports_dir,
+        state_dir=state_dir,
+        sample="samplereverse",
+        run_name="selected_run",
+    )
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    frontier = artifact_index["latest_artifacts_v2"]["frontier_summary"]
+    assert artifact_index["latest_harness_run"] == str(selected_run)
+    assert frontier["source_run"] == "selected_run"
+    assert frontier["freshness"] == "current"
 
 
 def test_current_state_negative_results_model_gate_and_task_packet_are_generated(tmp_path: Path) -> None:

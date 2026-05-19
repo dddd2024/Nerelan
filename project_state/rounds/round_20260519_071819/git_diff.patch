@@ -1,0 +1,867 @@
+diff --git a/project_state/artifact_index.json b/project_state/artifact_index.json
+index 567c372..a07a4f4 100644
+--- a/project_state/artifact_index.json
++++ b/project_state/artifact_index.json
+@@ -1,5 +1,5 @@
+ {
+-  "generated_at": "2026-05-19T06:35:49Z",
++  "generated_at": "2026-05-19T07:18:18Z",
+   "latest_artifacts": {
+     "base64_rc4_breakpoint_probe": null,
+     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
+@@ -44,6 +44,386 @@
+     "summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\summary.json",
+     "transform_trace_consistency": null
+   },
++  "latest_artifacts_v2": {
++    "base64_rc4_breakpoint_probe": {
++      "freshness": "missing",
++      "kind": "base64_rc4_breakpoint_probe",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "base64_rc4_static_point_discovery": {
++      "freshness": "stale",
++      "kind": "base64_rc4_static_point_discovery",
++      "modified_at": "2026-05-08T12:48:04Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
++      "sha256": "78c4f9357e4778723674cbbf42089ca4184325698688961b807edf33827a4ce0",
++      "size_bytes": 11109,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "bridge_search_result": {
++      "freshness": "stale",
++      "kind": "bridge_search_result",
++      "modified_at": "2026-04-22T05:10:26Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_search_result.json",
++      "sha256": "bae86a8ac1daf15ffa3107a5ceee2203ed81210563cd04a7301eb8f3ef35b321",
++      "size_bytes": 3367,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "bridge_validation": {
++      "freshness": "stale",
++      "kind": "bridge_validation",
++      "modified_at": "2026-04-22T05:10:29Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_validation\\bridge_validation.json",
++      "sha256": "4dbc1ac8613e74a7e4bd8e392cef28f02dc1a25c4bb835eb393aec7bdf985622",
++      "size_bytes": 2236,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "checkpoint": {
++      "freshness": "stale",
++      "kind": "checkpoint",
++      "modified_at": "2026-04-20T04:39:24Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
++      "sha256": "5db55bd6a0dfdabfaea4b73074bc6a74f705c8799c4348f12db7a75186437d1b",
++      "size_bytes": 608,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "compare_aware_result": {
++      "freshness": "stale",
++      "kind": "compare_aware_result",
++      "modified_at": "2026-04-22T05:16:35Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
++      "sha256": "4aaf0bb885f1ae5fcb7b9aa1b2bcf6aaf3098dc61116571a2c4e8a4d5dc1c67e",
++      "size_bytes": 21920,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "compare_callsite_reanchor_and_lhs_provenance_audit": {
++      "freshness": "missing",
++      "kind": "compare_callsite_reanchor_and_lhs_provenance_audit",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_esi_source_window_audit": {
++      "freshness": "missing",
++      "kind": "compare_esi_source_window_audit",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_handoff_probe": {
++      "freshness": "missing",
++      "kind": "compare_handoff_probe",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_handoff_return_site_probe": {
++      "freshness": "stale",
++      "kind": "compare_handoff_return_site_probe",
++      "modified_at": "2026-05-10T14:44:27Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
++      "sha256": "2d71f6c41e4dc4153bec1077168c7cdf18fdb8173d733d0ab30f0153d38b4327",
++      "size_bytes": 132806,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "compare_handoff_slice_probe": {
++      "freshness": "missing",
++      "kind": "compare_handoff_slice_probe",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_lhs_producer_audit": {
++      "freshness": "missing",
++      "kind": "compare_lhs_producer_audit",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_lhs_slot_writer_predecessor_audit": {
++      "freshness": "missing",
++      "kind": "compare_lhs_slot_writer_predecessor_audit",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_lhs_slot_writer_source_audit": {
++      "freshness": "missing",
++      "kind": "compare_lhs_slot_writer_source_audit",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_lhs_upstream_writer_audit": {
++      "freshness": "missing",
++      "kind": "compare_lhs_upstream_writer_audit",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_pre_compare_handoff_target_probe": {
++      "freshness": "missing",
++      "kind": "compare_pre_compare_handoff_target_probe",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_probe": {
++      "freshness": "current",
++      "kind": "compare_probe",
++      "modified_at": "2026-05-18T09:45:42Z",
++      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
++      "sha256": "7c9ed037dcf96356fca77eb1772bc99d400c99b37766a2304df016b315dcbbe1",
++      "size_bytes": 2431,
++      "source_run": "sr_lhs_last_writer_health_fix_20260518_r3"
++    },
++    "compare_probe_log": {
++      "freshness": "current",
++      "kind": "compare_probe_log",
++      "modified_at": "2026-05-18T09:45:43Z",
++      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
++      "sha256": "1702cb8263906277204cdc2dd06562158b28fc6ea82c10cb0fe71c7f97d08a5f",
++      "size_bytes": 22,
++      "source_run": "sr_lhs_last_writer_health_fix_20260518_r3"
++    },
++    "compare_producer_material_confirmation": {
++      "freshness": "stale",
++      "kind": "compare_producer_material_confirmation",
++      "modified_at": "2026-05-10T14:45:02Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
++      "sha256": "2239c615b2a34ce58031883620ccc8fa7111d180b49d8fc958c96282928a5a0e",
++      "size_bytes": 50953,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "compare_producer_trace_probe": {
++      "freshness": "missing",
++      "kind": "compare_producer_trace_probe",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "compare_real_lhs_provenance_audit": {
++      "freshness": "current",
++      "kind": "compare_real_lhs_provenance_audit",
++      "modified_at": "2026-05-18T09:47:21Z",
++      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
++      "sha256": "b7edf0a6d9ca205b6d58fb0fb48badc61038b97c461666a762949577d86087b0",
++      "size_bytes": 39569,
++      "source_run": "sr_lhs_last_writer_health_fix_20260518_r3"
++    },
++    "compare_stack_pivot_probe": {
++      "freshness": "missing",
++      "kind": "compare_stack_pivot_probe",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "dynamic_compare_path_probe": {
++      "freshness": "missing",
++      "kind": "dynamic_compare_path_probe",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "exact2_basin_value_pool_result": {
++      "freshness": "missing",
++      "kind": "exact2_basin_value_pool_result",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "exact2_basin_value_pool_validation": {
++      "freshness": "missing",
++      "kind": "exact2_basin_value_pool_validation",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "frontier_summary": {
++      "freshness": "stale",
++      "kind": "frontier_summary",
++      "modified_at": "2026-04-22T05:17:01Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_frontier_summary.json",
++      "sha256": "171214937dd47ed668b48261435b4f268b45ac99c760b2e720b6cdd873d63242",
++      "size_bytes": 39895,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "function_semantic_audit": {
++      "freshness": "stale",
++      "kind": "function_semantic_audit",
++      "modified_at": "2026-05-10T14:45:02Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
++      "sha256": "171262dd8028ae4baabfdf8f555e527359073c07378db1665a2dc972f9c00425",
++      "size_bytes": 7957,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "guided_pool_result": {
++      "freshness": "stale",
++      "kind": "guided_pool_result",
++      "modified_at": "2026-04-22T05:14:06Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\samplereverse_compare_aware_guided_pool_result.json",
++      "sha256": "00af8fa5aa8e6fd2df9ec584efd0c98468ff36e0f226295561171d17c522c799",
++      "size_bytes": 111700,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "guided_pool_validation": {
++      "freshness": "stale",
++      "kind": "guided_pool_validation",
++      "modified_at": "2026-04-22T05:14:33Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
++      "sha256": "628a72a612970a61bf1157f85c956bd5ba27d47677cf600045bd7709016e3439",
++      "size_bytes": 16755,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "h1_h3_boundary_validation": {
++      "freshness": "missing",
++      "kind": "h1_h3_boundary_validation",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "material_hook_runtime_validation": {
++      "freshness": "missing",
++      "kind": "material_hook_runtime_validation",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "pairscan_summary": {
++      "freshness": "stale",
++      "kind": "pairscan_summary",
++      "modified_at": "2026-04-22T05:10:26Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\pairscan_summary.json",
++      "sha256": "0179517d85fee569f7e997e9f47b6b9c2eeabe4e5c26ec396a29e89eafd70812",
++      "size_bytes": 884,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "post_handoff_branch_outcome_audit": {
++      "freshness": "missing",
++      "kind": "post_handoff_branch_outcome_audit",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "post_handoff_exception_unwind_audit": {
++      "freshness": "missing",
++      "kind": "post_handoff_exception_unwind_audit",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "pre_rc4_material_probe": {
++      "freshness": "missing",
++      "kind": "pre_rc4_material_probe",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "profile_transform_hypothesis_matrix": {
++      "freshness": "missing",
++      "kind": "profile_transform_hypothesis_matrix",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "run_manifest": {
++      "freshness": "current",
++      "kind": "run_manifest",
++      "modified_at": "2026-05-18T09:47:21Z",
++      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\run_manifest.json",
++      "sha256": "a3503e02004744e70208e2cf991fc03d472095cee0490c8002d4b6cc1660d3e3",
++      "size_bytes": 2118,
++      "source_run": "sr_lhs_last_writer_health_fix_20260518_r3"
++    },
++    "smt_result": {
++      "freshness": "stale",
++      "kind": "smt_result",
++      "modified_at": "2026-04-22T05:17:05Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
++      "sha256": "83bebbac0586bbb18a8945b6834071c9c72faf046892f7cd36150c7243e8fb49",
++      "size_bytes": 780,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "smt_validation": {
++      "freshness": "missing",
++      "kind": "smt_validation",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    },
++    "strata_summary": {
++      "freshness": "stale",
++      "kind": "strata_summary",
++      "modified_at": "2026-04-22T05:17:01Z",
++      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
++      "sha256": "62a64d1d6e582c1f9df43e611395066373f8b851fdceeb9e092ad2681393ac62",
++      "size_bytes": 24414,
++      "source_run": "legacy_tool_artifacts"
++    },
++    "summary": {
++      "freshness": "current",
++      "kind": "summary",
++      "modified_at": "2026-05-18T09:47:21Z",
++      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\summary.json",
++      "sha256": "70b7b003f7f2165fde0957be64e0be8545b6259b871eaac7f8d7c1398a0bf76e",
++      "size_bytes": 948,
++      "source_run": "sr_lhs_last_writer_health_fix_20260518_r3"
++    },
++    "transform_trace_consistency": {
++      "freshness": "missing",
++      "kind": "transform_trace_consistency",
++      "modified_at": null,
++      "path": null,
++      "sha256": null,
++      "size_bytes": null,
++      "source_run": ""
++    }
++  },
+   "latest_case_results": [
+     "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\case_results\\samplereverse-compare-producer-backtrace.json"
+   ],
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 510eed3..4abb1e7 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,8 +1,8 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase1b_fix_20260519",
+-  "round_id": "round_20260519_063549",
++  "report_id": "report_phase1c_artifact_freshness_20260519",
++  "round_id": "round_20260519_071819",
+   "based_on_decision_id": "",
+   "status": "SUCCESS",
+   "acceptance_recommendation": "ACCEPTED",
+@@ -15,6 +15,7 @@
+   "tests_ran": [
+     "python -m py_compile reverse_agent\\project_state.py",
+     "python -m pytest -q tests\\test_project_state.py",
++    "python -m pytest -q",
+     "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3",
+     "python -m reverse_agent.project_state status",
+     "python -m reverse_agent.project_state archive-round"
+@@ -26,14 +27,55 @@
+     "project_state/model_gate.json",
+     "project_state/task_packet.json",
+     "project_state/pytest_result.txt",
+-    "project_state/rounds/round_20260519_063549/round_manifest.json"
++    "project_state/rounds/round_20260519_071819/round_manifest.json"
+   ],
+-  "next_suggested_task": "Proceed to the next approved project_state decision packet after reviewing this archived Phase 1B-fix round."
++  "next_suggested_task": "Review the Phase 1C artifact freshness fields, then proceed to the next approved project_state decision packet."
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
++## 2026-05-19 Phase 1C artifact_index provenance / freshness
++
++This pass implements Phase 1C only. It does not advance the `samplereverse` reverse-engineering mainline, does not enter Phase 1E/1F or Phase 2, does not implement `lint-decision`, and does not modify reverse strategy, Olly scripts, harness flow, search width, timeout, or probe behavior.
++
++### Required Audit
++
++| check | result |
++|---|---|
++| `build_artifact_index()` latest run selection | `_resolve_latest_run()` uses explicit `--run-name` when provided; otherwise it chooses the newest directory under `solve_reports/harness_runs`. |
++| old `latest_artifacts` selection | `_scan_artifact_files()` scans legacy `solve_reports/tool_artifacts` plus harness artifacts, then keeps the newest path per classified kind; summary and run manifest are filled from the selected latest run when absent. |
++| existing `recent_artifacts` metadata | Before this pass it had `kind`, `path`, `size_bytes`, and `modified_at`; it did not have source run, sha256, or freshness. |
++| `run_name` behavior | `run_name` limits harness-run scanning to that run, while legacy tool artifacts remain visible as stale compatibility context. |
++| why mixed refs exist | Current-run artifacts and older legacy tool artifacts are both indexed so compact state can retain useful historical context, but path-only refs could not distinguish current from stale. |
++| compatibility | `latest_artifacts` remains path-only and unchanged; `latest_artifacts_v2` is additive. |
++| sha256 helper | Existing `_sha256_file()` is reused for artifact file digests. |
++| freshness rule | Existing selected-run paths are `current`; existing legacy or non-selected paths are `stale`; null/nonexistent paths are `missing`; unrecognized existing paths are `unknown`. |
++
++### Changes Made
++
++- Added `latest_artifacts_v2` to `artifact_index.json`, with `path`, `kind`, `source_run`, `modified_at`, `size_bytes`, `sha256`, and `freshness` per artifact key.
++- Added source-run inference for `solve_reports/harness_runs/<run_name>/...` and legacy `solve_reports/tool_artifacts/...`.
++- Added `artifact_freshness` counts to `status_summary()` and CLI `status`.
++- Added regression coverage for current harness artifacts, legacy stale artifacts, missing artifacts, explicit `run_name`, and old path-only compatibility.
++
++### Verification This Round
++
++| command | result |
++|---|---|
++| `python -m py_compile reverse_agent\project_state.py` | passed |
++| `python -m pytest -q tests\test_project_state.py` | `59 passed in 8.98s` |
++| `python -m pytest -q` | `309 passed in 47.49s` |
++| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed; generated `round_20260519_071819` / `state_20260519_071819_62dfa8ea2f63` |
++| `python -m reverse_agent.project_state status` | passed; reports `artifact_freshness: {'current': 5, 'missing': 23, 'stale': 14}` |
++| `python -m reverse_agent.project_state archive-round` | run after this report and `project_state/pytest_result.txt` are written so the archive captures final closure evidence |
++
++### State Notes
++
++- `project_state/artifact_index.json` now identifies current run artifacts such as `summary`, `run_manifest`, and `compare_real_lhs_provenance_audit` as `current`.
++- Legacy context such as `frontier_summary` and `base64_rc4_static_point_discovery` is still indexed but marked `stale` with `source_run: legacy_tool_artifacts`.
++- `project_state/task_packet.json` still uses the old path-only `artifact_refs`; downstream migration is intentionally deferred.
++
+ ## 2026-05-19 Phase 1B-fix handoff cache removal
+ 
+ This pass is a Phase 1B consistency fix only. It does not advance the `samplereverse` reverse-engineering mainline, does not enter Phase 1C/1E/1F or Phase 2, and does not implement artifact freshness or `lint-decision`.
+diff --git a/project_state/current_state.json b/project_state/current_state.json
+index 6789afd..336d897 100644
+--- a/project_state/current_state.json
++++ b/project_state/current_state.json
+@@ -101,7 +101,7 @@
+       "semantic_guess": "unknown_but_bounded"
+     }
+   },
+-  "generated_at": "2026-05-19T06:35:49Z",
++  "generated_at": "2026-05-19T07:18:19Z",
+   "known_transform": [
+     "input",
+     "UTF-16LE",
+@@ -1075,13 +1075,13 @@
+   "latest_transform_trace_consistency": {},
+   "profile": "samplereverse",
+   "review_status": "PENDING_REVIEW",
+-  "round_id": "round_20260519_063549",
++  "round_id": "round_20260519_071819",
+   "sample": "samplereverse",
+   "schema_version": 2,
+-  "source_git_commit": "90e291f41102",
++  "source_git_commit": "17e195e334c6",
+   "source_harness_run": "sr_lhs_last_writer_health_fix_20260518_r3",
+-  "state_build_id": "state_20260519_063549_cf4670d47eb6",
+-  "state_digest": "cf4670d47eb6f2fbbe7106d2f4927e6f7aa2fb125dfe77c776c80d4dae6abfc6",
++  "state_build_id": "state_20260519_071819_62dfa8ea2f63",
++  "state_digest": "62dfa8ea2f63f16a89c21eb24ca5da4fd86c3047063dcd8b695e7a25d6fc3ed2",
+   "uncertainty": [],
+   "workflow_status": "REPORT_AVAILABLE"
+ }
+diff --git a/project_state/model_gate.json b/project_state/model_gate.json
+index c87cbc0..61f713b 100644
+--- a/project_state/model_gate.json
++++ b/project_state/model_gate.json
+@@ -1,6 +1,6 @@
+ {
+   "context_level": 2,
+-  "generated_at": "2026-05-19T06:35:49Z",
++  "generated_at": "2026-05-19T07:18:19Z",
+   "missing_evidence": [],
+   "next_local_action": "",
+   "reason": "instrumentation_incomplete",
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index cc751f0..4933248 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,26 +1,36 @@
+-2026-05-19 Phase 1B-fix handoff cache removal verification
++2026-05-19 Phase 1C artifact_index provenance / freshness verification
+ 
+ python -m py_compile reverse_agent\project_state.py -> passed
+ 
+ python -m pytest -q tests\test_project_state.py -> passed
+-.........................................................                [100%]
+-57 passed in 5.11s
++...........................................................              [100%]
++59 passed in 8.98s
++
++python -m pytest -q -> passed
++........................................................................ [ 23%]
++........................................................................ [ 46%]
++........................................................................ [ 69%]
++........................................................................ [ 93%]
++.....................                                                    [100%]
++309 passed in 47.49s
+ 
+ python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3 -> passed
+-generated round_id: round_20260519_063549
+-generated state_build_id: state_20260519_063549_cf4670d47eb6
+-generated state_digest: cf4670d47eb6f2fbbe7106d2f4927e6f7aa2fb125dfe77c776c80d4dae6abfc6
++generated round_id: round_20260519_071819
++generated state_build_id: state_20260519_071819_62dfa8ea2f63
++generated state_digest: 62dfa8ea2f63f16a89c21eb24ca5da4fd86c3047063dcd8b695e7a25d6fc3ed2
+ 
+-task_packet.json cache check -> passed
+-handoff_status absent
+-active_decision_packet: project_state/decision_packet.md
+-execution_scope: decision_packet_controls_current_round
+-task_source: derived_from_sample_artifacts
++latest_artifacts_v2 spot check -> passed
++summary: source_run=sr_lhs_last_writer_health_fix_20260518_r3 freshness=current sha256=70b7b003f7f2...
++run_manifest: source_run=sr_lhs_last_writer_health_fix_20260518_r3 freshness=current sha256=a3503e020047...
++compare_real_lhs_provenance_audit: source_run=sr_lhs_last_writer_health_fix_20260518_r3 freshness=current sha256=b7edf0a6d9ca...
++frontier_summary: source_run=legacy_tool_artifacts freshness=stale sha256=171214937dd4...
++base64_rc4_static_point_discovery: source_run=legacy_tool_artifacts freshness=stale sha256=78c4f9357e47...
+ 
+ python -m reverse_agent.project_state status -> passed
+ state_dir: project_state
+ latest_harness_run: solve_reports\harness_runs\sr_lhs_last_writer_health_fix_20260518_r3
+ missing: []
++artifact_freshness: {'current': 5, 'missing': 23, 'stale': 14}
+ should_call_model: True
+ context_level: 2
+ reason: instrumentation_incomplete
+@@ -37,11 +47,6 @@ decision_based_on_state_digest:
+ decision_parse_error: None
+ report_status: SUCCESS
+ report_acceptance_recommendation: ACCEPTED
+-report_id: report_phase1b_fix_20260519
++report_id: report_phase1c_artifact_freshness_20260519
+ report_based_on_decision_id:
+ report_parse_error: None
+-
+-python -m reverse_agent.project_state archive-round -> passed
+-round_manifest: project_state\rounds\round_20260519_063549\round_manifest.json
+-manifest check -> passed
+-archived task_packet.json has no handoff_status and keeps active_decision_packet/task_source/execution_scope/expected_gpt_output
+diff --git a/project_state/task_packet.json b/project_state/task_packet.json
+index 72459db..262b41e 100644
+--- a/project_state/task_packet.json
++++ b/project_state/task_packet.json
+@@ -22,7 +22,7 @@
+     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
+     "summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\summary.json"
+   },
+-  "based_on_state_digest": "cf4670d47eb6f2fbbe7106d2f4927e6f7aa2fb125dfe77c776c80d4dae6abfc6",
++  "based_on_state_digest": "62dfa8ea2f63f16a89c21eb24ca5da4fd86c3047063dcd8b695e7a25d6fc3ed2",
+   "current_best": {
+     "exact1": {
+       "anchor_mode": "frontier",
+@@ -85,7 +85,7 @@
+   ],
+   "execution_scope": "decision_packet_controls_current_round",
+   "expected_gpt_output": "project_state/decision_packet.md",
+-  "generated_at": "2026-05-19T06:35:49Z",
++  "generated_at": "2026-05-19T07:18:19Z",
+   "included": [
+     "current state",
+     "best candidates",
+@@ -115,10 +115,10 @@
+     "tests/test_compare_aware_search_strategy.py",
+     "tests/test_project_state.py"
+   ],
+-  "round_id": "round_20260519_063549",
++  "round_id": "round_20260519_071819",
+   "sample": "samplereverse",
+   "schema_version": 2,
+-  "state_build_id": "state_20260519_063549_cf4670d47eb6",
++  "state_build_id": "state_20260519_071819_62dfa8ea2f63",
+   "state_scope": "sample_state",
+   "sufficiency_check": {
+     "has_artifact_refs": true,
+diff --git a/reverse_agent/project_state.py b/reverse_agent/project_state.py
+index ccc3533..b73fa53 100644
+--- a/reverse_agent/project_state.py
++++ b/reverse_agent/project_state.py
+@@ -511,6 +511,87 @@ def _resolve_latest_run(reports_dir: Path, run_name: str = "") -> Path | None:
+     return _latest_path(run_dirs)
+ 
+ 
++def _is_relative_to(path: Path, parent: Path) -> bool:
++    try:
++        path.resolve().relative_to(parent.resolve())
++        return True
++    except ValueError:
++        return False
++
++
++def _path_from_json(path: str) -> Path:
++    parsed = Path(path)
++    return parsed if parsed.is_absolute() else Path.cwd() / parsed
++
++
++def _artifact_source_run(path: Path, reports_dir: Path) -> str:
++    try:
++        parts = path.resolve().relative_to(reports_dir.resolve()).parts
++    except ValueError:
++        return ""
++    lowered = tuple(part.lower() for part in parts)
++    if len(parts) >= 2 and lowered[0] == "harness_runs":
++        return parts[1]
++    if lowered and lowered[0] == "tool_artifacts":
++        return "legacy_tool_artifacts"
++    return ""
++
++
++def _artifact_freshness(path: Path | None, *, reports_dir: Path, latest_run: Path | None) -> str:
++    if path is None or not path.exists():
++        return "missing"
++    source_run = _artifact_source_run(path, reports_dir)
++    if not source_run:
++        return "unknown"
++    if latest_run is not None and _is_relative_to(path, latest_run):
++        return "current"
++    return "stale"
++
++
++def _artifact_metadata_entry(
++    *,
++    kind: str,
++    path: Path | None,
++    reports_dir: Path,
++    latest_run: Path | None,
++) -> dict[str, Any]:
++    if path is None or not path.exists():
++        return {
++            "path": _path_for_json(path) if path is not None else None,
++            "kind": kind,
++            "source_run": "",
++            "modified_at": None,
++            "size_bytes": None,
++            "sha256": None,
++            "freshness": "missing",
++        }
++    return {
++        "path": _path_for_json(path),
++        "kind": kind,
++        "source_run": _artifact_source_run(path, reports_dir),
++        "modified_at": datetime.fromtimestamp(_safe_mtime(path), tz=timezone.utc)
++        .replace(microsecond=0)
++        .isoformat()
++        .replace("+00:00", "Z"),
++        "size_bytes": path.stat().st_size,
++        "sha256": _sha256_file(path),
++        "freshness": _artifact_freshness(path, reports_dir=reports_dir, latest_run=latest_run),
++    }
++
++
++def _artifact_freshness_counts(artifact_index: dict[str, Any]) -> dict[str, int]:
++    counts: dict[str, int] = {}
++    latest_artifacts_v2 = artifact_index.get("latest_artifacts_v2", {})
++    if not isinstance(latest_artifacts_v2, dict):
++        return counts
++    for item in latest_artifacts_v2.values():
++        if not isinstance(item, dict):
++            continue
++        freshness = str(item.get("freshness") or "unknown")
++        counts[freshness] = counts.get(freshness, 0) + 1
++    return dict(sorted(counts.items()))
++
++
+ def build_artifact_index(
+     *,
+     reports_dir: Path,
+@@ -528,6 +609,15 @@ def build_artifact_index(
+             "latest_summary": None,
+             "latest_case_results": [],
+             "latest_artifacts": {key: None for key in LATEST_ARTIFACT_KEYS},
++            "latest_artifacts_v2": {
++                key: _artifact_metadata_entry(
++                    kind=key,
++                    path=None,
++                    reports_dir=reports_dir,
++                    latest_run=None,
++                )
++                for key in LATEST_ARTIFACT_KEYS
++            },
+             "recent_artifacts": [],
+             "missing": ["reports_dir"],
+             "generated_at": generated_at,
+@@ -575,6 +665,16 @@ def build_artifact_index(
+     if manifest and manifest.exists() and not latest_artifacts.get("run_manifest"):
+         latest_artifacts["run_manifest"] = _path_for_json(manifest)
+ 
++    latest_artifacts_v2 = {
++        kind: _artifact_metadata_entry(
++            kind=kind,
++            path=_path_from_json(path) if path else None,
++            reports_dir=reports_dir,
++            latest_run=latest_run,
++        )
++        for kind, path in latest_artifacts.items()
++    }
++
+     if not latest_run:
+         missing.append("latest_harness_run")
+     if not latest_summary:
+@@ -595,6 +695,7 @@ def build_artifact_index(
+         "latest_summary": _path_for_json(latest_summary) if latest_summary else None,
+         "latest_case_results": [_path_for_json(path) for path in latest_case_results],
+         "latest_artifacts": latest_artifacts,
++        "latest_artifacts_v2": latest_artifacts_v2,
+         "recent_artifacts": recent_artifacts[: max(0, max_artifacts)],
+         "missing": sorted(set(missing)),
+         "generated_at": generated_at,
+@@ -2784,6 +2885,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
+         "state_dir": _path_for_json(state_dir),
+         "latest_harness_run": artifact_index.get("latest_harness_run"),
+         "missing": artifact_index.get("missing", []),
++        "artifact_freshness": _artifact_freshness_counts(artifact_index),
+         "should_call_model": model_gate.get("should_call_model"),
+         "context_level": model_gate.get("context_level"),
+         "model_gate_reason": model_gate.get("reason"),
+@@ -2814,6 +2916,7 @@ def _print_status(summary: dict[str, Any]) -> None:
+     print(f"state_dir: {summary.get('state_dir')}")
+     print(f"latest_harness_run: {summary.get('latest_harness_run')}")
+     print(f"missing: {summary.get('missing')}")
++    print(f"artifact_freshness: {summary.get('artifact_freshness')}")
+     print(f"should_call_model: {summary.get('should_call_model')}")
+     print(f"context_level: {summary.get('context_level')}")
+     print(f"reason: {summary.get('model_gate_reason')}")
+diff --git a/tests/test_project_state.py b/tests/test_project_state.py
+index 347284d..ddd22bd 100644
+--- a/tests/test_project_state.py
++++ b/tests/test_project_state.py
+@@ -142,7 +142,10 @@ def test_build_missing_solve_reports_does_not_crash_and_writes_files(tmp_path: P
+     assert (state_dir / "codex_execution_report.md").exists()
+     assert (state_dir / "README.md").exists()
+     assert (state_dir / "rounds" / ".gitkeep").exists()
+-    assert _read_json(state_dir / "artifact_index.json")["missing"] == ["reports_dir"]
++    artifact_index = _read_json(state_dir / "artifact_index.json")
++    assert artifact_index["missing"] == ["reports_dir"]
++    assert artifact_index["latest_artifacts_v2"]["summary"]["freshness"] == "missing"
++    assert artifact_index["latest_artifacts_v2"]["summary"]["path"] is None
+     assert _read_json(state_dir / "model_gate.json")["should_call_model"] is False
+ 
+ 
+@@ -1526,6 +1529,79 @@ def test_build_generates_state_files_and_artifact_index(tmp_path: Path) -> None:
+     )
+ 
+ 
++def test_artifact_index_v2_contains_source_run_freshness_and_hash(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    run_dir = _make_minimal_harness_run(reports_dir, run_name="current_run")
++    legacy_artifact = (
++        reports_dir
++        / "tool_artifacts"
++        / "samplereverse_legacy_static"
++        / "base64_rc4_static_point_discovery.json"
++    )
++    _write_json(
++        legacy_artifact,
++        {
++            "artifact_kind": "base64_rc4_static_point_discovery",
++            "classification": "legacy_static_context",
++        },
++    )
++
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    artifact_index = _read_json(state_dir / "artifact_index.json")
++    latest_artifacts = artifact_index["latest_artifacts"]
++    latest_artifacts_v2 = artifact_index["latest_artifacts_v2"]
++    assert isinstance(latest_artifacts["frontier_summary"], str)
++
++    summary = latest_artifacts_v2["summary"]
++    summary_path = run_dir / "summary.json"
++    assert summary["path"] == latest_artifacts["summary"]
++    assert summary["kind"] == "summary"
++    assert summary["source_run"] == "current_run"
++    assert summary["freshness"] == "current"
++    assert summary["size_bytes"] == summary_path.stat().st_size
++    assert summary["sha256"] == _sha256_file(summary_path)
++    assert summary["modified_at"].endswith("Z")
++
++    frontier = latest_artifacts_v2["frontier_summary"]
++    assert frontier["source_run"] == "current_run"
++    assert frontier["freshness"] == "current"
++    assert frontier["sha256"] == _sha256_file(Path(frontier["path"]))
++
++    legacy = latest_artifacts_v2["base64_rc4_static_point_discovery"]
++    assert legacy["source_run"] == "legacy_tool_artifacts"
++    assert legacy["freshness"] == "stale"
++    assert legacy["size_bytes"] == legacy_artifact.stat().st_size
++    assert legacy["sha256"] == _sha256_file(legacy_artifact)
++
++    missing = latest_artifacts_v2["compare_real_lhs_provenance_audit"]
++    assert missing["path"] is None
++    assert missing["source_run"] == ""
++    assert missing["freshness"] == "missing"
++    assert missing["sha256"] is None
++
++
++def test_artifact_index_v2_marks_explicit_run_name_as_current(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    selected_run = _make_minimal_harness_run(reports_dir, run_name="selected_run")
++    _make_minimal_harness_run(reports_dir, run_name="other_run")
++
++    build_project_state(
++        reports_dir=reports_dir,
++        state_dir=state_dir,
++        sample="samplereverse",
++        run_name="selected_run",
++    )
++
++    artifact_index = _read_json(state_dir / "artifact_index.json")
++    frontier = artifact_index["latest_artifacts_v2"]["frontier_summary"]
++    assert artifact_index["latest_harness_run"] == str(selected_run)
++    assert frontier["source_run"] == "selected_run"
++    assert frontier["freshness"] == "current"
++
++
+ def test_current_state_negative_results_model_gate_and_task_packet_are_generated(tmp_path: Path) -> None:
+     reports_dir = tmp_path / "solve_reports"
+     state_dir = tmp_path / "project_state"
