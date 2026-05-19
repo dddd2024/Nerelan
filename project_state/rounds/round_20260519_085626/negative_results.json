@@ -1,0 +1,146 @@
+[
+  {
+    "direction": "old sample_solver blind search",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "compare-aware profile path is current primary route",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "only increase guided_pool beam or budget",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "previous project notes indicate low return",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "use compare_semantics_agree=false candidates as primary frontier",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "runtime/offline semantics disagree",
+    "severity": "hard_block"
+  },
+  {
+    "direction": "commit full solve_reports directory",
+    "do_not_repeat": true,
+    "override_allowed": false,
+    "override_reason_required": false,
+    "reason": "solve_reports is runtime output and may contain bulky or local data",
+    "severity": "hard_block"
+  },
+  {
+    "direction": "exact2 basin value-pool evaluation with pools 0:78 1:d5/3e/3c 2:40/7f/80 3:b4/8f 4:9c",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "bounded exact2 value-pool branch generated 18 unique candidates and runtime-validated all 18; best remained exact2 / distance5 246 with no exact3+ or distance improvement",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "H1/H3 fixed 8-candidate prefix8 plus Base64 boundary contrast set: 78d540b49c59077041414141414141, 78d540b49c59076f41414141414141, 78d540b49c59077141414141414141, 78d540b49c5907b041414141414141, 78d540b49c5907d041414141414141, 78d540b49c59077040414141414141, 78d540b49c59077042414141414141, 78d540b49c59076f42414141414141",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "H1/H3 fixed contrast set was runtime-validated with compare_semantics_agree=true; best stayed exact2 / distance5 246 and improved_over_exact2=false",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "repeat current 5-candidate transform trace consistency audit without new runtime evidence",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "transform trace consistency diagnostic confirmed five runtime-backed candidates agree with offline UTF-16LE/Base64/RC4/compare trace; next work needs a different bounded evidence source",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "rerun Base64/RC4 breakpoint probe before confirming a Base64/RC4 instruction hook",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "static discovery found hookable compare-side evidence but no instruction-confirmed Base64/RC4 point; the breakpoint probe remains gated until a material construction hook is confirmed",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "repeat compare return-site audit without using its classification",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "the return-site probe produced a more specific handoff classification; next work should use that evidence rather than rerunning the same hook set",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "repeat producer material confirmation without adding instruction-level evidence",
+    "do_not_repeat": true,
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "the producer material confirmation remained inconclusive; next work should inspect the reported producer offsets or add a more specific hook before repeating it",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "treat 0x4019e0 as Base64/RC4 material producer without new semantic evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+    "function": "0x4019e0",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
+    "scope": "function_semantics",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "treat 0x401b50 as Base64/RC4 material producer without new semantic evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+    "function": "0x401b50",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
+    "scope": "function_semantics",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "treat 0x4018cd as Base64/RC4 material producer without new semantic evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+    "function": "0x4018cd",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
+    "scope": "function_semantics",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "treat 0x401be3 as Base64/RC4 material producer without new semantic evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+    "function": "0x401be3",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "function semantic audit did not confirm instruction-confirmed, hookable, candidate-dependent material output connected to compare lhs",
+    "scope": "function_semantics",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "reuse old [ebp-0x1170] without real-lhs provenance evidence",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "old frame anchor still is not a runtime-backed source for confirmed compare arg0",
+    "scope": "compare_real_lhs_provenance_audit",
+    "severity": "soft_block"
+  },
+  {
+    "direction": "run Base64/RC4 breakpoint probe before real lhs producer identification",
+    "do_not_repeat": true,
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "override_allowed": true,
+    "override_reason_required": true,
+    "reason": "breakpoint probing remains blocked until a runtime-backed real lhs producer is identified",
+    "scope": "compare_real_lhs_provenance_audit",
+    "severity": "soft_block"
+  }
+]

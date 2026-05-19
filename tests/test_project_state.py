@@ -8,6 +8,7 @@ import pytest
 from reverse_agent.project_state import (
     archive_round,
     build_project_state,
+    ensure_state_layout,
     extract_markdown_json_block,
     main,
     pack_context,
@@ -1600,6 +1601,10 @@ def test_artifact_index_v2_marks_explicit_run_name_as_current(tmp_path: Path) ->
     assert artifact_index["latest_harness_run"] == str(selected_run)
     assert frontier["source_run"] == "selected_run"
     assert frontier["freshness"] == "current"
+    assert all(
+        item.get("source_run") != "other_run" or item.get("freshness") != "current"
+        for item in artifact_index["latest_artifacts_v2"].values()
+    )
 
 
 def test_current_state_negative_results_model_gate_and_task_packet_are_generated(tmp_path: Path) -> None:
@@ -1817,12 +1822,21 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
     assert summary["report_status"] == "PARTIAL"
     assert summary["report_acceptance_recommendation"] == "NEEDS_REVIEW"
     assert summary["report_based_on_decision_id"] == "decision_test"
+    assert summary["decision_report_id_match"] is True
+    assert summary["handoff_consistency"] == {
+        "decision_report_id_match": True,
+        "decision_id": "decision_test",
+        "report_based_on_decision_id": "decision_test",
+        "decision_status": "APPROVED",
+        "report_status": "PARTIAL",
+    }
 
     assert main(["status", "--state-dir", str(state_dir)]) == 0
     output = capsys.readouterr().out
     assert "decision_status: APPROVED" in output
     assert "report_status: PARTIAL" in output
     assert "report_acceptance_recommendation: NEEDS_REVIEW" in output
+    assert "decision_report_id_match: True" in output
 
 
 def test_template_decision_and_report_are_template_only(tmp_path: Path) -> None:
@@ -1839,6 +1853,139 @@ def test_template_decision_and_report_are_template_only(tmp_path: Path) -> None:
     assert report["status"] == "TEMPLATE_ONLY"
     assert summary["decision_status"] == "TEMPLATE_ONLY"
     assert summary["report_status"] == "TEMPLATE_ONLY"
+    assert summary["decision_report_id_match"] is False
+
+
+def test_ensure_state_layout_upgrades_legacy_default_templates(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "decision_packet.md").write_text(
+        """# DECISION_PACKET
+
+## Goal
+本轮只做什么。
+
+## Current Evidence
+当前证据摘要。
+
+## Do Not Do
+禁止重复方向。
+
+## Files To Inspect
+Codex 优先审计的文件。
+
+## Required Audit
+Codex 执行前必须确认的内容。
+
+## Implementation Scope
+允许修改哪些文件。
+
+## Tests
+必须运行哪些测试。
+
+## Stop Conditions
+遇到什么情况必须停止并报告。
+""",
+        encoding="utf-8",
+    )
+    (state_dir / "codex_execution_report.md").write_text(
+        """# CODEX_EXECUTION_REPORT
+
+## Summary
+本轮做了什么。
+
+## Files Changed
+修改文件列表。
+
+## Audit Result
+审计发现。
+
+## Implementation
+实际实现内容。
+
+## Tests
+运行的测试命令和结果。
+
+## Generated State Files
+生成了哪些 project_state 文件。
+
+## Problems / Uncertainty
+仍然不确定的地方。
+
+## Next Suggested Task
+下一轮建议。
+""",
+        encoding="utf-8",
+    )
+
+    ensure_state_layout(state_dir)
+
+    decision_text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    report_text = (state_dir / "codex_execution_report.md").read_text(encoding="utf-8")
+    assert "```json decision_meta" in decision_text
+    assert "```json codex_report_summary" in report_text
+    assert read_decision_meta(state_dir)["status"] == "TEMPLATE_ONLY"
+    assert read_codex_report_summary(state_dir)["status"] == "TEMPLATE_ONLY"
+
+
+def test_handoff_consistency_is_false_for_missing_or_mismatched_report_decision_id(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    (state_dir / "decision_packet.md").write_text(
+        """```json decision_meta
+{
+  "schema_version": 1,
+  "decision_id": "decision_expected",
+  "status": "APPROVED"
+}
+```
+
+# DECISION_PACKET
+""",
+        encoding="utf-8",
+    )
+    (state_dir / "codex_execution_report.md").write_text(
+        """```json codex_report_summary
+{
+  "schema_version": 1,
+  "report_id": "report_empty_binding",
+  "based_on_decision_id": "",
+  "status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED"
+}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+    empty_binding = status_summary(state_dir=state_dir)
+    assert empty_binding["decision_report_id_match"] is False
+    assert empty_binding["handoff_consistency"]["report_based_on_decision_id"] == ""
+
+    (state_dir / "codex_execution_report.md").write_text(
+        """```json codex_report_summary
+{
+  "schema_version": 1,
+  "report_id": "report_mismatched_binding",
+  "based_on_decision_id": "decision_other",
+  "status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED"
+}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+    mismatch = status_summary(state_dir=state_dir)
+    assert mismatch["decision_report_id_match"] is False
+    assert mismatch["handoff_consistency"]["decision_id"] == "decision_expected"
+    assert mismatch["handoff_consistency"]["report_based_on_decision_id"] == "decision_other"
 
 
 def test_task_packet_does_not_cache_handoff_status(tmp_path: Path) -> None:

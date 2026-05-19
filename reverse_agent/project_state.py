@@ -147,7 +147,7 @@ CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS = {
     "UNKNOWN",
 }
 
-DECISION_PACKET_TEMPLATE = """# DECISION_PACKET
+LEGACY_DECISION_PACKET_TEMPLATE = """# DECISION_PACKET
 
 ## Goal
 本轮只做什么。
@@ -174,7 +174,87 @@ Codex 执行前必须确认的内容。
 遇到什么情况必须停止并报告。
 """
 
-CODEX_EXECUTION_REPORT_TEMPLATE = """# CODEX_EXECUTION_REPORT
+LEGACY_CODEX_EXECUTION_REPORT_TEMPLATE = """# CODEX_EXECUTION_REPORT
+
+## Summary
+本轮做了什么。
+
+## Files Changed
+修改文件列表。
+
+## Audit Result
+审计发现。
+
+## Implementation
+实际实现内容。
+
+## Tests
+运行的测试命令和结果。
+
+## Generated State Files
+生成了哪些 project_state 文件。
+
+## Problems / Uncertainty
+仍然不确定的地方。
+
+## Next Suggested Task
+下一轮建议。
+"""
+
+DECISION_PACKET_TEMPLATE = """```json decision_meta
+{
+  "schema_version": 1,
+  "decision_id": "",
+  "round_id": "",
+  "based_on_state_build_id": "",
+  "based_on_state_digest": "",
+  "status": "TEMPLATE_ONLY"
+}
+```
+
+# DECISION_PACKET
+
+## Goal
+本轮只做什么。
+
+## Current Evidence
+当前证据摘要。
+
+## Do Not Do
+禁止重复方向。
+
+## Files To Inspect
+Codex 优先审计的文件。
+
+## Required Audit
+Codex 执行前必须确认的内容。
+
+## Implementation Scope
+允许修改哪些文件。
+
+## Tests
+必须运行哪些测试。
+
+## Stop Conditions
+遇到什么情况必须停止并报告。
+"""
+
+CODEX_EXECUTION_REPORT_TEMPLATE = """```json codex_report_summary
+{
+  "schema_version": 1,
+  "report_id": "",
+  "round_id": "",
+  "based_on_decision_id": "",
+  "status": "TEMPLATE_ONLY",
+  "acceptance_recommendation": "UNKNOWN",
+  "files_changed": [],
+  "tests_ran": [],
+  "generated_artifacts": [],
+  "next_suggested_task": ""
+}
+```
+
+# CODEX_EXECUTION_REPORT
 
 ## Summary
 本轮做了什么。
@@ -306,14 +386,15 @@ def _identity_timestamp() -> tuple[str, str]:
     return now.strftime("%Y%m%d_%H%M%S"), now.isoformat().replace("+00:00", "Z")
 
 
-def _is_missing_or_default(path: Path, default_content: str) -> bool:
+def _is_missing_or_default(path: Path, default_content: str, *legacy_defaults: str) -> bool:
     if not path.exists():
         return True
     try:
         current = path.read_text(encoding="utf-8").strip()
     except OSError:
         return False
-    return not current or current == default_content.strip()
+    default_texts = (default_content, *legacy_defaults)
+    return not current or any(current == item.strip() for item in default_texts)
 
 
 def extract_markdown_json_block(text: str, block_name: str) -> dict[str, Any]:
@@ -413,10 +494,34 @@ def read_codex_report_summary(state_dir: Path) -> dict[str, Any]:
     }
 
 
-def build_handoff_status(state_dir: Path) -> dict[str, Any]:
+def _build_handoff_consistency(decision: dict[str, Any], codex_report: dict[str, Any]) -> dict[str, Any]:
+    decision_id = str(decision.get("decision_id") or "")
+    report_based_on_decision_id = str(codex_report.get("based_on_decision_id") or "")
+    decision_status = str(decision.get("status") or "UNKNOWN")
+    report_status = str(codex_report.get("status") or "UNKNOWN")
+    decision_report_id_match = (
+        bool(decision_id)
+        and bool(report_based_on_decision_id)
+        and decision_id == report_based_on_decision_id
+        and decision_status not in {"TEMPLATE_ONLY", "UNKNOWN"}
+        and report_status not in {"TEMPLATE_ONLY", "UNKNOWN"}
+    )
     return {
-        "decision": read_decision_meta(state_dir),
-        "codex_report": read_codex_report_summary(state_dir),
+        "decision_report_id_match": decision_report_id_match,
+        "decision_id": decision_id,
+        "report_based_on_decision_id": report_based_on_decision_id,
+        "decision_status": decision_status,
+        "report_status": report_status,
+    }
+
+
+def build_handoff_status(state_dir: Path) -> dict[str, Any]:
+    decision = read_decision_meta(state_dir)
+    codex_report = read_codex_report_summary(state_dir)
+    return {
+        "decision": decision,
+        "codex_report": codex_report,
+        "handoff_consistency": _build_handoff_consistency(decision, codex_report),
     }
 
 
@@ -429,10 +534,14 @@ def ensure_state_layout(state_dir: Path) -> None:
     if _is_missing_or_default(readme_path, PROJECT_STATE_README):
         _write_text(readme_path, PROJECT_STATE_README)
     decision_path = state_dir / "decision_packet.md"
-    if _is_missing_or_default(decision_path, DECISION_PACKET_TEMPLATE):
+    if _is_missing_or_default(decision_path, DECISION_PACKET_TEMPLATE, LEGACY_DECISION_PACKET_TEMPLATE):
         _write_text(decision_path, DECISION_PACKET_TEMPLATE)
     report_path = state_dir / "codex_execution_report.md"
-    if _is_missing_or_default(report_path, CODEX_EXECUTION_REPORT_TEMPLATE):
+    if _is_missing_or_default(
+        report_path,
+        CODEX_EXECUTION_REPORT_TEMPLATE,
+        LEGACY_CODEX_EXECUTION_REPORT_TEMPLATE,
+    ):
         _write_text(report_path, CODEX_EXECUTION_REPORT_TEMPLATE)
 
 
@@ -2881,6 +2990,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
     handoff_status = build_handoff_status(state_dir)
     decision = handoff_status["decision"]
     codex_report = handoff_status["codex_report"]
+    handoff_consistency = handoff_status["handoff_consistency"]
     return {
         "state_dir": _path_for_json(state_dir),
         "latest_harness_run": artifact_index.get("latest_harness_run"),
@@ -2909,6 +3019,8 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "report_id": codex_report.get("report_id"),
         "report_based_on_decision_id": codex_report.get("based_on_decision_id"),
         "report_parse_error": codex_report.get("parse_error"),
+        "handoff_consistency": handoff_consistency,
+        "decision_report_id_match": handoff_consistency.get("decision_report_id_match"),
     }
 
 
@@ -2936,6 +3048,7 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"report_id: {summary.get('report_id')}")
     print(f"report_based_on_decision_id: {summary.get('report_based_on_decision_id')}")
     print(f"report_parse_error: {summary.get('report_parse_error')}")
+    print(f"decision_report_id_match: {summary.get('decision_report_id_match')}")
 
 
 def main(argv: list[str] | None = None) -> int:
