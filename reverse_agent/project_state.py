@@ -112,6 +112,10 @@ STATE_SCHEMA_VERSION = 2
 DEFAULT_WORKFLOW_STATUS = "REPORT_AVAILABLE"
 DEFAULT_CURRENT_OWNER = "web_gpt"
 DEFAULT_REVIEW_STATUS = "PENDING_REVIEW"
+STATE_SCOPE_SAMPLE = "sample_state"
+TASK_SOURCE_DERIVED_FROM_SAMPLE_ARTIFACTS = "derived_from_sample_artifacts"
+ACTIVE_DECISION_PACKET = "project_state/decision_packet.md"
+EXECUTION_SCOPE_DECISION_PACKET_CONTROLS_CURRENT_ROUND = "decision_packet_controls_current_round"
 STATE_DIGEST_EXCLUDED_KEYS = {
     "generated_at",
     "round_id",
@@ -2247,6 +2251,16 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
     return "collect_missing_evidence"
 
 
+def _task_scope_fields(task: str) -> dict[str, str]:
+    return {
+        "state_scope": STATE_SCOPE_SAMPLE,
+        "task_source": TASK_SOURCE_DERIVED_FROM_SAMPLE_ARTIFACTS,
+        "derived_task": task,
+        "active_decision_packet": ACTIVE_DECISION_PACKET,
+        "execution_scope": EXECUTION_SCOPE_DECISION_PACKET_CONTROLS_CURRENT_ROUND,
+    }
+
+
 def build_task_packet(
     *,
     current_state: dict[str, Any],
@@ -2265,8 +2279,10 @@ def build_task_packet(
     missing_evidence = model_gate.get("missing_evidence", [])
 
     if not model_gate.get("should_call_model"):
+        task = "collect_missing_evidence"
         return {
-            "task": "collect_missing_evidence",
+            "task": task,
+            **_task_scope_fields(task),
             "sample": current_state.get("sample"),
             "profile": current_state.get("profile"),
             "active_strategy": current_state.get("active_strategy"),
@@ -2301,12 +2317,14 @@ def build_task_packet(
                 "has_artifact_refs": bool(artifact_refs),
                 "has_runtime_validation": has_runtime_validation,
             },
-            "expected_gpt_output": "project_state/decision_packet.md",
+            "expected_gpt_output": ACTIVE_DECISION_PACKET,
             "generated_at": _now_iso(),
         }
 
+    task = _task_from_bottleneck(current_state)
     return {
-        "task": _task_from_bottleneck(current_state),
+        "task": task,
+        **_task_scope_fields(task),
         "sample": current_state.get("sample"),
         "profile": current_state.get("profile"),
         "active_strategy": current_state.get("active_strategy"),
@@ -2349,7 +2367,7 @@ def build_task_packet(
             "context_level": model_gate.get("context_level"),
             "reason": model_gate.get("reason"),
         },
-        "expected_gpt_output": "project_state/decision_packet.md",
+        "expected_gpt_output": ACTIVE_DECISION_PACKET,
         "generated_at": _now_iso(),
     }
 
@@ -2630,6 +2648,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
     artifact_index = _read_json(state_dir / "artifact_index.json")
     model_gate = _read_json(state_dir / "model_gate.json")
     task_packet = _read_json(state_dir / "task_packet.json")
+    task = task_packet.get("task")
     return {
         "state_dir": _path_for_json(state_dir),
         "latest_harness_run": artifact_index.get("latest_harness_run"),
@@ -2637,8 +2656,16 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "should_call_model": model_gate.get("should_call_model"),
         "context_level": model_gate.get("context_level"),
         "model_gate_reason": model_gate.get("reason"),
-        "task": task_packet.get("task"),
-        "expected_gpt_output": task_packet.get("expected_gpt_output", "project_state/decision_packet.md"),
+        "task": task,
+        "state_scope": task_packet.get("state_scope", STATE_SCOPE_SAMPLE),
+        "task_source": task_packet.get("task_source", TASK_SOURCE_DERIVED_FROM_SAMPLE_ARTIFACTS),
+        "derived_task": task_packet.get("derived_task", task),
+        "active_decision_packet": task_packet.get("active_decision_packet", ACTIVE_DECISION_PACKET),
+        "execution_scope": task_packet.get(
+            "execution_scope",
+            EXECUTION_SCOPE_DECISION_PACKET_CONTROLS_CURRENT_ROUND,
+        ),
+        "expected_gpt_output": task_packet.get("expected_gpt_output", ACTIVE_DECISION_PACKET),
     }
 
 
@@ -2650,6 +2677,11 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"context_level: {summary.get('context_level')}")
     print(f"reason: {summary.get('model_gate_reason')}")
     print(f"task: {summary.get('task')}")
+    print(f"state_scope: {summary.get('state_scope')}")
+    print(f"task_source: {summary.get('task_source')}")
+    print(f"derived_task: {summary.get('derived_task')}")
+    print(f"active_decision_packet: {summary.get('active_decision_packet')}")
+    print(f"execution_scope: {summary.get('execution_scope')}")
     print(f"expected_gpt_output: {summary.get('expected_gpt_output')}")
 
 

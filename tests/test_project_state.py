@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from reverse_agent.project_state import archive_round, build_project_state, main, pack_context
+from reverse_agent.project_state import archive_round, build_project_state, main, pack_context, status_summary
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -1572,6 +1572,42 @@ def test_task_packet_has_based_on_state_digest(tmp_path: Path) -> None:
     assert task_packet["state_build_id"] == current_state["state_build_id"]
     assert task_packet["round_id"] == current_state["round_id"]
     assert task_packet["based_on_state_digest"] == current_state["state_digest"]
+
+
+def test_task_packet_distinguishes_derived_task_from_active_decision(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert task_packet["task"]
+    assert task_packet["state_scope"] == "sample_state"
+    assert task_packet["task_source"] == "derived_from_sample_artifacts"
+    assert task_packet["derived_task"] == task_packet["task"]
+    assert task_packet["active_decision_packet"] == "project_state/decision_packet.md"
+    assert task_packet["execution_scope"] == "decision_packet_controls_current_round"
+    assert task_packet["expected_gpt_output"] == "project_state/decision_packet.md"
+
+
+def test_status_summary_includes_task_source_and_active_decision(tmp_path: Path, capsys) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    summary = status_summary(state_dir=state_dir)
+    assert summary["task_source"] == "derived_from_sample_artifacts"
+    assert summary["derived_task"] == summary["task"]
+    assert summary["active_decision_packet"] == "project_state/decision_packet.md"
+    assert summary["execution_scope"] == "decision_packet_controls_current_round"
+
+    assert main(["status", "--state-dir", str(state_dir)]) == 0
+    output = capsys.readouterr().out
+    assert "task_source: derived_from_sample_artifacts" in output
+    assert "active_decision_packet: project_state/decision_packet.md" in output
+    assert "execution_scope: decision_packet_controls_current_round" in output
 
 
 def test_state_digest_is_stable_for_same_inputs(tmp_path: Path) -> None:

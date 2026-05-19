@@ -1,0 +1,358 @@
+diff --git a/project_state/artifact_index.json b/project_state/artifact_index.json
+index 0ad32c2..90af332 100644
+--- a/project_state/artifact_index.json
++++ b/project_state/artifact_index.json
+@@ -1,5 +1,5 @@
+ {
+-  "generated_at": "2026-05-18T11:29:41Z",
++  "generated_at": "2026-05-19T04:10:29Z",
+   "latest_artifacts": {
+     "base64_rc4_breakpoint_probe": null,
+     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index f766f81..6c87f97 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,5 +1,42 @@
+ # CODEX_EXECUTION_REPORT
+ 
++## 2026-05-19 Phase 1 task_packet scope separation patch
++
++This pass is a Phase 1 small patch only. It does not advance the `samplereverse` reverse-engineering mainline, does not enter Phase 2, and does not implement Phase 1B/1C/1E/1F.
++
++### Audit Result
++
++| check | result |
++|---|---|
++| `build_task_packet()` task derivation | It reads `current_state["current_bottleneck"]` and calls `_task_from_bottleneck(current_state)` when model context is sufficient; when evidence is missing it emits `collect_missing_evidence`. |
++| meaning of `task_packet.task` | The field is derived from sample artifacts and model-gate state. It is not the current Codex execution task when `decision_packet.md` is an architecture handoff. |
++| active execution entry | `project_state/decision_packet.md` remains the current Codex execution authority. |
++| compatibility | The old `task` field is preserved unchanged, and the new fields are additive, so existing readers can keep using `task`. |
++| status output | `status_summary()` and CLI `status` now expose the task source and active decision packet so the command line distinguishes derived sample state from current execution scope. |
++
++### Changes Made
++
++- Added task scope fields to every `build_task_packet()` output: `state_scope`, `task_source`, `derived_task`, `active_decision_packet`, and `execution_scope`.
++- Kept `task` and `expected_gpt_output` for compatibility with existing GPT/Codex workflows.
++- Added tests covering `derived_task == task`, fixed source/scope values, active decision packet, and CLI/status visibility.
++- Phase 1B/1C/1E/1F remain unimplemented.
++
++### Verification This Round
++
++| command | result |
++|---|---|
++| `python -m py_compile reverse_agent\project_state.py` | passed |
++| `python -m pytest -q tests\test_project_state.py` | `48 passed in 7.19s` |
++| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed; generated `round_20260519_041029` / `state_20260519_041029_d8b41081b53f` |
++| `python -m reverse_agent.project_state status` | `reason: instrumentation_incomplete`, `task_source: derived_from_sample_artifacts`, `active_decision_packet: project_state/decision_packet.md`, `missing: []` |
++| `python -m reverse_agent.project_state archive-round` | run after this report and `project_state/pytest_result.txt` are written so the archived round captures the final state files |
++
++### State Notes
++
++- `project_state/task_packet.json` still reports `task: Improve compare lhs last-writer instrumentation`, but now also reports that it is a derived sample-artifact task.
++- `project_state/decision_packet.md` remains the active task authority for Codex execution.
++- No artifact scanner, reverse strategy, runtime probe, beam, budget, frontier, or Base64/RC4 probe behavior changed.
++
+ ## 2026-05-18 Phase 1A/1D project_state archive semantics rework
+ 
+ This pass is a Phase 1A + Phase 1D rework only. It does not advance the `samplereverse` reverse-engineering mainline, does not enter Phase 2, and does not implement Phase 1B/1C/1E/1F.
+diff --git a/project_state/current_state.json b/project_state/current_state.json
+index 6357ac7..e56603d 100644
+--- a/project_state/current_state.json
++++ b/project_state/current_state.json
+@@ -101,7 +101,7 @@
+       "semantic_guess": "unknown_but_bounded"
+     }
+   },
+-  "generated_at": "2026-05-18T11:29:41Z",
++  "generated_at": "2026-05-19T04:10:29Z",
+   "known_transform": [
+     "input",
+     "UTF-16LE",
+@@ -1075,13 +1075,13 @@
+   "latest_transform_trace_consistency": {},
+   "profile": "samplereverse",
+   "review_status": "PENDING_REVIEW",
+-  "round_id": "round_20260518_112941",
++  "round_id": "round_20260519_041029",
+   "sample": "samplereverse",
+   "schema_version": 2,
+-  "source_git_commit": "6acfb7fb8b22",
++  "source_git_commit": "7ed18c7041c5",
+   "source_harness_run": "sr_lhs_last_writer_health_fix_20260518_r3",
+-  "state_build_id": "state_20260518_112941_d0dfdaa4c554",
+-  "state_digest": "d0dfdaa4c554b25dbf4559e0a46572985f44baa8eb206ebc6f324c0b2b8d5839",
++  "state_build_id": "state_20260519_041029_d8b41081b53f",
++  "state_digest": "d8b41081b53fb0657f411ebf76c9c6a07942d33fdfdc05d7f14009645dfdf9c6",
+   "uncertainty": [],
+   "workflow_status": "REPORT_AVAILABLE"
+ }
+diff --git a/project_state/model_gate.json b/project_state/model_gate.json
+index f6af9d4..76879fe 100644
+--- a/project_state/model_gate.json
++++ b/project_state/model_gate.json
+@@ -1,6 +1,6 @@
+ {
+   "context_level": 2,
+-  "generated_at": "2026-05-18T11:29:41Z",
++  "generated_at": "2026-05-19T04:10:29Z",
+   "missing_evidence": [],
+   "next_local_action": "",
+   "reason": "instrumentation_incomplete",
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 465001b..408bdf7 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,7 +1,24 @@
+-2026-05-18 Phase 1A/1D project_state archive semantics rework verification
++2026-05-19 Phase 1 task_packet scope separation verification
+ 
+ python -m py_compile reverse_agent\project_state.py -> passed
+ 
+ python -m pytest -q tests\test_project_state.py -> passed
+-..............................................                           [100%]
+-46 passed in 5.32s
++................................................                         [100%]
++48 passed in 7.19s
++
++python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3 -> passed
++
++python -m reverse_agent.project_state status -> passed
++state_dir: project_state
++latest_harness_run: solve_reports\harness_runs\sr_lhs_last_writer_health_fix_20260518_r3
++missing: []
++should_call_model: True
++context_level: 2
++reason: instrumentation_incomplete
++task: Improve compare lhs last-writer instrumentation
++state_scope: sample_state
++task_source: derived_from_sample_artifacts
++derived_task: Improve compare lhs last-writer instrumentation
++active_decision_packet: project_state/decision_packet.md
++execution_scope: decision_packet_controls_current_round
++expected_gpt_output: project_state/decision_packet.md
+diff --git a/project_state/task_packet.json b/project_state/task_packet.json
+index 129cef6..f4e7651 100644
+--- a/project_state/task_packet.json
++++ b/project_state/task_packet.json
+@@ -1,4 +1,5 @@
+ {
++  "active_decision_packet": "project_state/decision_packet.md",
+   "active_strategy": "CompareAwareSearchStrategy",
+   "artifact_refs": {
+     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
+@@ -21,7 +22,7 @@
+     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
+     "summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\summary.json"
+   },
+-  "based_on_state_digest": "d0dfdaa4c554b25dbf4559e0a46572985f44baa8eb206ebc6f324c0b2b8d5839",
++  "based_on_state_digest": "d8b41081b53fb0657f411ebf76c9c6a07942d33fdfdc05d7f14009645dfdf9c6",
+   "current_best": {
+     "exact1": {
+       "anchor_mode": "frontier",
+@@ -62,6 +63,7 @@
+     "reason": "instrumentation_incomplete",
+     "stage": "compare_real_lhs_provenance_audit"
+   },
++  "derived_task": "Improve compare lhs last-writer instrumentation",
+   "do_not_do": [
+     "do not return to old sample_solver blind search",
+     "do not only increase beam or budget",
+@@ -81,8 +83,9 @@
+     "do not repeat: run Base64/RC4 breakpoint probe before real lhs producer identification",
+     "do not scan entire solve_reports unless explicitly needed"
+   ],
++  "execution_scope": "decision_packet_controls_current_round",
+   "expected_gpt_output": "project_state/decision_packet.md",
+-  "generated_at": "2026-05-18T11:29:41Z",
++  "generated_at": "2026-05-19T04:10:29Z",
+   "included": [
+     "current state",
+     "best candidates",
+@@ -112,10 +115,11 @@
+     "tests/test_compare_aware_search_strategy.py",
+     "tests/test_project_state.py"
+   ],
+-  "round_id": "round_20260518_112941",
++  "round_id": "round_20260519_041029",
+   "sample": "samplereverse",
+   "schema_version": 2,
+-  "state_build_id": "state_20260518_112941_d0dfdaa4c554",
++  "state_build_id": "state_20260519_041029_d8b41081b53f",
++  "state_scope": "sample_state",
+   "sufficiency_check": {
+     "has_artifact_refs": true,
+     "has_current_best": true,
+@@ -123,5 +127,6 @@
+     "has_runtime_validation": true,
+     "has_stall_stage": true
+   },
+-  "task": "Improve compare lhs last-writer instrumentation"
++  "task": "Improve compare lhs last-writer instrumentation",
++  "task_source": "derived_from_sample_artifacts"
+ }
+diff --git a/reverse_agent/project_state.py b/reverse_agent/project_state.py
+index 328bb53..75567a3 100644
+--- a/reverse_agent/project_state.py
++++ b/reverse_agent/project_state.py
+@@ -112,6 +112,10 @@ STATE_SCHEMA_VERSION = 2
+ DEFAULT_WORKFLOW_STATUS = "REPORT_AVAILABLE"
+ DEFAULT_CURRENT_OWNER = "web_gpt"
+ DEFAULT_REVIEW_STATUS = "PENDING_REVIEW"
++STATE_SCOPE_SAMPLE = "sample_state"
++TASK_SOURCE_DERIVED_FROM_SAMPLE_ARTIFACTS = "derived_from_sample_artifacts"
++ACTIVE_DECISION_PACKET = "project_state/decision_packet.md"
++EXECUTION_SCOPE_DECISION_PACKET_CONTROLS_CURRENT_ROUND = "decision_packet_controls_current_round"
+ STATE_DIGEST_EXCLUDED_KEYS = {
+     "generated_at",
+     "round_id",
+@@ -2247,6 +2251,16 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
+     return "collect_missing_evidence"
+ 
+ 
++def _task_scope_fields(task: str) -> dict[str, str]:
++    return {
++        "state_scope": STATE_SCOPE_SAMPLE,
++        "task_source": TASK_SOURCE_DERIVED_FROM_SAMPLE_ARTIFACTS,
++        "derived_task": task,
++        "active_decision_packet": ACTIVE_DECISION_PACKET,
++        "execution_scope": EXECUTION_SCOPE_DECISION_PACKET_CONTROLS_CURRENT_ROUND,
++    }
++
++
+ def build_task_packet(
+     *,
+     current_state: dict[str, Any],
+@@ -2265,8 +2279,10 @@ def build_task_packet(
+     missing_evidence = model_gate.get("missing_evidence", [])
+ 
+     if not model_gate.get("should_call_model"):
++        task = "collect_missing_evidence"
+         return {
+-            "task": "collect_missing_evidence",
++            "task": task,
++            **_task_scope_fields(task),
+             "sample": current_state.get("sample"),
+             "profile": current_state.get("profile"),
+             "active_strategy": current_state.get("active_strategy"),
+@@ -2301,12 +2317,14 @@ def build_task_packet(
+                 "has_artifact_refs": bool(artifact_refs),
+                 "has_runtime_validation": has_runtime_validation,
+             },
+-            "expected_gpt_output": "project_state/decision_packet.md",
++            "expected_gpt_output": ACTIVE_DECISION_PACKET,
+             "generated_at": _now_iso(),
+         }
+ 
++    task = _task_from_bottleneck(current_state)
+     return {
+-        "task": _task_from_bottleneck(current_state),
++        "task": task,
++        **_task_scope_fields(task),
+         "sample": current_state.get("sample"),
+         "profile": current_state.get("profile"),
+         "active_strategy": current_state.get("active_strategy"),
+@@ -2349,7 +2367,7 @@ def build_task_packet(
+             "context_level": model_gate.get("context_level"),
+             "reason": model_gate.get("reason"),
+         },
+-        "expected_gpt_output": "project_state/decision_packet.md",
++        "expected_gpt_output": ACTIVE_DECISION_PACKET,
+         "generated_at": _now_iso(),
+     }
+ 
+@@ -2630,6 +2648,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
+     artifact_index = _read_json(state_dir / "artifact_index.json")
+     model_gate = _read_json(state_dir / "model_gate.json")
+     task_packet = _read_json(state_dir / "task_packet.json")
++    task = task_packet.get("task")
+     return {
+         "state_dir": _path_for_json(state_dir),
+         "latest_harness_run": artifact_index.get("latest_harness_run"),
+@@ -2637,8 +2656,16 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
+         "should_call_model": model_gate.get("should_call_model"),
+         "context_level": model_gate.get("context_level"),
+         "model_gate_reason": model_gate.get("reason"),
+-        "task": task_packet.get("task"),
+-        "expected_gpt_output": task_packet.get("expected_gpt_output", "project_state/decision_packet.md"),
++        "task": task,
++        "state_scope": task_packet.get("state_scope", STATE_SCOPE_SAMPLE),
++        "task_source": task_packet.get("task_source", TASK_SOURCE_DERIVED_FROM_SAMPLE_ARTIFACTS),
++        "derived_task": task_packet.get("derived_task", task),
++        "active_decision_packet": task_packet.get("active_decision_packet", ACTIVE_DECISION_PACKET),
++        "execution_scope": task_packet.get(
++            "execution_scope",
++            EXECUTION_SCOPE_DECISION_PACKET_CONTROLS_CURRENT_ROUND,
++        ),
++        "expected_gpt_output": task_packet.get("expected_gpt_output", ACTIVE_DECISION_PACKET),
+     }
+ 
+ 
+@@ -2650,6 +2677,11 @@ def _print_status(summary: dict[str, Any]) -> None:
+     print(f"context_level: {summary.get('context_level')}")
+     print(f"reason: {summary.get('model_gate_reason')}")
+     print(f"task: {summary.get('task')}")
++    print(f"state_scope: {summary.get('state_scope')}")
++    print(f"task_source: {summary.get('task_source')}")
++    print(f"derived_task: {summary.get('derived_task')}")
++    print(f"active_decision_packet: {summary.get('active_decision_packet')}")
++    print(f"execution_scope: {summary.get('execution_scope')}")
+     print(f"expected_gpt_output: {summary.get('expected_gpt_output')}")
+ 
+ 
+diff --git a/tests/test_project_state.py b/tests/test_project_state.py
+index 1a561bf..7bbdc1c 100644
+--- a/tests/test_project_state.py
++++ b/tests/test_project_state.py
+@@ -5,7 +5,7 @@ from pathlib import Path
+ 
+ import pytest
+ 
+-from reverse_agent.project_state import archive_round, build_project_state, main, pack_context
++from reverse_agent.project_state import archive_round, build_project_state, main, pack_context, status_summary
+ 
+ 
+ def _write_json(path: Path, payload: object) -> None:
+@@ -1574,6 +1574,42 @@ def test_task_packet_has_based_on_state_digest(tmp_path: Path) -> None:
+     assert task_packet["based_on_state_digest"] == current_state["state_digest"]
+ 
+ 
++def test_task_packet_distinguishes_derived_task_from_active_decision(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    task_packet = _read_json(state_dir / "task_packet.json")
++    assert task_packet["task"]
++    assert task_packet["state_scope"] == "sample_state"
++    assert task_packet["task_source"] == "derived_from_sample_artifacts"
++    assert task_packet["derived_task"] == task_packet["task"]
++    assert task_packet["active_decision_packet"] == "project_state/decision_packet.md"
++    assert task_packet["execution_scope"] == "decision_packet_controls_current_round"
++    assert task_packet["expected_gpt_output"] == "project_state/decision_packet.md"
++
++
++def test_status_summary_includes_task_source_and_active_decision(tmp_path: Path, capsys) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    summary = status_summary(state_dir=state_dir)
++    assert summary["task_source"] == "derived_from_sample_artifacts"
++    assert summary["derived_task"] == summary["task"]
++    assert summary["active_decision_packet"] == "project_state/decision_packet.md"
++    assert summary["execution_scope"] == "decision_packet_controls_current_round"
++
++    assert main(["status", "--state-dir", str(state_dir)]) == 0
++    output = capsys.readouterr().out
++    assert "task_source: derived_from_sample_artifacts" in output
++    assert "active_decision_packet: project_state/decision_packet.md" in output
++    assert "execution_scope: decision_packet_controls_current_round" in output
++
++
+ def test_state_digest_is_stable_for_same_inputs(tmp_path: Path) -> None:
+     reports_dir = tmp_path / "solve_reports"
+     state_dir = tmp_path / "project_state"
