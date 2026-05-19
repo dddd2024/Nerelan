@@ -2568,7 +2568,6 @@ def build_project_state(
         current_state=current_state,
         task_packet=task_packet,
     )
-    task_packet["handoff_status"] = build_handoff_status(state_dir)
 
     outputs = {
         "artifact_index": artifact_index,

@@ -1757,12 +1757,58 @@ def test_template_decision_and_report_are_template_only(tmp_path: Path) -> None:
 
     decision = read_decision_meta(state_dir)
     report = read_codex_report_summary(state_dir)
-    task_packet = _read_json(state_dir / "task_packet.json")
+    summary = status_summary(state_dir=state_dir)
 
     assert decision["status"] == "TEMPLATE_ONLY"
     assert report["status"] == "TEMPLATE_ONLY"
-    assert task_packet["handoff_status"]["decision"]["status"] == "TEMPLATE_ONLY"
-    assert task_packet["handoff_status"]["codex_report"]["status"] == "TEMPLATE_ONLY"
+    assert summary["decision_status"] == "TEMPLATE_ONLY"
+    assert summary["report_status"] == "TEMPLATE_ONLY"
+
+
+def test_task_packet_does_not_cache_handoff_status(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert "handoff_status" not in task_packet
+    assert task_packet["active_decision_packet"] == "project_state/decision_packet.md"
+    assert task_packet["task_source"] == "derived_from_sample_artifacts"
+    assert task_packet["execution_scope"] == "decision_packet_controls_current_round"
+    assert task_packet["expected_gpt_output"] == "project_state/decision_packet.md"
+
+
+def test_status_summary_reads_live_handoff_status_after_task_packet_build(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert "handoff_status" not in task_packet
+    (state_dir / "codex_execution_report.md").write_text(
+        """```json codex_report_summary
+{
+  "schema_version": 1,
+  "report_id": "report_live_after_build",
+  "based_on_decision_id": "decision_live_after_build",
+  "status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED"
+}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+    summary = status_summary(state_dir=state_dir)
+    assert summary["report_status"] == "SUCCESS"
+    assert summary["report_acceptance_recommendation"] == "ACCEPTED"
+    assert summary["report_id"] == "report_live_after_build"
+    assert summary["report_based_on_decision_id"] == "decision_live_after_build"
 
 
 def test_state_digest_is_stable_for_same_inputs(tmp_path: Path) -> None:
