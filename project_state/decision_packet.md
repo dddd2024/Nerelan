@@ -1,89 +1,114 @@
-# DECISION_PACKET.md
-
-本轮进入 Phase 1C：增强 `artifact_index.json` 的 provenance / freshness 表达能力。
-
-本轮不推进 `samplereverse` 逆向主线，不进入 Phase 1E/1F，不进入 Phase 2，不实现 `lint-decision`，不修改逆向策略。
-
-## 1. Goal
-
-实现 Phase 1C 的最小闭环：让 `artifact_index.json` 不只记录 artifact 路径，还能稳定回答：
-
-```text
-这个 artifact 来自哪个 harness run？
-是否来自当前 selected/latest run？
-文件是否存在？
-文件大小是多少？
-sha256 是什么？
-modified_at 是什么？
-这个 artifact 是 current / stale / missing / unknown？
-```
-
-本轮目标是新增兼容字段，不破坏现有 `latest_artifacts`：
-
-```json
+```json decision_meta
 {
-  "latest_artifacts_v2": {
-    "compare_real_lhs_provenance_audit": {
-      "path": "...",
-      "kind": "compare_real_lhs_provenance_audit",
-      "source_run": "sr_lhs_last_writer_health_fix_20260518_r3",
-      "modified_at": "2026-05-18T09:47:21Z",
-      "size_bytes": 39569,
-      "sha256": "...",
-      "freshness": "current"
-    }
-  }
+  "schema_version": 1,
+  "decision_id": "decision_phase1c_handoff_traceability_fix_20260519",
+  "round_id": "round_20260519_071819",
+  "based_on_state_build_id": "state_20260519_071819_62dfa8ea2f63",
+  "based_on_state_digest": "62dfa8ea2f63f16a89c21eb24ca5da4fd86c3047063dcd8b695e7a25d6fc3ed2",
+  "status": "APPROVED"
 }
 ```
 
-本轮只做 artifact index 的 provenance / freshness。不要进入 Phase 1E，不要实现 `lint-decision`，不要进入 Phase 2。
+# DECISION_PACKET
+
+本轮进入 Phase 1C-fix：补齐 decision/report 机器可读 handoff 可审计性。
+
+本轮不推进 `samplereverse` 逆向主线，不运行任何 runtime probe，不进入 Phase 1E/1F，不进入 Phase 2，不实现完整 `lint-decision`，不修改逆向策略。
+
+## 1. Goal
+
+修复 Phase 1C 后暴露出的 handoff traceability 缺口：
+
+```text
+当前 artifact_index.latest_artifacts_v2 已经可用；
+但当前 decision_packet.md 缺少 decision_meta；
+当前 codex_execution_report.md 的 based_on_decision_id 为空；
+status_summary 显示 decision_status: UNKNOWN；
+这导致审查时最多只能 ACCEPTED_WITH_LIMITATIONS。
+```
+
+本轮目标是做一个小步、兼容旧状态的修复：
+
+```text
+1. 让默认 DECISION_PACKET 模板包含 decision_meta TEMPLATE_ONLY 块。
+2. 让默认 CODEX_EXECUTION_REPORT 模板包含 codex_report_summary TEMPLATE_ONLY 块。
+3. 在 status_summary/build_handoff_status 中暴露 decision/report 绑定状态。
+4. 增加测试覆盖：
+   - decision_id 与 based_on_decision_id 匹配；
+   - based_on_decision_id 为空或不匹配；
+   - 缺失 decision_meta 时不能被误判为 APPROVED；
+   - 模板状态为 TEMPLATE_ONLY；
+   - selected run 与 other run 同时存在时，非 selected artifact 不能被误标 current。
+5. 本轮 Codex 报告必须把 based_on_decision_id 写成：
+   decision_phase1c_handoff_traceability_fix_20260519
+```
 
 ## 2. Current Evidence
 
-当前 `task_packet.json` 仍描述 `samplereverse` 的样本派生任务：
+当前任务主线：工程架构改造支线。
+
+当前 `task_packet.json` 仍描述样本派生任务：
 
 ```text
 task = Improve compare lhs last-writer instrumentation
+derived_task = Improve compare lhs last-writer instrumentation
 task_source = derived_from_sample_artifacts
 execution_scope = decision_packet_controls_current_round
 active_decision_packet = project_state/decision_packet.md
 ```
 
-这说明 `task_packet.task` 不等于本轮 Codex 执行任务，当前执行入口仍是 `decision_packet.md`。
+这说明 `task_packet.task` 不是本轮 Codex 的执行任务；本轮执行权威来自 `project_state/decision_packet.md`。
 
-当前 `current_state.json` 记录的状态身份为：
+当前状态身份：
 
 ```text
-round_id = round_20260519_063549
-state_build_id = state_20260519_063549_cf4670d47eb6
-state_digest = cf4670d47eb6f2fbbe7106d2f4927e6f7aa2fb125dfe77c776c80d4dae6abfc6
+round_id = round_20260519_071819
+state_build_id = state_20260519_071819_62dfa8ea2f63
+state_digest = 62dfa8ea2f63f16a89c21eb24ca5da4fd86c3047063dcd8b695e7a25d6fc3ed2
 source_harness_run = sr_lhs_last_writer_health_fix_20260518_r3
-workflow_status = REPORT_AVAILABLE
 ```
 
-Codex 最新报告显示 Phase 1B-fix 已完成：`task_packet.json` 不再缓存完整 `handoff_status`，`status_summary()` 动态读取 live decision/report，并且测试为 `57 passed in 5.11s`。
+Phase 1C 已经完成 artifact freshness/provenance：
 
-当前 `artifact_refs` 中混合了当前 harness run 与旧 legacy artifact 路径，例如当前 run 的 `compare_real_lhs_provenance_audit`、`compare_probe`、`summary`，以及旧的 `frontier_summary`、`function_semantic_audit`、`base64_rc4_static_point_discovery` 等。这正是需要 Phase 1C 的原因：GPT 需要知道每个 artifact 的来源和新鲜度，而不能只看路径。
+```text
+artifact_index.latest_artifacts_v2 已存在。
+summary / run_manifest / compare_real_lhs_provenance_audit 等当前 run artifact 标记为 current。
+frontier_summary / base64_rc4_static_point_discovery 等 legacy tool_artifacts 标记为 stale。
+missing artifact 标记为 missing。
+```
+
+当前 handoff 缺口：
+
+```text
+decision_status: UNKNOWN
+decision_id: 空
+report_status: SUCCESS
+report_id: report_phase1c_artifact_freshness_20260519
+report_based_on_decision_id: 空
+```
+
+因此上一轮只能被审查为 ACCEPTED_WITH_LIMITATIONS，而不是完全 ACCEPTED。
 
 ## 3. Do Not Do
 
 不要做以下事情：
 
 ```text
-不要进入 Phase 2。
-不要实现 lint-decision。
-不要进入 Phase 1E。
-不要进入 Phase 1F。
-不要修改 reverse_agent/harness.py 主流程。
+不要推进 samplereverse 解题。
+不要运行 Base64/RC4 breakpoint probe。
+不要运行任何逆向 runtime sidecar。
 不要修改 reverse_agent/strategies/compare_aware_search.py。
 不要修改 reverse_agent/olly_scripts/*。
-不要运行 Base64/RC4 breakpoint probe。
-不要回旧 sample_solver。
+不要修改 reverse_agent/harness.py 主流程。
 不要扩大 beam、topN、budget、timeout、frontier iteration。
+不要回旧 sample_solver。
 不要提交完整 solve_reports。
 不要默认读取完整 PROJECT_PROGRESS_LOG.txt。
-不要把本轮架构任务改写成 samplereverse 逆向任务。
-不要删除旧 latest_artifacts 字段。
+不要实现完整 lint-decision。
+不要进入 Phase 1E、Phase 1F 或 Phase 2。
+不要删除旧 latest_artifacts。
+不要破坏旧 decision/report 文件的 fail-soft 行为。
+不要覆盖已经存在且非 TEMPLATE_ONLY 的正式 decision_packet.md。
 ```
 
 ## 4. Files To Inspect
@@ -93,35 +118,39 @@ Codex 最新报告显示 Phase 1B-fix 已完成：`task_packet.json` 不再缓�
 ```text
 reverse_agent/project_state.py
 tests/test_project_state.py
+project_state/decision_packet.md
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
 project_state/artifact_index.json
 project_state/task_packet.json
 project_state/current_state.json
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
 ```
 
-可参考：
+必要时参考：
 
 ```text
 docs/phase1_project_state_stability_plan.md
-project_state/rounds/round_20260519_063549/round_manifest.json
+project_state/rounds/round_20260519_071819/round_manifest.json
+project_state/rounds/round_20260519_071819/git_diff.patch
 ```
 
-不要默认读取完整 `solve_reports/`。如果需要 artifact 文件元数据，只能通过当前 `artifact_index` 已索引路径或测试 fixture 有界构造。
+不要默认读取完整 `solve_reports/`。
 
 ## 5. Required Audit
 
-Codex 实现前必须先确认并在 `codex_execution_report.md` 中说明：
+实现前必须先审计并在 `codex_execution_report.md` 中说明：
 
 ```text
-1. build_artifact_index() 当前如何选择 latest_harness_run。
-2. latest_artifacts 当前是如何从扫描结果中选出路径的。
-3. recent_artifacts 当前已经有哪些元数据字段。
-4. run_name 参数是否会限制 harness run 选择。
-5. artifact_refs 为什么会混入 legacy tool_artifacts 和当前 harness run artifacts。
-6. 是否可以在不改变旧 latest_artifacts 的情况下新增 latest_artifacts_v2。
-7. 是否已有 sha256 工具函数可复用。
-8. freshness 的最小判定规则应该如何实现。
+1. DECISION_PACKET_TEMPLATE 当前是否包含 decision_meta。
+2. CODEX_EXECUTION_REPORT_TEMPLATE 当前是否包含 codex_report_summary。
+3. ensure_state_layout() 在什么情况下会写入默认模板，是否会覆盖正式 handoff。
+4. read_decision_meta() 对 missing / invalid / TEMPLATE_ONLY / APPROVED 的行为。
+5. read_codex_report_summary() 对 missing / invalid / TEMPLATE_ONLY / SUCCESS 的行为。
+6. build_handoff_status() 和 status_summary() 当前是否能表达 decision/report mismatch。
+7. 当前 codex_execution_report.md 的 based_on_decision_id 为什么为空。
+8. Phase 1C 的 latest_artifacts_v2 是否已经正确保留旧 latest_artifacts。
+9. 是否已有测试覆盖 decision/report id 匹配与不匹配。
+10. 是否已有测试覆盖 selected run 与 other run 同时存在时的 freshness 判定。
 ```
 
 ## 6. Implementation Scope
@@ -131,6 +160,7 @@ Codex 实现前必须先确认并在 `codex_execution_report.md` 中说明：
 ```text
 reverse_agent/project_state.py
 tests/test_project_state.py
+docs/phase1_project_state_stability_plan.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
@@ -146,97 +176,118 @@ project_state/task_packet.json
 project_state/rounds/<new_round_id>/*
 ```
 
-### 6.1 新增 latest_artifacts_v2
+只读或谨慎处理：
 
-保留旧字段：
-
-```json
-"latest_artifacts": {
-  "summary": "solve_reports\\harness_runs\\...\\summary.json"
-}
+```text
+project_state/decision_packet.md
 ```
 
-新增字段：
+Codex 不应删除或重写本文件顶部的 `decision_meta`。如果需要在归档中保存当前 decision，只能通过 `archive-round` 完成。
+
+### 6.1 模板修复
+
+在 `reverse_agent/project_state.py` 中更新默认模板：
+
+```text
+DECISION_PACKET_TEMPLATE 应包含 decision_meta fenced JSON block。
+默认 status 应为 TEMPLATE_ONLY。
+默认 decision_id / round_id / based_on_state_build_id / based_on_state_digest 可为空。
+```
+
+```text
+CODEX_EXECUTION_REPORT_TEMPLATE 应包含 codex_report_summary fenced JSON block。
+默认 status 应为 TEMPLATE_ONLY。
+默认 acceptance_recommendation 应为 UNKNOWN。
+```
+
+必须保持兼容：
+
+```text
+旧的非模板 Markdown 缺少 meta 时，仍应解析为 UNKNOWN。
+模板文件应解析为 TEMPLATE_ONLY。
+正式 decision_packet.md 中 status=APPROVED 时，不能被 ensure_state_layout 覆盖。
+```
+
+### 6.2 status_summary 增强
+
+在 `build_handoff_status()` 或 `status_summary()` 中增加最小 handoff 绑定信息。
+
+建议字段：
 
 ```json
-"latest_artifacts_v2": {
-  "summary": {
-    "path": "solve_reports\\harness_runs\\...\\summary.json",
-    "kind": "summary",
-    "source_run": "sr_lhs_last_writer_health_fix_20260518_r3",
-    "modified_at": "2026-05-18T09:47:21Z",
-    "size_bytes": 948,
-    "sha256": "...",
-    "freshness": "current"
+{
+  "handoff_consistency": {
+    "decision_report_id_match": true,
+    "decision_report_round_match": true,
+    "has_approved_decision": true,
+    "has_success_report": true,
+    "status": "OK"
   }
 }
 ```
 
-### 6.2 freshness 最小规则
-
-本轮只实现最小规则：
+允许的最小 status：
 
 ```text
-current:
-  artifact 路径位于 latest_harness_run 下，或位于显式 --run-name 指定 run 下。
-
-stale:
-  artifact 存在，但不属于 latest_harness_run / selected run。
-
-missing:
-  artifact key 存在，但 path 为 null 或文件不存在。
-
-unknown:
-  无法判断 source_run 或路径结构不符合预期。
+OK
+MISSING_DECISION_META
+MISSING_REPORT_SUMMARY
+DECISION_NOT_APPROVED
+REPORT_NOT_SUCCESS
+DECISION_REPORT_MISMATCH
+ROUND_MISMATCH
+UNKNOWN
 ```
 
-不要在本轮做复杂 `accepted_by_decision_id` 或 `supersedes` 机制。
+不要在本轮实现完整 `lint-decision` CLI。只做 status_summary 可审计字段。
 
-### 6.3 source_run 识别
+### 6.3 report 绑定要求
 
-建议规则：
+本轮完成后，`project_state/codex_execution_report.md` 顶部必须包含：
+
+```json
+{
+  "schema_version": 1,
+  "report_id": "report_phase1c_handoff_traceability_fix_20260519",
+  "round_id": "<actual_round_id>",
+  "based_on_decision_id": "decision_phase1c_handoff_traceability_fix_20260519",
+  "status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED",
+  "files_changed": [],
+  "tests_ran": [],
+  "generated_artifacts": []
+}
+```
+
+`files_changed`、`tests_ran`、`generated_artifacts` 必须填写真实值，不能留空。
+
+### 6.4 selected run freshness 回归测试
+
+补一个更强的 freshness 测试：
 
 ```text
-如果路径形如 solve_reports/harness_runs/<run_name>/...
-  source_run = <run_name>
-
-如果路径来自 solve_reports/tool_artifacts/...
-  source_run = legacy_tool_artifacts
-
-如果无法识别：
-  source_run = ""
+构造 selected_run 与 other_run。
+两个 run 下存在同类 artifact。
+显式 --run-name selected_run。
+确认 latest_harness_run 是 selected_run。
+确认 latest_artifacts_v2 中被选中的 artifact source_run=selected_run 且 freshness=current。
+确认 other_run 的 artifact 不会被误标 current 或覆盖 selected_run。
 ```
 
-### 6.4 task_packet 是否使用 v2
-
-本轮不要大改 `task_packet.artifact_refs`。可以保持它继续使用旧 path-only 结构。
-
-可选：在 `artifact_index.json` 中提供 `latest_artifacts_v2`，让 GPT 审查时读取。不要强制所有下游立即迁移。
-
-### 6.5 status_summary 可选增强
-
-如果实现简单，可以在 `status_summary()` 中增加：
-
-```text
-artifact_index_v2_count
-current_artifact_count
-stale_artifact_count
-missing_artifact_count
-```
-
-但这不是本轮必须项。优先保证 `artifact_index.json` 的 v2 字段和测试稳定。
+不要为了这个测试读取真实 solve_reports；使用 tmp_path fixture 构造。
 
 ## 7. Tests
 
 必须新增或修改 `tests/test_project_state.py`，覆盖：
 
 ```text
-test_artifact_index_v2_contains_source_run_and_freshness
-test_artifact_from_selected_run_marked_current
-test_legacy_tool_artifact_marked_stale_or_unknown
-test_missing_artifact_marked_missing
-test_artifact_index_preserves_legacy_latest_artifacts
-test_artifact_index_v2_records_size_modified_at_and_sha256
+test_decision_packet_template_contains_template_only_decision_meta
+test_codex_report_template_contains_template_only_summary
+test_status_summary_handoff_consistency_ok_when_decision_and_report_match
+test_status_summary_handoff_consistency_mismatch_when_report_decision_id_empty
+test_status_summary_handoff_consistency_mismatch_when_report_decision_id_differs
+test_missing_decision_meta_remains_unknown_not_approved
+test_selected_run_artifact_wins_over_other_run_for_freshness_current
 ```
 
 必须运行并记录输出：
@@ -244,11 +295,7 @@ test_artifact_index_v2_records_size_modified_at_and_sha256
 ```powershell
 python -m py_compile reverse_agent\project_state.py
 python -m pytest -q tests\test_project_state.py
-```
-
-如果本地有 `solve_reports`，再运行：
-
-```powershell
+python -m pytest -q
 python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3
 python -m reverse_agent.project_state status
 python -m reverse_agent.project_state archive-round
@@ -260,19 +307,31 @@ python -m reverse_agent.project_state archive-round
 project_state/pytest_result.txt
 ```
 
+`python -m reverse_agent.project_state status` 的输出至少应能看到：
+
+```text
+decision_status: APPROVED
+report_status: SUCCESS
+report_based_on_decision_id: decision_phase1c_handoff_traceability_fix_20260519
+handoff_consistency 或等价字段显示 OK / match true
+```
+
+如果 status 在写入最终 report 之前运行，允许先显示非 OK；但最终 `pytest_result.txt` 必须记录最终状态或解释顺序。
+
 ## 8. Stop Conditions
 
 遇到以下情况必须停止并报告：
 
 ```text
-1. 需要大规模重构 build_artifact_index()。
-2. 需要修改 reverse strategy 或 runtime probe。
-3. 需要修改 harness.py 主流程。
-4. 需要读取完整 solve_reports 才能完成。
-5. latest_artifacts_v2 会破坏旧 latest_artifacts 消费方。
-6. freshness 规则无法在当前路径结构下可靠判断。
-7. sha256 计算导致明显性能问题。
-8. 测试需要大规模重写。
+1. 需要实现完整 lint-decision 才能完成。
+2. 需要大规模重构 project_state.py。
+3. ensure_state_layout() 会覆盖正式 decision_packet.md。
+4. 模板 meta 会破坏旧测试或旧消费者。
+5. 无法区分 TEMPLATE_ONLY 与 UNKNOWN。
+6. 无法稳定判断 based_on_decision_id mismatch。
+7. 需要读取完整 solve_reports 才能完成测试。
+8. 需要修改 reverse strategy、harness 主流程或 olly_scripts。
+9. 需要推进 samplereverse 逆向任务。
 ```
 
 ## Acceptance Criteria
@@ -280,13 +339,14 @@ project_state/pytest_result.txt
 本轮可接受条件：
 
 ```text
-1. artifact_index.json 保留旧 latest_artifacts。
-2. artifact_index.json 新增 latest_artifacts_v2。
-3. latest_artifacts_v2 至少包含 path、kind、source_run、modified_at、size_bytes、sha256、freshness。
-4. 当前 selected/latest harness run 下的 artifact 标记为 current。
-5. legacy 或非 selected run artifact 不误标为 current。
-6. missing artifact 能标记为 missing。
-7. tests/test_project_state.py 覆盖上述行为。
-8. project_state/pytest_result.txt 包含真实测试结果。
-9. 不进入 Phase 1E/1F/Phase 2，不改逆向主策略。
+1. 默认 DECISION_PACKET_TEMPLATE 含 decision_meta TEMPLATE_ONLY。
+2. 默认 CODEX_EXECUTION_REPORT_TEMPLATE 含 codex_report_summary TEMPLATE_ONLY。
+3. 缺失 meta 的旧文件仍安全降级为 UNKNOWN。
+4. APPROVED decision + matching SUCCESS report 能在 status_summary 中显示 match / OK。
+5. report based_on_decision_id 为空或不匹配时，status_summary 能显式暴露 mismatch。
+6. selected_run 与 other_run 同时存在时，非 selected artifact 不会被误标 current。
+7. 不修改逆向策略、不运行 runtime probe、不进入 Phase 2。
+8. tests/test_project_state.py 覆盖上述行为。
+9. project_state/pytest_result.txt 记录真实测试结果。
+10. codex_execution_report.md 的 based_on_decision_id 指向当前 decision_id。
 ```
