@@ -1,0 +1,645 @@
+diff --git a/project_state/artifact_index.json b/project_state/artifact_index.json
+index 246d22e..7ec2bbb 100644
+--- a/project_state/artifact_index.json
++++ b/project_state/artifact_index.json
+@@ -1,5 +1,5 @@
+ {
+-  "generated_at": "2026-05-19T08:56:26Z",
++  "generated_at": "2026-05-19T10:56:08Z",
+   "latest_artifacts": {
+     "base64_rc4_breakpoint_probe": null,
+     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 5799895..9562d4e 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,9 +1,9 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase1c_handoff_traceability_fix_20260519",
+-  "round_id": "round_20260519_085626",
+-  "based_on_decision_id": "decision_phase1c_handoff_traceability_fix_20260519",
++  "report_id": "report_phase1d_lint_decision_min_gate_20260519",
++  "round_id": "round_20260519_105608",
++  "based_on_decision_id": "decision_phase1d_lint_decision_min_gate_20260519",
+   "status": "SUCCESS",
+   "acceptance_recommendation": "ACCEPTED",
+   "files_changed": [
+@@ -16,8 +16,11 @@
+     "python -m py_compile reverse_agent\\project_state.py",
+     "python -m pytest -q tests\\test_project_state.py",
+     "python -m pytest -q",
++    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
++    "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3",
+-    "python -m reverse_agent.project_state status",
++    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
++    "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state archive-round"
+   ],
+   "generated_artifacts": [
+@@ -27,14 +30,58 @@
+     "project_state/model_gate.json",
+     "project_state/task_packet.json",
+     "project_state/pytest_result.txt",
+-    "project_state/rounds/round_20260519_085626/round_manifest.json"
++    "project_state/rounds/round_20260519_105608/round_manifest.json"
+   ],
+-  "next_suggested_task": "Review the accepted Phase 1C-fix handoff traceability report, then proceed to the next approved project_state decision packet."
++  "next_suggested_task": "Review the Phase 1D lint-decision gate result; prepare a fresh decision packet if the rebuilt live state digest should become the next execution authority."
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
++## 2026-05-19 Phase 1D lint-decision minimum gate
++
++This pass implements the minimal `lint-decision` gate only. It does not advance the `samplereverse` reverse-engineering mainline, does not run runtime probes, and does not modify reverse strategy, Olly scripts, harness flow, search width, timeout, or probe behavior.
++
++### Required Audit
++
++| check | result |
++|---|---|
++| `main()` subcommands before this pass | `build`, `new-round`, `archive-round`, `pack`, and `status`. |
++| `status` decision/report state | `status_summary()` reads live `decision_packet.md` and `codex_execution_report.md` through `build_handoff_status()`, then prints decision/report IDs and `decision_report_id_match`. |
++| `read_decision_meta()` behavior | Exact template returns `TEMPLATE_ONLY`; missing or invalid meta returns `UNKNOWN`; approved meta returns `APPROVED`; parse errors are preserved. |
++| `status_summary()` decision exposure | It already exposes `decision_status`, `decision_id`, `decision_based_on_state_digest`, and `decision_parse_error`. |
++| state identity source | `apply_state_identity()` computes `state_digest` from stable current-state JSON and then sets `state_build_id`, `round_id`, and task-packet `based_on_state_digest`. |
++| execution authority fields | `build_task_packet()` sets `execution_scope: decision_packet_controls_current_round` and `active_decision_packet: project_state/decision_packet.md`. |
++| previous handoff consistency | Phase 1C-fix already added live `decision_report_id_match`; before this report update it was `False` because the report still pointed to the Phase 1C decision. |
++| parser reuse | `lint_decision()` reuses `read_decision_meta()` and does not implement another Markdown parser. |
++| digest mismatch behavior | Mismatch is a normal lint failure with `returncode=1`, not a Python traceback. |
++| reusable tests | Existing minimal harness fixtures and status/meta tests were reused; no full solve report scan was added. |
++
++### Changes Made
++
++- Added `lint_decision(state_dir)` with structured `ok`, `errors`, `warnings`, decision identity, current-state identity, and execution-authority fields.
++- Added `python -m reverse_agent.project_state lint-decision --state-dir project_state` with readable OK/FAILED output and stable `0`/`1` return codes.
++- Added regression coverage for approved matching state, missing/template/draft decision states, missing IDs/digests, digest mismatch, CLI return codes, and execution-scope reporting.
++- Updated this report summary to bind to `decision_phase1d_lint_decision_min_gate_20260519`.
++
++### Verification This Round
++
++| command | result |
++|---|---|
++| `python -m py_compile reverse_agent\project_state.py` | passed |
++| `python -m pytest -q tests\test_project_state.py` | `71 passed in 13.17s` |
++| `python -m pytest -q` | `321 passed in 48.61s` |
++| `python -m reverse_agent.project_state lint-decision --state-dir project_state` before rebuild | passed; decision digest matched live `acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c` |
++| `python -m reverse_agent.project_state status --state-dir project_state` before report update | passed; `decision_report_id_match: False` because the report still pointed to Phase 1C |
++| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed; generated `round_20260519_105608` / `state_20260519_105608_74887f4fae41` |
++| `python -m reverse_agent.project_state lint-decision --state-dir project_state` after rebuild | returned `1` as intended; reported `based_on_state_digest does not match current_state.state_digest` |
++| `python -m reverse_agent.project_state status --state-dir project_state` after rebuild | passed; live state digest is `74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0` |
++
++### State Notes
++
++- The post-build `lint-decision` failure is expected and useful: this implementation changed the live state identity, while the approved decision remains bound to the pre-build digest. This pass did not auto-edit `decision_packet.md` to force a match.
++- After this report update, `status` should show `report_based_on_decision_id: decision_phase1d_lint_decision_min_gate_20260519` and `decision_report_id_match: True`; digest freshness is intentionally enforced separately by `lint-decision`.
++
+ ## 2026-05-19 Phase 1C-fix handoff traceability
+ 
+ This pass implements Phase 1C-fix only. It does not advance the `samplereverse` reverse-engineering mainline, does not run runtime probes, does not enter Phase 1E/1F or Phase 2, and does not modify reverse strategy, Olly scripts, harness flow, search width, timeout, or probe behavior.
+diff --git a/project_state/current_state.json b/project_state/current_state.json
+index 048ec87..72ed859 100644
+--- a/project_state/current_state.json
++++ b/project_state/current_state.json
+@@ -101,7 +101,7 @@
+       "semantic_guess": "unknown_but_bounded"
+     }
+   },
+-  "generated_at": "2026-05-19T08:56:26Z",
++  "generated_at": "2026-05-19T10:56:08Z",
+   "known_transform": [
+     "input",
+     "UTF-16LE",
+@@ -1075,13 +1075,13 @@
+   "latest_transform_trace_consistency": {},
+   "profile": "samplereverse",
+   "review_status": "PENDING_REVIEW",
+-  "round_id": "round_20260519_085626",
++  "round_id": "round_20260519_105608",
+   "sample": "samplereverse",
+   "schema_version": 2,
+-  "source_git_commit": "ac0169ff16e5",
++  "source_git_commit": "b20d6564b7c4",
+   "source_harness_run": "sr_lhs_last_writer_health_fix_20260518_r3",
+-  "state_build_id": "state_20260519_085626_acd12be00935",
+-  "state_digest": "acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c",
++  "state_build_id": "state_20260519_105608_74887f4fae41",
++  "state_digest": "74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0",
+   "uncertainty": [],
+   "workflow_status": "REPORT_AVAILABLE"
+ }
+diff --git a/project_state/model_gate.json b/project_state/model_gate.json
+index 37d502c..2e49432 100644
+--- a/project_state/model_gate.json
++++ b/project_state/model_gate.json
+@@ -1,6 +1,6 @@
+ {
+   "context_level": 2,
+-  "generated_at": "2026-05-19T08:56:26Z",
++  "generated_at": "2026-05-19T10:56:08Z",
+   "missing_evidence": [],
+   "next_local_action": "",
+   "reason": "instrumentation_incomplete",
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 5e79a2d..5b19182 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,25 +1,31 @@
+-2026-05-19 Phase 1C-fix handoff traceability verification
++2026-05-19 Phase 1D lint-decision minimum gate verification
+ 
+ python -m py_compile reverse_agent\project_state.py -> passed
+ 
+ python -m pytest -q tests\test_project_state.py -> passed
+-.......................................................            [100%]
+-61 passed in 9.01s
++.......................................................................  [100%]
++71 passed in 13.17s
+ 
+ python -m pytest -q -> passed
+-........................................................................ [ 23%]
+-........................................................................ [ 46%]
+-........................................................................ [ 69%]
+-........................................................................ [ 92%]
+-.......................                                                  [100%]
+-311 passed in 39.31s
++........................................................................ [ 22%]
++........................................................................ [ 44%]
++........................................................................ [ 67%]
++........................................................................ [ 89%]
++................................                                        [100%]
++321 passed in 48.61s
+ 
+-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3 -> passed
+-generated round_id: round_20260519_085626
+-generated state_build_id: state_20260519_085626_acd12be00935
+-generated state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
++python -m reverse_agent.project_state lint-decision --state-dir project_state -> passed before rebuild
++lint-decision: OK
++decision_id: decision_phase1d_lint_decision_min_gate_20260519
++decision_status: APPROVED
++based_on_state_build_id: state_20260519_085626_acd12be00935
++based_on_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
++current_state_build_id: state_20260519_085626_acd12be00935
++current_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
++execution_scope: decision_packet_controls_current_round
++active_decision_packet: project_state/decision_packet.md
+ 
+-python -m reverse_agent.project_state status -> passed
++python -m reverse_agent.project_state status --state-dir project_state -> passed before report update
+ state_dir: project_state
+ latest_harness_run: solve_reports\harness_runs\sr_lhs_last_writer_health_fix_20260518_r3
+ missing: []
+@@ -35,15 +41,55 @@ active_decision_packet: project_state/decision_packet.md
+ execution_scope: decision_packet_controls_current_round
+ expected_gpt_output: project_state/decision_packet.md
+ decision_status: APPROVED
+-decision_id: decision_phase1c_handoff_traceability_fix_20260519
+-decision_based_on_state_digest: 62dfa8ea2f63f16a89c21eb24ca5da4fd86c3047063dcd8b695e7a25d6fc3ed2
++decision_id: decision_phase1d_lint_decision_min_gate_20260519
++decision_based_on_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
+ decision_parse_error: None
+ report_status: SUCCESS
+ report_acceptance_recommendation: ACCEPTED
+ report_id: report_phase1c_handoff_traceability_fix_20260519
+ report_based_on_decision_id: decision_phase1c_handoff_traceability_fix_20260519
+ report_parse_error: None
+-decision_report_id_match: True
++decision_report_id_match: False
++
++python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3 -> passed
++generated round_id: round_20260519_105608
++generated state_build_id: state_20260519_105608_74887f4fae41
++generated state_digest: 74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0
++
++python -m reverse_agent.project_state lint-decision --state-dir project_state -> expected failure after rebuild
++lint-decision: FAILED
++error: based_on_state_digest does not match current_state.state_digest
++decision_id: decision_phase1d_lint_decision_min_gate_20260519
++decision_status: APPROVED
++based_on_state_build_id: state_20260519_085626_acd12be00935
++based_on_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
++current_state_build_id: state_20260519_105608_74887f4fae41
++current_state_digest: 74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0
++execution_scope: decision_packet_controls_current_round
++active_decision_packet: project_state/decision_packet.md
+ 
+-python -m reverse_agent.project_state archive-round -> passed
+-archived finalized state under project_state\rounds\round_20260519_085626
++python -m reverse_agent.project_state status --state-dir project_state -> passed after rebuild
++state_dir: project_state
++latest_harness_run: solve_reports\harness_runs\sr_lhs_last_writer_health_fix_20260518_r3
++missing: []
++artifact_freshness: {'current': 5, 'missing': 23, 'stale': 14}
++should_call_model: True
++context_level: 2
++reason: instrumentation_incomplete
++task: Improve compare lhs last-writer instrumentation
++state_scope: sample_state
++task_source: derived_from_sample_artifacts
++derived_task: Improve compare lhs last-writer instrumentation
++active_decision_packet: project_state/decision_packet.md
++execution_scope: decision_packet_controls_current_round
++expected_gpt_output: project_state/decision_packet.md
++decision_status: APPROVED
++decision_id: decision_phase1d_lint_decision_min_gate_20260519
++decision_based_on_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
++decision_parse_error: None
++report_status: SUCCESS
++report_acceptance_recommendation: ACCEPTED
++report_id: report_phase1c_handoff_traceability_fix_20260519
++report_based_on_decision_id: decision_phase1c_handoff_traceability_fix_20260519
++report_parse_error: None
++decision_report_id_match: False
+diff --git a/project_state/task_packet.json b/project_state/task_packet.json
+index df1bcdc..7178ac4 100644
+--- a/project_state/task_packet.json
++++ b/project_state/task_packet.json
+@@ -22,7 +22,7 @@
+     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
+     "summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_health_fix_20260518_r3\\summary.json"
+   },
+-  "based_on_state_digest": "acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c",
++  "based_on_state_digest": "74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0",
+   "current_best": {
+     "exact1": {
+       "anchor_mode": "frontier",
+@@ -85,7 +85,7 @@
+   ],
+   "execution_scope": "decision_packet_controls_current_round",
+   "expected_gpt_output": "project_state/decision_packet.md",
+-  "generated_at": "2026-05-19T08:56:26Z",
++  "generated_at": "2026-05-19T10:56:08Z",
+   "included": [
+     "current state",
+     "best candidates",
+@@ -115,10 +115,10 @@
+     "tests/test_compare_aware_search_strategy.py",
+     "tests/test_project_state.py"
+   ],
+-  "round_id": "round_20260519_085626",
++  "round_id": "round_20260519_105608",
+   "sample": "samplereverse",
+   "schema_version": 2,
+-  "state_build_id": "state_20260519_085626_acd12be00935",
++  "state_build_id": "state_20260519_105608_74887f4fae41",
+   "state_scope": "sample_state",
+   "sufficiency_check": {
+     "has_artifact_refs": true,
+diff --git a/reverse_agent/project_state.py b/reverse_agent/project_state.py
+index e2c7488..d0d7cd6 100644
+--- a/reverse_agent/project_state.py
++++ b/reverse_agent/project_state.py
+@@ -525,6 +525,75 @@ def build_handoff_status(state_dir: Path) -> dict[str, Any]:
+     }
+ 
+ 
++def lint_decision(state_dir: Path) -> dict[str, Any]:
++    decision = read_decision_meta(state_dir)
++    current_state_path = state_dir / "current_state.json"
++    task_packet_path = state_dir / "task_packet.json"
++    current_state = _read_json(current_state_path)
++    task_packet = _read_json(task_packet_path)
++    errors: list[str] = []
++    warnings: list[str] = []
++
++    decision_status = str(decision.get("status") or "UNKNOWN")
++    decision_id = str(decision.get("decision_id") or "")
++    based_on_state_build_id = str(decision.get("based_on_state_build_id") or "")
++    based_on_state_digest = str(decision.get("based_on_state_digest") or "")
++    current_state_build_id = str(current_state.get("state_build_id") or "")
++    current_state_digest = str(current_state.get("state_digest") or "")
++    execution_scope = str(task_packet.get("execution_scope") or "")
++    active_decision_packet = str(task_packet.get("active_decision_packet") or "")
++
++    if decision_status == "TEMPLATE_ONLY":
++        errors.append("decision status is TEMPLATE_ONLY, expected APPROVED")
++    elif decision_status != "APPROVED":
++        parse_error = decision.get("parse_error")
++        if parse_error:
++            errors.append(f"decision_meta invalid: {parse_error}")
++        elif not decision_id and not based_on_state_build_id and not based_on_state_digest:
++            errors.append("decision_meta missing")
++        else:
++            errors.append(f"decision status is {decision_status}, expected APPROVED")
++    if not decision_id:
++        errors.append("decision_id missing")
++    if not based_on_state_build_id:
++        errors.append("based_on_state_build_id missing")
++    if not based_on_state_digest:
++        errors.append("based_on_state_digest missing")
++    if not current_state_path.exists():
++        errors.append("current_state.json missing")
++    elif not current_state_digest:
++        errors.append("current_state.state_digest missing")
++    if based_on_state_digest and current_state_digest and based_on_state_digest != current_state_digest:
++        errors.append("based_on_state_digest does not match current_state.state_digest")
++
++    if not task_packet_path.exists():
++        warnings.append("task_packet.json missing")
++    else:
++        if not execution_scope:
++            warnings.append("task_packet.execution_scope missing")
++        if not active_decision_packet:
++            warnings.append("task_packet.active_decision_packet missing")
++        elif active_decision_packet != ACTIVE_DECISION_PACKET:
++            warnings.append(
++                f"task_packet.active_decision_packet is {active_decision_packet}, expected {ACTIVE_DECISION_PACKET}"
++            )
++
++    return {
++        "ok": not errors,
++        "errors": errors,
++        "warnings": warnings,
++        "decision_id": decision_id,
++        "decision_status": decision_status,
++        "decision_parse_error": decision.get("parse_error"),
++        "based_on_state_build_id": based_on_state_build_id,
++        "based_on_state_digest": based_on_state_digest,
++        "current_state_build_id": current_state_build_id,
++        "current_state_digest": current_state_digest,
++        "execution_scope": execution_scope,
++        "active_decision_packet": active_decision_packet,
++    }
++
++
+ def ensure_state_layout(state_dir: Path) -> None:
+     state_dir.mkdir(parents=True, exist_ok=True)
+     rounds_dir = state_dir / "rounds"
+@@ -3051,6 +3120,22 @@ def _print_status(summary: dict[str, Any]) -> None:
+     print(f"decision_report_id_match: {summary.get('decision_report_id_match')}")
+ 
+ 
++def _print_lint_decision(result: dict[str, Any]) -> None:
++    print("lint-decision: OK" if result.get("ok") else "lint-decision: FAILED")
++    for error in result.get("errors") or []:
++        print(f"error: {error}")
++    for warning in result.get("warnings") or []:
++        print(f"warning: {warning}")
++    print(f"decision_id: {result.get('decision_id')}")
++    print(f"decision_status: {result.get('decision_status')}")
++    print(f"based_on_state_build_id: {result.get('based_on_state_build_id')}")
++    print(f"based_on_state_digest: {result.get('based_on_state_digest')}")
++    print(f"current_state_build_id: {result.get('current_state_build_id')}")
++    print(f"current_state_digest: {result.get('current_state_digest')}")
++    print(f"execution_scope: {result.get('execution_scope')}")
++    print(f"active_decision_packet: {result.get('active_decision_packet')}")
++
++
+ def main(argv: list[str] | None = None) -> int:
+     parser = argparse.ArgumentParser(description="Build low-token project state packets.")
+     subparsers = parser.add_subparsers(dest="command", required=True)
+@@ -3077,6 +3162,9 @@ def main(argv: list[str] | None = None) -> int:
+     status_parser = subparsers.add_parser("status", help="Print concise project_state status.")
+     status_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+ 
++    lint_decision_parser = subparsers.add_parser("lint-decision", help="Lint the active decision packet.")
++    lint_decision_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
++
+     args = parser.parse_args(argv)
+     if args.command == "build":
+         build_project_state(
+@@ -3104,6 +3192,10 @@ def main(argv: list[str] | None = None) -> int:
+     if args.command == "status":
+         _print_status(status_summary(state_dir=Path(args.state_dir)))
+         return 0
++    if args.command == "lint-decision":
++        result = lint_decision(state_dir=Path(args.state_dir))
++        _print_lint_decision(result)
++        return 0 if result.get("ok") else 1
+     return 1
+ 
+ 
+diff --git a/tests/test_project_state.py b/tests/test_project_state.py
+index e9f359c..e6d5cff 100644
+--- a/tests/test_project_state.py
++++ b/tests/test_project_state.py
+@@ -10,6 +10,7 @@ from reverse_agent.project_state import (
+     build_project_state,
+     ensure_state_layout,
+     extract_markdown_json_block,
++    lint_decision,
+     main,
+     pack_context,
+     read_codex_report_summary,
+@@ -31,6 +32,31 @@ def _sha256_file(path: Path) -> str:
+     return hashlib.sha256(path.read_bytes()).hexdigest()
+ 
+ 
++def _write_decision_packet(
++    state_dir: Path,
++    *,
++    decision_id: str = "decision_test",
++    based_on_state_build_id: str = "state_test",
++    based_on_state_digest: str = "digest_test",
++    status: str = "APPROVED",
++) -> None:
++    (state_dir / "decision_packet.md").write_text(
++        f"""```json decision_meta
++{{
++  "schema_version": 1,
++  "decision_id": "{decision_id}",
++  "based_on_state_build_id": "{based_on_state_build_id}",
++  "based_on_state_digest": "{based_on_state_digest}",
++  "status": "{status}"
++}}
++```
++
++# DECISION_PACKET
++""",
++        encoding="utf-8",
++    )
++
++
+ def _make_minimal_harness_run(reports_dir: Path, run_name: str = "samplereverse_stalled") -> Path:
+     run_dir = reports_dir / "harness_runs" / run_name
+     artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+@@ -1700,6 +1726,185 @@ def test_status_summary_includes_task_source_and_active_decision(tmp_path: Path,
+     assert "execution_scope: decision_packet_controls_current_round" in output
+ 
+ 
++def test_lint_decision_ok_for_approved_matching_current_state(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_matching",
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++    )
++
++    result = lint_decision(state_dir)
++
++    assert result["ok"] is True
++    assert result["errors"] == []
++    assert result["decision_id"] == "decision_matching"
++    assert result["decision_status"] == "APPROVED"
++    assert result["based_on_state_digest"] == current_state["state_digest"]
++    assert result["current_state_digest"] == current_state["state_digest"]
++
++
++def test_lint_decision_fails_when_decision_meta_missing(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    (state_dir / "decision_packet.md").write_text("# DECISION_PACKET\n\nLegacy file.\n", encoding="utf-8")
++
++    result = lint_decision(state_dir)
++
++    assert result["ok"] is False
++    assert "decision_meta missing" in result["errors"]
++
++
++def test_lint_decision_fails_when_decision_status_template_only(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    result = lint_decision(state_dir)
++
++    assert result["ok"] is False
++    assert "decision status is TEMPLATE_ONLY, expected APPROVED" in result["errors"]
++
++
++def test_lint_decision_fails_when_decision_status_draft(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++        status="DRAFT",
++    )
++
++    result = lint_decision(state_dir)
++
++    assert result["ok"] is False
++    assert "decision status is DRAFT, expected APPROVED" in result["errors"]
++
++
++def test_lint_decision_fails_when_decision_id_empty(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        decision_id="",
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++    )
++
++    result = lint_decision(state_dir)
++
++    assert result["ok"] is False
++    assert "decision_id missing" in result["errors"]
++
++
++def test_lint_decision_fails_when_based_on_state_digest_empty(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest="",
++    )
++
++    result = lint_decision(state_dir)
++
++    assert result["ok"] is False
++    assert "based_on_state_digest missing" in result["errors"]
++
++
++def test_lint_decision_fails_when_based_on_state_digest_mismatch(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest="0" * 64,
++    )
++
++    result = lint_decision(state_dir)
++
++    assert result["ok"] is False
++    assert "based_on_state_digest does not match current_state.state_digest" in result["errors"]
++
++
++def test_lint_decision_cli_returns_zero_on_ok(tmp_path: Path, capsys) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++    )
++
++    assert main(["lint-decision", "--state-dir", str(state_dir)]) == 0
++    output = capsys.readouterr().out
++    assert "lint-decision: OK" in output
++    assert "decision_status: APPROVED" in output
++    assert "execution_scope: decision_packet_controls_current_round" in output
++    assert "active_decision_packet: project_state/decision_packet.md" in output
++
++
++def test_lint_decision_cli_returns_nonzero_on_failure(tmp_path: Path, capsys) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    assert main(["lint-decision", "--state-dir", str(state_dir)]) == 1
++    output = capsys.readouterr().out
++    assert "lint-decision: FAILED" in output
++    assert "error: decision status is TEMPLATE_ONLY, expected APPROVED" in output
++
++
++def test_lint_decision_reports_execution_scope_and_active_decision_packet(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    task_packet = _read_json(state_dir / "task_packet.json")
++    task_packet["active_decision_packet"] = "project_state/other_decision.md"
++    _write_json(state_dir / "task_packet.json", task_packet)
++    _write_decision_packet(
++        state_dir,
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++    )
++
++    result = lint_decision(state_dir)
++
++    assert result["ok"] is True
++    assert result["execution_scope"] == "decision_packet_controls_current_round"
++    assert result["active_decision_packet"] == "project_state/other_decision.md"
++    assert result["warnings"] == [
++        "task_packet.active_decision_packet is project_state/other_decision.md, expected project_state/decision_packet.md"
++    ]
++
++
+ def test_extract_decision_meta_json() -> None:
+     meta = extract_markdown_json_block(
+         """```json decision_meta

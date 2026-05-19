@@ -525,6 +525,75 @@ def build_handoff_status(state_dir: Path) -> dict[str, Any]:
     }
 
 
+def lint_decision(state_dir: Path) -> dict[str, Any]:
+    decision = read_decision_meta(state_dir)
+    current_state_path = state_dir / "current_state.json"
+    task_packet_path = state_dir / "task_packet.json"
+    current_state = _read_json(current_state_path)
+    task_packet = _read_json(task_packet_path)
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    decision_status = str(decision.get("status") or "UNKNOWN")
+    decision_id = str(decision.get("decision_id") or "")
+    based_on_state_build_id = str(decision.get("based_on_state_build_id") or "")
+    based_on_state_digest = str(decision.get("based_on_state_digest") or "")
+    current_state_build_id = str(current_state.get("state_build_id") or "")
+    current_state_digest = str(current_state.get("state_digest") or "")
+    execution_scope = str(task_packet.get("execution_scope") or "")
+    active_decision_packet = str(task_packet.get("active_decision_packet") or "")
+
+    if decision_status == "TEMPLATE_ONLY":
+        errors.append("decision status is TEMPLATE_ONLY, expected APPROVED")
+    elif decision_status != "APPROVED":
+        parse_error = decision.get("parse_error")
+        if parse_error:
+            errors.append(f"decision_meta invalid: {parse_error}")
+        elif not decision_id and not based_on_state_build_id and not based_on_state_digest:
+            errors.append("decision_meta missing")
+        else:
+            errors.append(f"decision status is {decision_status}, expected APPROVED")
+    if not decision_id:
+        errors.append("decision_id missing")
+    if not based_on_state_build_id:
+        errors.append("based_on_state_build_id missing")
+    if not based_on_state_digest:
+        errors.append("based_on_state_digest missing")
+    if not current_state_path.exists():
+        errors.append("current_state.json missing")
+    elif not current_state_digest:
+        errors.append("current_state.state_digest missing")
+    if based_on_state_digest and current_state_digest and based_on_state_digest != current_state_digest:
+        errors.append("based_on_state_digest does not match current_state.state_digest")
+
+    if not task_packet_path.exists():
+        warnings.append("task_packet.json missing")
+    else:
+        if not execution_scope:
+            warnings.append("task_packet.execution_scope missing")
+        if not active_decision_packet:
+            warnings.append("task_packet.active_decision_packet missing")
+        elif active_decision_packet != ACTIVE_DECISION_PACKET:
+            warnings.append(
+                f"task_packet.active_decision_packet is {active_decision_packet}, expected {ACTIVE_DECISION_PACKET}"
+            )
+
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "warnings": warnings,
+        "decision_id": decision_id,
+        "decision_status": decision_status,
+        "decision_parse_error": decision.get("parse_error"),
+        "based_on_state_build_id": based_on_state_build_id,
+        "based_on_state_digest": based_on_state_digest,
+        "current_state_build_id": current_state_build_id,
+        "current_state_digest": current_state_digest,
+        "execution_scope": execution_scope,
+        "active_decision_packet": active_decision_packet,
+    }
+
+
 def ensure_state_layout(state_dir: Path) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     rounds_dir = state_dir / "rounds"
@@ -3051,6 +3120,22 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"decision_report_id_match: {summary.get('decision_report_id_match')}")
 
 
+def _print_lint_decision(result: dict[str, Any]) -> None:
+    print("lint-decision: OK" if result.get("ok") else "lint-decision: FAILED")
+    for error in result.get("errors") or []:
+        print(f"error: {error}")
+    for warning in result.get("warnings") or []:
+        print(f"warning: {warning}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"decision_status: {result.get('decision_status')}")
+    print(f"based_on_state_build_id: {result.get('based_on_state_build_id')}")
+    print(f"based_on_state_digest: {result.get('based_on_state_digest')}")
+    print(f"current_state_build_id: {result.get('current_state_build_id')}")
+    print(f"current_state_digest: {result.get('current_state_digest')}")
+    print(f"execution_scope: {result.get('execution_scope')}")
+    print(f"active_decision_packet: {result.get('active_decision_packet')}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build low-token project state packets.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -3076,6 +3161,9 @@ def main(argv: list[str] | None = None) -> int:
 
     status_parser = subparsers.add_parser("status", help="Print concise project_state status.")
     status_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+
+    lint_decision_parser = subparsers.add_parser("lint-decision", help="Lint the active decision packet.")
+    lint_decision_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
     args = parser.parse_args(argv)
     if args.command == "build":
@@ -3104,6 +3192,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "status":
         _print_status(status_summary(state_dir=Path(args.state_dir)))
         return 0
+    if args.command == "lint-decision":
+        result = lint_decision(state_dir=Path(args.state_dir))
+        _print_lint_decision(result)
+        return 0 if result.get("ok") else 1
     return 1
 
 

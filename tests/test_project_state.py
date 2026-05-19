@@ -10,6 +10,7 @@ from reverse_agent.project_state import (
     build_project_state,
     ensure_state_layout,
     extract_markdown_json_block,
+    lint_decision,
     main,
     pack_context,
     read_codex_report_summary,
@@ -29,6 +30,31 @@ def _read_json(path: Path) -> object:
 
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _write_decision_packet(
+    state_dir: Path,
+    *,
+    decision_id: str = "decision_test",
+    based_on_state_build_id: str = "state_test",
+    based_on_state_digest: str = "digest_test",
+    status: str = "APPROVED",
+) -> None:
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{{
+  "schema_version": 1,
+  "decision_id": "{decision_id}",
+  "based_on_state_build_id": "{based_on_state_build_id}",
+  "based_on_state_digest": "{based_on_state_digest}",
+  "status": "{status}"
+}}
+```
+
+# DECISION_PACKET
+""",
+        encoding="utf-8",
+    )
 
 
 def _make_minimal_harness_run(reports_dir: Path, run_name: str = "samplereverse_stalled") -> Path:
@@ -1698,6 +1724,185 @@ def test_status_summary_includes_task_source_and_active_decision(tmp_path: Path,
     assert "task_source: derived_from_sample_artifacts" in output
     assert "active_decision_packet: project_state/decision_packet.md" in output
     assert "execution_scope: decision_packet_controls_current_round" in output
+
+
+def test_lint_decision_ok_for_approved_matching_current_state(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_matching",
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is True
+    assert result["errors"] == []
+    assert result["decision_id"] == "decision_matching"
+    assert result["decision_status"] == "APPROVED"
+    assert result["based_on_state_digest"] == current_state["state_digest"]
+    assert result["current_state_digest"] == current_state["state_digest"]
+
+
+def test_lint_decision_fails_when_decision_meta_missing(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    (state_dir / "decision_packet.md").write_text("# DECISION_PACKET\n\nLegacy file.\n", encoding="utf-8")
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "decision_meta missing" in result["errors"]
+
+
+def test_lint_decision_fails_when_decision_status_template_only(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "decision status is TEMPLATE_ONLY, expected APPROVED" in result["errors"]
+
+
+def test_lint_decision_fails_when_decision_status_draft(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        status="DRAFT",
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "decision status is DRAFT, expected APPROVED" in result["errors"]
+
+
+def test_lint_decision_fails_when_decision_id_empty(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        decision_id="",
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "decision_id missing" in result["errors"]
+
+
+def test_lint_decision_fails_when_based_on_state_digest_empty(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest="",
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "based_on_state_digest missing" in result["errors"]
+
+
+def test_lint_decision_fails_when_based_on_state_digest_mismatch(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest="0" * 64,
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "based_on_state_digest does not match current_state.state_digest" in result["errors"]
+
+
+def test_lint_decision_cli_returns_zero_on_ok(tmp_path: Path, capsys) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+    )
+
+    assert main(["lint-decision", "--state-dir", str(state_dir)]) == 0
+    output = capsys.readouterr().out
+    assert "lint-decision: OK" in output
+    assert "decision_status: APPROVED" in output
+    assert "execution_scope: decision_packet_controls_current_round" in output
+    assert "active_decision_packet: project_state/decision_packet.md" in output
+
+
+def test_lint_decision_cli_returns_nonzero_on_failure(tmp_path: Path, capsys) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    assert main(["lint-decision", "--state-dir", str(state_dir)]) == 1
+    output = capsys.readouterr().out
+    assert "lint-decision: FAILED" in output
+    assert "error: decision status is TEMPLATE_ONLY, expected APPROVED" in output
+
+
+def test_lint_decision_reports_execution_scope_and_active_decision_packet(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    task_packet["active_decision_packet"] = "project_state/other_decision.md"
+    _write_json(state_dir / "task_packet.json", task_packet)
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is True
+    assert result["execution_scope"] == "decision_packet_controls_current_round"
+    assert result["active_decision_packet"] == "project_state/other_decision.md"
+    assert result["warnings"] == [
+        "task_packet.active_decision_packet is project_state/other_decision.md, expected project_state/decision_packet.md"
+    ]
 
 
 def test_extract_decision_meta_json() -> None:
