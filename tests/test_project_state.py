@@ -5,7 +5,16 @@ from pathlib import Path
 
 import pytest
 
-from reverse_agent.project_state import archive_round, build_project_state, main, pack_context, status_summary
+from reverse_agent.project_state import (
+    archive_round,
+    build_project_state,
+    extract_markdown_json_block,
+    main,
+    pack_context,
+    read_codex_report_summary,
+    read_decision_meta,
+    status_summary,
+)
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -1608,6 +1617,152 @@ def test_status_summary_includes_task_source_and_active_decision(tmp_path: Path,
     assert "task_source: derived_from_sample_artifacts" in output
     assert "active_decision_packet: project_state/decision_packet.md" in output
     assert "execution_scope: decision_packet_controls_current_round" in output
+
+
+def test_extract_decision_meta_json() -> None:
+    meta = extract_markdown_json_block(
+        """```json decision_meta
+{"schema_version": 1, "decision_id": "decision_test", "status": "APPROVED"}
+```
+
+# DECISION_PACKET
+""",
+        "decision_meta",
+    )
+
+    assert meta["found"] is True
+    assert meta["parse_error"] is None
+    assert meta["decision_id"] == "decision_test"
+    assert meta["status"] == "APPROVED"
+
+
+def test_extract_codex_report_summary_json() -> None:
+    meta = extract_markdown_json_block(
+        """```json codex_report_summary
+{"schema_version": 1, "report_id": "report_test", "status": "PARTIAL", "acceptance_recommendation": "NEEDS_REVIEW"}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        "codex_report_summary",
+    )
+
+    assert meta["found"] is True
+    assert meta["parse_error"] is None
+    assert meta["report_id"] == "report_test"
+    assert meta["status"] == "PARTIAL"
+
+
+def test_missing_decision_meta_is_not_approved(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "decision_packet.md").write_text("# DECISION_PACKET\n\nLegacy file.\n", encoding="utf-8")
+
+    meta = read_decision_meta(state_dir)
+
+    assert meta["status"] == "UNKNOWN"
+    assert meta["status"] != "APPROVED"
+
+
+def test_missing_codex_report_summary_is_not_success(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    (state_dir / "codex_execution_report.md").write_text(
+        "# CODEX_EXECUTION_REPORT\n\nLegacy report.\n",
+        encoding="utf-8",
+    )
+
+    summary = read_codex_report_summary(state_dir)
+
+    assert summary["status"] == "UNKNOWN"
+    assert summary["status"] != "SUCCESS"
+
+
+def test_invalid_markdown_json_meta_is_reported_without_crashing(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    (state_dir / "decision_packet.md").write_text(
+        """```json decision_meta
+{"schema_version": 1, "status": "APPROVED"
+```
+
+# DECISION_PACKET
+""",
+        encoding="utf-8",
+    )
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["decision_status"] == "UNKNOWN"
+    assert "invalid JSON" in summary["decision_parse_error"]
+
+
+def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsys) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    (state_dir / "decision_packet.md").write_text(
+        """```json decision_meta
+{
+  "schema_version": 1,
+  "decision_id": "decision_test",
+  "based_on_state_digest": "digest_test",
+  "status": "APPROVED"
+}
+```
+
+# DECISION_PACKET
+""",
+        encoding="utf-8",
+    )
+    (state_dir / "codex_execution_report.md").write_text(
+        """```json codex_report_summary
+{
+  "schema_version": 1,
+  "report_id": "report_test",
+  "based_on_decision_id": "decision_test",
+  "status": "PARTIAL",
+  "acceptance_recommendation": "NEEDS_REVIEW"
+}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+    summary = status_summary(state_dir=state_dir)
+    assert summary["decision_status"] == "APPROVED"
+    assert summary["decision_id"] == "decision_test"
+    assert summary["decision_based_on_state_digest"] == "digest_test"
+    assert summary["report_status"] == "PARTIAL"
+    assert summary["report_acceptance_recommendation"] == "NEEDS_REVIEW"
+    assert summary["report_based_on_decision_id"] == "decision_test"
+
+    assert main(["status", "--state-dir", str(state_dir)]) == 0
+    output = capsys.readouterr().out
+    assert "decision_status: APPROVED" in output
+    assert "report_status: PARTIAL" in output
+    assert "report_acceptance_recommendation: NEEDS_REVIEW" in output
+
+
+def test_template_decision_and_report_are_template_only(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    decision = read_decision_meta(state_dir)
+    report = read_codex_report_summary(state_dir)
+    task_packet = _read_json(state_dir / "task_packet.json")
+
+    assert decision["status"] == "TEMPLATE_ONLY"
+    assert report["status"] == "TEMPLATE_ONLY"
+    assert task_packet["handoff_status"]["decision"]["status"] == "TEMPLATE_ONLY"
+    assert task_packet["handoff_status"]["codex_report"]["status"] == "TEMPLATE_ONLY"
 
 
 def test_state_digest_is_stable_for_same_inputs(tmp_path: Path) -> None:

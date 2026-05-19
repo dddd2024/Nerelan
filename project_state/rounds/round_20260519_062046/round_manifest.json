@@ -1,0 +1,57 @@
+{
+  "archived_at": "2026-05-19T06:21:37Z",
+  "files": {
+    "artifact_index.json": {
+      "archived_path": "project_state\\rounds\\round_20260519_062046\\artifact_index.json",
+      "sha256": "b4fbd210d4f768f1c66c6c80dd4fe5a3b4518433aef4a479a7231050ca59bab0",
+      "source_path": "project_state\\artifact_index.json"
+    },
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260519_062046\\codex_execution_report.md",
+      "sha256": "91efc6a2eb7c785a33f8ec0a7d7b28575091dce55f1de506fb6eec1efb3315ae",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "current_state.json": {
+      "archived_path": "project_state\\rounds\\round_20260519_062046\\current_state.json",
+      "sha256": "451827c23a3a2c387c6c91683cdc84da21a9eb6f72635a1f2f16a33f13c2ef65",
+      "source_path": "project_state\\current_state.json"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260519_062046\\decision_packet.md",
+      "sha256": "9ef28eb3647b1b6544fcf737e302c97ec64e5489c5533cfc3bf194379a607c9d",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "git_diff.patch": {
+      "archived_path": "project_state\\rounds\\round_20260519_062046\\git_diff.patch",
+      "sha256": "d43a13c7b1bee9caf0cdd0577c99115b1b7b50f31f70cc35a8e5e740f7aa2341",
+      "source_path": null
+    },
+    "model_gate.json": {
+      "archived_path": "project_state\\rounds\\round_20260519_062046\\model_gate.json",
+      "sha256": "8d180201812b9c7c5152a1bba9b0f253d5642643e3df79f1faf67d466e500ae4",
+      "source_path": "project_state\\model_gate.json"
+    },
+    "negative_results.json": {
+      "archived_path": "project_state\\rounds\\round_20260519_062046\\negative_results.json",
+      "sha256": "af8e3872f59ba9a03a47a970fb783e69f7321c72d69122dbdbc9a47bea6bb6ca",
+      "source_path": "project_state\\negative_results.json"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260519_062046\\pytest_result.txt",
+      "sha256": "94d259613bdf7a48ec029b1e41ff7aa14b0cff3e6f63e51122147f20ce708005",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "task_packet.json": {
+      "archived_path": "project_state\\rounds\\round_20260519_062046\\task_packet.json",
+      "sha256": "2ee2bccefc7d71c24f9db2e7866b8da8411580b57ac2e1392d1629d33a554fe4",
+      "source_path": "project_state\\task_packet.json"
+    }
+  },
+  "round_id": "round_20260519_062046",
+  "schema_version": 1,
+  "source_git_commit": "0fed0eeb0d6f",
+  "source_harness_run": "sr_lhs_last_writer_health_fix_20260518_r3",
+  "state_build_id": "state_20260519_062046_e81940ea11f8",
+  "state_digest": "e81940ea11f80978efeecdcb103e03ab80c18518931ad6016d01db884597e749",
+  "workflow_status": "REPORT_AVAILABLE"
+}

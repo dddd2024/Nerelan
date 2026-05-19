@@ -122,6 +122,30 @@ STATE_DIGEST_EXCLUDED_KEYS = {
     "state_build_id",
     "state_digest",
 }
+DECISION_META_BLOCK_NAME = "decision_meta"
+CODEX_REPORT_SUMMARY_BLOCK_NAME = "codex_report_summary"
+DECISION_STATUSES = {
+    "TEMPLATE_ONLY",
+    "DRAFT",
+    "APPROVED",
+    "SUPERSEDED",
+    "UNKNOWN",
+}
+CODEX_REPORT_STATUSES = {
+    "TEMPLATE_ONLY",
+    "SUCCESS",
+    "PARTIAL",
+    "FAILED",
+    "BLOCKED",
+    "UNKNOWN",
+}
+CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS = {
+    "ACCEPTED",
+    "REWORK_REQUIRED",
+    "BLOCKED",
+    "NEEDS_REVIEW",
+    "UNKNOWN",
+}
 
 DECISION_PACKET_TEMPLATE = """# DECISION_PACKET
 
@@ -290,6 +314,110 @@ def _is_missing_or_default(path: Path, default_content: str) -> bool:
     except OSError:
         return False
     return not current or current == default_content.strip()
+
+
+def extract_markdown_json_block(text: str, block_name: str) -> dict[str, Any]:
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith("```"):
+            continue
+        info = stripped[3:].strip().split()
+        if "json" not in info or block_name not in info:
+            continue
+        block_lines: list[str] = []
+        for block_line in lines[index + 1 :]:
+            if block_line.strip().startswith("```"):
+                break
+            block_lines.append(block_line)
+        else:
+            return {"found": True, "parse_error": "unterminated fenced JSON block"}
+        raw = "\n".join(block_lines).strip()
+        try:
+            parsed = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            return {"found": True, "parse_error": f"invalid JSON: {exc.msg}"}
+        if not isinstance(parsed, dict):
+            return {"found": True, "parse_error": "JSON block must contain an object"}
+        return {"found": True, "parse_error": None, **parsed}
+    return {"found": False, "parse_error": None}
+
+
+def _read_text_or_empty(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def _normalize_status(value: Any, allowed: set[str], *, default: str = "UNKNOWN") -> tuple[str, str | None]:
+    status = str(value or default).upper()
+    if status in allowed:
+        return status, None
+    return default, f"invalid status: {value}"
+
+
+def _template_status(text: str, template: str) -> bool:
+    return bool(text.strip()) and text.strip() == template.strip()
+
+
+def read_decision_meta(state_dir: Path) -> dict[str, Any]:
+    path = state_dir / "decision_packet.md"
+    text = _read_text_or_empty(path)
+    if _template_status(text, DECISION_PACKET_TEMPLATE):
+        status = "TEMPLATE_ONLY"
+        meta = {"found": False, "parse_error": None}
+    else:
+        meta = extract_markdown_json_block(text, DECISION_META_BLOCK_NAME)
+        status, status_error = _normalize_status(meta.get("status"), DECISION_STATUSES)
+        if status_error:
+            meta["parse_error"] = status_error
+    if not meta.get("found") and status != "TEMPLATE_ONLY":
+        status = "UNKNOWN"
+    return {
+        "status": status,
+        "decision_id": meta.get("decision_id") or "",
+        "based_on_state_build_id": meta.get("based_on_state_build_id") or "",
+        "based_on_state_digest": meta.get("based_on_state_digest") or "",
+        "round_id": meta.get("round_id") or "",
+        "parse_error": meta.get("parse_error"),
+    }
+
+
+def read_codex_report_summary(state_dir: Path) -> dict[str, Any]:
+    path = state_dir / "codex_execution_report.md"
+    text = _read_text_or_empty(path)
+    if _template_status(text, CODEX_EXECUTION_REPORT_TEMPLATE):
+        status = "TEMPLATE_ONLY"
+        acceptance_recommendation = "UNKNOWN"
+        meta = {"found": False, "parse_error": None}
+    else:
+        meta = extract_markdown_json_block(text, CODEX_REPORT_SUMMARY_BLOCK_NAME)
+        status, status_error = _normalize_status(meta.get("status"), CODEX_REPORT_STATUSES)
+        acceptance_recommendation, recommendation_error = _normalize_status(
+            meta.get("acceptance_recommendation"),
+            CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS,
+        )
+        parse_errors = [item for item in (meta.get("parse_error"), status_error, recommendation_error) if item]
+        meta["parse_error"] = "; ".join(parse_errors) if parse_errors else None
+    if not meta.get("found") and status != "TEMPLATE_ONLY":
+        status = "UNKNOWN"
+        acceptance_recommendation = "UNKNOWN"
+    return {
+        "status": status,
+        "acceptance_recommendation": acceptance_recommendation,
+        "report_id": meta.get("report_id") or "",
+        "based_on_decision_id": meta.get("based_on_decision_id") or "",
+        "round_id": meta.get("round_id") or "",
+        "parse_error": meta.get("parse_error"),
+    }
+
+
+def build_handoff_status(state_dir: Path) -> dict[str, Any]:
+    return {
+        "decision": read_decision_meta(state_dir),
+        "codex_report": read_codex_report_summary(state_dir),
+    }
 
 
 def ensure_state_layout(state_dir: Path) -> None:
@@ -2440,6 +2568,7 @@ def build_project_state(
         current_state=current_state,
         task_packet=task_packet,
     )
+    task_packet["handoff_status"] = build_handoff_status(state_dir)
 
     outputs = {
         "artifact_index": artifact_index,
@@ -2649,6 +2778,9 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
     model_gate = _read_json(state_dir / "model_gate.json")
     task_packet = _read_json(state_dir / "task_packet.json")
     task = task_packet.get("task")
+    handoff_status = build_handoff_status(state_dir)
+    decision = handoff_status["decision"]
+    codex_report = handoff_status["codex_report"]
     return {
         "state_dir": _path_for_json(state_dir),
         "latest_harness_run": artifact_index.get("latest_harness_run"),
@@ -2666,6 +2798,16 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
             EXECUTION_SCOPE_DECISION_PACKET_CONTROLS_CURRENT_ROUND,
         ),
         "expected_gpt_output": task_packet.get("expected_gpt_output", ACTIVE_DECISION_PACKET),
+        "handoff_status": handoff_status,
+        "decision_status": decision.get("status"),
+        "decision_id": decision.get("decision_id"),
+        "decision_based_on_state_digest": decision.get("based_on_state_digest"),
+        "decision_parse_error": decision.get("parse_error"),
+        "report_status": codex_report.get("status"),
+        "report_acceptance_recommendation": codex_report.get("acceptance_recommendation"),
+        "report_id": codex_report.get("report_id"),
+        "report_based_on_decision_id": codex_report.get("based_on_decision_id"),
+        "report_parse_error": codex_report.get("parse_error"),
     }
 
 
@@ -2683,6 +2825,15 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"active_decision_packet: {summary.get('active_decision_packet')}")
     print(f"execution_scope: {summary.get('execution_scope')}")
     print(f"expected_gpt_output: {summary.get('expected_gpt_output')}")
+    print(f"decision_status: {summary.get('decision_status')}")
+    print(f"decision_id: {summary.get('decision_id')}")
+    print(f"decision_based_on_state_digest: {summary.get('decision_based_on_state_digest')}")
+    print(f"decision_parse_error: {summary.get('decision_parse_error')}")
+    print(f"report_status: {summary.get('report_status')}")
+    print(f"report_acceptance_recommendation: {summary.get('report_acceptance_recommendation')}")
+    print(f"report_id: {summary.get('report_id')}")
+    print(f"report_based_on_decision_id: {summary.get('report_based_on_decision_id')}")
+    print(f"report_parse_error: {summary.get('report_parse_error')}")
 
 
 def main(argv: list[str] | None = None) -> int:
