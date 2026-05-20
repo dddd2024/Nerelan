@@ -494,11 +494,25 @@ def read_codex_report_summary(state_dir: Path) -> dict[str, Any]:
     }
 
 
-def _build_handoff_consistency(decision: dict[str, Any], codex_report: dict[str, Any]) -> dict[str, Any]:
+CONSUMED_REPORT_STATUSES = {"SUCCESS", "PARTIAL", "FAILED", "BLOCKED"}
+
+
+def _build_handoff_consistency(
+    decision: dict[str, Any],
+    codex_report: dict[str, Any],
+    current_state: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     decision_id = str(decision.get("decision_id") or "")
     report_based_on_decision_id = str(codex_report.get("based_on_decision_id") or "")
     decision_status = str(decision.get("status") or "UNKNOWN")
     report_status = str(codex_report.get("status") or "UNKNOWN")
+    decision_based_on_state_digest = str(decision.get("based_on_state_digest") or "")
+    current_state_digest = str((current_state or {}).get("state_digest") or "")
+    decision_state_digest_match = (
+        bool(decision_based_on_state_digest)
+        and bool(current_state_digest)
+        and decision_based_on_state_digest == current_state_digest
+    )
     decision_report_id_match = (
         bool(decision_id)
         and bool(report_based_on_decision_id)
@@ -506,22 +520,50 @@ def _build_handoff_consistency(decision: dict[str, Any], codex_report: dict[str,
         and decision_status not in {"TEMPLATE_ONLY", "UNKNOWN"}
         and report_status not in {"TEMPLATE_ONLY", "UNKNOWN"}
     )
+    decision_consumed_by_report = decision_report_id_match and report_status in CONSUMED_REPORT_STATUSES
+    if decision_status in {"TEMPLATE_ONLY", "UNKNOWN"} or not decision_id:
+        decision_execution_state = "TEMPLATE_OR_UNKNOWN"
+    elif decision_status == "APPROVED" and decision_state_digest_match:
+        decision_execution_state = "READY_FOR_EXECUTION"
+    elif (
+        decision_status == "APPROVED"
+        and not decision_state_digest_match
+        and decision_report_id_match
+        and report_status == "SUCCESS"
+    ):
+        decision_execution_state = "CONSUMED_BY_SUCCESS_REPORT"
+    elif (
+        decision_status == "APPROVED"
+        and not decision_state_digest_match
+        and decision_report_id_match
+        and report_status in {"PARTIAL", "FAILED", "BLOCKED"}
+    ):
+        decision_execution_state = "CONSUMED_BY_NON_SUCCESS_REPORT"
+    elif decision_status == "APPROVED" and not decision_state_digest_match and not decision_report_id_match:
+        decision_execution_state = "STALE_WITHOUT_MATCHING_REPORT"
+    else:
+        decision_execution_state = "TEMPLATE_OR_UNKNOWN"
     return {
         "decision_report_id_match": decision_report_id_match,
+        "decision_state_digest_match": decision_state_digest_match,
+        "decision_consumed_by_report": decision_consumed_by_report,
+        "decision_execution_state": decision_execution_state,
         "decision_id": decision_id,
         "report_based_on_decision_id": report_based_on_decision_id,
         "decision_status": decision_status,
         "report_status": report_status,
+        "current_state_digest": current_state_digest,
     }
 
 
 def build_handoff_status(state_dir: Path) -> dict[str, Any]:
     decision = read_decision_meta(state_dir)
     codex_report = read_codex_report_summary(state_dir)
+    current_state = _read_json(state_dir / "current_state.json")
     return {
         "decision": decision,
         "codex_report": codex_report,
-        "handoff_consistency": _build_handoff_consistency(decision, codex_report),
+        "handoff_consistency": _build_handoff_consistency(decision, codex_report, current_state),
     }
 
 
@@ -3090,6 +3132,9 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "report_parse_error": codex_report.get("parse_error"),
         "handoff_consistency": handoff_consistency,
         "decision_report_id_match": handoff_consistency.get("decision_report_id_match"),
+        "decision_state_digest_match": handoff_consistency.get("decision_state_digest_match"),
+        "decision_consumed_by_report": handoff_consistency.get("decision_consumed_by_report"),
+        "decision_execution_state": handoff_consistency.get("decision_execution_state"),
     }
 
 
@@ -3118,6 +3163,9 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"report_based_on_decision_id: {summary.get('report_based_on_decision_id')}")
     print(f"report_parse_error: {summary.get('report_parse_error')}")
     print(f"decision_report_id_match: {summary.get('decision_report_id_match')}")
+    print(f"decision_state_digest_match: {summary.get('decision_state_digest_match')}")
+    print(f"decision_consumed_by_report: {summary.get('decision_consumed_by_report')}")
+    print(f"decision_execution_state: {summary.get('decision_execution_state')}")
 
 
 def _print_lint_decision(result: dict[str, Any]) -> None:

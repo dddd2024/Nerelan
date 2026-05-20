@@ -1,0 +1,1167 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 9562d4e..d2554e5 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,9 +1,9 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase1d_lint_decision_min_gate_20260519",
+-  "round_id": "round_20260519_105608",
+-  "based_on_decision_id": "decision_phase1d_lint_decision_min_gate_20260519",
++  "report_id": "report_phase1d_fix_rework_handoff_consistency_20260520",
++  "round_id": "round_20260520_052928",
++  "based_on_decision_id": "decision_phase1d_fix_rework_handoff_consistency_20260520",
+   "status": "SUCCESS",
+   "acceptance_recommendation": "ACCEPTED",
+   "files_changed": [
+@@ -16,654 +16,71 @@
+     "python -m py_compile reverse_agent\\project_state.py",
+     "python -m pytest -q tests\\test_project_state.py",
+     "python -m pytest -q",
+-    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+     "python -m reverse_agent.project_state status --state-dir project_state",
+-    "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+-    "python -m reverse_agent.project_state status --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round"
++    "python -m reverse_agent.project_state archive-round --state-dir project_state"
+   ],
+   "generated_artifacts": [
+-    "project_state/artifact_index.json",
+-    "project_state/current_state.json",
+-    "project_state/negative_results.json",
+-    "project_state/model_gate.json",
+-    "project_state/task_packet.json",
+-    "project_state/pytest_result.txt",
+-    "project_state/rounds/round_20260519_105608/round_manifest.json"
++    "project_state/rounds/round_20260520_052928/round_manifest.json",
++    "project_state/rounds/round_20260520_052928/artifact_index.json",
++    "project_state/rounds/round_20260520_052928/current_state.json",
++    "project_state/rounds/round_20260520_052928/negative_results.json",
++    "project_state/rounds/round_20260520_052928/model_gate.json",
++    "project_state/rounds/round_20260520_052928/task_packet.json",
++    "project_state/rounds/round_20260520_052928/pytest_result.txt",
++    "project_state/rounds/round_20260520_052928/git_diff.patch"
+   ],
+-  "next_suggested_task": "Review the Phase 1D lint-decision gate result; prepare a fresh decision packet if the rebuilt live state digest should become the next execution authority."
++  "next_suggested_task": "Review the consumed Phase 1D-fix rework handoff state; do not continue samplereverse until the next decision packet explicitly authorizes that branch."
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-19 Phase 1D lint-decision minimum gate
+-
+-This pass implements the minimal `lint-decision` gate only. It does not advance the `samplereverse` reverse-engineering mainline, does not run runtime probes, and does not modify reverse strategy, Olly scripts, harness flow, search width, timeout, or probe behavior.
+-
+-### Required Audit
+-
+-| check | result |
+-|---|---|
+-| `main()` subcommands before this pass | `build`, `new-round`, `archive-round`, `pack`, and `status`. |
+-| `status` decision/report state | `status_summary()` reads live `decision_packet.md` and `codex_execution_report.md` through `build_handoff_status()`, then prints decision/report IDs and `decision_report_id_match`. |
+-| `read_decision_meta()` behavior | Exact template returns `TEMPLATE_ONLY`; missing or invalid meta returns `UNKNOWN`; approved meta returns `APPROVED`; parse errors are preserved. |
+-| `status_summary()` decision exposure | It already exposes `decision_status`, `decision_id`, `decision_based_on_state_digest`, and `decision_parse_error`. |
+-| state identity source | `apply_state_identity()` computes `state_digest` from stable current-state JSON and then sets `state_build_id`, `round_id`, and task-packet `based_on_state_digest`. |
+-| execution authority fields | `build_task_packet()` sets `execution_scope: decision_packet_controls_current_round` and `active_decision_packet: project_state/decision_packet.md`. |
+-| previous handoff consistency | Phase 1C-fix already added live `decision_report_id_match`; before this report update it was `False` because the report still pointed to the Phase 1C decision. |
+-| parser reuse | `lint_decision()` reuses `read_decision_meta()` and does not implement another Markdown parser. |
+-| digest mismatch behavior | Mismatch is a normal lint failure with `returncode=1`, not a Python traceback. |
+-| reusable tests | Existing minimal harness fixtures and status/meta tests were reused; no full solve report scan was added. |
+-
+-### Changes Made
+-
+-- Added `lint_decision(state_dir)` with structured `ok`, `errors`, `warnings`, decision identity, current-state identity, and execution-authority fields.
+-- Added `python -m reverse_agent.project_state lint-decision --state-dir project_state` with readable OK/FAILED output and stable `0`/`1` return codes.
+-- Added regression coverage for approved matching state, missing/template/draft decision states, missing IDs/digests, digest mismatch, CLI return codes, and execution-scope reporting.
+-- Updated this report summary to bind to `decision_phase1d_lint_decision_min_gate_20260519`.
+-
+-### Verification This Round
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_project_state.py` | `71 passed in 13.17s` |
+-| `python -m pytest -q` | `321 passed in 48.61s` |
+-| `python -m reverse_agent.project_state lint-decision --state-dir project_state` before rebuild | passed; decision digest matched live `acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c` |
+-| `python -m reverse_agent.project_state status --state-dir project_state` before report update | passed; `decision_report_id_match: False` because the report still pointed to Phase 1C |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed; generated `round_20260519_105608` / `state_20260519_105608_74887f4fae41` |
+-| `python -m reverse_agent.project_state lint-decision --state-dir project_state` after rebuild | returned `1` as intended; reported `based_on_state_digest does not match current_state.state_digest` |
+-| `python -m reverse_agent.project_state status --state-dir project_state` after rebuild | passed; live state digest is `74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0` |
+-
+-### State Notes
+-
+-- The post-build `lint-decision` failure is expected and useful: this implementation changed the live state identity, while the approved decision remains bound to the pre-build digest. This pass did not auto-edit `decision_packet.md` to force a match.
+-- After this report update, `status` should show `report_based_on_decision_id: decision_phase1d_lint_decision_min_gate_20260519` and `decision_report_id_match: True`; digest freshness is intentionally enforced separately by `lint-decision`.
+-
+-## 2026-05-19 Phase 1C-fix handoff traceability
+-
+-This pass implements Phase 1C-fix only. It does not advance the `samplereverse` reverse-engineering mainline, does not run runtime probes, does not enter Phase 1E/1F or Phase 2, and does not modify reverse strategy, Olly scripts, harness flow, search width, timeout, or probe behavior.
+-
+-### Required Audit
+-
+-| check | result |
+-|---|---|
+-| `DECISION_PACKET_TEMPLATE` meta | Before this pass it did not include `decision_meta`; it now includes a `TEMPLATE_ONLY` fenced JSON block. |
+-| `CODEX_EXECUTION_REPORT_TEMPLATE` summary | Before this pass it did not include `codex_report_summary`; it now includes a `TEMPLATE_ONLY` fenced JSON block with `acceptance_recommendation: UNKNOWN`. |
+-| `ensure_state_layout()` overwrite behavior | It still writes only missing or default-template files; the formal approved `decision_packet.md` was not overwritten. |
+-| `read_decision_meta()` behavior | Missing/invalid formal meta remains `UNKNOWN`; exact default template reads as `TEMPLATE_ONLY`; approved meta reads as `APPROVED`. |
+-| `read_codex_report_summary()` behavior | Missing/invalid formal summary remains `UNKNOWN`; exact default template reads as `TEMPLATE_ONLY`; successful report reads as `SUCCESS`. |
+-| handoff mismatch visibility | `build_handoff_status()` now returns `handoff_consistency`, and `status_summary()`/CLI expose `decision_report_id_match`. |
+-| previous empty report binding | The prior report had `based_on_decision_id: ""`, so `decision_report_id_match` correctly reported `False` before this report update. |
+-| Phase 1C freshness compatibility | `latest_artifacts_v2` remains additive; old `latest_artifacts` path refs are retained. |
+-| existing test coverage | Existing tests covered meta parsing, template-only status, and selected-run freshness; this pass adds explicit binding match/mismatch coverage. |
+-| selected run freshness | The explicit-run test now asserts `other_run` is not marked `current`. |
+-
+-### Changes Made
+-
+-- Added machine-readable `decision_meta` and `codex_report_summary` blocks to the default handoff templates.
+-- Added `handoff_consistency.decision_report_id_match` and CLI/status output for the decision/report binding.
+-- Added regression tests for matching, empty, mismatched, and template-only binding states.
+-- Updated this report summary with `based_on_decision_id: decision_phase1c_handoff_traceability_fix_20260519`.
+-
+-### Verification This Round
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_project_state.py` | `61 passed in 9.01s` |
+-| `python -m pytest -q` | `311 passed in 39.31s` |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed; generated `round_20260519_085626` / `state_20260519_085626_acd12be00935` |
+-| `python -m reverse_agent.project_state status` | passed; reports `decision_status: APPROVED`, `report_status: SUCCESS`, `report_based_on_decision_id: decision_phase1c_handoff_traceability_fix_20260519`, and `decision_report_id_match: True` |
+-| `python -m reverse_agent.project_state archive-round` | passed; archived finalized state under `project_state/rounds/round_20260519_085626` |
+-
+-### State Notes
+-
+-- Expected final status is `decision_status: APPROVED`, `report_status: SUCCESS`, `report_based_on_decision_id: decision_phase1c_handoff_traceability_fix_20260519`, and `decision_report_id_match: True`.
+-- `project_state/task_packet.json` still describes the sample-derived task; this round remains controlled by `project_state/decision_packet.md`.
+-
+-## 2026-05-19 Phase 1C artifact_index provenance / freshness
+-
+-This pass implements Phase 1C only. It does not advance the `samplereverse` reverse-engineering mainline, does not enter Phase 1E/1F or Phase 2, does not implement `lint-decision`, and does not modify reverse strategy, Olly scripts, harness flow, search width, timeout, or probe behavior.
+-
+-### Required Audit
+-
+-| check | result |
+-|---|---|
+-| `build_artifact_index()` latest run selection | `_resolve_latest_run()` uses explicit `--run-name` when provided; otherwise it chooses the newest directory under `solve_reports/harness_runs`. |
+-| old `latest_artifacts` selection | `_scan_artifact_files()` scans legacy `solve_reports/tool_artifacts` plus harness artifacts, then keeps the newest path per classified kind; summary and run manifest are filled from the selected latest run when absent. |
+-| existing `recent_artifacts` metadata | Before this pass it had `kind`, `path`, `size_bytes`, and `modified_at`; it did not have source run, sha256, or freshness. |
+-| `run_name` behavior | `run_name` limits harness-run scanning to that run, while legacy tool artifacts remain visible as stale compatibility context. |
+-| why mixed refs exist | Current-run artifacts and older legacy tool artifacts are both indexed so compact state can retain useful historical context, but path-only refs could not distinguish current from stale. |
+-| compatibility | `latest_artifacts` remains path-only and unchanged; `latest_artifacts_v2` is additive. |
+-| sha256 helper | Existing `_sha256_file()` is reused for artifact file digests. |
+-| freshness rule | Existing selected-run paths are `current`; existing legacy or non-selected paths are `stale`; null/nonexistent paths are `missing`; unrecognized existing paths are `unknown`. |
+-
+-### Changes Made
+-
+-- Added `latest_artifacts_v2` to `artifact_index.json`, with `path`, `kind`, `source_run`, `modified_at`, `size_bytes`, `sha256`, and `freshness` per artifact key.
+-- Added source-run inference for `solve_reports/harness_runs/<run_name>/...` and legacy `solve_reports/tool_artifacts/...`.
+-- Added `artifact_freshness` counts to `status_summary()` and CLI `status`.
+-- Added regression coverage for current harness artifacts, legacy stale artifacts, missing artifacts, explicit `run_name`, and old path-only compatibility.
+-
+-### Verification This Round
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_project_state.py` | `59 passed in 8.98s` |
+-| `python -m pytest -q` | `309 passed in 47.49s` |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed; generated `round_20260519_071819` / `state_20260519_071819_62dfa8ea2f63` |
+-| `python -m reverse_agent.project_state status` | passed; reports `artifact_freshness: {'current': 5, 'missing': 23, 'stale': 14}` |
+-| `python -m reverse_agent.project_state archive-round` | run after this report and `project_state/pytest_result.txt` are written so the archive captures final closure evidence |
+-
+-### State Notes
+-
+-- `project_state/artifact_index.json` now identifies current run artifacts such as `summary`, `run_manifest`, and `compare_real_lhs_provenance_audit` as `current`.
+-- Legacy context such as `frontier_summary` and `base64_rc4_static_point_discovery` is still indexed but marked `stale` with `source_run: legacy_tool_artifacts`.
+-- `project_state/task_packet.json` still uses the old path-only `artifact_refs`; downstream migration is intentionally deferred.
+-
+-## 2026-05-19 Phase 1B-fix handoff cache removal
+-
+-This pass is a Phase 1B consistency fix only. It does not advance the `samplereverse` reverse-engineering mainline, does not enter Phase 1C/1E/1F or Phase 2, and does not implement artifact freshness or `lint-decision`.
+-
+-### Audit Result
+-
+-| check | result |
+-|---|---|
+-| `build_project_state()` handoff call | It previously called `build_handoff_status(state_dir)` after identity metadata and wrote the result into `task_packet["handoff_status"]`. |
+-| cache timing risk | That snapshot is produced during `build`, before the usual final report and pytest-result writes, so it can become stale before archive. |
+-| live status behavior | `status_summary()` still dynamically calls `build_handoff_status(state_dir)` and reads the live Markdown files at status time. |
+-| downstream compatibility | `task_packet.json` keeps stable fields: `active_decision_packet`, `task_source`, `execution_scope`, and `expected_gpt_output`. |
+-| freshness alternative | No sha256 freshness snapshot was added; the smaller fix is to avoid persisting the volatile handoff status in `task_packet.json`. |
+-
+-### Changes Made
+-
+-- Removed the `task_packet["handoff_status"] = build_handoff_status(state_dir)` write from `build_project_state()`.
+-- Kept dynamic handoff parsing in `status_summary()` and CLI `status`.
+-- Updated tests so generated `task_packet.json` must not contain cached `handoff_status`.
+-- Added coverage that changing `codex_execution_report.md` after `build_project_state()` is visible through `status_summary()` without rebuilding.
+-
+-### Verification This Round
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_project_state.py` | `57 passed in 5.11s` |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed; generated `round_20260519_063549` / `state_20260519_063549_cf4670d47eb6` |
+-| `python -m reverse_agent.project_state status` | passed; reports `decision_status: UNKNOWN`, `report_status: SUCCESS`, `report_id: report_phase1b_fix_20260519` |
+-| `python -m reverse_agent.project_state archive-round` | passed; wrote `project_state/rounds/round_20260519_063549/round_manifest.json` |
+-
+-### State Notes
+-
+-- `project_state/task_packet.json` no longer stores a full `handoff_status` snapshot.
+-- `status_summary()` remains the authoritative place to inspect current decision/report status.
+-- The current decision packet has no `decision_meta`, so `decision_status` safely downgrades to `UNKNOWN`; the current report summary is `SUCCESS`.
+-
+-## 2026-05-19 Phase 1B decision/report validity markers
+-
+-This pass implements Phase 1B only. It does not advance the `samplereverse` reverse-engineering mainline, does not enter Phase 2, and does not implement artifact freshness, `lint-decision`, negative-result gates, or schema documentation.
+-
+-### Audit Result
+-
+-| check | result |
+-|---|---|
+-| `DECISION_PACKET_TEMPLATE` format | Plain Markdown template with sections for Goal, Current Evidence, Do Not Do, Files To Inspect, Required Audit, Implementation Scope, Tests, and Stop Conditions; it previously had no meta block. |
+-| `CODEX_EXECUTION_REPORT_TEMPLATE` format | Plain Markdown template with Summary, Files Changed, Audit Result, Implementation, Tests, and Generated State Files; it previously had no summary meta block. |
+-| `new_round()` template behavior | It calls `ensure_state_layout()`, which creates default decision/report templates only when files are missing or still equal to the old default. |
+-| `status_summary()` prior state | It read artifact/model/task JSON and exposed task source/scope fields, but not decision/report validity. |
+-| Markdown fenced parser | No existing parser was present in `project_state.py`; this pass adds a minimal fenced JSON extractor. |
+-| missing meta downgrade | Legacy non-template Markdown without meta now reports `UNKNOWN`, never `APPROVED` or `SUCCESS`. Default templates report `TEMPLATE_ONLY`. |
+-| current meta write policy | Current `decision_packet.md` now has `decision_meta` with `status: APPROVED`; historical rounds are not backfilled. This report now has `codex_report_summary` with `status: SUCCESS`. |
+-| id policy | `decision_id` and `report_id` are parsed when present; they are not required or auto-generated by the parser in Phase 1B. |
+-
+-### Changes Made
+-
+-- Added `extract_markdown_json_block()`, `read_decision_meta()`, `read_codex_report_summary()`, and `build_handoff_status()` to `reverse_agent/project_state.py`.
+-- Added safe enum normalization for decision status, report status, and report acceptance recommendation.
+-- Added `handoff_status` to generated `task_packet.json` and exposed decision/report fields through `status_summary()` and CLI `status`.
+-- Added current `decision_meta` to `project_state/decision_packet.md`.
+-- Added focused regression coverage for valid meta, missing meta, invalid JSON, template-only files, status output, and task-packet handoff status.
+-
+-### Verification This Round
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_project_state.py` | `55 passed in 4.94s` |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed; generated `round_20260519_062046` / `state_20260519_062046_e81940ea11f8` |
+-| `python -m reverse_agent.project_state status` | passed; reports `decision_status: APPROVED`, `report_status: SUCCESS`, `report_acceptance_recommendation: ACCEPTED` |
+-
+-### State Notes
+-
+-- Missing or invalid meta is fail-soft and auditable through `parse_error`.
+-- `project_state/task_packet.json` still reports the sample-derived reverse task, while `active_decision_packet` and `handoff_status` identify the current Phase 1B handoff state.
+-- No artifact scanner, reverse strategy, runtime probe, beam, budget, frontier, or Base64/RC4 probe behavior changed.
+-
+-## 2026-05-19 Phase 1 task_packet scope separation patch
+-
+-This pass is a Phase 1 small patch only. It does not advance the `samplereverse` reverse-engineering mainline, does not enter Phase 2, and does not implement Phase 1B/1C/1E/1F.
+-
+-### Audit Result
+-
+-| check | result |
+-|---|---|
+-| `build_task_packet()` task derivation | It reads `current_state["current_bottleneck"]` and calls `_task_from_bottleneck(current_state)` when model context is sufficient; when evidence is missing it emits `collect_missing_evidence`. |
+-| meaning of `task_packet.task` | The field is derived from sample artifacts and model-gate state. It is not the current Codex execution task when `decision_packet.md` is an architecture handoff. |
+-| active execution entry | `project_state/decision_packet.md` remains the current Codex execution authority. |
+-| compatibility | The old `task` field is preserved unchanged, and the new fields are additive, so existing readers can keep using `task`. |
+-| status output | `status_summary()` and CLI `status` now expose the task source and active decision packet so the command line distinguishes derived sample state from current execution scope. |
+-
+-### Changes Made
+-
+-- Added task scope fields to every `build_task_packet()` output: `state_scope`, `task_source`, `derived_task`, `active_decision_packet`, and `execution_scope`.
+-- Kept `task` and `expected_gpt_output` for compatibility with existing GPT/Codex workflows.
+-- Added tests covering `derived_task == task`, fixed source/scope values, active decision packet, and CLI/status visibility.
+-- Phase 1B/1C/1E/1F remain unimplemented.
++## 2026-05-20 Phase 1D-fix rework handoff consistency
+ 
+-### Verification This Round
++This pass finishes the Phase 1D-fix rework requested by `project_state/decision_packet.md`. It only repairs the project_state handoff semantics and does not advance the `samplereverse` reverse-engineering mainline.
+ 
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_project_state.py` | `48 passed in 7.19s` |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed; generated `round_20260519_041029` / `state_20260519_041029_d8b41081b53f` |
+-| `python -m reverse_agent.project_state status` | `reason: instrumentation_incomplete`, `task_source: derived_from_sample_artifacts`, `active_decision_packet: project_state/decision_packet.md`, `missing: []` |
+-| `python -m reverse_agent.project_state archive-round` | run after this report and `project_state/pytest_result.txt` are written so the archived round captures the final state files |
+-
+-### State Notes
+-
+-- `project_state/task_packet.json` still reports `task: Improve compare lhs last-writer instrumentation`, but now also reports that it is a derived sample-artifact task.
+-- `project_state/decision_packet.md` remains the active task authority for Codex execution.
+-- No artifact scanner, reverse strategy, runtime probe, beam, budget, frontier, or Base64/RC4 probe behavior changed.
+-
+-## 2026-05-18 Phase 1A/1D project_state archive semantics rework
+-
+-This pass is a Phase 1A + Phase 1D rework only. It does not advance the `samplereverse` reverse-engineering mainline, does not enter Phase 2, and does not implement Phase 1B/1C/1E/1F.
+-
+-### Audit Result
++## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| `archive_round()` round selection | It uses an explicit CLI/API `round_id` when provided; otherwise it uses `current_state.json["round_id"]`; legacy state without a round id falls back to the next `round_###` directory. |
+-| copy/write order | It collects source bytes and builds the manifest payload first, then writes archived file copies, then writes `round_manifest.json`. |
+-| old manifest path semantics | State files previously recorded `files.*.path` as the live `project_state/<name>` source path, while generated `git_diff.patch` and `pytest_result.txt` pointed into the round directory. This mixed replay semantics. |
+-| why tests missed it | The old digest test ignored manifest paths and verified `sha256` against `round_dir / name`, so it proved copied bytes matched but did not prove the manifest path identified the archived copy. |
+-| `source_git_commit` meaning | The field remains the HEAD captured when state was generated, not the commit that may later contain the archive. |
+-| prior pytest placeholder | `project_state/pytest_result.txt` was missing before this pass, so the previous archived round wrote `No pytest_result.txt was available for this round.` |
+-| `task_packet.json` reverse task | Rebuilding from current `samplereverse` artifacts still yields the current reverse-engineering task because `build_project_state()` derives it from artifact state. This does not mean the Phase 1A/1D architecture rework is a reverse-mainline step. |
++| current decision_id | `decision_phase1d_fix_rework_handoff_consistency_20260520`. |
++| report binding before this pass | The live report still pointed at `decision_phase1d_lint_decision_min_gate_20260519`, so `decision_report_id_match: False`. |
++| current state digest | `8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d`. |
++| why previous Phase 1D-fix report was missing | The prior handoff stopped after the minimum lint gate report; no report was produced for `decision_phase1d_fix_lint_phase_semantics_20260519` or the current rework decision. |
++| reverse harness branch mixing risk | `task_packet.task` and the live artifacts still describe `sr_lhs_thread_follow_timing_20260520_r4`; this pass treats those as compact state context only, with execution authority coming from `decision_packet.md`. |
++| `lint_decision()` digest rule | It still fails when `decision_meta.based_on_state_digest` does not equal `current_state.state_digest`; no strictness was lowered. |
++| prior status exposure | Before this pass, `status_summary()` exposed decision/report IDs and `decision_report_id_match`, but not digest match, report consumption, or execution state. |
++| handoff match rule | `decision_report_id_match` still requires non-empty matching decision IDs and non-template/non-unknown decision/report statuses. |
++| engineering branch boundary | Only `reverse_agent/project_state.py`, `tests/test_project_state.py`, and project_state handoff files were changed. No strategy, harness, Olly script, beam, budget, timeout, or runtime probe was touched. |
++| archive state | `round_20260520_052928` was missing before this pass and is recreated by the final `archive-round` run. |
+ 
+-### Changes Made
++## Implementation
+ 
+-- `round_manifest.json` file entries now record `source_path`, `archived_path`, and `sha256`.
+-- State-file entries use `source_path: project_state/<name>` and `archived_path: project_state/rounds/<round_id>/<name>`.
+-- Generated archive-only files such as `git_diff.patch` use `source_path: null`.
+-- `pytest_result.txt` records `source_path` only when a real source result file exists; otherwise it is `null`.
+-- Archive tests now verify that `archived_path` exists, sits under the selected round directory, and matches the recorded digest.
+-- Phase 1B/1C/1E/1F remain unimplemented.
++- Added live current-state digest evaluation to `build_handoff_status()`.
++- Added `decision_state_digest_match`, `decision_consumed_by_report`, and `decision_execution_state` to handoff consistency and `status_summary()`.
++- Added CLI `status` output for the three new fields.
++- Preserved `lint-decision` as the pre-execution gate: digest mismatch still returns a failure.
++- Added regression coverage for all required execution states and CLI printing.
+ 
+-### Verification This Round
++## Verification
+ 
+ | command | result |
+ |---|---|
+ | `python -m py_compile reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_project_state.py` | `46 passed in 5.32s` |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3` | passed |
+-| `python -m reverse_agent.project_state status` | `reason: instrumentation_incomplete`, `task: Improve compare lhs last-writer instrumentation`, `missing: []` |
+-| `python -m reverse_agent.project_state archive-round` | creates `project_state\rounds\round_20260518_112941` after this report and `project_state\pytest_result.txt` are written |
+-
+-### State Notes
+-
+-- `project_state/pytest_result.txt` now contains the real py_compile and pytest output from this pass.
+-- `project_state/decision_packet.md` remains the Phase 1A + Phase 1D rework packet and was not rewritten into a reverse-mainline decision.
+-- The regenerated compact JSON state may still describe the current `samplereverse` instrumentation bottleneck because that is what the latest indexed artifacts say; this is artifact context, not a claim that Phase 1 is complete.
+-
+-## 2026-05-18 Summary
+-
+-Implemented the observability repair for `compare_real_lhs_provenance_audit` before any new semantic probe.
+-
+-This pass does not run Base64/RC4 probing, does not return to `sample_solver`, and does not expand search, beam, topN, budget, timeout, or frontier iteration. It keeps the existing artifact kind/name: `compare_real_lhs_provenance_audit.json`.
+-
+-## Files Changed This Round
+-
+-| area | change | behavior impact |
+-|---|---|---|
+-| runtime probe | Added `write_monitor_health` to the bounded write-ring collector | exposes whether Stalker was enabled, how many threads were followed, raw write volume, ring capacity, evictions, decode failures, last raw samples, and filtered/intersecting count |
+-| strategy | Aggregates write monitor health into `write_monitor_health` and `last_writer_summary.write_monitor_health` | separates collector failure from true writer absence |
+-| classifier | Tightened last-writer classification | `raw_write_count == 0` now reports `instrumentation_incomplete`; raw writes with zero arg0 intersections report `compare_lhs_runtime_backed_writer_missing`; intersecting but non-matching/partial paths report `writer_path_observed_but_unconnected` |
+-| project state | Surfaces `write_monitor_health` in compact state | future handoffs can inspect collector health without opening full artifacts |
+-| tests | Added raw-write health classification coverage | protects `instrumentation_incomplete`, writer-missing, unconnected, and `breakpoint_probe_allowed=false` gates |
+-
+-## Latest Harness Result
+-
+-Run:
+-
+-`sr_lhs_last_writer_20260518_r2`
+-
+-Core artifact:
+-
+-`solve_reports\harness_runs\sr_lhs_last_writer_20260518_r2\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+-
+-Result from the r2 artifact:
+-
+-| field | value |
+-|---|---|
+-| `classification` | `compare_lhs_runtime_backed_writer_missing` |
+-| `candidate_count` | `3` |
+-| `runtime_backed_count` | `3` |
+-| `actual_compare.entry` | `0x258c` |
+-| `actual_compare.lhs_side` | `arg0` |
+-| `actual_compare.arg0_candidate_dependent` | `true` |
+-| `last_writer_summary.enabled` | `true` |
+-| `last_writer_summary.actual_compare_arg0_runtime_backed` | `true` |
+-| `last_writer_summary.retained_write_count` | `0` |
+-| `last_writer_summary.intersecting_write_candidate_count` | `0` |
+-| `breakpoint_probe_allowed` | `false` |
+-
+-Important observability note:
+-
+-The r2 artifact was produced before this repair and therefore does not contain raw write monitor health. The old artifact can prove `filtered/intersecting == 0`, but it cannot distinguish “no writes occurred” from “Stalker/write decoding failed.” The code now exports the required health fields so the next bounded rerun can classify that distinction correctly.
+-
+-Project state after r2 reported:
+-
+-`reason: compare_lhs_runtime_backed_writer_missing`, `task: Improve compare lhs last-writer instrumentation`, `missing: []`.
+-
+-Current best runtime candidate changed: no. The run was diagnostic-only; the current best remains:
+-
+-`78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`.
+-
+-## Verification This Round
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` | `204 passed` |
+-
+-## Next Suggested Task
+-
+-Rerun only the bounded `compare_real_lhs_provenance_audit` path when ready to refresh runtime evidence with the new `write_monitor_health` fields. Keep `breakpoint_probe_allowed=false` unless the final arg0-intersecting writer is connected to actual arg0, candidate-dependent, and transform-material backed for all three fixed candidates.
+-
+-## 2026-05-17 Summary
+-
+-Implemented the bounded `post_handoff_exception_unwind_audit` sidecar for `samplereverse`.
+-
+-The new layer consumes `post_handoff_branch_outcome_audit / handoff_exception_or_unwind`, keeps the fixed three-candidate set, does not expand search, and keeps Base64/RC4 probing blocked unless actual compare lhs, connected producer, and candidate-dependent transform material are all runtime-backed.
+-
+-## Files Changed This Round
+-
+-| area | change | behavior impact |
+-|---|---|---|
+-| strategy | Added `post_handoff_exception_unwind_audit.json` schema, classifier, runner, and early sidecar scheduling | advances from broad exception/unwind evidence to an evidence-gated path route |
+-| runtime probe | Added `reverse_agent/olly_scripts/post_handoff_exception_unwind_audit.py` | thin entry reusing the bounded Frida/UIA collector shape |
+-| project state | Indexed `latest_post_handoff_exception_unwind_audit` and task routing | bottleneck now advances to the new artifact when present |
+-| negative cache | Added blocks for Base64/RC4 probing before material gates and for repeating inconclusive/hook-miss audits | preserves bounded evidence-driven iteration |
+-| tests | Added strategy and project_state coverage | protects fixed candidates, evidence gates, routing, early sidecar hard-stop, and state indexing |
+-
+-## Latest Harness Result
+-
+-Run:
+-
+-`sr_401b50_exception_unwind_20260517_r1`
+-
+-Core artifact:
+-
+-`solve_reports\harness_runs\sr_401b50_exception_unwind_20260517_r1\reports\tool_artifacts\samplereverse_patched\post_handoff_exception_unwind_audit\post_handoff_exception_unwind_audit.json`
+-
+-Result:
+-
+-| field | value |
+-|---|---|
+-| `classification` | `compare_reached_but_path_unresolved` |
+-| `candidate_count` | `3` |
+-| `runtime_backed_count` | `3` |
+-| `post_classification_route` | `last_writer_memory_provenance_before_0x258c` |
+-| `evidence_gate.compare_entry_observed` | `true` |
+-| `evidence_gate.compare_args_captured` | `true` |
+-| `evidence_gate.exception_evidence` | `false` |
+-| `evidence_gate.handler_unwind_evidence` | `false` |
+-| `evidence_gate.connected_producer_runtime_backed` | `false` |
+-| `evidence_gate.candidate_dependent_transform_material_runtime_backed` | `false` |
+-| `breakpoint_probe_allowed` | `false` |
+-
+-Tentative hook status:
+-
+-| tentative offset | artifact field | status |
+-|---|---|---|
+-| `0x1913` | `tentative_hook_candidates[].module_offset == "0x1913"` | `tentative_not_observed` |
+-| `0x19bb` | `tentative_hook_candidates[].module_offset == "0x19bb"` | `tentative_not_observed` |
+-| `0x19fe` | `tentative_hook_candidates[].module_offset == "0x19fe"` | `tentative_not_observed` |
+-| `0x1a30` | `tentative_hook_candidates[].module_offset == "0x1a30"` | `tentative_not_observed` |
+-
+-No candidate generation, ranking, frontier, beam, topN, or search timeout expansion was introduced. The current best remains:
+-
+-`78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`.
+-
+-Project state now reports:
+-
+-`reason: compare_reached_but_path_unresolved`, `task: Trace last-writer memory provenance before 0x258c`, `missing: []`.
+-
+-## Verification This Round
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\olly_scripts\post_handoff_exception_unwind_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` | `195 passed` |
+-| `python -m pytest -q` | `272 passed` |
+-| `python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_401b50_exception_unwind_20260517_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled` | completed, 1 case, 0 errors, selected `NOT_FOUND` |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_401b50_exception_unwind_20260517_r1` | passed |
+-| `python -m reverse_agent.project_state status` | `reason: compare_reached_but_path_unresolved`, `missing: []` |
+-
+-## Next Suggested Task
+-
+-Keep Base64/RC4 probing blocked. Trace last-writer or memory provenance immediately before `0x258c`, because this run confirmed compare entry and arg capture but did not prove the tentative exception/handler offsets or a connected producer.
+-
+-## 2026-05-14 Summary
+-
+-Implemented the bounded `compare_callsite_reanchor_and_lhs_provenance_audit` sidecar for `samplereverse`.
+-
+-The new layer runs after `compare_lhs_upstream_writer_audit` reports `candidate_dependent_upstream_observed`. It keeps the fixed three-candidate set, does not expand search, and keeps Base64/RC4 probing blocked unless a real compare lhs side and connected producer are both runtime-backed.
+-
+-## Files Changed This Round
+-
+-| area | change | behavior impact |
+-|---|---|---|
+-| strategy | Added `compare_callsite_reanchor_and_lhs_provenance_audit.json` schema, classifier, runner, and early sidecar scheduling | re-anchors from actual compare entry before trusting old frame slots |
+-| runtime probe | Added `reverse_agent/olly_scripts/compare_callsite_reanchor_and_lhs_provenance_audit.py` | thin entry reusing the bounded Frida/UIA collector shape |
+-| project state | Indexed `latest_compare_callsite_reanchor_and_lhs_provenance_audit` | bottleneck advances to the new audit when present |
+-| negative cache | Added blocks for old `[ebp-0x1170]` reuse and direct Base64/RC4 probing from this audit | prevents material probing before compare lhs provenance closes |
+-| tests | Added strategy and project_state coverage | protects fixed candidates, no-expansion flags, scheduler ordering, and state indexing |
+-
+-## Latest Harness Result
+-
+-Run:
+-
+-`sr_callsite_reanchor_20260514_r5`
+-
+-Core artifact:
+-
+-`solve_reports\harness_runs\sr_callsite_reanchor_20260514_r5\reports\tool_artifacts\samplereverse_patched\compare_callsite_reanchor_and_lhs_provenance_audit\compare_callsite_reanchor_and_lhs_provenance_audit.json`
+-
+-Result:
+-
+-| field | value |
+-|---|---|
+-| `classification` | `inconclusive` |
+-| `candidate_count` | `3` |
+-| `runtime_backed_count` | `3` |
+-| `actual_compare.entry_status` | `rejected` |
+-| `actual_compare.observed_count` | `0` |
+-| `actual_compare.lhs_side` | `unknown` |
+-| `actual_compare.flag_side` | `unknown` |
+-| `frame_anchor.old_slot_ebp_minus_1170_status` | `inconclusive` |
+-| `breakpoint_probe_allowed` | `false` |
+-
+-Important correction made during execution: the first implementation treated a three-candidate run as actual compare confirmation even when only upstream hooks fired. The classifier now requires actual compare entry observations before reporting re-anchor success.
+-
+-Project state now reports:
+-
+-`reason: inconclusive`
+-
+-## Verification This Round
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\olly_scripts\compare_callsite_reanchor_and_lhs_provenance_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` | `144 passed` |
+-| `python -m pytest -q` | `221 passed` |
+-| `python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_callsite_reanchor_20260514_r5 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled` | completed, 1 case, 0 errors, selected `NOT_FOUND` |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_callsite_reanchor_20260514_r5` | passed |
+-| `python -m reverse_agent.project_state status` | `reason: inconclusive`, `missing: []` |
+-
+-## Current Best
+-
+-No candidate generation, ranking, frontier, budget, beam, topN, or search timeout expansion was introduced. The current best remains:
+-
+-`78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`.
+-
+-## Next Suggested Task
+-
+-Keep Base64/RC4 probing blocked. Improve actual compare entry hook coverage or argument capture first; the new sidecar shows upstream hooks are reachable, but `0x1028ac` compare entry did not produce arg0/arg1 observations in r5.
+-
+-## 2026-05-13 Summary
+-
+-Implemented the bounded `compare_lhs_producer_audit` sidecar for `samplereverse`.
+-
+-The new layer consumes the existing `post_handoff_window_rejected` bottleneck, runs only the fixed three-candidate cross-check, and writes `compare_lhs_producer_audit.json`. It does not expand search and never authorizes Base64/RC4 breakpoint probing.
+-
+-## Files Changed This Round
+-
+-| area | change | behavior impact |
+-|---|---|---|
+-| strategy | Added `compare_lhs_producer_audit.json` builder/classifier/runner | classifies `producer_identified`, `producer_window_rejected`, or `inconclusive` |
+-| runtime probe | Added `reverse_agent/olly_scripts/compare_lhs_producer_audit.py` | thin entry reusing the existing Frida/UIA collector shape |
+-| scheduler | Added early sidecar before bridge/search | existing `post_handoff_window_rejected` now runs lhs producer audit first |
+-| project state | Indexed `latest_compare_lhs_producer_audit` | bottleneck advances to `compare_lhs_producer_audit` |
+-| negative cache | Added compare lhs producer audit blocks | rejected/inconclusive evidence does not trigger search expansion or Base64/RC4 probe |
+-| tests | Added builder, runner, sidecar, and project_state coverage | protects fixed candidates, no-expansion flags, relations, and state indexing |
+-
+-## Latest Harness Result
+-
+-Run:
+-
+-`sr_lhs_prod_20260513_r1`
+-
+-Core artifact:
+-
+-`solve_reports\harness_runs\sr_lhs_prod_20260513_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_producer_audit\compare_lhs_producer_audit.json`
+-
+-Result:
+-
+-| field | value |
+-|---|---|
+-| `classification` | `producer_window_rejected` |
+-| `candidate_count` | `3` |
+-| `runtime_backed_count` | `3` |
+-| `breakpoint_probe_allowed` | `false` |
+-| `next_bounded_action` | move earlier than `0x253a..0x258b` |
+-
+-Window summary:
+-
+-| hook | runtime backed | candidate dependent | connects to compare lhs |
+-|---|---:|---|---|
+-| `pre_lhs_slot_store` | 3 | false | false |
+-| `pre_handoff_call` | 1 | false | false |
+-| `post_handoff_lhs_reload` | 0 | false | false |
+-| `pre_compare_lhs_push` | 0 | false | false |
+-| `compare_helper_entry` | 0 | false | false |
+-
+-Project state now reports:
+-
+-`reason: producer_window_rejected`
+-
+-## Verification This Round
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\olly_scripts\compare_lhs_producer_audit.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` | `135 passed` |
+-| `python -m pytest -q` | `212 passed` |
+-| `python -m reverse_agent.harness --dataset solve_reports\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_lhs_prod_20260513_r1 --reports-dir solve_reports --analysis-mode Auto --model-type "Copilot CLI" --runtime-validation-enabled --tool-enabled` | completed |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_prod_20260513_r1` | passed |
+-| `python -m reverse_agent.project_state status` | `reason: producer_window_rejected`, `missing: []` |
+-
+-## Current Best
+-
+-No candidate generation, ranking, frontier, budget, beam, topN, or search timeout expansion was introduced. The current best remains:
+-
+-`78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`.
+-
+-## Next Suggested Task
+-
+-Keep Base64/RC4 probing blocked. Move earlier than `0x253a..0x258b` to locate the real producer feeding compare lhs.
+-
+-## Summary
+-
+-Implemented the bounded `material_hook_runtime_validation` gate for `samplereverse`.
+-
+-The new layer validates only `module+0x233d` and `module+0x2346` against the fixed four-candidate set from the plan. It records register/window/frame previews, classifies each hook, and keeps Base64/RC4 breakpoint probing blocked unless the runtime artifact proves candidate-dependent transform material.
+-
+-## Files Changed
+-
+-| area | change | behavior impact |
+-|---|---|---|
+-| runtime probe | Added `reverse_agent/olly_scripts/material_hook_runtime_validation.py` | thin script entry for the new material hook validation pass |
+-| strategy | Added `material_hook_runtime_validation.json` scheduling and schema | runs after `function_semantic_audit / material_hook_ready`, before Base64/RC4 |
+-| strategy gate | Added validation-backed breakpoint gate | Base64/RC4 probe now requires `ACCEPT` plus confirmed transform material |
+-| timeout guard | Added subprocess hard timeout for material validation candidates | prevents a stuck Frida/UIA child from hanging the strategy |
+-| project state | Indexed and summarized material hook runtime validation | exposes `latest_material_hook_runtime_validation` in current state and task packets |
+-| negative cache | Added material-hook blocked/rejected guidance | avoids rerunning Base64/RC4 when `0x233d/0x2346` fail validation |
+-| tests | Added accept/block/timeout and project_state coverage | protects schema, gating, indexing, and bounded no-expansion behavior |
+-
+-## Artifact Schema
+-
+-New artifact:
+-
+-`material_hook_runtime_validation/material_hook_runtime_validation.json`
+-
+-Key fields:
+-
+-| field | purpose |
+-|---|---|
+-| `classification` | `ACCEPT`, `BLOCKED`, or `REJECTED` |
+-| `candidate_count` | fixed at `4` for the planned candidate set |
+-| `validated_hooks` | hooks classified as confirmed transform material |
+-| `blocked_hooks` | reached/readable hooks that do not satisfy transform-chain gating |
+-| `breakpoint_probe_allowed` | final gate for Base64/RC4 breakpoint probe |
+-| `next_bounded_action` | compact next action derived from the runtime result |
+-
+-Per-hook classifications remain restricted to:
+-
+-`confirmed_utf16le_material`, `candidate_dependent_but_not_transform_material`, `unreadable_or_unstable_pointer`, `not_reached`, `false_positive`.
+-
+-## Harness Result
+-
+-Attempted real run:
+-
+-`samplereverse_material_hook_runtime_validation_20260512`
+-
+-The run reached the new validation stage but candidate 1 hung inside the child runtime script before writing candidate output. I stopped the two spawned Python processes and added a strategy-level hard timeout so later runs cannot hang indefinitely at this point. The partial run only wrote the initial aggregate artifact, so project state was rebuilt against the last completed run instead:
+-
+-`samplereverse_pre_compare_handoff_target_20260512`
+-
+-Current indexed material validation remains empty until a completed run produces the new artifact.
+-
+-## Tests
+-
+-| command | result |
+-|---|---|
+-| `python -m py_compile reverse_agent\olly_scripts\material_hook_runtime_validation.py reverse_agent\function_semantics.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_compare_aware_search_strategy.py tests\test_project_state.py` | `127 passed` |
+-| `python -m pytest -q` | `204 passed` |
+-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name samplereverse_pre_compare_handoff_target_20260512` | passed |
+-
+-## Current Best
++| `python -m pytest -q tests\test_project_state.py` | `79 passed in 11.61s` |
++| `python -m pytest -q` | `332 passed in 40.32s` |
++| `python -m reverse_agent.project_state status --state-dir project_state` before report update | passed; `decision_state_digest_match: True`, `decision_consumed_by_report: False`, `decision_execution_state: READY_FOR_EXECUTION` |
++| `python -m reverse_agent.project_state lint-decision --state-dir project_state` before report update | passed; decision digest matched live state digest |
++| final `python -m reverse_agent.project_state status --state-dir project_state` | passed after this report update; report is bound to the current decision |
++| final `python -m reverse_agent.project_state archive-round --state-dir project_state` | passed; recreated `project_state/rounds/round_20260520_052928/round_manifest.json` |
+ 
+-No candidate generation, ranking, frontier, budget, beam, topN, or timeout expansion was introduced for search. The current best remains:
++## State Notes
+ 
+-`78d540b49c59077041414141414141`, runtime exact2 / distance5 `246`.
++- Final status is expected to show the report bound to the current decision and `decision_consumed_by_report: True`.
++- Because this pass does not auto-edit `decision_packet.md` or force a new digest, `decision_execution_state` remains governed by the live state digest rule. If a later build changes `current_state.state_digest`, the same matching SUCCESS report will classify this decision as `CONSUMED_BY_SUCCESS_REPORT`.
++- No runtime probe was run, and no new `solve_reports` content was generated.
+ 
+ ## Next Suggested Task
+ 
+-Rerun the real harness with the new timeout guard. If validation returns `BLOCKED` or `REJECTED`, keep Base64/RC4 probing blocked and inspect why the `0x233d/0x2346` runtime window is not exposing UTF-16LE/Base64/RC4 material.
++Keep the next action under `project_state/decision_packet.md` control. Do not resume the `samplereverse` mainline until a fresh decision packet explicitly authorizes that branch.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 5b19182..4d979ad 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,38 +1,33 @@
+-2026-05-19 Phase 1D lint-decision minimum gate verification
++2026-05-20 Phase 1D-fix rework handoff consistency verification
++
++Scope:
++- Execute only the project_state handoff consistency decision.
++- Do not run reverse runtime probes.
++- Do not modify reverse strategy, harness, or olly_scripts.
+ 
+ python -m py_compile reverse_agent\project_state.py -> passed
+ 
+ python -m pytest -q tests\test_project_state.py -> passed
+-.......................................................................  [100%]
+-71 passed in 13.17s
++........................................................................ [ 91%]
++.......                                                                  [100%]
++79 passed in 11.61s
+ 
+ python -m pytest -q -> passed
+-........................................................................ [ 22%]
+-........................................................................ [ 44%]
+-........................................................................ [ 67%]
+-........................................................................ [ 89%]
+-................................                                        [100%]
+-321 passed in 48.61s
+-
+-python -m reverse_agent.project_state lint-decision --state-dir project_state -> passed before rebuild
+-lint-decision: OK
+-decision_id: decision_phase1d_lint_decision_min_gate_20260519
+-decision_status: APPROVED
+-based_on_state_build_id: state_20260519_085626_acd12be00935
+-based_on_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
+-current_state_build_id: state_20260519_085626_acd12be00935
+-current_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
+-execution_scope: decision_packet_controls_current_round
+-active_decision_packet: project_state/decision_packet.md
++........................................................................ [ 21%]
++........................................................................ [ 43%]
++........................................................................ [ 65%]
++........................................................................ [ 86%]
++.......................................                             [100%]
++332 passed in 40.32s
+ 
+ python -m reverse_agent.project_state status --state-dir project_state -> passed before report update
+ state_dir: project_state
+-latest_harness_run: solve_reports\harness_runs\sr_lhs_last_writer_health_fix_20260518_r3
++latest_harness_run: solve_reports\harness_runs\sr_lhs_thread_follow_timing_20260520_r4
+ missing: []
+ artifact_freshness: {'current': 5, 'missing': 23, 'stale': 14}
+ should_call_model: True
+ context_level: 2
+-reason: instrumentation_incomplete
++reason: compare_lhs_runtime_backed_writer_missing
+ task: Improve compare lhs last-writer instrumentation
+ state_scope: sample_state
+ task_source: derived_from_sample_artifacts
+@@ -41,41 +36,40 @@ active_decision_packet: project_state/decision_packet.md
+ execution_scope: decision_packet_controls_current_round
+ expected_gpt_output: project_state/decision_packet.md
+ decision_status: APPROVED
+-decision_id: decision_phase1d_lint_decision_min_gate_20260519
+-decision_based_on_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
++decision_id: decision_phase1d_fix_rework_handoff_consistency_20260520
++decision_based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+ decision_parse_error: None
+ report_status: SUCCESS
+ report_acceptance_recommendation: ACCEPTED
+-report_id: report_phase1c_handoff_traceability_fix_20260519
+-report_based_on_decision_id: decision_phase1c_handoff_traceability_fix_20260519
++report_id: report_phase1d_lint_decision_min_gate_20260519
++report_based_on_decision_id: decision_phase1d_lint_decision_min_gate_20260519
+ report_parse_error: None
+ decision_report_id_match: False
++decision_state_digest_match: True
++decision_consumed_by_report: False
++decision_execution_state: READY_FOR_EXECUTION
+ 
+-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3 -> passed
+-generated round_id: round_20260519_105608
+-generated state_build_id: state_20260519_105608_74887f4fae41
+-generated state_digest: 74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0
+-
+-python -m reverse_agent.project_state lint-decision --state-dir project_state -> expected failure after rebuild
+-lint-decision: FAILED
+-error: based_on_state_digest does not match current_state.state_digest
+-decision_id: decision_phase1d_lint_decision_min_gate_20260519
++python -m reverse_agent.project_state lint-decision --state-dir project_state -> pre-build/pre-report OK
++lint-decision: OK
++decision_id: decision_phase1d_fix_rework_handoff_consistency_20260520
+ decision_status: APPROVED
+-based_on_state_build_id: state_20260519_085626_acd12be00935
+-based_on_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
+-current_state_build_id: state_20260519_105608_74887f4fae41
+-current_state_digest: 74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0
++based_on_state_build_id: state_20260520_052928_8a77e6637c6c
++based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
++current_state_build_id: state_20260520_052928_8a77e6637c6c
++current_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+ execution_scope: decision_packet_controls_current_round
+ active_decision_packet: project_state/decision_packet.md
+ 
+-python -m reverse_agent.project_state status --state-dir project_state -> passed after rebuild
++Final status and archive-round:
++
++python -m reverse_agent.project_state status --state-dir project_state -> passed after report update
+ state_dir: project_state
+-latest_harness_run: solve_reports\harness_runs\sr_lhs_last_writer_health_fix_20260518_r3
++latest_harness_run: solve_reports\harness_runs\sr_lhs_thread_follow_timing_20260520_r4
+ missing: []
+ artifact_freshness: {'current': 5, 'missing': 23, 'stale': 14}
+ should_call_model: True
+ context_level: 2
+-reason: instrumentation_incomplete
++reason: compare_lhs_runtime_backed_writer_missing
+ task: Improve compare lhs last-writer instrumentation
+ state_scope: sample_state
+ task_source: derived_from_sample_artifacts
+@@ -84,12 +78,36 @@ active_decision_packet: project_state/decision_packet.md
+ execution_scope: decision_packet_controls_current_round
+ expected_gpt_output: project_state/decision_packet.md
+ decision_status: APPROVED
+-decision_id: decision_phase1d_lint_decision_min_gate_20260519
+-decision_based_on_state_digest: acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
++decision_id: decision_phase1d_fix_rework_handoff_consistency_20260520
++decision_based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+ decision_parse_error: None
+ report_status: SUCCESS
+ report_acceptance_recommendation: ACCEPTED
+-report_id: report_phase1c_handoff_traceability_fix_20260519
+-report_based_on_decision_id: decision_phase1c_handoff_traceability_fix_20260519
++report_id: report_phase1d_fix_rework_handoff_consistency_20260520
++report_based_on_decision_id: decision_phase1d_fix_rework_handoff_consistency_20260520
+ report_parse_error: None
+-decision_report_id_match: False
++decision_report_id_match: True
++decision_state_digest_match: True
++decision_consumed_by_report: True
++decision_execution_state: READY_FOR_EXECUTION
++
++python -m reverse_agent.project_state lint-decision --state-dir project_state -> final OK
++lint-decision: OK
++decision_id: decision_phase1d_fix_rework_handoff_consistency_20260520
++decision_status: APPROVED
++based_on_state_build_id: state_20260520_052928_8a77e6637c6c
++based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
++current_state_build_id: state_20260520_052928_8a77e6637c6c
++current_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
++execution_scope: decision_packet_controls_current_round
++active_decision_packet: project_state/decision_packet.md
++
++python -m reverse_agent.project_state archive-round --state-dir project_state -> passed
++round_id: round_20260520_052928
++round_manifest: project_state\rounds\round_20260520_052928\round_manifest.json
++source_harness_run: sr_lhs_thread_follow_timing_20260520_r4
++state_build_id: state_20260520_052928_8a77e6637c6c
++state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
++archived files include artifact_index.json, current_state.json, negative_results.json, model_gate.json, task_packet.json, decision_packet.md, codex_execution_report.md, pytest_result.txt, and git_diff.patch.
++
++No post-build lint stale failure occurred in this run because no final state build was required; the current decision digest still matches `current_state.state_digest`. The stale-success path is covered by tests and will classify as `CONSUMED_BY_SUCCESS_REPORT` when a later build changes the live state digest while the report remains bound to this decision.
+diff --git a/reverse_agent/project_state.py b/reverse_agent/project_state.py
+index d0d7cd6..6a847af 100644
+--- a/reverse_agent/project_state.py
++++ b/reverse_agent/project_state.py
+@@ -494,11 +494,25 @@ def read_codex_report_summary(state_dir: Path) -> dict[str, Any]:
+     }
+ 
+ 
+-def _build_handoff_consistency(decision: dict[str, Any], codex_report: dict[str, Any]) -> dict[str, Any]:
++CONSUMED_REPORT_STATUSES = {"SUCCESS", "PARTIAL", "FAILED", "BLOCKED"}
++
++
++def _build_handoff_consistency(
++    decision: dict[str, Any],
++    codex_report: dict[str, Any],
++    current_state: dict[str, Any] | None = None,
++) -> dict[str, Any]:
+     decision_id = str(decision.get("decision_id") or "")
+     report_based_on_decision_id = str(codex_report.get("based_on_decision_id") or "")
+     decision_status = str(decision.get("status") or "UNKNOWN")
+     report_status = str(codex_report.get("status") or "UNKNOWN")
++    decision_based_on_state_digest = str(decision.get("based_on_state_digest") or "")
++    current_state_digest = str((current_state or {}).get("state_digest") or "")
++    decision_state_digest_match = (
++        bool(decision_based_on_state_digest)
++        and bool(current_state_digest)
++        and decision_based_on_state_digest == current_state_digest
++    )
+     decision_report_id_match = (
+         bool(decision_id)
+         and bool(report_based_on_decision_id)
+@@ -506,22 +520,50 @@ def _build_handoff_consistency(decision: dict[str, Any], codex_report: dict[str,
+         and decision_status not in {"TEMPLATE_ONLY", "UNKNOWN"}
+         and report_status not in {"TEMPLATE_ONLY", "UNKNOWN"}
+     )
++    decision_consumed_by_report = decision_report_id_match and report_status in CONSUMED_REPORT_STATUSES
++    if decision_status in {"TEMPLATE_ONLY", "UNKNOWN"} or not decision_id:
++        decision_execution_state = "TEMPLATE_OR_UNKNOWN"
++    elif decision_status == "APPROVED" and decision_state_digest_match:
++        decision_execution_state = "READY_FOR_EXECUTION"
++    elif (
++        decision_status == "APPROVED"
++        and not decision_state_digest_match
++        and decision_report_id_match
++        and report_status == "SUCCESS"
++    ):
++        decision_execution_state = "CONSUMED_BY_SUCCESS_REPORT"
++    elif (
++        decision_status == "APPROVED"
++        and not decision_state_digest_match
++        and decision_report_id_match
++        and report_status in {"PARTIAL", "FAILED", "BLOCKED"}
++    ):
++        decision_execution_state = "CONSUMED_BY_NON_SUCCESS_REPORT"
++    elif decision_status == "APPROVED" and not decision_state_digest_match and not decision_report_id_match:
++        decision_execution_state = "STALE_WITHOUT_MATCHING_REPORT"
++    else:
++        decision_execution_state = "TEMPLATE_OR_UNKNOWN"
+     return {
+         "decision_report_id_match": decision_report_id_match,
++        "decision_state_digest_match": decision_state_digest_match,
++        "decision_consumed_by_report": decision_consumed_by_report,
++        "decision_execution_state": decision_execution_state,
+         "decision_id": decision_id,
+         "report_based_on_decision_id": report_based_on_decision_id,
+         "decision_status": decision_status,
+         "report_status": report_status,
++        "current_state_digest": current_state_digest,
+     }
+ 
+ 
+ def build_handoff_status(state_dir: Path) -> dict[str, Any]:
+     decision = read_decision_meta(state_dir)
+     codex_report = read_codex_report_summary(state_dir)
++    current_state = _read_json(state_dir / "current_state.json")
+     return {
+         "decision": decision,
+         "codex_report": codex_report,
+-        "handoff_consistency": _build_handoff_consistency(decision, codex_report),
++        "handoff_consistency": _build_handoff_consistency(decision, codex_report, current_state),
+     }
+ 
+ 
+@@ -3090,6 +3132,9 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
+         "report_parse_error": codex_report.get("parse_error"),
+         "handoff_consistency": handoff_consistency,
+         "decision_report_id_match": handoff_consistency.get("decision_report_id_match"),
++        "decision_state_digest_match": handoff_consistency.get("decision_state_digest_match"),
++        "decision_consumed_by_report": handoff_consistency.get("decision_consumed_by_report"),
++        "decision_execution_state": handoff_consistency.get("decision_execution_state"),
+     }
+ 
+ 
+@@ -3118,6 +3163,9 @@ def _print_status(summary: dict[str, Any]) -> None:
+     print(f"report_based_on_decision_id: {summary.get('report_based_on_decision_id')}")
+     print(f"report_parse_error: {summary.get('report_parse_error')}")
+     print(f"decision_report_id_match: {summary.get('decision_report_id_match')}")
++    print(f"decision_state_digest_match: {summary.get('decision_state_digest_match')}")
++    print(f"decision_consumed_by_report: {summary.get('decision_consumed_by_report')}")
++    print(f"decision_execution_state: {summary.get('decision_execution_state')}")
+ 
+ 
+ def _print_lint_decision(result: dict[str, Any]) -> None:
+diff --git a/tests/test_project_state.py b/tests/test_project_state.py
+index e6d5cff..b70fba7 100644
+--- a/tests/test_project_state.py
++++ b/tests/test_project_state.py
+@@ -57,6 +57,31 @@ def _write_decision_packet(
+     )
+ 
+ 
++def _write_codex_report(
++    state_dir: Path,
++    *,
++    report_id: str = "report_test",
++    based_on_decision_id: str = "decision_test",
++    status: str = "SUCCESS",
++    acceptance_recommendation: str = "ACCEPTED",
++) -> None:
++    (state_dir / "codex_execution_report.md").write_text(
++        f"""```json codex_report_summary
++{{
++  "schema_version": 1,
++  "report_id": "{report_id}",
++  "based_on_decision_id": "{based_on_decision_id}",
++  "status": "{status}",
++  "acceptance_recommendation": "{acceptance_recommendation}"
++}}
++```
++
++# CODEX_EXECUTION_REPORT
++""",
++        encoding="utf-8",
++    )
++
++
+ def _make_minimal_harness_run(reports_dir: Path, run_name: str = "samplereverse_stalled") -> Path:
+     run_dir = reports_dir / "harness_runs" / run_name
+     artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+@@ -2030,10 +2055,14 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
+     assert summary["decision_report_id_match"] is True
+     assert summary["handoff_consistency"] == {
+         "decision_report_id_match": True,
++        "decision_state_digest_match": False,
++        "decision_consumed_by_report": True,
++        "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+         "decision_id": "decision_test",
+         "report_based_on_decision_id": "decision_test",
+         "decision_status": "APPROVED",
+         "report_status": "PARTIAL",
++        "current_state_digest": _read_json(state_dir / "current_state.json")["state_digest"],
+     }
+ 
+     assert main(["status", "--state-dir", str(state_dir)]) == 0
+@@ -2042,6 +2071,136 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
+     assert "report_status: PARTIAL" in output
+     assert "report_acceptance_recommendation: NEEDS_REVIEW" in output
+     assert "decision_report_id_match: True" in output
++    assert "decision_state_digest_match: False" in output
++    assert "decision_consumed_by_report: True" in output
++    assert "decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT" in output
++
++
++def test_status_summary_decision_ready_for_execution_when_digest_matches(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_ready",
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++    )
++    _write_codex_report(state_dir, based_on_decision_id="decision_old")
++
++    summary = status_summary(state_dir=state_dir)
++
++    assert summary["decision_state_digest_match"] is True
++    assert summary["decision_consumed_by_report"] is False
++    assert summary["decision_execution_state"] == "READY_FOR_EXECUTION"
++
++
++def test_status_summary_decision_consumed_by_success_report_when_digest_stale_but_report_matches(
++    tmp_path: Path,
++) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_consumed",
++        based_on_state_build_id="state_old",
++        based_on_state_digest="digest_old",
++    )
++    _write_codex_report(state_dir, based_on_decision_id="decision_consumed", status="SUCCESS")
++
++    summary = status_summary(state_dir=state_dir)
++
++    assert summary["decision_state_digest_match"] is False
++    assert summary["decision_consumed_by_report"] is True
++    assert summary["decision_execution_state"] == "CONSUMED_BY_SUCCESS_REPORT"
++
++
++@pytest.mark.parametrize("report_status", ["PARTIAL", "FAILED", "BLOCKED"])
++def test_status_summary_decision_consumed_by_non_success_report_when_digest_stale_but_report_matches(
++    tmp_path: Path,
++    report_status: str,
++) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_non_success",
++        based_on_state_build_id="state_old",
++        based_on_state_digest="digest_old",
++    )
++    _write_codex_report(
++        state_dir,
++        based_on_decision_id="decision_non_success",
++        status=report_status,
++        acceptance_recommendation="NEEDS_REVIEW",
++    )
++
++    summary = status_summary(state_dir=state_dir)
++
++    assert summary["decision_state_digest_match"] is False
++    assert summary["decision_consumed_by_report"] is True
++    assert summary["decision_execution_state"] == "CONSUMED_BY_NON_SUCCESS_REPORT"
++
++
++def test_status_summary_decision_stale_without_matching_report_when_digest_stale_and_report_differs(
++    tmp_path: Path,
++) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_stale",
++        based_on_state_build_id="state_old",
++        based_on_state_digest="digest_old",
++    )
++    _write_codex_report(state_dir, based_on_decision_id="decision_other", status="SUCCESS")
++
++    summary = status_summary(state_dir=state_dir)
++
++    assert summary["decision_report_id_match"] is False
++    assert summary["decision_state_digest_match"] is False
++    assert summary["decision_consumed_by_report"] is False
++    assert summary["decision_execution_state"] == "STALE_WITHOUT_MATCHING_REPORT"
++
++
++def test_status_summary_decision_template_or_unknown_for_template_decision(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    summary = status_summary(state_dir=state_dir)
++
++    assert summary["decision_status"] == "TEMPLATE_ONLY"
++    assert summary["decision_execution_state"] == "TEMPLATE_OR_UNKNOWN"
++
++
++def test_status_cli_prints_decision_execution_state(tmp_path: Path, capsys) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_cli",
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++    )
++
++    assert main(["status", "--state-dir", str(state_dir)]) == 0
++    output = capsys.readouterr().out
++    assert "decision_state_digest_match: True" in output
++    assert "decision_consumed_by_report: False" in output
++    assert "decision_execution_state: READY_FOR_EXECUTION" in output
+ 
+ 
+ def test_template_decision_and_report_are_template_only(tmp_path: Path) -> None:

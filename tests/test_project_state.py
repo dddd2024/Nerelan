@@ -57,6 +57,31 @@ def _write_decision_packet(
     )
 
 
+def _write_codex_report(
+    state_dir: Path,
+    *,
+    report_id: str = "report_test",
+    based_on_decision_id: str = "decision_test",
+    status: str = "SUCCESS",
+    acceptance_recommendation: str = "ACCEPTED",
+) -> None:
+    (state_dir / "codex_execution_report.md").write_text(
+        f"""```json codex_report_summary
+{{
+  "schema_version": 1,
+  "report_id": "{report_id}",
+  "based_on_decision_id": "{based_on_decision_id}",
+  "status": "{status}",
+  "acceptance_recommendation": "{acceptance_recommendation}"
+}}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+
 def _make_minimal_harness_run(reports_dir: Path, run_name: str = "samplereverse_stalled") -> Path:
     run_dir = reports_dir / "harness_runs" / run_name
     artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
@@ -2030,10 +2055,14 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
     assert summary["decision_report_id_match"] is True
     assert summary["handoff_consistency"] == {
         "decision_report_id_match": True,
+        "decision_state_digest_match": False,
+        "decision_consumed_by_report": True,
+        "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
         "decision_id": "decision_test",
         "report_based_on_decision_id": "decision_test",
         "decision_status": "APPROVED",
         "report_status": "PARTIAL",
+        "current_state_digest": _read_json(state_dir / "current_state.json")["state_digest"],
     }
 
     assert main(["status", "--state-dir", str(state_dir)]) == 0
@@ -2042,6 +2071,136 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
     assert "report_status: PARTIAL" in output
     assert "report_acceptance_recommendation: NEEDS_REVIEW" in output
     assert "decision_report_id_match: True" in output
+    assert "decision_state_digest_match: False" in output
+    assert "decision_consumed_by_report: True" in output
+    assert "decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT" in output
+
+
+def test_status_summary_decision_ready_for_execution_when_digest_matches(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_ready",
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+    )
+    _write_codex_report(state_dir, based_on_decision_id="decision_old")
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["decision_state_digest_match"] is True
+    assert summary["decision_consumed_by_report"] is False
+    assert summary["decision_execution_state"] == "READY_FOR_EXECUTION"
+
+
+def test_status_summary_decision_consumed_by_success_report_when_digest_stale_but_report_matches(
+    tmp_path: Path,
+) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_consumed",
+        based_on_state_build_id="state_old",
+        based_on_state_digest="digest_old",
+    )
+    _write_codex_report(state_dir, based_on_decision_id="decision_consumed", status="SUCCESS")
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["decision_state_digest_match"] is False
+    assert summary["decision_consumed_by_report"] is True
+    assert summary["decision_execution_state"] == "CONSUMED_BY_SUCCESS_REPORT"
+
+
+@pytest.mark.parametrize("report_status", ["PARTIAL", "FAILED", "BLOCKED"])
+def test_status_summary_decision_consumed_by_non_success_report_when_digest_stale_but_report_matches(
+    tmp_path: Path,
+    report_status: str,
+) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_non_success",
+        based_on_state_build_id="state_old",
+        based_on_state_digest="digest_old",
+    )
+    _write_codex_report(
+        state_dir,
+        based_on_decision_id="decision_non_success",
+        status=report_status,
+        acceptance_recommendation="NEEDS_REVIEW",
+    )
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["decision_state_digest_match"] is False
+    assert summary["decision_consumed_by_report"] is True
+    assert summary["decision_execution_state"] == "CONSUMED_BY_NON_SUCCESS_REPORT"
+
+
+def test_status_summary_decision_stale_without_matching_report_when_digest_stale_and_report_differs(
+    tmp_path: Path,
+) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_stale",
+        based_on_state_build_id="state_old",
+        based_on_state_digest="digest_old",
+    )
+    _write_codex_report(state_dir, based_on_decision_id="decision_other", status="SUCCESS")
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["decision_report_id_match"] is False
+    assert summary["decision_state_digest_match"] is False
+    assert summary["decision_consumed_by_report"] is False
+    assert summary["decision_execution_state"] == "STALE_WITHOUT_MATCHING_REPORT"
+
+
+def test_status_summary_decision_template_or_unknown_for_template_decision(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["decision_status"] == "TEMPLATE_ONLY"
+    assert summary["decision_execution_state"] == "TEMPLATE_OR_UNKNOWN"
+
+
+def test_status_cli_prints_decision_execution_state(tmp_path: Path, capsys) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_cli",
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+    )
+
+    assert main(["status", "--state-dir", str(state_dir)]) == 0
+    output = capsys.readouterr().out
+    assert "decision_state_digest_match: True" in output
+    assert "decision_consumed_by_report: False" in output
+    assert "decision_execution_state: READY_FOR_EXECUTION" in output
 
 
 def test_template_decision_and_report_are_template_only(tmp_path: Path) -> None:
