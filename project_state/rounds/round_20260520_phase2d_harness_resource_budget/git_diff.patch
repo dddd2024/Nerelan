@@ -1,0 +1,656 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 5c87ad6..06fe90d 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,101 +1,102 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase2c_harness_compare_20260520",
+-  "round_id": "round_20260520_phase2c_harness_compare",
+-  "based_on_decision_id": "decision_phase2c_harness_compare_20260520",
++  "report_id": "report_phase2d_harness_resource_budget_20260520",
++  "round_id": "round_20260520_phase2d_harness_resource_budget",
++  "based_on_decision_id": "decision_phase2d_harness_resource_budget_20260520",
+   "status": "SUCCESS",
+   "acceptance_recommendation": "ACCEPTED",
+   "files_changed": [
+     "reverse_agent/harness.py",
+-    "tests/test_harness_compare.py",
++    "tests/test_harness_resource_budget.py",
+     "project_state/codex_execution_report.md",
+     "project_state/pytest_result.txt"
+   ],
+   "tests_ran": [
+     "python -m py_compile reverse_agent\\harness.py",
+-    "python -m pytest -q tests\\test_harness_compare.py",
++    "python -m pytest -q tests\\test_harness_resource_budget.py",
+     "python -m pytest -q tests\\test_harness.py",
+     "python -m pytest -q tests\\test_harness_resume.py",
+     "python -m pytest -q tests\\test_harness_artifact_manifest.py",
++    "python -m pytest -q tests\\test_harness_compare.py",
+     "python -m pytest -q",
+     "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+-    "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2c_harness_compare"
++    "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
++    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2d_harness_resource_budget"
+   ],
+   "generated_artifacts": [
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/round_manifest.json",
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/artifact_index.json",
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/current_state.json",
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/negative_results.json",
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/model_gate.json",
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/task_packet.json",
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/decision_packet.md",
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/codex_execution_report.md",
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/pytest_result.txt",
+-    "project_state/rounds/round_20260520_phase2c_harness_compare/git_diff.patch"
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/round_manifest.json",
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/artifact_index.json",
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/current_state.json",
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/negative_results.json",
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/model_gate.json",
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/task_packet.json",
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/decision_packet.md",
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/codex_execution_report.md",
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/pytest_result.txt",
++    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/git_diff.patch"
+   ],
+-  "next_suggested_task": "Have GPT audit Phase 2C harness compare semantics before authorizing Phase 2D archive/path semantics or returning to samplereverse runtime work."
++  "next_suggested_task": "Have GPT audit Phase 2D resource_budget manifest semantics before authorizing Phase 2E compare strict/path/round commit cleanup or returning to samplereverse runtime work."
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-20 Phase 2C harness compare
++## 2026-05-20 Phase 2D harness resource budget
+ 
+-This pass implements the approved Phase 2C engineering branch from `project_state/decision_packet.md`. It adds a read-only harness compare command that compares two harness run case results and lightweight artifact manifest fields. It does not advance the `samplereverse` reverse-engineering mainline, run runtime probes, modify `compare_aware_search.py`, modify `olly_scripts`, modify `project_state.py`, or change the GPT/Codex handoff protocol.
++This pass implements the approved Phase 2D engineering branch from `project_state/decision_packet.md`. It adds a local `resource_budget` record to harness configuration and `run_manifest.json` for reproducibility auditing. It does not advance the `samplereverse` reverse-engineering mainline, run runtime probes, modify `compare_aware_search.py`, modify `olly_scripts`, modify `project_state.py`, change GPT/Codex handoff schemas, enforce process kills, delete artifacts, crop candidates, or implement queue/backpressure/worker scheduling.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| Current harness CLI shape | `reverse_agent.harness main()` was a flat parser with required `--dataset`; there was no subcommand parser. |
+-| Compare CLI compatibility | `main()` now checks `argv[0] == "compare"` before building the flat run parser; all other invocations still use the existing `--dataset` run CLI. |
+-| Case result compare fields | Existing JSON fields used are `case_id`, `status`, `selected_flag`, `candidate_count`, `validation_count`, `tool_artifact_count`, `structured_evidence_count`, and additive `artifact_manifest`. |
+-| Artifact manifest structure | Manifest entries are lightweight dicts with `kind`, `path`, `classification`, `size_bytes`, `sha256`, `tool_name`, `owner_profile`, and `strategy_name`; classification comes first from the manifest. |
+-| Artifact JSON reads | Compare reads only the JSON file named by a manifest entry path and only top-level `classification`, `runtime_backed_count`, `candidate_count`, and `evidence_gate`. |
+-| Missing cases | Cases present only in base/head are emitted with `presence=base_only` or `presence=head_only`; numeric deltas are `null` when one side is absent. |
+-| Old or partial case JSON | Missing compare fields, old JSON without `artifact_manifest`, and non-list manifests do not fail compare; missing values produce empty changes or `null` deltas. |
+-| Artifact path handling | Absolute paths are used directly; relative paths are attempted from the current working directory and then from `reports_dir`; missing or invalid JSON produces `null` lightweight fields. |
+-| Stable output | `case_deltas` are sorted by `case_id`, `artifact_deltas` by `kind`, and CLI output uses `json.dumps(..., indent=2, sort_keys=True)`. |
+-| Equivalent existing feature | No existing harness compare command or equivalent JSON delta helper was present. |
+-| Implementation scope | Code changes are limited to `harness.py`, focused compare tests, and this report/result handoff. |
+-| Runtime/pipeline risk | Compare only reads `harness_runs/<run>/case_results/*.json` plus listed artifact JSON paths; it does not run pipeline, model calls, probes, or recursive solve_reports scans. |
+-| Phase 2B limitations | Existing artifact path fallback and round manifest source commit semantics are tolerated but not expanded or fixed; those remain Phase 2D concerns. |
++| Current timeout or budget fields | Existing harness config had `copilot_timeout_seconds`; `ToolAutomationConfig` had `ida_timeout_seconds` and `ollydbg_timeout_seconds`. No existing local resource budget structure was present. |
++| Existing timeout manifest recording | `copilot_timeout_seconds` is written directly into `pipeline_defaults`; IDA/Olly timeouts are written under `pipeline_defaults.tool_config`. |
++| Manifest config structure | `_build_manifest()` builds `config_payload`, hashes it as `config_digest`, writes it as `pipeline_defaults`, and keeps top-level manifest fields such as `schema_version`, `status`, `run_name`, `run_dir`, `started_at`, `dataset_digest`, `git_commit`, and `case_ids`. |
++| Resource budget placement | `resource_budget` is written at top level for direct audit visibility and inside `pipeline_defaults` so it is part of the preserved config payload. |
++| Config digest decision | `resource_budget` is included in `config_digest`; changing a budget for the same `run_name` is rejected as a different harness config, preserving resume compatibility. |
++| CLI naming | Added `--max-case-seconds`, `--max-tool-seconds`, `--max-artifact-bytes`, `--max-recent-artifacts`, `--max-context-pack-bytes`, `--max-candidate-count`, and `--max-probe-candidates`. These names do not conflict with existing operational timeout arguments. |
++| Defaults | Defaults match the decision packet: `21600`, `300`, `52428800`, `20`, `1048576`, `5000`, and `50`. |
++| Legal values | Each budget value must be a positive integer or `None` / JSON `null`. CLI accepts `null` and `none` case-insensitively. |
++| Rejected values | Negative, zero, non-integer, and boolean-like programmatic values are rejected before a run is accepted. |
++| Enforcement behavior | Phase 2D only records the budget. It does not override Copilot, IDA, or Olly timeouts, does not terminate processes, does not delete artifacts, and does not modify candidate/probe counts. |
++| Equivalent existing feature | No equivalent local `resource_budget` structure was present, so a small harness-owned dataclass was added. |
++| Runtime/probe/solve_reports risk | Implementation and tests use temporary harness runs and mocked `run_pipeline`; no runtime probe, model call, reverse-engineering sidecar, or full `solve_reports` scan is introduced. |
++| Phase 2C limitations | Compare strictness for missing runs, artifact manifest path schema, and round manifest commit semantics were not changed or expanded; they remain follow-up items. |
+ 
+ ## Implementation
+ 
+-- Added `compare_harness_runs()` to load base/head case result JSON from two named harness runs and emit machine-readable case/artifact deltas.
+-- Added `python -m reverse_agent.harness compare --base-run ... --head-run ... --reports-dir ... [--output ...]`.
+-- Added tolerant helpers for old case JSON, missing fields, missing or invalid artifact JSON, absolute/relative artifact paths, and stable first-entry selection when duplicate artifact kinds appear.
+-- Added `tests/test_harness_compare.py` covering CLI behavior, run CLI compatibility, case deltas, artifact deltas, top-level artifact fields, missing cases, invalid artifacts, and stable sorting.
++- Added `ResourceBudget` to `reverse_agent.harness` and attached it to `HarnessConfig` with decision-packet defaults.
++- Added positive-integer-or-null CLI parsing for the seven local budget arguments.
++- Wrote budget values into `run_manifest.json` both as top-level `resource_budget` and `pipeline_defaults.resource_budget`.
++- Kept existing manifest fields and timeout fields compatible; `resource_budget` is not passed into `run_pipeline`.
++- Added focused resource budget regression tests for defaults, digest mismatch, nullable CLI values, invalid CLI values, programmatic validation, and runtime kwargs isolation.
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+ | `python -m py_compile reverse_agent\harness.py` | passed |
+-| `python -m pytest -q tests\test_harness_compare.py` | `9 passed in 0.46s` |
++| `python -m pytest -q tests\test_harness_resource_budget.py` | `9 passed in 0.37s` |
+ | `python -m pytest -q tests\test_harness.py` | `5 passed in 0.34s` |
+ | `python -m pytest -q tests\test_harness_resume.py` | `6 passed in 0.42s` |
+ | `python -m pytest -q tests\test_harness_artifact_manifest.py` | `3 passed in 0.27s` |
+-| `python -m pytest -q` | `375 passed in 40.97s` |
+-| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; active decision is Phase 2C and previous report is Phase 2B |
+-| pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
+-| pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `READY_FOR_CODEX`, tolerating the old report mismatch |
+-| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | failed as expected because the active report still referenced Phase 2B |
+-| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed before archive |
+-| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `REVIEW_COMPLETE` before archive |
+-| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2c_harness_compare` | passed; command returned exit code 0 with no console output |
++| `python -m pytest -q tests\test_harness_compare.py` | `9 passed in 0.30s` |
++| `python -m pytest -q` | `384 passed in 48.71s` |
++| `python -m reverse_agent.project_state status --state-dir project_state` | passed; active decision is Phase 2D and report is consumed |
++| `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
++| `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed with expected `round_id` warning against current sample state |
++| `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `REVIEW_COMPLETE` with expected `round_id` warning |
++| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2d_harness_resource_budget` | passed; command returned exit code 0 with no console output |
+ 
+ ## State Notes
+ 
+-- The active sample state still points at `sr_lhs_thread_follow_timing_20260520_r4`; this pass intentionally did not rebuild sample artifacts or advance the runtime mainline.
+-- `task_packet.task` remains sample-derived, but `execution_scope=decision_packet_controls_current_round` and this report binds the active Phase 2C decision.
+-- Compare is intentionally read-only and does not require `--dataset`.
++- The active state still references the sample-derived task and `sr_lhs_thread_follow_timing_20260520_r4`; this pass intentionally followed `execution_scope=decision_packet_controls_current_round` and treated `project_state/decision_packet.md` as authoritative.
++- No `samplereverse` artifacts were rebuilt and no harness runtime probe was run.
++- Phase 2D project_state lint and archive-round verification passed.
+ 
+ ## Next Suggested Task
+ 
+-Have GPT audit the Phase 2C compare output contract and archive. Do not start Phase 2D path/round commit semantics or return to `samplereverse` runtime work until a fresh decision packet explicitly authorizes it.
++Have GPT audit the Phase 2D `resource_budget` manifest contract and archive. Do not start Phase 2E compare strict/path/round commit cleanup or return to `samplereverse` runtime work until a fresh decision packet explicitly authorizes it.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 593c0f9..79c5ef4 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,126 +1,45 @@
+-2026-05-20 Phase 2C harness compare verification
++2026-05-20 Phase 2D harness resource budget validation
+ 
+-Scope:
+-- Execute only the approved Phase 2C harness compare decision.
+-- Do not run reverse runtime probes.
+-- Do not modify reverse strategies, olly_scripts, project_state.py, or GPT/Codex handoff protocol.
+-- Do not recursively scan full solve_reports or run pipeline/model calls.
++python -m py_compile reverse_agent\harness.py
++RESULT: passed
+ 
+-python -m py_compile reverse_agent\harness.py -> passed
++python -m pytest -q tests\test_harness_resource_budget.py
++RESULT: 9 passed in 0.37s
+ 
+-python -m pytest -q tests\test_harness_compare.py -> passed
+-.........                                                                [100%]
+-9 passed in 0.46s
++python -m pytest -q tests\test_harness.py
++RESULT: 5 passed in 0.34s
+ 
+-python -m pytest -q tests\test_harness.py -> passed
+-.....                                                                    [100%]
+-5 passed in 0.34s
++python -m pytest -q tests\test_harness_resume.py
++RESULT: 6 passed in 0.42s
+ 
+-python -m pytest -q tests\test_harness_resume.py -> passed
+-......                                                                   [100%]
+-6 passed in 0.42s
++python -m pytest -q tests\test_harness_artifact_manifest.py
++RESULT: 3 passed in 0.27s
+ 
+-python -m pytest -q tests\test_harness_artifact_manifest.py -> passed
+-...                                                                      [100%]
+-3 passed in 0.27s
++python -m pytest -q tests\test_harness_compare.py
++RESULT: 9 passed in 0.30s
+ 
+-python -m pytest -q -> passed
+-375 passed in 40.97s
++python -m pytest -q
++RESULT: 384 passed in 48.71s
+ 
+-Pre-report python -m reverse_agent.project_state status --state-dir project_state -> passed
+-state_dir: project_state
+-latest_harness_run: solve_reports\harness_runs\sr_lhs_thread_follow_timing_20260520_r4
+-missing: []
+-artifact_freshness: {'current': 5, 'missing': 23, 'stale': 14}
+-should_call_model: True
+-context_level: 2
+-reason: compare_lhs_runtime_backed_writer_missing
+-task: Improve compare lhs last-writer instrumentation
+-state_scope: sample_state
+-task_source: derived_from_sample_artifacts
+-derived_task: Improve compare lhs last-writer instrumentation
+-active_decision_packet: project_state/decision_packet.md
+-execution_scope: decision_packet_controls_current_round
+-expected_gpt_output: project_state/decision_packet.md
+-decision_status: APPROVED
+-decision_id: decision_phase2c_harness_compare_20260520
+-decision_based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-decision_parse_error: None
+-report_status: SUCCESS
+-report_acceptance_recommendation: ACCEPTED
+-report_id: report_phase2b_case_artifact_manifest_20260520
+-report_based_on_decision_id: decision_phase2b_case_artifact_manifest_20260520
+-report_parse_error: None
+-decision_report_id_match: False
+-decision_state_digest_match: True
+-decision_consumed_by_report: False
+-decision_execution_state: READY_FOR_EXECUTION
+-decision_ready_for_execution: True
+-
+-Pre-report python -m reverse_agent.project_state lint-decision --state-dir project_state -> passed
+-lint-decision: OK
+-decision_id: decision_phase2c_harness_compare_20260520
+-decision_status: APPROVED
+-based_on_state_build_id: state_20260520_052928_8a77e6637c6c
+-based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-current_state_build_id: state_20260520_052928_8a77e6637c6c
+-current_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-execution_scope: decision_packet_controls_current_round
+-active_decision_packet: project_state/decision_packet.md
+-
+-Pre-report python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed
+-lint-handoff: OK
+-warning: previous report ignored for READY_FOR_CODEX: based_on_decision_id does not match current decision_id
+-warning: report round_id does not match current_state.round_id
+-handoff_state: READY_FOR_CODEX
+-decision_execution_state: READY_FOR_EXECUTION
+-decision_ready_for_execution: True
+-decision_report_id_match: False
+-lint_decision_ok: True
+-lint_report_ok: False
++python -m reverse_agent.project_state status --state-dir project_state
++RESULT: passed
++decision_id: decision_phase2d_harness_resource_budget_20260520
++report_id: report_phase2d_harness_resource_budget_20260520
++decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
++decision_ready_for_execution: False
+ 
+-Pre-report python -m reverse_agent.project_state lint-report --state-dir project_state -> expected failure
+-lint-report: FAILED
+-error: based_on_decision_id does not match current decision_id
+-warning: report round_id does not match current_state.round_id
+-report_id: report_phase2b_case_artifact_manifest_20260520
+-report_status: SUCCESS
+-acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase2b_case_artifact_manifest_20260520
+-decision_id: decision_phase2c_harness_compare_20260520
+-decision_report_id_match: False
+-round_id: round_20260520_phase2b_case_artifact_manifest
+-current_state_round_id: round_20260520_052928
+-tests_ran_count: 11
+-generated_artifacts_count: 10
+-pytest_result_present: True
++python -m reverse_agent.project_state lint-decision --state-dir project_state
++RESULT: lint-decision: OK
+ 
+-Final python -m reverse_agent.project_state lint-report --state-dir project_state -> passed before archive
+-lint-report: OK
++python -m reverse_agent.project_state lint-report --state-dir project_state
++RESULT: lint-report: OK
+ warning: report round_id does not match current_state.round_id
+-warning: round_manifest missing
+-report_id: report_phase2c_harness_compare_20260520
+-report_status: SUCCESS
+-acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase2c_harness_compare_20260520
+-decision_id: decision_phase2c_harness_compare_20260520
+-decision_report_id_match: True
+-round_id: round_20260520_phase2c_harness_compare
+-current_state_round_id: round_20260520_052928
+-tests_ran_count: 11
+-generated_artifacts_count: 10
+-pytest_result_present: True
+ 
+-Final python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed before archive
+-lint-handoff: OK
++python -m reverse_agent.project_state lint-handoff --state-dir project_state
++RESULT: lint-handoff: OK
+ warning: report round_id does not match current_state.round_id
+-warning: round_manifest missing
+ handoff_state: REVIEW_COMPLETE
+-decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+-decision_ready_for_execution: False
+-decision_report_id_match: True
+-lint_decision_ok: True
+-lint_report_ok: True
+ 
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2c_harness_compare -> passed
++python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2d_harness_resource_budget
++RESULT: passed
+ Command returned exit code 0 with no console output.
+diff --git a/reverse_agent/harness.py b/reverse_agent/harness.py
+index 3be6733..35f5790 100644
+--- a/reverse_agent/harness.py
++++ b/reverse_agent/harness.py
+@@ -47,6 +47,17 @@ class HarnessCase:
+     notes: str = ""
+ 
+ 
++@dataclass
++class ResourceBudget:
++    max_case_seconds: int | None = 21600
++    max_tool_seconds: int | None = 300
++    max_artifact_bytes: int | None = 52428800
++    max_recent_artifacts: int | None = 20
++    max_context_pack_bytes: int | None = 1048576
++    max_candidate_count: int | None = 5000
++    max_probe_candidates: int | None = 50
++
++
+ @dataclass
+ class HarnessConfig:
+     cases: list[HarnessCase]
+@@ -62,6 +73,7 @@ class HarnessConfig:
+     tool_config: ToolAutomationConfig = field(default_factory=ToolAutomationConfig)
+     runtime_validation_enabled: bool = False
+     copilot_timeout_seconds: int = 300
++    resource_budget: ResourceBudget = field(default_factory=ResourceBudget)
+     ctf_skill_enabled: bool = True
+     ctf_skill_profile: str = "compact"
+     resume: bool = True
+@@ -184,6 +196,7 @@ def run_harness(config: HarnessConfig, log: LogFn) -> HarnessSummary:
+         raise ValueError("Harness config contains no cases.")
+     if config.resume_policy not in RESUME_POLICIES:
+         raise ValueError(f"Unknown resume policy: {config.resume_policy}")
++    _resource_budget_payload(config.resource_budget)
+     config.rerun_statuses = {str(status).strip() for status in config.rerun_statuses if str(status).strip()}
+ 
+     run_name = _resolve_run_name(config)
+@@ -386,6 +399,29 @@ def compare_harness_runs(base_run: str, head_run: str, reports_dir: Path) -> dic
+     }
+ 
+ 
++def _parse_optional_positive_int(value: str) -> int | None:
++    text = str(value).strip()
++    if text.lower() in {"null", "none"}:
++        return None
++    try:
++        parsed = int(text)
++    except ValueError as exc:
++        raise argparse.ArgumentTypeError("expected a positive integer or null") from exc
++    if parsed <= 0:
++        raise argparse.ArgumentTypeError("expected a positive integer or null")
++    return parsed
++
++
++def _resource_budget_payload(resource_budget: ResourceBudget) -> dict[str, int | None]:
++    payload = asdict(resource_budget)
++    for key, value in payload.items():
++        if value is None:
++            continue
++        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
++            raise ValueError(f"resource_budget.{key} must be a positive integer or None.")
++    return payload
++
++
+ def main(argv: list[str] | None = None) -> int:
+     argv = sys.argv[1:] if argv is None else argv
+     if argv and argv[0] == "compare":
+@@ -409,6 +445,13 @@ def main(argv: list[str] | None = None) -> int:
+     )
+     parser.add_argument("--copilot-command", default='gh copilot -p "{prompt}" --allow-all-tools --allow-all-paths -s')
+     parser.add_argument("--copilot-timeout-seconds", type=int, default=300)
++    parser.add_argument("--max-case-seconds", type=_parse_optional_positive_int, default=21600)
++    parser.add_argument("--max-tool-seconds", type=_parse_optional_positive_int, default=300)
++    parser.add_argument("--max-artifact-bytes", type=_parse_optional_positive_int, default=52428800)
++    parser.add_argument("--max-recent-artifacts", type=_parse_optional_positive_int, default=20)
++    parser.add_argument("--max-context-pack-bytes", type=_parse_optional_positive_int, default=1048576)
++    parser.add_argument("--max-candidate-count", type=_parse_optional_positive_int, default=5000)
++    parser.add_argument("--max-probe-candidates", type=_parse_optional_positive_int, default=50)
+     parser.add_argument("--local-base-url", default="http://127.0.0.1:11434")
+     parser.add_argument("--local-model", default="qwen2.5-coder:7b")
+     parser.add_argument("--local-api-key", default="")
+@@ -477,6 +520,15 @@ def main(argv: list[str] | None = None) -> int:
+         ),
+         runtime_validation_enabled=args.runtime_validation_enabled,
+         copilot_timeout_seconds=args.copilot_timeout_seconds,
++        resource_budget=ResourceBudget(
++            max_case_seconds=args.max_case_seconds,
++            max_tool_seconds=args.max_tool_seconds,
++            max_artifact_bytes=args.max_artifact_bytes,
++            max_recent_artifacts=args.max_recent_artifacts,
++            max_context_pack_bytes=args.max_context_pack_bytes,
++            max_candidate_count=args.max_candidate_count,
++            max_probe_candidates=args.max_probe_candidates,
++        ),
+         ctf_skill_enabled=not args.disable_ctf_skill,
+         ctf_skill_profile=args.ctf_skill_profile,
+         resume=not args.no_resume,
+@@ -731,6 +783,7 @@ def _build_manifest(
+     run_dir: Path,
+     started_at: str,
+ ) -> dict[str, object]:
++    resource_budget = _resource_budget_payload(config.resource_budget)
+     config_payload = {
+         "dataset_path": config.dataset_path,
+         "analysis_mode": config.analysis_mode,
+@@ -740,6 +793,7 @@ def _build_manifest(
+         "local_model": config.local_model,
+         "runtime_validation_enabled": config.runtime_validation_enabled,
+         "copilot_timeout_seconds": config.copilot_timeout_seconds,
++        "resource_budget": resource_budget,
+         "ctf_skill_enabled": config.ctf_skill_enabled,
+         "ctf_skill_profile": config.ctf_skill_profile,
+         "resume": config.resume,
+@@ -756,6 +810,7 @@ def _build_manifest(
+         "dataset_digest": _sha256_json(config_payload["cases"]),
+         "config_digest": _sha256_json(config_payload),
+         "git_commit": _git_commit(),
++        "resource_budget": resource_budget,
+         "pipeline_defaults": config_payload,
+         "case_ids": [case.case_id for case in config.cases],
+     }
+diff --git a/tests/test_harness_resource_budget.py b/tests/test_harness_resource_budget.py
+new file mode 100644
+index 0000000..f0871ab
+--- /dev/null
++++ b/tests/test_harness_resource_budget.py
+@@ -0,0 +1,211 @@
++from __future__ import annotations
++
++import json
++from pathlib import Path
++
++import pytest
++
++from reverse_agent.harness import (
++    HarnessCase,
++    HarnessConfig,
++    HarnessSummary,
++    ResourceBudget,
++    main,
++    run_harness,
++)
++from reverse_agent.pipeline import SolveResult
++
++
++def test_resource_budget_defaults_are_written_to_manifest(tmp_path: Path, monkeypatch) -> None:
++    _patch_pipeline(monkeypatch, tmp_path)
++
++    run_harness(_config(tmp_path, run_name="budget_defaults"), log=lambda _: None)
++
++    manifest = _read_manifest(tmp_path, "budget_defaults")
++    expected = {
++        "max_artifact_bytes": 52428800,
++        "max_candidate_count": 5000,
++        "max_case_seconds": 21600,
++        "max_context_pack_bytes": 1048576,
++        "max_probe_candidates": 50,
++        "max_recent_artifacts": 20,
++        "max_tool_seconds": 300,
++    }
++    assert manifest["resource_budget"] == expected
++    assert manifest["pipeline_defaults"]["resource_budget"] == expected
++    assert "config_digest" in manifest
++    assert "pipeline_defaults" in manifest
++
++
++def test_resource_budget_changes_are_part_of_config_digest(tmp_path: Path, monkeypatch) -> None:
++    _patch_pipeline(monkeypatch, tmp_path)
++
++    run_harness(_config(tmp_path, run_name="budget_digest"), log=lambda _: None)
++    changed = _config(
++        tmp_path,
++        run_name="budget_digest",
++        resource_budget=ResourceBudget(max_candidate_count=123),
++    )
++
++    with pytest.raises(ValueError, match="different harness config"):
++        run_harness(changed, log=lambda _: None)
++
++
++def test_resource_budget_accepts_null_cli_values(tmp_path: Path, monkeypatch) -> None:
++    captured: list[HarnessConfig] = []
++    dataset = _write_dataset(tmp_path)
++
++    def _fake_run_harness(config: HarnessConfig, log):  # noqa: ANN001
++        captured.append(config)
++        return _summary(tmp_path)
++
++    monkeypatch.setattr("reverse_agent.harness.run_harness", _fake_run_harness)
++
++    assert main(
++        [
++            "--dataset",
++            str(dataset),
++            "--reports-dir",
++            str(tmp_path / "reports"),
++            "--run-name",
++            "cli_budget",
++            "--max-case-seconds",
++            "none",
++            "--max-tool-seconds",
++            "null",
++        ]
++    ) == 0
++
++    assert captured[0].resource_budget.max_case_seconds is None
++    assert captured[0].resource_budget.max_tool_seconds is None
++    assert captured[0].resource_budget.max_candidate_count == 5000
++
++
++@pytest.mark.parametrize("value", ["0", "-1", "abc", "1.5"])
++def test_resource_budget_cli_rejects_invalid_values(tmp_path: Path, value: str) -> None:
++    dataset = _write_dataset(tmp_path)
++
++    with pytest.raises(SystemExit):
++        main(
++            [
++                "--dataset",
++                str(dataset),
++                "--reports-dir",
++                str(tmp_path / "reports"),
++                "--max-candidate-count",
++                value,
++            ]
++        )
++
++
++def test_resource_budget_does_not_change_runtime_kwargs(tmp_path: Path, monkeypatch) -> None:
++    captured: list[dict[str, object]] = []
++
++    def _fake_run_pipeline(**kwargs):  # noqa: ANN001
++        captured.append(kwargs)
++        return _solve_result(tmp_path, kwargs)
++
++    monkeypatch.setattr("reverse_agent.harness.run_pipeline", _fake_run_pipeline)
++
++    run_harness(
++        _config(
++            tmp_path,
++            run_name="budget_runtime",
++            copilot_timeout_seconds=123,
++            resource_budget=ResourceBudget(max_tool_seconds=7),
++        ),
++        log=lambda _: None,
++    )
++
++    assert captured[0]["copilot_timeout_seconds"] == 123
++    assert "resource_budget" not in captured[0]
++
++
++def test_resource_budget_rejects_non_positive_programmatic_values(tmp_path: Path) -> None:
++    with pytest.raises(ValueError, match="resource_budget.max_case_seconds"):
++        run_harness(
++            _config(
++                tmp_path,
++                run_name="bad_budget",
++                resource_budget=ResourceBudget(max_case_seconds=0),
++            ),
++            log=lambda _: None,
++        )
++
++
++def _config(
++    tmp_path: Path,
++    *,
++    run_name: str,
++    copilot_timeout_seconds: int = 300,
++    resource_budget: ResourceBudget | None = None,
++) -> HarnessConfig:
++    return HarnessConfig(
++        cases=[HarnessCase(case_id="demo", input_value="demo.exe", expected_flag="flag{demo}")],
++        reports_dir=tmp_path / "reports",
++        run_name=run_name,
++        analysis_mode="Static Analysis",
++        copilot_timeout_seconds=copilot_timeout_seconds,
++        resource_budget=resource_budget or ResourceBudget(),
++    )
++
++
++def _patch_pipeline(monkeypatch, tmp_path: Path) -> None:  # noqa: ANN001
++    def _fake_run_pipeline(**kwargs):  # noqa: ANN001
++        return _solve_result(tmp_path, kwargs)
++
++    monkeypatch.setattr("reverse_agent.harness.run_pipeline", _fake_run_pipeline)
++
++
++def _solve_result(tmp_path: Path, kwargs: dict[str, object]) -> SolveResult:
++    return SolveResult(
++        input_value=str(kwargs["input_value"]),
++        resolved_path=str(kwargs["input_value"]),
++        analysis_mode=str(kwargs["analysis_mode"]),
++        model_name="Copilot CLI",
++        candidates=["flag{demo}"],
++        selected_flag="flag{demo}",
++        prompt="prompt",
++        model_output="flag{demo}",
++        extracted_strings_count=1,
++        tool_artifacts=[],
++        structured_evidence=[],
++        candidate_validations=[],
++        report_path=str(tmp_path / "reports" / "demo.md"),
++    )
++
++
++def _write_dataset(tmp_path: Path) -> Path:
++    dataset = tmp_path / "dataset.json"
++    dataset.write_text(json.dumps([{"case_id": "demo", "input_value": "demo.exe"}]), encoding="utf-8")
++    return dataset
++
++
++def _read_manifest(tmp_path: Path, run_name: str) -> dict[str, object]:
++    return json.loads(
++        (tmp_path / "reports" / "harness_runs" / run_name / "run_manifest.json").read_text(encoding="utf-8")
++    )
++
++
++def _summary(tmp_path: Path) -> HarnessSummary:
++    return HarnessSummary(
++        run_name="cli_budget",
++        run_dir=str(tmp_path / "reports" / "harness_runs" / "cli_budget"),
++        total_cases=1,
++        executed_cases=1,
++        resumed_cases=0,
++        passed_cases=1,
++        failed_cases=0,
++        completed_without_expected=0,
++        error_cases=0,
++        not_found_cases=0,
++        labeled_cases=0,
++        accuracy_when_labeled=None,
++        evidence_coverage=None,
++        candidate_quality=None,
++        solve_rate_by_category={},
++        elapsed_seconds=0.0,
++        manifest_path="",
++        summary_path="summary.json",
++        case_result_paths=[],
++    )

@@ -48,6 +48,17 @@ class HarnessCase:
 
 
 @dataclass
+class ResourceBudget:
+    max_case_seconds: int | None = 21600
+    max_tool_seconds: int | None = 300
+    max_artifact_bytes: int | None = 52428800
+    max_recent_artifacts: int | None = 20
+    max_context_pack_bytes: int | None = 1048576
+    max_candidate_count: int | None = 5000
+    max_probe_candidates: int | None = 50
+
+
+@dataclass
 class HarnessConfig:
     cases: list[HarnessCase]
     reports_dir: Path
@@ -62,6 +73,7 @@ class HarnessConfig:
     tool_config: ToolAutomationConfig = field(default_factory=ToolAutomationConfig)
     runtime_validation_enabled: bool = False
     copilot_timeout_seconds: int = 300
+    resource_budget: ResourceBudget = field(default_factory=ResourceBudget)
     ctf_skill_enabled: bool = True
     ctf_skill_profile: str = "compact"
     resume: bool = True
@@ -184,6 +196,7 @@ def run_harness(config: HarnessConfig, log: LogFn) -> HarnessSummary:
         raise ValueError("Harness config contains no cases.")
     if config.resume_policy not in RESUME_POLICIES:
         raise ValueError(f"Unknown resume policy: {config.resume_policy}")
+    _resource_budget_payload(config.resource_budget)
     config.rerun_statuses = {str(status).strip() for status in config.rerun_statuses if str(status).strip()}
 
     run_name = _resolve_run_name(config)
@@ -386,6 +399,29 @@ def compare_harness_runs(base_run: str, head_run: str, reports_dir: Path) -> dic
     }
 
 
+def _parse_optional_positive_int(value: str) -> int | None:
+    text = str(value).strip()
+    if text.lower() in {"null", "none"}:
+        return None
+    try:
+        parsed = int(text)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("expected a positive integer or null") from exc
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("expected a positive integer or null")
+    return parsed
+
+
+def _resource_budget_payload(resource_budget: ResourceBudget) -> dict[str, int | None]:
+    payload = asdict(resource_budget)
+    for key, value in payload.items():
+        if value is None:
+            continue
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ValueError(f"resource_budget.{key} must be a positive integer or None.")
+    return payload
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     if argv and argv[0] == "compare":
@@ -409,6 +445,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--copilot-command", default='gh copilot -p "{prompt}" --allow-all-tools --allow-all-paths -s')
     parser.add_argument("--copilot-timeout-seconds", type=int, default=300)
+    parser.add_argument("--max-case-seconds", type=_parse_optional_positive_int, default=21600)
+    parser.add_argument("--max-tool-seconds", type=_parse_optional_positive_int, default=300)
+    parser.add_argument("--max-artifact-bytes", type=_parse_optional_positive_int, default=52428800)
+    parser.add_argument("--max-recent-artifacts", type=_parse_optional_positive_int, default=20)
+    parser.add_argument("--max-context-pack-bytes", type=_parse_optional_positive_int, default=1048576)
+    parser.add_argument("--max-candidate-count", type=_parse_optional_positive_int, default=5000)
+    parser.add_argument("--max-probe-candidates", type=_parse_optional_positive_int, default=50)
     parser.add_argument("--local-base-url", default="http://127.0.0.1:11434")
     parser.add_argument("--local-model", default="qwen2.5-coder:7b")
     parser.add_argument("--local-api-key", default="")
@@ -477,6 +520,15 @@ def main(argv: list[str] | None = None) -> int:
         ),
         runtime_validation_enabled=args.runtime_validation_enabled,
         copilot_timeout_seconds=args.copilot_timeout_seconds,
+        resource_budget=ResourceBudget(
+            max_case_seconds=args.max_case_seconds,
+            max_tool_seconds=args.max_tool_seconds,
+            max_artifact_bytes=args.max_artifact_bytes,
+            max_recent_artifacts=args.max_recent_artifacts,
+            max_context_pack_bytes=args.max_context_pack_bytes,
+            max_candidate_count=args.max_candidate_count,
+            max_probe_candidates=args.max_probe_candidates,
+        ),
         ctf_skill_enabled=not args.disable_ctf_skill,
         ctf_skill_profile=args.ctf_skill_profile,
         resume=not args.no_resume,
@@ -731,6 +783,7 @@ def _build_manifest(
     run_dir: Path,
     started_at: str,
 ) -> dict[str, object]:
+    resource_budget = _resource_budget_payload(config.resource_budget)
     config_payload = {
         "dataset_path": config.dataset_path,
         "analysis_mode": config.analysis_mode,
@@ -740,6 +793,7 @@ def _build_manifest(
         "local_model": config.local_model,
         "runtime_validation_enabled": config.runtime_validation_enabled,
         "copilot_timeout_seconds": config.copilot_timeout_seconds,
+        "resource_budget": resource_budget,
         "ctf_skill_enabled": config.ctf_skill_enabled,
         "ctf_skill_profile": config.ctf_skill_profile,
         "resume": config.resume,
@@ -756,6 +810,7 @@ def _build_manifest(
         "dataset_digest": _sha256_json(config_payload["cases"]),
         "config_digest": _sha256_json(config_payload),
         "git_commit": _git_commit(),
+        "resource_budget": resource_budget,
         "pipeline_defaults": config_payload,
         "case_ids": [case.case_id for case in config.cases],
     }
