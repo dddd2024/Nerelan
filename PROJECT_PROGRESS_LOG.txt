@@ -4563,3 +4563,66 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
   - delay follow until after UI attach/input setup, or
   - temporarily disable Stalker transform and confirm plain hook observations first.
 - 仍不跑 Base64/RC4 probe，不回 old `sample_solver`，不扩大 search/beam/budget。
+
+## 2026-05-20 real-LHS current-thread Stalker activation
+
+1) 执行范围
+- 按计划只修 `compare_real_lhs_provenance_audit` runtime observability。
+- 固定主线 `L15(prefix8)`、suffix `AAAAAAA`、3 个 runtime-backed candidates。
+- 未修改 candidate generation / ranking / beam / budget / topN / timeout / frontier iteration。
+- 未运行 Base64/RC4 breakpoint probe，未回退 old `sample_solver`。
+
+2) 代码变更
+- `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
+  - write ring 不再在脚本加载时 `Process.enumerateThreads()` 后全线程 follow。
+  - 普通 `Interceptor` hook 先安装并命中后，再用 `Process.getCurrentThreadId()` 对当前命中线程启动 Stalker。
+  - `write_monitor_health` 新增 `activation_status`、`selected_thread_id`、`follow_attempt_stage`，区分未启动、follow 失败、已跟随但无写入。
+- `reverse_agent/strategies/compare_aware_search.py`
+  - 聚合 activation/thread/stage health 字段。
+  - `followed_thread_count > 0` 但 `raw_write_count == 0` 时不再归为 `instrumentation_incomplete`，而是推进到 `compare_lhs_runtime_backed_writer_missing`。
+  - 将 `seh_unwind_to_compare_path` 也路由到 real-LHS last-writer sidecar。
+  - 旧 `instrumentation_incomplete` 不再视为阻止复跑的终局 decision。
+- `tests/test_compare_aware_search_strategy.py`
+  - 增加 delayed/current-thread Stalker activation、`seh_unwind_to_compare_path` 路由、旧 instrumentation incomplete 复跑、health 聚合字段回归。
+
+3) 自动化验证
+- `python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` -> passed
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "real_lhs or write_monitor or compare_probe_fallback"` -> `22 passed, 154 deselected`
+- `python -m pytest -q tests\test_project_state.py -k "real_lhs or instrumentation or artifact"` -> `7 passed, 64 deselected`
+- `python -m pytest -q` -> `324 passed`
+
+4) Harness / project_state
+- Intermediate harness runs:
+  - `sr_lhs_thread_follow_timing_20260520_r1` / `r2` / `r3` completed the predecessor `post_handoff_exception_unwind_audit` sidecar with `seh_unwind_to_compare_path`.
+  - `r3` was rebuilt into project_state to advance the sidecar ladder.
+- Final accepted harness:
+  - `sr_lhs_thread_follow_timing_20260520_r4`
+  - 1 case executed, 0 errors, selected `NOT_FOUND` because the sidecar remained diagnostic-only.
+- Core artifact:
+  - `solve_reports\harness_runs\sr_lhs_thread_follow_timing_20260520_r4\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json`
+- `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_thread_follow_timing_20260520_r4` -> passed。
+- `python -m reverse_agent.project_state status` reports:
+  - `latest_harness_run: solve_reports\harness_runs\sr_lhs_thread_follow_timing_20260520_r4`
+  - `reason: compare_lhs_runtime_backed_writer_missing`
+  - `task: Improve compare lhs last-writer instrumentation`
+  - `missing: []`
+
+5) 结论
+- `compare_real_lhs_provenance_audit` classification: `compare_lhs_runtime_backed_writer_missing`
+- `runtime_backed_count=3`
+- `scripted_hook_status=scripted_hook_observed`
+- `compare_probe_fallback_status=compare_probe_fallback_captured_compare_args`
+- `write_monitor_health.enabled=true`
+- `write_monitor_health.activation_statuses=following_current_thread,waiting_for_hook_observation`
+- `write_monitor_health.selected_thread_ids=19468`
+- `write_monitor_health.follow_attempt_stages=upstream_candidate_context`
+- `write_monitor_health.followed_thread_count=2`
+- `write_monitor_health.raw_write_count=6`
+- `last_writer_summary.retained_write_count=0`
+- `breakpoint_probe_allowed=false`
+- Best runtime candidate changed: no. Current best remains the prior `exact2`/frontier state; this run was diagnostic-only.
+
+6) 下一轮默认方向
+- Instrumentation 已从 “未跟随线程 / 无 hook observation” 推进到 “已跟随当前线程且捕获 raw writes，但没有 retained write intersect actual arg0”。
+- 下一步应缩小 write ring 过滤窗口或扩展 pre-`0x258c` retained write attribution，回答为什么 6 条 raw writes 没有 intersect actual arg0。
+- 仍不跑 Base64/RC4 breakpoint probe，不回 old `sample_solver`，不扩大 search/beam/budget。

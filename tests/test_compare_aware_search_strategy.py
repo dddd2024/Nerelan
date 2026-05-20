@@ -7574,9 +7574,16 @@ def _write_monitor_health(
     raw_write_count: int,
     filtered_intersecting_write_count: int = 0,
     followed_thread_count: int = 1,
+    activation_status: str = "following_current_thread",
+    selected_thread_id: str = "1",
+    follow_attempt_stage: str = "upstream_candidate_context",
 ) -> dict[str, object]:
     return {
+        "observed": True,
         "enabled": True,
+        "activation_status": activation_status,
+        "selected_thread_id": selected_thread_id,
+        "follow_attempt_stage": follow_attempt_stage,
         "followed_thread_count": followed_thread_count,
         "raw_write_count": raw_write_count,
         "ring_capacity": 4096,
@@ -7597,7 +7604,7 @@ def _write_monitor_health(
     }
 
 
-def test_compare_real_lhs_last_writer_raw_write_zero_is_instrumentation_incomplete() -> None:
+def test_compare_real_lhs_last_writer_followed_thread_with_raw_write_zero_is_writer_missing() -> None:
     candidates = []
     for candidate_hex, ptr, preview in [
         ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
@@ -7619,11 +7626,62 @@ def test_compare_real_lhs_last_writer_raw_write_zero_is_instrumentation_incomple
         source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
     )
 
-    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
     assert payload["write_monitor_health"]["raw_write_count"] == 0
     assert payload["write_monitor_health"]["followed_thread_count"] == 3
+    assert payload["write_monitor_health"]["activation_statuses"] == ["following_current_thread"]
+    assert payload["write_monitor_health"]["selected_thread_ids"] == ["1"]
+    assert payload["write_monitor_health"]["follow_attempt_stages"] == ["upstream_candidate_context"]
     assert payload["last_writer_summary"]["write_monitor_health"]["enabled"] is True
     assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_real_lhs_last_writer_unfollowed_thread_is_instrumentation_incomplete() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[],
+                write_monitor_health=_write_monitor_health(
+                    raw_write_count=0,
+                    followed_thread_count=0,
+                    activation_status="waiting_for_hook_observation",
+                    selected_thread_id="",
+                    follow_attempt_stage="",
+                ),
+            )
+        )
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["write_monitor_health"]["followed_thread_count"] == 0
+    assert payload["write_monitor_health"]["raw_write_count"] == 0
+    assert payload["write_monitor_health"]["activation_statuses"] == ["waiting_for_hook_observation"]
+    assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_real_lhs_script_delays_stalker_until_hook_thread() -> None:
+    script_path = (
+        compare_aware_search._compare_real_lhs_provenance_audit_script_path().parent
+        / "compare_pre_compare_handoff_target_probe.py"
+    )
+    script_source = script_path.read_text(encoding="utf-8")
+
+    assert "startWriteRingForThread(currentThreadId" in script_source
+    assert "Process.getCurrentThreadId()" in script_source
+    assert "waiting_for_hook_observation" in script_source
+    assert "Process.enumerateThreads()" not in script_source
 
 
 def test_compare_real_lhs_last_writer_uses_top_level_write_monitor_health() -> None:
@@ -7642,10 +7700,11 @@ def test_compare_real_lhs_last_writer_uses_top_level_write_monitor_health() -> N
         source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
     )
 
-    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
     assert payload["write_monitor_health"]["observed_candidate_count"] == 3
     assert payload["write_monitor_health"]["enabled"] is True
     assert payload["write_monitor_health"]["ring_capacity"] == 4096
+    assert payload["write_monitor_health"]["activation_statuses"] == ["following_current_thread"]
     assert payload["last_writer_summary"]["write_monitor_health"]["enabled"] is True
 
 
@@ -8632,14 +8691,19 @@ def test_compare_aware_strategy_runs_real_lhs_sidecar_after_callsite_reanchor(
     assert Path(str(result.artifacts[0].output_path)).name == COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME
 
 
+@pytest.mark.parametrize(
+    "exception_classification",
+    ["compare_reached_but_path_unresolved", "seh_unwind_to_compare_path"],
+)
 def test_compare_aware_strategy_runs_real_lhs_sidecar_after_exception_unwind(
     tmp_path: Path,
     monkeypatch,
+    exception_classification: str,
 ) -> None:
     target = tmp_path / "samplereverse.exe"
     target.write_bytes(b"MZ")
     exception_payload = {
-        "classification": "compare_reached_but_path_unresolved",
+        "classification": exception_classification,
         "breakpoint_probe_allowed": False,
     }
     material_payload = {
@@ -8650,6 +8714,10 @@ def test_compare_aware_strategy_runs_real_lhs_sidecar_after_exception_unwind(
         "source_compare_esi_source_window_classification": "esi_source_identified",
         "breakpoint_probe_allowed": False,
     }
+    prior_real_lhs_payload = {
+        "artifact_kind": "compare_real_lhs_provenance_audit",
+        "classification": "instrumentation_incomplete",
+    }
     captured: dict[str, object] = {}
 
     def fake_indexed_artifact_payload(kind):
@@ -8657,6 +8725,7 @@ def test_compare_aware_strategy_runs_real_lhs_sidecar_after_exception_unwind(
             {
                 "post_handoff_exception_unwind_audit": exception_payload,
                 "material_hook_runtime_validation": material_payload,
+                "compare_real_lhs_provenance_audit": prior_real_lhs_payload,
             }.get(kind, {}),
             "",
         )
@@ -8691,6 +8760,7 @@ def test_compare_aware_strategy_runs_real_lhs_sidecar_after_exception_unwind(
         lambda name: {
             "latest_post_handoff_exception_unwind_audit": exception_payload,
             "latest_material_hook_runtime_validation": material_payload,
+            "latest_compare_real_lhs_provenance_audit": prior_real_lhs_payload,
         }
         if name == "current_state.json"
         else {},
@@ -8724,7 +8794,7 @@ def test_compare_aware_strategy_runs_real_lhs_sidecar_after_exception_unwind(
     assert result.metadata["completed_stage"] == "compare_real_lhs_provenance_audit"
     assert result.metadata["early_sidecar"] is True
     assert captured["artifacts_dir"] == "compare_real_lhs_provenance_audit"
-    assert captured["source_classification"] == "compare_reached_but_path_unresolved"
+    assert captured["source_classification"] == exception_classification
     assert Path(str(result.artifacts[0].output_path)).name == COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME
 
 

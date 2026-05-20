@@ -226,6 +226,10 @@ COMPARE_ESI_SOURCE_WINDOW_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDAT
 COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 POST_HANDOFF_BRANCH_OUTCOME_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+POST_HANDOFF_COMPARE_PATH_READY_CLASSIFICATIONS = {
+    "compare_reached_but_path_unresolved",
+    "seh_unwind_to_compare_path",
+}
 POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 MATERIAL_HOOK_RUNTIME_VALIDATION_CANDIDATES = (
     "78d540b49c59077041414141414141",
@@ -13273,6 +13277,27 @@ def _compare_real_lhs_write_monitor_health(result: dict[str, object]) -> dict[st
         return max(values) if values else 0
 
     samples: list[dict[str, object]] = []
+    activation_statuses = sorted(
+        {
+            str(row.get("activation_status", "")).strip()
+            for row in health_rows
+            if str(row.get("activation_status", "")).strip()
+        }
+    )
+    selected_thread_ids = sorted(
+        {
+            str(row.get("selected_thread_id", "")).strip()
+            for row in health_rows
+            if str(row.get("selected_thread_id", "")).strip()
+        }
+    )
+    follow_attempt_stages = sorted(
+        {
+            str(row.get("follow_attempt_stage", "")).strip()
+            for row in health_rows
+            if str(row.get("follow_attempt_stage", "")).strip()
+        }
+    )
     for row in health_rows:
         row_samples = row.get("last_raw_write_samples", [])
         if isinstance(row_samples, list):
@@ -13280,6 +13305,12 @@ def _compare_real_lhs_write_monitor_health(result: dict[str, object]) -> dict[st
     return {
         "observed": True,
         "enabled": any(bool(row.get("enabled")) for row in health_rows),
+        "activation_statuses": activation_statuses,
+        "selected_thread_ids": selected_thread_ids,
+        "follow_attempt_stages": follow_attempt_stages,
+        "activation_status": activation_statuses[-1] if activation_statuses else "",
+        "selected_thread_id": selected_thread_ids[-1] if selected_thread_ids else "",
+        "follow_attempt_stage": follow_attempt_stages[-1] if follow_attempt_stages else "",
         "followed_thread_count": _sum_int("followed_thread_count"),
         "raw_write_count": _sum_int("raw_write_count"),
         "ring_capacity": _max_int("ring_capacity"),
@@ -13399,6 +13430,27 @@ def _compare_real_lhs_last_writer_summary(
             int(row.get("address_decode_failures", 0) or 0) for row in observed_monitor_rows
         ),
         "follow_failures": sum(int(row.get("follow_failures", 0) or 0) for row in observed_monitor_rows),
+        "activation_statuses": sorted(
+            {
+                str(row.get("activation_status", "")).strip()
+                for row in observed_monitor_rows
+                if str(row.get("activation_status", "")).strip()
+            }
+        ),
+        "selected_thread_ids": sorted(
+            {
+                str(row.get("selected_thread_id", "")).strip()
+                for row in observed_monitor_rows
+                if str(row.get("selected_thread_id", "")).strip()
+            }
+        ),
+        "follow_attempt_stages": sorted(
+            {
+                str(row.get("follow_attempt_stage", "")).strip()
+                for row in observed_monitor_rows
+                if str(row.get("follow_attempt_stage", "")).strip()
+            }
+        ),
         "last_raw_write_samples": [
             sample
             for row in observed_monitor_rows
@@ -13448,8 +13500,10 @@ def _compare_real_lhs_last_writer_classification(
         return "instrumentation_incomplete"
     if monitor_observed_count < expected_count:
         return "instrumentation_incomplete"
-    if not monitor_enabled or followed_thread_count <= 0 or raw_write_count <= 0:
+    if not monitor_enabled or followed_thread_count <= 0:
         return "instrumentation_incomplete"
+    if raw_write_count <= 0:
+        return "compare_lhs_runtime_backed_writer_missing"
     if not last_writer_candidates:
         return "compare_lhs_runtime_backed_writer_missing"
     if int(last_writer_summary.get("runtime_backed_count", 0) or 0) < expected_count:
@@ -13508,7 +13562,7 @@ def build_compare_real_lhs_provenance_audit_payload(
     source_exception_classification = str(
         source_post_handoff_exception_payload.get("classification") or ""
     ).strip()
-    last_writer_mode = source_exception_classification == "compare_reached_but_path_unresolved"
+    last_writer_mode = source_exception_classification in POST_HANDOFF_COMPARE_PATH_READY_CLASSIFICATIONS
     last_writer_summary, last_writer_candidates, write_ring_buffer, last_writer_breakpoint_allowed = (
         _compare_real_lhs_last_writer_summary(candidate_results, actual_compare)
         if last_writer_mode
@@ -15299,7 +15353,6 @@ def _prior_compare_real_lhs_provenance_audit_has_decision() -> bool:
         "last_writer_identified",
         "writer_path_observed_but_unconnected",
         "compare_lhs_runtime_backed_writer_missing",
-        "instrumentation_incomplete",
     }
     current_state = _project_state_json("current_state.json")
     latest = current_state.get("latest_compare_real_lhs_provenance_audit", {})
@@ -19866,11 +19919,10 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "last_writer_identified",
                 "writer_path_observed_but_unconnected",
                 "compare_lhs_runtime_backed_writer_missing",
-                "instrumentation_incomplete",
             }
             should_run_early_real_lhs_after_exception_unwind = (
                 str(current_exception_unwind_payload.get("classification") or "").strip()
-                == "compare_reached_but_path_unresolved"
+                in POST_HANDOFF_COMPARE_PATH_READY_CLASSIFICATIONS
                 and str(current_real_lhs_payload.get("classification") or "").strip()
                 not in early_real_lhs_last_writer_decisions
             )
@@ -20005,7 +20057,7 @@ class CompareAwareSearchStrategy(SolverStrategy):
             should_run_early_esi_source_window_audit = (
                 not _prior_compare_esi_source_window_audit_has_decision()
                 and str(current_exception_unwind_payload.get("classification") or "").strip()
-                != "compare_reached_but_path_unresolved"
+                not in POST_HANDOFF_COMPARE_PATH_READY_CLASSIFICATIONS
                 and str(current_real_lhs_payload.get("classification") or "").strip()
                 == "lhs_register_source_confirmed"
             )
@@ -20049,11 +20101,10 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 "last_writer_identified",
                 "writer_path_observed_but_unconnected",
                 "compare_lhs_runtime_backed_writer_missing",
-                "instrumentation_incomplete",
             }
             exception_unwind_requires_real_lhs = (
                 str(current_exception_unwind_payload.get("classification") or "").strip()
-                == "compare_reached_but_path_unresolved"
+                in POST_HANDOFF_COMPARE_PATH_READY_CLASSIFICATIONS
             )
             callsite_requires_real_lhs = (
                 str(current_callsite_reanchor_payload.get("classification") or "").strip()
@@ -22320,11 +22371,10 @@ class CompareAwareSearchStrategy(SolverStrategy):
             "last_writer_identified",
             "writer_path_observed_but_unconnected",
             "compare_lhs_runtime_backed_writer_missing",
-            "instrumentation_incomplete",
         }
         exception_unwind_requires_real_lhs = (
             str(current_exception_unwind_payload.get("classification") or "").strip()
-            == "compare_reached_but_path_unresolved"
+            in POST_HANDOFF_COMPARE_PATH_READY_CLASSIFICATIONS
         )
         callsite_requires_real_lhs = (
             str(current_callsite_reanchor_payload.get("classification") or "").strip()

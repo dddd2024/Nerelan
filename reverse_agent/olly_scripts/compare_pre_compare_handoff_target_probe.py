@@ -235,6 +235,9 @@ let writeMonitorEvictionCount = 0;
 let writeMonitorDescriptorDecodeFailures = 0;
 let writeMonitorAddressDecodeFailures = 0;
 let writeMonitorFollowFailures = 0;
+let writeMonitorActivationStatus = writeRingEnabled ? "waiting_for_hook_observation" : "disabled";
+let writeMonitorSelectedThreadId = "";
+let writeMonitorFollowAttemptStage = "";
 
 function hexBytes(raw) {{
     if (!raw) {{
@@ -465,7 +468,11 @@ function filteredWriteRing(compareSlots) {{
 
 function writeMonitorHealth(filteredWrites) {{
     return {{
+        observed: true,
         enabled: Boolean(writeRingEnabled),
+        activation_status: writeMonitorActivationStatus,
+        selected_thread_id: String(writeMonitorSelectedThreadId || ""),
+        follow_attempt_stage: String(writeMonitorFollowAttemptStage || ""),
         followed_thread_count: writeMonitorFollowedThreadCount,
         raw_write_count: writeMonitorRawWriteCount,
         ring_capacity: writeRingLimit,
@@ -476,6 +483,41 @@ function writeMonitorHealth(filteredWrites) {{
         last_raw_write_samples: lastRawWriteSamples.slice(-8),
         filtered_intersecting_write_count: filteredWrites ? filteredWrites.length : 0,
     }};
+}}
+
+function startWriteRingForThread(threadId, stage) {{
+    if (!writeRingEnabled) {{
+        writeMonitorActivationStatus = "disabled";
+        return;
+    }}
+    if (writeMonitorFollowedThreadCount > 0) {{
+        return;
+    }}
+    writeMonitorFollowAttemptStage = String(stage || "hook_observed");
+    writeMonitorSelectedThreadId = String(threadId || "");
+    try {{
+        Stalker.follow(threadId, {{
+            transform(iterator) {{
+                let instruction = iterator.next();
+                while (instruction !== null) {{
+                    const descriptor = memoryWriteDescriptor(instruction);
+                    if (descriptor) {{
+                        iterator.putCallout(function(context) {{
+                            recordMemoryWrite(context, descriptor);
+                        }});
+                    }}
+                    iterator.keep();
+                    instruction = iterator.next();
+                }}
+            }},
+        }});
+        writeMonitorFollowedThreadCount++;
+        writeMonitorActivationStatus = "following_current_thread";
+    }} catch (error) {{
+        writeMonitorFollowFailures++;
+        writeMonitorActivationStatus = "follow_failed";
+        send({{ type: "compare_pre_compare_handoff_target_error", hook_name: "write_ring_buffer", error: String(error) }});
+    }}
 }}
 
 function sendWriteMonitorHealth() {{
@@ -596,6 +638,12 @@ function compareCallsiteSlots(sp, address, moduleBase) {{
 function observe(point, address, context, eventName, extra) {{
     extra = extra || {{}};
     const mainModule = Process.enumerateModules()[0];
+    let currentThreadId = "";
+    try {{
+        currentThreadId = Process.getCurrentThreadId();
+    }} catch (error) {{
+        currentThreadId = "";
+    }}
     const sp = ptr(context.sp || context.esp || 0);
     const bp = ptr(context.bp || context.ebp || 0);
     const eax = safePointer(context.eax || context.rax || 0);
@@ -606,6 +654,9 @@ function observe(point, address, context, eventName, extra) {{
     const ip = safePointer(context.eip || context.rip || context.pc || 0);
     const eaxPreview = readBytes(eax, 128);
     const pointName = String(point.name || "");
+    if (writeRingEnabled && eventName !== "leave" && currentThreadId !== "") {{
+        startWriteRingForThread(currentThreadId, pointName || "hook_observed");
+    }}
     const isHelperCompare = pointName === "compare_helper_entry" || pointName === "actual_compare_entry";
     const isStaticCompareCallsite = pointName === "static_compare_callsite";
     const compareSlots = isStaticCompareCallsite
@@ -652,34 +703,6 @@ function observe(point, address, context, eventName, extra) {{
 }}
 
 const mainModule = Process.enumerateModules()[0];
-if (writeRingEnabled) {{
-    try {{
-        for (const thread of Process.enumerateThreads()) {{
-            try {{
-                Stalker.follow(thread.id, {{
-                    transform(iterator) {{
-                        let instruction = iterator.next();
-                        while (instruction !== null) {{
-                            const descriptor = memoryWriteDescriptor(instruction);
-                            if (descriptor) {{
-                                iterator.putCallout(function(context) {{
-                                    recordMemoryWrite(context, descriptor);
-                                }});
-                            }}
-                            iterator.keep();
-                            instruction = iterator.next();
-                        }}
-                    }},
-                }});
-                writeMonitorFollowedThreadCount++;
-            }} catch (error) {{
-                writeMonitorFollowFailures++;
-            }}
-        }}
-    }} catch (error) {{
-        send({{ type: "compare_pre_compare_handoff_target_error", hook_name: "write_ring_buffer", error: String(error) }});
-    }}
-}}
 sendWriteMonitorHealth();
 if (writeRingEnabled) {{
     setInterval(sendWriteMonitorHealth, 100);
