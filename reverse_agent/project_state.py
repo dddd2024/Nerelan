@@ -879,6 +879,64 @@ def _scan_artifact_files(
     return candidates
 
 
+def _iter_case_artifact_manifest_entries(case_result_paths: list[Path], sample: str) -> list[dict[str, Any]]:
+    entries: list[dict[str, Any]] = []
+    for case_result_path in case_result_paths:
+        data = _read_json(case_result_path)
+        manifest = data.get("artifact_manifest")
+        if not isinstance(manifest, list):
+            continue
+        for raw_entry in manifest:
+            if not isinstance(raw_entry, dict):
+                continue
+            raw_path = str(raw_entry.get("path") or "").strip()
+            if not raw_path:
+                continue
+            path = _path_from_json(raw_path)
+            kind = str(raw_entry.get("kind") or "").strip() or (_classify_artifact(path, sample) or "")
+            if not kind:
+                continue
+            entry = dict(raw_entry)
+            entry["kind"] = kind
+            entry["path"] = path
+            entries.append(entry)
+    return entries
+
+
+def _apply_case_artifact_manifest(
+    *,
+    latest_artifact_paths: dict[str, Path],
+    recent_artifacts: list[dict[str, Any]],
+    case_result_paths: list[Path],
+    reports_dir: Path,
+    latest_run: Path | None,
+    sample: str,
+) -> None:
+    for entry in _iter_case_artifact_manifest_entries(case_result_paths, sample):
+        kind = str(entry["kind"])
+        path = entry["path"]
+        if not isinstance(path, Path):
+            continue
+        latest_artifact_paths[kind] = path
+        recent_artifacts.append(
+            {
+                "kind": kind,
+                "path": _path_for_json(path),
+                "size_bytes": path.stat().st_size if path.exists() else None,
+                "modified_at": (
+                    datetime.fromtimestamp(_safe_mtime(path), tz=timezone.utc)
+                    .replace(microsecond=0)
+                    .isoformat()
+                    .replace("+00:00", "Z")
+                    if path.exists()
+                    else None
+                ),
+                "source": "case_result.artifact_manifest",
+                "freshness": _artifact_freshness(path, reports_dir=reports_dir, latest_run=latest_run),
+            }
+        )
+
+
 def _resolve_latest_run(reports_dir: Path, run_name: str = "") -> Path | None:
     harness_root = reports_dir / "harness_runs"
     if not harness_root.exists():
@@ -1030,6 +1088,14 @@ def build_artifact_index(
                 .replace("+00:00", "Z"),
             }
         )
+    _apply_case_artifact_manifest(
+        latest_artifact_paths=latest_artifact_paths,
+        recent_artifacts=recent_artifacts,
+        case_result_paths=latest_case_results,
+        reports_dir=reports_dir,
+        latest_run=latest_run,
+        sample=sample,
+    )
 
     latest_artifacts: dict[str, str | None] = {key: None for key in LATEST_ARTIFACT_KEYS}
     latest_artifacts.update(

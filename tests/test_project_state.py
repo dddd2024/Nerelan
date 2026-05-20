@@ -1673,6 +1673,105 @@ def test_artifact_index_v2_marks_explicit_run_name_as_current(tmp_path: Path) ->
     )
 
 
+def test_artifact_index_uses_case_artifact_manifest_when_present(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="manifest_run")
+    manifest_artifact = run_dir / "reports" / "tool_artifacts" / "samplereverse" / "manifest_only.json"
+    _write_json(
+        manifest_artifact,
+        {
+            "classification": "compare_lhs_runtime_backed_writer_missing",
+        },
+    )
+    _write_json(
+        run_dir / "case_results" / "samplereverse.json",
+        {
+            "case_id": "samplereverse",
+            "status": "completed_no_expected",
+            "artifact_manifest": [
+                {
+                    "kind": "compare_real_lhs_provenance_audit",
+                    "path": str(manifest_artifact),
+                    "size_bytes": manifest_artifact.stat().st_size,
+                    "sha256": _sha256_file(manifest_artifact),
+                    "classification": "compare_lhs_runtime_backed_writer_missing",
+                    "tool_name": "CompareRealLhsAudit",
+                    "owner_profile": "samplereverse",
+                    "strategy_name": "CompareAwareSearchStrategy",
+                }
+            ],
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    legacy_path = artifact_index["latest_artifacts"]["compare_real_lhs_provenance_audit"]
+    manifest_entry = artifact_index["latest_artifacts_v2"]["compare_real_lhs_provenance_audit"]
+    assert legacy_path == str(manifest_artifact)
+    assert manifest_entry["path"] == str(manifest_artifact)
+    assert manifest_entry["freshness"] == "current"
+    assert manifest_entry["source_run"] == "manifest_run"
+    assert manifest_entry["sha256"] == _sha256_file(manifest_artifact)
+
+
+def test_artifact_index_falls_back_to_legacy_scan_without_case_artifact_manifest(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="legacy_scan_run")
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    frontier = artifact_index["latest_artifacts_v2"]["frontier_summary"]
+    assert frontier["path"] == str(
+        run_dir
+        / "reports"
+        / "tool_artifacts"
+        / "samplereverse"
+        / "samplereverse_compare_aware_frontier_summary.json"
+    )
+    assert frontier["freshness"] == "current"
+
+
+def test_artifact_index_manifest_missing_path_marked_missing(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="missing_manifest_run")
+    missing_artifact = run_dir / "reports" / "tool_artifacts" / "samplereverse" / "missing_compare_probe.json"
+    _write_json(
+        run_dir / "case_results" / "samplereverse.json",
+        {
+            "case_id": "samplereverse",
+            "status": "completed_no_expected",
+            "artifact_manifest": [
+                {
+                    "kind": "compare_probe",
+                    "path": str(missing_artifact),
+                    "size_bytes": None,
+                    "sha256": None,
+                    "classification": "",
+                    "tool_name": "CompareProbe",
+                    "owner_profile": "samplereverse",
+                    "strategy_name": "CompareAwareSearchStrategy",
+                }
+            ],
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    compare_probe = artifact_index["latest_artifacts_v2"]["compare_probe"]
+    assert artifact_index["latest_artifacts"]["compare_probe"] == str(missing_artifact)
+    assert compare_probe["path"] == str(missing_artifact)
+    assert compare_probe["freshness"] == "missing"
+    assert compare_probe["source_run"] == ""
+    assert compare_probe["size_bytes"] is None
+    assert compare_probe["sha256"] is None
+
+
 def test_current_state_negative_results_model_gate_and_task_packet_are_generated(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

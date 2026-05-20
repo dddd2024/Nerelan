@@ -94,6 +94,7 @@ class HarnessCaseResult:
     category: str = ""
     tags: list[str] = field(default_factory=list)
     notes: str = ""
+    artifact_manifest: list[dict[str, object]] = field(default_factory=list)
     error: str = ""
     traceback_text: str = ""
     cached: bool = False
@@ -476,7 +477,74 @@ def _case_result_from_solve_result(
         category=case.category,
         tags=case.tags[:],
         notes=case.notes,
+        artifact_manifest=_build_case_artifact_manifest(solve_result.tool_artifacts),
     )
+
+
+def _path_for_artifact_manifest(path: Path) -> str:
+    try:
+        return str(path.resolve().relative_to(Path.cwd().resolve()))
+    except ValueError:
+        return str(path)
+
+
+def _artifact_kind_from_path(path: Path, tool_name: str = "") -> str:
+    lower_name = path.name.lower()
+    if lower_name.endswith("_compare_probe.json"):
+        return "compare_probe"
+    if lower_name.endswith("_compare_probe.log"):
+        return "compare_probe_log"
+    if path.suffix.lower() in {".json", ".log", ".txt"}:
+        return path.stem
+    return tool_name or path.stem
+
+
+def _json_top_level_fields(path: Path) -> dict[str, object]:
+    if path.suffix.lower() != ".json":
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _build_case_artifact_manifest(tool_artifacts: list[object]) -> list[dict[str, object]]:
+    manifest: list[dict[str, object]] = []
+    for artifact in tool_artifacts:
+        output_path = str(getattr(artifact, "output_path", "") or "").strip()
+        if not output_path:
+            continue
+
+        path = Path(output_path)
+        json_fields = _json_top_level_fields(path) if path.exists() else {}
+        kind = str(json_fields.get("kind") or "").strip()
+        if not kind:
+            kind = _artifact_kind_from_path(path, str(getattr(artifact, "tool_name", "") or ""))
+
+        size_bytes: int | None = None
+        sha256: str | None = None
+        if path.exists() and path.is_file():
+            try:
+                size_bytes = path.stat().st_size
+                sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
+            except OSError:
+                size_bytes = None
+                sha256 = None
+
+        manifest.append(
+            {
+                "kind": kind,
+                "path": _path_for_artifact_manifest(path),
+                "size_bytes": size_bytes,
+                "sha256": sha256,
+                "classification": str(json_fields.get("classification") or ""),
+                "tool_name": str(getattr(artifact, "tool_name", "") or ""),
+                "owner_profile": str(getattr(artifact, "owner_profile", "") or ""),
+                "strategy_name": str(getattr(artifact, "strategy_name", "") or ""),
+            }
+        )
+    return manifest
 
 
 def _build_manifest(

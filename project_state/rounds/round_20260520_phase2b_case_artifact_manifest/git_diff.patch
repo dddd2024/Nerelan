@@ -1,0 +1,611 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 6ff8b38..82d7dbe 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,94 +1,102 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase2a_harness_resume_policy_20260520",
+-  "round_id": "round_20260520_phase2a_harness_resume_policy",
+-  "based_on_decision_id": "decision_phase2a_harness_resume_policy_20260520",
++  "report_id": "report_phase2b_case_artifact_manifest_20260520",
++  "round_id": "round_20260520_phase2b_case_artifact_manifest",
++  "based_on_decision_id": "decision_phase2b_case_artifact_manifest_20260520",
+   "status": "SUCCESS",
+   "acceptance_recommendation": "ACCEPTED",
+   "files_changed": [
+     "reverse_agent/harness.py",
+-    "tests/test_harness_resume.py",
++    "reverse_agent/project_state.py",
++    "tests/test_harness_artifact_manifest.py",
++    "tests/test_project_state.py",
+     "project_state/codex_execution_report.md",
+     "project_state/pytest_result.txt"
+   ],
+   "tests_ran": [
+-    "python -m py_compile reverse_agent\\harness.py",
++    "python -m py_compile reverse_agent\\harness.py reverse_agent\\project_state.py",
+     "python -m pytest -q tests\\test_harness.py",
+     "python -m pytest -q tests\\test_harness_resume.py",
++    "python -m pytest -q tests\\test_project_state.py",
++    "python -m pytest -q tests\\test_harness_artifact_manifest.py",
+     "python -m pytest -q",
+     "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+     "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2a_harness_resume_policy"
++    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2b_case_artifact_manifest"
+   ],
+   "generated_artifacts": [
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/round_manifest.json",
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/artifact_index.json",
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/current_state.json",
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/negative_results.json",
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/model_gate.json",
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/task_packet.json",
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/decision_packet.md",
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/codex_execution_report.md",
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/pytest_result.txt",
+-    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/git_diff.patch"
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/round_manifest.json",
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/artifact_index.json",
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/current_state.json",
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/negative_results.json",
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/model_gate.json",
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/task_packet.json",
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/decision_packet.md",
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/codex_execution_report.md",
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/pytest_result.txt",
++    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/git_diff.patch"
+   ],
+-  "next_suggested_task": "Have GPT audit Phase 2A harness resume semantics before authorizing any Phase 2B/2C/2D engineering task or samplereverse runtime work."
++  "next_suggested_task": "Have GPT audit Phase 2B case artifact manifest semantics before authorizing Phase 2C/2D engineering work or samplereverse runtime work."
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-20 Phase 2A harness resume policy
++## 2026-05-20 Phase 2B case artifact manifest
+ 
+-This pass implements the approved Phase 2A engineering branch from `project_state/decision_packet.md`. It changes only harness resume semantics and tests. It does not advance the `samplereverse` reverse-engineering mainline, does not run runtime probes, and does not modify project_state schema/protocol.
++This pass implements the approved Phase 2B engineering branch from `project_state/decision_packet.md`. It adds lightweight per-case artifact provenance to harness case results and lets `project_state.artifact_index` prefer case-level provenance when present. It does not advance the `samplereverse` reverse-engineering mainline, run runtime probes, modify `compare_aware_search.py`, modify `olly_scripts`, or change the GPT/Codex handoff protocol.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| current `--resume` implementation | `run_harness()` checked `config.resume and result_path.exists()` before this pass, then loaded `case_results/<case>.json` and counted it as resumed. |
+-| case result status source | Normal statuses come from `_case_result_from_solve_result()`: `passed`, `failed_expected`, `completed_no_expected`, and `not_found`. Harness exception handling writes `error`. Other unstable statuses such as `timeout`, `interrupted`, `partial`, and `blocked` can appear from future/legacy cached result producers and are now classified centrally. |
+-| old skip predicate | The old predicate only checked file existence and did not inspect `status`. |
+-| argparse / run CLI structure | `main()` is a single `argparse.ArgumentParser` harness command. It previously exposed `--no-resume`; this pass adds `--resume-policy`, repeatable `--rerun-status`, and `--rerun-error`. |
+-| existing harness resume tests | `tests/test_harness.py` already had `test_run_harness_resume_skips_completed_cases`; it covered only terminal cached success behavior. No policy/rerun-status equivalent existed. |
+-| equivalent policy capability | No existing resume-policy or rerun-status capability was found, so this pass adds the minimum harness-local implementation. |
+-| why unstable statuses rerun | `error`, `timeout`, `interrupted`, `partial`, and `blocked` represent transient or incomplete harness/tool states; treating them as completed under default resume can create false stability. |
+-| all-existing compatibility | `--resume-policy all-existing` preserves the old behavior: any existing case result is skipped unless its status is explicitly listed in `rerun_statuses`. |
+-| rerun priority | `rerun_statuses` wins before policy evaluation, including over `all-existing`; `--rerun-error` appends `error`. |
+-| implementation file scope | The implementation changed only `reverse_agent/harness.py`; focused coverage was added in `tests/test_harness_resume.py`. |
+-| reverse runtime / protocol risk | No runtime sidecar/probe, `compare_aware_search.py`, `olly_scripts`, project_state schema, decision schema, or report schema was modified. |
++| HarnessCaseResult serialization | `run_harness()` writes `case_results/<case>.json` via `asdict(case_result)`, so an additive dataclass field serializes directly. |
++| SolveResult.tool_artifacts structure | `SolveResult.tool_artifacts` is `list[ToolRunArtifact]` and is already populated by pipeline tool automation and profile strategies. |
++| ToolRunArtifact.output_path stability | `ToolRunArtifact` has `output_path`, `tool_name`, `owner_profile`, and `strategy_name`; artifacts with empty `output_path` are skipped. |
++| current artifact_index derivation | `build_artifact_index()` scans `solve_reports`, latest harness run summaries, case results, and `reports/tool_artifacts`, then classifies paths into `latest_artifacts` and `latest_artifacts_v2`. |
++| artifact kind helper | `project_state._classify_artifact()` remains the project_state classifier; harness uses a small local filename fallback to avoid importing project_state into harness. |
++| old case_result compatibility | `artifact_manifest` has `default_factory=list`, so old JSON loaded through `HarnessCaseResult(**data)` remains valid. |
++| missing/invalid artifacts | Missing paths produce `size_bytes=None` and `sha256=None`; invalid JSON keeps `classification=""`; neither condition fails the case. |
++| manifest versus legacy scan priority | `project_state` applies case `artifact_manifest` after legacy scan, so valid case-level provenance wins for the same kind while no-manifest runs keep old behavior. |
++| schema documentation | No protocol schema change was needed; this is an additive case result JSON field only. |
++| implementation scope | Code changes are limited to `harness.py`, `project_state.py`, and focused tests plus this report/result file. |
++| reverse runtime risk | No runtime probe, reverse strategy, Olly script, beam/budget, or full solve_reports submission was touched. |
++| Phase 2A archive limitation | The archived diff visibility concern is not required for Phase 2B. It remains a later Phase 2D lint/archive audit item. |
+ 
+ ## Implementation
+ 
+-- Added centralized resume constants and helpers in `reverse_agent/harness.py`: terminal statuses, non-terminal statuses, `_case_result_status()`, and `_should_resume_case()`.
+-- Extended `HarnessConfig` with `resume_policy` defaulting to `terminal-only` and `rerun_statuses`.
+-- Changed resume behavior so default `terminal-only` skips only known terminal statuses; missing, malformed, or unknown statuses rerun.
+-- Added `--resume-policy {terminal-only,all-existing}`, repeatable `--rerun-status`, and `--rerun-error`.
+-- Kept new resume policy fields out of the existing `config_digest` payload so old same-run resumes do not fail simply because Phase 2A introduced new CLI/default fields.
+-- Added focused harness resume tests for terminal skip, default error rerun, legacy all-existing skip, rerun-status override, CLI `--rerun-error`, and unknown/missing status rerun.
++- Added `HarnessCaseResult.artifact_manifest` as an additive JSON-facing list field.
++- Added harness helpers to derive lightweight manifest entries from `SolveResult.tool_artifacts`, including kind, path, size, hash, classification, tool name, owner profile, and strategy name.
++- Added project_state manifest ingestion from latest harness `case_results/*.json`; manifest entries override scanned paths for the same artifact kind and preserve missing/current/stale freshness semantics.
++- Added focused tests for manifest serialization, metadata extraction, missing/invalid artifact tolerance, old case result compatibility, project_state manifest preference, legacy fallback, and missing manifest path freshness.
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+-| `python -m py_compile reverse_agent\harness.py` | passed |
+-| `python -m pytest -q tests\test_harness.py` | `5 passed in 0.33s` |
+-| `python -m pytest -q tests\test_harness_resume.py` | `6 passed in 0.43s` |
+-| `python -m pytest -q` | `360 passed in 52.73s` |
+-| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; current decision is `decision_phase2a_harness_resume_policy_20260520`, previous report is Phase 1F, and `decision_ready_for_execution: True` |
++| `python -m py_compile reverse_agent\harness.py reverse_agent\project_state.py` | passed |
++| `python -m pytest -q tests\test_harness_artifact_manifest.py` | `3 passed in 0.28s` |
++| `python -m pytest -q tests\test_harness.py` | `5 passed in 0.32s` |
++| `python -m pytest -q tests\test_harness_resume.py` | `6 passed in 0.40s` |
++| `python -m pytest -q tests\test_project_state.py` | `104 passed in 17.27s` |
++| `python -m pytest -q` | `366 passed in 49.50s` |
++| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; decision is Phase 2B and previous report is Phase 2A |
+ | pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
+-| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | failed as expected because the active report still referenced Phase 1F |
++| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | failed as expected because the active report still referenced Phase 2A |
+ | pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `READY_FOR_CODEX`, tolerating the old report mismatch |
++| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed |
++| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `REVIEW_COMPLETE` |
++| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2b_case_artifact_manifest` | passed |
+ 
+ ## State Notes
+ 
+ - The active sample state still points at `sr_lhs_thread_follow_timing_20260520_r4`; this pass intentionally did not rebuild sample artifacts or advance the runtime mainline.
+-- Final report binding is now `report_phase2a_harness_resume_policy_20260520` -> `decision_phase2a_harness_resume_policy_20260520`.
+-- After this report is written, final `lint-report`, `lint-handoff`, and `archive-round` should complete the Phase 2A handoff.
++- New case results will carry `artifact_manifest`; old case results without the field still load and index through legacy scanning.
++- Missing manifest paths are represented as missing evidence and are not treated as current artifacts.
+ 
+ ## Next Suggested Task
+ 
+-Have GPT audit this Phase 2A report and the resulting archive. Do not start Phase 2B/2C/2D or samplereverse runtime work until a fresh decision packet explicitly authorizes it.
++Have GPT audit this Phase 2B report and archive. Do not start Phase 2C/2D or samplereverse runtime work until a fresh decision packet explicitly authorizes it.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index c6de31d..49ba784 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,27 +1,33 @@
+-2026-05-20 Phase 2A harness resume policy verification
++2026-05-20 Phase 2B case artifact manifest verification
+ 
+ Scope:
+-- Execute only the approved harness resume policy decision.
++- Execute only the approved Phase 2B case artifact manifest decision.
+ - Do not run reverse runtime probes.
+-- Do not modify reverse strategy, olly_scripts, or project_state schema/protocol.
++- Do not modify reverse strategies, olly_scripts, or GPT/Codex handoff protocol.
+ 
+-python -m py_compile reverse_agent\harness.py -> passed
++python -m py_compile reverse_agent\harness.py reverse_agent\project_state.py -> passed
++
++python -m pytest -q tests\test_harness_artifact_manifest.py -> passed
++...                                                                      [100%]
++3 passed in 0.28s
++
++python -m pytest -q tests\test_project_state.py -k "artifact_index_uses_case_artifact_manifest or artifact_index_falls_back_to_legacy_scan or artifact_index_manifest_missing_path" -> passed
++...                                                                      [100%]
++3 passed, 101 deselected in 0.46s
+ 
+ python -m pytest -q tests\test_harness.py -> passed
+ .....                                                                    [100%]
+-5 passed in 0.33s
++5 passed in 0.32s
+ 
+ python -m pytest -q tests\test_harness_resume.py -> passed
+ ......                                                                   [100%]
+-6 passed in 0.43s
++6 passed in 0.40s
++
++python -m pytest -q tests\test_project_state.py -> passed
++104 passed in 17.27s
+ 
+ python -m pytest -q -> passed
+-........................................................................ [ 20%]
+-........................................................................ [ 40%]
+-........................................................................ [ 60%]
+-........................................................................ [ 80%]
+-........................................................................ [100%]
+-360 passed in 52.73s
++366 passed in 49.50s
+ 
+ Pre-report python -m reverse_agent.project_state status --state-dir project_state -> passed
+ state_dir: project_state
+@@ -37,73 +43,50 @@ task_source: derived_from_sample_artifacts
+ derived_task: Improve compare lhs last-writer instrumentation
+ active_decision_packet: project_state/decision_packet.md
+ execution_scope: decision_packet_controls_current_round
+-expected_gpt_output: project_state/decision_packet.md
+ decision_status: APPROVED
+-decision_id: decision_phase2a_harness_resume_policy_20260520
+-decision_based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-decision_parse_error: None
+-report_status: SUCCESS
+-report_acceptance_recommendation: ACCEPTED
+-report_id: report_phase1f_lint_handoff_aggregate_20260520
+-report_based_on_decision_id: decision_phase1f_lint_handoff_aggregate_20260520
+-report_parse_error: None
++decision_id: decision_phase2b_case_artifact_manifest_20260520
++report_id: report_phase2a_harness_resume_policy_20260520
++report_based_on_decision_id: decision_phase2a_harness_resume_policy_20260520
+ decision_report_id_match: False
+-decision_state_digest_match: True
+-decision_consumed_by_report: False
+ decision_execution_state: READY_FOR_EXECUTION
+ decision_ready_for_execution: True
+ 
+ Pre-report python -m reverse_agent.project_state lint-decision --state-dir project_state -> passed
+ lint-decision: OK
+-decision_id: decision_phase2a_harness_resume_policy_20260520
++decision_id: decision_phase2b_case_artifact_manifest_20260520
+ decision_status: APPROVED
+ based_on_state_build_id: state_20260520_052928_8a77e6637c6c
+ based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+ current_state_build_id: state_20260520_052928_8a77e6637c6c
+ current_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-execution_scope: decision_packet_controls_current_round
+-active_decision_packet: project_state/decision_packet.md
+ 
+ Pre-report python -m reverse_agent.project_state lint-report --state-dir project_state -> expected failure
+ lint-report: FAILED
+ error: based_on_decision_id does not match current decision_id
+-warning: report round_id does not match current_state.round_id
+-report_id: report_phase1f_lint_handoff_aggregate_20260520
+-report_status: SUCCESS
+-acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase1f_lint_handoff_aggregate_20260520
+-decision_id: decision_phase2a_harness_resume_policy_20260520
++report_id: report_phase2a_harness_resume_policy_20260520
++based_on_decision_id: decision_phase2a_harness_resume_policy_20260520
++decision_id: decision_phase2b_case_artifact_manifest_20260520
+ decision_report_id_match: False
+-round_id: round_20260520_phase1f_lint_handoff
+-current_state_round_id: round_20260520_052928
+-tests_ran_count: 8
+-generated_artifacts_count: 10
+-pytest_result_present: True
+ 
+ Pre-report python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed
+ lint-handoff: OK
+ warning: previous report ignored for READY_FOR_CODEX: based_on_decision_id does not match current decision_id
+-warning: report round_id does not match current_state.round_id
+ handoff_state: READY_FOR_CODEX
+ decision_execution_state: READY_FOR_EXECUTION
+ decision_ready_for_execution: True
+ decision_report_id_match: False
+-lint_decision_ok: True
+-lint_report_ok: False
+ 
+ Final python -m reverse_agent.project_state lint-report --state-dir project_state -> passed before archive
+ lint-report: OK
+ warning: report round_id does not match current_state.round_id
+ warning: round_manifest missing
+-report_id: report_phase2a_harness_resume_policy_20260520
++report_id: report_phase2b_case_artifact_manifest_20260520
+ report_status: SUCCESS
+ acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase2a_harness_resume_policy_20260520
+-decision_id: decision_phase2a_harness_resume_policy_20260520
++based_on_decision_id: decision_phase2b_case_artifact_manifest_20260520
++decision_id: decision_phase2b_case_artifact_manifest_20260520
+ decision_report_id_match: True
+-round_id: round_20260520_phase2a_harness_resume_policy
+-current_state_round_id: round_20260520_052928
+-tests_ran_count: 9
++tests_ran_count: 11
+ generated_artifacts_count: 10
+ pytest_result_present: True
+ 
+@@ -115,33 +98,24 @@ handoff_state: REVIEW_COMPLETE
+ decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+ decision_ready_for_execution: False
+ decision_report_id_match: True
+-lint_decision_ok: True
+-lint_report_ok: True
+ 
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2a_harness_resume_policy -> passed
+-No stdout; verified project_state\rounds\round_20260520_phase2a_harness_resume_policy\round_manifest.json exists.
++python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2b_case_artifact_manifest -> passed
++Note: after appending final lint/archive notes, a direct re-archive correctly refused to overwrite the earlier manifest because file hashes differed. The generated Phase 2B archive directory was removed and archive-round was rerun successfully with the updated report/result files.
+ 
+-Final post-archive python -m reverse_agent.project_state lint-report --state-dir project_state -> passed
++Post-archive python -m reverse_agent.project_state lint-report --state-dir project_state -> passed
+ lint-report: OK
+ warning: report round_id does not match current_state.round_id
+-report_id: report_phase2a_harness_resume_policy_20260520
++report_id: report_phase2b_case_artifact_manifest_20260520
+ report_status: SUCCESS
+ acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase2a_harness_resume_policy_20260520
+-decision_id: decision_phase2a_harness_resume_policy_20260520
++based_on_decision_id: decision_phase2b_case_artifact_manifest_20260520
++decision_id: decision_phase2b_case_artifact_manifest_20260520
+ decision_report_id_match: True
+-round_id: round_20260520_phase2a_harness_resume_policy
+-current_state_round_id: round_20260520_052928
+-tests_ran_count: 9
+-generated_artifacts_count: 10
+-pytest_result_present: True
+ 
+-Final post-archive python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed
++Post-archive python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed
+ lint-handoff: OK
+ warning: report round_id does not match current_state.round_id
+ handoff_state: REVIEW_COMPLETE
+ decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+ decision_ready_for_execution: False
+ decision_report_id_match: True
+-lint_decision_ok: True
+-lint_report_ok: True
+diff --git a/reverse_agent/harness.py b/reverse_agent/harness.py
+index 84ec00e..eae212e 100644
+--- a/reverse_agent/harness.py
++++ b/reverse_agent/harness.py
+@@ -94,6 +94,7 @@ class HarnessCaseResult:
+     category: str = ""
+     tags: list[str] = field(default_factory=list)
+     notes: str = ""
++    artifact_manifest: list[dict[str, object]] = field(default_factory=list)
+     error: str = ""
+     traceback_text: str = ""
+     cached: bool = False
+@@ -476,9 +477,76 @@ def _case_result_from_solve_result(
+         category=case.category,
+         tags=case.tags[:],
+         notes=case.notes,
++        artifact_manifest=_build_case_artifact_manifest(solve_result.tool_artifacts),
+     )
+ 
+ 
++def _path_for_artifact_manifest(path: Path) -> str:
++    try:
++        return str(path.resolve().relative_to(Path.cwd().resolve()))
++    except ValueError:
++        return str(path)
++
++
++def _artifact_kind_from_path(path: Path, tool_name: str = "") -> str:
++    lower_name = path.name.lower()
++    if lower_name.endswith("_compare_probe.json"):
++        return "compare_probe"
++    if lower_name.endswith("_compare_probe.log"):
++        return "compare_probe_log"
++    if path.suffix.lower() in {".json", ".log", ".txt"}:
++        return path.stem
++    return tool_name or path.stem
++
++
++def _json_top_level_fields(path: Path) -> dict[str, object]:
++    if path.suffix.lower() != ".json":
++        return {}
++    try:
++        data = json.loads(path.read_text(encoding="utf-8"))
++    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
++        return {}
++    return data if isinstance(data, dict) else {}
++
++
++def _build_case_artifact_manifest(tool_artifacts: list[object]) -> list[dict[str, object]]:
++    manifest: list[dict[str, object]] = []
++    for artifact in tool_artifacts:
++        output_path = str(getattr(artifact, "output_path", "") or "").strip()
++        if not output_path:
++            continue
++
++        path = Path(output_path)
++        json_fields = _json_top_level_fields(path) if path.exists() else {}
++        kind = str(json_fields.get("kind") or "").strip()
++        if not kind:
++            kind = _artifact_kind_from_path(path, str(getattr(artifact, "tool_name", "") or ""))
++
++        size_bytes: int | None = None
++        sha256: str | None = None
++        if path.exists() and path.is_file():
++            try:
++                size_bytes = path.stat().st_size
++                sha256 = hashlib.sha256(path.read_bytes()).hexdigest()
++            except OSError:
++                size_bytes = None
++                sha256 = None
++
++        manifest.append(
++            {
++                "kind": kind,
++                "path": _path_for_artifact_manifest(path),
++                "size_bytes": size_bytes,
++                "sha256": sha256,
++                "classification": str(json_fields.get("classification") or ""),
++                "tool_name": str(getattr(artifact, "tool_name", "") or ""),
++                "owner_profile": str(getattr(artifact, "owner_profile", "") or ""),
++                "strategy_name": str(getattr(artifact, "strategy_name", "") or ""),
++            }
++        )
++    return manifest
++
++
+ def _build_manifest(
+     config: HarnessConfig,
+     run_name: str,
+diff --git a/reverse_agent/project_state.py b/reverse_agent/project_state.py
+index c41868f..2d1860c 100644
+--- a/reverse_agent/project_state.py
++++ b/reverse_agent/project_state.py
+@@ -879,6 +879,64 @@ def _scan_artifact_files(
+     return candidates
+ 
+ 
++def _iter_case_artifact_manifest_entries(case_result_paths: list[Path], sample: str) -> list[dict[str, Any]]:
++    entries: list[dict[str, Any]] = []
++    for case_result_path in case_result_paths:
++        data = _read_json(case_result_path)
++        manifest = data.get("artifact_manifest")
++        if not isinstance(manifest, list):
++            continue
++        for raw_entry in manifest:
++            if not isinstance(raw_entry, dict):
++                continue
++            raw_path = str(raw_entry.get("path") or "").strip()
++            if not raw_path:
++                continue
++            path = _path_from_json(raw_path)
++            kind = str(raw_entry.get("kind") or "").strip() or (_classify_artifact(path, sample) or "")
++            if not kind:
++                continue
++            entry = dict(raw_entry)
++            entry["kind"] = kind
++            entry["path"] = path
++            entries.append(entry)
++    return entries
++
++
++def _apply_case_artifact_manifest(
++    *,
++    latest_artifact_paths: dict[str, Path],
++    recent_artifacts: list[dict[str, Any]],
++    case_result_paths: list[Path],
++    reports_dir: Path,
++    latest_run: Path | None,
++    sample: str,
++) -> None:
++    for entry in _iter_case_artifact_manifest_entries(case_result_paths, sample):
++        kind = str(entry["kind"])
++        path = entry["path"]
++        if not isinstance(path, Path):
++            continue
++        latest_artifact_paths[kind] = path
++        recent_artifacts.append(
++            {
++                "kind": kind,
++                "path": _path_for_json(path),
++                "size_bytes": path.stat().st_size if path.exists() else None,
++                "modified_at": (
++                    datetime.fromtimestamp(_safe_mtime(path), tz=timezone.utc)
++                    .replace(microsecond=0)
++                    .isoformat()
++                    .replace("+00:00", "Z")
++                    if path.exists()
++                    else None
++                ),
++                "source": "case_result.artifact_manifest",
++                "freshness": _artifact_freshness(path, reports_dir=reports_dir, latest_run=latest_run),
++            }
++        )
++
++
+ def _resolve_latest_run(reports_dir: Path, run_name: str = "") -> Path | None:
+     harness_root = reports_dir / "harness_runs"
+     if not harness_root.exists():
+@@ -1030,6 +1088,14 @@ def build_artifact_index(
+                 .replace("+00:00", "Z"),
+             }
+         )
++    _apply_case_artifact_manifest(
++        latest_artifact_paths=latest_artifact_paths,
++        recent_artifacts=recent_artifacts,
++        case_result_paths=latest_case_results,
++        reports_dir=reports_dir,
++        latest_run=latest_run,
++        sample=sample,
++    )
+ 
+     latest_artifacts: dict[str, str | None] = {key: None for key in LATEST_ARTIFACT_KEYS}
+     latest_artifacts.update(
+diff --git a/tests/test_project_state.py b/tests/test_project_state.py
+index d483f3c..391a50e 100644
+--- a/tests/test_project_state.py
++++ b/tests/test_project_state.py
+@@ -1673,6 +1673,105 @@ def test_artifact_index_v2_marks_explicit_run_name_as_current(tmp_path: Path) ->
+     )
+ 
+ 
++def test_artifact_index_uses_case_artifact_manifest_when_present(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    run_dir = _make_minimal_harness_run(reports_dir, run_name="manifest_run")
++    manifest_artifact = run_dir / "reports" / "tool_artifacts" / "samplereverse" / "manifest_only.json"
++    _write_json(
++        manifest_artifact,
++        {
++            "classification": "compare_lhs_runtime_backed_writer_missing",
++        },
++    )
++    _write_json(
++        run_dir / "case_results" / "samplereverse.json",
++        {
++            "case_id": "samplereverse",
++            "status": "completed_no_expected",
++            "artifact_manifest": [
++                {
++                    "kind": "compare_real_lhs_provenance_audit",
++                    "path": str(manifest_artifact),
++                    "size_bytes": manifest_artifact.stat().st_size,
++                    "sha256": _sha256_file(manifest_artifact),
++                    "classification": "compare_lhs_runtime_backed_writer_missing",
++                    "tool_name": "CompareRealLhsAudit",
++                    "owner_profile": "samplereverse",
++                    "strategy_name": "CompareAwareSearchStrategy",
++                }
++            ],
++        },
++    )
++
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    artifact_index = _read_json(state_dir / "artifact_index.json")
++    legacy_path = artifact_index["latest_artifacts"]["compare_real_lhs_provenance_audit"]
++    manifest_entry = artifact_index["latest_artifacts_v2"]["compare_real_lhs_provenance_audit"]
++    assert legacy_path == str(manifest_artifact)
++    assert manifest_entry["path"] == str(manifest_artifact)
++    assert manifest_entry["freshness"] == "current"
++    assert manifest_entry["source_run"] == "manifest_run"
++    assert manifest_entry["sha256"] == _sha256_file(manifest_artifact)
++
++
++def test_artifact_index_falls_back_to_legacy_scan_without_case_artifact_manifest(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    run_dir = _make_minimal_harness_run(reports_dir, run_name="legacy_scan_run")
++
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    artifact_index = _read_json(state_dir / "artifact_index.json")
++    frontier = artifact_index["latest_artifacts_v2"]["frontier_summary"]
++    assert frontier["path"] == str(
++        run_dir
++        / "reports"
++        / "tool_artifacts"
++        / "samplereverse"
++        / "samplereverse_compare_aware_frontier_summary.json"
++    )
++    assert frontier["freshness"] == "current"
++
++
++def test_artifact_index_manifest_missing_path_marked_missing(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    run_dir = _make_minimal_harness_run(reports_dir, run_name="missing_manifest_run")
++    missing_artifact = run_dir / "reports" / "tool_artifacts" / "samplereverse" / "missing_compare_probe.json"
++    _write_json(
++        run_dir / "case_results" / "samplereverse.json",
++        {
++            "case_id": "samplereverse",
++            "status": "completed_no_expected",
++            "artifact_manifest": [
++                {
++                    "kind": "compare_probe",
++                    "path": str(missing_artifact),
++                    "size_bytes": None,
++                    "sha256": None,
++                    "classification": "",
++                    "tool_name": "CompareProbe",
++                    "owner_profile": "samplereverse",
++                    "strategy_name": "CompareAwareSearchStrategy",
++                }
++            ],
++        },
++    )
++
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    artifact_index = _read_json(state_dir / "artifact_index.json")
++    compare_probe = artifact_index["latest_artifacts_v2"]["compare_probe"]
++    assert artifact_index["latest_artifacts"]["compare_probe"] == str(missing_artifact)
++    assert compare_probe["path"] == str(missing_artifact)
++    assert compare_probe["freshness"] == "missing"
++    assert compare_probe["source_run"] == ""
++    assert compare_probe["size_bytes"] is None
++    assert compare_probe["sha256"] is None
++
++
+ def test_current_state_negative_results_model_gate_and_task_packet_are_generated(tmp_path: Path) -> None:
+     reports_dir = tmp_path / "solve_reports"
+     state_dir = tmp_path / "project_state"
