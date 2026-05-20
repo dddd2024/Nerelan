@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_phase1f_lint_handoff_aggregate_20260520",
-  "round_id": "round_20260520_052928",
+  "decision_id": "decision_phase2a_harness_resume_policy_20260520",
+  "round_id": "round_20260520_phase2a_harness_resume_policy",
   "based_on_state_build_id": "state_20260520_052928_8a77e6637c6c",
   "based_on_state_digest": "8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d",
   "status": "APPROVED"
@@ -11,50 +11,65 @@
 
 # DECISION_PACKET
 
-本轮进入 Phase 1F：实现轻量 `lint-handoff` 聚合门禁，并修正 decision consumed / ready 语义。
+本轮进入 Phase 2A：增强 harness resume 语义。
 
-本轮仍属于工程架构改造支线，不推进 `samplereverse` 逆向主线，不运行 runtime probe，不进入 Phase 2，不引入重型 workflow runtime。
+本轮属于工程架构改造支线中的 harness 可复现 / 可恢复 / 可比较方向。不要推进 `samplereverse` 逆向解题，不运行 runtime probe，不修改 GPT/Codex 协作协议，不进入 artifact manifest / harness compare / resource budget 的后续 Phase 2 子任务。
 
 ## 1. Goal
 
-Phase 1D 已有 `lint-decision`，Phase 1E 已有 `lint-report`。现在需要一个轻量聚合命令，帮助 GPT/Codex 在每轮开始或审计前快速判断当前 handoff 状态。
-
-新增命令：
-
-```text
-python -m reverse_agent.project_state lint-handoff --state-dir project_state
-```
+当前 harness resume 语义过粗：同一 `run_name` 下只要 `case_results/<case>.json` 存在就跳过。这个行为对稳定终态结果合理，但对 `error`、`timeout`、`interrupted`、`partial`、`blocked` 等非终态结果不可靠。
 
 本轮目标：
 
 ```text
-1. 修正 decision_execution_state 的优先级：
-   - 如果当前 decision 已有 matching report，则应优先视为 consumed。
-   - 不应同时表现为“已经被 report 消费”又“可继续执行”。
-2. 新增 decision_ready_for_execution 字段：
-   - 只有 APPROVED + state_digest match + 未被 matching report 消费时才为 true。
-3. 新增 lint_handoff(state_dir)：
-   - 聚合 status_summary / lint_decision / lint_report。
-   - 输出当前 handoff_state。
-   - 返回 0/1。
-4. lint-handoff 不替代 GPT 审计，只做结构化 handoff 健康检查。
-5. 不实现完整 workflow engine，不实现 CI，不自动修改 decision/report。
+1. 将 harness resume 默认策略改为 terminal-only：
+   - 只默认跳过明确终态 case result。
+   - 非终态、临时错误、中断、超时结果默认允许重跑。
+2. 保留旧行为 all-existing：
+   - 用户显式传入 --resume-policy all-existing 时，继续“只要已有 case result 就跳过”。
+3. 增加按 status 强制重跑能力：
+   - --rerun-status <status> 可重复传入。
+   - --rerun-error 作为 --rerun-status error 的便捷语法糖。
+4. 明确 status 判定函数，避免散落字符串判断。
+5. 增加 harness resume 单元测试，证明 terminal / non-terminal / legacy policy 行为。
+6. 不改 project_state 协作协议，不改 reverse strategy，不运行 runtime probe。
 ```
 
-建议 handoff_state 最小集合：
+建议状态分类：
 
 ```text
-READY_FOR_CODEX
-REVIEW_COMPLETE
-REPORT_NEEDS_REVIEW
-STALE_OR_MISMATCH
-TEMPLATE_OR_UNKNOWN
-FAILED
+默认跳过的 terminal statuses:
+- passed
+- failed_expected
+- completed_no_expected
+- not_found
+
+默认不跳过、应允许重跑的 non-terminal / unstable statuses:
+- error
+- timeout
+- interrupted
+- partial
+- blocked
+```
+
+建议 CLI：
+
+```powershell
+python -m reverse_agent.harness run ... --resume --resume-policy terminal-only
+python -m reverse_agent.harness run ... --resume --resume-policy all-existing
+python -m reverse_agent.harness run ... --resume --rerun-error
+python -m reverse_agent.harness run ... --resume --rerun-status error --rerun-status timeout
+```
+
+默认规则建议：
+
+```text
+如果 --resume 启用但未显式指定 --resume-policy，则使用 terminal-only。
 ```
 
 ## 2. Current Evidence
 
-当前任务主线：工程架构改造支线。
+当前任务主线：工程架构改造支线，具体为 Phase 2A harness resume 可靠性。
 
 当前 live state：
 
@@ -75,38 +90,39 @@ execution_scope = decision_packet_controls_current_round
 active_decision_packet = project_state/decision_packet.md
 ```
 
-这说明 `task_packet.task` 不是本轮 Codex 的执行任务；本轮执行权威仍来自 `project_state/decision_packet.md`。
+这说明 `task_packet.task` 不是本轮 Codex 的执行任务；本轮执行权威来自 `project_state/decision_packet.md`。
 
-Phase 1E 已完成：
-
-```text
-新增 python -m reverse_agent.project_state lint-report。
-codex_report_summary.based_on_decision_id 匹配 Phase 1E decision。
-tests/test_project_state.py 92 passed。
-全量 pytest 345 passed。
-lint-report 最终 OK。
-round_20260520_phase1e_lint_report 已归档。
-```
-
-当前状态中仍有一个语义问题：
+Phase 1F 已完成：
 
 ```text
-decision_consumed_by_report: True
-decision_execution_state: READY_FOR_EXECUTION
+decision_id = decision_phase1f_lint_handoff_aggregate_20260520
+report_id = report_phase1f_lint_handoff_aggregate_20260520
+report_status = SUCCESS
+acceptance_recommendation = ACCEPTED
+tests/test_project_state.py = 101 passed
+full pytest = 354 passed
+final lint-handoff = REVIEW_COMPLETE
+decision_execution_state = CONSUMED_BY_SUCCESS_REPORT
+decision_ready_for_execution = False
 ```
-
-这容易误导后续 Codex 重复执行已经有 SUCCESS report 的 decision。下一轮应把“可执行”和“已消费”明确区分。
 
 artifact freshness 现状：
 
 ```text
 latest_artifacts_v2 已存在。
-compare_probe / compare_probe_log / compare_real_lhs_provenance_audit 等当前 run artifact 标记为 current。
-frontier_summary / base64_rc4_static_point_discovery 等 legacy tool_artifacts 标记为 stale。
+compare_probe / compare_probe_log / compare_real_lhs_provenance_audit / summary / run_manifest 等当前 run artifact 标记为 current。
+frontier_summary / function_semantic_audit / base64_rc4_static_point_discovery 等 legacy tool_artifacts 标记为 stale。
 多个未生成 artifact 标记为 missing。
 ```
 
-这些 artifact 只用于说明状态，不是本轮要消费的逆向证据。
+这些 artifact 只用于说明状态，不是本轮要消费的逆向证据。本轮不要重新扫描完整 `solve_reports/`。
+
+为什么本轮适合做 resume：
+
+```text
+reverse-agent 的动态调试、Olly、Frida、UIA、Windows GUI 工具链容易出现临时 error/timeout/interrupted。
+如果这些非终态结果被 --resume 永久缓存，就会造成假稳定，后续 run 会误以为该 case 已经完成。
+```
 
 ## 3. Do Not Do
 
@@ -118,19 +134,22 @@ frontier_summary / base64_rc4_static_point_discovery 等 legacy tool_artifacts �
 不要运行任何逆向 runtime sidecar。
 不要修改 reverse_agent/strategies/compare_aware_search.py。
 不要修改 reverse_agent/olly_scripts/*。
-不要修改 reverse_agent/harness.py 主流程。
 不要扩大 beam、topN、budget、timeout、frontier iteration。
 不要回旧 sample_solver。
 不要提交完整 solve_reports。
 不要默认读取完整 PROJECT_PROGRESS_LOG.txt。
-不要自动修改 decision_packet.md。
-不要自动修改 codex_execution_report.md。
-不要降低 lint-decision 默认严格性。
-不要降低 lint-report 默认结构检查。
-不要实现完整 workflow engine、policy engine 或 CI workflow。
+不要默认读取完整 solve_reports。
+不要修改 project_state 协作协议。
+不要修改 decision_meta / codex_report_summary schema。
+不要修改 lint-decision / lint-report / lint-handoff 语义。
+不要实现 start-round / close-round / lint-round。
+不要实现 case_result artifact_manifest。
+不要实现 harness compare。
+不要实现 resource_budget。
+不要实现 queue / backpressure / worker pool。
 不要引入 Temporal / Airflow / Dagster / Argo / LangGraph。
 不要引入 PostgreSQL / Redis / Kubernetes。
-不要破坏旧 project_state 字段兼容性。
+不要为了本轮任务重构 harness 主流程。
 ```
 
 ## 4. Files To Inspect
@@ -138,41 +157,48 @@ frontier_summary / base64_rc4_static_point_discovery 等 legacy tool_artifacts �
 必须审计：
 
 ```text
-reverse_agent/project_state.py
-tests/test_project_state.py
+reverse_agent/harness.py
+tests/test_harness.py
 project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
-project_state/current_state.json
 project_state/task_packet.json
+project_state/current_state.json
 project_state/artifact_index.json
+project_state/negative_results.json
+```
+
+如果现有测试结构不适合承载新增 resume 测试，允许新增：
+
+```text
+tests/test_harness_resume.py
 ```
 
 必要时参考：
 
 ```text
-project_state/rounds/round_20260520_phase1e_lint_report/round_manifest.json
-project_state/rounds/round_20260520_phase1e_lint_report/git_diff.patch
-docs/phase1_project_state_stability_plan.md
+project_state/rounds/round_20260520_phase1f_lint_handoff/round_manifest.json
+project_state/rounds/round_20260520_phase1f_lint_handoff/git_diff.patch
 ```
 
 不要默认读取完整 `solve_reports/`。
 
 ## 5. Required Audit
 
-实现前必须在 `codex_execution_report.md` 中说明：
+实现前必须在 `project_state/codex_execution_report.md` 中说明：
 
 ```text
-1. 当前 lint-decision 的返回结构和失败条件。
-2. 当前 lint-report 的返回结构和 warning/error 条件。
-3. 当前 status_summary 中 decision_consumed_by_report 与 decision_execution_state 的关系。
-4. 为什么 matching SUCCESS report 应优先把 decision 视为 consumed。
-5. 当前 Phase 1E report 是否绑定当前 decision。
-6. 当前 round_id 与 current_state.round_id 的 mismatch warning 是否是结构问题还是已知归档策略问题。
-7. 如何实现 lint-handoff，而不让它变成完整 workflow engine。
-8. 如何保持 lint-decision / lint-report 独立可用。
-9. 本轮是否只需要改 project_state.py 与 tests。
-10. 是否存在误推进 reverse harness 的风险。
+1. 当前 reverse_agent/harness.py 的 --resume 行为在哪里实现。
+2. 当前 case_results/<case>.json 的 status 字段来源和可能取值。
+3. 当前跳过 case 的判定是否只检查文件存在。
+4. 当前 argparse / CLI 子命令结构中 run 命令如何接收 resume 参数。
+5. 当前 tests/test_harness.py 是否已有 resume 或 run_name 测试。
+6. 是否已有等价 resume-policy 能力；如果有，优先复用，不重复实现。
+7. 为什么 error/timeout/interrupted/partial/blocked 不应被 terminal-only 默认跳过。
+8. 如何保留 all-existing 旧行为，避免破坏需要旧语义的使用方式。
+9. --rerun-status 与 --resume-policy 的优先级。
+10. 本轮是否可以只改 harness.py 与 harness 测试。
+11. 是否存在误推进 reverse runtime 或修改 project_state 协作协议的风险。
 ```
 
 ## 6. Implementation Scope
@@ -180,181 +206,139 @@ docs/phase1_project_state_stability_plan.md
 允许修改：
 
 ```text
-reverse_agent/project_state.py
-tests/test_project_state.py
+reverse_agent/harness.py
+tests/test_harness.py
+tests/test_harness_resume.py
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
 
-允许重新生成：
+允许重新生成或更新：
 
 ```text
-project_state/artifact_index.json
-project_state/current_state.json
-project_state/negative_results.json
-project_state/model_gate.json
-project_state/task_packet.json
 project_state/rounds/<new_round_id>/*
 ```
 
-可选修改：
+不建议修改，但如果测试导入路径确有需要，可做最小兼容调整：
 
 ```text
-docs/phase1_project_state_stability_plan.md
+tests/conftest.py
 ```
 
 不要修改：
 
 ```text
+reverse_agent/project_state.py
+tests/test_project_state.py
 reverse_agent/strategies/compare_aware_search.py
 reverse_agent/olly_scripts/*
-reverse_agent/harness.py
+reverse_agent/harness.py 中与 runtime probe 执行无关的大块主流程
+project_state/schema.md
+project_state/task_packet.json
+project_state/current_state.json
+project_state/artifact_index.json
+project_state/negative_results.json
 ```
 
-### 6.1 修正 decision_execution_state 优先级
+### 6.1 resume status 分类
 
-调整 `_build_handoff_consistency()` 的判定顺序。
+建议在 `reverse_agent/harness.py` 中新增或集中定义：
+
+```python
+TERMINAL_CASE_STATUSES = {
+    "passed",
+    "failed_expected",
+    "completed_no_expected",
+    "not_found",
+}
+
+NON_TERMINAL_RERUN_CASE_STATUSES = {
+    "error",
+    "timeout",
+    "interrupted",
+    "partial",
+    "blocked",
+}
+```
+
+如果项目已有等价枚举或常量，优先复用现有结构，不重复建新体系。
+
+### 6.2 resume policy
+
+新增 CLI 参数：
+
+```text
+--resume-policy terminal-only
+--resume-policy all-existing
+```
 
 建议规则：
 
 ```text
-TEMPLATE_OR_UNKNOWN:
-  decision_status in TEMPLATE_ONLY/UNKNOWN 或 decision_id 为空。
-
-CONSUMED_BY_SUCCESS_REPORT:
-  decision_status=APPROVED，decision_report_id_match=True，report_status=SUCCESS。
-  不要求 digest stale；只要 matching SUCCESS report 已存在，就说明该 decision 已被成功 report 消费。
-
-CONSUMED_BY_NON_SUCCESS_REPORT:
-  decision_status=APPROVED，decision_report_id_match=True，report_status in PARTIAL/FAILED/BLOCKED。
-
-READY_FOR_EXECUTION:
-  decision_status=APPROVED，decision_state_digest_match=True，且 decision_report_id_match=False。
-
-STALE_WITHOUT_MATCHING_REPORT:
-  decision_status=APPROVED，decision_state_digest_match=False，且 decision_report_id_match=False。
+1. 只有 --resume 启用时，resume-policy 才生效。
+2. --resume-policy 默认值为 terminal-only。
+3. terminal-only:
+   - 已存在 result 且 status 属于 TERMINAL_CASE_STATUSES -> skip。
+   - 已存在 result 但 status 属于 NON_TERMINAL_RERUN_CASE_STATUSES -> rerun。
+   - 已存在 result 但 status 缺失、无法解析、未知 -> rerun，并记录 warning 或 debug 说明。
+4. all-existing:
+   - 已存在 result -> skip，保持旧行为。
+5. 如果未启用 --resume:
+   - 不因已有 result 跳过。
 ```
 
-新增字段：
+### 6.3 rerun status 覆盖规则
+
+新增 CLI 参数：
 
 ```text
-decision_ready_for_execution: bool
+--rerun-status <status>
+--rerun-error
 ```
 
-规则：
+建议优先级：
 
 ```text
-decision_ready_for_execution = decision_execution_state == READY_FOR_EXECUTION
+1. 如果 --rerun-error 出现，则等价于追加 --rerun-status error。
+2. 如果已有 result 的 status 命中 rerun_status 集合，则 rerun。
+3. rerun_status 优先级高于 --resume-policy all-existing。
+4. 如果 --resume 未启用，但传入 --rerun-status，可以接受但不需要特殊处理，因为未 resume 本来就会运行；可输出 warning，但不要失败。
 ```
 
-`status_summary()` 和 CLI `status` 都应输出该字段。
+### 6.4 跳过记录
 
-### 6.2 新增 lint-handoff
+如果当前 harness 已有 summary / run_manifest 记录 skipped cases，本轮应尽量保留并扩展 skip reason。
 
-建议新增函数：
+建议 skip reason：
 
 ```text
-lint_handoff(state_dir: Path) -> dict[str, Any]
+resume_terminal_result
+resume_all_existing
 ```
 
-返回结构建议：
+如果当前没有 skip reason 结构，不要为了本轮大改 summary schema。只要测试能证明行为即可。
 
-```json
-{
-  "ok": true,
-  "handoff_state": "REVIEW_COMPLETE",
-  "errors": [],
-  "warnings": [],
-  "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-  "decision_ready_for_execution": false,
-  "decision_report_id_match": true,
-  "lint_decision_ok": true,
-  "lint_report_ok": true,
-  "lint_decision_errors": [],
-  "lint_report_errors": [],
-  "lint_report_warnings": []
-}
-```
+### 6.5 兼容性
 
-最小判定建议：
+必须保持：
 
 ```text
-READY_FOR_CODEX:
-  decision_execution_state=READY_FOR_EXECUTION 且 lint-decision OK。
-  返回 0。
-
-REVIEW_COMPLETE:
-  decision_execution_state=CONSUMED_BY_SUCCESS_REPORT 且 lint-report OK。
-  返回 0。
-
-REPORT_NEEDS_REVIEW:
-  decision_execution_state=CONSUMED_BY_NON_SUCCESS_REPORT 且 lint-report 结构 OK。
-  返回 0，但输出 warning。
-
-STALE_OR_MISMATCH:
-  decision_execution_state=STALE_WITHOUT_MATCHING_REPORT。
-  返回 1。
-
-TEMPLATE_OR_UNKNOWN:
-  decision_execution_state=TEMPLATE_OR_UNKNOWN。
-  返回 1。
-
-FAILED:
-  lint-decision 或 lint-report 存在 hard errors，且不能被 consumed-report 语义解释。
-  返回 1。
+1. 未使用 --resume 的旧行为不变。
+2. 显式 --resume-policy all-existing 时，旧 resume 行为不变。
+3. terminal-only 是新的默认 resume 策略。
+4. 现有 harness smoke / manifest / dataset / summary 测试不回退。
 ```
 
-注意：
-
-```text
-lint-handoff 是聚合诊断，不自动批准代码。
-GPT 审计结论仍以 DECISION_PACKET / CODEX_EXECUTION_REPORT / pytest_result / diff 为准。
-```
-
-### 6.3 CLI 行为
-
-新增 subcommand：
-
-```powershell
-python -m reverse_agent.project_state lint-handoff --state-dir project_state
-```
-
-输出要求：
-
-```text
-lint-handoff: OK / FAILED
-handoff_state: ...
-decision_execution_state: ...
-decision_ready_for_execution: True/False
-decision_report_id_match: True/False
-lint_decision_ok: True/False
-lint_report_ok: True/False
-```
-
-如果有 warning/error，逐行输出：
-
-```text
-warning: ...
-error: ...
-```
-
-返回码：
-
-```text
-0 = handoff structurally OK
-1 = handoff failed or stale/mismatch
-```
-
-### 6.4 report 绑定要求
+### 6.6 report 绑定要求
 
 本轮完成后，`project_state/codex_execution_report.md` 顶部必须包含：
 
 ```json
 {
   "schema_version": 1,
-  "report_id": "report_phase1f_lint_handoff_aggregate_20260520",
-  "round_id": "<actual_round_id>",
-  "based_on_decision_id": "decision_phase1f_lint_handoff_aggregate_20260520",
+  "report_id": "report_phase2a_harness_resume_policy_20260520",
+  "round_id": "round_20260520_phase2a_harness_resume_policy",
+  "based_on_decision_id": "decision_phase2a_harness_resume_policy_20260520",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [],
@@ -367,44 +351,50 @@ error: ...
 
 ## 7. Tests
 
-必须新增或修改 `tests/test_project_state.py`，覆盖：
+必须新增或修改 harness 测试，覆盖：
 
 ```text
-test_status_summary_consumed_success_takes_priority_over_ready_when_report_matches
-test_status_summary_decision_ready_for_execution_requires_no_matching_report
-test_status_cli_prints_decision_ready_for_execution
-test_lint_handoff_ready_for_codex_when_decision_ready
-test_lint_handoff_review_complete_when_success_report_consumed
-test_lint_handoff_report_needs_review_for_non_success_report
-test_lint_handoff_fails_for_stale_without_matching_report
-test_lint_handoff_fails_for_template_or_unknown_decision
-test_lint_handoff_cli_returns_zero_on_review_complete
-test_lint_handoff_cli_returns_nonzero_on_stale_mismatch
+test_harness_resume_skips_terminal_result
+test_harness_resume_reruns_error_by_default_or_policy
+test_harness_resume_all_existing_keeps_old_behavior
+test_harness_resume_rerun_status_overrides_all_existing
+test_harness_resume_rerun_error_aliases_error_status
+test_harness_resume_unknown_or_missing_status_reruns_under_terminal_only
 ```
 
-保留并确保通过：
-
-```text
-lint-decision 现有测试。
-lint-report 现有测试。
-decision_execution_state 现有测试需要按新优先级更新。
-status/build/archive-round 原有行为不回退。
-```
-
-必须运行并记录输出：
+至少必须运行并记录：
 
 ```powershell
-python -m py_compile reverse_agent\project_state.py
-python -m pytest -q tests\test_project_state.py
+python -m py_compile reverse_agent\harness.py
+python -m pytest -q tests\test_harness.py
+python -m pytest -q tests\test_harness_resume.py
 python -m pytest -q
 python -m reverse_agent.project_state status --state-dir project_state
 python -m reverse_agent.project_state lint-decision --state-dir project_state
-python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state lint-handoff --state-dir project_state
-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1f_lint_handoff
 ```
 
-如果 `lint-handoff` 在最终 report 写入前失败或返回不同状态，必须在 `pytest_result.txt` 中标注为 expected pre-report state。最终 `pytest_result.txt` 必须记录最终 `lint-handoff` 结果。
+如果 `tests/test_harness_resume.py` 没有新增，则对应命令替换为：
+
+```powershell
+python -m pytest -q tests\test_harness.py
+```
+
+完成 report 写入后，还必须运行并记录：
+
+```powershell
+python -m reverse_agent.project_state lint-report --state-dir project_state
+python -m reverse_agent.project_state lint-handoff --state-dir project_state
+python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2a_harness_resume_policy
+```
+
+注意：
+
+```text
+在最终 report 写入前，lint-report 可能因为 report.based_on_decision_id 仍指向 Phase 1F 而失败。
+这属于 expected pre-report mismatch，必须在 pytest_result.txt 中标注。
+最终 report 写入后，lint-report / lint-handoff 必须恢复为 OK / REVIEW_COMPLETE。
+```
 
 ## 8. Stop Conditions
 
@@ -412,15 +402,17 @@ python -m reverse_agent.project_state archive-round --state-dir project_state --
 
 ```text
 1. 需要运行逆向 runtime probe。
-2. 需要修改 reverse strategy、harness 主流程或 olly_scripts。
-3. 需要自动修改 decision_packet.md 才能完成。
-4. 需要降低 lint-decision 或 lint-report 严格性才能完成。
-5. 需要实现完整 workflow engine、policy engine 或 CI。
-6. 需要读取完整 solve_reports。
-7. 无法区分 READY_FOR_EXECUTION 与 CONSUMED_BY_SUCCESS_REPORT。
-8. 无法保持旧 status/build/archive-round 测试通过。
-9. 无法让 report 绑定当前 decision_id。
-10. 无法让 pytest_result.txt 记录本轮真实测试。
+2. 需要修改 compare_aware_search、olly_scripts 或逆向策略。
+3. 需要修改 project_state 协作协议才能完成。
+4. 需要修改 decision_meta / codex_report_summary schema。
+5. 需要实现 artifact_manifest、harness compare 或 resource_budget 才能完成。
+6. 需要 queue/backpressure/worker pool 才能完成。
+7. 需要读取完整 solve_reports 才能完成。
+8. 无法识别 case_result status 字段或现有 result schema。
+9. 无法保留 --resume-policy all-existing 的旧行为。
+10. 无法让 terminal-only 成为默认 resume 策略且保持现有测试通过。
+11. 无法让 report.based_on_decision_id 绑定当前 decision_id。
+12. 无法让 pytest_result.txt 记录本轮真实测试。
 ```
 
 ## Acceptance Criteria
@@ -428,15 +420,16 @@ python -m reverse_agent.project_state archive-round --state-dir project_state --
 本轮可接受条件：
 
 ```text
-1. matching SUCCESS report 优先把 decision_execution_state 判为 CONSUMED_BY_SUCCESS_REPORT。
-2. 只有未被 matching report 消费的 APPROVED + digest match decision 才是 READY_FOR_EXECUTION。
-3. 新增 decision_ready_for_execution 字段。
-4. status_summary 和 CLI status 输出 decision_ready_for_execution。
-5. 新增 python -m reverse_agent.project_state lint-handoff。
-6. lint-handoff 能区分 READY_FOR_CODEX / REVIEW_COMPLETE / REPORT_NEEDS_REVIEW / STALE_OR_MISMATCH / TEMPLATE_OR_UNKNOWN / FAILED。
-7. lint-handoff 复用 lint_decision、lint_report、status_summary，不重复实现 Markdown parser。
-8. tests/test_project_state.py 覆盖成功、消费、stale、template、CLI 返回码。
-9. project_state/pytest_result.txt 记录真实测试和最终 lint-handoff 输出。
+1. --resume 默认策略为 terminal-only。
+2. terminal-only 会跳过 passed / failed_expected / completed_no_expected / not_found。
+3. terminal-only 不会默认跳过 error / timeout / interrupted / partial / blocked。
+4. --resume-policy all-existing 保留旧行为：已有 case result 即跳过。
+5. --rerun-status 可重复传入，并能覆盖 all-existing skip。
+6. --rerun-error 等价于 --rerun-status error。
+7. status 缺失、无法解析、未知时，terminal-only 不应静默当作完成。
+8. harness resume 行为有专门测试覆盖。
+9. 全量 pytest 通过，或如有环境相关跳过/失败，必须在 report 中解释。
 10. codex_execution_report.md 顶部 codex_report_summary.based_on_decision_id 指向本轮 decision_id。
-11. 不修改逆向策略、不运行 runtime probe、不进入 Phase 2。
+11. project_state/pytest_result.txt 记录真实测试和最终 lint-handoff 输出。
+12. 不修改 project_state 协作协议，不运行 runtime probe，不实现 Phase 2B/2C/2D。
 ```
