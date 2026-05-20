@@ -527,31 +527,27 @@ def _build_handoff_consistency(
     decision_consumed_by_report = decision_report_id_match and report_status in CONSUMED_REPORT_STATUSES
     if decision_status in {"TEMPLATE_ONLY", "UNKNOWN"} or not decision_id:
         decision_execution_state = "TEMPLATE_OR_UNKNOWN"
-    elif decision_status == "APPROVED" and decision_state_digest_match:
-        decision_execution_state = "READY_FOR_EXECUTION"
-    elif (
-        decision_status == "APPROVED"
-        and not decision_state_digest_match
-        and decision_report_id_match
-        and report_status == "SUCCESS"
-    ):
+    elif decision_status == "APPROVED" and decision_report_id_match and report_status == "SUCCESS":
         decision_execution_state = "CONSUMED_BY_SUCCESS_REPORT"
     elif (
         decision_status == "APPROVED"
-        and not decision_state_digest_match
         and decision_report_id_match
         and report_status in {"PARTIAL", "FAILED", "BLOCKED"}
     ):
         decision_execution_state = "CONSUMED_BY_NON_SUCCESS_REPORT"
+    elif decision_status == "APPROVED" and decision_state_digest_match and not decision_report_id_match:
+        decision_execution_state = "READY_FOR_EXECUTION"
     elif decision_status == "APPROVED" and not decision_state_digest_match and not decision_report_id_match:
         decision_execution_state = "STALE_WITHOUT_MATCHING_REPORT"
     else:
         decision_execution_state = "TEMPLATE_OR_UNKNOWN"
+    decision_ready_for_execution = decision_execution_state == "READY_FOR_EXECUTION"
     return {
         "decision_report_id_match": decision_report_id_match,
         "decision_state_digest_match": decision_state_digest_match,
         "decision_consumed_by_report": decision_consumed_by_report,
         "decision_execution_state": decision_execution_state,
+        "decision_ready_for_execution": decision_ready_for_execution,
         "decision_id": decision_id,
         "report_based_on_decision_id": report_based_on_decision_id,
         "decision_status": decision_status,
@@ -734,6 +730,68 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
         "tests_ran_count": _list_count(report.get("tests_ran")),
         "generated_artifacts_count": _list_count(report.get("generated_artifacts")),
         "pytest_result_present": pytest_result_present,
+    }
+
+
+def lint_handoff(state_dir: Path) -> dict[str, Any]:
+    handoff_status = build_handoff_status(state_dir)
+    consistency = handoff_status["handoff_consistency"]
+    decision_state = str(consistency.get("decision_execution_state") or "TEMPLATE_OR_UNKNOWN")
+    lint_decision_result = lint_decision(state_dir)
+    lint_report_result = lint_report(state_dir)
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if decision_state == "READY_FOR_EXECUTION":
+        handoff_state = "READY_FOR_CODEX" if lint_decision_result.get("ok") else "FAILED"
+        errors.extend(lint_decision_result.get("errors") or [])
+        warnings.extend(lint_decision_result.get("warnings") or [])
+        report_errors = lint_report_result.get("errors") or []
+        if report_errors:
+            warnings.extend(f"previous report ignored for READY_FOR_CODEX: {error}" for error in report_errors)
+        warnings.extend(lint_report_result.get("warnings") or [])
+    elif decision_state == "CONSUMED_BY_SUCCESS_REPORT":
+        handoff_state = "REVIEW_COMPLETE" if lint_report_result.get("ok") else "FAILED"
+        errors.extend(lint_report_result.get("errors") or [])
+        warnings.extend(lint_decision_result.get("warnings") or [])
+        warnings.extend(lint_report_result.get("warnings") or [])
+    elif decision_state == "CONSUMED_BY_NON_SUCCESS_REPORT":
+        handoff_state = "REPORT_NEEDS_REVIEW" if lint_report_result.get("ok") else "FAILED"
+        errors.extend(lint_report_result.get("errors") or [])
+        warnings.extend(lint_decision_result.get("warnings") or [])
+        warnings.extend(lint_report_result.get("warnings") or [])
+        if not errors:
+            warnings.append("matching report is non-success and needs review")
+    elif decision_state == "STALE_WITHOUT_MATCHING_REPORT":
+        handoff_state = "STALE_OR_MISMATCH"
+        errors.append("decision is stale and has no matching report")
+        warnings.extend(lint_decision_result.get("warnings") or [])
+        warnings.extend(lint_report_result.get("warnings") or [])
+    elif decision_state == "TEMPLATE_OR_UNKNOWN":
+        handoff_state = "TEMPLATE_OR_UNKNOWN"
+        errors.append("decision is template or unknown")
+        warnings.extend(lint_decision_result.get("warnings") or [])
+        warnings.extend(lint_report_result.get("warnings") or [])
+    else:
+        handoff_state = "FAILED"
+        errors.append(f"unknown decision_execution_state: {decision_state}")
+        warnings.extend(lint_decision_result.get("warnings") or [])
+        warnings.extend(lint_report_result.get("warnings") or [])
+
+    ok = handoff_state in {"READY_FOR_CODEX", "REVIEW_COMPLETE", "REPORT_NEEDS_REVIEW"} and not errors
+    return {
+        "ok": ok,
+        "handoff_state": handoff_state,
+        "errors": errors,
+        "warnings": warnings,
+        "decision_execution_state": decision_state,
+        "decision_ready_for_execution": consistency.get("decision_ready_for_execution"),
+        "decision_report_id_match": consistency.get("decision_report_id_match"),
+        "lint_decision_ok": lint_decision_result.get("ok"),
+        "lint_report_ok": lint_report_result.get("ok"),
+        "lint_decision_errors": lint_decision_result.get("errors") or [],
+        "lint_report_errors": lint_report_result.get("errors") or [],
+        "lint_report_warnings": lint_report_result.get("warnings") or [],
     }
 
 
@@ -3236,6 +3294,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "decision_state_digest_match": handoff_consistency.get("decision_state_digest_match"),
         "decision_consumed_by_report": handoff_consistency.get("decision_consumed_by_report"),
         "decision_execution_state": handoff_consistency.get("decision_execution_state"),
+        "decision_ready_for_execution": handoff_consistency.get("decision_ready_for_execution"),
     }
 
 
@@ -3267,6 +3326,7 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"decision_state_digest_match: {summary.get('decision_state_digest_match')}")
     print(f"decision_consumed_by_report: {summary.get('decision_consumed_by_report')}")
     print(f"decision_execution_state: {summary.get('decision_execution_state')}")
+    print(f"decision_ready_for_execution: {summary.get('decision_ready_for_execution')}")
 
 
 def _print_lint_decision(result: dict[str, Any]) -> None:
@@ -3304,6 +3364,20 @@ def _print_lint_report(result: dict[str, Any]) -> None:
     print(f"pytest_result_present: {result.get('pytest_result_present')}")
 
 
+def _print_lint_handoff(result: dict[str, Any]) -> None:
+    print("lint-handoff: OK" if result.get("ok") else "lint-handoff: FAILED")
+    for error in result.get("errors") or []:
+        print(f"error: {error}")
+    for warning in result.get("warnings") or []:
+        print(f"warning: {warning}")
+    print(f"handoff_state: {result.get('handoff_state')}")
+    print(f"decision_execution_state: {result.get('decision_execution_state')}")
+    print(f"decision_ready_for_execution: {result.get('decision_ready_for_execution')}")
+    print(f"decision_report_id_match: {result.get('decision_report_id_match')}")
+    print(f"lint_decision_ok: {result.get('lint_decision_ok')}")
+    print(f"lint_report_ok: {result.get('lint_report_ok')}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build low-token project state packets.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -3335,6 +3409,9 @@ def main(argv: list[str] | None = None) -> int:
 
     lint_report_parser = subparsers.add_parser("lint-report", help="Lint the active Codex execution report.")
     lint_report_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+
+    lint_handoff_parser = subparsers.add_parser("lint-handoff", help="Lint aggregate handoff health.")
+    lint_handoff_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
     args = parser.parse_args(argv)
     if args.command == "build":
@@ -3370,6 +3447,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "lint-report":
         result = lint_report(state_dir=Path(args.state_dir))
         _print_lint_report(result)
+        return 0 if result.get("ok") else 1
+    if args.command == "lint-handoff":
+        result = lint_handoff(state_dir=Path(args.state_dir))
+        _print_lint_handoff(result)
         return 0 if result.get("ok") else 1
     return 1
 

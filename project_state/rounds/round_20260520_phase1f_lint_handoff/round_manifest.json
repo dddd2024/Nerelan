@@ -1,0 +1,57 @@
+{
+  "archived_at": "2026-05-20T12:28:10Z",
+  "files": {
+    "artifact_index.json": {
+      "archived_path": "project_state\\rounds\\round_20260520_phase1f_lint_handoff\\artifact_index.json",
+      "sha256": "1a84515b392bade639f5613f6ab62ce3204e2cf492fc18e019890feb68fea5ee",
+      "source_path": "project_state\\artifact_index.json"
+    },
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260520_phase1f_lint_handoff\\codex_execution_report.md",
+      "sha256": "da9f5b9d687bfea592cbe26c35b0119391c7aa3fe19ce96fe318e11b2a998266",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "current_state.json": {
+      "archived_path": "project_state\\rounds\\round_20260520_phase1f_lint_handoff\\current_state.json",
+      "sha256": "d75ce26878e4585881e8befcb6ca96aa8e86cb9acd97b213ce703a9784d8fedc",
+      "source_path": "project_state\\current_state.json"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260520_phase1f_lint_handoff\\decision_packet.md",
+      "sha256": "3577172460e07d4c6d29c132620ceb248293e77ae45d3a6679bcc317fa581e56",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "git_diff.patch": {
+      "archived_path": "project_state\\rounds\\round_20260520_phase1f_lint_handoff\\git_diff.patch",
+      "sha256": "93dfa6aacba10cd389c52a06835ab2fff027f90e4ae9d4e6c37ee4b279aa3a46",
+      "source_path": null
+    },
+    "model_gate.json": {
+      "archived_path": "project_state\\rounds\\round_20260520_phase1f_lint_handoff\\model_gate.json",
+      "sha256": "ff2018cb77b323344a7b8a9cb1c7b37a08e29a2fe7b224382ab6a6a0ca9eaa61",
+      "source_path": "project_state\\model_gate.json"
+    },
+    "negative_results.json": {
+      "archived_path": "project_state\\rounds\\round_20260520_phase1f_lint_handoff\\negative_results.json",
+      "sha256": "7ec98072f593fd37b9ff1f1af454082867ccadd49c5b05a40644b3211b187eff",
+      "source_path": "project_state\\negative_results.json"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260520_phase1f_lint_handoff\\pytest_result.txt",
+      "sha256": "c8f07cd0090d3ab357cf683fc7a57ff56ca1ee47d24f7754644352b97e26dca1",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "task_packet.json": {
+      "archived_path": "project_state\\rounds\\round_20260520_phase1f_lint_handoff\\task_packet.json",
+      "sha256": "15b83ca51fc8948dd28a2237733cc21f39a2ebaeb9f61841c056202154a9285e",
+      "source_path": "project_state\\task_packet.json"
+    }
+  },
+  "round_id": "round_20260520_phase1f_lint_handoff",
+  "schema_version": 1,
+  "source_git_commit": "593499f29508",
+  "source_harness_run": "sr_lhs_thread_follow_timing_20260520_r4",
+  "state_build_id": "state_20260520_052928_8a77e6637c6c",
+  "state_digest": "8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d",
+  "workflow_status": "REPORT_AVAILABLE"
+}

@@ -1,0 +1,734 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index a1975db..129f3a4 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,9 +1,9 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase1e_lint_report_min_gate_20260520",
+-  "round_id": "round_20260520_phase1e_lint_report",
+-  "based_on_decision_id": "decision_phase1e_lint_report_min_gate_20260520",
++  "report_id": "report_phase1f_lint_handoff_aggregate_20260520",
++  "round_id": "round_20260520_phase1f_lint_handoff",
++  "based_on_decision_id": "decision_phase1f_lint_handoff_aggregate_20260520",
+   "status": "SUCCESS",
+   "acceptance_recommendation": "ACCEPTED",
+   "files_changed": [
+@@ -19,72 +19,75 @@
+     "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1e_lint_report"
++    "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
++    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1f_lint_handoff"
+   ],
+   "generated_artifacts": [
+-    "project_state/rounds/round_20260520_phase1e_lint_report/round_manifest.json",
+-    "project_state/rounds/round_20260520_phase1e_lint_report/artifact_index.json",
+-    "project_state/rounds/round_20260520_phase1e_lint_report/current_state.json",
+-    "project_state/rounds/round_20260520_phase1e_lint_report/negative_results.json",
+-    "project_state/rounds/round_20260520_phase1e_lint_report/model_gate.json",
+-    "project_state/rounds/round_20260520_phase1e_lint_report/task_packet.json",
+-    "project_state/rounds/round_20260520_phase1e_lint_report/decision_packet.md",
+-    "project_state/rounds/round_20260520_phase1e_lint_report/codex_execution_report.md",
+-    "project_state/rounds/round_20260520_phase1e_lint_report/pytest_result.txt",
+-    "project_state/rounds/round_20260520_phase1e_lint_report/git_diff.patch"
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/round_manifest.json",
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/artifact_index.json",
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/current_state.json",
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/negative_results.json",
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/model_gate.json",
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/task_packet.json",
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/decision_packet.md",
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/codex_execution_report.md",
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/pytest_result.txt",
++    "project_state/rounds/round_20260520_phase1f_lint_handoff/git_diff.patch"
+   ],
+-  "next_suggested_task": "Run GPT audit on the Phase 1E lint-report gate before authorizing any samplereverse runtime branch."
++  "next_suggested_task": "Run GPT audit on Phase 1F lint-handoff before authorizing any samplereverse runtime branch."
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-20 Phase 1E lint-report minimum gate
++## 2026-05-20 Phase 1F lint-handoff aggregate gate
+ 
+-This pass implements the approved Phase 1E engineering branch from `project_state/decision_packet.md`. It does not advance the `samplereverse` reverse-engineering mainline and does not run runtime probes.
++This pass implements the approved Phase 1F engineering branch from `project_state/decision_packet.md`. It does not advance the `samplereverse` reverse-engineering mainline and does not run runtime probes.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| current subcommands | `build`, `new-round`, `archive-round`, `pack`, `status`, and `lint-decision` existed before this pass. This pass adds `lint-report`. |
+-| `lint_decision()` behavior | Returns a dict with `ok`, `errors`, `warnings`, decision identity, current state identity, execution scope, and active decision packet; CLI prints diagnostics and returns non-zero on failure. |
+-| report summary reader | `read_codex_report_summary()` parses the fenced `codex_report_summary` block, classifies missing/default reports as `UNKNOWN`/`TEMPLATE_ONLY`, normalizes report status and acceptance recommendation, and now preserves report list fields. |
+-| handoff status | `build_handoff_status()` reads the active decision, report summary, and current state, then computes decision/report ID match and execution state. |
+-| status exposure | `status_summary()` exposes report status, report ID, report decision binding, digest match, consumption state, and execution state. |
+-| current report fields | The previous report had `files_changed`, `tests_ran`, and `generated_artifacts`, but it was bound to the Phase 1D-fix decision, not this Phase 1E decision. |
+-| `pytest_result.txt` | Present and non-empty before this pass; updated with this pass's real test results. |
+-| round archive | The existing `round_20260520_052928` archive belongs to the state packet round and is not overwritten. This pass uses explicit archive round `round_20260520_phase1e_lint_report`. |
+-| parser reuse | `lint-report` uses `read_codex_report_summary()` and `build_handoff_status()`; it does not implement a second Markdown parser. |
+-| policy scope | `lint-report` checks structural auditability and decision binding only; it does not become a policy engine or acceptance engine. |
++| current lint-decision shape | `lint_decision()` returns `ok`, `errors`, `warnings`, decision identity, state identity, execution scope, and active decision packet. It fails on missing/template/non-approved decisions, missing IDs, and state digest mismatch. |
++| current lint-report shape | `lint_report()` returns `ok`, `errors`, `warnings`, report identity, decision binding, round identity, test/artifact counts, and `pytest_result_present`. It warns on round mismatch and non-success reports; it errors on missing/invalid summaries, ID mismatch, bad list fields, or missing SUCCESS evidence. |
++| pre-fix handoff issue | `decision_consumed_by_report: True` could coexist with `decision_execution_state: READY_FOR_EXECUTION` when an approved decision had both digest match and matching SUCCESS report. |
++| consumed priority | Matching SUCCESS report now wins over digest-ready state because it proves the decision already has a bound Codex result and should not be executed again. |
++| current Phase 1E report binding | Before this pass, `lint-report` failed as expected because the active report was Phase 1E and `based_on_decision_id` did not match the Phase 1F decision. |
++| round mismatch warning | `report round_id does not match current_state.round_id` remains a known archive strategy warning, not a structural failure. |
++| lint-handoff boundary | `lint_handoff()` aggregates `status_summary` semantics plus `lint_decision` and `lint_report`; it does not implement a workflow engine or duplicate Markdown parsing. |
++| independent lints | `lint-decision` and `lint-report` remain independently callable and keep their existing strictness. |
++| touched code scope | Only `reverse_agent/project_state.py` and `tests/test_project_state.py` changed for implementation. |
++| reverse runtime risk | No reverse strategy, harness, Olly script, search budget, or runtime probe was modified or run. |
+ 
+ ## Implementation
+ 
+-- Added `lint_report(state_dir)` with fail-soft report diagnostics.
+-- Added validation for missing/template/unknown summaries, required IDs, decision binding, SUCCESS test evidence, `pytest_result.txt`, and report list field types.
+-- Added warnings for round mismatch, unknown recommendation, structured non-success reports, missing round manifest, and manifests that do not archive report or pytest results.
+-- Added CLI `python -m reverse_agent.project_state lint-report --state-dir project_state`.
+-- Added regression coverage for OK, missing summary, template report, empty IDs, decision mismatch, empty SUCCESS tests, missing pytest result, wrong list types, warnings, and CLI return codes.
++- Reordered `_build_handoff_consistency()` so matching reports classify as `CONSUMED_BY_SUCCESS_REPORT` or `CONSUMED_BY_NON_SUCCESS_REPORT` before `READY_FOR_EXECUTION`.
++- Added `decision_ready_for_execution` to handoff consistency, `status_summary()`, and CLI `status`.
++- Added `lint_handoff(state_dir)` with `READY_FOR_CODEX`, `REVIEW_COMPLETE`, `REPORT_NEEDS_REVIEW`, `STALE_OR_MISMATCH`, `TEMPLATE_OR_UNKNOWN`, and `FAILED` states.
++- Added CLI `python -m reverse_agent.project_state lint-handoff --state-dir project_state`.
++- Added regression coverage for consumed priority, ready gating, aggregate handoff states, and CLI return codes.
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+ | `python -m py_compile reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_project_state.py` | `92 passed in 10.45s` |
+-| `python -m pytest -q` | `345 passed in 33.17s` |
+-| `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed after restoring the decision-bound state digest |
+-| final `python -m reverse_agent.project_state status --state-dir project_state` | passed; report is bound to the Phase 1E decision |
+-| final `python -m reverse_agent.project_state lint-report --state-dir project_state` before archive | passed with expected missing-manifest warning |
+-| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1e_lint_report` | passed; created `project_state/rounds/round_20260520_phase1e_lint_report/round_manifest.json` |
+-| final `python -m reverse_agent.project_state lint-report --state-dir project_state` after archive | passed with expected round mismatch warning only |
++| `python -m pytest -q tests\test_project_state.py` | `101 passed in 19.12s` |
++| `python -m pytest -q` | `354 passed in 53.86s` |
++| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; `decision_execution_state: READY_FOR_EXECUTION`, `decision_ready_for_execution: True` |
++| pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
++| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | failed as expected because Phase 1E report did not match Phase 1F decision |
++| pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `READY_FOR_CODEX`, tolerating the old report mismatch |
++| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed with expected missing-manifest warning before archive |
++| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `REVIEW_COMPLETE` |
++| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1f_lint_handoff` | passed; created the Phase 1F round archive |
+ 
+ ## State Notes
+ 
+-- A trial `project_state build` produced a new digest and caused `lint-decision` to fail, so the generated state files were restored to the digest approved by the current decision. The decision packet was not modified.
+-- The report round intentionally differs from `current_state.round_id` because the existing state round archive already exists and must not be overwritten. `lint-report` treats this as a warning, not a structural failure.
+-- No reverse strategy, harness, Olly script, search beam, budget, timeout, or runtime probe was changed.
++- The active sample state still points at `sr_lhs_thread_follow_timing_20260520_r4`; this pass intentionally did not rebuild sample artifacts or advance the runtime mainline.
++- Final `lint-handoff` reports `REVIEW_COMPLETE` once this Phase 1F report is present and bound to the active decision.
++- The report round intentionally differs from `current_state.round_id`, matching the existing archive strategy; `lint-report` keeps this as a warning.
+ 
+ ## Next Suggested Task
+ 
+-Have GPT audit this Phase 1E report and `lint-report` output. Resume the `samplereverse` mainline only after a fresh decision packet explicitly authorizes that branch.
++Have GPT audit this Phase 1F report and `lint-handoff` output. Resume the `samplereverse` mainline only after a fresh decision packet explicitly authorizes that branch.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index d5369a1..72f82f8 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,43 +1,26 @@
+-2026-05-20 Phase 1E lint-report minimum gate verification
++2026-05-20 Phase 1F lint-handoff aggregate gate verification
+ 
+ Scope:
+-- Execute only the project_state lint-report decision.
++- Execute only the project_state lint-handoff decision.
+ - Do not run reverse runtime probes.
+ - Do not modify reverse strategy, harness, or olly_scripts.
+ 
+ python -m py_compile reverse_agent\project_state.py -> passed
+ 
+ python -m pytest -q tests\test_project_state.py -> passed
+-....................................................................... [ 78%]
+-....................                                                     [100%]
+-92 passed in 10.45s
++........................................................................ [ 71%]
++.............................                                            [100%]
++101 passed in 19.12s
+ 
+ python -m pytest -q -> passed
+ ........................................................................ [ 20%]
+-........................................................................ [ 41%]
+-........................................................................ [ 62%]
+-........................................................................ [ 83%]
+-.........................................................                [100%]
+-345 passed in 33.17s
++........................................................................ [ 40%]
++........................................................................ [ 61%]
++........................................................................ [ 81%]
++..................................................................       [100%]
++354 passed in 53.86s
+ 
+-Decision-bound state note:
+-- A trial project_state rebuild changed current_state.state_digest to cfb9c6a1c990257987d0d333d665d30ab4b6aebbac55a39ab2b7f902c7457865.
+-- That made lint-decision fail as expected.
+-- The generated state files were restored to the approved digest 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d.
+-- decision_packet.md was not modified.
+-
+-python -m reverse_agent.project_state lint-decision --state-dir project_state -> restored-state OK
+-lint-decision: OK
+-decision_id: decision_phase1e_lint_report_min_gate_20260520
+-decision_status: APPROVED
+-based_on_state_build_id: state_20260520_052928_8a77e6637c6c
+-based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-current_state_build_id: state_20260520_052928_8a77e6637c6c
+-current_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-execution_scope: decision_packet_controls_current_round
+-active_decision_packet: project_state/decision_packet.md
+-
+-python -m reverse_agent.project_state status --state-dir project_state -> final passed
++Pre-report python -m reverse_agent.project_state status --state-dir project_state -> passed
+ state_dir: project_state
+ latest_harness_run: solve_reports\harness_runs\sr_lhs_thread_follow_timing_20260520_r4
+ missing: []
+@@ -53,7 +36,7 @@ active_decision_packet: project_state/decision_packet.md
+ execution_scope: decision_packet_controls_current_round
+ expected_gpt_output: project_state/decision_packet.md
+ decision_status: APPROVED
+-decision_id: decision_phase1e_lint_report_min_gate_20260520
++decision_id: decision_phase1f_lint_handoff_aggregate_20260520
+ decision_based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+ decision_parse_error: None
+ report_status: SUCCESS
+@@ -61,14 +44,15 @@ report_acceptance_recommendation: ACCEPTED
+ report_id: report_phase1e_lint_report_min_gate_20260520
+ report_based_on_decision_id: decision_phase1e_lint_report_min_gate_20260520
+ report_parse_error: None
+-decision_report_id_match: True
++decision_report_id_match: False
+ decision_state_digest_match: True
+-decision_consumed_by_report: True
++decision_consumed_by_report: False
+ decision_execution_state: READY_FOR_EXECUTION
++decision_ready_for_execution: True
+ 
+-python -m reverse_agent.project_state lint-decision --state-dir project_state -> final OK
++Pre-report python -m reverse_agent.project_state lint-decision --state-dir project_state -> passed
+ lint-decision: OK
+-decision_id: decision_phase1e_lint_report_min_gate_20260520
++decision_id: decision_phase1f_lint_handoff_aggregate_20260520
+ decision_status: APPROVED
+ based_on_state_build_id: state_20260520_052928_8a77e6637c6c
+ based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+@@ -77,36 +61,89 @@ current_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd8
+ execution_scope: decision_packet_controls_current_round
+ active_decision_packet: project_state/decision_packet.md
+ 
+-python -m reverse_agent.project_state lint-report --state-dir project_state -> final OK before archive
+-lint-report: OK
++Pre-report python -m reverse_agent.project_state lint-report --state-dir project_state -> expected failure
++lint-report: FAILED
++error: based_on_decision_id does not match current decision_id
+ warning: report round_id does not match current_state.round_id
+-warning: round_manifest missing
+ report_id: report_phase1e_lint_report_min_gate_20260520
+ report_status: SUCCESS
+ acceptance_recommendation: ACCEPTED
+ based_on_decision_id: decision_phase1e_lint_report_min_gate_20260520
+-decision_id: decision_phase1e_lint_report_min_gate_20260520
+-decision_report_id_match: True
++decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++decision_report_id_match: False
+ round_id: round_20260520_phase1e_lint_report
+ current_state_round_id: round_20260520_052928
+ tests_ran_count: 7
+ generated_artifacts_count: 10
+ pytest_result_present: True
+ 
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1e_lint_report -> passed
+-created project_state\rounds\round_20260520_phase1e_lint_report\round_manifest.json
++Pre-report python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed
++lint-handoff: OK
++warning: previous report ignored for READY_FOR_CODEX: based_on_decision_id does not match current decision_id
++warning: report round_id does not match current_state.round_id
++handoff_state: READY_FOR_CODEX
++decision_execution_state: READY_FOR_EXECUTION
++decision_ready_for_execution: True
++decision_report_id_match: False
++lint_decision_ok: True
++lint_report_ok: False
++
++Final python -m reverse_agent.project_state status --state-dir project_state -> expected after report write
++decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
++decision_ready_for_execution: False
++decision_report_id_match: True
+ 
+-python -m reverse_agent.project_state lint-report --state-dir project_state -> final OK after archive
++Final python -m reverse_agent.project_state lint-report --state-dir project_state -> expected OK before archive
+ lint-report: OK
+ warning: report round_id does not match current_state.round_id
+-report_id: report_phase1e_lint_report_min_gate_20260520
++warning: round_manifest missing
++report_id: report_phase1f_lint_handoff_aggregate_20260520
+ report_status: SUCCESS
+ acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase1e_lint_report_min_gate_20260520
+-decision_id: decision_phase1e_lint_report_min_gate_20260520
++based_on_decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++decision_id: decision_phase1f_lint_handoff_aggregate_20260520
+ decision_report_id_match: True
+-round_id: round_20260520_phase1e_lint_report
++round_id: round_20260520_phase1f_lint_handoff
+ current_state_round_id: round_20260520_052928
+-tests_ran_count: 7
++tests_ran_count: 8
++generated_artifacts_count: 10
++pytest_result_present: True
++
++Final python -m reverse_agent.project_state lint-handoff --state-dir project_state -> expected REVIEW_COMPLETE
++lint-handoff: OK
++warning: report round_id does not match current_state.round_id
++warning: round_manifest missing
++handoff_state: REVIEW_COMPLETE
++decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
++decision_ready_for_execution: False
++decision_report_id_match: True
++lint_decision_ok: True
++lint_report_ok: True
++
++python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1f_lint_handoff -> passed
++No stdout; verified project_state\rounds\round_20260520_phase1f_lint_handoff\round_manifest.json exists.
++
++Final post-archive python -m reverse_agent.project_state lint-report --state-dir project_state -> passed
++lint-report: OK
++warning: report round_id does not match current_state.round_id
++report_id: report_phase1f_lint_handoff_aggregate_20260520
++report_status: SUCCESS
++acceptance_recommendation: ACCEPTED
++based_on_decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++decision_report_id_match: True
++round_id: round_20260520_phase1f_lint_handoff
++current_state_round_id: round_20260520_052928
++tests_ran_count: 8
+ generated_artifacts_count: 10
+ pytest_result_present: True
++
++Final post-archive python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed
++lint-handoff: OK
++warning: report round_id does not match current_state.round_id
++handoff_state: REVIEW_COMPLETE
++decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
++decision_ready_for_execution: False
++decision_report_id_match: True
++lint_decision_ok: True
++lint_report_ok: True
+diff --git a/reverse_agent/project_state.py b/reverse_agent/project_state.py
+index 9196388..c41868f 100644
+--- a/reverse_agent/project_state.py
++++ b/reverse_agent/project_state.py
+@@ -527,31 +527,27 @@ def _build_handoff_consistency(
+     decision_consumed_by_report = decision_report_id_match and report_status in CONSUMED_REPORT_STATUSES
+     if decision_status in {"TEMPLATE_ONLY", "UNKNOWN"} or not decision_id:
+         decision_execution_state = "TEMPLATE_OR_UNKNOWN"
+-    elif decision_status == "APPROVED" and decision_state_digest_match:
+-        decision_execution_state = "READY_FOR_EXECUTION"
+-    elif (
+-        decision_status == "APPROVED"
+-        and not decision_state_digest_match
+-        and decision_report_id_match
+-        and report_status == "SUCCESS"
+-    ):
++    elif decision_status == "APPROVED" and decision_report_id_match and report_status == "SUCCESS":
+         decision_execution_state = "CONSUMED_BY_SUCCESS_REPORT"
+     elif (
+         decision_status == "APPROVED"
+-        and not decision_state_digest_match
+         and decision_report_id_match
+         and report_status in {"PARTIAL", "FAILED", "BLOCKED"}
+     ):
+         decision_execution_state = "CONSUMED_BY_NON_SUCCESS_REPORT"
++    elif decision_status == "APPROVED" and decision_state_digest_match and not decision_report_id_match:
++        decision_execution_state = "READY_FOR_EXECUTION"
+     elif decision_status == "APPROVED" and not decision_state_digest_match and not decision_report_id_match:
+         decision_execution_state = "STALE_WITHOUT_MATCHING_REPORT"
+     else:
+         decision_execution_state = "TEMPLATE_OR_UNKNOWN"
++    decision_ready_for_execution = decision_execution_state == "READY_FOR_EXECUTION"
+     return {
+         "decision_report_id_match": decision_report_id_match,
+         "decision_state_digest_match": decision_state_digest_match,
+         "decision_consumed_by_report": decision_consumed_by_report,
+         "decision_execution_state": decision_execution_state,
++        "decision_ready_for_execution": decision_ready_for_execution,
+         "decision_id": decision_id,
+         "report_based_on_decision_id": report_based_on_decision_id,
+         "decision_status": decision_status,
+@@ -737,6 +733,68 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
+     }
+ 
+ 
++def lint_handoff(state_dir: Path) -> dict[str, Any]:
++    handoff_status = build_handoff_status(state_dir)
++    consistency = handoff_status["handoff_consistency"]
++    decision_state = str(consistency.get("decision_execution_state") or "TEMPLATE_OR_UNKNOWN")
++    lint_decision_result = lint_decision(state_dir)
++    lint_report_result = lint_report(state_dir)
++    errors: list[str] = []
++    warnings: list[str] = []
++
++    if decision_state == "READY_FOR_EXECUTION":
++        handoff_state = "READY_FOR_CODEX" if lint_decision_result.get("ok") else "FAILED"
++        errors.extend(lint_decision_result.get("errors") or [])
++        warnings.extend(lint_decision_result.get("warnings") or [])
++        report_errors = lint_report_result.get("errors") or []
++        if report_errors:
++            warnings.extend(f"previous report ignored for READY_FOR_CODEX: {error}" for error in report_errors)
++        warnings.extend(lint_report_result.get("warnings") or [])
++    elif decision_state == "CONSUMED_BY_SUCCESS_REPORT":
++        handoff_state = "REVIEW_COMPLETE" if lint_report_result.get("ok") else "FAILED"
++        errors.extend(lint_report_result.get("errors") or [])
++        warnings.extend(lint_decision_result.get("warnings") or [])
++        warnings.extend(lint_report_result.get("warnings") or [])
++    elif decision_state == "CONSUMED_BY_NON_SUCCESS_REPORT":
++        handoff_state = "REPORT_NEEDS_REVIEW" if lint_report_result.get("ok") else "FAILED"
++        errors.extend(lint_report_result.get("errors") or [])
++        warnings.extend(lint_decision_result.get("warnings") or [])
++        warnings.extend(lint_report_result.get("warnings") or [])
++        if not errors:
++            warnings.append("matching report is non-success and needs review")
++    elif decision_state == "STALE_WITHOUT_MATCHING_REPORT":
++        handoff_state = "STALE_OR_MISMATCH"
++        errors.append("decision is stale and has no matching report")
++        warnings.extend(lint_decision_result.get("warnings") or [])
++        warnings.extend(lint_report_result.get("warnings") or [])
++    elif decision_state == "TEMPLATE_OR_UNKNOWN":
++        handoff_state = "TEMPLATE_OR_UNKNOWN"
++        errors.append("decision is template or unknown")
++        warnings.extend(lint_decision_result.get("warnings") or [])
++        warnings.extend(lint_report_result.get("warnings") or [])
++    else:
++        handoff_state = "FAILED"
++        errors.append(f"unknown decision_execution_state: {decision_state}")
++        warnings.extend(lint_decision_result.get("warnings") or [])
++        warnings.extend(lint_report_result.get("warnings") or [])
++
++    ok = handoff_state in {"READY_FOR_CODEX", "REVIEW_COMPLETE", "REPORT_NEEDS_REVIEW"} and not errors
++    return {
++        "ok": ok,
++        "handoff_state": handoff_state,
++        "errors": errors,
++        "warnings": warnings,
++        "decision_execution_state": decision_state,
++        "decision_ready_for_execution": consistency.get("decision_ready_for_execution"),
++        "decision_report_id_match": consistency.get("decision_report_id_match"),
++        "lint_decision_ok": lint_decision_result.get("ok"),
++        "lint_report_ok": lint_report_result.get("ok"),
++        "lint_decision_errors": lint_decision_result.get("errors") or [],
++        "lint_report_errors": lint_report_result.get("errors") or [],
++        "lint_report_warnings": lint_report_result.get("warnings") or [],
++    }
++
++
+ def ensure_state_layout(state_dir: Path) -> None:
+     state_dir.mkdir(parents=True, exist_ok=True)
+     rounds_dir = state_dir / "rounds"
+@@ -3236,6 +3294,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
+         "decision_state_digest_match": handoff_consistency.get("decision_state_digest_match"),
+         "decision_consumed_by_report": handoff_consistency.get("decision_consumed_by_report"),
+         "decision_execution_state": handoff_consistency.get("decision_execution_state"),
++        "decision_ready_for_execution": handoff_consistency.get("decision_ready_for_execution"),
+     }
+ 
+ 
+@@ -3267,6 +3326,7 @@ def _print_status(summary: dict[str, Any]) -> None:
+     print(f"decision_state_digest_match: {summary.get('decision_state_digest_match')}")
+     print(f"decision_consumed_by_report: {summary.get('decision_consumed_by_report')}")
+     print(f"decision_execution_state: {summary.get('decision_execution_state')}")
++    print(f"decision_ready_for_execution: {summary.get('decision_ready_for_execution')}")
+ 
+ 
+ def _print_lint_decision(result: dict[str, Any]) -> None:
+@@ -3304,6 +3364,20 @@ def _print_lint_report(result: dict[str, Any]) -> None:
+     print(f"pytest_result_present: {result.get('pytest_result_present')}")
+ 
+ 
++def _print_lint_handoff(result: dict[str, Any]) -> None:
++    print("lint-handoff: OK" if result.get("ok") else "lint-handoff: FAILED")
++    for error in result.get("errors") or []:
++        print(f"error: {error}")
++    for warning in result.get("warnings") or []:
++        print(f"warning: {warning}")
++    print(f"handoff_state: {result.get('handoff_state')}")
++    print(f"decision_execution_state: {result.get('decision_execution_state')}")
++    print(f"decision_ready_for_execution: {result.get('decision_ready_for_execution')}")
++    print(f"decision_report_id_match: {result.get('decision_report_id_match')}")
++    print(f"lint_decision_ok: {result.get('lint_decision_ok')}")
++    print(f"lint_report_ok: {result.get('lint_report_ok')}")
++
++
+ def main(argv: list[str] | None = None) -> int:
+     parser = argparse.ArgumentParser(description="Build low-token project state packets.")
+     subparsers = parser.add_subparsers(dest="command", required=True)
+@@ -3336,6 +3410,9 @@ def main(argv: list[str] | None = None) -> int:
+     lint_report_parser = subparsers.add_parser("lint-report", help="Lint the active Codex execution report.")
+     lint_report_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+ 
++    lint_handoff_parser = subparsers.add_parser("lint-handoff", help="Lint aggregate handoff health.")
++    lint_handoff_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
++
+     args = parser.parse_args(argv)
+     if args.command == "build":
+         build_project_state(
+@@ -3371,6 +3448,10 @@ def main(argv: list[str] | None = None) -> int:
+         result = lint_report(state_dir=Path(args.state_dir))
+         _print_lint_report(result)
+         return 0 if result.get("ok") else 1
++    if args.command == "lint-handoff":
++        result = lint_handoff(state_dir=Path(args.state_dir))
++        _print_lint_handoff(result)
++        return 0 if result.get("ok") else 1
+     return 1
+ 
+ 
+diff --git a/tests/test_project_state.py b/tests/test_project_state.py
+index 6b58066..d483f3c 100644
+--- a/tests/test_project_state.py
++++ b/tests/test_project_state.py
+@@ -11,6 +11,7 @@ from reverse_agent.project_state import (
+     ensure_state_layout,
+     extract_markdown_json_block,
+     lint_decision,
++    lint_handoff,
+     lint_report,
+     main,
+     pack_context,
+@@ -2281,6 +2282,7 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
+         "decision_state_digest_match": False,
+         "decision_consumed_by_report": True,
+         "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
++        "decision_ready_for_execution": False,
+         "decision_id": "decision_test",
+         "report_based_on_decision_id": "decision_test",
+         "decision_status": "APPROVED",
+@@ -2297,6 +2299,7 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
+     assert "decision_state_digest_match: False" in output
+     assert "decision_consumed_by_report: True" in output
+     assert "decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT" in output
++    assert "decision_ready_for_execution: False" in output
+ 
+ 
+ def test_status_summary_decision_ready_for_execution_when_digest_matches(tmp_path: Path) -> None:
+@@ -2318,6 +2321,31 @@ def test_status_summary_decision_ready_for_execution_when_digest_matches(tmp_pat
+     assert summary["decision_state_digest_match"] is True
+     assert summary["decision_consumed_by_report"] is False
+     assert summary["decision_execution_state"] == "READY_FOR_EXECUTION"
++    assert summary["decision_ready_for_execution"] is True
++
++
++def test_status_summary_consumed_success_takes_priority_over_ready_when_report_matches(
++    tmp_path: Path,
++) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_consumed_ready",
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++    )
++    _write_codex_report(state_dir, based_on_decision_id="decision_consumed_ready", status="SUCCESS")
++
++    summary = status_summary(state_dir=state_dir)
++
++    assert summary["decision_state_digest_match"] is True
++    assert summary["decision_consumed_by_report"] is True
++    assert summary["decision_execution_state"] == "CONSUMED_BY_SUCCESS_REPORT"
++    assert summary["decision_ready_for_execution"] is False
+ 
+ 
+ def test_status_summary_decision_consumed_by_success_report_when_digest_stale_but_report_matches(
+@@ -2340,6 +2368,7 @@ def test_status_summary_decision_consumed_by_success_report_when_digest_stale_bu
+     assert summary["decision_state_digest_match"] is False
+     assert summary["decision_consumed_by_report"] is True
+     assert summary["decision_execution_state"] == "CONSUMED_BY_SUCCESS_REPORT"
++    assert summary["decision_ready_for_execution"] is False
+ 
+ 
+ @pytest.mark.parametrize("report_status", ["PARTIAL", "FAILED", "BLOCKED"])
+@@ -2369,6 +2398,7 @@ def test_status_summary_decision_consumed_by_non_success_report_when_digest_stal
+     assert summary["decision_state_digest_match"] is False
+     assert summary["decision_consumed_by_report"] is True
+     assert summary["decision_execution_state"] == "CONSUMED_BY_NON_SUCCESS_REPORT"
++    assert summary["decision_ready_for_execution"] is False
+ 
+ 
+ def test_status_summary_decision_stale_without_matching_report_when_digest_stale_and_report_differs(
+@@ -2392,6 +2422,7 @@ def test_status_summary_decision_stale_without_matching_report_when_digest_stale
+     assert summary["decision_state_digest_match"] is False
+     assert summary["decision_consumed_by_report"] is False
+     assert summary["decision_execution_state"] == "STALE_WITHOUT_MATCHING_REPORT"
++    assert summary["decision_ready_for_execution"] is False
+ 
+ 
+ def test_status_summary_decision_template_or_unknown_for_template_decision(tmp_path: Path) -> None:
+@@ -2404,6 +2435,7 @@ def test_status_summary_decision_template_or_unknown_for_template_decision(tmp_p
+ 
+     assert summary["decision_status"] == "TEMPLATE_ONLY"
+     assert summary["decision_execution_state"] == "TEMPLATE_OR_UNKNOWN"
++    assert summary["decision_ready_for_execution"] is False
+ 
+ 
+ def test_status_cli_prints_decision_execution_state(tmp_path: Path, capsys) -> None:
+@@ -2424,6 +2456,149 @@ def test_status_cli_prints_decision_execution_state(tmp_path: Path, capsys) -> N
+     assert "decision_state_digest_match: True" in output
+     assert "decision_consumed_by_report: False" in output
+     assert "decision_execution_state: READY_FOR_EXECUTION" in output
++    assert "decision_ready_for_execution: True" in output
++
++
++def test_lint_handoff_ready_for_codex_when_decision_ready(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_ready_handoff",
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++    )
++    _write_codex_report(state_dir, based_on_decision_id="decision_old")
++
++    result = lint_handoff(state_dir)
++
++    assert result["ok"] is True
++    assert result["handoff_state"] == "READY_FOR_CODEX"
++    assert result["decision_execution_state"] == "READY_FOR_EXECUTION"
++    assert result["decision_ready_for_execution"] is True
++    assert result["lint_decision_ok"] is True
++    assert result["lint_report_ok"] is False
++    assert "previous report ignored for READY_FOR_CODEX: based_on_decision_id does not match current decision_id" in result[
++        "warnings"
++    ]
++
++
++def test_lint_handoff_review_complete_when_success_report_consumed(tmp_path: Path) -> None:
++    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
++
++    result = lint_handoff(state_dir)
++
++    assert result["ok"] is True
++    assert result["handoff_state"] == "REVIEW_COMPLETE"
++    assert result["decision_execution_state"] == "CONSUMED_BY_SUCCESS_REPORT"
++    assert result["decision_ready_for_execution"] is False
++    assert result["lint_report_ok"] is True
++
++
++def test_lint_handoff_report_needs_review_for_non_success_report(tmp_path: Path) -> None:
++    state_dir, current_state = _prepare_lint_report_state(tmp_path)
++    _write_codex_report(
++        state_dir,
++        report_id="report_partial",
++        round_id=str(current_state["round_id"]),
++        based_on_decision_id="decision_report",
++        status="PARTIAL",
++        acceptance_recommendation="NEEDS_REVIEW",
++        tests_ran=[],
++    )
++
++    result = lint_handoff(state_dir)
++
++    assert result["ok"] is True
++    assert result["handoff_state"] == "REPORT_NEEDS_REVIEW"
++    assert result["decision_execution_state"] == "CONSUMED_BY_NON_SUCCESS_REPORT"
++    assert "matching report is non-success and needs review" in result["warnings"]
++
++
++def test_lint_handoff_fails_for_stale_without_matching_report(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_stale_handoff",
++        based_on_state_build_id="state_old",
++        based_on_state_digest="digest_old",
++    )
++    _write_codex_report(state_dir, based_on_decision_id="decision_old")
++
++    result = lint_handoff(state_dir)
++
++    assert result["ok"] is False
++    assert result["handoff_state"] == "STALE_OR_MISMATCH"
++    assert "decision is stale and has no matching report" in result["errors"]
++
++
++def test_lint_handoff_fails_for_template_or_unknown_decision(tmp_path: Path) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++
++    result = lint_handoff(state_dir)
++
++    assert result["ok"] is False
++    assert result["handoff_state"] == "TEMPLATE_OR_UNKNOWN"
++    assert "decision is template or unknown" in result["errors"]
++
++
++def test_lint_handoff_cli_returns_zero_on_ready_for_codex(tmp_path: Path, capsys) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    current_state = _read_json(state_dir / "current_state.json")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_ready_cli",
++        based_on_state_build_id=current_state["state_build_id"],
++        based_on_state_digest=current_state["state_digest"],
++    )
++    _write_codex_report(state_dir, based_on_decision_id="decision_old")
++
++    assert main(["lint-handoff", "--state-dir", str(state_dir)]) == 0
++    output = capsys.readouterr().out
++    assert "lint-handoff: OK" in output
++    assert "handoff_state: READY_FOR_CODEX" in output
++    assert "decision_ready_for_execution: True" in output
++
++
++def test_lint_handoff_cli_returns_zero_on_review_complete(tmp_path: Path, capsys) -> None:
++    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
++
++    assert main(["lint-handoff", "--state-dir", str(state_dir)]) == 0
++    output = capsys.readouterr().out
++    assert "lint-handoff: OK" in output
++    assert "handoff_state: REVIEW_COMPLETE" in output
++    assert "decision_ready_for_execution: False" in output
++
++
++def test_lint_handoff_cli_returns_nonzero_on_stale_mismatch(tmp_path: Path, capsys) -> None:
++    reports_dir = tmp_path / "solve_reports"
++    state_dir = tmp_path / "project_state"
++    _make_minimal_harness_run(reports_dir)
++    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
++    _write_decision_packet(
++        state_dir,
++        decision_id="decision_stale_cli",
++        based_on_state_build_id="state_old",
++        based_on_state_digest="digest_old",
++    )
++    _write_codex_report(state_dir, based_on_decision_id="decision_old")
++
++    assert main(["lint-handoff", "--state-dir", str(state_dir)]) == 1
++    output = capsys.readouterr().out
++    assert "lint-handoff: FAILED" in output
++    assert "handoff_state: STALE_OR_MISMATCH" in output
+ 
+ 
+ def test_template_decision_and_report_are_template_only(tmp_path: Path) -> None:

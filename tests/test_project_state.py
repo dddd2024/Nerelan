@@ -11,6 +11,7 @@ from reverse_agent.project_state import (
     ensure_state_layout,
     extract_markdown_json_block,
     lint_decision,
+    lint_handoff,
     lint_report,
     main,
     pack_context,
@@ -2281,6 +2282,7 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
         "decision_state_digest_match": False,
         "decision_consumed_by_report": True,
         "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+        "decision_ready_for_execution": False,
         "decision_id": "decision_test",
         "report_based_on_decision_id": "decision_test",
         "decision_status": "APPROVED",
@@ -2297,6 +2299,7 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
     assert "decision_state_digest_match: False" in output
     assert "decision_consumed_by_report: True" in output
     assert "decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT" in output
+    assert "decision_ready_for_execution: False" in output
 
 
 def test_status_summary_decision_ready_for_execution_when_digest_matches(tmp_path: Path) -> None:
@@ -2318,6 +2321,31 @@ def test_status_summary_decision_ready_for_execution_when_digest_matches(tmp_pat
     assert summary["decision_state_digest_match"] is True
     assert summary["decision_consumed_by_report"] is False
     assert summary["decision_execution_state"] == "READY_FOR_EXECUTION"
+    assert summary["decision_ready_for_execution"] is True
+
+
+def test_status_summary_consumed_success_takes_priority_over_ready_when_report_matches(
+    tmp_path: Path,
+) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_consumed_ready",
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+    )
+    _write_codex_report(state_dir, based_on_decision_id="decision_consumed_ready", status="SUCCESS")
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["decision_state_digest_match"] is True
+    assert summary["decision_consumed_by_report"] is True
+    assert summary["decision_execution_state"] == "CONSUMED_BY_SUCCESS_REPORT"
+    assert summary["decision_ready_for_execution"] is False
 
 
 def test_status_summary_decision_consumed_by_success_report_when_digest_stale_but_report_matches(
@@ -2340,6 +2368,7 @@ def test_status_summary_decision_consumed_by_success_report_when_digest_stale_bu
     assert summary["decision_state_digest_match"] is False
     assert summary["decision_consumed_by_report"] is True
     assert summary["decision_execution_state"] == "CONSUMED_BY_SUCCESS_REPORT"
+    assert summary["decision_ready_for_execution"] is False
 
 
 @pytest.mark.parametrize("report_status", ["PARTIAL", "FAILED", "BLOCKED"])
@@ -2369,6 +2398,7 @@ def test_status_summary_decision_consumed_by_non_success_report_when_digest_stal
     assert summary["decision_state_digest_match"] is False
     assert summary["decision_consumed_by_report"] is True
     assert summary["decision_execution_state"] == "CONSUMED_BY_NON_SUCCESS_REPORT"
+    assert summary["decision_ready_for_execution"] is False
 
 
 def test_status_summary_decision_stale_without_matching_report_when_digest_stale_and_report_differs(
@@ -2392,6 +2422,7 @@ def test_status_summary_decision_stale_without_matching_report_when_digest_stale
     assert summary["decision_state_digest_match"] is False
     assert summary["decision_consumed_by_report"] is False
     assert summary["decision_execution_state"] == "STALE_WITHOUT_MATCHING_REPORT"
+    assert summary["decision_ready_for_execution"] is False
 
 
 def test_status_summary_decision_template_or_unknown_for_template_decision(tmp_path: Path) -> None:
@@ -2404,6 +2435,7 @@ def test_status_summary_decision_template_or_unknown_for_template_decision(tmp_p
 
     assert summary["decision_status"] == "TEMPLATE_ONLY"
     assert summary["decision_execution_state"] == "TEMPLATE_OR_UNKNOWN"
+    assert summary["decision_ready_for_execution"] is False
 
 
 def test_status_cli_prints_decision_execution_state(tmp_path: Path, capsys) -> None:
@@ -2424,6 +2456,149 @@ def test_status_cli_prints_decision_execution_state(tmp_path: Path, capsys) -> N
     assert "decision_state_digest_match: True" in output
     assert "decision_consumed_by_report: False" in output
     assert "decision_execution_state: READY_FOR_EXECUTION" in output
+    assert "decision_ready_for_execution: True" in output
+
+
+def test_lint_handoff_ready_for_codex_when_decision_ready(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_ready_handoff",
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+    )
+    _write_codex_report(state_dir, based_on_decision_id="decision_old")
+
+    result = lint_handoff(state_dir)
+
+    assert result["ok"] is True
+    assert result["handoff_state"] == "READY_FOR_CODEX"
+    assert result["decision_execution_state"] == "READY_FOR_EXECUTION"
+    assert result["decision_ready_for_execution"] is True
+    assert result["lint_decision_ok"] is True
+    assert result["lint_report_ok"] is False
+    assert "previous report ignored for READY_FOR_CODEX: based_on_decision_id does not match current decision_id" in result[
+        "warnings"
+    ]
+
+
+def test_lint_handoff_review_complete_when_success_report_consumed(tmp_path: Path) -> None:
+    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
+
+    result = lint_handoff(state_dir)
+
+    assert result["ok"] is True
+    assert result["handoff_state"] == "REVIEW_COMPLETE"
+    assert result["decision_execution_state"] == "CONSUMED_BY_SUCCESS_REPORT"
+    assert result["decision_ready_for_execution"] is False
+    assert result["lint_report_ok"] is True
+
+
+def test_lint_handoff_report_needs_review_for_non_success_report(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        report_id="report_partial",
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+        status="PARTIAL",
+        acceptance_recommendation="NEEDS_REVIEW",
+        tests_ran=[],
+    )
+
+    result = lint_handoff(state_dir)
+
+    assert result["ok"] is True
+    assert result["handoff_state"] == "REPORT_NEEDS_REVIEW"
+    assert result["decision_execution_state"] == "CONSUMED_BY_NON_SUCCESS_REPORT"
+    assert "matching report is non-success and needs review" in result["warnings"]
+
+
+def test_lint_handoff_fails_for_stale_without_matching_report(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_stale_handoff",
+        based_on_state_build_id="state_old",
+        based_on_state_digest="digest_old",
+    )
+    _write_codex_report(state_dir, based_on_decision_id="decision_old")
+
+    result = lint_handoff(state_dir)
+
+    assert result["ok"] is False
+    assert result["handoff_state"] == "STALE_OR_MISMATCH"
+    assert "decision is stale and has no matching report" in result["errors"]
+
+
+def test_lint_handoff_fails_for_template_or_unknown_decision(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    result = lint_handoff(state_dir)
+
+    assert result["ok"] is False
+    assert result["handoff_state"] == "TEMPLATE_OR_UNKNOWN"
+    assert "decision is template or unknown" in result["errors"]
+
+
+def test_lint_handoff_cli_returns_zero_on_ready_for_codex(tmp_path: Path, capsys) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_ready_cli",
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+    )
+    _write_codex_report(state_dir, based_on_decision_id="decision_old")
+
+    assert main(["lint-handoff", "--state-dir", str(state_dir)]) == 0
+    output = capsys.readouterr().out
+    assert "lint-handoff: OK" in output
+    assert "handoff_state: READY_FOR_CODEX" in output
+    assert "decision_ready_for_execution: True" in output
+
+
+def test_lint_handoff_cli_returns_zero_on_review_complete(tmp_path: Path, capsys) -> None:
+    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
+
+    assert main(["lint-handoff", "--state-dir", str(state_dir)]) == 0
+    output = capsys.readouterr().out
+    assert "lint-handoff: OK" in output
+    assert "handoff_state: REVIEW_COMPLETE" in output
+    assert "decision_ready_for_execution: False" in output
+
+
+def test_lint_handoff_cli_returns_nonzero_on_stale_mismatch(tmp_path: Path, capsys) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_stale_cli",
+        based_on_state_build_id="state_old",
+        based_on_state_digest="digest_old",
+    )
+    _write_codex_report(state_dir, based_on_decision_id="decision_old")
+
+    assert main(["lint-handoff", "--state-dir", str(state_dir)]) == 1
+    output = capsys.readouterr().out
+    assert "lint-handoff: FAILED" in output
+    assert "handoff_state: STALE_OR_MISMATCH" in output
 
 
 def test_template_decision_and_report_are_template_only(tmp_path: Path) -> None:
