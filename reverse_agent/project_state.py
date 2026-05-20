@@ -490,6 +490,10 @@ def read_codex_report_summary(state_dir: Path) -> dict[str, Any]:
         "report_id": meta.get("report_id") or "",
         "based_on_decision_id": meta.get("based_on_decision_id") or "",
         "round_id": meta.get("round_id") or "",
+        "files_changed": meta.get("files_changed"),
+        "tests_ran": meta.get("tests_ran"),
+        "generated_artifacts": meta.get("generated_artifacts"),
+        "next_suggested_task": meta.get("next_suggested_task") or "",
         "parse_error": meta.get("parse_error"),
     }
 
@@ -633,6 +637,103 @@ def lint_decision(state_dir: Path) -> dict[str, Any]:
         "current_state_digest": current_state_digest,
         "execution_scope": execution_scope,
         "active_decision_packet": active_decision_packet,
+    }
+
+
+def _list_count(value: Any) -> int:
+    return len(value) if isinstance(value, list) else 0
+
+
+def _pytest_result_present(state_dir: Path) -> bool:
+    path = state_dir / "pytest_result.txt"
+    try:
+        return bool(path.read_text(encoding="utf-8").strip())
+    except OSError:
+        return False
+
+
+def lint_report(state_dir: Path) -> dict[str, Any]:
+    handoff_status = build_handoff_status(state_dir)
+    decision = handoff_status["decision"]
+    report = handoff_status["codex_report"]
+    consistency = handoff_status["handoff_consistency"]
+    current_state = _read_json(state_dir / "current_state.json")
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    report_status = str(report.get("status") or "UNKNOWN")
+    acceptance_recommendation = str(report.get("acceptance_recommendation") or "UNKNOWN")
+    report_id = str(report.get("report_id") or "")
+    based_on_decision_id = str(report.get("based_on_decision_id") or "")
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(report.get("round_id") or "")
+    current_state_round_id = str(current_state.get("round_id") or "")
+    pytest_result_present = _pytest_result_present(state_dir)
+
+    if report_status in {"TEMPLATE_ONLY", "UNKNOWN"}:
+        parse_error = report.get("parse_error")
+        if parse_error:
+            errors.append(f"codex_report_summary invalid: {parse_error}")
+        elif report_status == "TEMPLATE_ONLY":
+            errors.append("codex_report_summary is TEMPLATE_ONLY")
+        else:
+            errors.append("codex_report_summary missing")
+    if not report_id:
+        errors.append("report_id missing")
+    if not round_id:
+        errors.append("round_id missing")
+    if not based_on_decision_id:
+        errors.append("based_on_decision_id missing")
+    if not decision_id:
+        errors.append("current decision_id missing")
+    if based_on_decision_id and decision_id and based_on_decision_id != decision_id:
+        errors.append("based_on_decision_id does not match current decision_id")
+
+    for field in ("files_changed", "tests_ran", "generated_artifacts"):
+        value = report.get(field)
+        if value is not None and not isinstance(value, list):
+            errors.append(f"{field} must be a list")
+
+    tests_ran = report.get("tests_ran")
+    if report_status == "SUCCESS" and not (isinstance(tests_ran, list) and tests_ran):
+        errors.append("SUCCESS report requires non-empty tests_ran")
+    if report_status == "SUCCESS" and not pytest_result_present:
+        errors.append("SUCCESS report requires non-empty pytest_result.txt")
+
+    if round_id and current_state_round_id and round_id != current_state_round_id:
+        warnings.append("report round_id does not match current_state.round_id")
+    if acceptance_recommendation == "UNKNOWN":
+        warnings.append("acceptance_recommendation is UNKNOWN")
+    if report_status in {"PARTIAL", "FAILED", "BLOCKED"}:
+        warnings.append(f"report_status is {report_status}")
+
+    manifest_path = state_dir / "rounds" / round_id / "round_manifest.json" if round_id else None
+    manifest = _read_json(manifest_path) if manifest_path is not None else {}
+    if round_id:
+        if not manifest:
+            warnings.append("round_manifest missing")
+        else:
+            files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
+            if "pytest_result.txt" not in files:
+                warnings.append("round_manifest does not archive pytest_result.txt")
+            if "codex_execution_report.md" not in files:
+                warnings.append("round_manifest does not archive codex_execution_report.md")
+
+    return {
+        "ok": not errors,
+        "errors": errors,
+        "warnings": warnings,
+        "report_id": report_id,
+        "report_status": report_status,
+        "acceptance_recommendation": acceptance_recommendation,
+        "based_on_decision_id": based_on_decision_id,
+        "decision_id": decision_id,
+        "decision_report_id_match": consistency.get("decision_report_id_match"),
+        "round_id": round_id,
+        "current_state_round_id": current_state_round_id,
+        "tests_ran_count": _list_count(report.get("tests_ran")),
+        "generated_artifacts_count": _list_count(report.get("generated_artifacts")),
+        "pytest_result_present": pytest_result_present,
     }
 
 
@@ -3184,6 +3285,25 @@ def _print_lint_decision(result: dict[str, Any]) -> None:
     print(f"active_decision_packet: {result.get('active_decision_packet')}")
 
 
+def _print_lint_report(result: dict[str, Any]) -> None:
+    print("lint-report: OK" if result.get("ok") else "lint-report: FAILED")
+    for error in result.get("errors") or []:
+        print(f"error: {error}")
+    for warning in result.get("warnings") or []:
+        print(f"warning: {warning}")
+    print(f"report_id: {result.get('report_id')}")
+    print(f"report_status: {result.get('report_status')}")
+    print(f"acceptance_recommendation: {result.get('acceptance_recommendation')}")
+    print(f"based_on_decision_id: {result.get('based_on_decision_id')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"decision_report_id_match: {result.get('decision_report_id_match')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"current_state_round_id: {result.get('current_state_round_id')}")
+    print(f"tests_ran_count: {result.get('tests_ran_count')}")
+    print(f"generated_artifacts_count: {result.get('generated_artifacts_count')}")
+    print(f"pytest_result_present: {result.get('pytest_result_present')}")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Build low-token project state packets.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -3212,6 +3332,9 @@ def main(argv: list[str] | None = None) -> int:
 
     lint_decision_parser = subparsers.add_parser("lint-decision", help="Lint the active decision packet.")
     lint_decision_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+
+    lint_report_parser = subparsers.add_parser("lint-report", help="Lint the active Codex execution report.")
+    lint_report_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
     args = parser.parse_args(argv)
     if args.command == "build":
@@ -3243,6 +3366,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "lint-decision":
         result = lint_decision(state_dir=Path(args.state_dir))
         _print_lint_decision(result)
+        return 0 if result.get("ok") else 1
+    if args.command == "lint-report":
+        result = lint_report(state_dir=Path(args.state_dir))
+        _print_lint_report(result)
         return 0 if result.get("ok") else 1
     return 1
 

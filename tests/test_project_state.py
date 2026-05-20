@@ -11,6 +11,7 @@ from reverse_agent.project_state import (
     ensure_state_layout,
     extract_markdown_json_block,
     lint_decision,
+    lint_report,
     main,
     pack_context,
     read_codex_report_summary,
@@ -62,24 +63,37 @@ def _write_codex_report(
     *,
     report_id: str = "report_test",
     based_on_decision_id: str = "decision_test",
+    round_id: str = "round_test",
     status: str = "SUCCESS",
     acceptance_recommendation: str = "ACCEPTED",
+    files_changed: object = None,
+    tests_ran: object = None,
+    generated_artifacts: object = None,
 ) -> None:
+    payload = {
+        "schema_version": 1,
+        "report_id": report_id,
+        "round_id": round_id,
+        "based_on_decision_id": based_on_decision_id,
+        "status": status,
+        "acceptance_recommendation": acceptance_recommendation,
+        "files_changed": [] if files_changed is None else files_changed,
+        "tests_ran": ["python -m pytest -q"] if tests_ran is None else tests_ran,
+        "generated_artifacts": [] if generated_artifacts is None else generated_artifacts,
+    }
     (state_dir / "codex_execution_report.md").write_text(
         f"""```json codex_report_summary
-{{
-  "schema_version": 1,
-  "report_id": "{report_id}",
-  "based_on_decision_id": "{based_on_decision_id}",
-  "status": "{status}",
-  "acceptance_recommendation": "{acceptance_recommendation}"
-}}
+{json.dumps(payload, indent=2)}
 ```
 
 # CODEX_EXECUTION_REPORT
 """,
         encoding="utf-8",
     )
+
+
+def _write_pytest_result(state_dir: Path, text: str = "pytest passed\n") -> None:
+    (state_dir / "pytest_result.txt").write_text(text, encoding="utf-8")
 
 
 def _make_minimal_harness_run(reports_dir: Path, run_name: str = "samplereverse_stalled") -> Path:
@@ -1928,6 +1942,215 @@ def test_lint_decision_reports_execution_scope_and_active_decision_packet(tmp_pa
     assert result["warnings"] == [
         "task_packet.active_decision_packet is project_state/other_decision.md, expected project_state/decision_packet.md"
     ]
+
+
+def _prepare_lint_report_state(tmp_path: Path) -> tuple[Path, dict[str, object]]:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    assert isinstance(current_state, dict)
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_report",
+        based_on_state_build_id=str(current_state["state_build_id"]),
+        based_on_state_digest=str(current_state["state_digest"]),
+    )
+    _write_codex_report(
+        state_dir,
+        report_id="report_ok",
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+        files_changed=["reverse_agent/project_state.py"],
+        tests_ran=["python -m pytest -q tests\\test_project_state.py"],
+        generated_artifacts=["project_state/pytest_result.txt"],
+    )
+    _write_pytest_result(state_dir)
+    archive_round(state_dir=state_dir)
+    return state_dir, current_state
+
+
+def test_lint_report_ok_for_matching_success_report(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert result["errors"] == []
+    assert result["report_id"] == "report_ok"
+    assert result["report_status"] == "SUCCESS"
+    assert result["acceptance_recommendation"] == "ACCEPTED"
+    assert result["based_on_decision_id"] == "decision_report"
+    assert result["decision_id"] == "decision_report"
+    assert result["decision_report_id_match"] is True
+    assert result["round_id"] == current_state["round_id"]
+    assert result["current_state_round_id"] == current_state["round_id"]
+    assert result["tests_ran_count"] == 1
+    assert result["generated_artifacts_count"] == 1
+    assert result["pytest_result_present"] is True
+
+
+def test_lint_report_fails_when_report_summary_missing(tmp_path: Path) -> None:
+    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
+    (state_dir / "codex_execution_report.md").write_text("# CODEX_EXECUTION_REPORT\n", encoding="utf-8")
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "codex_report_summary missing" in result["errors"]
+
+
+def test_lint_report_fails_when_report_status_template_only(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "codex_report_summary is TEMPLATE_ONLY" in result["errors"]
+
+
+def test_lint_report_fails_when_report_id_empty(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        report_id="",
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "report_id missing" in result["errors"]
+
+
+def test_lint_report_fails_when_based_on_decision_id_empty(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="",
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "based_on_decision_id missing" in result["errors"]
+
+
+def test_lint_report_fails_when_based_on_decision_id_mismatch(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_other",
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "based_on_decision_id does not match current decision_id" in result["errors"]
+
+
+def test_lint_report_fails_when_success_report_has_empty_tests_ran(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+        tests_ran=[],
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "SUCCESS report requires non-empty tests_ran" in result["errors"]
+
+
+def test_lint_report_fails_when_success_report_has_empty_pytest_result(tmp_path: Path) -> None:
+    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
+    (state_dir / "pytest_result.txt").write_text("", encoding="utf-8")
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "SUCCESS report requires non-empty pytest_result.txt" in result["errors"]
+
+
+def test_lint_report_fails_when_summary_lists_have_wrong_type(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+        files_changed="reverse_agent/project_state.py",
+        tests_ran="python -m pytest -q",
+        generated_artifacts="project_state/pytest_result.txt",
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "files_changed must be a list" in result["errors"]
+    assert "tests_ran must be a list" in result["errors"]
+    assert "generated_artifacts must be a list" in result["errors"]
+
+
+def test_lint_report_warns_when_round_id_mismatches_current_state(tmp_path: Path) -> None:
+    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        round_id="round_other",
+        based_on_decision_id="decision_report",
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert "report round_id does not match current_state.round_id" in result["warnings"]
+    assert "round_manifest missing" in result["warnings"]
+
+
+def test_lint_report_warns_for_structured_non_success_report(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+        status="PARTIAL",
+        acceptance_recommendation="NEEDS_REVIEW",
+        tests_ran=[],
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert "report_status is PARTIAL" in result["warnings"]
+
+
+def test_lint_report_cli_returns_zero_on_ok(tmp_path: Path, capsys) -> None:
+    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
+
+    assert main(["lint-report", "--state-dir", str(state_dir)]) == 0
+    output = capsys.readouterr().out
+    assert "lint-report: OK" in output
+    assert "report_status: SUCCESS" in output
+    assert "decision_report_id_match: True" in output
+    assert "pytest_result_present: True" in output
+
+
+def test_lint_report_cli_returns_nonzero_on_failure(tmp_path: Path, capsys) -> None:
+    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
+    (state_dir / "codex_execution_report.md").write_text("# CODEX_EXECUTION_REPORT\n", encoding="utf-8")
+
+    assert main(["lint-report", "--state-dir", str(state_dir)]) == 1
+    output = capsys.readouterr().out
+    assert "lint-report: FAILED" in output
+    assert "error: codex_report_summary missing" in output
 
 
 def test_extract_decision_meta_json() -> None:
