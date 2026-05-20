@@ -1,46 +1,64 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_phase1d_lint_decision_min_gate_20260519",
-  "round_id": "round_20260519_085626",
-  "based_on_state_build_id": "state_20260519_085626_acd12be00935",
-  "based_on_state_digest": "acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c",
+  "decision_id": "decision_phase1d_fix_lint_phase_semantics_20260519",
+  "round_id": "round_20260519_105608",
+  "based_on_state_build_id": "state_20260519_105608_74887f4fae41",
+  "based_on_state_digest": "74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0",
   "status": "APPROVED"
 }
 ```
 
 # DECISION_PACKET
 
-本轮进入 Phase 1D：实现最小 `lint-decision` 门禁。
+本轮进入 Phase 1D-fix：明确 `lint-decision` 的 pre-execution / post-execution 语义，并补齐最终状态记录。
 
-本轮仍属于工程架构改造支线，不推进 `samplereverse` 逆向主线，不运行 runtime probe，不进入 Phase 2，不做重型 workflow runtime。
+本轮仍属于工程架构改造支线，不推进 `samplereverse` 逆向主线，不运行 runtime probe，不进入 Phase 2，不引入重型 workflow runtime。
 
 ## 1. Goal
 
-实现一个最小、可测试、fail-soft 的 decision 门禁，用于在 Codex 执行前快速判断当前 `project_state/decision_packet.md` 是否可执行。
-
-本轮目标是新增：
+上一轮 Phase 1D 已实现最小 `lint-decision` 门禁，但暴露了一个流程语义问题：
 
 ```text
-python -m reverse_agent.project_state lint-decision
+Codex 执行前，decision_meta.based_on_state_digest 与 current_state.state_digest 匹配，lint-decision 返回 OK。
+Codex 执行 build 后，current_state.state_digest 会更新。
+此时同一份 decision_packet.md 仍绑定执行前 state_digest，lint-decision 返回 digest mismatch。
 ```
 
-最小检查项：
+这不是代码失败，而是 pre-execution decision 在执行后自然变成 consumed / stale。当前问题是：status / pytest_result / report 没有把这个语义表达清楚，容易让审计误判为失败。
+
+本轮目标是小步修复该协作语义：
 
 ```text
-1. decision_packet.md 必须存在。
-2. decision_meta 必须存在。
-3. decision_meta.status 必须是 APPROVED。
-4. decision_id 必须非空。
-5. based_on_state_build_id 必须非空。
-6. based_on_state_digest 必须非空。
-7. based_on_state_digest 应能与当前 current_state.json 的 state_digest 对比。
-8. 如果 digest 不匹配，不要直接崩溃；输出明确 stale/mismatch 诊断，并返回非 0。
-9. 如果当前 task_packet.execution_scope 是 decision_packet_controls_current_round，则明确提示当前执行权威来自 decision_packet.md。
-10. lint 输出必须是人类可读文本；可选提供 JSON summary，但不要做复杂 schema。
+1. 保持 lint-decision 严格：默认仍检查 decision_meta.based_on_state_digest == current_state.state_digest。
+2. 增加 status_summary 可审计字段，用于区分：
+   - decision matches current live state，可作为下一轮执行入口；
+   - decision 已被本轮 report 消费，post-build 后 digest stale，这是执行后的正常状态；
+   - decision/report 不匹配，是真正的 handoff mismatch。
+3. 让 CLI status 输出该 decision freshness / consumption 状态。
+4. 让 pytest_result.txt 明确记录：pre-build lint OK、post-build lint expected stale、final status 中 report 已绑定当前 decision。
+5. 不自动修改 decision_packet.md，不实现完整 workflow engine。
 ```
 
-本轮只实现 decision 侧最小门禁，不实现完整 policy engine，不实现 negative_results 语义解析，不实现自动修复。
+建议新增或复用字段：
+
+```json
+{
+  "decision_state_digest_match": false,
+  "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+  "decision_consumed_by_report": true
+}
+```
+
+允许的最小 `decision_execution_state` 值：
+
+```text
+READY_FOR_EXECUTION
+CONSUMED_BY_SUCCESS_REPORT
+CONSUMED_BY_NON_SUCCESS_REPORT
+STALE_WITHOUT_MATCHING_REPORT
+TEMPLATE_OR_UNKNOWN
+```
 
 ## 2. Current Evidence
 
@@ -58,25 +76,33 @@ active_decision_packet = project_state/decision_packet.md
 
 这说明 `task_packet.task` 只是 derived_task，本轮 Codex 执行权威仍来自 `project_state/decision_packet.md`。
 
-当前状态身份：
+当前 live state 身份：
 
 ```text
-round_id = round_20260519_085626
-state_build_id = state_20260519_085626_acd12be00935
-state_digest = acd12be0093533d1bb86b1bec1959a3d138e0a48d52cf6bb8f8b1194473eeb8c
+round_id = round_20260519_105608
+state_build_id = state_20260519_105608_74887f4fae41
+state_digest = 74887f4fae41ecbb00daa28525fd79aa2e667e9946145d96dd5fe79de04498c0
 source_harness_run = sr_lhs_last_writer_health_fix_20260518_r3
 ```
 
-上一轮 Phase 1C-fix 已经完成：
+上一轮 Phase 1D 已完成：
 
 ```text
-decision_status: APPROVED
-report_status: SUCCESS
-report_based_on_decision_id: decision_phase1c_handoff_traceability_fix_20260519
-decision_report_id_match: True
+新增 python -m reverse_agent.project_state lint-decision。
+APPROVED + matching state digest 返回 0。
+missing meta / TEMPLATE_ONLY / DRAFT / empty id / empty digest / digest mismatch 返回非 0。
+tests/test_project_state.py 71 passed。
+全量 pytest 321 passed。
 ```
 
-因此现在可以在此基础上实现最小 `lint-decision`。
+上一轮限制：
+
+```text
+build 后 current_state.state_digest 更新为 74887f4...
+当前 decision_packet.md 仍绑定执行前 digest acd12be...
+post-build lint-decision 返回 expected failure。
+这说明 decision 被执行后自然 stale，但 status 没有显式区分“已消费”与“错误 mismatch”。
+```
 
 artifact freshness 现状：
 
@@ -104,9 +130,10 @@ frontier_summary / base64_rc4_static_point_discovery 等 legacy tool_artifacts �
 不要回旧 sample_solver。
 不要提交完整 solve_reports。
 不要默认读取完整 PROJECT_PROGRESS_LOG.txt。
-不要实现完整 lint framework。
-不要实现复杂 policy engine。
-不要实现自动修改 decision_packet.md。
+不要自动修改 decision_packet.md 来追当前 state_digest。
+不要把 post-build digest mismatch 简单吞掉。
+不要降低 lint-decision 默认严格性。
+不要实现完整 lint framework 或 policy engine。
 不要实现 GitHub Actions / CI workflow。
 不要引入 Temporal / Airflow / Dagster / Argo / LangGraph。
 不要引入 PostgreSQL / Redis / Kubernetes。
@@ -132,8 +159,8 @@ project_state/pytest_result.txt
 
 ```text
 project_state/artifact_index.json
-project_state/rounds/round_20260519_085626/round_manifest.json
-project_state/rounds/round_20260519_085626/git_diff.patch
+project_state/rounds/round_20260519_105608/round_manifest.json
+project_state/rounds/round_20260519_105608/git_diff.patch
 docs/phase1_project_state_stability_plan.md
 ```
 
@@ -144,16 +171,16 @@ docs/phase1_project_state_stability_plan.md
 实现前必须先审计并在 `codex_execution_report.md` 中说明：
 
 ```text
-1. main() 当前有哪些 subcommand。
-2. status subcommand 当前如何读取 decision/report 状态。
-3. read_decision_meta() 当前对 missing / invalid / TEMPLATE_ONLY / APPROVED 的行为。
-4. status_summary() 当前是否已经暴露 decision_status、decision_id、decision_based_on_state_digest。
-5. current_state.json 中 state_build_id / state_digest 的字段来源。
-6. task_packet.json 中 execution_scope / active_decision_packet 的字段来源。
-7. 上一轮 handoff_consistency / decision_report_id_match 是否已经实现。
-8. lint-decision 是否可以复用 read_decision_meta()，避免重复解析 Markdown。
-9. digest mismatch 应该返回非 0，但不能破坏 status/build/archive-round。
-10. 是否已有测试可复用，避免重复造大型 fixture。
+1. lint_decision() 当前如何判断 digest match。
+2. status_summary() 当前已暴露哪些 decision/report 字段。
+3. build_handoff_status() 当前如何计算 decision_report_id_match。
+4. codex_report_summary.based_on_decision_id 与 decision_id 匹配时，能否说明 decision 已被 report 消费。
+5. report_status SUCCESS / PARTIAL / FAILED / BLOCKED 对 execution_state 应如何分类。
+6. current_state.state_digest 改变时，为什么不应自动改写 decision_packet.md。
+7. pytest_result.txt 当前是否记录了 post-build lint expected failure。
+8. archive-round 是否已归档 current_state / decision_packet / report / pytest_result / git_diff。
+9. 能否用现有 helper 实现，不重复解析 Markdown，不新增复杂 schema。
+10. 本轮是否只需改 project_state.py 与 tests。
 ```
 
 ## 6. Implementation Scope
@@ -192,118 +219,92 @@ reverse_agent/olly_scripts/*
 reverse_agent/harness.py
 ```
 
-### 6.1 lint-decision 行为
+### 6.1 status_summary 增强
 
-新增函数建议：
+在 `status_summary()` 或 `build_handoff_status()` 中增加最小字段。
 
-```text
-lint_decision(state_dir: Path) -> dict[str, Any]
-```
-
-返回结构建议：
+建议字段：
 
 ```json
 {
-  "ok": true,
-  "errors": [],
-  "warnings": [],
-  "decision_id": "...",
-  "decision_status": "APPROVED",
-  "based_on_state_build_id": "...",
-  "based_on_state_digest": "...",
-  "current_state_build_id": "...",
-  "current_state_digest": "...",
-  "execution_scope": "decision_packet_controls_current_round",
-  "active_decision_packet": "project_state/decision_packet.md"
+  "decision_state_digest_match": true,
+  "decision_consumed_by_report": false,
+  "decision_execution_state": "READY_FOR_EXECUTION"
 }
 ```
 
-最小错误条件：
+判定建议：
 
 ```text
-decision_meta missing -> error
-decision_status != APPROVED -> error
-decision_id empty -> error
-based_on_state_build_id empty -> error
-based_on_state_digest empty -> error
-current_state.json missing or no state_digest -> error
-based_on_state_digest != current_state.state_digest -> error
+READY_FOR_EXECUTION:
+  decision_status=APPROVED，decision based_on_state_digest == current_state.state_digest。
+
+CONSUMED_BY_SUCCESS_REPORT:
+  decision_status=APPROVED，decision_report_id_match=True，report_status=SUCCESS，且 decision based_on_state_digest != current_state.state_digest。
+
+CONSUMED_BY_NON_SUCCESS_REPORT:
+  decision_status=APPROVED，decision_report_id_match=True，report_status in PARTIAL/FAILED/BLOCKED，且 decision based_on_state_digest != current_state.state_digest。
+
+STALE_WITHOUT_MATCHING_REPORT:
+  decision_status=APPROVED，但 digest mismatch 且 report 未绑定该 decision。
+
+TEMPLATE_OR_UNKNOWN:
+  decision_status in TEMPLATE_ONLY/UNKNOWN 或 decision_id 为空。
 ```
 
-最小 warning 条件：
+不要改变 `lint_decision()` 的默认失败规则。lint 仍然是 pre-execution gate。
+
+### 6.2 CLI status 输出
+
+`python -m reverse_agent.project_state status` 应额外输出：
 
 ```text
-task_packet missing -> warning
-task_packet.execution_scope missing -> warning
-active_decision_packet missing -> warning
-active_decision_packet 不等于 project_state/decision_packet.md -> warning 或 error，由 Codex 审计后决定
+decision_state_digest_match: True/False
+decision_consumed_by_report: True/False
+decision_execution_state: READY_FOR_EXECUTION / CONSUMED_BY_SUCCESS_REPORT / ...
 ```
 
-### 6.2 CLI 行为
+### 6.3 pytest_result 记录要求
 
-新增 subcommand：
-
-```powershell
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-```
-
-输出要求：
+本轮 `pytest_result.txt` 必须记录：
 
 ```text
-lint-decision: OK
-decision_id: ...
-decision_status: APPROVED
-based_on_state_digest: ...
-current_state_digest: ...
-execution_scope: decision_packet_controls_current_round
-active_decision_packet: project_state/decision_packet.md
+1. pre-build lint-decision OK。
+2. build 后如果 digest 改变，post-build lint-decision 失败是 expected stale，不是异常。
+3. final status 输出 decision_execution_state。
+4. 如果 final status 是 CONSUMED_BY_SUCCESS_REPORT，则说明本轮 report 已消费当前 decision。
 ```
 
-失败时：
+### 6.4 不自动刷新 decision_meta
+
+不要让 Codex 在本轮自动把 `decision_packet.md` 的 `based_on_state_digest` 改成 build 后的新 digest。
+
+原因：
 
 ```text
-lint-decision: FAILED
-error: decision_meta missing
-error: decision status is DRAFT, expected APPROVED
-error: based_on_state_digest does not match current_state.state_digest
+正式 decision 应由 GPT 生成并批准。
+Codex 自动刷新 decision_meta 会破坏“GPT 是决策手、Codex 是执行手”的职责边界。
 ```
-
-返回码：
-
-```text
-0 = OK
-1 = lint failed
-```
-
-不要让 lint-decision 抛 Python traceback，除非是不可恢复的程序错误。
-
-### 6.3 digest mismatch 说明
-
-本轮 lint 以“当前 live state”为检查对象，所以如果 `decision_meta.based_on_state_digest` 和当前 `current_state.state_digest` 不一致，应当失败。
-
-这与审计历史 round 不冲突：历史 round 应通过 `round_manifest.json` 审计，不通过 live `lint-decision` 判断。
-
-### 6.4 不做 report lint
-
-本轮只做 decision lint，不做完整 report lint。
-
-允许读取 report 但不要把 report 成败纳入 lint-decision 的阻断条件。report 绑定检查已经由上一轮 `decision_report_id_match` 提供。
 
 ## 7. Tests
 
 必须新增或修改 `tests/test_project_state.py`，覆盖：
 
 ```text
-test_lint_decision_ok_for_approved_matching_current_state
-test_lint_decision_fails_when_decision_meta_missing
-test_lint_decision_fails_when_decision_status_template_only
-test_lint_decision_fails_when_decision_status_draft
-test_lint_decision_fails_when_decision_id_empty
-test_lint_decision_fails_when_based_on_state_digest_empty
-test_lint_decision_fails_when_based_on_state_digest_mismatch
-test_lint_decision_cli_returns_zero_on_ok
-test_lint_decision_cli_returns_nonzero_on_failure
-test_lint_decision_reports_execution_scope_and_active_decision_packet
+test_status_summary_decision_ready_for_execution_when_digest_matches
+test_status_summary_decision_consumed_by_success_report_when_digest_stale_but_report_matches
+test_status_summary_decision_consumed_by_non_success_report_when_digest_stale_but_report_matches
+test_status_summary_decision_stale_without_matching_report_when_digest_stale_and_report_differs
+test_status_summary_decision_template_or_unknown_for_template_decision
+test_status_cli_prints_decision_execution_state
+```
+
+保留上一轮测试：
+
+```text
+lint-decision 成功路径仍返回 0。
+lint-decision digest mismatch 仍返回 1。
+status/build/archive-round 原有行为不回退。
 ```
 
 必须运行并记录输出：
@@ -315,31 +316,27 @@ python -m pytest -q
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
 python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_last_writer_health_fix_20260518_r3
+python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
 python -m reverse_agent.project_state archive-round --state-dir project_state
 ```
 
-注意执行顺序：
-
-```text
-如果 build 会刷新 current_state.state_digest，Codex 必须在 build 后确保当前 decision_packet.md 的 decision_meta 仍然指向当前 live state，或者在报告中说明 lint-decision 为什么在 build 前/后预期不同。
-最终 pytest_result.txt 必须记录最终可审计状态。
-```
+如果 post-build lint-decision 失败，必须在 `pytest_result.txt` 里标注为 expected stale，并用 final `status` 的 `decision_execution_state` 说明当前状态。
 
 ## 8. Stop Conditions
 
 遇到以下情况必须停止并报告：
 
 ```text
-1. 需要实现完整 lint framework 或 policy engine。
-2. 需要自动改写 decision_packet.md 才能通过测试。
-3. 需要读取完整 solve_reports。
-4. 需要修改 reverse strategy、harness 主流程或 olly_scripts。
-5. 需要推进 samplereverse 逆向任务。
-6. lint-decision 会破坏 status/build/archive-round 现有行为。
-7. 无法区分 TEMPLATE_ONLY / UNKNOWN / DRAFT / APPROVED。
-8. 无法稳定返回非 0 退出码。
-9. digest mismatch 规则与现有 build/archive 语义发生不可解释冲突。
+1. 需要修改 lint-decision 默认严格性才能完成。
+2. 需要自动改写 decision_packet.md 才能完成。
+3. 需要实现完整 workflow engine 或 policy engine。
+4. 需要读取完整 solve_reports。
+5. 需要修改 reverse strategy、harness 主流程或 olly_scripts。
+6. 需要推进 samplereverse 逆向任务。
+7. 无法区分 READY_FOR_EXECUTION 与 CONSUMED_BY_SUCCESS_REPORT。
+8. 无法保持旧 status/build/archive-round 测试通过。
+9. round_manifest 无法归档本轮最终状态。
 ```
 
 ## Acceptance Criteria
@@ -347,14 +344,17 @@ python -m reverse_agent.project_state archive-round --state-dir project_state
 本轮可接受条件：
 
 ```text
-1. 新增 python -m reverse_agent.project_state lint-decision。
-2. APPROVED decision + matching current_state digest 返回 0。
-3. missing meta / TEMPLATE_ONLY / DRAFT / 空 decision_id / 空 digest / digest mismatch 返回非 0。
-4. lint-decision 输出 readable diagnostics。
-5. lint-decision 复用 read_decision_meta()，不重复实现 Markdown parser。
-6. status/build/archive-round 原有测试不回退。
-7. tests/test_project_state.py 覆盖成功与失败路径。
-8. project_state/pytest_result.txt 记录真实测试结果。
-9. codex_execution_report.md 顶部 codex_report_summary.based_on_decision_id 指向本轮 decision_id。
-10. 不修改逆向策略、不运行 runtime probe、不进入 Phase 2。
+1. lint-decision 默认严格性保持不变。
+2. status_summary 新增 decision_state_digest_match。
+3. status_summary 新增 decision_consumed_by_report。
+4. status_summary 新增 decision_execution_state。
+5. status CLI 打印上述字段。
+6. digest match 时状态为 READY_FOR_EXECUTION。
+7. digest stale 但 report 绑定且 SUCCESS 时状态为 CONSUMED_BY_SUCCESS_REPORT。
+8. digest stale 且 report 不绑定时状态为 STALE_WITHOUT_MATCHING_REPORT。
+9. TEMPLATE_ONLY/UNKNOWN decision 状态为 TEMPLATE_OR_UNKNOWN。
+10. tests/test_project_state.py 覆盖上述状态。
+11. project_state/pytest_result.txt 记录真实测试结果与 final status。
+12. codex_execution_report.md 顶部 codex_report_summary.based_on_decision_id 指向本轮 decision_id。
+13. 不修改逆向策略、不运行 runtime probe、不进入 Phase 2。
 ```
