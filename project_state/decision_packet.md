@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_phase2a_harness_resume_policy_20260520",
-  "round_id": "round_20260520_phase2a_harness_resume_policy",
+  "decision_id": "decision_phase2b_case_artifact_manifest_20260520",
+  "round_id": "round_20260520_phase2b_case_artifact_manifest",
   "based_on_state_build_id": "state_20260520_052928_8a77e6637c6c",
   "based_on_state_digest": "8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d",
   "status": "APPROVED"
@@ -11,65 +11,70 @@
 
 # DECISION_PACKET
 
-本轮进入 Phase 2A：增强 harness resume 语义。
+本轮进入 Phase 2B：为每个 harness case_result 增加 `artifact_manifest`，并让 `project_state.artifact_index` 在可用时优先使用 case-level artifact provenance。
 
-本轮属于工程架构改造支线中的 harness 可复现 / 可恢复 / 可比较方向。不要推进 `samplereverse` 逆向解题，不运行 runtime probe，不修改 GPT/Codex 协作协议，不进入 artifact manifest / harness compare / resource budget 的后续 Phase 2 子任务。
+本轮属于工程架构改造支线中的 harness 可复现 / 可恢复 / 可比较方向。不要推进 `samplereverse` 逆向解题，不运行 runtime probe，不修改 GPT/Codex 协作协议，不进入 harness compare / resource budget / workflow lifecycle 的后续任务。
 
 ## 1. Goal
 
-当前 harness resume 语义过粗：同一 `run_name` 下只要 `case_results/<case>.json` 存在就跳过。这个行为对稳定终态结果合理，但对 `error`、`timeout`、`interrupted`、`partial`、`blocked` 等非终态结果不可靠。
+当前 `project_state` 主要通过扫描 `solve_reports` 和路径推断来建立 artifact_index。Phase 1C 已经有 `latest_artifacts_v2` provenance/freshness 字段，但 artifact provenance 仍主要来自全局路径推断，而不是每个 harness case 的直接输出记录。
+
+Phase 2B 目标是在 harness case result 中直接记录轻量 artifact manifest，让后续 `project_state` 构建、跨 run 比较、stale/current 判断更稳定。
 
 本轮目标：
 
 ```text
-1. 将 harness resume 默认策略改为 terminal-only：
-   - 只默认跳过明确终态 case result。
-   - 非终态、临时错误、中断、超时结果默认允许重跑。
-2. 保留旧行为 all-existing：
-   - 用户显式传入 --resume-policy all-existing 时，继续“只要已有 case result 就跳过”。
-3. 增加按 status 强制重跑能力：
-   - --rerun-status <status> 可重复传入。
-   - --rerun-error 作为 --rerun-status error 的便捷语法糖。
-4. 明确 status 判定函数，避免散落字符串判断。
-5. 增加 harness resume 单元测试，证明 terminal / non-terminal / legacy policy 行为。
-6. 不改 project_state 协作协议，不改 reverse strategy，不运行 runtime probe。
+1. 在 HarnessCaseResult 中新增 additive 字段 artifact_manifest。
+2. 从 SolveResult.tool_artifacts / ToolRunArtifact.output_path 生成每个 case 的 artifact_manifest。
+3. artifact_manifest 只记录轻量元数据，不内嵌 artifact 内容。
+4. project_state 构建 artifact_index 时，在 case_result.artifact_manifest 存在且有效时优先使用它补充或生成 latest_artifacts_v2。
+5. 保持旧 case_result 兼容：没有 artifact_manifest 的旧结果仍可加载。
+6. 不改变 decision_meta / codex_report_summary / lint-handoff 协作协议。
+7. 不运行任何逆向 runtime probe。
 ```
 
-建议状态分类：
+建议 artifact_manifest 最小结构：
+
+```json
+{
+  "artifact_manifest": [
+    {
+      "kind": "compare_real_lhs_provenance_audit",
+      "path": "solve_reports\\harness_runs\\...\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 105629,
+      "sha256": "...",
+      "classification": "compare_lhs_runtime_backed_writer_missing",
+      "tool_name": "...",
+      "owner_profile": "...",
+      "strategy_name": "..."
+    }
+  ]
+}
+```
+
+字段要求：
 
 ```text
-默认跳过的 terminal statuses:
-- passed
-- failed_expected
-- completed_no_expected
-- not_found
+kind:
+  优先从 artifact 文件名、ToolRunArtifact.tool_name、或现有 artifact key 规则推导。
+  不要求一次覆盖所有历史 artifact 类型。
 
-默认不跳过、应允许重跑的 non-terminal / unstable statuses:
-- error
-- timeout
-- interrupted
-- partial
-- blocked
-```
+path:
+  使用相对仓库或 reports-dir 可读路径；不要写绝对 Windows 本机路径作为唯一来源。
 
-建议 CLI：
+size_bytes / sha256:
+  如果文件存在则必须填写；文件不存在则可为 null，并应避免当作 current 证据。
 
-```powershell
-python -m reverse_agent.harness run ... --resume --resume-policy terminal-only
-python -m reverse_agent.harness run ... --resume --resume-policy all-existing
-python -m reverse_agent.harness run ... --resume --rerun-error
-python -m reverse_agent.harness run ... --resume --rerun-status error --rerun-status timeout
-```
+classification:
+  如果 artifact 是 JSON 且顶层存在 classification 字段，则读取；否则为 "" 或 null。
 
-默认规则建议：
-
-```text
-如果 --resume 启用但未显式指定 --resume-policy，则使用 terminal-only。
+兼容性:
+  旧 case_result 缺少 artifact_manifest 时不能崩溃。
 ```
 
 ## 2. Current Evidence
 
-当前任务主线：工程架构改造支线，具体为 Phase 2A harness resume 可靠性。
+当前任务主线：工程架构改造支线，具体为 Phase 2B case artifact manifest。
 
 当前 live state：
 
@@ -92,21 +97,20 @@ active_decision_packet = project_state/decision_packet.md
 
 这说明 `task_packet.task` 不是本轮 Codex 的执行任务；本轮执行权威来自 `project_state/decision_packet.md`。
 
-Phase 1F 已完成：
+Phase 2A 已完成并经 GPT 审查：
 
 ```text
-decision_id = decision_phase1f_lint_handoff_aggregate_20260520
-report_id = report_phase1f_lint_handoff_aggregate_20260520
+decision_id = decision_phase2a_harness_resume_policy_20260520
+report_id = report_phase2a_harness_resume_policy_20260520
 report_status = SUCCESS
 acceptance_recommendation = ACCEPTED
-tests/test_project_state.py = 101 passed
-full pytest = 354 passed
-final lint-handoff = REVIEW_COMPLETE
-decision_execution_state = CONSUMED_BY_SUCCESS_REPORT
-decision_ready_for_execution = False
+GPT review = ACCEPTED_WITH_LIMITATIONS
+主要限制 = archived git_diff.patch 对新增测试文件可回放性不够清晰；resume_policy/rerun_statuses 未进入 manifest 可审计字段。
 ```
 
-artifact freshness 现状：
+这些限制不阻断 Phase 2B，但本轮应避免扩大到完整 archive-round 重构。若能以小改动改善新增文件归档可见性，可在 Required Audit 中说明；否则只记录为后续 Phase 2D `lint-round` / archive 改进任务。
+
+当前 artifact_index 现状：
 
 ```text
 latest_artifacts_v2 已存在。
@@ -115,14 +119,14 @@ frontier_summary / function_semantic_audit / base64_rc4_static_point_discovery �
 多个未生成 artifact 标记为 missing。
 ```
 
-这些 artifact 只用于说明状态，不是本轮要消费的逆向证据。本轮不要重新扫描完整 `solve_reports/`。
-
-为什么本轮适合做 resume：
+现有代码证据：
 
 ```text
-reverse-agent 的动态调试、Olly、Frida、UIA、Windows GUI 工具链容易出现临时 error/timeout/interrupted。
-如果这些非终态结果被 --resume 永久缓存，就会造成假稳定，后续 run 会误以为该 case 已经完成。
+reverse_agent.pipeline.SolveResult 已有 tool_artifacts: list[ToolRunArtifact]。
+reverse_agent.tool_runners.ToolRunArtifact 已有 tool_name / output_path / owner_profile / strategy_name 等字段。
 ```
+
+因此本轮应优先复用 `SolveResult.tool_artifacts` 和 `ToolRunArtifact.output_path`，不要新建并行工具产物体系。
 
 ## 3. Do Not Do
 
@@ -139,17 +143,18 @@ reverse-agent 的动态调试、Olly、Frida、UIA、Windows GUI 工具链容易
 不要提交完整 solve_reports。
 不要默认读取完整 PROJECT_PROGRESS_LOG.txt。
 不要默认读取完整 solve_reports。
-不要修改 project_state 协作协议。
+不要修改 GPT/Codex 协作协议。
 不要修改 decision_meta / codex_report_summary schema。
 不要修改 lint-decision / lint-report / lint-handoff 语义。
 不要实现 start-round / close-round / lint-round。
-不要实现 case_result artifact_manifest。
 不要实现 harness compare。
 不要实现 resource_budget。
 不要实现 queue / backpressure / worker pool。
 不要引入 Temporal / Airflow / Dagster / Argo / LangGraph。
 不要引入 PostgreSQL / Redis / Kubernetes。
-不要为了本轮任务重构 harness 主流程。
+不要为了 artifact_manifest 重构 harness 主流程。
+不要内嵌 artifact 文件内容到 case_result。
+不要把 missing/stale artifact 当作 current evidence。
 ```
 
 ## 4. Files To Inspect
@@ -158,7 +163,12 @@ reverse-agent 的动态调试、Olly、Frida、UIA、Windows GUI 工具链容易
 
 ```text
 reverse_agent/harness.py
+reverse_agent/pipeline.py
+reverse_agent/tool_runners.py
+reverse_agent/project_state.py
 tests/test_harness.py
+tests/test_harness_resume.py
+tests/test_project_state.py
 project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
@@ -168,37 +178,38 @@ project_state/artifact_index.json
 project_state/negative_results.json
 ```
 
-如果现有测试结构不适合承载新增 resume 测试，允许新增：
+如果现有测试结构不适合承载新增 artifact manifest 测试，允许新增：
 
 ```text
-tests/test_harness_resume.py
+tests/test_harness_artifact_manifest.py
 ```
 
 必要时参考：
 
 ```text
-project_state/rounds/round_20260520_phase1f_lint_handoff/round_manifest.json
-project_state/rounds/round_20260520_phase1f_lint_handoff/git_diff.patch
+project_state/rounds/round_20260520_phase2a_harness_resume_policy/round_manifest.json
+project_state/rounds/round_20260520_phase2a_harness_resume_policy/git_diff.patch
 ```
 
-不要默认读取完整 `solve_reports/`。
+不要默认读取完整 `solve_reports/`。需要 fixture artifact 时，在临时目录构造最小 JSON artifact 即可。
 
 ## 5. Required Audit
 
 实现前必须在 `project_state/codex_execution_report.md` 中说明：
 
 ```text
-1. 当前 reverse_agent/harness.py 的 --resume 行为在哪里实现。
-2. 当前 case_results/<case>.json 的 status 字段来源和可能取值。
-3. 当前跳过 case 的判定是否只检查文件存在。
-4. 当前 argparse / CLI 子命令结构中 run 命令如何接收 resume 参数。
-5. 当前 tests/test_harness.py 是否已有 resume 或 run_name 测试。
-6. 是否已有等价 resume-policy 能力；如果有，优先复用，不重复实现。
-7. 为什么 error/timeout/interrupted/partial/blocked 不应被 terminal-only 默认跳过。
-8. 如何保留 all-existing 旧行为，避免破坏需要旧语义的使用方式。
-9. --rerun-status 与 --resume-policy 的优先级。
-10. 本轮是否可以只改 harness.py 与 harness 测试。
-11. 是否存在误推进 reverse runtime 或修改 project_state 协作协议的风险。
+1. HarnessCaseResult 当前如何序列化到 case_results/<case>.json。
+2. SolveResult.tool_artifacts 当前字段结构。
+3. ToolRunArtifact.output_path 是否稳定可用。
+4. 当前 artifact_index 如何从 solve_reports / latest_harness_run 推导 latest_artifacts_v2。
+5. project_state 是否已经有 artifact kind 推导函数；如果有，优先复用。
+6. 旧 case_result 缺少 artifact_manifest 时如何兼容。
+7. artifact_manifest 缺失、artifact 文件不存在、JSON 无 classification 时如何处理。
+8. case_result.artifact_manifest 与 existing artifact_index path scan 的优先级关系。
+9. 是否需要更新 schema 文档；如果需要，仅做 additive 字段说明，不改协议。
+10. 本轮是否只需要改 harness.py / project_state.py / tests。
+11. 是否存在误推进 reverse runtime 或提交完整 solve_reports 的风险。
+12. Phase 2A 审查中提到的归档 diff 新增文件可见性问题是否与本轮相关；若不处理，明确列为后续 Phase 2D。
 ```
 
 ## 6. Implementation Scope
@@ -207,11 +218,22 @@ project_state/rounds/round_20260520_phase1f_lint_handoff/git_diff.patch
 
 ```text
 reverse_agent/harness.py
+reverse_agent/project_state.py
 tests/test_harness.py
 tests/test_harness_resume.py
+tests/test_project_state.py
+tests/test_harness_artifact_manifest.py
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
+
+可选修改：
+
+```text
+project_state/schema.md
+```
+
+仅允许添加 `case_result.artifact_manifest` additive 字段说明，不要改 decision/report 协议。
 
 允许重新生成或更新：
 
@@ -219,126 +241,117 @@ project_state/pytest_result.txt
 project_state/rounds/<new_round_id>/*
 ```
 
-不建议修改，但如果测试导入路径确有需要，可做最小兼容调整：
-
-```text
-tests/conftest.py
-```
-
 不要修改：
 
 ```text
-reverse_agent/project_state.py
-tests/test_project_state.py
 reverse_agent/strategies/compare_aware_search.py
 reverse_agent/olly_scripts/*
-reverse_agent/harness.py 中与 runtime probe 执行无关的大块主流程
-project_state/schema.md
+reverse_agent/pipeline.py 中非必要主流程
+reverse_agent/tool_runners.py 中非必要工具执行逻辑
 project_state/task_packet.json
 project_state/current_state.json
 project_state/artifact_index.json
 project_state/negative_results.json
 ```
 
-### 6.1 resume status 分类
+### 6.1 HarnessCaseResult artifact_manifest
 
-建议在 `reverse_agent/harness.py` 中新增或集中定义：
+建议新增 dataclass：
 
 ```python
-TERMINAL_CASE_STATUSES = {
-    "passed",
-    "failed_expected",
-    "completed_no_expected",
-    "not_found",
-}
-
-NON_TERMINAL_RERUN_CASE_STATUSES = {
-    "error",
-    "timeout",
-    "interrupted",
-    "partial",
-    "blocked",
-}
+@dataclass
+class CaseArtifactManifestEntry:
+    kind: str
+    path: str
+    size_bytes: int | None = None
+    sha256: str | None = None
+    classification: str = ""
+    tool_name: str = ""
+    owner_profile: str = ""
+    strategy_name: str = ""
 ```
 
-如果项目已有等价枚举或常量，优先复用现有结构，不重复建新体系。
+或者使用 `list[dict[str, object]]`，但必须保持 JSON 简单、可序列化。
 
-### 6.2 resume policy
+在 `HarnessCaseResult` 中新增：
 
-新增 CLI 参数：
+```python
+artifact_manifest: list[dict[str, object]] = field(default_factory=list)
+```
+
+注意：
 
 ```text
---resume-policy terminal-only
---resume-policy all-existing
+必须保证旧 JSON 反序列化时缺少 artifact_manifest 不会失败。
+如果当前 _load_case_result 直接 HarnessCaseResult(**data)，需要为缺失字段提供 dataclass default 即可。
 ```
 
-建议规则：
+### 6.2 从 ToolRunArtifact 生成 manifest
+
+建议新增 helper：
+
+```python
+def _build_case_artifact_manifest(tool_artifacts: list[ToolRunArtifact]) -> list[dict[str, object]]:
+    ...
+```
+
+规则：
 
 ```text
-1. 只有 --resume 启用时，resume-policy 才生效。
-2. --resume-policy 默认值为 terminal-only。
-3. terminal-only:
-   - 已存在 result 且 status 属于 TERMINAL_CASE_STATUSES -> skip。
-   - 已存在 result 但 status 属于 NON_TERMINAL_RERUN_CASE_STATUSES -> rerun。
-   - 已存在 result 但 status 缺失、无法解析、未知 -> rerun，并记录 warning 或 debug 说明。
-4. all-existing:
-   - 已存在 result -> skip，保持旧行为。
-5. 如果未启用 --resume:
-   - 不因已有 result 跳过。
+1. 只处理 output_path 非空的 artifact。
+2. 如果 output_path 指向存在文件：填 size_bytes / sha256。
+3. 如果 output_path 指向 JSON 文件：尝试读取顶层 classification。
+4. kind 优先使用：
+   - JSON 顶层 kind 字段；
+   - 或从 path 文件名 stem 推导；
+   - 或 tool_name。
+5. 不读取大型内容，只读取 JSON 顶层少数字段；遇到解析失败直接 classification=""。
+6. 不因 artifact 缺失导致 case 失败。
 ```
 
-### 6.3 rerun status 覆盖规则
-
-新增 CLI 参数：
+在 `_case_result_from_solve_result()` 中填充：
 
 ```text
---rerun-status <status>
---rerun-error
+artifact_manifest = _build_case_artifact_manifest(solve_result.tool_artifacts)
 ```
 
-建议优先级：
+### 6.3 project_state 使用 artifact_manifest
+
+在 `reverse_agent/project_state.py` 中，构建 artifact_index 时：
 
 ```text
-1. 如果 --rerun-error 出现，则等价于追加 --rerun-status error。
-2. 如果已有 result 的 status 命中 rerun_status 集合，则 rerun。
-3. rerun_status 优先级高于 --resume-policy all-existing。
-4. 如果 --resume 未启用，但传入 --rerun-status，可以接受但不需要特殊处理，因为未 resume 本来就会运行；可输出 warning，但不要失败。
+1. 优先读取 latest_harness_run/case_results/*.json 中的 artifact_manifest。
+2. 对 manifest entry 生成或补充 latest_artifacts_v2 条目。
+3. 如果 artifact_manifest 不存在，则保留旧扫描逻辑。
+4. 如果 artifact_manifest entry 指向的 path 与 latest_harness_run 一致，freshness=current。
+5. 如果 path 存在但不属于 latest_harness_run，freshness=stale 或按现有规则判断。
+6. 如果 path 缺失，freshness=missing，不要当作 current。
+7. 保留 latest_artifacts 旧字段兼容。
 ```
 
-### 6.4 跳过记录
+不要删除旧扫描逻辑。本轮是 additive improvement。
 
-如果当前 harness 已有 summary / run_manifest 记录 skipped cases，本轮应尽量保留并扩展 skip reason。
+### 6.4 归档可审计性限制
 
-建议 skip reason：
+Phase 2A 审查发现 `git_diff.patch` 对新增测试文件的可回放性不够清晰。本轮不要大改 archive-round，但可以做一个小的低风险补充：
 
 ```text
-resume_terminal_result
-resume_all_existing
+如果 archive-round 已经能记录新增文件，Codex 只需说明它为何足够。
+如果 archive-round 不能完整记录新增文件，Codex 在 report 中把该问题列为后续 Phase 2D lint-round/archive 改进项。
 ```
 
-如果当前没有 skip reason 结构，不要为了本轮大改 summary schema。只要测试能证明行为即可。
+不要因为这个问题扩大本轮范围。
 
-### 6.5 兼容性
-
-必须保持：
-
-```text
-1. 未使用 --resume 的旧行为不变。
-2. 显式 --resume-policy all-existing 时，旧 resume 行为不变。
-3. terminal-only 是新的默认 resume 策略。
-4. 现有 harness smoke / manifest / dataset / summary 测试不回退。
-```
-
-### 6.6 report 绑定要求
+### 6.5 report 绑定要求
 
 本轮完成后，`project_state/codex_execution_report.md` 顶部必须包含：
 
 ```json
 {
   "schema_version": 1,
-  "report_id": "report_phase2a_harness_resume_policy_20260520",
-  "round_id": "round_20260520_phase2a_harness_resume_policy",
-  "based_on_decision_id": "decision_phase2a_harness_resume_policy_20260520",
+  "report_id": "report_phase2b_case_artifact_manifest_20260520",
+  "round_id": "round_20260520_phase2b_case_artifact_manifest",
+  "based_on_decision_id": "decision_phase2b_case_artifact_manifest_20260520",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [],
@@ -351,47 +364,46 @@ resume_all_existing
 
 ## 7. Tests
 
-必须新增或修改 harness 测试，覆盖：
+必须新增或修改测试，覆盖：
 
 ```text
-test_harness_resume_skips_terminal_result
-test_harness_resume_reruns_error_by_default_or_policy
-test_harness_resume_all_existing_keeps_old_behavior
-test_harness_resume_rerun_status_overrides_all_existing
-test_harness_resume_rerun_error_aliases_error_status
-test_harness_resume_unknown_or_missing_status_reruns_under_terminal_only
+test_case_result_includes_artifact_manifest
+test_case_result_artifact_manifest_includes_size_sha256_and_classification
+test_case_result_artifact_manifest_handles_missing_or_invalid_artifact
+test_load_old_case_result_without_artifact_manifest_remains_compatible
+test_artifact_index_uses_case_artifact_manifest_when_present
+test_artifact_index_falls_back_to_legacy_scan_without_case_artifact_manifest
+test_artifact_index_manifest_missing_path_marked_missing
 ```
 
 至少必须运行并记录：
 
 ```powershell
-python -m py_compile reverse_agent\harness.py
+python -m py_compile reverse_agent\harness.py reverse_agent\project_state.py
 python -m pytest -q tests\test_harness.py
 python -m pytest -q tests\test_harness_resume.py
+python -m pytest -q tests\test_project_state.py
+python -m pytest -q tests\test_harness_artifact_manifest.py
 python -m pytest -q
 python -m reverse_agent.project_state status --state-dir project_state
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m reverse_agent.project_state lint-handoff --state-dir project_state
 ```
 
-如果 `tests/test_harness_resume.py` 没有新增，则对应命令替换为：
-
-```powershell
-python -m pytest -q tests\test_harness.py
-```
+如果没有新增 `tests/test_harness_artifact_manifest.py`，则必须在 report 中说明对应测试放入了哪个现有测试文件。
 
 完成 report 写入后，还必须运行并记录：
 
 ```powershell
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state lint-handoff --state-dir project_state
-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2a_harness_resume_policy
+python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2b_case_artifact_manifest
 ```
 
 注意：
 
 ```text
-在最终 report 写入前，lint-report 可能因为 report.based_on_decision_id 仍指向 Phase 1F 而失败。
+在最终 report 写入前，lint-report 可能因为 report.based_on_decision_id 仍指向 Phase 2A 而失败。
 这属于 expected pre-report mismatch，必须在 pytest_result.txt 中标注。
 最终 report 写入后，lint-report / lint-handoff 必须恢复为 OK / REVIEW_COMPLETE。
 ```
@@ -403,16 +415,17 @@ python -m reverse_agent.project_state archive-round --state-dir project_state --
 ```text
 1. 需要运行逆向 runtime probe。
 2. 需要修改 compare_aware_search、olly_scripts 或逆向策略。
-3. 需要修改 project_state 协作协议才能完成。
+3. 需要修改 GPT/Codex 协作协议才能完成。
 4. 需要修改 decision_meta / codex_report_summary schema。
-5. 需要实现 artifact_manifest、harness compare 或 resource_budget 才能完成。
+5. 需要实现 harness compare 或 resource_budget 才能完成。
 6. 需要 queue/backpressure/worker pool 才能完成。
-7. 需要读取完整 solve_reports 才能完成。
-8. 无法识别 case_result status 字段或现有 result schema。
-9. 无法保留 --resume-policy all-existing 的旧行为。
-10. 无法让 terminal-only 成为默认 resume 策略且保持现有测试通过。
-11. 无法让 report.based_on_decision_id 绑定当前 decision_id。
-12. 无法让 pytest_result.txt 记录本轮真实测试。
+7. 需要读取或提交完整 solve_reports 才能完成。
+8. 需要内嵌 artifact 内容到 case_result 才能完成。
+9. 无法兼容旧 case_result JSON。
+10. 无法保留 latest_artifacts 旧字段兼容。
+11. 无法防止 missing artifact 被标记为 current。
+12. 无法让 report.based_on_decision_id 绑定当前 decision_id。
+13. 无法让 pytest_result.txt 记录本轮真实测试。
 ```
 
 ## Acceptance Criteria
@@ -420,16 +433,18 @@ python -m reverse_agent.project_state archive-round --state-dir project_state --
 本轮可接受条件：
 
 ```text
-1. --resume 默认策略为 terminal-only。
-2. terminal-only 会跳过 passed / failed_expected / completed_no_expected / not_found。
-3. terminal-only 不会默认跳过 error / timeout / interrupted / partial / blocked。
-4. --resume-policy all-existing 保留旧行为：已有 case result 即跳过。
-5. --rerun-status 可重复传入，并能覆盖 all-existing skip。
-6. --rerun-error 等价于 --rerun-status error。
-7. status 缺失、无法解析、未知时，terminal-only 不应静默当作完成。
-8. harness resume 行为有专门测试覆盖。
-9. 全量 pytest 通过，或如有环境相关跳过/失败，必须在 report 中解释。
-10. codex_execution_report.md 顶部 codex_report_summary.based_on_decision_id 指向本轮 decision_id。
-11. project_state/pytest_result.txt 记录真实测试和最终 lint-handoff 输出。
-12. 不修改 project_state 协作协议，不运行 runtime probe，不实现 Phase 2B/2C/2D。
+1. HarnessCaseResult 新增 artifact_manifest，且为 additive 兼容字段。
+2. 新 case_result JSON 会写出 artifact_manifest。
+3. artifact_manifest entry 包含 kind/path/size_bytes/sha256/classification 的最小元数据。
+4. artifact 缺失、JSON 无效、classification 缺失时不会导致 case 失败。
+5. 旧 case_result 缺少 artifact_manifest 时仍能加载。
+6. project_state artifact_index 在可用时优先使用 case_result.artifact_manifest。
+7. latest_artifacts_v2 保留 path/kind/source_run/modified_at/size_bytes/sha256/freshness 等既有语义。
+8. legacy latest_artifacts 仍保留兼容。
+9. missing artifact 不会被当作 current evidence。
+10. 测试覆盖 harness artifact_manifest 和 project_state manifest ingestion。
+11. 全量 pytest 通过，或如有环境相关跳过/失败，必须在 report 中解释。
+12. codex_execution_report.md 顶部 codex_report_summary.based_on_decision_id 指向本轮 decision_id。
+13. project_state/pytest_result.txt 记录真实测试和最终 lint-handoff 输出。
+14. 不修改 GPT/Codex 协作协议，不运行 runtime probe，不实现 Phase 2C/2D。
 ```
