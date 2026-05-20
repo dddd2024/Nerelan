@@ -1,0 +1,646 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 82d7dbe..5c87ad6 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,102 +1,101 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase2b_case_artifact_manifest_20260520",
+-  "round_id": "round_20260520_phase2b_case_artifact_manifest",
+-  "based_on_decision_id": "decision_phase2b_case_artifact_manifest_20260520",
++  "report_id": "report_phase2c_harness_compare_20260520",
++  "round_id": "round_20260520_phase2c_harness_compare",
++  "based_on_decision_id": "decision_phase2c_harness_compare_20260520",
+   "status": "SUCCESS",
+   "acceptance_recommendation": "ACCEPTED",
+   "files_changed": [
+     "reverse_agent/harness.py",
+-    "reverse_agent/project_state.py",
+-    "tests/test_harness_artifact_manifest.py",
+-    "tests/test_project_state.py",
++    "tests/test_harness_compare.py",
+     "project_state/codex_execution_report.md",
+     "project_state/pytest_result.txt"
+   ],
+   "tests_ran": [
+-    "python -m py_compile reverse_agent\\harness.py reverse_agent\\project_state.py",
++    "python -m py_compile reverse_agent\\harness.py",
++    "python -m pytest -q tests\\test_harness_compare.py",
+     "python -m pytest -q tests\\test_harness.py",
+     "python -m pytest -q tests\\test_harness_resume.py",
+-    "python -m pytest -q tests\\test_project_state.py",
+     "python -m pytest -q tests\\test_harness_artifact_manifest.py",
+     "python -m pytest -q",
+     "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+     "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2b_case_artifact_manifest"
++    "python -m reverse_agent.project_state lint-report --state-dir project_state",
++    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2c_harness_compare"
+   ],
+   "generated_artifacts": [
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/round_manifest.json",
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/artifact_index.json",
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/current_state.json",
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/negative_results.json",
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/model_gate.json",
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/task_packet.json",
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/decision_packet.md",
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/codex_execution_report.md",
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/pytest_result.txt",
+-    "project_state/rounds/round_20260520_phase2b_case_artifact_manifest/git_diff.patch"
++    "project_state/rounds/round_20260520_phase2c_harness_compare/round_manifest.json",
++    "project_state/rounds/round_20260520_phase2c_harness_compare/artifact_index.json",
++    "project_state/rounds/round_20260520_phase2c_harness_compare/current_state.json",
++    "project_state/rounds/round_20260520_phase2c_harness_compare/negative_results.json",
++    "project_state/rounds/round_20260520_phase2c_harness_compare/model_gate.json",
++    "project_state/rounds/round_20260520_phase2c_harness_compare/task_packet.json",
++    "project_state/rounds/round_20260520_phase2c_harness_compare/decision_packet.md",
++    "project_state/rounds/round_20260520_phase2c_harness_compare/codex_execution_report.md",
++    "project_state/rounds/round_20260520_phase2c_harness_compare/pytest_result.txt",
++    "project_state/rounds/round_20260520_phase2c_harness_compare/git_diff.patch"
+   ],
+-  "next_suggested_task": "Have GPT audit Phase 2B case artifact manifest semantics before authorizing Phase 2C/2D engineering work or samplereverse runtime work."
++  "next_suggested_task": "Have GPT audit Phase 2C harness compare semantics before authorizing Phase 2D archive/path semantics or returning to samplereverse runtime work."
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-20 Phase 2B case artifact manifest
++## 2026-05-20 Phase 2C harness compare
+ 
+-This pass implements the approved Phase 2B engineering branch from `project_state/decision_packet.md`. It adds lightweight per-case artifact provenance to harness case results and lets `project_state.artifact_index` prefer case-level provenance when present. It does not advance the `samplereverse` reverse-engineering mainline, run runtime probes, modify `compare_aware_search.py`, modify `olly_scripts`, or change the GPT/Codex handoff protocol.
++This pass implements the approved Phase 2C engineering branch from `project_state/decision_packet.md`. It adds a read-only harness compare command that compares two harness run case results and lightweight artifact manifest fields. It does not advance the `samplereverse` reverse-engineering mainline, run runtime probes, modify `compare_aware_search.py`, modify `olly_scripts`, modify `project_state.py`, or change the GPT/Codex handoff protocol.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| HarnessCaseResult serialization | `run_harness()` writes `case_results/<case>.json` via `asdict(case_result)`, so an additive dataclass field serializes directly. |
+-| SolveResult.tool_artifacts structure | `SolveResult.tool_artifacts` is `list[ToolRunArtifact]` and is already populated by pipeline tool automation and profile strategies. |
+-| ToolRunArtifact.output_path stability | `ToolRunArtifact` has `output_path`, `tool_name`, `owner_profile`, and `strategy_name`; artifacts with empty `output_path` are skipped. |
+-| current artifact_index derivation | `build_artifact_index()` scans `solve_reports`, latest harness run summaries, case results, and `reports/tool_artifacts`, then classifies paths into `latest_artifacts` and `latest_artifacts_v2`. |
+-| artifact kind helper | `project_state._classify_artifact()` remains the project_state classifier; harness uses a small local filename fallback to avoid importing project_state into harness. |
+-| old case_result compatibility | `artifact_manifest` has `default_factory=list`, so old JSON loaded through `HarnessCaseResult(**data)` remains valid. |
+-| missing/invalid artifacts | Missing paths produce `size_bytes=None` and `sha256=None`; invalid JSON keeps `classification=""`; neither condition fails the case. |
+-| manifest versus legacy scan priority | `project_state` applies case `artifact_manifest` after legacy scan, so valid case-level provenance wins for the same kind while no-manifest runs keep old behavior. |
+-| schema documentation | No protocol schema change was needed; this is an additive case result JSON field only. |
+-| implementation scope | Code changes are limited to `harness.py`, `project_state.py`, and focused tests plus this report/result file. |
+-| reverse runtime risk | No runtime probe, reverse strategy, Olly script, beam/budget, or full solve_reports submission was touched. |
+-| Phase 2A archive limitation | The archived diff visibility concern is not required for Phase 2B. It remains a later Phase 2D lint/archive audit item. |
++| Current harness CLI shape | `reverse_agent.harness main()` was a flat parser with required `--dataset`; there was no subcommand parser. |
++| Compare CLI compatibility | `main()` now checks `argv[0] == "compare"` before building the flat run parser; all other invocations still use the existing `--dataset` run CLI. |
++| Case result compare fields | Existing JSON fields used are `case_id`, `status`, `selected_flag`, `candidate_count`, `validation_count`, `tool_artifact_count`, `structured_evidence_count`, and additive `artifact_manifest`. |
++| Artifact manifest structure | Manifest entries are lightweight dicts with `kind`, `path`, `classification`, `size_bytes`, `sha256`, `tool_name`, `owner_profile`, and `strategy_name`; classification comes first from the manifest. |
++| Artifact JSON reads | Compare reads only the JSON file named by a manifest entry path and only top-level `classification`, `runtime_backed_count`, `candidate_count`, and `evidence_gate`. |
++| Missing cases | Cases present only in base/head are emitted with `presence=base_only` or `presence=head_only`; numeric deltas are `null` when one side is absent. |
++| Old or partial case JSON | Missing compare fields, old JSON without `artifact_manifest`, and non-list manifests do not fail compare; missing values produce empty changes or `null` deltas. |
++| Artifact path handling | Absolute paths are used directly; relative paths are attempted from the current working directory and then from `reports_dir`; missing or invalid JSON produces `null` lightweight fields. |
++| Stable output | `case_deltas` are sorted by `case_id`, `artifact_deltas` by `kind`, and CLI output uses `json.dumps(..., indent=2, sort_keys=True)`. |
++| Equivalent existing feature | No existing harness compare command or equivalent JSON delta helper was present. |
++| Implementation scope | Code changes are limited to `harness.py`, focused compare tests, and this report/result handoff. |
++| Runtime/pipeline risk | Compare only reads `harness_runs/<run>/case_results/*.json` plus listed artifact JSON paths; it does not run pipeline, model calls, probes, or recursive solve_reports scans. |
++| Phase 2B limitations | Existing artifact path fallback and round manifest source commit semantics are tolerated but not expanded or fixed; those remain Phase 2D concerns. |
+ 
+ ## Implementation
+ 
+-- Added `HarnessCaseResult.artifact_manifest` as an additive JSON-facing list field.
+-- Added harness helpers to derive lightweight manifest entries from `SolveResult.tool_artifacts`, including kind, path, size, hash, classification, tool name, owner profile, and strategy name.
+-- Added project_state manifest ingestion from latest harness `case_results/*.json`; manifest entries override scanned paths for the same artifact kind and preserve missing/current/stale freshness semantics.
+-- Added focused tests for manifest serialization, metadata extraction, missing/invalid artifact tolerance, old case result compatibility, project_state manifest preference, legacy fallback, and missing manifest path freshness.
++- Added `compare_harness_runs()` to load base/head case result JSON from two named harness runs and emit machine-readable case/artifact deltas.
++- Added `python -m reverse_agent.harness compare --base-run ... --head-run ... --reports-dir ... [--output ...]`.
++- Added tolerant helpers for old case JSON, missing fields, missing or invalid artifact JSON, absolute/relative artifact paths, and stable first-entry selection when duplicate artifact kinds appear.
++- Added `tests/test_harness_compare.py` covering CLI behavior, run CLI compatibility, case deltas, artifact deltas, top-level artifact fields, missing cases, invalid artifacts, and stable sorting.
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+-| `python -m py_compile reverse_agent\harness.py reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_harness_artifact_manifest.py` | `3 passed in 0.28s` |
+-| `python -m pytest -q tests\test_harness.py` | `5 passed in 0.32s` |
+-| `python -m pytest -q tests\test_harness_resume.py` | `6 passed in 0.40s` |
+-| `python -m pytest -q tests\test_project_state.py` | `104 passed in 17.27s` |
+-| `python -m pytest -q` | `366 passed in 49.50s` |
+-| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; decision is Phase 2B and previous report is Phase 2A |
++| `python -m py_compile reverse_agent\harness.py` | passed |
++| `python -m pytest -q tests\test_harness_compare.py` | `9 passed in 0.46s` |
++| `python -m pytest -q tests\test_harness.py` | `5 passed in 0.34s` |
++| `python -m pytest -q tests\test_harness_resume.py` | `6 passed in 0.42s` |
++| `python -m pytest -q tests\test_harness_artifact_manifest.py` | `3 passed in 0.27s` |
++| `python -m pytest -q` | `375 passed in 40.97s` |
++| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; active decision is Phase 2C and previous report is Phase 2B |
+ | pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
+-| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | failed as expected because the active report still referenced Phase 2A |
+ | pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `READY_FOR_CODEX`, tolerating the old report mismatch |
+-| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed |
+-| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `REVIEW_COMPLETE` |
+-| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2b_case_artifact_manifest` | passed |
++| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | failed as expected because the active report still referenced Phase 2B |
++| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed before archive |
++| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `REVIEW_COMPLETE` before archive |
++| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2c_harness_compare` | passed; command returned exit code 0 with no console output |
+ 
+ ## State Notes
+ 
+ - The active sample state still points at `sr_lhs_thread_follow_timing_20260520_r4`; this pass intentionally did not rebuild sample artifacts or advance the runtime mainline.
+-- New case results will carry `artifact_manifest`; old case results without the field still load and index through legacy scanning.
+-- Missing manifest paths are represented as missing evidence and are not treated as current artifacts.
++- `task_packet.task` remains sample-derived, but `execution_scope=decision_packet_controls_current_round` and this report binds the active Phase 2C decision.
++- Compare is intentionally read-only and does not require `--dataset`.
+ 
+ ## Next Suggested Task
+ 
+-Have GPT audit this Phase 2B report and archive. Do not start Phase 2C/2D or samplereverse runtime work until a fresh decision packet explicitly authorizes it.
++Have GPT audit the Phase 2C compare output contract and archive. Do not start Phase 2D path/round commit semantics or return to `samplereverse` runtime work until a fresh decision packet explicitly authorizes it.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 49ba784..593c0f9 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,33 +1,31 @@
+-2026-05-20 Phase 2B case artifact manifest verification
++2026-05-20 Phase 2C harness compare verification
+ 
+ Scope:
+-- Execute only the approved Phase 2B case artifact manifest decision.
++- Execute only the approved Phase 2C harness compare decision.
+ - Do not run reverse runtime probes.
+-- Do not modify reverse strategies, olly_scripts, or GPT/Codex handoff protocol.
++- Do not modify reverse strategies, olly_scripts, project_state.py, or GPT/Codex handoff protocol.
++- Do not recursively scan full solve_reports or run pipeline/model calls.
+ 
+-python -m py_compile reverse_agent\harness.py reverse_agent\project_state.py -> passed
++python -m py_compile reverse_agent\harness.py -> passed
+ 
+-python -m pytest -q tests\test_harness_artifact_manifest.py -> passed
+-...                                                                      [100%]
+-3 passed in 0.28s
+-
+-python -m pytest -q tests\test_project_state.py -k "artifact_index_uses_case_artifact_manifest or artifact_index_falls_back_to_legacy_scan or artifact_index_manifest_missing_path" -> passed
+-...                                                                      [100%]
+-3 passed, 101 deselected in 0.46s
++python -m pytest -q tests\test_harness_compare.py -> passed
++.........                                                                [100%]
++9 passed in 0.46s
+ 
+ python -m pytest -q tests\test_harness.py -> passed
+ .....                                                                    [100%]
+-5 passed in 0.32s
++5 passed in 0.34s
+ 
+ python -m pytest -q tests\test_harness_resume.py -> passed
+ ......                                                                   [100%]
+-6 passed in 0.40s
++6 passed in 0.42s
+ 
+-python -m pytest -q tests\test_project_state.py -> passed
+-104 passed in 17.27s
++python -m pytest -q tests\test_harness_artifact_manifest.py -> passed
++...                                                                      [100%]
++3 passed in 0.27s
+ 
+ python -m pytest -q -> passed
+-366 passed in 49.50s
++375 passed in 40.97s
+ 
+ Pre-report python -m reverse_agent.project_state status --state-dir project_state -> passed
+ state_dir: project_state
+@@ -43,79 +41,86 @@ task_source: derived_from_sample_artifacts
+ derived_task: Improve compare lhs last-writer instrumentation
+ active_decision_packet: project_state/decision_packet.md
+ execution_scope: decision_packet_controls_current_round
++expected_gpt_output: project_state/decision_packet.md
+ decision_status: APPROVED
+-decision_id: decision_phase2b_case_artifact_manifest_20260520
+-report_id: report_phase2a_harness_resume_policy_20260520
+-report_based_on_decision_id: decision_phase2a_harness_resume_policy_20260520
++decision_id: decision_phase2c_harness_compare_20260520
++decision_based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
++decision_parse_error: None
++report_status: SUCCESS
++report_acceptance_recommendation: ACCEPTED
++report_id: report_phase2b_case_artifact_manifest_20260520
++report_based_on_decision_id: decision_phase2b_case_artifact_manifest_20260520
++report_parse_error: None
+ decision_report_id_match: False
++decision_state_digest_match: True
++decision_consumed_by_report: False
+ decision_execution_state: READY_FOR_EXECUTION
+ decision_ready_for_execution: True
+ 
+ Pre-report python -m reverse_agent.project_state lint-decision --state-dir project_state -> passed
+ lint-decision: OK
+-decision_id: decision_phase2b_case_artifact_manifest_20260520
++decision_id: decision_phase2c_harness_compare_20260520
+ decision_status: APPROVED
+ based_on_state_build_id: state_20260520_052928_8a77e6637c6c
+ based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+ current_state_build_id: state_20260520_052928_8a77e6637c6c
+ current_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-
+-Pre-report python -m reverse_agent.project_state lint-report --state-dir project_state -> expected failure
+-lint-report: FAILED
+-error: based_on_decision_id does not match current decision_id
+-report_id: report_phase2a_harness_resume_policy_20260520
+-based_on_decision_id: decision_phase2a_harness_resume_policy_20260520
+-decision_id: decision_phase2b_case_artifact_manifest_20260520
+-decision_report_id_match: False
++execution_scope: decision_packet_controls_current_round
++active_decision_packet: project_state/decision_packet.md
+ 
+ Pre-report python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed
+ lint-handoff: OK
+ warning: previous report ignored for READY_FOR_CODEX: based_on_decision_id does not match current decision_id
++warning: report round_id does not match current_state.round_id
+ handoff_state: READY_FOR_CODEX
+ decision_execution_state: READY_FOR_EXECUTION
+ decision_ready_for_execution: True
+ decision_report_id_match: False
++lint_decision_ok: True
++lint_report_ok: False
+ 
+-Final python -m reverse_agent.project_state lint-report --state-dir project_state -> passed before archive
+-lint-report: OK
++Pre-report python -m reverse_agent.project_state lint-report --state-dir project_state -> expected failure
++lint-report: FAILED
++error: based_on_decision_id does not match current decision_id
+ warning: report round_id does not match current_state.round_id
+-warning: round_manifest missing
+ report_id: report_phase2b_case_artifact_manifest_20260520
+ report_status: SUCCESS
+ acceptance_recommendation: ACCEPTED
+ based_on_decision_id: decision_phase2b_case_artifact_manifest_20260520
+-decision_id: decision_phase2b_case_artifact_manifest_20260520
+-decision_report_id_match: True
++decision_id: decision_phase2c_harness_compare_20260520
++decision_report_id_match: False
++round_id: round_20260520_phase2b_case_artifact_manifest
++current_state_round_id: round_20260520_052928
+ tests_ran_count: 11
+ generated_artifacts_count: 10
+ pytest_result_present: True
+ 
+-Final python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed before archive
+-lint-handoff: OK
+-warning: report round_id does not match current_state.round_id
+-warning: round_manifest missing
+-handoff_state: REVIEW_COMPLETE
+-decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+-decision_ready_for_execution: False
+-decision_report_id_match: True
+-
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2b_case_artifact_manifest -> passed
+-Note: after appending final lint/archive notes, a direct re-archive correctly refused to overwrite the earlier manifest because file hashes differed. The generated Phase 2B archive directory was removed and archive-round was rerun successfully with the updated report/result files.
+-
+-Post-archive python -m reverse_agent.project_state lint-report --state-dir project_state -> passed
++Final python -m reverse_agent.project_state lint-report --state-dir project_state -> passed before archive
+ lint-report: OK
+ warning: report round_id does not match current_state.round_id
+-report_id: report_phase2b_case_artifact_manifest_20260520
++warning: round_manifest missing
++report_id: report_phase2c_harness_compare_20260520
+ report_status: SUCCESS
+ acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase2b_case_artifact_manifest_20260520
+-decision_id: decision_phase2b_case_artifact_manifest_20260520
++based_on_decision_id: decision_phase2c_harness_compare_20260520
++decision_id: decision_phase2c_harness_compare_20260520
+ decision_report_id_match: True
++round_id: round_20260520_phase2c_harness_compare
++current_state_round_id: round_20260520_052928
++tests_ran_count: 11
++generated_artifacts_count: 10
++pytest_result_present: True
+ 
+-Post-archive python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed
++Final python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed before archive
+ lint-handoff: OK
+ warning: report round_id does not match current_state.round_id
++warning: round_manifest missing
+ handoff_state: REVIEW_COMPLETE
+ decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+ decision_ready_for_execution: False
+ decision_report_id_match: True
++lint_decision_ok: True
++lint_report_ok: True
++
++python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2c_harness_compare -> passed
++Command returned exit code 0 with no console output.
+diff --git a/reverse_agent/harness.py b/reverse_agent/harness.py
+index eae212e..3be6733 100644
+--- a/reverse_agent/harness.py
++++ b/reverse_agent/harness.py
+@@ -320,7 +320,77 @@ def run_harness(config: HarnessConfig, log: LogFn) -> HarnessSummary:
+     return summary_payload
+ 
+ 
++def compare_harness_runs(base_run: str, head_run: str, reports_dir: Path) -> dict[str, object]:
++    base_run_dir = reports_dir / "harness_runs" / base_run
++    head_run_dir = reports_dir / "harness_runs" / head_run
++    base_cases = _load_compare_case_results(base_run_dir)
++    head_cases = _load_compare_case_results(head_run_dir)
++
++    case_deltas: list[dict[str, object]] = []
++    for case_id in sorted(set(base_cases) | set(head_cases)):
++        base_case = base_cases.get(case_id)
++        head_case = head_cases.get(case_id)
++        presence = _compare_presence(base_case, head_case)
++        artifact_deltas = _compare_artifact_manifests(
++            _list_field(base_case, "artifact_manifest"),
++            _list_field(head_case, "artifact_manifest"),
++            reports_dir=reports_dir,
++        )
++        case_deltas.append(
++            {
++                "artifact_deltas": artifact_deltas,
++                "candidate_count_delta": _numeric_delta(base_case, head_case, "candidate_count"),
++                "case_id": case_id,
++                "presence": presence,
++                "selected_flag_change": _value_change(
++                    _optional_text_from_dict(base_case, "selected_flag"),
++                    _optional_text_from_dict(head_case, "selected_flag"),
++                ),
++                "status_change": _value_change(
++                    _optional_text_from_dict(base_case, "status"),
++                    _optional_text_from_dict(head_case, "status"),
++                ),
++                "structured_evidence_count_delta": _numeric_delta(
++                    base_case,
++                    head_case,
++                    "structured_evidence_count",
++                ),
++                "tool_artifact_count_delta": _numeric_delta(base_case, head_case, "tool_artifact_count"),
++                "validation_count_delta": _numeric_delta(base_case, head_case, "validation_count"),
++            }
++        )
++
++    return {
++        "base_run": base_run,
++        "base_run_dir": str(base_run_dir),
++        "case_deltas": case_deltas,
++        "head_run": head_run,
++        "head_run_dir": str(head_run_dir),
++        "summary": {
++            "artifact_classification_changes": sum(
++                1
++                for case_delta in case_deltas
++                for artifact_delta in case_delta["artifact_deltas"]  # type: ignore[index]
++                if artifact_delta.get("presence") == "both"
++                and artifact_delta.get("classification_change") not in {None, ""}
++            ),
++            "cases_added": sum(1 for item in case_deltas if item["presence"] == "head_only"),
++            "cases_compared": len(case_deltas),
++            "cases_removed": sum(1 for item in case_deltas if item["presence"] == "base_only"),
++            "status_changes": sum(
++                1
++                for item in case_deltas
++                if item["presence"] == "both" and item["status_change"] not in {None, ""}
++            ),
++        },
++    }
++
++
+ def main(argv: list[str] | None = None) -> int:
++    argv = sys.argv[1:] if argv is None else argv
++    if argv and argv[0] == "compare":
++        return _main_compare(argv[1:])
++
+     parser = argparse.ArgumentParser(description="Run reverse-agent as a reproducible harness.")
+     parser.add_argument("--dataset", required=True, help="Path to a JSON dataset file.")
+     parser.add_argument("--run-name", default="", help="Stable run name. Reuse it to resume.")
+@@ -426,6 +496,27 @@ def main(argv: list[str] | None = None) -> int:
+     return 0
+ 
+ 
++def _main_compare(argv: list[str]) -> int:
++    parser = argparse.ArgumentParser(description="Compare two reverse-agent harness runs.")
++    parser.add_argument("--base-run", required=True, help="Base harness run name.")
++    parser.add_argument("--head-run", required=True, help="Head harness run name.")
++    parser.add_argument("--reports-dir", default="solve_reports", help="Reports root directory.")
++    parser.add_argument("--output", default="", help="Optional path to write the compare JSON.")
++    args = parser.parse_args(argv)
++
++    payload = compare_harness_runs(
++        base_run=args.base_run,
++        head_run=args.head_run,
++        reports_dir=Path(args.reports_dir),
++    )
++    text = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
++    if args.output:
++        Path(args.output).write_text(text + "\n", encoding="utf-8")
++    else:
++        print(text)
++    return 0
++
++
+ def _safe_console_log(message: object) -> None:
+     text = str(message)
+     try:
+@@ -509,6 +600,93 @@ def _json_top_level_fields(path: Path) -> dict[str, object]:
+     return data if isinstance(data, dict) else {}
+ 
+ 
++def _load_compare_case_results(run_dir: Path) -> dict[str, dict[str, object]]:
++    case_results_dir = run_dir / "case_results"
++    if not case_results_dir.exists():
++        return {}
++    cases: dict[str, dict[str, object]] = {}
++    for path in sorted(case_results_dir.glob("*.json"), key=lambda item: item.name):
++        try:
++            data = json.loads(path.read_text(encoding="utf-8"))
++        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
++            continue
++        if not isinstance(data, dict):
++            continue
++        case_id = str(data.get("case_id") or path.stem).strip() or path.stem
++        cases[case_id] = data
++    return cases
++
++
++def _compare_artifact_manifests(
++    base_manifest: list[object],
++    head_manifest: list[object],
++    reports_dir: Path,
++) -> list[dict[str, object]]:
++    base_artifacts = _artifact_manifest_by_kind(base_manifest, reports_dir)
++    head_artifacts = _artifact_manifest_by_kind(head_manifest, reports_dir)
++    deltas: list[dict[str, object]] = []
++    for kind in sorted(set(base_artifacts) | set(head_artifacts)):
++        base_artifact = base_artifacts.get(kind)
++        head_artifact = head_artifacts.get(kind)
++        deltas.append(
++            {
++                "base_path": _artifact_path_text(base_artifact),
++                "candidate_count_delta": _artifact_numeric_delta(base_artifact, head_artifact, "candidate_count"),
++                "classification_change": _value_change(
++                    _artifact_classification(base_artifact),
++                    _artifact_classification(head_artifact),
++                ),
++                "evidence_gate_changed": _artifact_value_changed(base_artifact, head_artifact, "evidence_gate"),
++                "head_path": _artifact_path_text(head_artifact),
++                "kind": kind,
++                "presence": _compare_presence(base_artifact, head_artifact),
++                "runtime_backed_count_delta": _artifact_numeric_delta(
++                    base_artifact,
++                    head_artifact,
++                    "runtime_backed_count",
++                ),
++            }
++        )
++    return deltas
++
++
++def _artifact_manifest_by_kind(manifest: list[object], reports_dir: Path) -> dict[str, dict[str, object]]:
++    entries: list[dict[str, object]] = []
++    for item in manifest:
++        if not isinstance(item, dict):
++            continue
++        kind = str(item.get("kind") or "").strip()
++        if not kind:
++            continue
++        path_text = str(item.get("path") or "").strip()
++        artifact_json = _read_manifest_artifact_json(path_text, reports_dir)
++        entries.append(
++            {
++                "classification": str(item.get("classification") or artifact_json.get("classification") or ""),
++                "evidence_gate": artifact_json.get("evidence_gate"),
++                "kind": kind,
++                "candidate_count": _as_int_or_none(artifact_json.get("candidate_count")),
++                "path": path_text or None,
++                "runtime_backed_count": _as_int_or_none(artifact_json.get("runtime_backed_count")),
++            }
++        )
++    selected: dict[str, dict[str, object]] = {}
++    for entry in sorted(entries, key=lambda item: (str(item.get("kind") or ""), str(item.get("path") or ""))):
++        selected.setdefault(str(entry["kind"]), entry)
++    return selected
++
++
++def _read_manifest_artifact_json(path_text: str, reports_dir: Path) -> dict[str, object]:
++    if not path_text:
++        return {}
++    raw_path = Path(path_text)
++    candidates = [raw_path] if raw_path.is_absolute() else [Path.cwd() / raw_path, reports_dir / raw_path]
++    for candidate in candidates:
++        if candidate.exists():
++            return _json_top_level_fields(candidate)
++    return {}
++
++
+ def _build_case_artifact_manifest(tool_artifacts: list[object]) -> list[dict[str, object]]:
+     manifest: list[dict[str, object]] = []
+     for artifact in tool_artifacts:
+@@ -691,6 +869,109 @@ def _load_case_result(path: Path) -> HarnessCaseResult:
+     return HarnessCaseResult(**data)
+ 
+ 
++def _compare_presence(base_item: object | None, head_item: object | None) -> str:
++    if base_item is not None and head_item is not None:
++        return "both"
++    if base_item is not None:
++        return "base_only"
++    return "head_only"
++
++
++def _list_field(data: dict[str, object] | None, field_name: str) -> list[object]:
++    if data is None:
++        return []
++    value = data.get(field_name)
++    return value if isinstance(value, list) else []
++
++
++def _optional_text_from_dict(data: dict[str, object] | None, field_name: str) -> str | None:
++    if data is None:
++        return None
++    value = data.get(field_name)
++    if value is None:
++        return None
++    text = str(value)
++    return text if text else None
++
++
++def _numeric_delta(
++    base_data: dict[str, object] | None,
++    head_data: dict[str, object] | None,
++    field_name: str,
++) -> int | None:
++    if base_data is None or head_data is None:
++        return None
++    base_value = _as_int_or_none(base_data.get(field_name))
++    head_value = _as_int_or_none(head_data.get(field_name))
++    if base_value is None or head_value is None:
++        return None
++    return head_value - base_value
++
++
++def _artifact_numeric_delta(
++    base_artifact: dict[str, object] | None,
++    head_artifact: dict[str, object] | None,
++    field_name: str,
++) -> int | None:
++    if base_artifact is None or head_artifact is None:
++        return None
++    base_value = _as_int_or_none(base_artifact.get(field_name))
++    head_value = _as_int_or_none(head_artifact.get(field_name))
++    if base_value is None or head_value is None:
++        return None
++    return head_value - base_value
++
++
++def _artifact_value_changed(
++    base_artifact: dict[str, object] | None,
++    head_artifact: dict[str, object] | None,
++    field_name: str,
++) -> bool | None:
++    if base_artifact is None or head_artifact is None:
++        return None
++    base_value = base_artifact.get(field_name)
++    head_value = head_artifact.get(field_name)
++    if base_value is None or head_value is None:
++        return None
++    return base_value != head_value
++
++
++def _artifact_path_text(artifact: dict[str, object] | None) -> str | None:
++    if artifact is None:
++        return None
++    value = artifact.get("path")
++    return str(value) if value else None
++
++
++def _artifact_classification(artifact: dict[str, object] | None) -> str | None:
++    if artifact is None:
++        return None
++    value = artifact.get("classification")
++    if value is None:
++        return None
++    text = str(value)
++    return text if text else None
++
++
++def _value_change(base_value: object | None, head_value: object | None) -> str | None:
++    if base_value == head_value:
++        return ""
++    return f"{_change_value_text(base_value)} -> {_change_value_text(head_value)}"
++
++
++def _change_value_text(value: object | None) -> str:
++    return "null" if value is None else str(value)
++
++
++def _as_int_or_none(value: object) -> int | None:
++    if isinstance(value, bool) or value is None:
++        return None
++    try:
++        return int(value)  # type: ignore[arg-type]
++    except (TypeError, ValueError):
++        return None
++
++
+ def _case_result_status(result_path: Path) -> str | None:
+     try:
+         data = json.loads(result_path.read_text(encoding="utf-8"))

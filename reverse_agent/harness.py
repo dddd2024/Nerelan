@@ -320,7 +320,77 @@ def run_harness(config: HarnessConfig, log: LogFn) -> HarnessSummary:
     return summary_payload
 
 
+def compare_harness_runs(base_run: str, head_run: str, reports_dir: Path) -> dict[str, object]:
+    base_run_dir = reports_dir / "harness_runs" / base_run
+    head_run_dir = reports_dir / "harness_runs" / head_run
+    base_cases = _load_compare_case_results(base_run_dir)
+    head_cases = _load_compare_case_results(head_run_dir)
+
+    case_deltas: list[dict[str, object]] = []
+    for case_id in sorted(set(base_cases) | set(head_cases)):
+        base_case = base_cases.get(case_id)
+        head_case = head_cases.get(case_id)
+        presence = _compare_presence(base_case, head_case)
+        artifact_deltas = _compare_artifact_manifests(
+            _list_field(base_case, "artifact_manifest"),
+            _list_field(head_case, "artifact_manifest"),
+            reports_dir=reports_dir,
+        )
+        case_deltas.append(
+            {
+                "artifact_deltas": artifact_deltas,
+                "candidate_count_delta": _numeric_delta(base_case, head_case, "candidate_count"),
+                "case_id": case_id,
+                "presence": presence,
+                "selected_flag_change": _value_change(
+                    _optional_text_from_dict(base_case, "selected_flag"),
+                    _optional_text_from_dict(head_case, "selected_flag"),
+                ),
+                "status_change": _value_change(
+                    _optional_text_from_dict(base_case, "status"),
+                    _optional_text_from_dict(head_case, "status"),
+                ),
+                "structured_evidence_count_delta": _numeric_delta(
+                    base_case,
+                    head_case,
+                    "structured_evidence_count",
+                ),
+                "tool_artifact_count_delta": _numeric_delta(base_case, head_case, "tool_artifact_count"),
+                "validation_count_delta": _numeric_delta(base_case, head_case, "validation_count"),
+            }
+        )
+
+    return {
+        "base_run": base_run,
+        "base_run_dir": str(base_run_dir),
+        "case_deltas": case_deltas,
+        "head_run": head_run,
+        "head_run_dir": str(head_run_dir),
+        "summary": {
+            "artifact_classification_changes": sum(
+                1
+                for case_delta in case_deltas
+                for artifact_delta in case_delta["artifact_deltas"]  # type: ignore[index]
+                if artifact_delta.get("presence") == "both"
+                and artifact_delta.get("classification_change") not in {None, ""}
+            ),
+            "cases_added": sum(1 for item in case_deltas if item["presence"] == "head_only"),
+            "cases_compared": len(case_deltas),
+            "cases_removed": sum(1 for item in case_deltas if item["presence"] == "base_only"),
+            "status_changes": sum(
+                1
+                for item in case_deltas
+                if item["presence"] == "both" and item["status_change"] not in {None, ""}
+            ),
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "compare":
+        return _main_compare(argv[1:])
+
     parser = argparse.ArgumentParser(description="Run reverse-agent as a reproducible harness.")
     parser.add_argument("--dataset", required=True, help="Path to a JSON dataset file.")
     parser.add_argument("--run-name", default="", help="Stable run name. Reuse it to resume.")
@@ -426,6 +496,27 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _main_compare(argv: list[str]) -> int:
+    parser = argparse.ArgumentParser(description="Compare two reverse-agent harness runs.")
+    parser.add_argument("--base-run", required=True, help="Base harness run name.")
+    parser.add_argument("--head-run", required=True, help="Head harness run name.")
+    parser.add_argument("--reports-dir", default="solve_reports", help="Reports root directory.")
+    parser.add_argument("--output", default="", help="Optional path to write the compare JSON.")
+    args = parser.parse_args(argv)
+
+    payload = compare_harness_runs(
+        base_run=args.base_run,
+        head_run=args.head_run,
+        reports_dir=Path(args.reports_dir),
+    )
+    text = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
+    if args.output:
+        Path(args.output).write_text(text + "\n", encoding="utf-8")
+    else:
+        print(text)
+    return 0
+
+
 def _safe_console_log(message: object) -> None:
     text = str(message)
     try:
@@ -507,6 +598,93 @@ def _json_top_level_fields(path: Path) -> dict[str, object]:
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def _load_compare_case_results(run_dir: Path) -> dict[str, dict[str, object]]:
+    case_results_dir = run_dir / "case_results"
+    if not case_results_dir.exists():
+        return {}
+    cases: dict[str, dict[str, object]] = {}
+    for path in sorted(case_results_dir.glob("*.json"), key=lambda item: item.name):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        case_id = str(data.get("case_id") or path.stem).strip() or path.stem
+        cases[case_id] = data
+    return cases
+
+
+def _compare_artifact_manifests(
+    base_manifest: list[object],
+    head_manifest: list[object],
+    reports_dir: Path,
+) -> list[dict[str, object]]:
+    base_artifacts = _artifact_manifest_by_kind(base_manifest, reports_dir)
+    head_artifacts = _artifact_manifest_by_kind(head_manifest, reports_dir)
+    deltas: list[dict[str, object]] = []
+    for kind in sorted(set(base_artifacts) | set(head_artifacts)):
+        base_artifact = base_artifacts.get(kind)
+        head_artifact = head_artifacts.get(kind)
+        deltas.append(
+            {
+                "base_path": _artifact_path_text(base_artifact),
+                "candidate_count_delta": _artifact_numeric_delta(base_artifact, head_artifact, "candidate_count"),
+                "classification_change": _value_change(
+                    _artifact_classification(base_artifact),
+                    _artifact_classification(head_artifact),
+                ),
+                "evidence_gate_changed": _artifact_value_changed(base_artifact, head_artifact, "evidence_gate"),
+                "head_path": _artifact_path_text(head_artifact),
+                "kind": kind,
+                "presence": _compare_presence(base_artifact, head_artifact),
+                "runtime_backed_count_delta": _artifact_numeric_delta(
+                    base_artifact,
+                    head_artifact,
+                    "runtime_backed_count",
+                ),
+            }
+        )
+    return deltas
+
+
+def _artifact_manifest_by_kind(manifest: list[object], reports_dir: Path) -> dict[str, dict[str, object]]:
+    entries: list[dict[str, object]] = []
+    for item in manifest:
+        if not isinstance(item, dict):
+            continue
+        kind = str(item.get("kind") or "").strip()
+        if not kind:
+            continue
+        path_text = str(item.get("path") or "").strip()
+        artifact_json = _read_manifest_artifact_json(path_text, reports_dir)
+        entries.append(
+            {
+                "classification": str(item.get("classification") or artifact_json.get("classification") or ""),
+                "evidence_gate": artifact_json.get("evidence_gate"),
+                "kind": kind,
+                "candidate_count": _as_int_or_none(artifact_json.get("candidate_count")),
+                "path": path_text or None,
+                "runtime_backed_count": _as_int_or_none(artifact_json.get("runtime_backed_count")),
+            }
+        )
+    selected: dict[str, dict[str, object]] = {}
+    for entry in sorted(entries, key=lambda item: (str(item.get("kind") or ""), str(item.get("path") or ""))):
+        selected.setdefault(str(entry["kind"]), entry)
+    return selected
+
+
+def _read_manifest_artifact_json(path_text: str, reports_dir: Path) -> dict[str, object]:
+    if not path_text:
+        return {}
+    raw_path = Path(path_text)
+    candidates = [raw_path] if raw_path.is_absolute() else [Path.cwd() / raw_path, reports_dir / raw_path]
+    for candidate in candidates:
+        if candidate.exists():
+            return _json_top_level_fields(candidate)
+    return {}
 
 
 def _build_case_artifact_manifest(tool_artifacts: list[object]) -> list[dict[str, object]]:
@@ -689,6 +867,109 @@ def _write_summary_markdown(
 def _load_case_result(path: Path) -> HarnessCaseResult:
     data = json.loads(path.read_text(encoding="utf-8"))
     return HarnessCaseResult(**data)
+
+
+def _compare_presence(base_item: object | None, head_item: object | None) -> str:
+    if base_item is not None and head_item is not None:
+        return "both"
+    if base_item is not None:
+        return "base_only"
+    return "head_only"
+
+
+def _list_field(data: dict[str, object] | None, field_name: str) -> list[object]:
+    if data is None:
+        return []
+    value = data.get(field_name)
+    return value if isinstance(value, list) else []
+
+
+def _optional_text_from_dict(data: dict[str, object] | None, field_name: str) -> str | None:
+    if data is None:
+        return None
+    value = data.get(field_name)
+    if value is None:
+        return None
+    text = str(value)
+    return text if text else None
+
+
+def _numeric_delta(
+    base_data: dict[str, object] | None,
+    head_data: dict[str, object] | None,
+    field_name: str,
+) -> int | None:
+    if base_data is None or head_data is None:
+        return None
+    base_value = _as_int_or_none(base_data.get(field_name))
+    head_value = _as_int_or_none(head_data.get(field_name))
+    if base_value is None or head_value is None:
+        return None
+    return head_value - base_value
+
+
+def _artifact_numeric_delta(
+    base_artifact: dict[str, object] | None,
+    head_artifact: dict[str, object] | None,
+    field_name: str,
+) -> int | None:
+    if base_artifact is None or head_artifact is None:
+        return None
+    base_value = _as_int_or_none(base_artifact.get(field_name))
+    head_value = _as_int_or_none(head_artifact.get(field_name))
+    if base_value is None or head_value is None:
+        return None
+    return head_value - base_value
+
+
+def _artifact_value_changed(
+    base_artifact: dict[str, object] | None,
+    head_artifact: dict[str, object] | None,
+    field_name: str,
+) -> bool | None:
+    if base_artifact is None or head_artifact is None:
+        return None
+    base_value = base_artifact.get(field_name)
+    head_value = head_artifact.get(field_name)
+    if base_value is None or head_value is None:
+        return None
+    return base_value != head_value
+
+
+def _artifact_path_text(artifact: dict[str, object] | None) -> str | None:
+    if artifact is None:
+        return None
+    value = artifact.get("path")
+    return str(value) if value else None
+
+
+def _artifact_classification(artifact: dict[str, object] | None) -> str | None:
+    if artifact is None:
+        return None
+    value = artifact.get("classification")
+    if value is None:
+        return None
+    text = str(value)
+    return text if text else None
+
+
+def _value_change(base_value: object | None, head_value: object | None) -> str | None:
+    if base_value == head_value:
+        return ""
+    return f"{_change_value_text(base_value)} -> {_change_value_text(head_value)}"
+
+
+def _change_value_text(value: object | None) -> str:
+    return "null" if value is None else str(value)
+
+
+def _as_int_or_none(value: object) -> int | None:
+    if isinstance(value, bool) or value is None:
+        return None
+    try:
+        return int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
 
 
 def _case_result_status(result_path: Path) -> str | None:
