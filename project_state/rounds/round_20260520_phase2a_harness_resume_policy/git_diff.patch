@@ -1,0 +1,436 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 129f3a4..6ff8b38 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,93 +1,94 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase1f_lint_handoff_aggregate_20260520",
+-  "round_id": "round_20260520_phase1f_lint_handoff",
+-  "based_on_decision_id": "decision_phase1f_lint_handoff_aggregate_20260520",
++  "report_id": "report_phase2a_harness_resume_policy_20260520",
++  "round_id": "round_20260520_phase2a_harness_resume_policy",
++  "based_on_decision_id": "decision_phase2a_harness_resume_policy_20260520",
+   "status": "SUCCESS",
+   "acceptance_recommendation": "ACCEPTED",
+   "files_changed": [
+-    "reverse_agent/project_state.py",
+-    "tests/test_project_state.py",
++    "reverse_agent/harness.py",
++    "tests/test_harness_resume.py",
+     "project_state/codex_execution_report.md",
+     "project_state/pytest_result.txt"
+   ],
+   "tests_ran": [
+-    "python -m py_compile reverse_agent\\project_state.py",
+-    "python -m pytest -q tests\\test_project_state.py",
++    "python -m py_compile reverse_agent\\harness.py",
++    "python -m pytest -q tests\\test_harness.py",
++    "python -m pytest -q tests\\test_harness_resume.py",
+     "python -m pytest -q",
+     "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+     "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1f_lint_handoff"
++    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2a_harness_resume_policy"
+   ],
+   "generated_artifacts": [
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/round_manifest.json",
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/artifact_index.json",
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/current_state.json",
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/negative_results.json",
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/model_gate.json",
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/task_packet.json",
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/decision_packet.md",
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/codex_execution_report.md",
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/pytest_result.txt",
+-    "project_state/rounds/round_20260520_phase1f_lint_handoff/git_diff.patch"
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/round_manifest.json",
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/artifact_index.json",
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/current_state.json",
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/negative_results.json",
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/model_gate.json",
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/task_packet.json",
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/decision_packet.md",
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/codex_execution_report.md",
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/pytest_result.txt",
++    "project_state/rounds/round_20260520_phase2a_harness_resume_policy/git_diff.patch"
+   ],
+-  "next_suggested_task": "Run GPT audit on Phase 1F lint-handoff before authorizing any samplereverse runtime branch."
++  "next_suggested_task": "Have GPT audit Phase 2A harness resume semantics before authorizing any Phase 2B/2C/2D engineering task or samplereverse runtime work."
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-20 Phase 1F lint-handoff aggregate gate
++## 2026-05-20 Phase 2A harness resume policy
+ 
+-This pass implements the approved Phase 1F engineering branch from `project_state/decision_packet.md`. It does not advance the `samplereverse` reverse-engineering mainline and does not run runtime probes.
++This pass implements the approved Phase 2A engineering branch from `project_state/decision_packet.md`. It changes only harness resume semantics and tests. It does not advance the `samplereverse` reverse-engineering mainline, does not run runtime probes, and does not modify project_state schema/protocol.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| current lint-decision shape | `lint_decision()` returns `ok`, `errors`, `warnings`, decision identity, state identity, execution scope, and active decision packet. It fails on missing/template/non-approved decisions, missing IDs, and state digest mismatch. |
+-| current lint-report shape | `lint_report()` returns `ok`, `errors`, `warnings`, report identity, decision binding, round identity, test/artifact counts, and `pytest_result_present`. It warns on round mismatch and non-success reports; it errors on missing/invalid summaries, ID mismatch, bad list fields, or missing SUCCESS evidence. |
+-| pre-fix handoff issue | `decision_consumed_by_report: True` could coexist with `decision_execution_state: READY_FOR_EXECUTION` when an approved decision had both digest match and matching SUCCESS report. |
+-| consumed priority | Matching SUCCESS report now wins over digest-ready state because it proves the decision already has a bound Codex result and should not be executed again. |
+-| current Phase 1E report binding | Before this pass, `lint-report` failed as expected because the active report was Phase 1E and `based_on_decision_id` did not match the Phase 1F decision. |
+-| round mismatch warning | `report round_id does not match current_state.round_id` remains a known archive strategy warning, not a structural failure. |
+-| lint-handoff boundary | `lint_handoff()` aggregates `status_summary` semantics plus `lint_decision` and `lint_report`; it does not implement a workflow engine or duplicate Markdown parsing. |
+-| independent lints | `lint-decision` and `lint-report` remain independently callable and keep their existing strictness. |
+-| touched code scope | Only `reverse_agent/project_state.py` and `tests/test_project_state.py` changed for implementation. |
+-| reverse runtime risk | No reverse strategy, harness, Olly script, search budget, or runtime probe was modified or run. |
++| current `--resume` implementation | `run_harness()` checked `config.resume and result_path.exists()` before this pass, then loaded `case_results/<case>.json` and counted it as resumed. |
++| case result status source | Normal statuses come from `_case_result_from_solve_result()`: `passed`, `failed_expected`, `completed_no_expected`, and `not_found`. Harness exception handling writes `error`. Other unstable statuses such as `timeout`, `interrupted`, `partial`, and `blocked` can appear from future/legacy cached result producers and are now classified centrally. |
++| old skip predicate | The old predicate only checked file existence and did not inspect `status`. |
++| argparse / run CLI structure | `main()` is a single `argparse.ArgumentParser` harness command. It previously exposed `--no-resume`; this pass adds `--resume-policy`, repeatable `--rerun-status`, and `--rerun-error`. |
++| existing harness resume tests | `tests/test_harness.py` already had `test_run_harness_resume_skips_completed_cases`; it covered only terminal cached success behavior. No policy/rerun-status equivalent existed. |
++| equivalent policy capability | No existing resume-policy or rerun-status capability was found, so this pass adds the minimum harness-local implementation. |
++| why unstable statuses rerun | `error`, `timeout`, `interrupted`, `partial`, and `blocked` represent transient or incomplete harness/tool states; treating them as completed under default resume can create false stability. |
++| all-existing compatibility | `--resume-policy all-existing` preserves the old behavior: any existing case result is skipped unless its status is explicitly listed in `rerun_statuses`. |
++| rerun priority | `rerun_statuses` wins before policy evaluation, including over `all-existing`; `--rerun-error` appends `error`. |
++| implementation file scope | The implementation changed only `reverse_agent/harness.py`; focused coverage was added in `tests/test_harness_resume.py`. |
++| reverse runtime / protocol risk | No runtime sidecar/probe, `compare_aware_search.py`, `olly_scripts`, project_state schema, decision schema, or report schema was modified. |
+ 
+ ## Implementation
+ 
+-- Reordered `_build_handoff_consistency()` so matching reports classify as `CONSUMED_BY_SUCCESS_REPORT` or `CONSUMED_BY_NON_SUCCESS_REPORT` before `READY_FOR_EXECUTION`.
+-- Added `decision_ready_for_execution` to handoff consistency, `status_summary()`, and CLI `status`.
+-- Added `lint_handoff(state_dir)` with `READY_FOR_CODEX`, `REVIEW_COMPLETE`, `REPORT_NEEDS_REVIEW`, `STALE_OR_MISMATCH`, `TEMPLATE_OR_UNKNOWN`, and `FAILED` states.
+-- Added CLI `python -m reverse_agent.project_state lint-handoff --state-dir project_state`.
+-- Added regression coverage for consumed priority, ready gating, aggregate handoff states, and CLI return codes.
++- Added centralized resume constants and helpers in `reverse_agent/harness.py`: terminal statuses, non-terminal statuses, `_case_result_status()`, and `_should_resume_case()`.
++- Extended `HarnessConfig` with `resume_policy` defaulting to `terminal-only` and `rerun_statuses`.
++- Changed resume behavior so default `terminal-only` skips only known terminal statuses; missing, malformed, or unknown statuses rerun.
++- Added `--resume-policy {terminal-only,all-existing}`, repeatable `--rerun-status`, and `--rerun-error`.
++- Kept new resume policy fields out of the existing `config_digest` payload so old same-run resumes do not fail simply because Phase 2A introduced new CLI/default fields.
++- Added focused harness resume tests for terminal skip, default error rerun, legacy all-existing skip, rerun-status override, CLI `--rerun-error`, and unknown/missing status rerun.
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+-| `python -m py_compile reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_project_state.py` | `101 passed in 19.12s` |
+-| `python -m pytest -q` | `354 passed in 53.86s` |
+-| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; `decision_execution_state: READY_FOR_EXECUTION`, `decision_ready_for_execution: True` |
++| `python -m py_compile reverse_agent\harness.py` | passed |
++| `python -m pytest -q tests\test_harness.py` | `5 passed in 0.33s` |
++| `python -m pytest -q tests\test_harness_resume.py` | `6 passed in 0.43s` |
++| `python -m pytest -q` | `360 passed in 52.73s` |
++| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; current decision is `decision_phase2a_harness_resume_policy_20260520`, previous report is Phase 1F, and `decision_ready_for_execution: True` |
+ | pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
+-| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | failed as expected because Phase 1E report did not match Phase 1F decision |
++| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | failed as expected because the active report still referenced Phase 1F |
+ | pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `READY_FOR_CODEX`, tolerating the old report mismatch |
+-| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed with expected missing-manifest warning before archive |
+-| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `REVIEW_COMPLETE` |
+-| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1f_lint_handoff` | passed; created the Phase 1F round archive |
+ 
+ ## State Notes
+ 
+ - The active sample state still points at `sr_lhs_thread_follow_timing_20260520_r4`; this pass intentionally did not rebuild sample artifacts or advance the runtime mainline.
+-- Final `lint-handoff` reports `REVIEW_COMPLETE` once this Phase 1F report is present and bound to the active decision.
+-- The report round intentionally differs from `current_state.round_id`, matching the existing archive strategy; `lint-report` keeps this as a warning.
++- Final report binding is now `report_phase2a_harness_resume_policy_20260520` -> `decision_phase2a_harness_resume_policy_20260520`.
++- After this report is written, final `lint-report`, `lint-handoff`, and `archive-round` should complete the Phase 2A handoff.
+ 
+ ## Next Suggested Task
+ 
+-Have GPT audit this Phase 1F report and `lint-handoff` output. Resume the `samplereverse` mainline only after a fresh decision packet explicitly authorizes that branch.
++Have GPT audit this Phase 2A report and the resulting archive. Do not start Phase 2B/2C/2D or samplereverse runtime work until a fresh decision packet explicitly authorizes it.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 72f82f8..c6de31d 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,24 +1,27 @@
+-2026-05-20 Phase 1F lint-handoff aggregate gate verification
++2026-05-20 Phase 2A harness resume policy verification
+ 
+ Scope:
+-- Execute only the project_state lint-handoff decision.
++- Execute only the approved harness resume policy decision.
+ - Do not run reverse runtime probes.
+-- Do not modify reverse strategy, harness, or olly_scripts.
++- Do not modify reverse strategy, olly_scripts, or project_state schema/protocol.
+ 
+-python -m py_compile reverse_agent\project_state.py -> passed
++python -m py_compile reverse_agent\harness.py -> passed
+ 
+-python -m pytest -q tests\test_project_state.py -> passed
+-........................................................................ [ 71%]
+-.............................                                            [100%]
+-101 passed in 19.12s
++python -m pytest -q tests\test_harness.py -> passed
++.....                                                                    [100%]
++5 passed in 0.33s
++
++python -m pytest -q tests\test_harness_resume.py -> passed
++......                                                                   [100%]
++6 passed in 0.43s
+ 
+ python -m pytest -q -> passed
+ ........................................................................ [ 20%]
+ ........................................................................ [ 40%]
+-........................................................................ [ 61%]
+-........................................................................ [ 81%]
+-..................................................................       [100%]
+-354 passed in 53.86s
++........................................................................ [ 60%]
++........................................................................ [ 80%]
++........................................................................ [100%]
++360 passed in 52.73s
+ 
+ Pre-report python -m reverse_agent.project_state status --state-dir project_state -> passed
+ state_dir: project_state
+@@ -36,13 +39,13 @@ active_decision_packet: project_state/decision_packet.md
+ execution_scope: decision_packet_controls_current_round
+ expected_gpt_output: project_state/decision_packet.md
+ decision_status: APPROVED
+-decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++decision_id: decision_phase2a_harness_resume_policy_20260520
+ decision_based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+ decision_parse_error: None
+ report_status: SUCCESS
+ report_acceptance_recommendation: ACCEPTED
+-report_id: report_phase1e_lint_report_min_gate_20260520
+-report_based_on_decision_id: decision_phase1e_lint_report_min_gate_20260520
++report_id: report_phase1f_lint_handoff_aggregate_20260520
++report_based_on_decision_id: decision_phase1f_lint_handoff_aggregate_20260520
+ report_parse_error: None
+ decision_report_id_match: False
+ decision_state_digest_match: True
+@@ -52,7 +55,7 @@ decision_ready_for_execution: True
+ 
+ Pre-report python -m reverse_agent.project_state lint-decision --state-dir project_state -> passed
+ lint-decision: OK
+-decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++decision_id: decision_phase2a_harness_resume_policy_20260520
+ decision_status: APPROVED
+ based_on_state_build_id: state_20260520_052928_8a77e6637c6c
+ based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+@@ -65,15 +68,15 @@ Pre-report python -m reverse_agent.project_state lint-report --state-dir project
+ lint-report: FAILED
+ error: based_on_decision_id does not match current decision_id
+ warning: report round_id does not match current_state.round_id
+-report_id: report_phase1e_lint_report_min_gate_20260520
++report_id: report_phase1f_lint_handoff_aggregate_20260520
+ report_status: SUCCESS
+ acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase1e_lint_report_min_gate_20260520
+-decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++based_on_decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++decision_id: decision_phase2a_harness_resume_policy_20260520
+ decision_report_id_match: False
+-round_id: round_20260520_phase1e_lint_report
++round_id: round_20260520_phase1f_lint_handoff
+ current_state_round_id: round_20260520_052928
+-tests_ran_count: 7
++tests_ran_count: 8
+ generated_artifacts_count: 10
+ pytest_result_present: True
+ 
+@@ -88,28 +91,23 @@ decision_report_id_match: False
+ lint_decision_ok: True
+ lint_report_ok: False
+ 
+-Final python -m reverse_agent.project_state status --state-dir project_state -> expected after report write
+-decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+-decision_ready_for_execution: False
+-decision_report_id_match: True
+-
+-Final python -m reverse_agent.project_state lint-report --state-dir project_state -> expected OK before archive
++Final python -m reverse_agent.project_state lint-report --state-dir project_state -> passed before archive
+ lint-report: OK
+ warning: report round_id does not match current_state.round_id
+ warning: round_manifest missing
+-report_id: report_phase1f_lint_handoff_aggregate_20260520
++report_id: report_phase2a_harness_resume_policy_20260520
+ report_status: SUCCESS
+ acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase1f_lint_handoff_aggregate_20260520
+-decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++based_on_decision_id: decision_phase2a_harness_resume_policy_20260520
++decision_id: decision_phase2a_harness_resume_policy_20260520
+ decision_report_id_match: True
+-round_id: round_20260520_phase1f_lint_handoff
++round_id: round_20260520_phase2a_harness_resume_policy
+ current_state_round_id: round_20260520_052928
+-tests_ran_count: 8
++tests_ran_count: 9
+ generated_artifacts_count: 10
+ pytest_result_present: True
+ 
+-Final python -m reverse_agent.project_state lint-handoff --state-dir project_state -> expected REVIEW_COMPLETE
++Final python -m reverse_agent.project_state lint-handoff --state-dir project_state -> passed before archive
+ lint-handoff: OK
+ warning: report round_id does not match current_state.round_id
+ warning: round_manifest missing
+@@ -120,21 +118,21 @@ decision_report_id_match: True
+ lint_decision_ok: True
+ lint_report_ok: True
+ 
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase1f_lint_handoff -> passed
+-No stdout; verified project_state\rounds\round_20260520_phase1f_lint_handoff\round_manifest.json exists.
++python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2a_harness_resume_policy -> passed
++No stdout; verified project_state\rounds\round_20260520_phase2a_harness_resume_policy\round_manifest.json exists.
+ 
+ Final post-archive python -m reverse_agent.project_state lint-report --state-dir project_state -> passed
+ lint-report: OK
+ warning: report round_id does not match current_state.round_id
+-report_id: report_phase1f_lint_handoff_aggregate_20260520
++report_id: report_phase2a_harness_resume_policy_20260520
+ report_status: SUCCESS
+ acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase1f_lint_handoff_aggregate_20260520
+-decision_id: decision_phase1f_lint_handoff_aggregate_20260520
++based_on_decision_id: decision_phase2a_harness_resume_policy_20260520
++decision_id: decision_phase2a_harness_resume_policy_20260520
+ decision_report_id_match: True
+-round_id: round_20260520_phase1f_lint_handoff
++round_id: round_20260520_phase2a_harness_resume_policy
+ current_state_round_id: round_20260520_052928
+-tests_ran_count: 8
++tests_ran_count: 9
+ generated_artifacts_count: 10
+ pytest_result_present: True
+ 
+diff --git a/reverse_agent/harness.py b/reverse_agent/harness.py
+index f78ec06..84ec00e 100644
+--- a/reverse_agent/harness.py
++++ b/reverse_agent/harness.py
+@@ -17,6 +17,22 @@ from .tool_runners import ToolAutomationConfig
+ 
+ LogFn = Callable[[str], None]
+ SCHEMA_VERSION = 1
++RESUME_POLICY_TERMINAL_ONLY = "terminal-only"
++RESUME_POLICY_ALL_EXISTING = "all-existing"
++RESUME_POLICIES = {RESUME_POLICY_TERMINAL_ONLY, RESUME_POLICY_ALL_EXISTING}
++TERMINAL_CASE_STATUSES = {
++    "passed",
++    "failed_expected",
++    "completed_no_expected",
++    "not_found",
++}
++NON_TERMINAL_RERUN_CASE_STATUSES = {
++    "error",
++    "timeout",
++    "interrupted",
++    "partial",
++    "blocked",
++}
+ 
+ 
+ @dataclass
+@@ -49,6 +65,8 @@ class HarnessConfig:
+     ctf_skill_enabled: bool = True
+     ctf_skill_profile: str = "compact"
+     resume: bool = True
++    resume_policy: str = RESUME_POLICY_TERMINAL_ONLY
++    rerun_statuses: set[str] = field(default_factory=set)
+     fail_fast: bool = False
+ 
+ 
+@@ -163,6 +181,9 @@ def filter_harness_cases(
+ def run_harness(config: HarnessConfig, log: LogFn) -> HarnessSummary:
+     if not config.cases:
+         raise ValueError("Harness config contains no cases.")
++    if config.resume_policy not in RESUME_POLICIES:
++        raise ValueError(f"Unknown resume policy: {config.resume_policy}")
++    config.rerun_statuses = {str(status).strip() for status in config.rerun_statuses if str(status).strip()}
+ 
+     run_name = _resolve_run_name(config)
+     run_dir = config.reports_dir / "harness_runs" / run_name
+@@ -199,12 +220,12 @@ def run_harness(config: HarnessConfig, log: LogFn) -> HarnessSummary:
+     try:
+         for index, case in enumerate(config.cases, start=1):
+             result_path = case_results_dir / f"{_sanitize_token(case.case_id)}.json"
+-            if config.resume and result_path.exists():
++            if config.resume and _should_resume_case(result_path, config.resume_policy, config.rerun_statuses):
+                 cached = _load_case_result(result_path)
+                 cached.cached = True
+                 results.append(cached)
+                 resumed_cases += 1
+-                log(f"[harness] 跳过已完成样本 {index}/{len(config.cases)}: {case.case_id}")
++                log(f"[harness] 跳过可恢复样本 {index}/{len(config.cases)}: {case.case_id}")
+                 continue
+ 
+             log(f"[harness] 运行样本 {index}/{len(config.cases)}: {case.case_id}")
+@@ -334,6 +355,19 @@ def main(argv: list[str] | None = None) -> int:
+     parser.add_argument("--disable-ctf-skill", action="store_true")
+     parser.add_argument("--fail-fast", action="store_true")
+     parser.add_argument("--no-resume", action="store_true")
++    parser.add_argument(
++        "--resume-policy",
++        default=RESUME_POLICY_TERMINAL_ONLY,
++        choices=sorted(RESUME_POLICIES),
++        help="Resume policy for existing case results.",
++    )
++    parser.add_argument(
++        "--rerun-status",
++        action="append",
++        default=[],
++        help="Force rerun for existing case results with this status. May be repeated.",
++    )
++    parser.add_argument("--rerun-error", action="store_true", help="Alias for --rerun-status error.")
+     parser.add_argument("--case-id", action="append", default=[], help="Run only selected case ids.")
+     parser.add_argument("--tag", action="append", default=[], help="Run only cases matching at least one tag.")
+     parser.add_argument("--limit", type=int, default=None, help="Run only the first N selected cases.")
+@@ -344,6 +378,9 @@ def main(argv: list[str] | None = None) -> int:
+     cases = filter_harness_cases(cases, case_ids=args.case_id, tags=args.tag, limit=args.limit)
+     if not cases:
+         raise SystemExit("No cases selected for the harness run.")
++    rerun_statuses = {str(status).strip() for status in args.rerun_status if str(status).strip()}
++    if args.rerun_error:
++        rerun_statuses.add("error")
+ 
+     config = HarnessConfig(
+         cases=cases,
+@@ -372,6 +409,8 @@ def main(argv: list[str] | None = None) -> int:
+         ctf_skill_enabled=not args.disable_ctf_skill,
+         ctf_skill_profile=args.ctf_skill_profile,
+         resume=not args.no_resume,
++        resume_policy=args.resume_policy,
++        rerun_statuses=rerun_statuses,
+         fail_fast=args.fail_fast,
+     )
+ 
+@@ -584,6 +623,33 @@ def _load_case_result(path: Path) -> HarnessCaseResult:
+     return HarnessCaseResult(**data)
+ 
+ 
++def _case_result_status(result_path: Path) -> str | None:
++    try:
++        data = json.loads(result_path.read_text(encoding="utf-8"))
++    except (OSError, json.JSONDecodeError):
++        return None
++    if not isinstance(data, dict):
++        return None
++    status = data.get("status")
++    if status is None:
++        return None
++    text = str(status).strip()
++    return text or None
++
++
++def _should_resume_case(result_path: Path, resume_policy: str, rerun_statuses: set[str]) -> bool:
++    if not result_path.exists():
++        return False
++    status = _case_result_status(result_path)
++    if status in rerun_statuses:
++        return False
++    if resume_policy == RESUME_POLICY_ALL_EXISTING:
++        return True
++    if resume_policy == RESUME_POLICY_TERMINAL_ONLY:
++        return status in TERMINAL_CASE_STATUSES
++    raise ValueError(f"Unknown resume policy: {resume_policy}")
++
++
+ def _resolve_run_name(config: HarnessConfig) -> str:
+     if config.run_name.strip():
+         return _sanitize_token(config.run_name)

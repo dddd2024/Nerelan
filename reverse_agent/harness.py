@@ -17,6 +17,22 @@ from .tool_runners import ToolAutomationConfig
 
 LogFn = Callable[[str], None]
 SCHEMA_VERSION = 1
+RESUME_POLICY_TERMINAL_ONLY = "terminal-only"
+RESUME_POLICY_ALL_EXISTING = "all-existing"
+RESUME_POLICIES = {RESUME_POLICY_TERMINAL_ONLY, RESUME_POLICY_ALL_EXISTING}
+TERMINAL_CASE_STATUSES = {
+    "passed",
+    "failed_expected",
+    "completed_no_expected",
+    "not_found",
+}
+NON_TERMINAL_RERUN_CASE_STATUSES = {
+    "error",
+    "timeout",
+    "interrupted",
+    "partial",
+    "blocked",
+}
 
 
 @dataclass
@@ -49,6 +65,8 @@ class HarnessConfig:
     ctf_skill_enabled: bool = True
     ctf_skill_profile: str = "compact"
     resume: bool = True
+    resume_policy: str = RESUME_POLICY_TERMINAL_ONLY
+    rerun_statuses: set[str] = field(default_factory=set)
     fail_fast: bool = False
 
 
@@ -163,6 +181,9 @@ def filter_harness_cases(
 def run_harness(config: HarnessConfig, log: LogFn) -> HarnessSummary:
     if not config.cases:
         raise ValueError("Harness config contains no cases.")
+    if config.resume_policy not in RESUME_POLICIES:
+        raise ValueError(f"Unknown resume policy: {config.resume_policy}")
+    config.rerun_statuses = {str(status).strip() for status in config.rerun_statuses if str(status).strip()}
 
     run_name = _resolve_run_name(config)
     run_dir = config.reports_dir / "harness_runs" / run_name
@@ -199,12 +220,12 @@ def run_harness(config: HarnessConfig, log: LogFn) -> HarnessSummary:
     try:
         for index, case in enumerate(config.cases, start=1):
             result_path = case_results_dir / f"{_sanitize_token(case.case_id)}.json"
-            if config.resume and result_path.exists():
+            if config.resume and _should_resume_case(result_path, config.resume_policy, config.rerun_statuses):
                 cached = _load_case_result(result_path)
                 cached.cached = True
                 results.append(cached)
                 resumed_cases += 1
-                log(f"[harness] 跳过已完成样本 {index}/{len(config.cases)}: {case.case_id}")
+                log(f"[harness] 跳过可恢复样本 {index}/{len(config.cases)}: {case.case_id}")
                 continue
 
             log(f"[harness] 运行样本 {index}/{len(config.cases)}: {case.case_id}")
@@ -334,6 +355,19 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--disable-ctf-skill", action="store_true")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--no-resume", action="store_true")
+    parser.add_argument(
+        "--resume-policy",
+        default=RESUME_POLICY_TERMINAL_ONLY,
+        choices=sorted(RESUME_POLICIES),
+        help="Resume policy for existing case results.",
+    )
+    parser.add_argument(
+        "--rerun-status",
+        action="append",
+        default=[],
+        help="Force rerun for existing case results with this status. May be repeated.",
+    )
+    parser.add_argument("--rerun-error", action="store_true", help="Alias for --rerun-status error.")
     parser.add_argument("--case-id", action="append", default=[], help="Run only selected case ids.")
     parser.add_argument("--tag", action="append", default=[], help="Run only cases matching at least one tag.")
     parser.add_argument("--limit", type=int, default=None, help="Run only the first N selected cases.")
@@ -344,6 +378,9 @@ def main(argv: list[str] | None = None) -> int:
     cases = filter_harness_cases(cases, case_ids=args.case_id, tags=args.tag, limit=args.limit)
     if not cases:
         raise SystemExit("No cases selected for the harness run.")
+    rerun_statuses = {str(status).strip() for status in args.rerun_status if str(status).strip()}
+    if args.rerun_error:
+        rerun_statuses.add("error")
 
     config = HarnessConfig(
         cases=cases,
@@ -372,6 +409,8 @@ def main(argv: list[str] | None = None) -> int:
         ctf_skill_enabled=not args.disable_ctf_skill,
         ctf_skill_profile=args.ctf_skill_profile,
         resume=not args.no_resume,
+        resume_policy=args.resume_policy,
+        rerun_statuses=rerun_statuses,
         fail_fast=args.fail_fast,
     )
 
@@ -582,6 +621,33 @@ def _write_summary_markdown(
 def _load_case_result(path: Path) -> HarnessCaseResult:
     data = json.loads(path.read_text(encoding="utf-8"))
     return HarnessCaseResult(**data)
+
+
+def _case_result_status(result_path: Path) -> str | None:
+    try:
+        data = json.loads(result_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    status = data.get("status")
+    if status is None:
+        return None
+    text = str(status).strip()
+    return text or None
+
+
+def _should_resume_case(result_path: Path, resume_policy: str, rerun_statuses: set[str]) -> bool:
+    if not result_path.exists():
+        return False
+    status = _case_result_status(result_path)
+    if status in rerun_statuses:
+        return False
+    if resume_policy == RESUME_POLICY_ALL_EXISTING:
+        return True
+    if resume_policy == RESUME_POLICY_TERMINAL_ONLY:
+        return status in TERMINAL_CASE_STATUSES
+    raise ValueError(f"Unknown resume policy: {resume_policy}")
 
 
 def _resolve_run_name(config: HarnessConfig) -> str:
