@@ -13379,6 +13379,16 @@ def _compare_real_lhs_candidate_execution_health(
             "scripted_observation_count": int(result.get("scripted_observation_count", 0) or 0),
             "scripted_error": str(result.get("scripted_error", "")),
             "instrumentation_failure_stage": str(result.get("instrumentation_failure_stage", "")),
+            "hook_install_status": str(result.get("hook_install_status", "")),
+            "hook_count": result.get("hook_count", 0),
+            "spawn_attach_resume_status": str(result.get("spawn_attach_resume_status", "")),
+            "ui_trigger_status": str(result.get("ui_trigger_status", "")),
+            "helper_observation_count": int(result.get("helper_observation_count", 0) or 0),
+            "static_compare_observation_count": int(result.get("static_compare_observation_count", 0) or 0),
+            "root_cause_hypothesis": str(result.get("root_cause_hypothesis", "")),
+            "root_cause_evidence": list(result.get("root_cause_evidence", []))
+            if isinstance(result.get("root_cause_evidence", []), list)
+            else [],
             "same_process_provenance": bool(result.get("same_process_provenance")),
             "same_process_observation_count": int(result.get("same_process_observation_count", 0) or 0),
             "scripted_stdout_preview": str(result.get("scripted_stdout_preview", "")),
@@ -14105,6 +14115,112 @@ def _compare_lhs_last_writer_bounded_failures(
     return failures
 
 
+def _compare_lhs_last_writer_stage_fields(
+    candidate_results: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    def _non_empty(field: str) -> list[str]:
+        return sorted(
+            {
+                str(item.get(field, "")).strip()
+                for item in candidate_results
+                if str(item.get(field, "")).strip()
+            }
+        )
+
+    def _sum_int(field: str) -> int:
+        total = 0
+        for item in candidate_results:
+            try:
+                total += int(item.get(field, 0) or 0)
+            except (TypeError, ValueError):
+                continue
+        return total
+
+    def _max_int(field: str) -> int:
+        values: list[int] = []
+        for item in candidate_results:
+            try:
+                values.append(int(item.get(field, 0) or 0))
+            except (TypeError, ValueError):
+                continue
+        return max(values) if values else 0
+
+    hook_install_statuses = _non_empty("hook_install_status")
+    spawn_statuses = _non_empty("spawn_attach_resume_status")
+    ui_statuses = _non_empty("ui_trigger_status")
+    root_causes = _non_empty("root_cause_hypothesis")
+    if (
+        not root_causes
+        and candidate_results
+        and all(str(item.get("scripted_hook_status", "")) == "scripted_hook_no_observations" for item in candidate_results)
+        and any(int(item.get("scripted_returncode", 0) or 0) == 124 for item in candidate_results)
+    ):
+        root_causes = ["timeout_before_hook_install"]
+        if not hook_install_statuses:
+            hook_install_statuses = ["not_confirmed"]
+    root_cause_evidence: list[str] = []
+    candidate_log_paths: dict[str, str] = {}
+    for item in candidate_results:
+        candidate_hex = str(item.get("candidate_hex", ""))
+        log_path = str(item.get("log_path", "")).strip()
+        if candidate_hex and log_path:
+            candidate_log_paths[candidate_hex] = log_path
+        evidence = item.get("root_cause_evidence", [])
+        if isinstance(evidence, list):
+            root_cause_evidence.extend(str(row) for row in evidence if str(row).strip())
+        elif str(evidence).strip():
+            root_cause_evidence.append(str(evidence))
+
+    def _summary_status(statuses: list[str]) -> str:
+        if not statuses:
+            return ""
+        if len(statuses) == 1:
+            return statuses[0]
+        return "mixed:" + ",".join(statuses)
+
+    helper_count = _sum_int("helper_observation_count")
+    static_count = _sum_int("static_compare_observation_count")
+    if helper_count <= 0:
+        for item in candidate_results:
+            observations = item.get("hook_observations", [])
+            if not isinstance(observations, list):
+                continue
+            helper_count += sum(
+                1
+                for observation in observations
+                if isinstance(observation, dict)
+                and str(observation.get("hook_name", "")) == "handoff_helper_candidate"
+            )
+    if static_count <= 0:
+        for item in candidate_results:
+            observations = item.get("hook_observations", [])
+            if not isinstance(observations, list):
+                continue
+            static_count += sum(
+                1
+                for observation in observations
+                if isinstance(observation, dict)
+                and str(observation.get("hook_name", "")) == "static_compare_callsite"
+                and not _is_compare_probe_fallback_observation(observation)
+            )
+
+    return {
+        "hook_install_status": _summary_status(hook_install_statuses),
+        "hook_install_statuses": hook_install_statuses,
+        "hook_count": _max_int("hook_count"),
+        "spawn_attach_resume_status": _summary_status(spawn_statuses),
+        "spawn_attach_resume_statuses": spawn_statuses,
+        "ui_trigger_status": _summary_status(ui_statuses),
+        "ui_trigger_statuses": ui_statuses,
+        "helper_observation_count": helper_count,
+        "static_compare_observation_count": static_count,
+        "root_cause_hypothesis": _summary_status(root_causes),
+        "root_cause_hypotheses": root_causes,
+        "root_cause_evidence": root_cause_evidence,
+        "candidate_log_paths": candidate_log_paths,
+    }
+
+
 def _compare_lhs_last_writer_failure_stage(
     *,
     classification: str,
@@ -14114,6 +14230,27 @@ def _compare_lhs_last_writer_failure_stage(
 ) -> str:
     if classification == "blocked_by_environment":
         return "environment_or_automation_blocked"
+    stage_fields = _compare_lhs_last_writer_stage_fields(candidate_results)
+    root_causes = {
+        str(item).strip()
+        for item in stage_fields.get("root_cause_hypotheses", [])
+        if str(item).strip()
+    }
+    for stage in (
+        "hook_install_failed",
+        "module_offset_mismatch",
+        "spawn_attach_resume_failed",
+        "ui_trigger_failed",
+        "helper_hook_not_reached",
+        "script_output_missing",
+        "log_path_missing",
+        "timeout_before_hook_install",
+        "timeout_after_ui_trigger_before_helper",
+        "compare_probe_sidecar_invocation_divergence",
+        "helper_hook_reached_but_static_compare_missing",
+    ):
+        if stage in root_causes:
+            return stage
     statuses = {str(item.get("scripted_hook_status", "")) for item in candidate_results}
     returncodes = {int(item.get("scripted_returncode", 0) or 0) for item in candidate_results}
     health = last_writer_summary.get("write_monitor_health", {})
@@ -14188,6 +14325,76 @@ def _compare_lhs_last_writer_classification(
     return "writer_candidate_identified_but_not_runtime_backed"
 
 
+def _compare_lhs_last_writer_candidate_stage_metadata(
+    *,
+    compare_payload: dict[str, object],
+    scripted_hook_status: str,
+    scripted_returncode: int,
+    helper_observation_count: int,
+    static_compare_observation_count: int,
+    scripted_write_monitor_health: dict[str, object],
+    compare_out: Path,
+    compare_log: Path,
+) -> dict[str, object]:
+    evidence = compare_payload.get("evidence", [])
+    evidence_rows = [str(item) for item in evidence] if isinstance(evidence, list) else []
+    hook_install_status = str(compare_payload.get("hook_install_status", "")).strip()
+    hook_count = 0
+    try:
+        hook_count = int(compare_payload.get("hook_count", 0) or 0)
+    except (TypeError, ValueError):
+        hook_count = 0
+    if not hook_install_status:
+        if any("runtime_stage=hooks_installed" in item for item in evidence_rows):
+            hook_install_status = "installed"
+            hook_count = hook_count or 3
+        elif scripted_hook_status == "scripted_hook_no_observations":
+            hook_install_status = "not_confirmed"
+    spawn_attach_resume_status = str(compare_payload.get("spawn_attach_resume_status", "")).strip()
+    ui_trigger_status = str(compare_payload.get("ui_trigger_status", "")).strip()
+    runtime_stage = str(scripted_write_monitor_health.get("runtime_stage", "") or "").strip()
+    root_cause_hypothesis = str(compare_payload.get("root_cause_hypothesis", "")).strip()
+    root_cause_evidence = compare_payload.get("root_cause_evidence", [])
+    root_cause_rows = [str(item) for item in root_cause_evidence] if isinstance(root_cause_evidence, list) else []
+
+    if not root_cause_hypothesis:
+        if not compare_out.exists():
+            root_cause_hypothesis = "script_output_missing"
+        elif not compare_log.exists():
+            root_cause_hypothesis = "log_path_missing"
+        elif scripted_hook_status == "scripted_hook_no_observations" and scripted_returncode == 124:
+            if hook_install_status != "installed" or runtime_stage == "script_started":
+                root_cause_hypothesis = "timeout_before_hook_install"
+            elif ui_trigger_status and ui_trigger_status != "button_triggered":
+                root_cause_hypothesis = "ui_trigger_failed"
+            else:
+                root_cause_hypothesis = "timeout_after_ui_trigger_before_helper"
+        elif helper_observation_count <= 0 and static_compare_observation_count <= 0:
+            root_cause_hypothesis = "helper_hook_not_reached"
+        elif helper_observation_count > 0 and static_compare_observation_count <= 0:
+            root_cause_hypothesis = "helper_hook_reached_but_static_compare_missing"
+    if root_cause_hypothesis and not root_cause_rows:
+        root_cause_rows = [
+            f"scripted_hook_status={scripted_hook_status}",
+            f"scripted_returncode={scripted_returncode}",
+            f"runtime_stage={runtime_stage}",
+            f"hook_install_status={hook_install_status}",
+            f"hook_count={hook_count}",
+            f"spawn_attach_resume_status={spawn_attach_resume_status}",
+            f"ui_trigger_status={ui_trigger_status}",
+            f"helper_observation_count={helper_observation_count}",
+            f"static_compare_observation_count={static_compare_observation_count}",
+        ]
+    return {
+        "hook_install_status": hook_install_status,
+        "hook_count": hook_count,
+        "spawn_attach_resume_status": spawn_attach_resume_status,
+        "ui_trigger_status": ui_trigger_status,
+        "root_cause_hypothesis": root_cause_hypothesis,
+        "root_cause_evidence": root_cause_rows,
+    }
+
+
 def build_compare_lhs_last_writer_provenance_audit_payload(
     *,
     candidate_results: Sequence[dict[str, object]],
@@ -14198,6 +14405,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
     sample: str = "samplereverse",
     profile: str = "samplereverse",
     project_progress_log_handling: str = "untouched",
+    compared_prior_run: str = "sr_lhs_last_writer_sidecar_fix_20260521_r1",
 ) -> dict[str, object]:
     candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
     same_process_candidate_results = _without_compare_probe_fallback_observations(candidate_results)
@@ -14256,6 +14464,14 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
                 "scripted_returncode": result.get("scripted_returncode", None),
                 "instrumentation_failure_stage": result.get("instrumentation_failure_stage", ""),
                 "same_process_compare_args_captured": bool(result.get("same_process_compare_args_captured")),
+                "hook_install_status": result.get("hook_install_status", ""),
+                "hook_count": result.get("hook_count", 0),
+                "spawn_attach_resume_status": result.get("spawn_attach_resume_status", ""),
+                "ui_trigger_status": result.get("ui_trigger_status", ""),
+                "helper_observation_count": result.get("helper_observation_count", 0),
+                "static_compare_observation_count": result.get("static_compare_observation_count", 0),
+                "root_cause_hypothesis": result.get("root_cause_hypothesis", ""),
+                "root_cause_evidence": result.get("root_cause_evidence", []),
                 "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
                 "compare_probe_fallback_status": result.get("compare_probe_fallback_status", ""),
                 "compare_probe_fallback_is_provenance": False
@@ -14264,6 +14480,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
                 "write_monitor_health": result.get("write_monitor_health", {}),
             }
         )
+    stage_fields = _compare_lhs_last_writer_stage_fields(candidate_results)
     bounded_failures = _compare_lhs_last_writer_bounded_failures(
         classification=classification,
         actual_compare=actual_compare,
@@ -14296,6 +14513,16 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
         "compare_probe_fallback_is_provenance": False if compare_probe_fallback_used else False,
         "project_progress_log_handling": project_progress_log_handling,
         "instrumentation_failure_stage": instrumentation_failure_stage,
+        "root_cause_hypothesis": stage_fields.get("root_cause_hypothesis", ""),
+        "root_cause_evidence": stage_fields.get("root_cause_evidence", []),
+        "hook_install_status": stage_fields.get("hook_install_status", ""),
+        "hook_count": stage_fields.get("hook_count", 0),
+        "spawn_attach_resume_status": stage_fields.get("spawn_attach_resume_status", ""),
+        "ui_trigger_status": stage_fields.get("ui_trigger_status", ""),
+        "helper_observation_count": stage_fields.get("helper_observation_count", 0),
+        "static_compare_observation_count": stage_fields.get("static_compare_observation_count", 0),
+        "candidate_log_paths": stage_fields.get("candidate_log_paths", {}),
+        "compared_prior_run": compared_prior_run,
         "last_writer": last_writer,
         "observations": observations,
         "bounded_failures": bounded_failures,
@@ -14529,9 +14756,47 @@ def run_compare_lhs_last_writer_provenance_audit(
                 if str(observation.get("hook_name", "")) == "handoff_helper_candidate"
             ]
         )
+        try:
+            helper_observation_count = max(
+                helper_observation_count,
+                int(compare_payload.get("helper_observation_count", 0) or 0),
+            )
+        except (TypeError, ValueError):
+            pass
+        try:
+            same_process_static_observation_count = max(
+                same_process_static_observation_count,
+                int(compare_payload.get("static_compare_observation_count", 0) or 0),
+            )
+        except (TypeError, ValueError):
+            pass
+        scripted_returncode = int(getattr(proc, "returncode", 0) or 0)
+        stage_metadata = _compare_lhs_last_writer_candidate_stage_metadata(
+            compare_payload=compare_payload,
+            scripted_hook_status=scripted_hook_status,
+            scripted_returncode=scripted_returncode,
+            helper_observation_count=helper_observation_count,
+            static_compare_observation_count=same_process_static_observation_count,
+            scripted_write_monitor_health=scripted_write_monitor_health,
+            compare_out=compare_out,
+            compare_log=compare_log,
+        )
         same_process_compare_args_captured = _has_actual_compare_args(same_process_observations)
         instrumentation_failure_stage = ""
-        if scripted_hook_status == "scripted_hook_no_observations" and int(getattr(proc, "returncode", 0) or 0) == 124:
+        if str(stage_metadata.get("root_cause_hypothesis", "")).strip() in {
+            "hook_install_failed",
+            "module_offset_mismatch",
+            "spawn_attach_resume_failed",
+            "ui_trigger_failed",
+            "helper_hook_not_reached",
+            "script_output_missing",
+            "log_path_missing",
+            "timeout_before_hook_install",
+            "timeout_after_ui_trigger_before_helper",
+            "compare_probe_sidecar_invocation_divergence",
+        }:
+            instrumentation_failure_stage = str(stage_metadata.get("root_cause_hypothesis", "")).strip()
+        elif scripted_hook_status == "scripted_hook_no_observations" and scripted_returncode == 124:
             instrumentation_failure_stage = "timeout_waiting_for_hook_observation"
         elif same_process_static_observation_count > 0 and not same_process_compare_args_captured:
             instrumentation_failure_stage = "argument_extraction_failed"
@@ -14560,10 +14825,17 @@ def run_compare_lhs_last_writer_provenance_audit(
                 "same_process_observation_count": len(same_process_observations),
                 "same_process_static_compare_observation_count": same_process_static_observation_count,
                 "helper_observation_count": helper_observation_count,
+                "static_compare_observation_count": same_process_static_observation_count,
+                "hook_install_status": stage_metadata.get("hook_install_status", ""),
+                "hook_count": stage_metadata.get("hook_count", 0),
+                "spawn_attach_resume_status": stage_metadata.get("spawn_attach_resume_status", ""),
+                "ui_trigger_status": stage_metadata.get("ui_trigger_status", ""),
+                "root_cause_hypothesis": stage_metadata.get("root_cause_hypothesis", ""),
+                "root_cause_evidence": stage_metadata.get("root_cause_evidence", []),
                 "instrumentation_failure_stage": instrumentation_failure_stage,
                 "scripted_hook_status": scripted_hook_status,
                 "scripted_output_exists": scripted_output_exists,
-                "scripted_returncode": int(getattr(proc, "returncode", 0) or 0),
+                "scripted_returncode": scripted_returncode,
                 "scripted_observation_count": scripted_observation_count,
                 "scripted_error": error or str(compare_payload.get("error", "")),
                 "scripted_stdout_preview": str(getattr(proc, "stdout", "") or "")[:2000],

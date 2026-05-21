@@ -8208,7 +8208,13 @@ def test_compare_lhs_last_writer_timeout_has_precise_failure_stage() -> None:
     )
 
     assert payload["classification"] == "instrumentation_incomplete"
-    assert payload["instrumentation_failure_stage"] == "timeout_waiting_for_hook_observation"
+    assert payload["instrumentation_failure_stage"] == "timeout_before_hook_install"
+    assert payload["root_cause_hypothesis"] == "timeout_before_hook_install"
+    assert payload["hook_install_status"] == "not_confirmed"
+    assert payload["spawn_attach_resume_status"] == ""
+    assert payload["ui_trigger_status"] == ""
+    assert payload["helper_observation_count"] == 0
+    assert payload["static_compare_observation_count"] == 0
     assert "script timed out before any configured hook observation" in " ".join(payload["bounded_failures"])
 
 
@@ -8251,6 +8257,8 @@ def test_compare_lhs_last_writer_helper_only_stage_is_stop_before_compare() -> N
     assert payload["instrumentation_failure_stage"] == "stop_condition_before_compare"
     assert "did not reach 0x258c" in " ".join(payload["bounded_failures"])
     assert payload["project_progress_log_handling"] == "reverted"
+    assert payload["helper_observation_count"] == 2
+    assert payload["static_compare_observation_count"] == 0
 
 
 def test_compare_lhs_last_writer_static_compare_without_args_reports_extraction_failure() -> None:
@@ -8289,6 +8297,7 @@ def test_compare_lhs_last_writer_static_compare_without_args_reports_extraction_
     assert payload["classification"] == "instrumentation_incomplete"
     assert payload["instrumentation_failure_stage"] == "argument_extraction_failed"
     assert "arguments were not extracted" in " ".join(payload["bounded_failures"])
+    assert payload["static_compare_observation_count"] == 2
 
 
 def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
@@ -8347,6 +8356,14 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
                             filtered_intersecting_write_count=1,
                         ),
                         "write_ring_buffer": [_last_writer_event(ptr, preview)],
+                        "hook_install_status": "installed",
+                        "hook_count": 3,
+                        "spawn_attach_resume_status": "resumed",
+                        "ui_trigger_status": "button_triggered",
+                        "helper_observation_count": 1,
+                        "static_compare_observation_count": 1,
+                        "root_cause_hypothesis": "",
+                        "root_cause_evidence": [],
                     }
                 ),
                 encoding="utf-8",
@@ -8392,6 +8409,13 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
     assert payload["hook_points"][0]["module_offset"] == 0x258C
     assert payload["hook_points"][1]["module_offset"] == 0x2559
     assert payload["hook_points"][2]["module_offset"] == 0x1B50
+    assert payload["hook_install_status"] == "installed"
+    assert payload["hook_count"] == 3
+    assert payload["spawn_attach_resume_status"] == "resumed"
+    assert payload["ui_trigger_status"] == "button_triggered"
+    assert payload["helper_observation_count"] == 2
+    assert payload["static_compare_observation_count"] == 2
+    assert payload["candidate_log_paths"]
 
 
 def test_compare_probe_fallback_observation_carries_esi_snapshot() -> None:

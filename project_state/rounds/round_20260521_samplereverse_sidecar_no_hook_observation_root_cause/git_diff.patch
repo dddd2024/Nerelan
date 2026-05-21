@@ -1,0 +1,877 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 0f1a260..d1596a8 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,13 +1,12 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_samplereverse_sidecar_compare_args_scope_fix_20260521",
+-  "round_id": "round_20260521_samplereverse_sidecar_compare_args_scope_fix",
+-  "based_on_decision_id": "decision_samplereverse_sidecar_compare_args_scope_fix_20260521",
+-  "status": "SUCCESS",
+-  "acceptance_recommendation": "ACCEPTED",
++  "report_id": "report_samplereverse_sidecar_no_hook_observation_root_cause_20260521",
++  "round_id": "round_20260521_samplereverse_sidecar_no_hook_observation_root_cause",
++  "based_on_decision_id": "decision_samplereverse_sidecar_no_hook_observation_root_cause_20260521",
++  "status": "PARTIAL",
++  "acceptance_recommendation": "REWORK_REQUIRED",
+   "files_changed": [
+-    "PROJECT_PROGRESS_LOG.txt",
+     "reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py",
+     "reverse_agent/strategies/compare_aware_search.py",
+     "tests/test_compare_aware_search_strategy.py",
+@@ -15,89 +14,94 @@
+     "project_state/pytest_result.txt"
+   ],
+   "tests_ran": [
+-    "python -m py_compile reverse_agent\\olly_scripts\\compare_lhs_last_writer_provenance.py reverse_agent\\olly_scripts\\compare_pre_compare_handoff_target_probe.py reverse_agent\\strategies\\compare_aware_search.py",
++    "python -m py_compile reverse_agent\\olly_scripts\\compare_pre_compare_handoff_target_probe.py reverse_agent\\strategies\\compare_aware_search.py",
+     "python -m pytest -q tests\\test_compare_aware_search_strategy.py -k \"compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff\"",
+     "python -m pytest -q tests\\test_compare_aware_search_strategy.py",
+-    "bounded runtime sidecar sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1",
++    "bounded runtime sidecar sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1",
+     "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+-    "pre-report python -m reverse_agent.project_state lint-report --state-dir project_state",
+-    "pre-report python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "final python -m reverse_agent.project_state lint-report --state-dir project_state",
+-    "final python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_sidecar_compare_args_scope_fix"
++    "python -m reverse_agent.project_state lint-report --state-dir project_state",
++    "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
++    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_sidecar_no_hook_observation_root_cause"
+   ],
+   "generated_artifacts": [
+-    "solve_reports/harness_runs/sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json",
+-    "project_state/rounds/round_20260521_samplereverse_sidecar_compare_args_scope_fix/round_manifest.json",
+-    "project_state/rounds/round_20260521_samplereverse_sidecar_compare_args_scope_fix/codex_execution_report.md",
+-    "project_state/rounds/round_20260521_samplereverse_sidecar_compare_args_scope_fix/pytest_result.txt",
+-    "project_state/rounds/round_20260521_samplereverse_sidecar_compare_args_scope_fix/git_diff.patch"
++    "solve_reports/harness_runs/sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json",
++    "project_state/rounds/round_20260521_samplereverse_sidecar_no_hook_observation_root_cause/round_manifest.json",
++    "project_state/rounds/round_20260521_samplereverse_sidecar_no_hook_observation_root_cause/codex_execution_report.md",
++    "project_state/rounds/round_20260521_samplereverse_sidecar_no_hook_observation_root_cause/pytest_result.txt",
++    "project_state/rounds/round_20260521_samplereverse_sidecar_no_hook_observation_root_cause/git_diff.patch"
+   ]
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-21 Samplereverse sidecar compare args scope fix
++## 2026-05-21 Samplereverse sidecar no-hook root-cause rework
+ 
+-This pass executes `decision_samplereverse_sidecar_compare_args_scope_fix_20260521` against state build `state_20260520_052928_8a77e6637c6c` / digest `8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d`.
++This pass executes `decision_samplereverse_sidecar_no_hook_observation_root_cause_20260521` against state build `state_20260520_052928_8a77e6637c6c` / digest `8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d`.
+ 
+-Result: `SUCCESS`. The handoff audit gap was repaired by reverting the prior out-of-scope `PROJECT_PROGRESS_LOG.txt` block, and the bounded sidecar no longer treats the early `0x1b50` helper hit as completion. The runtime rerun still did not capture same-process `0x258c` args, but the artifact remains diagnostic-only and reports the bounded failure without promoting CompareProbe fallback to provenance.
++Result: `PARTIAL`. The previous `SUCCESS / ACCEPTED` report was too strong because the latest runtime sidecar regressed from helper/write-monitor visibility to no configured hook observation. This pass narrows that regression to `timeout_before_hook_install`: the rerun wrote only the initial `script_started` payload, never emitted `hooks_installed`, installed zero confirmed hooks, and observed neither helper `0x1b50` nor static compare `0x258c`.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| Why GPT audit gave `ACCEPTED_WITH_LIMITATIONS` | The prior runtime sidecar made real diagnostic progress, but it still did not capture `0x258c` compare args in the same process/thread, and `PROJECT_PROGRESS_LOG.txt` was changed without being listed in `codex_report_summary.files_changed`. |
+-| Previous report status | The prior report self-assessed `SUCCESS` / `ACCEPTED`; its runtime artifact still classified as `instrumentation_incomplete` with `same_process_compare_args_missing`. |
+-| `PROJECT_PROGRESS_LOG.txt` handling | Reverted only the prior titled block `## 2026-05-21 LHS last-writer sidecar same-process provenance fix`; this file is now honestly listed in `files_changed`. |
+-| Previous sidecar health | Previous artifact had `same_process_compare_args_captured=false`, `diagnostic_compare_args_captured=true`, `compare_probe_fallback_used=true`, `compare_probe_fallback_is_provenance=false`, `followed_thread_count=1`, `raw_write_count=323`, and `filtered_intersecting_write_count=0`. |
+-| Root cause addressed in code | The Python wait loop previously exited on any hook observation, so a `handoff_helper_candidate` hit at `0x1b50` could stop the run before `static_compare_callsite` at `0x258c`. |
+-| Hook ordering after fix | The helper hit still starts write-monitor following, but completion now requires `static_compare_callsite` at `0x258c` or a bounded timeout. |
+-| New failure stages | Added explicit handling for `helper_observed_waiting_for_static_compare`, `static_compare_callsite_observed`, `static_compare_callsite_observed_no_args`, `stop_condition_before_compare`, and `argument_extraction_failed`. |
+-| CompareProbe fallback risk | Still eliminated for provenance: fallback fields remain diagnostic and `compare_probe_fallback_is_provenance=false` is preserved. |
+-| Project state rebuild | Not needed. Generated state JSON was not hand-edited; current decision/status remained valid. |
++| Why GPT audit gave `REWORK_REQUIRED` | The previous report accepted a runtime regression: old sidecar evidence had `followed_thread_count=1` / `raw_write_count=323`, while the latest sidecar had `0/0` and only generic timeout. |
++| Why prior `SUCCESS / ACCEPTED` was not trustworthy | Handoff cleanup was real, but the core runtime evidence chain became weaker and did not explain why the bounded sidecar saw no hooks while CompareProbe still captured diagnostic args. |
++| `PROJECT_PROGRESS_LOG.txt` handling | Left untouched in this pass; the previous revert remains in place. |
++| Old better run | `sr_lhs_last_writer_sidecar_fix_20260521_r1`: both candidates reported `scripted_hook_observed`; candidate 2 reached `handoff_helper_candidate` at `0x1b50`, followed thread `21984`, and collected `raw_write_count=323`. |
++| Latest regressed run | `sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1`: both candidates reported `scripted_hook_no_observations`, `returncode=124`, `runtime_stage=script_started`, no helper/static observations, and no followed thread. |
++| New rerun | `sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1`: reproduced the no-hook condition with `instrumentation_failure_stage=timeout_before_hook_install`. |
++| Frida hook install | Not confirmed; `hook_install_status=not_confirmed`, `hook_count=0`, and no `hooks_installed` stage message was emitted. |
++| Spawn / attach / resume | Not confirmed in the sidecar artifact because execution did not advance past the initial `script_started` artifact before the bounded timeout. |
++| UI trigger | Not confirmed; `ui_trigger_status` remained empty and no helper/static hook evidence was produced. |
++| Helper hook `0x1b50` | Not hit in the latest or new sidecar; root cause evidence points earlier than helper execution, at timeout before hook installation confirmation. |
++| Static compare `0x258c` | Not hit by the sidecar, so this is not `argument_extraction_failed`; no same-process compare args were captured. |
++| CompareProbe fallback | Still captured diagnostic compare args for both bounded candidates, but remains `compare_probe_fallback_is_provenance=false`. It is a separate invocation path and cannot be merged with sidecar write events. |
++| Project state rebuild | Not needed. Generated state JSON was not hand-edited; only status/lint/archive commands were used. |
+ 
+ ## Implementation
+ 
+-- Updated `compare_pre_compare_handoff_target_probe.py` so helper observations are progress, not success. The script now waits for the bounded static compare callsite and records a clearer final runtime stage.
+-- Updated `compare_aware_search.py` to carry `project_progress_log_handling`, same-process compare-args status, helper/static observation counts, and precise candidate-level failure stages into the aggregate artifact.
+-- Added tests for helper-only stop-before-compare, static compare without extracted args, fallback non-promotion, two-candidate scope, and the progress-log handling field.
++- Added bounded stage fields to `compare_pre_compare_handoff_target_probe.py`: hook install status/count, spawn/attach/resume status, UI trigger status, helper/static observation counts, and root-cause hypothesis/evidence.
++- Updated `compare_aware_search.py` so `compare_lhs_last_writer_provenance_audit` aggregates those fields, maps no-hook timeouts with `script_started` to `timeout_before_hook_install`, and keeps CompareProbe fallback diagnostic-only.
++- Updated tests to cover no-hook stage fields, timeout/root-cause mapping, fallback non-promotion, helper-only stop-before-compare, static compare without args, writer-missing classification, and fixed two-candidate scope.
+ 
+ ## Runtime Artifact
+ 
+ | field | value |
+ |---|---|
+-| run_name | `sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1` |
+-| artifact | `solve_reports/harness_runs/sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json` |
++| run_name | `sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1` |
++| artifact | `solve_reports/harness_runs/sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json` |
+ | classification | `instrumentation_incomplete` |
+-| instrumentation_failure_stage | `timeout_waiting_for_hook_observation` |
+-| same_process_provenance | `false` |
++| instrumentation_failure_stage | `timeout_before_hook_install` |
++| root_cause_hypothesis | `timeout_before_hook_install` |
++| hook_install_status / hook_count | `not_confirmed` / `0` |
++| spawn_attach_resume_status | empty / not confirmed |
++| ui_trigger_status | empty / not confirmed |
++| helper_observation_count | `0` |
++| static_compare_observation_count | `0` |
+ | same_process_compare_args_captured | `false` |
+ | diagnostic_compare_args_captured | `true` |
+ | compare_probe_fallback_used | `true` |
+ | compare_probe_fallback_is_provenance | `false` |
+-| write_monitor_health | `observed_candidate_count=2`, `followed_thread_count=0`, `raw_write_count=0`, `filtered_intersecting_write_count=0` |
+-| project_progress_log_handling | `reverted` |
++| write_monitor_health | `observed_candidate_count=2`, `followed_thread_count=0`, `raw_write_count=0`, `filtered_intersecting_write_count=0`, `runtime_stages=[script_started]` |
++| project_progress_log_handling | `untouched` |
+ | best runtime candidate changed | no |
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+-| `python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py` | passed |
++| `python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py` | passed |
+ | `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff"` | `20 passed, 164 deselected` |
+ | `python -m pytest -q tests\test_compare_aware_search_strategy.py` | `184 passed` |
+-| bounded runtime sidecar | completed; artifact remained diagnostic-only `instrumentation_incomplete` |
+-| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; `missing: []`; current decision ready for execution |
+-| pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
+-| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | expected failure; previous report was bound to prior decision |
+-| pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed; `READY_FOR_CODEX` |
+-| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed; `SUCCESS` / `ACCEPTED` |
+-| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed; `REVIEW_COMPLETE`; decision consumed by success report |
+-| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_sidecar_compare_args_scope_fix` | passed |
++| bounded runtime sidecar | completed; artifact is `instrumentation_incomplete` with `timeout_before_hook_install` |
++| `python -m reverse_agent.project_state status --state-dir project_state` | passed; `missing: []`; current decision ready before report rewrite |
++| `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
++| `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed; `PARTIAL` / `REWORK_REQUIRED`, with expected warnings for non-current round id, partial status, and missing archive before archive-round |
++| `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed; `REPORT_NEEDS_REVIEW`, `CONSUMED_BY_NON_SUCCESS_REPORT` |
++| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_sidecar_no_hook_observation_root_cause` | passed; archive generated under `project_state\rounds\round_20260521_samplereverse_sidecar_no_hook_observation_root_cause` |
+ 
+ ## Next Suggested Task
+ 
+-Stay on the same two-candidate sidecar. The next bounded fix should explain why the scripted hook run timed out before any configured hook observation in `sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1`, while CompareProbe still captures diagnostic compare args in the fallback path.
++Stay on the same two-candidate bounded sidecar. The next fix should explain why the scripted sidecar process does not emit `hooks_installed` while CompareProbe can still capture diagnostic compare args, focusing on script load/hook installation observability or sidecar invocation divergence rather than candidate search.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 251ff8a..6a26211 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,85 +1,87 @@
+-2026-05-21 samplereverse sidecar compare args scope fix validation
++2026-05-21 samplereverse sidecar no-hook root-cause rework validation
+ 
+ Scope:
+-- Execute `decision_samplereverse_sidecar_compare_args_scope_fix_20260521`.
+-- Revert only the prior `PROJECT_PROGRESS_LOG.txt` block titled `## 2026-05-21 LHS last-writer sidecar same-process provenance fix`.
++- Execute `decision_samplereverse_sidecar_no_hook_observation_root_cause_20260521`.
+ - Keep mainline fixed to L15(prefix8), suffix AAAAAAA, and bounded candidates:
+   - 78d540b49c59077041414141414141
+   - 5a3e7f46ddd474d041414141414141
+ - Do not run Base64/RC4 breakpoint probe.
+ - Do not widen beam, budget, topN, timeout policy, frontier iteration, or candidate search.
+-- Do not hand-edit generated state JSON.
++- Do not edit PROJECT_PROGRESS_LOG.txt or generated project_state JSON.
+ 
+-python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py
++python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py
+ RESULT: passed
+ 
+ python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff"
+ RESULT: passed
+-20 passed, 164 deselected in 0.48s
++20 passed, 164 deselected in 0.53s
+ 
+ python -m pytest -q tests\test_compare_aware_search_strategy.py
+ RESULT: passed
+-184 passed in 20.58s
++184 passed in 18.49s
+ 
+ Runtime sidecar:
+ RESULT: completed with diagnostic-only instrumentation_incomplete artifact
+-run_name: sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1
+-artifact: solve_reports\harness_runs\sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_last_writer_provenance_audit\compare_lhs_last_writer_provenance_audit.json
++run_name: sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1
++artifact: solve_reports\harness_runs\sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_last_writer_provenance_audit\compare_lhs_last_writer_provenance_audit.json
+ classification: instrumentation_incomplete
+-instrumentation_failure_stage: timeout_waiting_for_hook_observation
+-same_process_provenance: false
++instrumentation_failure_stage: timeout_before_hook_install
++root_cause_hypothesis: timeout_before_hook_install
++hook_install_status: not_confirmed
++hook_count: 0
++spawn_attach_resume_status: empty / not confirmed
++ui_trigger_status: empty / not confirmed
++helper_observation_count: 0
++static_compare_observation_count: 0
+ same_process_compare_args_captured: false
+ diagnostic_compare_args_captured: true
+ compare_probe_fallback_used: true
+ compare_probe_fallback_is_provenance: false
+-write_monitor_health: observed_candidate_count=2 followed_thread_count=0 raw_write_count=0 filtered_intersecting_write_count=0 ring_capacity=4096
++write_monitor_health: observed_candidate_count=2 followed_thread_count=0 raw_write_count=0 filtered_intersecting_write_count=0 runtime_stages=[script_started]
+ bounded_failures: script timed out before any configured hook observation; 0x258c compare arg capture incomplete; arg0 real LHS side not confirmed in this bounded audit; write monitor did not follow a runtime thread
+ runtime_backed_writer_identified: false
+ best_runtime_candidate_changed: false
+-project_progress_log_handling: reverted
++project_progress_log_handling: untouched
+ 
+-Pre-report python -m reverse_agent.project_state status --state-dir project_state
+-RESULT: passed
++python -m reverse_agent.project_state status --state-dir project_state
++RESULT: passed before report rewrite
+ missing: []
+ reason: compare_lhs_runtime_backed_writer_missing
+ task: Improve compare lhs last-writer instrumentation
+-decision_id: decision_samplereverse_sidecar_compare_args_scope_fix_20260521
++decision_id: decision_samplereverse_sidecar_no_hook_observation_root_cause_20260521
+ decision_execution_state: READY_FOR_EXECUTION
+ decision_ready_for_execution: True
+ decision_report_id_match: False
+ 
+-Pre-report python -m reverse_agent.project_state lint-decision --state-dir project_state
++python -m reverse_agent.project_state lint-decision --state-dir project_state
+ RESULT: passed
+ lint-decision: OK
+-decision_id: decision_samplereverse_sidecar_compare_args_scope_fix_20260521
+-
+-Pre-report python -m reverse_agent.project_state lint-report --state-dir project_state
+-RESULT: expected failure before report rewrite
+-lint-report: FAILED
+-error: based_on_decision_id does not match current decision_id
+-
+-Pre-report python -m reverse_agent.project_state lint-handoff --state-dir project_state
+-RESULT: passed
+-lint-handoff: OK
+-handoff_state: READY_FOR_CODEX
++decision_id: decision_samplereverse_sidecar_no_hook_observation_root_cause_20260521
+ 
+-Final python -m reverse_agent.project_state lint-report --state-dir project_state
++python -m reverse_agent.project_state lint-report --state-dir project_state
+ RESULT: passed
+ lint-report: OK
+-report_id: report_samplereverse_sidecar_compare_args_scope_fix_20260521
+-report_status: SUCCESS
+-acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_samplereverse_sidecar_compare_args_scope_fix_20260521
++warning: report round_id does not match current_state.round_id
++warning: report_status is PARTIAL
++warning: round_manifest missing
++report_id: report_samplereverse_sidecar_no_hook_observation_root_cause_20260521
++report_status: PARTIAL
++acceptance_recommendation: REWORK_REQUIRED
++based_on_decision_id: decision_samplereverse_sidecar_no_hook_observation_root_cause_20260521
+ decision_report_id_match: True
+ 
+-Final python -m reverse_agent.project_state lint-handoff --state-dir project_state
++python -m reverse_agent.project_state lint-handoff --state-dir project_state
+ RESULT: passed
+ lint-handoff: OK
+-handoff_state: REVIEW_COMPLETE
+-decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
++warning: report round_id does not match current_state.round_id
++warning: report_status is PARTIAL
++warning: round_manifest missing
++warning: matching report is non-success and needs review
++handoff_state: REPORT_NEEDS_REVIEW
++decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT
+ decision_ready_for_execution: False
+ decision_report_id_match: True
+ 
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_sidecar_compare_args_scope_fix
++python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_sidecar_no_hook_observation_root_cause
+ RESULT: passed
+-Archive generated under project_state\rounds\round_20260521_samplereverse_sidecar_compare_args_scope_fix.
++Archive generated under project_state\rounds\round_20260521_samplereverse_sidecar_no_hook_observation_root_cause.
+diff --git a/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py b/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
+index 814f732..411a3ed 100644
+--- a/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
++++ b/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
+@@ -93,6 +93,14 @@ def _build_payload(
+     write_monitor_health: dict[str, object] | None = None,
+     write_ring_buffer: list[dict[str, object]] | None = None,
+     evidence: list[str] | None = None,
++    hook_install_status: str = "",
++    hook_count: int = 0,
++    spawn_attach_resume_status: str = "",
++    ui_trigger_status: str = "",
++    helper_observation_count: int = 0,
++    static_compare_observation_count: int = 0,
++    root_cause_hypothesis: str = "",
++    root_cause_evidence: list[str] | None = None,
+     error: str = "",
+ ) -> dict[str, object]:
+     observations = [_normalize_observation(item) for item in hook_observations or []]
+@@ -107,6 +115,14 @@ def _build_payload(
+         "write_monitor_health": dict(write_monitor_health or {}),
+         "write_ring_buffer": list(write_ring_buffer or []),
+         "evidence": evidence or [],
++        "hook_install_status": hook_install_status,
++        "hook_count": hook_count,
++        "spawn_attach_resume_status": spawn_attach_resume_status,
++        "ui_trigger_status": ui_trigger_status,
++        "helper_observation_count": helper_observation_count,
++        "static_compare_observation_count": static_compare_observation_count,
++        "root_cause_hypothesis": root_cause_hypothesis,
++        "root_cause_evidence": root_cause_evidence or [],
+         "error": error,
+     }
+ 
+@@ -213,6 +229,8 @@ def main() -> int:
+     messages: list[dict[str, object]] = []
+     script_errors: list[str] = []
+     runtime_stage = "script_started"
++    spawn_attach_resume_status = "not_started"
++    ui_trigger_status = "not_started"
+     pid: int | None = None
+     session = None
+     app = None
+@@ -757,6 +775,7 @@ try {{
+     }});
+ }} catch (error) {{
+ }}
++let installedHookCount = 0;
+ for (const point of hookPoints) {{
+     try {{
+         const offset = Number(point.module_offset || 0);
+@@ -788,26 +807,31 @@ for (const point of hookPoints) {{
+                 }});
+             }},
+         }});
++        installedHookCount++;
+     }} catch (error) {{
+         send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});
+     }}
+ }}
+-send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_installed", hook_count: hookPoints.length }});
++send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_installed", hook_count: installedHookCount, requested_hook_count: hookPoints.length }});
+ """
+ 
+     try:
+         runtime_stage = "spawning_target"
+         pid = frida.spawn([str(target)])
++        spawn_attach_resume_status = "spawned"
+         runtime_stage = "attaching_frida"
+         session = frida.attach(pid)
++        spawn_attach_resume_status = "attached"
+         script = session.create_script(script_source)
+         script.on("message", on_message)
+         runtime_stage = "loading_script"
+         script.load()
+         runtime_stage = "resuming_target"
+         frida.resume(pid)
++        spawn_attach_resume_status = "resumed"
+         time.sleep(1.0)
+         runtime_stage = "connecting_window"
++        ui_trigger_status = "connecting_window"
+         app = Application(backend="uia").connect(process=pid)
+         win = None
+         last_exc = None
+@@ -823,14 +847,17 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+             raise RuntimeError(f"cannot connect target window: {last_exc}")
+ 
+         runtime_stage = "preparing_input"
++        ui_trigger_status = "window_connected"
+         input_edit = win.child_window(auto_id="1001", control_type="Edit")
+         decrypt_btn = win.child_window(auto_id="1000", control_type="Button")
+         candidate = bytes.fromhex(args.probe_hex).decode("latin1")
+         evidence.append(f"compare_pre_compare_handoff_target_probe:title={_escape_runtime_text(win.window_text() or '')}")
+         evidence.append(f"compare_pre_compare_handoff_target_probe:probe_hex={args.probe_hex}")
+         input_edit.set_edit_text(_candidate_to_gui_text(candidate))
++        ui_trigger_status = "input_injected"
+         runtime_stage = "triggering_candidate"
+         _trigger_decrypt(decrypt_btn)
++        ui_trigger_status = "button_triggered"
+ 
+         runtime_stage = "waiting_for_observation"
+         deadline = time.monotonic() + max(0.3, float(args.per_probe_timeout))
+@@ -901,6 +928,48 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+     static_observations = [
+         item for item in observations if str(item.get("hook_name", "")) == "static_compare_callsite"
+     ]
++    helper_observation_count = sum(
++        1 for item in observations if str(item.get("hook_name", "")) == "handoff_helper_candidate"
++    )
++    static_compare_observation_count = len(static_observations)
++    hook_count = 0
++    if stage_messages:
++        for item in stage_messages:
++            try:
++                hook_count = max(hook_count, int(item.get("hook_count", 0) or 0))
++            except (TypeError, ValueError):
++                pass
++    hook_install_status = "installed" if hook_count > 0 else "not_confirmed"
++    if errors:
++        hook_install_status = "partial_or_failed" if hook_count > 0 else "failed_or_not_confirmed"
++
++    root_cause_hypothesis = ""
++    root_cause_evidence: list[str] = []
++    if not static_observations:
++        if hook_install_status != "installed":
++            root_cause_hypothesis = "timeout_before_hook_install"
++            root_cause_evidence.append(f"hook_install_status={hook_install_status}")
++        elif spawn_attach_resume_status != "resumed":
++            root_cause_hypothesis = "spawn_attach_resume_failed"
++            root_cause_evidence.append(f"spawn_attach_resume_status={spawn_attach_resume_status}")
++        elif ui_trigger_status != "button_triggered":
++            root_cause_hypothesis = "ui_trigger_failed"
++            root_cause_evidence.append(f"ui_trigger_status={ui_trigger_status}")
++        elif helper_observation_count <= 0:
++            root_cause_hypothesis = "timeout_after_ui_trigger_before_helper"
++            root_cause_evidence.append("helper_observation_count=0")
++        else:
++            root_cause_hypothesis = "helper_hook_reached_but_static_compare_missing"
++            root_cause_evidence.append(f"helper_observation_count={helper_observation_count}")
++        root_cause_evidence.extend(
++            [
++                f"runtime_stage={runtime_stage}",
++                f"hook_count={hook_count}",
++                f"spawn_attach_resume_status={spawn_attach_resume_status}",
++                f"ui_trigger_status={ui_trigger_status}",
++                f"static_compare_observation_count={static_compare_observation_count}",
++            ]
++        )
+     success = bool(static_observations) and not script_errors
+     summary = (
+         "ComparePreCompareHandoffTargetProbe captured the bounded static compare callsite."
+@@ -918,6 +987,14 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+             write_monitor_health=latest_health,
+             write_ring_buffer=latest_ring,
+             evidence=[*evidence, *errors, *script_errors],
++            hook_install_status=hook_install_status,
++            hook_count=hook_count,
++            spawn_attach_resume_status=spawn_attach_resume_status,
++            ui_trigger_status=ui_trigger_status,
++            helper_observation_count=helper_observation_count,
++            static_compare_observation_count=static_compare_observation_count,
++            root_cause_hypothesis=root_cause_hypothesis,
++            root_cause_evidence=root_cause_evidence,
+             error="; ".join([*errors, *script_errors]),
+         ),
+     )
+diff --git a/reverse_agent/strategies/compare_aware_search.py b/reverse_agent/strategies/compare_aware_search.py
+index ee80377..7440f06 100644
+--- a/reverse_agent/strategies/compare_aware_search.py
++++ b/reverse_agent/strategies/compare_aware_search.py
+@@ -13379,6 +13379,16 @@ def _compare_real_lhs_candidate_execution_health(
+             "scripted_observation_count": int(result.get("scripted_observation_count", 0) or 0),
+             "scripted_error": str(result.get("scripted_error", "")),
+             "instrumentation_failure_stage": str(result.get("instrumentation_failure_stage", "")),
++            "hook_install_status": str(result.get("hook_install_status", "")),
++            "hook_count": result.get("hook_count", 0),
++            "spawn_attach_resume_status": str(result.get("spawn_attach_resume_status", "")),
++            "ui_trigger_status": str(result.get("ui_trigger_status", "")),
++            "helper_observation_count": int(result.get("helper_observation_count", 0) or 0),
++            "static_compare_observation_count": int(result.get("static_compare_observation_count", 0) or 0),
++            "root_cause_hypothesis": str(result.get("root_cause_hypothesis", "")),
++            "root_cause_evidence": list(result.get("root_cause_evidence", []))
++            if isinstance(result.get("root_cause_evidence", []), list)
++            else [],
+             "same_process_provenance": bool(result.get("same_process_provenance")),
+             "same_process_observation_count": int(result.get("same_process_observation_count", 0) or 0),
+             "scripted_stdout_preview": str(result.get("scripted_stdout_preview", "")),
+@@ -14105,6 +14115,112 @@ def _compare_lhs_last_writer_bounded_failures(
+     return failures
+ 
+ 
++def _compare_lhs_last_writer_stage_fields(
++    candidate_results: Sequence[dict[str, object]],
++) -> dict[str, object]:
++    def _non_empty(field: str) -> list[str]:
++        return sorted(
++            {
++                str(item.get(field, "")).strip()
++                for item in candidate_results
++                if str(item.get(field, "")).strip()
++            }
++        )
++
++    def _sum_int(field: str) -> int:
++        total = 0
++        for item in candidate_results:
++            try:
++                total += int(item.get(field, 0) or 0)
++            except (TypeError, ValueError):
++                continue
++        return total
++
++    def _max_int(field: str) -> int:
++        values: list[int] = []
++        for item in candidate_results:
++            try:
++                values.append(int(item.get(field, 0) or 0))
++            except (TypeError, ValueError):
++                continue
++        return max(values) if values else 0
++
++    hook_install_statuses = _non_empty("hook_install_status")
++    spawn_statuses = _non_empty("spawn_attach_resume_status")
++    ui_statuses = _non_empty("ui_trigger_status")
++    root_causes = _non_empty("root_cause_hypothesis")
++    if (
++        not root_causes
++        and candidate_results
++        and all(str(item.get("scripted_hook_status", "")) == "scripted_hook_no_observations" for item in candidate_results)
++        and any(int(item.get("scripted_returncode", 0) or 0) == 124 for item in candidate_results)
++    ):
++        root_causes = ["timeout_before_hook_install"]
++        if not hook_install_statuses:
++            hook_install_statuses = ["not_confirmed"]
++    root_cause_evidence: list[str] = []
++    candidate_log_paths: dict[str, str] = {}
++    for item in candidate_results:
++        candidate_hex = str(item.get("candidate_hex", ""))
++        log_path = str(item.get("log_path", "")).strip()
++        if candidate_hex and log_path:
++            candidate_log_paths[candidate_hex] = log_path
++        evidence = item.get("root_cause_evidence", [])
++        if isinstance(evidence, list):
++            root_cause_evidence.extend(str(row) for row in evidence if str(row).strip())
++        elif str(evidence).strip():
++            root_cause_evidence.append(str(evidence))
++
++    def _summary_status(statuses: list[str]) -> str:
++        if not statuses:
++            return ""
++        if len(statuses) == 1:
++            return statuses[0]
++        return "mixed:" + ",".join(statuses)
++
++    helper_count = _sum_int("helper_observation_count")
++    static_count = _sum_int("static_compare_observation_count")
++    if helper_count <= 0:
++        for item in candidate_results:
++            observations = item.get("hook_observations", [])
++            if not isinstance(observations, list):
++                continue
++            helper_count += sum(
++                1
++                for observation in observations
++                if isinstance(observation, dict)
++                and str(observation.get("hook_name", "")) == "handoff_helper_candidate"
++            )
++    if static_count <= 0:
++        for item in candidate_results:
++            observations = item.get("hook_observations", [])
++            if not isinstance(observations, list):
++                continue
++            static_count += sum(
++                1
++                for observation in observations
++                if isinstance(observation, dict)
++                and str(observation.get("hook_name", "")) == "static_compare_callsite"
++                and not _is_compare_probe_fallback_observation(observation)
++            )
++
++    return {
++        "hook_install_status": _summary_status(hook_install_statuses),
++        "hook_install_statuses": hook_install_statuses,
++        "hook_count": _max_int("hook_count"),
++        "spawn_attach_resume_status": _summary_status(spawn_statuses),
++        "spawn_attach_resume_statuses": spawn_statuses,
++        "ui_trigger_status": _summary_status(ui_statuses),
++        "ui_trigger_statuses": ui_statuses,
++        "helper_observation_count": helper_count,
++        "static_compare_observation_count": static_count,
++        "root_cause_hypothesis": _summary_status(root_causes),
++        "root_cause_hypotheses": root_causes,
++        "root_cause_evidence": root_cause_evidence,
++        "candidate_log_paths": candidate_log_paths,
++    }
++
++
+ def _compare_lhs_last_writer_failure_stage(
+     *,
+     classification: str,
+@@ -14114,6 +14230,27 @@ def _compare_lhs_last_writer_failure_stage(
+ ) -> str:
+     if classification == "blocked_by_environment":
+         return "environment_or_automation_blocked"
++    stage_fields = _compare_lhs_last_writer_stage_fields(candidate_results)
++    root_causes = {
++        str(item).strip()
++        for item in stage_fields.get("root_cause_hypotheses", [])
++        if str(item).strip()
++    }
++    for stage in (
++        "hook_install_failed",
++        "module_offset_mismatch",
++        "spawn_attach_resume_failed",
++        "ui_trigger_failed",
++        "helper_hook_not_reached",
++        "script_output_missing",
++        "log_path_missing",
++        "timeout_before_hook_install",
++        "timeout_after_ui_trigger_before_helper",
++        "compare_probe_sidecar_invocation_divergence",
++        "helper_hook_reached_but_static_compare_missing",
++    ):
++        if stage in root_causes:
++            return stage
+     statuses = {str(item.get("scripted_hook_status", "")) for item in candidate_results}
+     returncodes = {int(item.get("scripted_returncode", 0) or 0) for item in candidate_results}
+     health = last_writer_summary.get("write_monitor_health", {})
+@@ -14188,6 +14325,76 @@ def _compare_lhs_last_writer_classification(
+     return "writer_candidate_identified_but_not_runtime_backed"
+ 
+ 
++def _compare_lhs_last_writer_candidate_stage_metadata(
++    *,
++    compare_payload: dict[str, object],
++    scripted_hook_status: str,
++    scripted_returncode: int,
++    helper_observation_count: int,
++    static_compare_observation_count: int,
++    scripted_write_monitor_health: dict[str, object],
++    compare_out: Path,
++    compare_log: Path,
++) -> dict[str, object]:
++    evidence = compare_payload.get("evidence", [])
++    evidence_rows = [str(item) for item in evidence] if isinstance(evidence, list) else []
++    hook_install_status = str(compare_payload.get("hook_install_status", "")).strip()
++    hook_count = 0
++    try:
++        hook_count = int(compare_payload.get("hook_count", 0) or 0)
++    except (TypeError, ValueError):
++        hook_count = 0
++    if not hook_install_status:
++        if any("runtime_stage=hooks_installed" in item for item in evidence_rows):
++            hook_install_status = "installed"
++            hook_count = hook_count or 3
++        elif scripted_hook_status == "scripted_hook_no_observations":
++            hook_install_status = "not_confirmed"
++    spawn_attach_resume_status = str(compare_payload.get("spawn_attach_resume_status", "")).strip()
++    ui_trigger_status = str(compare_payload.get("ui_trigger_status", "")).strip()
++    runtime_stage = str(scripted_write_monitor_health.get("runtime_stage", "") or "").strip()
++    root_cause_hypothesis = str(compare_payload.get("root_cause_hypothesis", "")).strip()
++    root_cause_evidence = compare_payload.get("root_cause_evidence", [])
++    root_cause_rows = [str(item) for item in root_cause_evidence] if isinstance(root_cause_evidence, list) else []
++
++    if not root_cause_hypothesis:
++        if not compare_out.exists():
++            root_cause_hypothesis = "script_output_missing"
++        elif not compare_log.exists():
++            root_cause_hypothesis = "log_path_missing"
++        elif scripted_hook_status == "scripted_hook_no_observations" and scripted_returncode == 124:
++            if hook_install_status != "installed" or runtime_stage == "script_started":
++                root_cause_hypothesis = "timeout_before_hook_install"
++            elif ui_trigger_status and ui_trigger_status != "button_triggered":
++                root_cause_hypothesis = "ui_trigger_failed"
++            else:
++                root_cause_hypothesis = "timeout_after_ui_trigger_before_helper"
++        elif helper_observation_count <= 0 and static_compare_observation_count <= 0:
++            root_cause_hypothesis = "helper_hook_not_reached"
++        elif helper_observation_count > 0 and static_compare_observation_count <= 0:
++            root_cause_hypothesis = "helper_hook_reached_but_static_compare_missing"
++    if root_cause_hypothesis and not root_cause_rows:
++        root_cause_rows = [
++            f"scripted_hook_status={scripted_hook_status}",
++            f"scripted_returncode={scripted_returncode}",
++            f"runtime_stage={runtime_stage}",
++            f"hook_install_status={hook_install_status}",
++            f"hook_count={hook_count}",
++            f"spawn_attach_resume_status={spawn_attach_resume_status}",
++            f"ui_trigger_status={ui_trigger_status}",
++            f"helper_observation_count={helper_observation_count}",
++            f"static_compare_observation_count={static_compare_observation_count}",
++        ]
++    return {
++        "hook_install_status": hook_install_status,
++        "hook_count": hook_count,
++        "spawn_attach_resume_status": spawn_attach_resume_status,
++        "ui_trigger_status": ui_trigger_status,
++        "root_cause_hypothesis": root_cause_hypothesis,
++        "root_cause_evidence": root_cause_rows,
++    }
++
++
+ def build_compare_lhs_last_writer_provenance_audit_payload(
+     *,
+     candidate_results: Sequence[dict[str, object]],
+@@ -14198,6 +14405,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+     sample: str = "samplereverse",
+     profile: str = "samplereverse",
+     project_progress_log_handling: str = "untouched",
++    compared_prior_run: str = "sr_lhs_last_writer_sidecar_fix_20260521_r1",
+ ) -> dict[str, object]:
+     candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
+     same_process_candidate_results = _without_compare_probe_fallback_observations(candidate_results)
+@@ -14256,6 +14464,14 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+                 "scripted_returncode": result.get("scripted_returncode", None),
+                 "instrumentation_failure_stage": result.get("instrumentation_failure_stage", ""),
+                 "same_process_compare_args_captured": bool(result.get("same_process_compare_args_captured")),
++                "hook_install_status": result.get("hook_install_status", ""),
++                "hook_count": result.get("hook_count", 0),
++                "spawn_attach_resume_status": result.get("spawn_attach_resume_status", ""),
++                "ui_trigger_status": result.get("ui_trigger_status", ""),
++                "helper_observation_count": result.get("helper_observation_count", 0),
++                "static_compare_observation_count": result.get("static_compare_observation_count", 0),
++                "root_cause_hypothesis": result.get("root_cause_hypothesis", ""),
++                "root_cause_evidence": result.get("root_cause_evidence", []),
+                 "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
+                 "compare_probe_fallback_status": result.get("compare_probe_fallback_status", ""),
+                 "compare_probe_fallback_is_provenance": False
+@@ -14264,6 +14480,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+                 "write_monitor_health": result.get("write_monitor_health", {}),
+             }
+         )
++    stage_fields = _compare_lhs_last_writer_stage_fields(candidate_results)
+     bounded_failures = _compare_lhs_last_writer_bounded_failures(
+         classification=classification,
+         actual_compare=actual_compare,
+@@ -14296,6 +14513,16 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+         "compare_probe_fallback_is_provenance": False if compare_probe_fallback_used else False,
+         "project_progress_log_handling": project_progress_log_handling,
+         "instrumentation_failure_stage": instrumentation_failure_stage,
++        "root_cause_hypothesis": stage_fields.get("root_cause_hypothesis", ""),
++        "root_cause_evidence": stage_fields.get("root_cause_evidence", []),
++        "hook_install_status": stage_fields.get("hook_install_status", ""),
++        "hook_count": stage_fields.get("hook_count", 0),
++        "spawn_attach_resume_status": stage_fields.get("spawn_attach_resume_status", ""),
++        "ui_trigger_status": stage_fields.get("ui_trigger_status", ""),
++        "helper_observation_count": stage_fields.get("helper_observation_count", 0),
++        "static_compare_observation_count": stage_fields.get("static_compare_observation_count", 0),
++        "candidate_log_paths": stage_fields.get("candidate_log_paths", {}),
++        "compared_prior_run": compared_prior_run,
+         "last_writer": last_writer,
+         "observations": observations,
+         "bounded_failures": bounded_failures,
+@@ -14529,9 +14756,47 @@ def run_compare_lhs_last_writer_provenance_audit(
+                 if str(observation.get("hook_name", "")) == "handoff_helper_candidate"
+             ]
+         )
++        try:
++            helper_observation_count = max(
++                helper_observation_count,
++                int(compare_payload.get("helper_observation_count", 0) or 0),
++            )
++        except (TypeError, ValueError):
++            pass
++        try:
++            same_process_static_observation_count = max(
++                same_process_static_observation_count,
++                int(compare_payload.get("static_compare_observation_count", 0) or 0),
++            )
++        except (TypeError, ValueError):
++            pass
++        scripted_returncode = int(getattr(proc, "returncode", 0) or 0)
++        stage_metadata = _compare_lhs_last_writer_candidate_stage_metadata(
++            compare_payload=compare_payload,
++            scripted_hook_status=scripted_hook_status,
++            scripted_returncode=scripted_returncode,
++            helper_observation_count=helper_observation_count,
++            static_compare_observation_count=same_process_static_observation_count,
++            scripted_write_monitor_health=scripted_write_monitor_health,
++            compare_out=compare_out,
++            compare_log=compare_log,
++        )
+         same_process_compare_args_captured = _has_actual_compare_args(same_process_observations)
+         instrumentation_failure_stage = ""
+-        if scripted_hook_status == "scripted_hook_no_observations" and int(getattr(proc, "returncode", 0) or 0) == 124:
++        if str(stage_metadata.get("root_cause_hypothesis", "")).strip() in {
++            "hook_install_failed",
++            "module_offset_mismatch",
++            "spawn_attach_resume_failed",
++            "ui_trigger_failed",
++            "helper_hook_not_reached",
++            "script_output_missing",
++            "log_path_missing",
++            "timeout_before_hook_install",
++            "timeout_after_ui_trigger_before_helper",
++            "compare_probe_sidecar_invocation_divergence",
++        }:
++            instrumentation_failure_stage = str(stage_metadata.get("root_cause_hypothesis", "")).strip()
++        elif scripted_hook_status == "scripted_hook_no_observations" and scripted_returncode == 124:
+             instrumentation_failure_stage = "timeout_waiting_for_hook_observation"
+         elif same_process_static_observation_count > 0 and not same_process_compare_args_captured:
+             instrumentation_failure_stage = "argument_extraction_failed"
+@@ -14560,10 +14825,17 @@ def run_compare_lhs_last_writer_provenance_audit(
+                 "same_process_observation_count": len(same_process_observations),
+                 "same_process_static_compare_observation_count": same_process_static_observation_count,
+                 "helper_observation_count": helper_observation_count,
++                "static_compare_observation_count": same_process_static_observation_count,
++                "hook_install_status": stage_metadata.get("hook_install_status", ""),
++                "hook_count": stage_metadata.get("hook_count", 0),
++                "spawn_attach_resume_status": stage_metadata.get("spawn_attach_resume_status", ""),
++                "ui_trigger_status": stage_metadata.get("ui_trigger_status", ""),
++                "root_cause_hypothesis": stage_metadata.get("root_cause_hypothesis", ""),
++                "root_cause_evidence": stage_metadata.get("root_cause_evidence", []),
+                 "instrumentation_failure_stage": instrumentation_failure_stage,
+                 "scripted_hook_status": scripted_hook_status,
+                 "scripted_output_exists": scripted_output_exists,
+-                "scripted_returncode": int(getattr(proc, "returncode", 0) or 0),
++                "scripted_returncode": scripted_returncode,
+                 "scripted_observation_count": scripted_observation_count,
+                 "scripted_error": error or str(compare_payload.get("error", "")),
+                 "scripted_stdout_preview": str(getattr(proc, "stdout", "") or "")[:2000],
+diff --git a/tests/test_compare_aware_search_strategy.py b/tests/test_compare_aware_search_strategy.py
+index 0390c32..83c6291 100644
+--- a/tests/test_compare_aware_search_strategy.py
++++ b/tests/test_compare_aware_search_strategy.py
+@@ -8208,7 +8208,13 @@ def test_compare_lhs_last_writer_timeout_has_precise_failure_stage() -> None:
+     )
+ 
+     assert payload["classification"] == "instrumentation_incomplete"
+-    assert payload["instrumentation_failure_stage"] == "timeout_waiting_for_hook_observation"
++    assert payload["instrumentation_failure_stage"] == "timeout_before_hook_install"
++    assert payload["root_cause_hypothesis"] == "timeout_before_hook_install"
++    assert payload["hook_install_status"] == "not_confirmed"
++    assert payload["spawn_attach_resume_status"] == ""
++    assert payload["ui_trigger_status"] == ""
++    assert payload["helper_observation_count"] == 0
++    assert payload["static_compare_observation_count"] == 0
+     assert "script timed out before any configured hook observation" in " ".join(payload["bounded_failures"])
+ 
+ 
+@@ -8251,6 +8257,8 @@ def test_compare_lhs_last_writer_helper_only_stage_is_stop_before_compare() -> N
+     assert payload["instrumentation_failure_stage"] == "stop_condition_before_compare"
+     assert "did not reach 0x258c" in " ".join(payload["bounded_failures"])
+     assert payload["project_progress_log_handling"] == "reverted"
++    assert payload["helper_observation_count"] == 2
++    assert payload["static_compare_observation_count"] == 0
+ 
+ 
+ def test_compare_lhs_last_writer_static_compare_without_args_reports_extraction_failure() -> None:
+@@ -8289,6 +8297,7 @@ def test_compare_lhs_last_writer_static_compare_without_args_reports_extraction_
+     assert payload["classification"] == "instrumentation_incomplete"
+     assert payload["instrumentation_failure_stage"] == "argument_extraction_failed"
+     assert "arguments were not extracted" in " ".join(payload["bounded_failures"])
++    assert payload["static_compare_observation_count"] == 2
+ 
+ 
+ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
+@@ -8347,6 +8356,14 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
+                             filtered_intersecting_write_count=1,
+                         ),
+                         "write_ring_buffer": [_last_writer_event(ptr, preview)],
++                        "hook_install_status": "installed",
++                        "hook_count": 3,
++                        "spawn_attach_resume_status": "resumed",
++                        "ui_trigger_status": "button_triggered",
++                        "helper_observation_count": 1,
++                        "static_compare_observation_count": 1,
++                        "root_cause_hypothesis": "",
++                        "root_cause_evidence": [],
+                     }
+                 ),
+                 encoding="utf-8",
+@@ -8392,6 +8409,13 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
+     assert payload["hook_points"][0]["module_offset"] == 0x258C
+     assert payload["hook_points"][1]["module_offset"] == 0x2559
+     assert payload["hook_points"][2]["module_offset"] == 0x1B50
++    assert payload["hook_install_status"] == "installed"
++    assert payload["hook_count"] == 3
++    assert payload["spawn_attach_resume_status"] == "resumed"
++    assert payload["ui_trigger_status"] == "button_triggered"
++    assert payload["helper_observation_count"] == 2
++    assert payload["static_compare_observation_count"] == 2
++    assert payload["candidate_log_paths"]
+ 
+ 
+ def test_compare_probe_fallback_observation_carries_esi_snapshot() -> None:

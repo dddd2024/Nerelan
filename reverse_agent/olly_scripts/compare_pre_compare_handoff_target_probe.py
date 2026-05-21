@@ -93,6 +93,14 @@ def _build_payload(
     write_monitor_health: dict[str, object] | None = None,
     write_ring_buffer: list[dict[str, object]] | None = None,
     evidence: list[str] | None = None,
+    hook_install_status: str = "",
+    hook_count: int = 0,
+    spawn_attach_resume_status: str = "",
+    ui_trigger_status: str = "",
+    helper_observation_count: int = 0,
+    static_compare_observation_count: int = 0,
+    root_cause_hypothesis: str = "",
+    root_cause_evidence: list[str] | None = None,
     error: str = "",
 ) -> dict[str, object]:
     observations = [_normalize_observation(item) for item in hook_observations or []]
@@ -107,6 +115,14 @@ def _build_payload(
         "write_monitor_health": dict(write_monitor_health or {}),
         "write_ring_buffer": list(write_ring_buffer or []),
         "evidence": evidence or [],
+        "hook_install_status": hook_install_status,
+        "hook_count": hook_count,
+        "spawn_attach_resume_status": spawn_attach_resume_status,
+        "ui_trigger_status": ui_trigger_status,
+        "helper_observation_count": helper_observation_count,
+        "static_compare_observation_count": static_compare_observation_count,
+        "root_cause_hypothesis": root_cause_hypothesis,
+        "root_cause_evidence": root_cause_evidence or [],
         "error": error,
     }
 
@@ -213,6 +229,8 @@ def main() -> int:
     messages: list[dict[str, object]] = []
     script_errors: list[str] = []
     runtime_stage = "script_started"
+    spawn_attach_resume_status = "not_started"
+    ui_trigger_status = "not_started"
     pid: int | None = None
     session = None
     app = None
@@ -757,6 +775,7 @@ try {{
     }});
 }} catch (error) {{
 }}
+let installedHookCount = 0;
 for (const point of hookPoints) {{
     try {{
         const offset = Number(point.module_offset || 0);
@@ -788,26 +807,31 @@ for (const point of hookPoints) {{
                 }});
             }},
         }});
+        installedHookCount++;
     }} catch (error) {{
         send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});
     }}
 }}
-send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_installed", hook_count: hookPoints.length }});
+send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_installed", hook_count: installedHookCount, requested_hook_count: hookPoints.length }});
 """
 
     try:
         runtime_stage = "spawning_target"
         pid = frida.spawn([str(target)])
+        spawn_attach_resume_status = "spawned"
         runtime_stage = "attaching_frida"
         session = frida.attach(pid)
+        spawn_attach_resume_status = "attached"
         script = session.create_script(script_source)
         script.on("message", on_message)
         runtime_stage = "loading_script"
         script.load()
         runtime_stage = "resuming_target"
         frida.resume(pid)
+        spawn_attach_resume_status = "resumed"
         time.sleep(1.0)
         runtime_stage = "connecting_window"
+        ui_trigger_status = "connecting_window"
         app = Application(backend="uia").connect(process=pid)
         win = None
         last_exc = None
@@ -823,14 +847,17 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             raise RuntimeError(f"cannot connect target window: {last_exc}")
 
         runtime_stage = "preparing_input"
+        ui_trigger_status = "window_connected"
         input_edit = win.child_window(auto_id="1001", control_type="Edit")
         decrypt_btn = win.child_window(auto_id="1000", control_type="Button")
         candidate = bytes.fromhex(args.probe_hex).decode("latin1")
         evidence.append(f"compare_pre_compare_handoff_target_probe:title={_escape_runtime_text(win.window_text() or '')}")
         evidence.append(f"compare_pre_compare_handoff_target_probe:probe_hex={args.probe_hex}")
         input_edit.set_edit_text(_candidate_to_gui_text(candidate))
+        ui_trigger_status = "input_injected"
         runtime_stage = "triggering_candidate"
         _trigger_decrypt(decrypt_btn)
+        ui_trigger_status = "button_triggered"
 
         runtime_stage = "waiting_for_observation"
         deadline = time.monotonic() + max(0.3, float(args.per_probe_timeout))
@@ -901,6 +928,48 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
     static_observations = [
         item for item in observations if str(item.get("hook_name", "")) == "static_compare_callsite"
     ]
+    helper_observation_count = sum(
+        1 for item in observations if str(item.get("hook_name", "")) == "handoff_helper_candidate"
+    )
+    static_compare_observation_count = len(static_observations)
+    hook_count = 0
+    if stage_messages:
+        for item in stage_messages:
+            try:
+                hook_count = max(hook_count, int(item.get("hook_count", 0) or 0))
+            except (TypeError, ValueError):
+                pass
+    hook_install_status = "installed" if hook_count > 0 else "not_confirmed"
+    if errors:
+        hook_install_status = "partial_or_failed" if hook_count > 0 else "failed_or_not_confirmed"
+
+    root_cause_hypothesis = ""
+    root_cause_evidence: list[str] = []
+    if not static_observations:
+        if hook_install_status != "installed":
+            root_cause_hypothesis = "timeout_before_hook_install"
+            root_cause_evidence.append(f"hook_install_status={hook_install_status}")
+        elif spawn_attach_resume_status != "resumed":
+            root_cause_hypothesis = "spawn_attach_resume_failed"
+            root_cause_evidence.append(f"spawn_attach_resume_status={spawn_attach_resume_status}")
+        elif ui_trigger_status != "button_triggered":
+            root_cause_hypothesis = "ui_trigger_failed"
+            root_cause_evidence.append(f"ui_trigger_status={ui_trigger_status}")
+        elif helper_observation_count <= 0:
+            root_cause_hypothesis = "timeout_after_ui_trigger_before_helper"
+            root_cause_evidence.append("helper_observation_count=0")
+        else:
+            root_cause_hypothesis = "helper_hook_reached_but_static_compare_missing"
+            root_cause_evidence.append(f"helper_observation_count={helper_observation_count}")
+        root_cause_evidence.extend(
+            [
+                f"runtime_stage={runtime_stage}",
+                f"hook_count={hook_count}",
+                f"spawn_attach_resume_status={spawn_attach_resume_status}",
+                f"ui_trigger_status={ui_trigger_status}",
+                f"static_compare_observation_count={static_compare_observation_count}",
+            ]
+        )
     success = bool(static_observations) and not script_errors
     summary = (
         "ComparePreCompareHandoffTargetProbe captured the bounded static compare callsite."
@@ -918,6 +987,14 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             write_monitor_health=latest_health,
             write_ring_buffer=latest_ring,
             evidence=[*evidence, *errors, *script_errors],
+            hook_install_status=hook_install_status,
+            hook_count=hook_count,
+            spawn_attach_resume_status=spawn_attach_resume_status,
+            ui_trigger_status=ui_trigger_status,
+            helper_observation_count=helper_observation_count,
+            static_compare_observation_count=static_compare_observation_count,
+            root_cause_hypothesis=root_cause_hypothesis,
+            root_cause_evidence=root_cause_evidence,
             error="; ".join([*errors, *script_errors]),
         ),
     )
