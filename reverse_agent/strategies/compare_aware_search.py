@@ -12495,6 +12495,29 @@ def _actual_compare_observation(result: dict[str, object]) -> dict[str, object]:
     return {}
 
 
+def _is_compare_probe_fallback_observation(observation: dict[str, object]) -> bool:
+    return str(observation.get("source", "")).strip() == "compare_probe_fallback"
+
+
+def _without_compare_probe_fallback_observations(
+    candidate_results: Sequence[dict[str, object]],
+) -> list[dict[str, object]]:
+    out: list[dict[str, object]] = []
+    for result in candidate_results:
+        if not isinstance(result, dict):
+            continue
+        copied = dict(result)
+        observations = copied.get("hook_observations", [])
+        if isinstance(observations, list):
+            copied["hook_observations"] = [
+                dict(item)
+                for item in observations
+                if isinstance(item, dict) and not _is_compare_probe_fallback_observation(item)
+            ]
+        out.append(copied)
+    return out
+
+
 def _actual_compare_args(result: dict[str, object]) -> list[dict[str, object]]:
     observation = _actual_compare_observation(result)
     return _pre_compare_compare_args(observation) if observation else []
@@ -13308,6 +13331,13 @@ def _compare_real_lhs_write_monitor_health(result: dict[str, object]) -> dict[st
             if str(row.get("follow_attempt_stage", "")).strip()
         }
     )
+    runtime_stages = sorted(
+        {
+            str(row.get("runtime_stage", "")).strip()
+            for row in health_rows
+            if str(row.get("runtime_stage", "")).strip()
+        }
+    )
     for row in health_rows:
         row_samples = row.get("last_raw_write_samples", [])
         if isinstance(row_samples, list):
@@ -13318,9 +13348,11 @@ def _compare_real_lhs_write_monitor_health(result: dict[str, object]) -> dict[st
         "activation_statuses": activation_statuses,
         "selected_thread_ids": selected_thread_ids,
         "follow_attempt_stages": follow_attempt_stages,
+        "runtime_stages": runtime_stages,
         "activation_status": activation_statuses[-1] if activation_statuses else "",
         "selected_thread_id": selected_thread_ids[-1] if selected_thread_ids else "",
         "follow_attempt_stage": follow_attempt_stages[-1] if follow_attempt_stages else "",
+        "runtime_stage": runtime_stages[-1] if runtime_stages else "",
         "followed_thread_count": _sum_int("followed_thread_count"),
         "raw_write_count": _sum_int("raw_write_count"),
         "ring_capacity": _max_int("ring_capacity"),
@@ -13346,6 +13378,9 @@ def _compare_real_lhs_candidate_execution_health(
             "scripted_returncode": result.get("scripted_returncode", None),
             "scripted_observation_count": int(result.get("scripted_observation_count", 0) or 0),
             "scripted_error": str(result.get("scripted_error", "")),
+            "instrumentation_failure_stage": str(result.get("instrumentation_failure_stage", "")),
+            "same_process_provenance": bool(result.get("same_process_provenance")),
+            "same_process_observation_count": int(result.get("same_process_observation_count", 0) or 0),
             "scripted_stdout_preview": str(result.get("scripted_stdout_preview", "")),
             "scripted_stderr_preview": str(result.get("scripted_stderr_preview", "")),
             "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
@@ -13459,6 +13494,13 @@ def _compare_real_lhs_last_writer_summary(
                 str(row.get("follow_attempt_stage", "")).strip()
                 for row in observed_monitor_rows
                 if str(row.get("follow_attempt_stage", "")).strip()
+            }
+        ),
+        "runtime_stages": sorted(
+            {
+                str(row.get("runtime_stage", "")).strip()
+                for row in observed_monitor_rows
+                if str(row.get("runtime_stage", "")).strip()
             }
         ),
         "last_raw_write_samples": [
@@ -14029,6 +14071,12 @@ def _compare_lhs_last_writer_bounded_failures(
     if classification == "blocked_by_environment":
         errors = sorted({str(item.get("error", "") or item.get("scripted_error", "")) for item in candidate_results})
         return [f"runtime sidecar blocked: {', '.join(item for item in errors if item) or 'environment unavailable'}"]
+    if any(
+        str(item.get("scripted_hook_status", "")) == "scripted_hook_no_observations"
+        and int(item.get("scripted_returncode", 0) or 0) == 124
+        for item in candidate_results
+    ):
+        failures.append("script timed out before any configured hook observation")
     if str(actual_compare.get("entry_status", "")) != "confirmed":
         failures.append("0x258c compare arg capture incomplete")
     if str(actual_compare.get("lhs_side", "")) != "arg0":
@@ -14048,6 +14096,43 @@ def _compare_lhs_last_writer_bounded_failures(
     return failures
 
 
+def _compare_lhs_last_writer_failure_stage(
+    *,
+    classification: str,
+    actual_compare: dict[str, object],
+    last_writer_summary: dict[str, object],
+    candidate_results: Sequence[dict[str, object]],
+) -> str:
+    if classification == "blocked_by_environment":
+        return "environment_or_automation_blocked"
+    statuses = {str(item.get("scripted_hook_status", "")) for item in candidate_results}
+    returncodes = {int(item.get("scripted_returncode", 0) or 0) for item in candidate_results}
+    health = last_writer_summary.get("write_monitor_health", {})
+    health = health if isinstance(health, dict) else {}
+    runtime_stages = {
+        str(row.get("runtime_stage", "")).strip()
+        for row in health.get("per_candidate", [])
+        if isinstance(row, dict) and str(row.get("runtime_stage", "")).strip()
+    }
+    if statuses == {"scripted_hook_no_observations"} and 124 in returncodes:
+        return "timeout_waiting_for_hook_observation"
+    if str(actual_compare.get("entry_status", "")) != "confirmed":
+        return "same_process_compare_args_missing"
+    if int(health.get("observed_candidate_count", 0) or 0) <= 0:
+        return "write_monitor_health_not_observed"
+    if int(health.get("followed_thread_count", 0) or 0) <= 0:
+        if runtime_stages:
+            return f"thread_follow_not_activated_after_{sorted(runtime_stages)[-1]}"
+        return "thread_follow_not_activated"
+    if int(health.get("raw_write_count", 0) or 0) <= 0:
+        return "thread_followed_but_no_raw_writes"
+    if int(health.get("filtered_intersecting_write_count", 0) or 0) <= 0:
+        return "raw_writes_do_not_intersect_arg0"
+    if classification == "writer_candidate_identified_but_not_runtime_backed":
+        return "writer_candidate_not_runtime_backed"
+    return ""
+
+
 def _compare_lhs_last_writer_classification(
     *,
     actual_compare: dict[str, object],
@@ -14059,6 +14144,7 @@ def _compare_lhs_last_writer_classification(
     if expected_count and all(
         str(item.get("error", "") or item.get("scripted_error", "")).strip()
         and not item.get("hook_observations")
+        and int(item.get("scripted_returncode", 0) or 0) != 124
         for item in candidate_results
     ):
         return "blocked_by_environment"
@@ -14091,23 +14177,35 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
     sample: str = "samplereverse",
     profile: str = "samplereverse",
 ) -> dict[str, object]:
-    actual_compare = _compare_lhs_last_writer_actual_compare(candidate_results, source_real_lhs_payload)
+    candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
+    same_process_candidate_results = _without_compare_probe_fallback_observations(candidate_results)
+    diagnostic_actual_compare = _compare_lhs_last_writer_actual_compare(candidate_results, source_real_lhs_payload)
+    actual_compare = _compare_lhs_last_writer_actual_compare(same_process_candidate_results, source_real_lhs_payload)
     last_writer_summary, writer_rows, write_ring_buffer, _ = _compare_real_lhs_last_writer_summary(
-        candidate_results,
+        same_process_candidate_results,
         actual_compare,
     )
     classification = _compare_lhs_last_writer_classification(
         actual_compare=actual_compare,
         last_writer_summary=last_writer_summary,
         last_writer_candidates=writer_rows,
-        candidate_results=candidate_results,
+        candidate_results=same_process_candidate_results,
     )
-    arg0_values = actual_compare.get("arg0_value_by_candidate", {})
-    arg0_previews = actual_compare.get("arg0_preview_by_candidate", {})
+    arg0_values = diagnostic_actual_compare.get("arg0_value_by_candidate", {})
+    arg0_previews = diagnostic_actual_compare.get("arg0_preview_by_candidate", {})
     arg0_values = arg0_values if isinstance(arg0_values, dict) else {}
     arg0_previews = arg0_previews if isinstance(arg0_previews, dict) else {}
     first_candidate = next((str(item.get("candidate_hex", "")) for item in candidate_results), "")
     first_writer = writer_rows[0] if writer_rows else {}
+    same_process_provenance = classification == "runtime_backed_last_writer_identified"
+    compare_probe_fallback_used = any(bool(item.get("compare_probe_fallback_used")) for item in candidate_results)
+    compare_probe_fallback_statuses = sorted(
+        {
+            str(item.get("compare_probe_fallback_status", "")).strip()
+            for item in candidate_results
+            if str(item.get("compare_probe_fallback_status", "")).strip()
+        }
+    )
     last_writer = (
         {
             "instruction": first_writer.get("instruction", ""),
@@ -14115,6 +14213,10 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
             "module_offset": first_writer.get("module_offset", ""),
             "write_size": first_writer.get("size", 0),
             "write_preview": first_writer.get("after_preview_hex", ""),
+            "candidate_hex": first_writer.get("candidate_hex", ""),
+            "same_process": True,
+            "same_thread_or_thread_id": first_writer.get("thread_id", "") or first_writer.get("selected_thread_id", ""),
+            "connects_to_actual_arg0": True,
             "call_stack": first_writer.get("call_stack", []),
         }
         if first_writer
@@ -14129,11 +14231,23 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
                 "arg0_lhs_ptr": arg0_values.get(candidate_hex, ""),
                 "arg0_lhs_preview": arg0_previews.get(candidate_hex, ""),
                 "scripted_hook_status": result.get("scripted_hook_status", ""),
+                "scripted_returncode": result.get("scripted_returncode", None),
+                "instrumentation_failure_stage": result.get("instrumentation_failure_stage", ""),
                 "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
+                "compare_probe_fallback_status": result.get("compare_probe_fallback_status", ""),
+                "compare_probe_fallback_is_provenance": False
+                if bool(result.get("compare_probe_fallback_used"))
+                else False,
                 "write_monitor_health": result.get("write_monitor_health", {}),
             }
         )
     bounded_failures = _compare_lhs_last_writer_bounded_failures(
+        classification=classification,
+        actual_compare=actual_compare,
+        last_writer_summary=last_writer_summary,
+        candidate_results=candidate_results,
+    )
+    instrumentation_failure_stage = _compare_lhs_last_writer_failure_stage(
         classification=classification,
         actual_compare=actual_compare,
         last_writer_summary=last_writer_summary,
@@ -14151,6 +14265,13 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
         "arg0_lhs_preview": arg0_previews.get(first_candidate, ""),
         "candidate_input_hex": first_candidate,
         "candidate_inputs_hex": [str(item.get("candidate_hex", "")) for item in candidate_results],
+        "same_process_provenance": same_process_provenance,
+        "same_process_compare_args_captured": str(actual_compare.get("entry_status", "")) == "confirmed",
+        "diagnostic_compare_args_captured": str(diagnostic_actual_compare.get("entry_status", "")) == "confirmed",
+        "compare_probe_fallback_used": compare_probe_fallback_used,
+        "compare_probe_fallback_statuses": compare_probe_fallback_statuses,
+        "compare_probe_fallback_is_provenance": False if compare_probe_fallback_used else False,
+        "instrumentation_failure_stage": instrumentation_failure_stage,
         "last_writer": last_writer,
         "observations": observations,
         "bounded_failures": bounded_failures,
@@ -14164,6 +14285,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
         "hook_points": list(hook_points or []),
         "static_audit": static_audit or {},
         "actual_compare": actual_compare,
+        "diagnostic_actual_compare": diagnostic_actual_compare,
         "write_monitor_health": last_writer_summary.get("write_monitor_health", {}),
         "last_writer_summary": last_writer_summary,
         "last_writer_candidates": writer_rows,
@@ -14331,9 +14453,14 @@ def run_compare_lhs_last_writer_provenance_audit(
             for observation in observations
             if str(observation.get("hook_name", "")) == "static_compare_callsite"
         ]
+        same_process_static_observations = [
+            observation
+            for observation in static_observations
+            if not _is_compare_probe_fallback_observation(observation)
+        ]
         target_observation = next(
-            (observation for observation in static_observations if _pre_compare_compare_args(observation)),
-            static_observations[0] if static_observations else None,
+            (observation for observation in same_process_static_observations if _pre_compare_compare_args(observation)),
+            same_process_static_observations[0] if same_process_static_observations else None,
         )
         if target_observation is not None:
             if not target_observation.get("write_monitor_health") and scripted_write_monitor_health:
@@ -14342,10 +14469,16 @@ def run_compare_lhs_last_writer_provenance_audit(
                 target_observation["write_ring_buffer"] = list(scripted_write_ring_buffer)
         observations = sorted(
             observations,
-            key=lambda item: 0
-            if str(item.get("hook_name", "")) == "static_compare_callsite"
-            and _pre_compare_compare_args(item)
-            else 1,
+            key=lambda item: (
+                0
+                if str(item.get("hook_name", "")) == "static_compare_callsite"
+                and _pre_compare_compare_args(item)
+                and not _is_compare_probe_fallback_observation(item)
+                else 1
+                if str(item.get("hook_name", "")) == "static_compare_callsite"
+                and _pre_compare_compare_args(item)
+                else 2
+            ),
         )
         if not scripted_output_exists:
             scripted_hook_status = "scripted_hook_missing"
@@ -14353,15 +14486,34 @@ def run_compare_lhs_last_writer_provenance_audit(
             scripted_hook_status = "scripted_hook_no_observations"
         else:
             scripted_hook_status = "scripted_hook_observed"
+        same_process_observations = [
+            observation for observation in observations if not _is_compare_probe_fallback_observation(observation)
+        ]
+        same_process_compare_args_captured = _has_actual_compare_args(same_process_observations)
+        instrumentation_failure_stage = ""
+        if scripted_hook_status == "scripted_hook_no_observations" and int(getattr(proc, "returncode", 0) or 0) == 124:
+            instrumentation_failure_stage = "timeout_waiting_for_hook_observation"
+        elif not same_process_compare_args_captured:
+            instrumentation_failure_stage = "same_process_compare_args_missing"
+        elif scripted_write_monitor_health and int(scripted_write_monitor_health.get("followed_thread_count", 0) or 0) <= 0:
+            runtime_stage = str(scripted_write_monitor_health.get("runtime_stage", "") or "")
+            instrumentation_failure_stage = (
+                f"thread_follow_not_activated_after_{runtime_stage}"
+                if runtime_stage
+                else "thread_follow_not_activated"
+            )
         candidate_results.append(
             {
                 "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
                 "candidate_hex": candidate_hex,
                 "candidate_prefix": candidate_hex[:16],
-                "runtime_backed": bool(observations),
+                "runtime_backed": bool(same_process_observations),
                 "hook_observations": observations[:160],
                 "write_monitor_health": scripted_write_monitor_health,
                 "write_ring_buffer": scripted_write_ring_buffer,
+                "same_process_provenance": same_process_compare_args_captured,
+                "same_process_observation_count": len(same_process_observations),
+                "instrumentation_failure_stage": instrumentation_failure_stage,
                 "scripted_hook_status": scripted_hook_status,
                 "scripted_output_exists": scripted_output_exists,
                 "scripted_returncode": int(getattr(proc, "returncode", 0) or 0),
@@ -14371,6 +14523,7 @@ def run_compare_lhs_last_writer_provenance_audit(
                 "scripted_stderr_preview": str(getattr(proc, "stderr", "") or "")[:2000],
                 "compare_probe_fallback_used": compare_probe_fallback_used,
                 "compare_probe_fallback_status": compare_probe_fallback_status,
+                "compare_probe_fallback_is_provenance": False,
                 "result_path": str(compare_out),
                 "log_path": str(compare_log),
                 "success": bool(compare_payload.get("success")) and not error,

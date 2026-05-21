@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 from pathlib import Path
 
@@ -13,6 +14,12 @@ except ImportError:  # pragma: no cover - exercised by subprocess execution
 
 FRAME_SLOT_OFFSETS = (0x1160, 0x1164, 0x1168, 0x116C, 0x1170)
 WRITE_RING_LIMIT = 4096
+
+
+def _artifact_kind_for_script() -> str:
+    if Path(sys.argv[0]).stem == "compare_lhs_last_writer_provenance":
+        return "compare_lhs_last_writer_provenance_audit"
+    return "compare_pre_compare_handoff_target_probe"
 
 
 def _normalize_hook_point(item: dict[str, object] | None) -> dict[str, object]:
@@ -90,6 +97,8 @@ def _build_payload(
 ) -> dict[str, object]:
     observations = [_normalize_observation(item) for item in hook_observations or []]
     return {
+        "schema_version": 1,
+        "artifact_kind": _artifact_kind_for_script(),
         "success": success,
         "summary": summary,
         "candidate_hex": candidate_hex,
@@ -128,6 +137,7 @@ def _initial_write_monitor_health(hook_points: list[dict[str, object]]) -> dict[
         "enabled": requested,
         "requested": requested,
         "activation_status": "script_started",
+        "runtime_stage": "script_started",
         "followed_thread_count": 0,
         "raw_write_count": 0,
         "ring_capacity": WRITE_RING_LIMIT if requested else 0,
@@ -202,6 +212,7 @@ def main() -> int:
 
     messages: list[dict[str, object]] = []
     script_errors: list[str] = []
+    runtime_stage = "script_started"
     pid: int | None = None
     session = None
     app = None
@@ -757,16 +768,22 @@ for (const point of hookPoints) {{
         send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});
     }}
 }}
+send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_installed", hook_count: hookPoints.length }});
 """
 
     try:
+        runtime_stage = "spawning_target"
         pid = frida.spawn([str(target)])
+        runtime_stage = "attaching_frida"
         session = frida.attach(pid)
         script = session.create_script(script_source)
         script.on("message", on_message)
+        runtime_stage = "loading_script"
         script.load()
+        runtime_stage = "resuming_target"
         frida.resume(pid)
         time.sleep(1.0)
+        runtime_stage = "connecting_window"
         app = Application(backend="uia").connect(process=pid)
         win = None
         last_exc = None
@@ -781,22 +798,30 @@ for (const point of hookPoints) {{
         if win is None:
             raise RuntimeError(f"cannot connect target window: {last_exc}")
 
+        runtime_stage = "preparing_input"
         input_edit = win.child_window(auto_id="1001", control_type="Edit")
         decrypt_btn = win.child_window(auto_id="1000", control_type="Button")
         candidate = bytes.fromhex(args.probe_hex).decode("latin1")
         evidence.append(f"compare_pre_compare_handoff_target_probe:title={_escape_runtime_text(win.window_text() or '')}")
         evidence.append(f"compare_pre_compare_handoff_target_probe:probe_hex={args.probe_hex}")
         input_edit.set_edit_text(_candidate_to_gui_text(candidate))
+        runtime_stage = "triggering_candidate"
         _trigger_decrypt(decrypt_btn)
 
+        runtime_stage = "waiting_for_observation"
         deadline = time.monotonic() + max(0.3, float(args.per_probe_timeout))
         while time.monotonic() < deadline:
             if script_errors:
                 raise RuntimeError(script_errors[-1])
+            if any(str(item.get("type", "")) == "compare_pre_compare_handoff_target_observation" for item in messages):
+                runtime_stage = "observation_captured"
+                break
             time.sleep(0.05)
     except Exception as exc:
         script_errors.append(_escape_runtime_text(str(exc)))
     finally:
+        if runtime_stage not in {"observation_captured"}:
+            evidence.append(f"compare_pre_compare_handoff_target_probe:runtime_stage={runtime_stage}")
         try:
             if session is not None:
                 session.detach()
@@ -822,11 +847,29 @@ for (const point of hookPoints) {{
         ring = health_messages[-1].get("write_ring_buffer", [])
         latest_health = dict(health) if isinstance(health, dict) else {}
         latest_ring = [dict(item) for item in ring if isinstance(item, dict)] if isinstance(ring, list) else []
+    if latest_health:
+        latest_health["runtime_stage"] = runtime_stage
+    elif hook_points:
+        latest_health = _initial_write_monitor_health(hook_points)
+        latest_health["runtime_stage"] = runtime_stage
+        if runtime_stage == "waiting_for_observation":
+            latest_health["activation_status"] = "waiting_for_hook_observation"
     errors = [
         f"{item.get('hook_name', '')}:{item.get('error', '')}"
         for item in messages
         if str(item.get("type", "")) == "compare_pre_compare_handoff_target_error"
     ]
+    stage_messages = [
+        item
+        for item in messages
+        if str(item.get("type", "")) == "compare_pre_compare_handoff_target_stage"
+    ]
+    if stage_messages:
+        evidence.extend(
+            f"compare_pre_compare_handoff_target_probe:runtime_stage={item.get('runtime_stage', '')}"
+            for item in stage_messages
+        )
+    evidence.append(f"compare_pre_compare_handoff_target_probe:final_runtime_stage={runtime_stage}")
     success = bool(observations) and not script_errors
     summary = (
         "ComparePreCompareHandoffTargetProbe captured bounded handoff observations."

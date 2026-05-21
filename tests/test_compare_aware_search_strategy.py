@@ -8132,6 +8132,81 @@ def test_compare_lhs_last_writer_payload_reports_instrumentation_incomplete() ->
 
     assert payload["classification"] == "instrumentation_incomplete"
     assert "did not follow a runtime thread" in " ".join(payload["bounded_failures"])
+    assert payload["instrumentation_failure_stage"] == "thread_follow_not_activated"
+
+
+def test_compare_lhs_last_writer_fallback_cannot_promote_to_provenance() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+    ]:
+        candidate = _compare_real_lhs_candidate_result(
+            candidate_hex,
+            ptr,
+            preview,
+            write_events=[_last_writer_event(ptr, preview)],
+            write_monitor_health=_write_monitor_health(raw_write_count=5, filtered_intersecting_write_count=1),
+        )
+        candidate["hook_observations"] = [
+            {
+                **observation,
+                "source": "compare_probe_fallback",
+            }
+            for observation in candidate["hook_observations"]
+            if observation["hook_name"] == "static_compare_callsite"
+        ]
+        candidate["compare_probe_fallback_used"] = True
+        candidate["compare_probe_fallback_status"] = "compare_probe_fallback_captured_compare_args"
+        candidates.append(candidate)
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidates,
+        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+    )
+
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["same_process_provenance"] is False
+    assert payload["compare_probe_fallback_used"] is True
+    assert payload["compare_probe_fallback_is_provenance"] is False
+    assert payload["diagnostic_compare_args_captured"] is True
+    assert payload["same_process_compare_args_captured"] is False
+    assert payload["instrumentation_failure_stage"] == "same_process_compare_args_missing"
+
+
+def test_compare_lhs_last_writer_timeout_has_precise_failure_stage() -> None:
+    candidates = []
+    for candidate_hex in [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+    ]:
+        candidates.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_observations": [],
+                "write_monitor_health": {
+                    "observed": False,
+                    "enabled": True,
+                    "activation_status": "script_started",
+                    "runtime_stage": "waiting_for_observation",
+                    "followed_thread_count": 0,
+                    "raw_write_count": 0,
+                    "ring_capacity": 4096,
+                },
+                "scripted_hook_status": "scripted_hook_no_observations",
+                "scripted_returncode": 124,
+                "scripted_error": "timeout",
+            }
+        )
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidates,
+        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+    )
+
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["instrumentation_failure_stage"] == "timeout_waiting_for_hook_observation"
+    assert "script timed out before any configured hook observation" in " ".join(payload["bounded_failures"])
 
 
 def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
@@ -8157,7 +8232,34 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
                 json.dumps(
                     {
                         "success": True,
-                        "hook_observations": [],
+                        "hook_observations": [
+                            {
+                                "candidate_hex": candidate_hex,
+                                "hook_name": "static_compare_callsite",
+                                "module_offset": "0x258c",
+                                "compare_args": {
+                                    "args": [
+                                        {
+                                            "index": 0,
+                                            "role": "arg0",
+                                            "value": ptr,
+                                            "preview_hex": preview,
+                                        },
+                                        {
+                                            "index": 1,
+                                            "role": "arg1",
+                                            "value": "0x5000",
+                                            "preview_hex": "66006c00610067007b00",
+                                        },
+                                    ]
+                                },
+                                "write_monitor_health": _write_monitor_health(
+                                    raw_write_count=3,
+                                    filtered_intersecting_write_count=1,
+                                ),
+                                "write_ring_buffer": [_last_writer_event(ptr, preview)],
+                            }
+                        ],
                         "write_monitor_health": _write_monitor_health(
                             raw_write_count=3,
                             filtered_intersecting_write_count=1,

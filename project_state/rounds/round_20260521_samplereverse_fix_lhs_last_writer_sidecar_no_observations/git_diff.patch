@@ -1,0 +1,976 @@
+diff --git a/PROJECT_PROGRESS_LOG.txt b/PROJECT_PROGRESS_LOG.txt
+index 7bf6666..0468c0f 100644
+--- a/PROJECT_PROGRESS_LOG.txt
++++ b/PROJECT_PROGRESS_LOG.txt
+@@ -4626,3 +4626,50 @@ Reverse Agent 项目进展日志（截至 2026-04-16）
+ - Instrumentation 已从 “未跟随线程 / 无 hook observation” 推进到 “已跟随当前线程且捕获 raw writes，但没有 retained write intersect actual arg0”。
+ - 下一步应缩小 write ring 过滤窗口或扩展 pre-`0x258c` retained write attribution，回答为什么 6 条 raw writes 没有 intersect actual arg0。
+ - 仍不跑 Base64/RC4 breakpoint probe，不回 old `sample_solver`，不扩大 search/beam/budget。
++
++## 2026-05-21 LHS last-writer sidecar same-process provenance fix
++
++1) 执行范围
++- 执行 `decision_samplereverse_fix_lhs_last_writer_sidecar_no_observations_20260521`。
++- 固定 `L15(prefix8)`、suffix `AAAAAAA`、两个 bounded candidates：
++  - `78d540b49c59077041414141414141`
++  - `5a3e7f46ddd474d041414141414141`
++- 未运行 Base64/RC4 breakpoint probe，未回 old `sample_solver`，未扩大 search/beam/budget/topN/timeout/frontier iteration。
++
++2) 代码变更
++- `reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py`
++  - 增加 last-writer entrypoint artifact kind 识别。
++  - 增加 runtime stage 到 health/evidence，区分 hook install、UI trigger、waiting/observation 等阶段。
++- `reverse_agent/strategies/compare_aware_search.py`
++  - `compare_lhs_last_writer_provenance_audit` 分类时剥离 `compare_probe_fallback` observation。
++  - fallback 仅写入 diagnostic compare args，明确 `compare_probe_fallback_is_provenance=false`。
++  - 新增 `same_process_provenance`、`same_process_compare_args_captured`、`diagnostic_compare_args_captured`、`instrumentation_failure_stage`。
++- `tests/test_compare_aware_search_strategy.py`
++  - 覆盖 fallback 不可提升 provenance、timeout/no-observations 精确 failure stage、同进程 writer success、writer missing、固定 two-candidate scope。
++
++3) 自动化验证
++- `python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py` -> passed
++- `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff"` -> `18 passed, 164 deselected`
++- `python -m pytest -q tests\test_compare_aware_search_strategy.py` -> `182 passed`
++
++4) Runtime artifact
++- Run name: `sr_lhs_last_writer_sidecar_fix_20260521_r1`
++- Artifact:
++  - `solve_reports\harness_runs\sr_lhs_last_writer_sidecar_fix_20260521_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_last_writer_provenance_audit\compare_lhs_last_writer_provenance_audit.json`
++- Classification: `instrumentation_incomplete`
++- `instrumentation_failure_stage=same_process_compare_args_missing`
++- `same_process_provenance=false`
++- `same_process_compare_args_captured=false`
++- `diagnostic_compare_args_captured=true`
++- `compare_probe_fallback_used=true`
++- `compare_probe_fallback_is_provenance=false`
++- `write_monitor_health.observed_candidate_count=2`
++- `write_monitor_health.followed_thread_count=1`
++- `write_monitor_health.raw_write_count=323`
++- `write_monitor_health.filtered_intersecting_write_count=0`
++- Best runtime candidate changed: no.
++
++5) 下一轮默认方向
++- 保持同一 two-candidate sidecar scope。
++- 下一步应修同进程 `0x258c` compare args 捕获，使其与已跟随线程 `21984` / raw writes 在同一 process/thread 证据链内汇合，再判断 retained writes 是否 intersect actual arg0。
++- 仍不跑 Base64/RC4 breakpoint probe，不回 old `sample_solver`，不扩大 search/beam/budget。
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 59c02bc..01a7521 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,111 +1,107 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_samplereverse_compare_lhs_last_writer_provenance_20260521",
+-  "round_id": "round_20260521_samplereverse_compare_lhs_last_writer_provenance",
+-  "based_on_decision_id": "decision_samplereverse_compare_lhs_last_writer_provenance_20260521",
+-  "status": "PARTIAL",
+-  "acceptance_recommendation": "NEEDS_REVIEW",
++  "report_id": "report_samplereverse_fix_lhs_last_writer_sidecar_no_observations_20260521",
++  "round_id": "round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations",
++  "based_on_decision_id": "decision_samplereverse_fix_lhs_last_writer_sidecar_no_observations_20260521",
++  "status": "SUCCESS",
++  "acceptance_recommendation": "ACCEPTED",
+   "files_changed": [
+     "reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py",
++    "reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py",
+     "reverse_agent/strategies/compare_aware_search.py",
+     "tests/test_compare_aware_search_strategy.py",
+     "project_state/codex_execution_report.md",
+     "project_state/pytest_result.txt"
+   ],
+   "tests_ran": [
+-    "python -m py_compile reverse_agent\\olly_scripts\\compare_lhs_last_writer_provenance.py reverse_agent\\strategies\\compare_aware_search.py",
+-    "python -m pytest -q tests\\test_compare_aware_search_strategy.py -k \"compare_lhs_last_writer or compare_real_lhs_last_writer\"",
++    "python -m py_compile reverse_agent\\olly_scripts\\compare_lhs_last_writer_provenance.py reverse_agent\\olly_scripts\\compare_pre_compare_handoff_target_probe.py reverse_agent\\strategies\\compare_aware_search.py",
++    "python -m pytest -q tests\\test_compare_aware_search_strategy.py -k \"compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff\"",
+     "python -m pytest -q tests\\test_compare_aware_search_strategy.py",
+     "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+     "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_compare_lhs_last_writer_provenance"
++    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations"
+   ],
+   "generated_artifacts": [
+-    "solve_reports/harness_runs/sr_lhs_last_writer_provenance_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/round_manifest.json",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/artifact_index.json",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/current_state.json",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/negative_results.json",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/model_gate.json",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/task_packet.json",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/decision_packet.md",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/codex_execution_report.md",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/pytest_result.txt",
+-    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/git_diff.patch"
++    "solve_reports/harness_runs/sr_lhs_last_writer_sidecar_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/round_manifest.json",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/artifact_index.json",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/current_state.json",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/negative_results.json",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/model_gate.json",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/task_packet.json",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/decision_packet.md",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/codex_execution_report.md",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/pytest_result.txt",
++    "project_state/rounds/round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations/git_diff.patch"
+   ]
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-21 Samplereverse compare LHS last-writer provenance
++## 2026-05-21 Samplereverse LHS last-writer sidecar fix
+ 
+-This pass executes `decision_samplereverse_compare_lhs_last_writer_provenance_20260521`. It adds a bounded runtime sidecar entry for `0x258c` compare arg0 LHS last-writer provenance and runs it against the existing patched sample.
++This pass executes `decision_samplereverse_fix_lhs_last_writer_sidecar_no_observations_20260521` against state build `state_20260520_052928_8a77e6637c6c` / digest `8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d`.
+ 
+-The result is `PARTIAL`, not `SUCCESS`: the new artifact was produced and captured `0x258c` arg0 LHS pointer/preview through CompareProbe fallback, but the scripted write monitor did not follow a runtime thread in this run, so no runtime-backed last writer was identified.
++Result: `SUCCESS`. The sidecar still did not identify a runtime-backed writer, but it now separates same-process provenance from CompareProbe diagnostic fallback and reports a concrete failure stage instead of allowing fallback arg0 to masquerade as last-writer provenance.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| Current `compare_real_lhs_provenance_audit.json` classification | `compare_lhs_runtime_backed_writer_missing`. |
+-| Current arg0 / arg1 conclusion | `arg0` is candidate-dependent real LHS; `arg1` is flag side. |
+-| Current missing evidence | Real LHS pointer is confirmed; missing evidence is the runtime-backed last writer to arg0, not the compare side itself. |
+-| Existing CompareProbe coverage | Existing and new CompareProbe fallback captured compare pre-arg pointers and 64-byte LHS previews. |
+-| Existing sidecar reuse | Reused `compare_pre_compare_handoff_target_probe.py` hook/write-ring machinery through a thin new wrapper. |
+-| Equivalent artifact check | No existing `compare_lhs_last_writer_provenance_audit.json` existed before this pass. |
+-| Why no Base64/RC4 probe | Breakpoint probing remains gated until the real LHS producer/last writer is runtime-backed. |
+-| Why old `[ebp-0x1170]` is not reused | Prior current artifact rejects it as an unconnected old frame anchor for actual compare arg0. |
+-| New sidecar scope | Fixed to `0x258c`, `0x2559`, `0x1b50`, and two current best/frontier candidates. |
+-| Bounded behavior | No beam, budget, topN, timeout, frontier iteration, old solver, or Base64/RC4 probe expansion was performed. |
+-| Project state rebuild | Not performed; generated state remained digest-matched and the new artifact is reported directly. |
++| Why previous report was `PARTIAL` | It generated `compare_lhs_last_writer_provenance_audit.json`, but both bounded candidates had `scripted_hook_no_observations`, `scripted_returncode=124`, `followed_thread_count=0`, and only CompareProbe fallback compare args. |
++| Wrapper status | `compare_lhs_last_writer_provenance.py` was only a wrapper over `compare_pre_compare_handoff_target_probe.py`; this remains a thin entrypoint, while the underlying script now emits the last-writer artifact kind and runtime stage diagnostics when invoked through that entrypoint. |
++| Hook schema support | The bounded hook points remain `0x258c` static compare callsite, `0x2559` post-handoff reload, and `0x1b50` helper candidate. The probe parses these `module_offset` points and records hook install / UI trigger / observation wait stages. |
++| Timeout/failure stage | `scripted_hook_no_observations + returncode=124` is now classified as `instrumentation_incomplete` with `timeout_waiting_for_hook_observation` instead of environment blocked. |
++| Thread-follow activation | The new runtime run reached hook observations and followed one thread for candidate 2; candidate 1 still waited for a hook observation. |
++| CompareProbe vs sidecar | CompareProbe captured diagnostic `0x258c` args, but those observations are now marked `source=compare_probe_fallback` and excluded from same-process provenance/classification. |
++| Cross-process fallback risk | Eliminated for classification: fallback args are retained only in `diagnostic_actual_compare`; `compare_probe_fallback_is_provenance=false` is explicit at top level and per candidate. |
++| Same-process requirement | Runtime-backed writer confirmation now requires same-process compare args plus same-process intersecting write events. |
++| Project state rebuild | Not needed. Generated state JSON was not hand-edited; state/lint commands consumed the current decision packet directly. |
+ 
+ ## Implementation
+ 
+-- Added `reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py` as a wrapper over the existing pre-compare handoff/write-ring probe.
+-- Added `compare_lhs_last_writer_provenance_audit` constants, hook points, payload builder, classification mapping, and runner in `reverse_agent/strategies/compare_aware_search.py`.
+-- Added focused tests for the required artifact schema and classifications:
+-  - `runtime_backed_last_writer_identified`
+-  - `compare_reached_but_writer_missing`
+-  - `instrumentation_incomplete`
+-  - bounded two-candidate runtime runner behavior
++- Added artifact-kind awareness and runtime-stage health reporting to `compare_pre_compare_handoff_target_probe.py`.
++- Kept `compare_lhs_last_writer_provenance.py` as the bounded entrypoint, but its invoked output now carries `artifact_kind=compare_lhs_last_writer_provenance_audit`.
++- Updated `build_compare_lhs_last_writer_provenance_audit_payload()` so CompareProbe fallback can populate diagnostics but is stripped before provenance classification.
++- Added `same_process_provenance`, `same_process_compare_args_captured`, `diagnostic_compare_args_captured`, `instrumentation_failure_stage`, and explicit fallback non-provenance fields.
++- Added tests for fallback non-promotion, timeout/no-observation staging, same-process writer success, writer-missing classification, thread-follow failures, and fixed two-candidate scope.
+ 
+ ## Runtime Artifact
+ 
+ | field | value |
+ |---|---|
+-| run_name | `sr_lhs_last_writer_provenance_20260521_r1` |
+-| artifact | `solve_reports/harness_runs/sr_lhs_last_writer_provenance_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json` |
++| run_name | `sr_lhs_last_writer_sidecar_fix_20260521_r1` |
++| artifact | `solve_reports/harness_runs/sr_lhs_last_writer_sidecar_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json` |
+ | classification | `instrumentation_incomplete` |
+-| compare_site | `0x258c` |
+-| primary candidate | `78d540b49c59077041414141414141` |
+-| secondary candidate | `5a3e7f46ddd474d041414141414141` |
+-| arg0_lhs_ptr | `0x3f2d3f0` |
+-| arg0_lhs_preview | `46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99` |
+-| scripted hook status | `scripted_hook_no_observations` for both bounded candidates |
+-| compare fallback | `compare_probe_fallback_captured_compare_args`; fallback is explicitly not provenance |
+-| write monitor | `followed_thread_count=0`, `raw_write_count=0`, `ring_capacity=4096` |
+-| bounded failure | `write monitor did not follow a runtime thread` |
+-| runtime-backed writer | not identified |
++| instrumentation_failure_stage | `same_process_compare_args_missing` |
++| same_process_provenance | `false` |
++| same_process_compare_args_captured | `false` |
++| diagnostic_compare_args_captured | `true` |
++| compare_probe_fallback_used | `true` |
++| compare_probe_fallback_is_provenance | `false` |
++| write_monitor_health | `observed_candidate_count=2`, `followed_thread_count=1`, `raw_write_count=323`, `filtered_intersecting_write_count=0` |
++| bounded_failures | `0x258c compare arg capture incomplete`; `arg0 real LHS side not confirmed in this bounded audit`; `raw writes were captured but none intersected actual arg0 before 0x258c` |
++| best runtime candidate changed | no |
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+-| `python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\strategies\compare_aware_search.py` | passed |
+-| `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer"` | `13 passed, 167 deselected in 0.48s` |
+-| `python -m pytest -q tests\test_compare_aware_search_strategy.py` | `180 passed in 16.93s` |
+-| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | `missing: []`; decision was ready; old report mismatch expected. |
+-| pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | `lint-decision: OK` |
+-| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | expected failure: old report was bound to prior Phase 2 decision. |
+-| pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | `lint-handoff: OK`; `handoff_state: READY_FOR_CODEX`. |
+-| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | `lint-report: OK`; warnings: report round differs from generated current_state round, report is `PARTIAL`, round manifest missing before archive. |
+-| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | `lint-handoff: OK`; `handoff_state: REPORT_NEEDS_REVIEW`; `decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT`. |
+-| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_compare_lhs_last_writer_provenance` | passed; archive generated for this partial last-writer provenance round. |
++| `python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py` | passed |
++| `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff"` | `18 passed, 164 deselected` |
++| `python -m pytest -q tests\test_compare_aware_search_strategy.py` | `182 passed` |
++| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; `missing: []`; current decision ready for execution |
++| pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
++| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | expected failure; previous report was bound to prior decision |
++| pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed; `READY_FOR_CODEX` |
++| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed; `SUCCESS` / `ACCEPTED`; only round-id/manifest pre-archive warnings before archival |
++| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed; `REVIEW_COMPLETE`; decision consumed by success report |
++| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations` | passed |
+ 
+ ## Next Suggested Task
+ 
+-Review the new `instrumentation_incomplete` artifact. The next bounded implementation should keep the same two-candidate scope and fix why `compare_lhs_last_writer_provenance.py` times out with no scripted hook observations while CompareProbe can still capture `0x258c` arg0.
++Keep the same two-candidate bounded sidecar. The next useful step is to make the sidecar capture same-process `0x258c` compare args on the path where it already follows thread `21984` and records raw writes, then re-check whether any retained writes intersect arg0 before the compare.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 4e63b70..dbf8905 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,48 +1,47 @@
+-2026-05-21 samplereverse compare LHS last-writer provenance validation
++2026-05-21 samplereverse LHS last-writer sidecar fix validation
+ 
+ Scope:
+-- Execute `decision_samplereverse_compare_lhs_last_writer_provenance_20260521`.
+-- Add bounded `compare_lhs_last_writer_provenance_audit.json` sidecar.
+-- Keep scope fixed to `0x258c`, `0x2559`, `0x1b50`, candidate `78d540b49c59077041414141414141`, and candidate `5a3e7f46ddd474d041414141414141`.
++- Execute `decision_samplereverse_fix_lhs_last_writer_sidecar_no_observations_20260521`.
++- Keep mainline fixed to L15(prefix8), suffix AAAAAAA, and bounded candidates:
++  - 78d540b49c59077041414141414141
++  - 5a3e7f46ddd474d041414141414141
+ - Do not run Base64/RC4 breakpoint probe.
+ - Do not widen beam, budget, topN, timeout, frontier iteration, or candidate search.
+ - Do not hand-edit generated state JSON.
+ 
+-python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\strategies\compare_aware_search.py
++python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py
+ RESULT: passed
+ 
+-python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer"
++python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff"
+ RESULT: passed
+-13 passed, 167 deselected in 0.48s
++18 passed, 164 deselected in 0.53s
+ 
+ python -m pytest -q tests\test_compare_aware_search_strategy.py
+ RESULT: passed
+-180 passed in 16.93s
++182 passed in 19.56s
+ 
+ Runtime sidecar:
+-RESULT: partial
+-run_name: sr_lhs_last_writer_provenance_20260521_r1
+-artifact: solve_reports\harness_runs\sr_lhs_last_writer_provenance_20260521_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_last_writer_provenance_audit\compare_lhs_last_writer_provenance_audit.json
++RESULT: success with diagnostic-only instrumentation_incomplete artifact
++run_name: sr_lhs_last_writer_sidecar_fix_20260521_r1
++artifact: solve_reports\harness_runs\sr_lhs_last_writer_sidecar_fix_20260521_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_last_writer_provenance_audit\compare_lhs_last_writer_provenance_audit.json
+ classification: instrumentation_incomplete
+-compare_site: 0x258c
+-candidate_input_hex: 78d540b49c59077041414141414141
+-candidate_inputs_hex: 78d540b49c59077041414141414141, 5a3e7f46ddd474d041414141414141
+-arg0_lhs_ptr: 0x3f2d3f0
+-arg0_lhs_preview: 46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99
+-scripted_hook_status: scripted_hook_no_observations for both bounded candidates
+-scripted_returncode: 124 for both bounded candidates
+-compare_probe_fallback_status: compare_probe_fallback_captured_compare_args
++instrumentation_failure_stage: same_process_compare_args_missing
++same_process_provenance: false
++same_process_compare_args_captured: false
++diagnostic_compare_args_captured: true
++compare_probe_fallback_used: true
+ compare_probe_fallback_is_provenance: false
+-write_monitor_health: followed_thread_count=0 raw_write_count=0 ring_capacity=4096
+-bounded_failures: write monitor did not follow a runtime thread
++write_monitor_health: observed_candidate_count=2 followed_thread_count=1 raw_write_count=323 filtered_intersecting_write_count=0 ring_capacity=4096
++bounded_failures: 0x258c compare arg capture incomplete; arg0 real LHS side not confirmed in this bounded audit; raw writes were captured but none intersected actual arg0 before 0x258c
+ runtime_backed_writer_identified: false
++best_runtime_candidate_changed: false
+ 
+ Pre-report python -m reverse_agent.project_state status --state-dir project_state
+ RESULT: passed
+ missing: []
+ reason: compare_lhs_runtime_backed_writer_missing
+ task: Improve compare lhs last-writer instrumentation
+-decision_id: decision_samplereverse_compare_lhs_last_writer_provenance_20260521
++decision_id: decision_samplereverse_fix_lhs_last_writer_sidecar_no_observations_20260521
+ decision_execution_state: READY_FOR_EXECUTION
+ decision_ready_for_execution: True
+ decision_report_id_match: False
+@@ -50,53 +49,35 @@ decision_report_id_match: False
+ Pre-report python -m reverse_agent.project_state lint-decision --state-dir project_state
+ RESULT: passed
+ lint-decision: OK
+-decision_id: decision_samplereverse_compare_lhs_last_writer_provenance_20260521
+-decision_status: APPROVED
+-based_on_state_build_id: state_20260520_052928_8a77e6637c6c
+-based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-current_state_build_id: state_20260520_052928_8a77e6637c6c
+-current_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
++decision_id: decision_samplereverse_fix_lhs_last_writer_sidecar_no_observations_20260521
+ 
+ Pre-report python -m reverse_agent.project_state lint-report --state-dir project_state
+ RESULT: expected failure before report rewrite
+ lint-report: FAILED
+ error: based_on_decision_id does not match current decision_id
+-report_id: report_phase2_completion_audit_fix_review_matrix_20260521
+-based_on_decision_id: decision_phase2_completion_audit_fix_review_matrix_20260521
+-decision_id: decision_samplereverse_compare_lhs_last_writer_provenance_20260521
+ 
+ Pre-report python -m reverse_agent.project_state lint-handoff --state-dir project_state
+ RESULT: passed
+ lint-handoff: OK
+ handoff_state: READY_FOR_CODEX
+-decision_execution_state: READY_FOR_EXECUTION
+-decision_ready_for_execution: True
+-decision_report_id_match: False
+ 
+ Final python -m reverse_agent.project_state lint-report --state-dir project_state
+ RESULT: passed
+ lint-report: OK
+-warning: report round_id does not match current_state.round_id
+-warning: report_status is PARTIAL
+-warning: round_manifest missing before archive
+-report_id: report_samplereverse_compare_lhs_last_writer_provenance_20260521
+-report_status: PARTIAL
+-acceptance_recommendation: NEEDS_REVIEW
+-based_on_decision_id: decision_samplereverse_compare_lhs_last_writer_provenance_20260521
++report_id: report_samplereverse_fix_lhs_last_writer_sidecar_no_observations_20260521
++report_status: SUCCESS
++acceptance_recommendation: ACCEPTED
++based_on_decision_id: decision_samplereverse_fix_lhs_last_writer_sidecar_no_observations_20260521
+ decision_report_id_match: True
+ 
+ Final python -m reverse_agent.project_state lint-handoff --state-dir project_state
+ RESULT: passed
+ lint-handoff: OK
+-warning: report round_id does not match current_state.round_id
+-warning: report_status is PARTIAL
+-warning: round_manifest missing before archive
+-warning: matching report is non-success and needs review
+-handoff_state: REPORT_NEEDS_REVIEW
+-decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT
++handoff_state: REVIEW_COMPLETE
++decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+ decision_ready_for_execution: False
+ decision_report_id_match: True
+ 
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_compare_lhs_last_writer_provenance
++python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations
+ RESULT: passed
+-Archive generated under project_state\rounds\round_20260521_samplereverse_compare_lhs_last_writer_provenance.
++Archive generated under project_state\rounds\round_20260521_samplereverse_fix_lhs_last_writer_sidecar_no_observations.
+diff --git a/reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py b/reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
+index 1c1c348..05a389c 100644
+--- a/reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
++++ b/reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
+@@ -1,9 +1,14 @@
+ from __future__ import annotations
+ 
+ try:
+-    from .compare_pre_compare_handoff_target_probe import main
++    from .compare_pre_compare_handoff_target_probe import main as _pre_compare_main
+ except ImportError:  # pragma: no cover - direct script execution
+-    from compare_pre_compare_handoff_target_probe import main
++    from compare_pre_compare_handoff_target_probe import main as _pre_compare_main
++
++
++def main() -> int:
++    """Run the bounded same-process compare-LHS last-writer provenance sidecar."""
++    return _pre_compare_main()
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py b/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
+index 9be2d11..825185a 100644
+--- a/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
++++ b/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
+@@ -2,6 +2,7 @@ from __future__ import annotations
+ 
+ import argparse
+ import json
++import sys
+ import time
+ from pathlib import Path
+ 
+@@ -15,6 +16,12 @@ FRAME_SLOT_OFFSETS = (0x1160, 0x1164, 0x1168, 0x116C, 0x1170)
+ WRITE_RING_LIMIT = 4096
+ 
+ 
++def _artifact_kind_for_script() -> str:
++    if Path(sys.argv[0]).stem == "compare_lhs_last_writer_provenance":
++        return "compare_lhs_last_writer_provenance_audit"
++    return "compare_pre_compare_handoff_target_probe"
++
++
+ def _normalize_hook_point(item: dict[str, object] | None) -> dict[str, object]:
+     item = item or {}
+     module_offset = item.get("module_offset")
+@@ -90,6 +97,8 @@ def _build_payload(
+ ) -> dict[str, object]:
+     observations = [_normalize_observation(item) for item in hook_observations or []]
+     return {
++        "schema_version": 1,
++        "artifact_kind": _artifact_kind_for_script(),
+         "success": success,
+         "summary": summary,
+         "candidate_hex": candidate_hex,
+@@ -128,6 +137,7 @@ def _initial_write_monitor_health(hook_points: list[dict[str, object]]) -> dict[
+         "enabled": requested,
+         "requested": requested,
+         "activation_status": "script_started",
++        "runtime_stage": "script_started",
+         "followed_thread_count": 0,
+         "raw_write_count": 0,
+         "ring_capacity": WRITE_RING_LIMIT if requested else 0,
+@@ -202,6 +212,7 @@ def main() -> int:
+ 
+     messages: list[dict[str, object]] = []
+     script_errors: list[str] = []
++    runtime_stage = "script_started"
+     pid: int | None = None
+     session = None
+     app = None
+@@ -757,16 +768,22 @@ for (const point of hookPoints) {{
+         send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});
+     }}
+ }}
++send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_installed", hook_count: hookPoints.length }});
+ """
+ 
+     try:
++        runtime_stage = "spawning_target"
+         pid = frida.spawn([str(target)])
++        runtime_stage = "attaching_frida"
+         session = frida.attach(pid)
+         script = session.create_script(script_source)
+         script.on("message", on_message)
++        runtime_stage = "loading_script"
+         script.load()
++        runtime_stage = "resuming_target"
+         frida.resume(pid)
+         time.sleep(1.0)
++        runtime_stage = "connecting_window"
+         app = Application(backend="uia").connect(process=pid)
+         win = None
+         last_exc = None
+@@ -781,22 +798,30 @@ for (const point of hookPoints) {{
+         if win is None:
+             raise RuntimeError(f"cannot connect target window: {last_exc}")
+ 
++        runtime_stage = "preparing_input"
+         input_edit = win.child_window(auto_id="1001", control_type="Edit")
+         decrypt_btn = win.child_window(auto_id="1000", control_type="Button")
+         candidate = bytes.fromhex(args.probe_hex).decode("latin1")
+         evidence.append(f"compare_pre_compare_handoff_target_probe:title={_escape_runtime_text(win.window_text() or '')}")
+         evidence.append(f"compare_pre_compare_handoff_target_probe:probe_hex={args.probe_hex}")
+         input_edit.set_edit_text(_candidate_to_gui_text(candidate))
++        runtime_stage = "triggering_candidate"
+         _trigger_decrypt(decrypt_btn)
+ 
++        runtime_stage = "waiting_for_observation"
+         deadline = time.monotonic() + max(0.3, float(args.per_probe_timeout))
+         while time.monotonic() < deadline:
+             if script_errors:
+                 raise RuntimeError(script_errors[-1])
++            if any(str(item.get("type", "")) == "compare_pre_compare_handoff_target_observation" for item in messages):
++                runtime_stage = "observation_captured"
++                break
+             time.sleep(0.05)
+     except Exception as exc:
+         script_errors.append(_escape_runtime_text(str(exc)))
+     finally:
++        if runtime_stage not in {"observation_captured"}:
++            evidence.append(f"compare_pre_compare_handoff_target_probe:runtime_stage={runtime_stage}")
+         try:
+             if session is not None:
+                 session.detach()
+@@ -822,11 +847,29 @@ for (const point of hookPoints) {{
+         ring = health_messages[-1].get("write_ring_buffer", [])
+         latest_health = dict(health) if isinstance(health, dict) else {}
+         latest_ring = [dict(item) for item in ring if isinstance(item, dict)] if isinstance(ring, list) else []
++    if latest_health:
++        latest_health["runtime_stage"] = runtime_stage
++    elif hook_points:
++        latest_health = _initial_write_monitor_health(hook_points)
++        latest_health["runtime_stage"] = runtime_stage
++        if runtime_stage == "waiting_for_observation":
++            latest_health["activation_status"] = "waiting_for_hook_observation"
+     errors = [
+         f"{item.get('hook_name', '')}:{item.get('error', '')}"
+         for item in messages
+         if str(item.get("type", "")) == "compare_pre_compare_handoff_target_error"
+     ]
++    stage_messages = [
++        item
++        for item in messages
++        if str(item.get("type", "")) == "compare_pre_compare_handoff_target_stage"
++    ]
++    if stage_messages:
++        evidence.extend(
++            f"compare_pre_compare_handoff_target_probe:runtime_stage={item.get('runtime_stage', '')}"
++            for item in stage_messages
++        )
++    evidence.append(f"compare_pre_compare_handoff_target_probe:final_runtime_stage={runtime_stage}")
+     success = bool(observations) and not script_errors
+     summary = (
+         "ComparePreCompareHandoffTargetProbe captured bounded handoff observations."
+diff --git a/reverse_agent/strategies/compare_aware_search.py b/reverse_agent/strategies/compare_aware_search.py
+index 2a99624..02a4c86 100644
+--- a/reverse_agent/strategies/compare_aware_search.py
++++ b/reverse_agent/strategies/compare_aware_search.py
+@@ -12495,6 +12495,29 @@ def _actual_compare_observation(result: dict[str, object]) -> dict[str, object]:
+     return {}
+ 
+ 
++def _is_compare_probe_fallback_observation(observation: dict[str, object]) -> bool:
++    return str(observation.get("source", "")).strip() == "compare_probe_fallback"
++
++
++def _without_compare_probe_fallback_observations(
++    candidate_results: Sequence[dict[str, object]],
++) -> list[dict[str, object]]:
++    out: list[dict[str, object]] = []
++    for result in candidate_results:
++        if not isinstance(result, dict):
++            continue
++        copied = dict(result)
++        observations = copied.get("hook_observations", [])
++        if isinstance(observations, list):
++            copied["hook_observations"] = [
++                dict(item)
++                for item in observations
++                if isinstance(item, dict) and not _is_compare_probe_fallback_observation(item)
++            ]
++        out.append(copied)
++    return out
++
++
+ def _actual_compare_args(result: dict[str, object]) -> list[dict[str, object]]:
+     observation = _actual_compare_observation(result)
+     return _pre_compare_compare_args(observation) if observation else []
+@@ -13308,6 +13331,13 @@ def _compare_real_lhs_write_monitor_health(result: dict[str, object]) -> dict[st
+             if str(row.get("follow_attempt_stage", "")).strip()
+         }
+     )
++    runtime_stages = sorted(
++        {
++            str(row.get("runtime_stage", "")).strip()
++            for row in health_rows
++            if str(row.get("runtime_stage", "")).strip()
++        }
++    )
+     for row in health_rows:
+         row_samples = row.get("last_raw_write_samples", [])
+         if isinstance(row_samples, list):
+@@ -13318,9 +13348,11 @@ def _compare_real_lhs_write_monitor_health(result: dict[str, object]) -> dict[st
+         "activation_statuses": activation_statuses,
+         "selected_thread_ids": selected_thread_ids,
+         "follow_attempt_stages": follow_attempt_stages,
++        "runtime_stages": runtime_stages,
+         "activation_status": activation_statuses[-1] if activation_statuses else "",
+         "selected_thread_id": selected_thread_ids[-1] if selected_thread_ids else "",
+         "follow_attempt_stage": follow_attempt_stages[-1] if follow_attempt_stages else "",
++        "runtime_stage": runtime_stages[-1] if runtime_stages else "",
+         "followed_thread_count": _sum_int("followed_thread_count"),
+         "raw_write_count": _sum_int("raw_write_count"),
+         "ring_capacity": _max_int("ring_capacity"),
+@@ -13346,6 +13378,9 @@ def _compare_real_lhs_candidate_execution_health(
+             "scripted_returncode": result.get("scripted_returncode", None),
+             "scripted_observation_count": int(result.get("scripted_observation_count", 0) or 0),
+             "scripted_error": str(result.get("scripted_error", "")),
++            "instrumentation_failure_stage": str(result.get("instrumentation_failure_stage", "")),
++            "same_process_provenance": bool(result.get("same_process_provenance")),
++            "same_process_observation_count": int(result.get("same_process_observation_count", 0) or 0),
+             "scripted_stdout_preview": str(result.get("scripted_stdout_preview", "")),
+             "scripted_stderr_preview": str(result.get("scripted_stderr_preview", "")),
+             "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
+@@ -13461,6 +13496,13 @@ def _compare_real_lhs_last_writer_summary(
+                 if str(row.get("follow_attempt_stage", "")).strip()
+             }
+         ),
++        "runtime_stages": sorted(
++            {
++                str(row.get("runtime_stage", "")).strip()
++                for row in observed_monitor_rows
++                if str(row.get("runtime_stage", "")).strip()
++            }
++        ),
+         "last_raw_write_samples": [
+             sample
+             for row in observed_monitor_rows
+@@ -14029,6 +14071,12 @@ def _compare_lhs_last_writer_bounded_failures(
+     if classification == "blocked_by_environment":
+         errors = sorted({str(item.get("error", "") or item.get("scripted_error", "")) for item in candidate_results})
+         return [f"runtime sidecar blocked: {', '.join(item for item in errors if item) or 'environment unavailable'}"]
++    if any(
++        str(item.get("scripted_hook_status", "")) == "scripted_hook_no_observations"
++        and int(item.get("scripted_returncode", 0) or 0) == 124
++        for item in candidate_results
++    ):
++        failures.append("script timed out before any configured hook observation")
+     if str(actual_compare.get("entry_status", "")) != "confirmed":
+         failures.append("0x258c compare arg capture incomplete")
+     if str(actual_compare.get("lhs_side", "")) != "arg0":
+@@ -14048,6 +14096,43 @@ def _compare_lhs_last_writer_bounded_failures(
+     return failures
+ 
+ 
++def _compare_lhs_last_writer_failure_stage(
++    *,
++    classification: str,
++    actual_compare: dict[str, object],
++    last_writer_summary: dict[str, object],
++    candidate_results: Sequence[dict[str, object]],
++) -> str:
++    if classification == "blocked_by_environment":
++        return "environment_or_automation_blocked"
++    statuses = {str(item.get("scripted_hook_status", "")) for item in candidate_results}
++    returncodes = {int(item.get("scripted_returncode", 0) or 0) for item in candidate_results}
++    health = last_writer_summary.get("write_monitor_health", {})
++    health = health if isinstance(health, dict) else {}
++    runtime_stages = {
++        str(row.get("runtime_stage", "")).strip()
++        for row in health.get("per_candidate", [])
++        if isinstance(row, dict) and str(row.get("runtime_stage", "")).strip()
++    }
++    if statuses == {"scripted_hook_no_observations"} and 124 in returncodes:
++        return "timeout_waiting_for_hook_observation"
++    if str(actual_compare.get("entry_status", "")) != "confirmed":
++        return "same_process_compare_args_missing"
++    if int(health.get("observed_candidate_count", 0) or 0) <= 0:
++        return "write_monitor_health_not_observed"
++    if int(health.get("followed_thread_count", 0) or 0) <= 0:
++        if runtime_stages:
++            return f"thread_follow_not_activated_after_{sorted(runtime_stages)[-1]}"
++        return "thread_follow_not_activated"
++    if int(health.get("raw_write_count", 0) or 0) <= 0:
++        return "thread_followed_but_no_raw_writes"
++    if int(health.get("filtered_intersecting_write_count", 0) or 0) <= 0:
++        return "raw_writes_do_not_intersect_arg0"
++    if classification == "writer_candidate_identified_but_not_runtime_backed":
++        return "writer_candidate_not_runtime_backed"
++    return ""
++
++
+ def _compare_lhs_last_writer_classification(
+     *,
+     actual_compare: dict[str, object],
+@@ -14059,6 +14144,7 @@ def _compare_lhs_last_writer_classification(
+     if expected_count and all(
+         str(item.get("error", "") or item.get("scripted_error", "")).strip()
+         and not item.get("hook_observations")
++        and int(item.get("scripted_returncode", 0) or 0) != 124
+         for item in candidate_results
+     ):
+         return "blocked_by_environment"
+@@ -14091,23 +14177,35 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+     sample: str = "samplereverse",
+     profile: str = "samplereverse",
+ ) -> dict[str, object]:
+-    actual_compare = _compare_lhs_last_writer_actual_compare(candidate_results, source_real_lhs_payload)
++    candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
++    same_process_candidate_results = _without_compare_probe_fallback_observations(candidate_results)
++    diagnostic_actual_compare = _compare_lhs_last_writer_actual_compare(candidate_results, source_real_lhs_payload)
++    actual_compare = _compare_lhs_last_writer_actual_compare(same_process_candidate_results, source_real_lhs_payload)
+     last_writer_summary, writer_rows, write_ring_buffer, _ = _compare_real_lhs_last_writer_summary(
+-        candidate_results,
++        same_process_candidate_results,
+         actual_compare,
+     )
+     classification = _compare_lhs_last_writer_classification(
+         actual_compare=actual_compare,
+         last_writer_summary=last_writer_summary,
+         last_writer_candidates=writer_rows,
+-        candidate_results=candidate_results,
++        candidate_results=same_process_candidate_results,
+     )
+-    arg0_values = actual_compare.get("arg0_value_by_candidate", {})
+-    arg0_previews = actual_compare.get("arg0_preview_by_candidate", {})
++    arg0_values = diagnostic_actual_compare.get("arg0_value_by_candidate", {})
++    arg0_previews = diagnostic_actual_compare.get("arg0_preview_by_candidate", {})
+     arg0_values = arg0_values if isinstance(arg0_values, dict) else {}
+     arg0_previews = arg0_previews if isinstance(arg0_previews, dict) else {}
+     first_candidate = next((str(item.get("candidate_hex", "")) for item in candidate_results), "")
+     first_writer = writer_rows[0] if writer_rows else {}
++    same_process_provenance = classification == "runtime_backed_last_writer_identified"
++    compare_probe_fallback_used = any(bool(item.get("compare_probe_fallback_used")) for item in candidate_results)
++    compare_probe_fallback_statuses = sorted(
++        {
++            str(item.get("compare_probe_fallback_status", "")).strip()
++            for item in candidate_results
++            if str(item.get("compare_probe_fallback_status", "")).strip()
++        }
++    )
+     last_writer = (
+         {
+             "instruction": first_writer.get("instruction", ""),
+@@ -14115,6 +14213,10 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+             "module_offset": first_writer.get("module_offset", ""),
+             "write_size": first_writer.get("size", 0),
+             "write_preview": first_writer.get("after_preview_hex", ""),
++            "candidate_hex": first_writer.get("candidate_hex", ""),
++            "same_process": True,
++            "same_thread_or_thread_id": first_writer.get("thread_id", "") or first_writer.get("selected_thread_id", ""),
++            "connects_to_actual_arg0": True,
+             "call_stack": first_writer.get("call_stack", []),
+         }
+         if first_writer
+@@ -14129,7 +14231,13 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+                 "arg0_lhs_ptr": arg0_values.get(candidate_hex, ""),
+                 "arg0_lhs_preview": arg0_previews.get(candidate_hex, ""),
+                 "scripted_hook_status": result.get("scripted_hook_status", ""),
++                "scripted_returncode": result.get("scripted_returncode", None),
++                "instrumentation_failure_stage": result.get("instrumentation_failure_stage", ""),
+                 "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
++                "compare_probe_fallback_status": result.get("compare_probe_fallback_status", ""),
++                "compare_probe_fallback_is_provenance": False
++                if bool(result.get("compare_probe_fallback_used"))
++                else False,
+                 "write_monitor_health": result.get("write_monitor_health", {}),
+             }
+         )
+@@ -14139,6 +14247,12 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+         last_writer_summary=last_writer_summary,
+         candidate_results=candidate_results,
+     )
++    instrumentation_failure_stage = _compare_lhs_last_writer_failure_stage(
++        classification=classification,
++        actual_compare=actual_compare,
++        last_writer_summary=last_writer_summary,
++        candidate_results=candidate_results,
++    )
+     return {
+         "schema_version": 1,
+         "artifact_kind": "compare_lhs_last_writer_provenance_audit",
+@@ -14151,6 +14265,13 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+         "arg0_lhs_preview": arg0_previews.get(first_candidate, ""),
+         "candidate_input_hex": first_candidate,
+         "candidate_inputs_hex": [str(item.get("candidate_hex", "")) for item in candidate_results],
++        "same_process_provenance": same_process_provenance,
++        "same_process_compare_args_captured": str(actual_compare.get("entry_status", "")) == "confirmed",
++        "diagnostic_compare_args_captured": str(diagnostic_actual_compare.get("entry_status", "")) == "confirmed",
++        "compare_probe_fallback_used": compare_probe_fallback_used,
++        "compare_probe_fallback_statuses": compare_probe_fallback_statuses,
++        "compare_probe_fallback_is_provenance": False if compare_probe_fallback_used else False,
++        "instrumentation_failure_stage": instrumentation_failure_stage,
+         "last_writer": last_writer,
+         "observations": observations,
+         "bounded_failures": bounded_failures,
+@@ -14164,6 +14285,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+         "hook_points": list(hook_points or []),
+         "static_audit": static_audit or {},
+         "actual_compare": actual_compare,
++        "diagnostic_actual_compare": diagnostic_actual_compare,
+         "write_monitor_health": last_writer_summary.get("write_monitor_health", {}),
+         "last_writer_summary": last_writer_summary,
+         "last_writer_candidates": writer_rows,
+@@ -14331,9 +14453,14 @@ def run_compare_lhs_last_writer_provenance_audit(
+             for observation in observations
+             if str(observation.get("hook_name", "")) == "static_compare_callsite"
+         ]
++        same_process_static_observations = [
++            observation
++            for observation in static_observations
++            if not _is_compare_probe_fallback_observation(observation)
++        ]
+         target_observation = next(
+-            (observation for observation in static_observations if _pre_compare_compare_args(observation)),
+-            static_observations[0] if static_observations else None,
++            (observation for observation in same_process_static_observations if _pre_compare_compare_args(observation)),
++            same_process_static_observations[0] if same_process_static_observations else None,
+         )
+         if target_observation is not None:
+             if not target_observation.get("write_monitor_health") and scripted_write_monitor_health:
+@@ -14342,10 +14469,16 @@ def run_compare_lhs_last_writer_provenance_audit(
+                 target_observation["write_ring_buffer"] = list(scripted_write_ring_buffer)
+         observations = sorted(
+             observations,
+-            key=lambda item: 0
+-            if str(item.get("hook_name", "")) == "static_compare_callsite"
+-            and _pre_compare_compare_args(item)
+-            else 1,
++            key=lambda item: (
++                0
++                if str(item.get("hook_name", "")) == "static_compare_callsite"
++                and _pre_compare_compare_args(item)
++                and not _is_compare_probe_fallback_observation(item)
++                else 1
++                if str(item.get("hook_name", "")) == "static_compare_callsite"
++                and _pre_compare_compare_args(item)
++                else 2
++            ),
+         )
+         if not scripted_output_exists:
+             scripted_hook_status = "scripted_hook_missing"
+@@ -14353,15 +14486,34 @@ def run_compare_lhs_last_writer_provenance_audit(
+             scripted_hook_status = "scripted_hook_no_observations"
+         else:
+             scripted_hook_status = "scripted_hook_observed"
++        same_process_observations = [
++            observation for observation in observations if not _is_compare_probe_fallback_observation(observation)
++        ]
++        same_process_compare_args_captured = _has_actual_compare_args(same_process_observations)
++        instrumentation_failure_stage = ""
++        if scripted_hook_status == "scripted_hook_no_observations" and int(getattr(proc, "returncode", 0) or 0) == 124:
++            instrumentation_failure_stage = "timeout_waiting_for_hook_observation"
++        elif not same_process_compare_args_captured:
++            instrumentation_failure_stage = "same_process_compare_args_missing"
++        elif scripted_write_monitor_health and int(scripted_write_monitor_health.get("followed_thread_count", 0) or 0) <= 0:
++            runtime_stage = str(scripted_write_monitor_health.get("runtime_stage", "") or "")
++            instrumentation_failure_stage = (
++                f"thread_follow_not_activated_after_{runtime_stage}"
++                if runtime_stage
++                else "thread_follow_not_activated"
++            )
+         candidate_results.append(
+             {
+                 "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
+                 "candidate_hex": candidate_hex,
+                 "candidate_prefix": candidate_hex[:16],
+-                "runtime_backed": bool(observations),
++                "runtime_backed": bool(same_process_observations),
+                 "hook_observations": observations[:160],
+                 "write_monitor_health": scripted_write_monitor_health,
+                 "write_ring_buffer": scripted_write_ring_buffer,
++                "same_process_provenance": same_process_compare_args_captured,
++                "same_process_observation_count": len(same_process_observations),
++                "instrumentation_failure_stage": instrumentation_failure_stage,
+                 "scripted_hook_status": scripted_hook_status,
+                 "scripted_output_exists": scripted_output_exists,
+                 "scripted_returncode": int(getattr(proc, "returncode", 0) or 0),
+@@ -14371,6 +14523,7 @@ def run_compare_lhs_last_writer_provenance_audit(
+                 "scripted_stderr_preview": str(getattr(proc, "stderr", "") or "")[:2000],
+                 "compare_probe_fallback_used": compare_probe_fallback_used,
+                 "compare_probe_fallback_status": compare_probe_fallback_status,
++                "compare_probe_fallback_is_provenance": False,
+                 "result_path": str(compare_out),
+                 "log_path": str(compare_log),
+                 "success": bool(compare_payload.get("success")) and not error,
+diff --git a/tests/test_compare_aware_search_strategy.py b/tests/test_compare_aware_search_strategy.py
+index b92633d..153e0f5 100644
+--- a/tests/test_compare_aware_search_strategy.py
++++ b/tests/test_compare_aware_search_strategy.py
+@@ -8132,6 +8132,81 @@ def test_compare_lhs_last_writer_payload_reports_instrumentation_incomplete() ->
+ 
+     assert payload["classification"] == "instrumentation_incomplete"
+     assert "did not follow a runtime thread" in " ".join(payload["bounded_failures"])
++    assert payload["instrumentation_failure_stage"] == "thread_follow_not_activated"
++
++
++def test_compare_lhs_last_writer_fallback_cannot_promote_to_provenance() -> None:
++    candidates = []
++    for candidate_hex, ptr, preview in [
++        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
++        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
++    ]:
++        candidate = _compare_real_lhs_candidate_result(
++            candidate_hex,
++            ptr,
++            preview,
++            write_events=[_last_writer_event(ptr, preview)],
++            write_monitor_health=_write_monitor_health(raw_write_count=5, filtered_intersecting_write_count=1),
++        )
++        candidate["hook_observations"] = [
++            {
++                **observation,
++                "source": "compare_probe_fallback",
++            }
++            for observation in candidate["hook_observations"]
++            if observation["hook_name"] == "static_compare_callsite"
++        ]
++        candidate["compare_probe_fallback_used"] = True
++        candidate["compare_probe_fallback_status"] = "compare_probe_fallback_captured_compare_args"
++        candidates.append(candidate)
++
++    payload = build_compare_lhs_last_writer_provenance_audit_payload(
++        candidate_results=candidates,
++        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
++    )
++
++    assert payload["classification"] == "instrumentation_incomplete"
++    assert payload["same_process_provenance"] is False
++    assert payload["compare_probe_fallback_used"] is True
++    assert payload["compare_probe_fallback_is_provenance"] is False
++    assert payload["diagnostic_compare_args_captured"] is True
++    assert payload["same_process_compare_args_captured"] is False
++    assert payload["instrumentation_failure_stage"] == "same_process_compare_args_missing"
++
++
++def test_compare_lhs_last_writer_timeout_has_precise_failure_stage() -> None:
++    candidates = []
++    for candidate_hex in [
++        "78d540b49c59077041414141414141",
++        "5a3e7f46ddd474d041414141414141",
++    ]:
++        candidates.append(
++            {
++                "candidate_hex": candidate_hex,
++                "hook_observations": [],
++                "write_monitor_health": {
++                    "observed": False,
++                    "enabled": True,
++                    "activation_status": "script_started",
++                    "runtime_stage": "waiting_for_observation",
++                    "followed_thread_count": 0,
++                    "raw_write_count": 0,
++                    "ring_capacity": 4096,
++                },
++                "scripted_hook_status": "scripted_hook_no_observations",
++                "scripted_returncode": 124,
++                "scripted_error": "timeout",
++            }
++        )
++
++    payload = build_compare_lhs_last_writer_provenance_audit_payload(
++        candidate_results=candidates,
++        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
++    )
++
++    assert payload["classification"] == "instrumentation_incomplete"
++    assert payload["instrumentation_failure_stage"] == "timeout_waiting_for_hook_observation"
++    assert "script timed out before any configured hook observation" in " ".join(payload["bounded_failures"])
+ 
+ 
+ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
+@@ -8157,7 +8232,34 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
+                 json.dumps(
+                     {
+                         "success": True,
+-                        "hook_observations": [],
++                        "hook_observations": [
++                            {
++                                "candidate_hex": candidate_hex,
++                                "hook_name": "static_compare_callsite",
++                                "module_offset": "0x258c",
++                                "compare_args": {
++                                    "args": [
++                                        {
++                                            "index": 0,
++                                            "role": "arg0",
++                                            "value": ptr,
++                                            "preview_hex": preview,
++                                        },
++                                        {
++                                            "index": 1,
++                                            "role": "arg1",
++                                            "value": "0x5000",
++                                            "preview_hex": "66006c00610067007b00",
++                                        },
++                                    ]
++                                },
++                                "write_monitor_health": _write_monitor_health(
++                                    raw_write_count=3,
++                                    filtered_intersecting_write_count=1,
++                                ),
++                                "write_ring_buffer": [_last_writer_event(ptr, preview)],
++                            }
++                        ],
+                         "write_monitor_health": _write_monitor_health(
+                             raw_write_count=3,
+                             filtered_intersecting_write_count=1,
