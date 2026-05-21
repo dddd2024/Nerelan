@@ -23,6 +23,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME,
     COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME,
     COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
+    COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME,
     COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME,
@@ -73,6 +74,7 @@ from reverse_agent.strategies.compare_aware_search import (
     build_compare_lhs_slot_writer_predecessor_audit_payload,
     build_compare_lhs_slot_writer_source_audit_payload,
     build_compare_lhs_upstream_writer_audit_payload,
+    build_compare_lhs_last_writer_provenance_audit_payload,
     build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
@@ -89,6 +91,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_lhs_slot_writer_predecessor_audit,
     run_compare_lhs_slot_writer_source_audit,
     run_compare_lhs_upstream_writer_audit,
+    run_compare_lhs_last_writer_provenance_audit,
     run_compare_esi_source_window_audit,
     run_compare_real_lhs_provenance_audit,
     run_compare_pre_compare_handoff_target_probe,
@@ -8033,6 +8036,178 @@ def test_compare_real_lhs_last_writer_breakpoint_gate_requires_transform_materia
     assert payload["classification"] == "last_writer_identified"
     assert payload["last_writer_summary"]["transform_material_backed"] is True
     assert payload["breakpoint_probe_allowed"] is True
+
+
+def test_compare_lhs_last_writer_payload_maps_runtime_writer_schema() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[_last_writer_event(ptr, preview)],
+                write_monitor_health=_write_monitor_health(
+                    raw_write_count=5,
+                    filtered_intersecting_write_count=1,
+                ),
+            )
+        )
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidates,
+        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+        run_name="bounded_last_writer_test",
+    )
+
+    assert payload["artifact_kind"] == "compare_lhs_last_writer_provenance_audit"
+    assert payload["classification"] == "runtime_backed_last_writer_identified"
+    assert payload["compare_site"] == "0x258c"
+    assert payload["candidate_input_hex"] == "78d540b49c59077041414141414141"
+    assert payload["arg0_lhs_ptr"] == "0x1100"
+    assert payload["arg0_lhs_preview"].startswith("aa")
+    assert payload["last_writer"]["instruction"] == "mov dword ptr [edi], eax"
+    assert payload["last_writer"]["module_offset"] == "0x2400"
+    assert payload["observations"][0]["arg0_lhs_ptr"] == "0x1100"
+    assert payload["bounded_failures"] == []
+    assert payload["base64_rc4_breakpoint_probe_run"] is False
+
+
+def test_compare_lhs_last_writer_payload_reports_compare_reached_but_writer_missing() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[],
+                write_monitor_health=_write_monitor_health(raw_write_count=3),
+            )
+        )
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidates,
+        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+    )
+
+    assert payload["classification"] == "compare_reached_but_writer_missing"
+    assert payload["last_writer"] == {}
+    assert "none intersected actual arg0" in " ".join(payload["bounded_failures"])
+    assert payload["next_allowed_probe"] == "narrow bounded write attribution before Base64/RC4 probe"
+
+
+def test_compare_lhs_last_writer_payload_reports_instrumentation_incomplete() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+    ]:
+        candidates.append(
+            _compare_real_lhs_candidate_result(
+                candidate_hex,
+                ptr,
+                preview,
+                write_events=[],
+                write_monitor_health=_write_monitor_health(
+                    raw_write_count=0,
+                    followed_thread_count=0,
+                    activation_status="waiting_for_hook_observation",
+                    selected_thread_id="",
+                    follow_attempt_stage="",
+                ),
+            )
+        )
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidates,
+        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+    )
+
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert "did not follow a runtime thread" in " ".join(payload["bounded_failures"])
+
+
+def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+    scripted_candidates: list[str] = []
+
+    def fake_run(*args, **kwargs):  # noqa: ANN002, ANN003
+        command = list(args[0])
+        script_name = Path(command[1]).name
+        out_path = Path(command[command.index("--out") + 1])
+        candidate_hex = command[command.index("--probe-hex") + 1]
+        scripted_candidates.append(candidate_hex)
+        previews = {
+            "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
+            "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
+        }
+        ptr, preview = previews[candidate_hex]
+        if script_name == "compare_lhs_last_writer_provenance.py":
+            out_path.write_text(
+                json.dumps(
+                    {
+                        "success": True,
+                        "hook_observations": [],
+                        "write_monitor_health": _write_monitor_health(
+                            raw_write_count=3,
+                            filtered_intersecting_write_count=1,
+                        ),
+                        "write_ring_buffer": [_last_writer_event(ptr, preview)],
+                    }
+                ),
+                encoding="utf-8",
+            )
+        elif script_name == "compare_probe.py":
+            out_path.write_text(
+                json.dumps(
+                    {
+                        "success": True,
+                        "compare_site": "0x40258c",
+                        "lhs_ptr": ptr,
+                        "rhs_ptr": "0x5000",
+                        "compare_count": 5,
+                        "lhs_wide_hex": preview,
+                        "rhs_wide_hex": "66006c00610067007b00",
+                        "esi_ptr": ptr,
+                        "esi_preview_hex": preview,
+                    }
+                ),
+                encoding="utf-8",
+            )
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", fake_run)
+
+    result = run_compare_lhs_last_writer_provenance_audit(
+        target=target,
+        artifacts_dir=tmp_path / "compare_lhs_last_writer_provenance_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert Path(str(result["result_path"])).name == COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME
+    assert payload["classification"] == "runtime_backed_last_writer_identified"
+    assert payload["candidate_inputs_hex"] == [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+    ]
+    assert sorted(set(scripted_candidates)) == sorted(payload["candidate_inputs_hex"])
+    assert payload["hook_points"][0]["module_offset"] == 0x258C
+    assert payload["hook_points"][1]["module_offset"] == 0x2559
+    assert payload["hook_points"][2]["module_offset"] == 0x1B50
 
 
 def test_compare_probe_fallback_observation_carries_esi_snapshot() -> None:

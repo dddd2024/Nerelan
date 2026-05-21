@@ -1,0 +1,1071 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index b6ef41e..59c02bc 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,95 +1,111 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase2_completion_audit_fix_review_matrix_20260521",
+-  "round_id": "round_20260521_phase2_completion_audit_fix_review_matrix",
+-  "based_on_decision_id": "decision_phase2_completion_audit_fix_review_matrix_20260521",
+-  "status": "SUCCESS",
+-  "acceptance_recommendation": "ACCEPTED",
++  "report_id": "report_samplereverse_compare_lhs_last_writer_provenance_20260521",
++  "round_id": "round_20260521_samplereverse_compare_lhs_last_writer_provenance",
++  "based_on_decision_id": "decision_samplereverse_compare_lhs_last_writer_provenance_20260521",
++  "status": "PARTIAL",
++  "acceptance_recommendation": "NEEDS_REVIEW",
+   "files_changed": [
+-    "docs/phase2_harness_reproducibility_completion.md",
++    "reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py",
++    "reverse_agent/strategies/compare_aware_search.py",
++    "tests/test_compare_aware_search_strategy.py",
+     "project_state/codex_execution_report.md",
+     "project_state/pytest_result.txt"
+   ],
+   "tests_ran": [
++    "python -m py_compile reverse_agent\\olly_scripts\\compare_lhs_last_writer_provenance.py reverse_agent\\strategies\\compare_aware_search.py",
++    "python -m pytest -q tests\\test_compare_aware_search_strategy.py -k \"compare_lhs_last_writer or compare_real_lhs_last_writer\"",
++    "python -m pytest -q tests\\test_compare_aware_search_strategy.py",
++    "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+     "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "python -m pytest -q tests\\test_harness_resume.py",
+-    "python -m pytest -q tests\\test_harness_artifact_manifest.py",
+-    "python -m pytest -q tests\\test_harness_compare.py",
+-    "python -m pytest -q tests\\test_harness_resource_budget.py",
+-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+-    "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_phase2_completion_audit_fix_review_matrix"
++    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_compare_lhs_last_writer_provenance"
+   ],
+   "generated_artifacts": [
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/round_manifest.json",
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/artifact_index.json",
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/current_state.json",
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/negative_results.json",
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/model_gate.json",
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/task_packet.json",
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/decision_packet.md",
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/codex_execution_report.md",
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/pytest_result.txt",
+-    "project_state/rounds/round_20260521_phase2_completion_audit_fix_review_matrix/git_diff.patch"
+-  ],
+-  "next_suggested_task": "Start Phase 3A or post-Phase-2 hardening only from a fresh decision packet; do not call it Phase 2E."
++    "solve_reports/harness_runs/sr_lhs_last_writer_provenance_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/round_manifest.json",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/artifact_index.json",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/current_state.json",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/negative_results.json",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/model_gate.json",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/task_packet.json",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/decision_packet.md",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/codex_execution_report.md",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/pytest_result.txt",
++    "project_state/rounds/round_20260521_samplereverse_compare_lhs_last_writer_provenance/git_diff.patch"
++  ]
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-21 Phase 2 completion audit review-matrix rework
++## 2026-05-21 Samplereverse compare LHS last-writer provenance
+ 
+-This pass executes `decision_phase2_completion_audit_fix_review_matrix_20260521`. It corrects the Phase 2 completion report Acceptance Matrix so that Codex's `acceptance_recommendation=ACCEPTED` is no longer mislabeled as the GPT review result. The actual GPT review result for Phase 2A-D is recorded as `ACCEPTED_WITH_LIMITATIONS`.
++This pass executes `decision_samplereverse_compare_lhs_last_writer_provenance_20260521`. It adds a bounded runtime sidecar entry for `0x258c` compare arg0 LHS last-writer provenance and runs it against the existing patched sample.
+ 
+-This round only updates documentation and live handoff files. It does not modify harness functionality, project_state protocol semantics, reverse strategies, Olly scripts, pipeline behavior, tool runners, tests, or the `samplereverse` runtime mainline.
++The result is `PARTIAL`, not `SUCCESS`: the new artifact was produced and captured `0x258c` arg0 LHS pointer/preview through CompareProbe fallback, but the scripted write monitor did not follow a runtime thread in this run, so no runtime-backed last writer was identified.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| Existing matrix error | Confirmed: `docs/phase2_harness_reproducibility_completion.md` previously listed Phase 2A-D `GPT review result` as `ACCEPTED`. |
+-| GPT review result correction | Fixed: Phase 2A-D now list `GPT review result` as `ACCEPTED_WITH_LIMITATIONS`. |
+-| Codex recommendation retained | Fixed: the Acceptance Matrix now has a separate `Codex acceptance_recommendation` column with `ACCEPTED`. |
+-| Known Limitations | Preserved: compare strict behavior, artifact path schema, round manifest commit semantics, and archive diff replayability limitations remain in the report. |
+-| Phase 3 Backlog | Preserved: the same hardening items remain listed as Phase 3 backlog. |
+-| No Phase 2E | Preserved: report scope and closure still state that Phase 2E is not an official phase. |
+-| Current implementation scope | Only `docs/phase2_harness_reproducibility_completion.md`, `project_state/codex_execution_report.md`, and `project_state/pytest_result.txt` were changed. |
+-| Functional code | No `reverse_agent/*`, `tests/*`, strategy, Olly script, pipeline, or tool-runner code was changed. |
+-| Runtime/pipeline boundaries | No runtime probe, Base64/RC4 breakpoint probe, pipeline run, model call, solve expansion, or full `solve_reports` read was performed. |
++| Current `compare_real_lhs_provenance_audit.json` classification | `compare_lhs_runtime_backed_writer_missing`. |
++| Current arg0 / arg1 conclusion | `arg0` is candidate-dependent real LHS; `arg1` is flag side. |
++| Current missing evidence | Real LHS pointer is confirmed; missing evidence is the runtime-backed last writer to arg0, not the compare side itself. |
++| Existing CompareProbe coverage | Existing and new CompareProbe fallback captured compare pre-arg pointers and 64-byte LHS previews. |
++| Existing sidecar reuse | Reused `compare_pre_compare_handoff_target_probe.py` hook/write-ring machinery through a thin new wrapper. |
++| Equivalent artifact check | No existing `compare_lhs_last_writer_provenance_audit.json` existed before this pass. |
++| Why no Base64/RC4 probe | Breakpoint probing remains gated until the real LHS producer/last writer is runtime-backed. |
++| Why old `[ebp-0x1170]` is not reused | Prior current artifact rejects it as an unconnected old frame anchor for actual compare arg0. |
++| New sidecar scope | Fixed to `0x258c`, `0x2559`, `0x1b50`, and two current best/frontier candidates. |
++| Bounded behavior | No beam, budget, topN, timeout, frontier iteration, old solver, or Base64/RC4 probe expansion was performed. |
++| Project state rebuild | Not performed; generated state remained digest-matched and the new artifact is reported directly. |
+ 
+-## Completion Report Update
++## Implementation
+ 
+-Updated `docs/phase2_harness_reproducibility_completion.md` with:
++- Added `reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py` as a wrapper over the existing pre-compare handoff/write-ring probe.
++- Added `compare_lhs_last_writer_provenance_audit` constants, hook points, payload builder, classification mapping, and runner in `reverse_agent/strategies/compare_aware_search.py`.
++- Added focused tests for the required artifact schema and classifications:
++  - `runtime_backed_last_writer_identified`
++  - `compare_reached_but_writer_missing`
++  - `instrumentation_incomplete`
++  - bounded two-candidate runtime runner behavior
+ 
+-- Acceptance Matrix split into `Codex acceptance_recommendation` and `GPT review result`.
+-- Phase 2A-D Codex recommendation retained as `ACCEPTED`.
+-- Phase 2A-D GPT review result corrected to `ACCEPTED_WITH_LIMITATIONS`.
+-- Known Limitations, Phase 3 Backlog, and explicit No Phase 2E closure retained.
++## Runtime Artifact
++
++| field | value |
++|---|---|
++| run_name | `sr_lhs_last_writer_provenance_20260521_r1` |
++| artifact | `solve_reports/harness_runs/sr_lhs_last_writer_provenance_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json` |
++| classification | `instrumentation_incomplete` |
++| compare_site | `0x258c` |
++| primary candidate | `78d540b49c59077041414141414141` |
++| secondary candidate | `5a3e7f46ddd474d041414141414141` |
++| arg0_lhs_ptr | `0x3f2d3f0` |
++| arg0_lhs_preview | `46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99` |
++| scripted hook status | `scripted_hook_no_observations` for both bounded candidates |
++| compare fallback | `compare_probe_fallback_captured_compare_args`; fallback is explicitly not provenance |
++| write monitor | `followed_thread_count=0`, `raw_write_count=0`, `ring_capacity=4096` |
++| bounded failure | `write monitor did not follow a runtime thread` |
++| runtime-backed writer | not identified |
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+-| pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | `lint-decision: OK`; active decision is `decision_phase2_completion_audit_fix_review_matrix_20260521`. |
+-| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | expected failure before this report rewrite: old report was still bound to `decision_phase2_completion_audit_20260520`. |
+-| pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | `lint-handoff: OK`; `handoff_state: READY_FOR_CODEX` with expected previous-report mismatch. |
+-| `python -m pytest -q tests\test_harness_resume.py` | `6 passed in 0.48s` |
+-| `python -m pytest -q tests\test_harness_artifact_manifest.py` | `3 passed in 0.31s` |
+-| `python -m pytest -q tests\test_harness_compare.py` | `9 passed in 0.33s` |
+-| `python -m pytest -q tests\test_harness_resource_budget.py` | `9 passed in 0.37s` |
+-| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | `lint-report: OK`; report is bound to `decision_phase2_completion_audit_fix_review_matrix_20260521`; remaining warning is only `report round_id does not match current_state.round_id`. |
+-| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | `lint-handoff: OK`; `handoff_state: REVIEW_COMPLETE`; `decision_execution_state: CONSUMED_BY_SUCCESS_REPORT`. |
+-| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_phase2_completion_audit_fix_review_matrix` | passed; archive generated for this review-matrix rework round. |
+-
+-## State Notes
+-
+-- `task_packet.task` and `current_state` still reflect the sample-derived `Improve compare lhs last-writer instrumentation` state. This round follows `execution_scope=decision_packet_controls_current_round`, so `project_state/decision_packet.md` is the active authority.
+-- This is not Phase 2E. Phase 2 remains closed as A-D; future work should be Phase 3A or post-Phase-2 hardening from a fresh decision packet.
++| `python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\strategies\compare_aware_search.py` | passed |
++| `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer"` | `13 passed, 167 deselected in 0.48s` |
++| `python -m pytest -q tests\test_compare_aware_search_strategy.py` | `180 passed in 16.93s` |
++| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | `missing: []`; decision was ready; old report mismatch expected. |
++| pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | `lint-decision: OK` |
++| pre-report `python -m reverse_agent.project_state lint-report --state-dir project_state` | expected failure: old report was bound to prior Phase 2 decision. |
++| pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | `lint-handoff: OK`; `handoff_state: READY_FOR_CODEX`. |
++| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | `lint-report: OK`; warnings: report round differs from generated current_state round, report is `PARTIAL`, round manifest missing before archive. |
++| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | `lint-handoff: OK`; `handoff_state: REPORT_NEEDS_REVIEW`; `decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT`. |
++| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_compare_lhs_last_writer_provenance` | passed; archive generated for this partial last-writer provenance round. |
+ 
+ ## Next Suggested Task
+ 
+-Have GPT review the corrected Phase 2 completion matrix and this archived rework round. If accepted, future engineering work should start from a fresh Phase 3A or post-Phase-2 hardening decision packet.
++Review the new `instrumentation_incomplete` artifact. The next bounded implementation should keep the same two-candidate scope and fix why `compare_lhs_last_writer_provenance.py` times out with no scripted hook observations while CompareProbe can still capture `0x258c` arg0.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 6d2d2d1..4e63b70 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,41 +1,69 @@
+-2026-05-21 Phase 2 completion audit review-matrix rework validation
++2026-05-21 samplereverse compare LHS last-writer provenance validation
+ 
+ Scope:
+-- Execute only `decision_phase2_completion_audit_fix_review_matrix_20260521`.
+-- Correct `docs/phase2_harness_reproducibility_completion.md` Acceptance Matrix.
+-- Do not modify harness functionality, project_state protocol semantics, reverse strategies, Olly scripts, pipeline behavior, tool runners, or tests.
+-- Do not run reverse runtime probes, Base64/RC4 breakpoint probes, pipeline/model calls, or samplereverse solving work.
+-- Do not read or submit full solve_reports.
++- Execute `decision_samplereverse_compare_lhs_last_writer_provenance_20260521`.
++- Add bounded `compare_lhs_last_writer_provenance_audit.json` sidecar.
++- Keep scope fixed to `0x258c`, `0x2559`, `0x1b50`, candidate `78d540b49c59077041414141414141`, and candidate `5a3e7f46ddd474d041414141414141`.
++- Do not run Base64/RC4 breakpoint probe.
++- Do not widen beam, budget, topN, timeout, frontier iteration, or candidate search.
++- Do not hand-edit generated state JSON.
+ 
+-Document audit:
+-- Before this rework, the Acceptance Matrix listed Phase 2A-D `GPT review result` as `ACCEPTED`.
+-- After this rework, Phase 2A-D `GPT review result` is `ACCEPTED_WITH_LIMITATIONS`.
+-- `ACCEPTED` is retained only in the separate `Codex acceptance_recommendation` column.
+-- Known Limitations are preserved.
+-- Phase 3 Backlog is preserved.
+-- No Phase 2E closure wording is preserved.
+-- Only documentation and handoff files were changed.
++python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\strategies\compare_aware_search.py
++RESULT: passed
++
++python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer"
++RESULT: passed
++13 passed, 167 deselected in 0.48s
++
++python -m pytest -q tests\test_compare_aware_search_strategy.py
++RESULT: passed
++180 passed in 16.93s
++
++Runtime sidecar:
++RESULT: partial
++run_name: sr_lhs_last_writer_provenance_20260521_r1
++artifact: solve_reports\harness_runs\sr_lhs_last_writer_provenance_20260521_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_last_writer_provenance_audit\compare_lhs_last_writer_provenance_audit.json
++classification: instrumentation_incomplete
++compare_site: 0x258c
++candidate_input_hex: 78d540b49c59077041414141414141
++candidate_inputs_hex: 78d540b49c59077041414141414141, 5a3e7f46ddd474d041414141414141
++arg0_lhs_ptr: 0x3f2d3f0
++arg0_lhs_preview: 46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99
++scripted_hook_status: scripted_hook_no_observations for both bounded candidates
++scripted_returncode: 124 for both bounded candidates
++compare_probe_fallback_status: compare_probe_fallback_captured_compare_args
++compare_probe_fallback_is_provenance: false
++write_monitor_health: followed_thread_count=0 raw_write_count=0 ring_capacity=4096
++bounded_failures: write monitor did not follow a runtime thread
++runtime_backed_writer_identified: false
++
++Pre-report python -m reverse_agent.project_state status --state-dir project_state
++RESULT: passed
++missing: []
++reason: compare_lhs_runtime_backed_writer_missing
++task: Improve compare lhs last-writer instrumentation
++decision_id: decision_samplereverse_compare_lhs_last_writer_provenance_20260521
++decision_execution_state: READY_FOR_EXECUTION
++decision_ready_for_execution: True
++decision_report_id_match: False
+ 
+ Pre-report python -m reverse_agent.project_state lint-decision --state-dir project_state
+ RESULT: passed
+ lint-decision: OK
+-decision_id: decision_phase2_completion_audit_fix_review_matrix_20260521
++decision_id: decision_samplereverse_compare_lhs_last_writer_provenance_20260521
+ decision_status: APPROVED
+ based_on_state_build_id: state_20260520_052928_8a77e6637c6c
+ based_on_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+ current_state_build_id: state_20260520_052928_8a77e6637c6c
+ current_state_digest: 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
+-execution_scope: decision_packet_controls_current_round
+-active_decision_packet: project_state/decision_packet.md
+ 
+ Pre-report python -m reverse_agent.project_state lint-report --state-dir project_state
+ RESULT: expected failure before report rewrite
+ lint-report: FAILED
+ error: based_on_decision_id does not match current decision_id
+-report_id: report_phase2_completion_audit_20260520
+-based_on_decision_id: decision_phase2_completion_audit_20260520
+-decision_id: decision_phase2_completion_audit_fix_review_matrix_20260521
+-decision_report_id_match: False
++report_id: report_phase2_completion_audit_fix_review_matrix_20260521
++based_on_decision_id: decision_phase2_completion_audit_fix_review_matrix_20260521
++decision_id: decision_samplereverse_compare_lhs_last_writer_provenance_20260521
+ 
+ Pre-report python -m reverse_agent.project_state lint-handoff --state-dir project_state
+ RESULT: passed
+@@ -44,52 +72,31 @@ handoff_state: READY_FOR_CODEX
+ decision_execution_state: READY_FOR_EXECUTION
+ decision_ready_for_execution: True
+ decision_report_id_match: False
+-lint_decision_ok: True
+-lint_report_ok: False
+-
+-python -m pytest -q tests\test_harness_resume.py
+-RESULT: passed
+-6 passed in 0.48s
+-
+-python -m pytest -q tests\test_harness_artifact_manifest.py
+-RESULT: passed
+-3 passed in 0.31s
+-
+-python -m pytest -q tests\test_harness_compare.py
+-RESULT: passed
+-9 passed in 0.33s
+-
+-python -m pytest -q tests\test_harness_resource_budget.py
+-RESULT: passed
+-9 passed in 0.37s
+ 
+ Final python -m reverse_agent.project_state lint-report --state-dir project_state
+ RESULT: passed
+ lint-report: OK
+ warning: report round_id does not match current_state.round_id
+-report_id: report_phase2_completion_audit_fix_review_matrix_20260521
+-report_status: SUCCESS
+-acceptance_recommendation: ACCEPTED
+-based_on_decision_id: decision_phase2_completion_audit_fix_review_matrix_20260521
+-decision_id: decision_phase2_completion_audit_fix_review_matrix_20260521
++warning: report_status is PARTIAL
++warning: round_manifest missing before archive
++report_id: report_samplereverse_compare_lhs_last_writer_provenance_20260521
++report_status: PARTIAL
++acceptance_recommendation: NEEDS_REVIEW
++based_on_decision_id: decision_samplereverse_compare_lhs_last_writer_provenance_20260521
+ decision_report_id_match: True
+-round_id: round_20260521_phase2_completion_audit_fix_review_matrix
+-current_state_round_id: round_20260520_052928
+-tests_ran_count: 10
+-generated_artifacts_count: 10
+-pytest_result_present: True
+ 
+ Final python -m reverse_agent.project_state lint-handoff --state-dir project_state
+ RESULT: passed
+ lint-handoff: OK
+ warning: report round_id does not match current_state.round_id
+-handoff_state: REVIEW_COMPLETE
+-decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
++warning: report_status is PARTIAL
++warning: round_manifest missing before archive
++warning: matching report is non-success and needs review
++handoff_state: REPORT_NEEDS_REVIEW
++decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT
+ decision_ready_for_execution: False
+ decision_report_id_match: True
+-lint_decision_ok: True
+-lint_report_ok: True
+ 
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_phase2_completion_audit_fix_review_matrix
++python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_compare_lhs_last_writer_provenance
+ RESULT: passed
+-Archive generated under project_state\rounds\round_20260521_phase2_completion_audit_fix_review_matrix.
++Archive generated under project_state\rounds\round_20260521_samplereverse_compare_lhs_last_writer_provenance.
+diff --git a/reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py b/reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
+new file mode 100644
+index 0000000..1c1c348
+--- /dev/null
++++ b/reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
+@@ -0,0 +1,10 @@
++from __future__ import annotations
++
++try:
++    from .compare_pre_compare_handoff_target_probe import main
++except ImportError:  # pragma: no cover - direct script execution
++    from compare_pre_compare_handoff_target_probe import main
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())
+diff --git a/reverse_agent/strategies/compare_aware_search.py b/reverse_agent/strategies/compare_aware_search.py
+index a464f15..2a99624 100644
+--- a/reverse_agent/strategies/compare_aware_search.py
++++ b/reverse_agent/strategies/compare_aware_search.py
+@@ -68,6 +68,7 @@ COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
+     "compare_callsite_reanchor_and_lhs_provenance_audit.json"
+ )
+ COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME = "compare_real_lhs_provenance_audit.json"
++COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME = "compare_lhs_last_writer_provenance_audit.json"
+ COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME = "compare_esi_source_window_audit.json"
+ COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME = "compare_lhs_slot_writer_source_audit.json"
+ COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME = "compare_lhs_slot_writer_predecessor_audit.json"
+@@ -222,6 +223,10 @@ COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES = (
+ COMPARE_LHS_UPSTREAM_WRITER_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+ COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+ COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
++COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_CANDIDATES = (
++    "78d540b49c59077041414141414141",
++    "5a3e7f46ddd474d041414141414141",
++)
+ COMPARE_ESI_SOURCE_WINDOW_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+ COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+ COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+@@ -320,6 +325,10 @@ def _compare_real_lhs_provenance_audit_script_path() -> Path:
+     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_real_lhs_provenance_audit.py"
+ 
+ 
++def _compare_lhs_last_writer_provenance_audit_script_path() -> Path:
++    return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_lhs_last_writer_provenance.py"
++
++
+ def _compare_esi_source_window_audit_script_path() -> Path:
+     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_esi_source_window_audit.py"
+ 
+@@ -3421,6 +3430,7 @@ def _artifact_file_name_for_kind(kind: str) -> str:
+             COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME
+         ),
+         "compare_real_lhs_provenance_audit": COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME,
++        "compare_lhs_last_writer_provenance_audit": COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME,
+         "compare_esi_source_window_audit": COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
+         "compare_lhs_slot_writer_source_audit": COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME,
+         "compare_lhs_slot_writer_predecessor_audit": COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME,
+@@ -13923,6 +13933,469 @@ def run_compare_real_lhs_provenance_audit(
+     }
+ 
+ 
++def _compare_lhs_last_writer_provenance_hook_points() -> list[dict[str, object]]:
++    return [
++        {
++            "name": "static_compare_callsite",
++            "module_offset": 0x258C,
++            "instruction": "call 0x5028ac",
++            "role": "actual_arg0_lhs_compare",
++            "capture_write_ring": True,
++        },
++        {
++            "name": "post_handoff_lhs_reload",
++            "module_offset": 0x2559,
++            "instruction": "mov esi, dword ptr [ebp - 0x1170]",
++            "role": "post_handoff_lhs_reload",
++        },
++        {
++            "name": "handoff_helper_candidate",
++            "module_offset": 0x1B50,
++            "instruction": "handoff helper candidate",
++            "role": "bounded_upstream_helper_candidate",
++            "capture_leave": True,
++        },
++    ]
++
++
++def _compare_lhs_last_writer_static_audit(
++    target: Path,
++    hook_points: Sequence[dict[str, object]],
++) -> dict[str, object]:
++    try:
++        data = target.read_bytes()
++    except Exception:
++        data = b""
++    sections = _pe_sections_for_rva_mapping(data)
++    sizes = {0x258C: 5, 0x2559: 6, 0x1B50: 1}
++    return {
++        "classification": "static_compare_lhs_last_writer_audit_complete"
++        if data and sections
++        else "static_compare_lhs_last_writer_audit_partial",
++        "bounded_scope": {
++            "compare_site": "0x258c",
++            "post_handoff_lhs_reload": "0x2559",
++            "handoff_helper_candidate": "0x1b50",
++        },
++        "instruction_boundaries": [
++            {
++                "name": point.get("name", ""),
++                "rva": f"0x{int(point.get('module_offset', 0) or 0):x}",
++                "size": sizes.get(int(point.get("module_offset", 0) or 0), 1),
++                "instruction": point.get("instruction", ""),
++                "bytes_hex": _read_rva_bytes(
++                    data,
++                    sections,
++                    int(point.get("module_offset", 0) or 0),
++                    sizes.get(int(point.get("module_offset", 0) or 0), 1),
++                ),
++                "boundary_status": "instruction_confirmed"
++                if int(point.get("module_offset", 0) or 0) in {0x258C, 0x2559}
++                else "bounded_helper_entry",
++            }
++            for point in hook_points
++        ],
++    }
++
++
++def _compare_lhs_last_writer_actual_compare(
++    candidate_results: Sequence[dict[str, object]],
++    source_real_lhs_payload: dict[str, object] | None,
++) -> dict[str, object]:
++    actual_compare = _compare_callsite_side_summary(candidate_results)
++    expected_count = len(candidate_results)
++    if expected_count and int(actual_compare.get("observed_count", 0) or 0) >= expected_count:
++        actual_compare["entry_status"] = "confirmed"
++    source_actual = (
++        source_real_lhs_payload.get("actual_compare", {})
++        if isinstance(source_real_lhs_payload, dict)
++        else {}
++    )
++    if isinstance(source_actual, dict):
++        for key in ("lhs_side", "flag_side"):
++            if not actual_compare.get(key) or actual_compare.get(key) == "unknown":
++                actual_compare[key] = source_actual.get(key, actual_compare.get(key, "unknown"))
++    return actual_compare
++
++
++def _compare_lhs_last_writer_bounded_failures(
++    *,
++    classification: str,
++    actual_compare: dict[str, object],
++    last_writer_summary: dict[str, object],
++    candidate_results: Sequence[dict[str, object]],
++) -> list[str]:
++    failures: list[str] = []
++    if classification == "blocked_by_environment":
++        errors = sorted({str(item.get("error", "") or item.get("scripted_error", "")) for item in candidate_results})
++        return [f"runtime sidecar blocked: {', '.join(item for item in errors if item) or 'environment unavailable'}"]
++    if str(actual_compare.get("entry_status", "")) != "confirmed":
++        failures.append("0x258c compare arg capture incomplete")
++    if str(actual_compare.get("lhs_side", "")) != "arg0":
++        failures.append("arg0 real LHS side not confirmed in this bounded audit")
++    health = last_writer_summary.get("write_monitor_health", {})
++    health = health if isinstance(health, dict) else {}
++    if not health.get("enabled"):
++        failures.append("write monitor did not report enabled state")
++    elif int(health.get("followed_thread_count", 0) or 0) <= 0:
++        failures.append("write monitor did not follow a runtime thread")
++    elif int(health.get("raw_write_count", 0) or 0) <= 0:
++        failures.append("write monitor followed a thread but captured no raw writes")
++    elif int(health.get("filtered_intersecting_write_count", 0) or 0) <= 0:
++        failures.append("raw writes were captured but none intersected actual arg0 before 0x258c")
++    if classification == "writer_candidate_identified_but_not_runtime_backed":
++        failures.append("writer-like events did not runtime-connect to all bounded arg0 buffers")
++    return failures
++
++
++def _compare_lhs_last_writer_classification(
++    *,
++    actual_compare: dict[str, object],
++    last_writer_summary: dict[str, object],
++    last_writer_candidates: Sequence[dict[str, object]],
++    candidate_results: Sequence[dict[str, object]],
++) -> str:
++    expected_count = len(candidate_results)
++    if expected_count and all(
++        str(item.get("error", "") or item.get("scripted_error", "")).strip()
++        and not item.get("hook_observations")
++        for item in candidate_results
++    ):
++        return "blocked_by_environment"
++    if expected_count <= 0 or str(actual_compare.get("entry_status", "")) != "confirmed":
++        return "instrumentation_incomplete"
++    if str(actual_compare.get("lhs_side", "")) != "arg0":
++        return "instrumentation_incomplete"
++    health = last_writer_summary.get("write_monitor_health", {})
++    health = health if isinstance(health, dict) else {}
++    if int(health.get("observed_candidate_count", 0) or 0) < expected_count:
++        return "instrumentation_incomplete"
++    if not health.get("enabled") or int(health.get("followed_thread_count", 0) or 0) <= 0:
++        return "instrumentation_incomplete"
++    if not last_writer_candidates:
++        return "compare_reached_but_writer_missing"
++    runtime_backed = int(last_writer_summary.get("runtime_backed_count", 0) or 0)
++    match_count = int(last_writer_summary.get("match_count", 0) or 0)
++    if runtime_backed >= expected_count and match_count >= expected_count:
++        return "runtime_backed_last_writer_identified"
++    return "writer_candidate_identified_but_not_runtime_backed"
++
++
++def build_compare_lhs_last_writer_provenance_audit_payload(
++    *,
++    candidate_results: Sequence[dict[str, object]],
++    hook_points: Sequence[dict[str, object]] | None = None,
++    static_audit: dict[str, object] | None = None,
++    source_real_lhs_payload: dict[str, object] | None = None,
++    run_name: str = "",
++    sample: str = "samplereverse",
++    profile: str = "samplereverse",
++) -> dict[str, object]:
++    actual_compare = _compare_lhs_last_writer_actual_compare(candidate_results, source_real_lhs_payload)
++    last_writer_summary, writer_rows, write_ring_buffer, _ = _compare_real_lhs_last_writer_summary(
++        candidate_results,
++        actual_compare,
++    )
++    classification = _compare_lhs_last_writer_classification(
++        actual_compare=actual_compare,
++        last_writer_summary=last_writer_summary,
++        last_writer_candidates=writer_rows,
++        candidate_results=candidate_results,
++    )
++    arg0_values = actual_compare.get("arg0_value_by_candidate", {})
++    arg0_previews = actual_compare.get("arg0_preview_by_candidate", {})
++    arg0_values = arg0_values if isinstance(arg0_values, dict) else {}
++    arg0_previews = arg0_previews if isinstance(arg0_previews, dict) else {}
++    first_candidate = next((str(item.get("candidate_hex", "")) for item in candidate_results), "")
++    first_writer = writer_rows[0] if writer_rows else {}
++    last_writer = (
++        {
++            "instruction": first_writer.get("instruction", ""),
++            "address": first_writer.get("instruction_address", "") or first_writer.get("address", ""),
++            "module_offset": first_writer.get("module_offset", ""),
++            "write_size": first_writer.get("size", 0),
++            "write_preview": first_writer.get("after_preview_hex", ""),
++            "call_stack": first_writer.get("call_stack", []),
++        }
++        if first_writer
++        else {}
++    )
++    observations = []
++    for result in candidate_results:
++        candidate_hex = str(result.get("candidate_hex", ""))
++        observations.append(
++            {
++                "candidate_input_hex": candidate_hex,
++                "arg0_lhs_ptr": arg0_values.get(candidate_hex, ""),
++                "arg0_lhs_preview": arg0_previews.get(candidate_hex, ""),
++                "scripted_hook_status": result.get("scripted_hook_status", ""),
++                "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
++                "write_monitor_health": result.get("write_monitor_health", {}),
++            }
++        )
++    bounded_failures = _compare_lhs_last_writer_bounded_failures(
++        classification=classification,
++        actual_compare=actual_compare,
++        last_writer_summary=last_writer_summary,
++        candidate_results=candidate_results,
++    )
++    return {
++        "schema_version": 1,
++        "artifact_kind": "compare_lhs_last_writer_provenance_audit",
++        "sample": sample,
++        "profile": profile,
++        "run_name": run_name,
++        "classification": classification,
++        "compare_site": "0x258c",
++        "arg0_lhs_ptr": arg0_values.get(first_candidate, ""),
++        "arg0_lhs_preview": arg0_previews.get(first_candidate, ""),
++        "candidate_input_hex": first_candidate,
++        "candidate_inputs_hex": [str(item.get("candidate_hex", "")) for item in candidate_results],
++        "last_writer": last_writer,
++        "observations": observations,
++        "bounded_failures": bounded_failures,
++        "next_allowed_probe": "narrow bounded write attribution before Base64/RC4 probe"
++        if classification != "runtime_backed_last_writer_identified"
++        else "review runtime-backed writer before any material breakpoint probe",
++        "candidate_generation_changed": False,
++        "beam_budget_topn_timeout_frontier_limit_expanded": False,
++        "base64_rc4_breakpoint_probe_run": False,
++        "source_real_lhs_classification": (source_real_lhs_payload or {}).get("classification", ""),
++        "hook_points": list(hook_points or []),
++        "static_audit": static_audit or {},
++        "actual_compare": actual_compare,
++        "write_monitor_health": last_writer_summary.get("write_monitor_health", {}),
++        "last_writer_summary": last_writer_summary,
++        "last_writer_candidates": writer_rows,
++        "write_ring_buffer": write_ring_buffer,
++        "candidate_execution_health": _compare_real_lhs_candidate_execution_health(candidate_results),
++        "candidate_results": list(candidate_results),
++        "promotable_validations": [],
++    }
++
++
++def run_compare_lhs_last_writer_provenance_audit(
++    *,
++    target: Path,
++    artifacts_dir: Path,
++    transform_model: SamplereverseTransformModel,
++    per_probe_timeout: float,
++    real_lhs_payload: dict[str, object] | None = None,
++    run_name: str = "",
++    log=None,
++) -> dict[str, object]:
++    _ = transform_model
++    artifacts_dir.mkdir(parents=True, exist_ok=True)
++    result_path = artifacts_dir / COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME
++    script_path = _compare_lhs_last_writer_provenance_audit_script_path()
++    compare_probe_script = _compare_probe_script_path()
++    hook_points = _compare_lhs_last_writer_provenance_hook_points()
++    static_audit = _compare_lhs_last_writer_static_audit(target, hook_points)
++    entries = list(COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_CANDIDATES)
++    labels = ("exact2_best", "exact1_frontier")
++    initial_payload = build_compare_lhs_last_writer_provenance_audit_payload(
++        candidate_results=[],
++        hook_points=hook_points,
++        static_audit=static_audit,
++        source_real_lhs_payload=real_lhs_payload,
++        run_name=run_name,
++    )
++    initial_payload["candidate_count"] = len(entries)
++    _write_json(result_path, initial_payload)
++    if not script_path.exists():
++        raise RuntimeError(f"Compare lhs last-writer provenance audit script missing: {script_path}")
++    if not compare_probe_script.exists():
++        raise RuntimeError(f"compare probe script missing: {compare_probe_script}")
++
++    points_path = artifacts_dir / "compare_lhs_last_writer_provenance_hook_points.json"
++    _write_json(points_path, {"hook_points": hook_points})
++    candidate_results: list[dict[str, object]] = []
++    for idx, candidate_hex in enumerate(entries, 1):
++        candidate_dir = artifacts_dir / f"candidate_{idx}"
++        candidate_dir.mkdir(parents=True, exist_ok=True)
++        compare_out = candidate_dir / COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME
++        compare_log = candidate_dir / "compare_lhs_last_writer_provenance_audit.log"
++        command = [
++            sys.executable,
++            str(script_path),
++            "--target",
++            str(target),
++            "--out",
++            str(compare_out),
++            "--points",
++            str(points_path),
++            "--probe-hex",
++            candidate_hex,
++            "--expected-eax-preview",
++            "",
++            "--per-probe-timeout",
++            str(per_probe_timeout),
++        ]
++        if log:
++            log(f"CompareLHSLastWriterProvenanceAudit scripted hooks {idx}: {candidate_hex}")
++        try:
++            proc = _run_material_hook_runtime_command(
++                command,
++                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
++            )
++            error = ""
++        except subprocess.TimeoutExpired as exc:
++            proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
++            error = "timeout"
++        scripted_output_exists = compare_out.exists()
++        compare_log.write_text(
++            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
++            encoding="utf-8",
++        )
++        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
++        observations = [
++            _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
++            for item in compare_payload.get("hook_observations", [])
++            if isinstance(item, dict)
++        ]
++        scripted_observation_count = len(observations)
++        scripted_write_monitor_health = (
++            dict(compare_payload.get("write_monitor_health", {}))
++            if isinstance(compare_payload.get("write_monitor_health"), dict)
++            else {}
++        )
++        scripted_write_ring_buffer = (
++            list(compare_payload.get("write_ring_buffer", []))
++            if isinstance(compare_payload.get("write_ring_buffer"), list)
++            else []
++        )
++        if not observations and scripted_write_ring_buffer:
++            observations.append(
++                {
++                    "candidate_hex": candidate_hex,
++                    "hook_name": "static_compare_callsite",
++                    "module_offset": "0x258c",
++                    "source": "scripted_write_monitor_health_only",
++                    "write_monitor_health": scripted_write_monitor_health,
++                    "write_ring_buffer": scripted_write_ring_buffer,
++                }
++            )
++        compare_probe_fallback_used = False
++        compare_probe_fallback_status = ""
++        if not _has_actual_compare_args(observations):
++            probe_out = candidate_dir / "compare_probe_static_callsite.json"
++            probe_log = candidate_dir / "compare_probe_static_callsite.log"
++            probe_command = [
++                sys.executable,
++                str(compare_probe_script),
++                "--target",
++                str(target),
++                "--out",
++                str(probe_out),
++                "--probe-hex",
++                candidate_hex,
++                "--per-probe-timeout",
++                str(max(float(per_probe_timeout), 2.0)),
++                "--capture-prefix-bytes",
++                str(RUNTIME_PREFIX_BYTES),
++            ]
++            if log:
++                log(f"CompareLHSLastWriterProvenanceAudit CompareProbe fallback {idx}: {candidate_hex}")
++            try:
++                probe_proc = _run_material_hook_runtime_command(
++                    probe_command,
++                    timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
++                )
++            except subprocess.TimeoutExpired as exc:
++                probe_proc = subprocess.CompletedProcess(
++                    probe_command,
++                    returncode=124,
++                    stdout=exc.stdout or "",
++                    stderr=exc.stderr or "",
++                )
++            probe_log.write_text(
++                f"[stdout]\n{probe_proc.stdout or ''}\n\n[stderr]\n{probe_proc.stderr or ''}",
++                encoding="utf-8",
++            )
++            probe_payload = _read_json_object(probe_out) if probe_out.exists() else {}
++            fallback_observation = _compare_probe_payload_to_static_callsite_observation(
++                probe_payload,
++                candidate_hex,
++            )
++            compare_probe_fallback_used = True
++            if fallback_observation:
++                fallback_observation["source"] = "compare_probe_fallback"
++                compare_probe_fallback_status = "compare_probe_fallback_captured_compare_args"
++                observations.append(
++                    _normalize_pre_compare_handoff_observation(fallback_observation, candidate_hex)
++                )
++            else:
++                compare_probe_fallback_status = "compare_probe_fallback_no_compare_args"
++        static_observations = [
++            observation
++            for observation in observations
++            if str(observation.get("hook_name", "")) == "static_compare_callsite"
++        ]
++        target_observation = next(
++            (observation for observation in static_observations if _pre_compare_compare_args(observation)),
++            static_observations[0] if static_observations else None,
++        )
++        if target_observation is not None:
++            if not target_observation.get("write_monitor_health") and scripted_write_monitor_health:
++                target_observation["write_monitor_health"] = dict(scripted_write_monitor_health)
++            if not target_observation.get("write_ring_buffer") and scripted_write_ring_buffer:
++                target_observation["write_ring_buffer"] = list(scripted_write_ring_buffer)
++        observations = sorted(
++            observations,
++            key=lambda item: 0
++            if str(item.get("hook_name", "")) == "static_compare_callsite"
++            and _pre_compare_compare_args(item)
++            else 1,
++        )
++        if not scripted_output_exists:
++            scripted_hook_status = "scripted_hook_missing"
++        elif scripted_observation_count <= 0:
++            scripted_hook_status = "scripted_hook_no_observations"
++        else:
++            scripted_hook_status = "scripted_hook_observed"
++        candidate_results.append(
++            {
++                "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
++                "candidate_hex": candidate_hex,
++                "candidate_prefix": candidate_hex[:16],
++                "runtime_backed": bool(observations),
++                "hook_observations": observations[:160],
++                "write_monitor_health": scripted_write_monitor_health,
++                "write_ring_buffer": scripted_write_ring_buffer,
++                "scripted_hook_status": scripted_hook_status,
++                "scripted_output_exists": scripted_output_exists,
++                "scripted_returncode": int(getattr(proc, "returncode", 0) or 0),
++                "scripted_observation_count": scripted_observation_count,
++                "scripted_error": error or str(compare_payload.get("error", "")),
++                "scripted_stdout_preview": str(getattr(proc, "stdout", "") or "")[:2000],
++                "scripted_stderr_preview": str(getattr(proc, "stderr", "") or "")[:2000],
++                "compare_probe_fallback_used": compare_probe_fallback_used,
++                "compare_probe_fallback_status": compare_probe_fallback_status,
++                "result_path": str(compare_out),
++                "log_path": str(compare_log),
++                "success": bool(compare_payload.get("success")) and not error,
++                "error": error or str(compare_payload.get("error", "")),
++            }
++        )
++
++    payload = build_compare_lhs_last_writer_provenance_audit_payload(
++        candidate_results=candidate_results,
++        hook_points=hook_points,
++        static_audit=static_audit,
++        source_real_lhs_payload=real_lhs_payload,
++        run_name=run_name,
++    )
++    _write_json(result_path, payload)
++    if log:
++        log(f"Compare lhs last-writer provenance audit wrote {result_path}")
++    return {
++        "result_path": str(result_path),
++        "payload": payload,
++        "validations": candidate_results,
++        "promotable_validations": [],
++    }
++
++
+ def _compare_esi_source_window_hook_points() -> list[dict[str, object]]:
+     return [
+         {
+diff --git a/tests/test_compare_aware_search_strategy.py b/tests/test_compare_aware_search_strategy.py
+index e43513b..b92633d 100644
+--- a/tests/test_compare_aware_search_strategy.py
++++ b/tests/test_compare_aware_search_strategy.py
+@@ -23,6 +23,7 @@ from reverse_agent.strategies.compare_aware_search import (
+     COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME,
+     COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME,
+     COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
++    COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME,
+     COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME,
+     COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME,
+     COMPARE_PRODUCER_MATERIAL_CONFIRMATION_FILE_NAME,
+@@ -73,6 +74,7 @@ from reverse_agent.strategies.compare_aware_search import (
+     build_compare_lhs_slot_writer_predecessor_audit_payload,
+     build_compare_lhs_slot_writer_source_audit_payload,
+     build_compare_lhs_upstream_writer_audit_payload,
++    build_compare_lhs_last_writer_provenance_audit_payload,
+     build_compare_esi_source_window_audit_payload,
+     build_compare_real_lhs_provenance_audit_payload,
+     build_post_handoff_branch_outcome_audit_payload,
+@@ -89,6 +91,7 @@ from reverse_agent.strategies.compare_aware_search import (
+     run_compare_lhs_slot_writer_predecessor_audit,
+     run_compare_lhs_slot_writer_source_audit,
+     run_compare_lhs_upstream_writer_audit,
++    run_compare_lhs_last_writer_provenance_audit,
+     run_compare_esi_source_window_audit,
+     run_compare_real_lhs_provenance_audit,
+     run_compare_pre_compare_handoff_target_probe,
+@@ -8035,6 +8038,178 @@ def test_compare_real_lhs_last_writer_breakpoint_gate_requires_transform_materia
+     assert payload["breakpoint_probe_allowed"] is True
+ 
+ 
++def test_compare_lhs_last_writer_payload_maps_runtime_writer_schema() -> None:
++    candidates = []
++    for candidate_hex, ptr, preview in [
++        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
++        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
++    ]:
++        candidates.append(
++            _compare_real_lhs_candidate_result(
++                candidate_hex,
++                ptr,
++                preview,
++                write_events=[_last_writer_event(ptr, preview)],
++                write_monitor_health=_write_monitor_health(
++                    raw_write_count=5,
++                    filtered_intersecting_write_count=1,
++                ),
++            )
++        )
++
++    payload = build_compare_lhs_last_writer_provenance_audit_payload(
++        candidate_results=candidates,
++        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
++        run_name="bounded_last_writer_test",
++    )
++
++    assert payload["artifact_kind"] == "compare_lhs_last_writer_provenance_audit"
++    assert payload["classification"] == "runtime_backed_last_writer_identified"
++    assert payload["compare_site"] == "0x258c"
++    assert payload["candidate_input_hex"] == "78d540b49c59077041414141414141"
++    assert payload["arg0_lhs_ptr"] == "0x1100"
++    assert payload["arg0_lhs_preview"].startswith("aa")
++    assert payload["last_writer"]["instruction"] == "mov dword ptr [edi], eax"
++    assert payload["last_writer"]["module_offset"] == "0x2400"
++    assert payload["observations"][0]["arg0_lhs_ptr"] == "0x1100"
++    assert payload["bounded_failures"] == []
++    assert payload["base64_rc4_breakpoint_probe_run"] is False
++
++
++def test_compare_lhs_last_writer_payload_reports_compare_reached_but_writer_missing() -> None:
++    candidates = []
++    for candidate_hex, ptr, preview in [
++        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
++        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
++    ]:
++        candidates.append(
++            _compare_real_lhs_candidate_result(
++                candidate_hex,
++                ptr,
++                preview,
++                write_events=[],
++                write_monitor_health=_write_monitor_health(raw_write_count=3),
++            )
++        )
++
++    payload = build_compare_lhs_last_writer_provenance_audit_payload(
++        candidate_results=candidates,
++        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
++    )
++
++    assert payload["classification"] == "compare_reached_but_writer_missing"
++    assert payload["last_writer"] == {}
++    assert "none intersected actual arg0" in " ".join(payload["bounded_failures"])
++    assert payload["next_allowed_probe"] == "narrow bounded write attribution before Base64/RC4 probe"
++
++
++def test_compare_lhs_last_writer_payload_reports_instrumentation_incomplete() -> None:
++    candidates = []
++    for candidate_hex, ptr, preview in [
++        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
++        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
++    ]:
++        candidates.append(
++            _compare_real_lhs_candidate_result(
++                candidate_hex,
++                ptr,
++                preview,
++                write_events=[],
++                write_monitor_health=_write_monitor_health(
++                    raw_write_count=0,
++                    followed_thread_count=0,
++                    activation_status="waiting_for_hook_observation",
++                    selected_thread_id="",
++                    follow_attempt_stage="",
++                ),
++            )
++        )
++
++    payload = build_compare_lhs_last_writer_provenance_audit_payload(
++        candidate_results=candidates,
++        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
++    )
++
++    assert payload["classification"] == "instrumentation_incomplete"
++    assert "did not follow a runtime thread" in " ".join(payload["bounded_failures"])
++
++
++def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
++    tmp_path: Path, monkeypatch
++) -> None:
++    target = tmp_path / "samplereverse.exe"
++    target.write_bytes(b"MZ")
++    scripted_candidates: list[str] = []
++
++    def fake_run(*args, **kwargs):  # noqa: ANN002, ANN003
++        command = list(args[0])
++        script_name = Path(command[1]).name
++        out_path = Path(command[command.index("--out") + 1])
++        candidate_hex = command[command.index("--probe-hex") + 1]
++        scripted_candidates.append(candidate_hex)
++        previews = {
++            "78d540b49c59077041414141414141": ("0x1100", "aa" * 32),
++            "5a3e7f46ddd474d041414141414141": ("0x2200", "bb" * 32),
++        }
++        ptr, preview = previews[candidate_hex]
++        if script_name == "compare_lhs_last_writer_provenance.py":
++            out_path.write_text(
++                json.dumps(
++                    {
++                        "success": True,
++                        "hook_observations": [],
++                        "write_monitor_health": _write_monitor_health(
++                            raw_write_count=3,
++                            filtered_intersecting_write_count=1,
++                        ),
++                        "write_ring_buffer": [_last_writer_event(ptr, preview)],
++                    }
++                ),
++                encoding="utf-8",
++            )
++        elif script_name == "compare_probe.py":
++            out_path.write_text(
++                json.dumps(
++                    {
++                        "success": True,
++                        "compare_site": "0x40258c",
++                        "lhs_ptr": ptr,
++                        "rhs_ptr": "0x5000",
++                        "compare_count": 5,
++                        "lhs_wide_hex": preview,
++                        "rhs_wide_hex": "66006c00610067007b00",
++                        "esi_ptr": ptr,
++                        "esi_preview_hex": preview,
++                    }
++                ),
++                encoding="utf-8",
++            )
++        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
++
++    monkeypatch.setattr(compare_aware_search.subprocess, "run", fake_run)
++
++    result = run_compare_lhs_last_writer_provenance_audit(
++        target=target,
++        artifacts_dir=tmp_path / "compare_lhs_last_writer_provenance_audit",
++        transform_model=SamplereverseTransformModel(),
++        per_probe_timeout=0.5,
++        real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
++        log=lambda _: None,
++    )
++
++    payload = result["payload"]
++    assert Path(str(result["result_path"])).name == COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME
++    assert payload["classification"] == "runtime_backed_last_writer_identified"
++    assert payload["candidate_inputs_hex"] == [
++        "78d540b49c59077041414141414141",
++        "5a3e7f46ddd474d041414141414141",
++    ]
++    assert sorted(set(scripted_candidates)) == sorted(payload["candidate_inputs_hex"])
++    assert payload["hook_points"][0]["module_offset"] == 0x258C
++    assert payload["hook_points"][1]["module_offset"] == 0x2559
++    assert payload["hook_points"][2]["module_offset"] == 0x1B50
++
++
+ def test_compare_probe_fallback_observation_carries_esi_snapshot() -> None:
+     observation = compare_aware_search._compare_probe_payload_to_static_callsite_observation(
+         {

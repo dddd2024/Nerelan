@@ -68,6 +68,7 @@ COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
     "compare_callsite_reanchor_and_lhs_provenance_audit.json"
 )
 COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME = "compare_real_lhs_provenance_audit.json"
+COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME = "compare_lhs_last_writer_provenance_audit.json"
 COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME = "compare_esi_source_window_audit.json"
 COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME = "compare_lhs_slot_writer_source_audit.json"
 COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME = "compare_lhs_slot_writer_predecessor_audit.json"
@@ -222,6 +223,10 @@ COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES = (
 COMPARE_LHS_UPSTREAM_WRITER_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_CANDIDATES = (
+    "78d540b49c59077041414141414141",
+    "5a3e7f46ddd474d041414141414141",
+)
 COMPARE_ESI_SOURCE_WINDOW_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
@@ -318,6 +323,10 @@ def _compare_callsite_reanchor_and_lhs_provenance_audit_script_path() -> Path:
 
 def _compare_real_lhs_provenance_audit_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_real_lhs_provenance_audit.py"
+
+
+def _compare_lhs_last_writer_provenance_audit_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_lhs_last_writer_provenance.py"
 
 
 def _compare_esi_source_window_audit_script_path() -> Path:
@@ -3421,6 +3430,7 @@ def _artifact_file_name_for_kind(kind: str) -> str:
             COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME
         ),
         "compare_real_lhs_provenance_audit": COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME,
+        "compare_lhs_last_writer_provenance_audit": COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME,
         "compare_esi_source_window_audit": COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
         "compare_lhs_slot_writer_source_audit": COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_FILE_NAME,
         "compare_lhs_slot_writer_predecessor_audit": COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_FILE_NAME,
@@ -13915,6 +13925,469 @@ def run_compare_real_lhs_provenance_audit(
     _write_json(result_path, payload)
     if log:
         log(f"Compare real-lhs provenance audit wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
+        "promotable_validations": [],
+    }
+
+
+def _compare_lhs_last_writer_provenance_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "static_compare_callsite",
+            "module_offset": 0x258C,
+            "instruction": "call 0x5028ac",
+            "role": "actual_arg0_lhs_compare",
+            "capture_write_ring": True,
+        },
+        {
+            "name": "post_handoff_lhs_reload",
+            "module_offset": 0x2559,
+            "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+            "role": "post_handoff_lhs_reload",
+        },
+        {
+            "name": "handoff_helper_candidate",
+            "module_offset": 0x1B50,
+            "instruction": "handoff helper candidate",
+            "role": "bounded_upstream_helper_candidate",
+            "capture_leave": True,
+        },
+    ]
+
+
+def _compare_lhs_last_writer_static_audit(
+    target: Path,
+    hook_points: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    try:
+        data = target.read_bytes()
+    except Exception:
+        data = b""
+    sections = _pe_sections_for_rva_mapping(data)
+    sizes = {0x258C: 5, 0x2559: 6, 0x1B50: 1}
+    return {
+        "classification": "static_compare_lhs_last_writer_audit_complete"
+        if data and sections
+        else "static_compare_lhs_last_writer_audit_partial",
+        "bounded_scope": {
+            "compare_site": "0x258c",
+            "post_handoff_lhs_reload": "0x2559",
+            "handoff_helper_candidate": "0x1b50",
+        },
+        "instruction_boundaries": [
+            {
+                "name": point.get("name", ""),
+                "rva": f"0x{int(point.get('module_offset', 0) or 0):x}",
+                "size": sizes.get(int(point.get("module_offset", 0) or 0), 1),
+                "instruction": point.get("instruction", ""),
+                "bytes_hex": _read_rva_bytes(
+                    data,
+                    sections,
+                    int(point.get("module_offset", 0) or 0),
+                    sizes.get(int(point.get("module_offset", 0) or 0), 1),
+                ),
+                "boundary_status": "instruction_confirmed"
+                if int(point.get("module_offset", 0) or 0) in {0x258C, 0x2559}
+                else "bounded_helper_entry",
+            }
+            for point in hook_points
+        ],
+    }
+
+
+def _compare_lhs_last_writer_actual_compare(
+    candidate_results: Sequence[dict[str, object]],
+    source_real_lhs_payload: dict[str, object] | None,
+) -> dict[str, object]:
+    actual_compare = _compare_callsite_side_summary(candidate_results)
+    expected_count = len(candidate_results)
+    if expected_count and int(actual_compare.get("observed_count", 0) or 0) >= expected_count:
+        actual_compare["entry_status"] = "confirmed"
+    source_actual = (
+        source_real_lhs_payload.get("actual_compare", {})
+        if isinstance(source_real_lhs_payload, dict)
+        else {}
+    )
+    if isinstance(source_actual, dict):
+        for key in ("lhs_side", "flag_side"):
+            if not actual_compare.get(key) or actual_compare.get(key) == "unknown":
+                actual_compare[key] = source_actual.get(key, actual_compare.get(key, "unknown"))
+    return actual_compare
+
+
+def _compare_lhs_last_writer_bounded_failures(
+    *,
+    classification: str,
+    actual_compare: dict[str, object],
+    last_writer_summary: dict[str, object],
+    candidate_results: Sequence[dict[str, object]],
+) -> list[str]:
+    failures: list[str] = []
+    if classification == "blocked_by_environment":
+        errors = sorted({str(item.get("error", "") or item.get("scripted_error", "")) for item in candidate_results})
+        return [f"runtime sidecar blocked: {', '.join(item for item in errors if item) or 'environment unavailable'}"]
+    if str(actual_compare.get("entry_status", "")) != "confirmed":
+        failures.append("0x258c compare arg capture incomplete")
+    if str(actual_compare.get("lhs_side", "")) != "arg0":
+        failures.append("arg0 real LHS side not confirmed in this bounded audit")
+    health = last_writer_summary.get("write_monitor_health", {})
+    health = health if isinstance(health, dict) else {}
+    if not health.get("enabled"):
+        failures.append("write monitor did not report enabled state")
+    elif int(health.get("followed_thread_count", 0) or 0) <= 0:
+        failures.append("write monitor did not follow a runtime thread")
+    elif int(health.get("raw_write_count", 0) or 0) <= 0:
+        failures.append("write monitor followed a thread but captured no raw writes")
+    elif int(health.get("filtered_intersecting_write_count", 0) or 0) <= 0:
+        failures.append("raw writes were captured but none intersected actual arg0 before 0x258c")
+    if classification == "writer_candidate_identified_but_not_runtime_backed":
+        failures.append("writer-like events did not runtime-connect to all bounded arg0 buffers")
+    return failures
+
+
+def _compare_lhs_last_writer_classification(
+    *,
+    actual_compare: dict[str, object],
+    last_writer_summary: dict[str, object],
+    last_writer_candidates: Sequence[dict[str, object]],
+    candidate_results: Sequence[dict[str, object]],
+) -> str:
+    expected_count = len(candidate_results)
+    if expected_count and all(
+        str(item.get("error", "") or item.get("scripted_error", "")).strip()
+        and not item.get("hook_observations")
+        for item in candidate_results
+    ):
+        return "blocked_by_environment"
+    if expected_count <= 0 or str(actual_compare.get("entry_status", "")) != "confirmed":
+        return "instrumentation_incomplete"
+    if str(actual_compare.get("lhs_side", "")) != "arg0":
+        return "instrumentation_incomplete"
+    health = last_writer_summary.get("write_monitor_health", {})
+    health = health if isinstance(health, dict) else {}
+    if int(health.get("observed_candidate_count", 0) or 0) < expected_count:
+        return "instrumentation_incomplete"
+    if not health.get("enabled") or int(health.get("followed_thread_count", 0) or 0) <= 0:
+        return "instrumentation_incomplete"
+    if not last_writer_candidates:
+        return "compare_reached_but_writer_missing"
+    runtime_backed = int(last_writer_summary.get("runtime_backed_count", 0) or 0)
+    match_count = int(last_writer_summary.get("match_count", 0) or 0)
+    if runtime_backed >= expected_count and match_count >= expected_count:
+        return "runtime_backed_last_writer_identified"
+    return "writer_candidate_identified_but_not_runtime_backed"
+
+
+def build_compare_lhs_last_writer_provenance_audit_payload(
+    *,
+    candidate_results: Sequence[dict[str, object]],
+    hook_points: Sequence[dict[str, object]] | None = None,
+    static_audit: dict[str, object] | None = None,
+    source_real_lhs_payload: dict[str, object] | None = None,
+    run_name: str = "",
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+) -> dict[str, object]:
+    actual_compare = _compare_lhs_last_writer_actual_compare(candidate_results, source_real_lhs_payload)
+    last_writer_summary, writer_rows, write_ring_buffer, _ = _compare_real_lhs_last_writer_summary(
+        candidate_results,
+        actual_compare,
+    )
+    classification = _compare_lhs_last_writer_classification(
+        actual_compare=actual_compare,
+        last_writer_summary=last_writer_summary,
+        last_writer_candidates=writer_rows,
+        candidate_results=candidate_results,
+    )
+    arg0_values = actual_compare.get("arg0_value_by_candidate", {})
+    arg0_previews = actual_compare.get("arg0_preview_by_candidate", {})
+    arg0_values = arg0_values if isinstance(arg0_values, dict) else {}
+    arg0_previews = arg0_previews if isinstance(arg0_previews, dict) else {}
+    first_candidate = next((str(item.get("candidate_hex", "")) for item in candidate_results), "")
+    first_writer = writer_rows[0] if writer_rows else {}
+    last_writer = (
+        {
+            "instruction": first_writer.get("instruction", ""),
+            "address": first_writer.get("instruction_address", "") or first_writer.get("address", ""),
+            "module_offset": first_writer.get("module_offset", ""),
+            "write_size": first_writer.get("size", 0),
+            "write_preview": first_writer.get("after_preview_hex", ""),
+            "call_stack": first_writer.get("call_stack", []),
+        }
+        if first_writer
+        else {}
+    )
+    observations = []
+    for result in candidate_results:
+        candidate_hex = str(result.get("candidate_hex", ""))
+        observations.append(
+            {
+                "candidate_input_hex": candidate_hex,
+                "arg0_lhs_ptr": arg0_values.get(candidate_hex, ""),
+                "arg0_lhs_preview": arg0_previews.get(candidate_hex, ""),
+                "scripted_hook_status": result.get("scripted_hook_status", ""),
+                "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
+                "write_monitor_health": result.get("write_monitor_health", {}),
+            }
+        )
+    bounded_failures = _compare_lhs_last_writer_bounded_failures(
+        classification=classification,
+        actual_compare=actual_compare,
+        last_writer_summary=last_writer_summary,
+        candidate_results=candidate_results,
+    )
+    return {
+        "schema_version": 1,
+        "artifact_kind": "compare_lhs_last_writer_provenance_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "classification": classification,
+        "compare_site": "0x258c",
+        "arg0_lhs_ptr": arg0_values.get(first_candidate, ""),
+        "arg0_lhs_preview": arg0_previews.get(first_candidate, ""),
+        "candidate_input_hex": first_candidate,
+        "candidate_inputs_hex": [str(item.get("candidate_hex", "")) for item in candidate_results],
+        "last_writer": last_writer,
+        "observations": observations,
+        "bounded_failures": bounded_failures,
+        "next_allowed_probe": "narrow bounded write attribution before Base64/RC4 probe"
+        if classification != "runtime_backed_last_writer_identified"
+        else "review runtime-backed writer before any material breakpoint probe",
+        "candidate_generation_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "base64_rc4_breakpoint_probe_run": False,
+        "source_real_lhs_classification": (source_real_lhs_payload or {}).get("classification", ""),
+        "hook_points": list(hook_points or []),
+        "static_audit": static_audit or {},
+        "actual_compare": actual_compare,
+        "write_monitor_health": last_writer_summary.get("write_monitor_health", {}),
+        "last_writer_summary": last_writer_summary,
+        "last_writer_candidates": writer_rows,
+        "write_ring_buffer": write_ring_buffer,
+        "candidate_execution_health": _compare_real_lhs_candidate_execution_health(candidate_results),
+        "candidate_results": list(candidate_results),
+        "promotable_validations": [],
+    }
+
+
+def run_compare_lhs_last_writer_provenance_audit(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel,
+    per_probe_timeout: float,
+    real_lhs_payload: dict[str, object] | None = None,
+    run_name: str = "",
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME
+    script_path = _compare_lhs_last_writer_provenance_audit_script_path()
+    compare_probe_script = _compare_probe_script_path()
+    hook_points = _compare_lhs_last_writer_provenance_hook_points()
+    static_audit = _compare_lhs_last_writer_static_audit(target, hook_points)
+    entries = list(COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_CANDIDATES)
+    labels = ("exact2_best", "exact1_frontier")
+    initial_payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=[],
+        hook_points=hook_points,
+        static_audit=static_audit,
+        source_real_lhs_payload=real_lhs_payload,
+        run_name=run_name,
+    )
+    initial_payload["candidate_count"] = len(entries)
+    _write_json(result_path, initial_payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Compare lhs last-writer provenance audit script missing: {script_path}")
+    if not compare_probe_script.exists():
+        raise RuntimeError(f"compare probe script missing: {compare_probe_script}")
+
+    points_path = artifacts_dir / "compare_lhs_last_writer_provenance_hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        compare_out = candidate_dir / COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME
+        compare_log = candidate_dir / "compare_lhs_last_writer_provenance_audit.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(compare_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            "",
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"CompareLHSLastWriterProvenanceAudit scripted hooks {idx}: {candidate_hex}")
+        try:
+            proc = _run_material_hook_runtime_command(
+                command,
+                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+            )
+            error = ""
+        except subprocess.TimeoutExpired as exc:
+            proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
+            error = "timeout"
+        scripted_output_exists = compare_out.exists()
+        compare_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        observations = [
+            _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        scripted_observation_count = len(observations)
+        scripted_write_monitor_health = (
+            dict(compare_payload.get("write_monitor_health", {}))
+            if isinstance(compare_payload.get("write_monitor_health"), dict)
+            else {}
+        )
+        scripted_write_ring_buffer = (
+            list(compare_payload.get("write_ring_buffer", []))
+            if isinstance(compare_payload.get("write_ring_buffer"), list)
+            else []
+        )
+        if not observations and scripted_write_ring_buffer:
+            observations.append(
+                {
+                    "candidate_hex": candidate_hex,
+                    "hook_name": "static_compare_callsite",
+                    "module_offset": "0x258c",
+                    "source": "scripted_write_monitor_health_only",
+                    "write_monitor_health": scripted_write_monitor_health,
+                    "write_ring_buffer": scripted_write_ring_buffer,
+                }
+            )
+        compare_probe_fallback_used = False
+        compare_probe_fallback_status = ""
+        if not _has_actual_compare_args(observations):
+            probe_out = candidate_dir / "compare_probe_static_callsite.json"
+            probe_log = candidate_dir / "compare_probe_static_callsite.log"
+            probe_command = [
+                sys.executable,
+                str(compare_probe_script),
+                "--target",
+                str(target),
+                "--out",
+                str(probe_out),
+                "--probe-hex",
+                candidate_hex,
+                "--per-probe-timeout",
+                str(max(float(per_probe_timeout), 2.0)),
+                "--capture-prefix-bytes",
+                str(RUNTIME_PREFIX_BYTES),
+            ]
+            if log:
+                log(f"CompareLHSLastWriterProvenanceAudit CompareProbe fallback {idx}: {candidate_hex}")
+            try:
+                probe_proc = _run_material_hook_runtime_command(
+                    probe_command,
+                    timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+                )
+            except subprocess.TimeoutExpired as exc:
+                probe_proc = subprocess.CompletedProcess(
+                    probe_command,
+                    returncode=124,
+                    stdout=exc.stdout or "",
+                    stderr=exc.stderr or "",
+                )
+            probe_log.write_text(
+                f"[stdout]\n{probe_proc.stdout or ''}\n\n[stderr]\n{probe_proc.stderr or ''}",
+                encoding="utf-8",
+            )
+            probe_payload = _read_json_object(probe_out) if probe_out.exists() else {}
+            fallback_observation = _compare_probe_payload_to_static_callsite_observation(
+                probe_payload,
+                candidate_hex,
+            )
+            compare_probe_fallback_used = True
+            if fallback_observation:
+                fallback_observation["source"] = "compare_probe_fallback"
+                compare_probe_fallback_status = "compare_probe_fallback_captured_compare_args"
+                observations.append(
+                    _normalize_pre_compare_handoff_observation(fallback_observation, candidate_hex)
+                )
+            else:
+                compare_probe_fallback_status = "compare_probe_fallback_no_compare_args"
+        static_observations = [
+            observation
+            for observation in observations
+            if str(observation.get("hook_name", "")) == "static_compare_callsite"
+        ]
+        target_observation = next(
+            (observation for observation in static_observations if _pre_compare_compare_args(observation)),
+            static_observations[0] if static_observations else None,
+        )
+        if target_observation is not None:
+            if not target_observation.get("write_monitor_health") and scripted_write_monitor_health:
+                target_observation["write_monitor_health"] = dict(scripted_write_monitor_health)
+            if not target_observation.get("write_ring_buffer") and scripted_write_ring_buffer:
+                target_observation["write_ring_buffer"] = list(scripted_write_ring_buffer)
+        observations = sorted(
+            observations,
+            key=lambda item: 0
+            if str(item.get("hook_name", "")) == "static_compare_callsite"
+            and _pre_compare_compare_args(item)
+            else 1,
+        )
+        if not scripted_output_exists:
+            scripted_hook_status = "scripted_hook_missing"
+        elif scripted_observation_count <= 0:
+            scripted_hook_status = "scripted_hook_no_observations"
+        else:
+            scripted_hook_status = "scripted_hook_observed"
+        candidate_results.append(
+            {
+                "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_observations": observations[:160],
+                "write_monitor_health": scripted_write_monitor_health,
+                "write_ring_buffer": scripted_write_ring_buffer,
+                "scripted_hook_status": scripted_hook_status,
+                "scripted_output_exists": scripted_output_exists,
+                "scripted_returncode": int(getattr(proc, "returncode", 0) or 0),
+                "scripted_observation_count": scripted_observation_count,
+                "scripted_error": error or str(compare_payload.get("error", "")),
+                "scripted_stdout_preview": str(getattr(proc, "stdout", "") or "")[:2000],
+                "scripted_stderr_preview": str(getattr(proc, "stderr", "") or "")[:2000],
+                "compare_probe_fallback_used": compare_probe_fallback_used,
+                "compare_probe_fallback_status": compare_probe_fallback_status,
+                "result_path": str(compare_out),
+                "log_path": str(compare_log),
+                "success": bool(compare_payload.get("success")) and not error,
+                "error": error or str(compare_payload.get("error", "")),
+            }
+        )
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidate_results,
+        hook_points=hook_points,
+        static_audit=static_audit,
+        source_real_lhs_payload=real_lhs_payload,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Compare lhs last-writer provenance audit wrote {result_path}")
     return {
         "result_path": str(result_path),
         "payload": payload,
