@@ -14077,8 +14077,17 @@ def _compare_lhs_last_writer_bounded_failures(
         for item in candidate_results
     ):
         failures.append("script timed out before any configured hook observation")
+    stages = {
+        str(item.get("instrumentation_failure_stage", "")).strip()
+        for item in candidate_results
+        if str(item.get("instrumentation_failure_stage", "")).strip()
+    }
     if str(actual_compare.get("entry_status", "")) != "confirmed":
         failures.append("0x258c compare arg capture incomplete")
+        if "stop_condition_before_compare" in stages:
+            failures.append("helper hook was observed but the bounded run did not reach 0x258c")
+    if "argument_extraction_failed" in stages:
+        failures.append("0x258c was observed but compare arguments were not extracted")
     if str(actual_compare.get("lhs_side", "")) != "arg0":
         failures.append("arg0 real LHS side not confirmed in this bounded audit")
     health = last_writer_summary.get("write_monitor_health", {})
@@ -14116,6 +14125,18 @@ def _compare_lhs_last_writer_failure_stage(
     }
     if statuses == {"scripted_hook_no_observations"} and 124 in returncodes:
         return "timeout_waiting_for_hook_observation"
+    candidate_stages = [
+        str(item.get("instrumentation_failure_stage", "")).strip()
+        for item in candidate_results
+        if str(item.get("instrumentation_failure_stage", "")).strip()
+    ]
+    for stage in (
+        "argument_extraction_failed",
+        "stop_condition_before_compare",
+        "same_process_compare_args_missing",
+    ):
+        if stage in candidate_stages:
+            return stage
     if str(actual_compare.get("entry_status", "")) != "confirmed":
         return "same_process_compare_args_missing"
     if int(health.get("observed_candidate_count", 0) or 0) <= 0:
@@ -14176,6 +14197,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
     run_name: str = "",
     sample: str = "samplereverse",
     profile: str = "samplereverse",
+    project_progress_log_handling: str = "untouched",
 ) -> dict[str, object]:
     candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
     same_process_candidate_results = _without_compare_probe_fallback_observations(candidate_results)
@@ -14233,6 +14255,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
                 "scripted_hook_status": result.get("scripted_hook_status", ""),
                 "scripted_returncode": result.get("scripted_returncode", None),
                 "instrumentation_failure_stage": result.get("instrumentation_failure_stage", ""),
+                "same_process_compare_args_captured": bool(result.get("same_process_compare_args_captured")),
                 "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
                 "compare_probe_fallback_status": result.get("compare_probe_fallback_status", ""),
                 "compare_probe_fallback_is_provenance": False
@@ -14271,6 +14294,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
         "compare_probe_fallback_used": compare_probe_fallback_used,
         "compare_probe_fallback_statuses": compare_probe_fallback_statuses,
         "compare_probe_fallback_is_provenance": False if compare_probe_fallback_used else False,
+        "project_progress_log_handling": project_progress_log_handling,
         "instrumentation_failure_stage": instrumentation_failure_stage,
         "last_writer": last_writer,
         "observations": observations,
@@ -14304,6 +14328,7 @@ def run_compare_lhs_last_writer_provenance_audit(
     per_probe_timeout: float,
     real_lhs_payload: dict[str, object] | None = None,
     run_name: str = "",
+    project_progress_log_handling: str = "untouched",
     log=None,
 ) -> dict[str, object]:
     _ = transform_model
@@ -14321,6 +14346,7 @@ def run_compare_lhs_last_writer_provenance_audit(
         static_audit=static_audit,
         source_real_lhs_payload=real_lhs_payload,
         run_name=run_name,
+        project_progress_log_handling=project_progress_log_handling,
     )
     initial_payload["candidate_count"] = len(entries)
     _write_json(result_path, initial_payload)
@@ -14489,10 +14515,28 @@ def run_compare_lhs_last_writer_provenance_audit(
         same_process_observations = [
             observation for observation in observations if not _is_compare_probe_fallback_observation(observation)
         ]
+        same_process_static_observation_count = len(
+            [
+                observation
+                for observation in same_process_observations
+                if str(observation.get("hook_name", "")) == "static_compare_callsite"
+            ]
+        )
+        helper_observation_count = len(
+            [
+                observation
+                for observation in same_process_observations
+                if str(observation.get("hook_name", "")) == "handoff_helper_candidate"
+            ]
+        )
         same_process_compare_args_captured = _has_actual_compare_args(same_process_observations)
         instrumentation_failure_stage = ""
         if scripted_hook_status == "scripted_hook_no_observations" and int(getattr(proc, "returncode", 0) or 0) == 124:
             instrumentation_failure_stage = "timeout_waiting_for_hook_observation"
+        elif same_process_static_observation_count > 0 and not same_process_compare_args_captured:
+            instrumentation_failure_stage = "argument_extraction_failed"
+        elif helper_observation_count > 0 and not same_process_static_observation_count:
+            instrumentation_failure_stage = "stop_condition_before_compare"
         elif not same_process_compare_args_captured:
             instrumentation_failure_stage = "same_process_compare_args_missing"
         elif scripted_write_monitor_health and int(scripted_write_monitor_health.get("followed_thread_count", 0) or 0) <= 0:
@@ -14512,7 +14556,10 @@ def run_compare_lhs_last_writer_provenance_audit(
                 "write_monitor_health": scripted_write_monitor_health,
                 "write_ring_buffer": scripted_write_ring_buffer,
                 "same_process_provenance": same_process_compare_args_captured,
+                "same_process_compare_args_captured": same_process_compare_args_captured,
                 "same_process_observation_count": len(same_process_observations),
+                "same_process_static_compare_observation_count": same_process_static_observation_count,
+                "helper_observation_count": helper_observation_count,
                 "instrumentation_failure_stage": instrumentation_failure_stage,
                 "scripted_hook_status": scripted_hook_status,
                 "scripted_output_exists": scripted_output_exists,
@@ -14537,6 +14584,7 @@ def run_compare_lhs_last_writer_provenance_audit(
         static_audit=static_audit,
         source_real_lhs_payload=real_lhs_payload,
         run_name=run_name,
+        project_progress_log_handling=project_progress_log_handling,
     )
     _write_json(result_path, payload)
     if log:

@@ -7580,6 +7580,7 @@ def _write_monitor_health(
     activation_status: str = "following_current_thread",
     selected_thread_id: str = "1",
     follow_attempt_stage: str = "upstream_candidate_context",
+    runtime_stage: str = "",
 ) -> dict[str, object]:
     return {
         "observed": True,
@@ -7587,6 +7588,7 @@ def _write_monitor_health(
         "activation_status": activation_status,
         "selected_thread_id": selected_thread_id,
         "follow_attempt_stage": follow_attempt_stage,
+        "runtime_stage": runtime_stage,
         "followed_thread_count": followed_thread_count,
         "raw_write_count": raw_write_count,
         "ring_capacity": 4096,
@@ -8074,6 +8076,7 @@ def test_compare_lhs_last_writer_payload_maps_runtime_writer_schema() -> None:
     assert payload["observations"][0]["arg0_lhs_ptr"] == "0x1100"
     assert payload["bounded_failures"] == []
     assert payload["base64_rc4_breakpoint_probe_run"] is False
+    assert payload["project_progress_log_handling"] == "untouched"
 
 
 def test_compare_lhs_last_writer_payload_reports_compare_reached_but_writer_missing() -> None:
@@ -8207,6 +8210,85 @@ def test_compare_lhs_last_writer_timeout_has_precise_failure_stage() -> None:
     assert payload["classification"] == "instrumentation_incomplete"
     assert payload["instrumentation_failure_stage"] == "timeout_waiting_for_hook_observation"
     assert "script timed out before any configured hook observation" in " ".join(payload["bounded_failures"])
+
+
+def test_compare_lhs_last_writer_helper_only_stage_is_stop_before_compare() -> None:
+    candidates = []
+    for candidate_hex in [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+    ]:
+        candidates.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "candidate_hex": candidate_hex,
+                        "hook_name": "handoff_helper_candidate",
+                        "module_offset": "0x1b50",
+                    }
+                ],
+                "write_monitor_health": _write_monitor_health(
+                    raw_write_count=11,
+                    runtime_stage="stop_condition_before_compare",
+                    follow_attempt_stage="handoff_helper_candidate",
+                ),
+                "scripted_hook_status": "scripted_hook_observed",
+                "scripted_returncode": 0,
+                "same_process_compare_args_captured": False,
+                "instrumentation_failure_stage": "stop_condition_before_compare",
+            }
+        )
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidates,
+        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+        project_progress_log_handling="reverted",
+    )
+
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["same_process_compare_args_captured"] is False
+    assert payload["instrumentation_failure_stage"] == "stop_condition_before_compare"
+    assert "did not reach 0x258c" in " ".join(payload["bounded_failures"])
+    assert payload["project_progress_log_handling"] == "reverted"
+
+
+def test_compare_lhs_last_writer_static_compare_without_args_reports_extraction_failure() -> None:
+    candidates = []
+    for candidate_hex in [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+    ]:
+        candidates.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_observations": [
+                    {
+                        "candidate_hex": candidate_hex,
+                        "hook_name": "static_compare_callsite",
+                        "module_offset": "0x258c",
+                        "compare_args": {},
+                    }
+                ],
+                "write_monitor_health": _write_monitor_health(
+                    raw_write_count=5,
+                    runtime_stage="static_compare_callsite_observed_no_args",
+                ),
+                "scripted_hook_status": "scripted_hook_observed",
+                "scripted_returncode": 0,
+                "same_process_compare_args_captured": False,
+                "instrumentation_failure_stage": "argument_extraction_failed",
+            }
+        )
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidates,
+        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+    )
+
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["instrumentation_failure_stage"] == "argument_extraction_failed"
+    assert "arguments were not extracted" in " ".join(payload["bounded_failures"])
 
 
 def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(

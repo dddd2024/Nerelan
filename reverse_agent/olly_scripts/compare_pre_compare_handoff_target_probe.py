@@ -229,6 +229,30 @@ def main() -> int:
             if stack:
                 script_errors.append(stack)
 
+    def observation_messages() -> list[dict[str, object]]:
+        return [
+            item
+            for item in messages
+            if str(item.get("type", "")) == "compare_pre_compare_handoff_target_observation"
+        ]
+
+    def has_compare_args(item: dict[str, object]) -> bool:
+        compare_args = item.get("compare_args", {})
+        return isinstance(compare_args, dict) and isinstance(compare_args.get("args"), list) and bool(compare_args["args"])
+
+    def static_compare_observations() -> list[dict[str, object]]:
+        return [
+            item
+            for item in observation_messages()
+            if str(item.get("hook_name", "")) == "static_compare_callsite"
+        ]
+
+    def helper_observed() -> bool:
+        return any(
+            str(item.get("hook_name", "")) == "handoff_helper_candidate"
+            for item in observation_messages()
+        )
+
     points_json = json.dumps(hook_points, ensure_ascii=True)
     expected_preview = str(args.expected_eax_preview or "").strip().lower()
     script_source = f"""
@@ -813,14 +837,22 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         while time.monotonic() < deadline:
             if script_errors:
                 raise RuntimeError(script_errors[-1])
-            if any(str(item.get("type", "")) == "compare_pre_compare_handoff_target_observation" for item in messages):
-                runtime_stage = "observation_captured"
+            static_observations = static_compare_observations()
+            if any(has_compare_args(item) for item in static_observations):
+                runtime_stage = "static_compare_callsite_observed"
                 break
+            if static_observations:
+                runtime_stage = "static_compare_callsite_observed_no_args"
+                break
+            if helper_observed():
+                runtime_stage = "helper_observed_waiting_for_static_compare"
             time.sleep(0.05)
     except Exception as exc:
         script_errors.append(_escape_runtime_text(str(exc)))
     finally:
-        if runtime_stage not in {"observation_captured"}:
+        if runtime_stage == "helper_observed_waiting_for_static_compare":
+            runtime_stage = "stop_condition_before_compare"
+        if runtime_stage not in {"static_compare_callsite_observed", "static_compare_callsite_observed_no_args"}:
             evidence.append(f"compare_pre_compare_handoff_target_probe:runtime_stage={runtime_stage}")
         try:
             if session is not None:
@@ -830,11 +862,7 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         if pid is not None:
             _terminate_target(app, pid)
 
-    observations = [
-        item
-        for item in messages
-        if str(item.get("type", "")) == "compare_pre_compare_handoff_target_observation"
-    ]
+    observations = observation_messages()
     health_messages = [
         item
         for item in messages
@@ -870,11 +898,14 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             for item in stage_messages
         )
     evidence.append(f"compare_pre_compare_handoff_target_probe:final_runtime_stage={runtime_stage}")
-    success = bool(observations) and not script_errors
+    static_observations = [
+        item for item in observations if str(item.get("hook_name", "")) == "static_compare_callsite"
+    ]
+    success = bool(static_observations) and not script_errors
     summary = (
-        "ComparePreCompareHandoffTargetProbe captured bounded handoff observations."
-        if observations
-        else "ComparePreCompareHandoffTargetProbe did not capture bounded handoff observations."
+        "ComparePreCompareHandoffTargetProbe captured the bounded static compare callsite."
+        if static_observations
+        else "ComparePreCompareHandoffTargetProbe did not reach the bounded static compare callsite."
     )
     return _write_payload(
         out_path,
