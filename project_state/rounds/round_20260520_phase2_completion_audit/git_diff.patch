@@ -1,0 +1,276 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 06fe90d..39a3842 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,102 +1,101 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_phase2d_harness_resource_budget_20260520",
+-  "round_id": "round_20260520_phase2d_harness_resource_budget",
+-  "based_on_decision_id": "decision_phase2d_harness_resource_budget_20260520",
++  "report_id": "report_phase2_completion_audit_20260520",
++  "round_id": "round_20260520_phase2_completion_audit",
++  "based_on_decision_id": "decision_phase2_completion_audit_20260520",
+   "status": "SUCCESS",
+   "acceptance_recommendation": "ACCEPTED",
+   "files_changed": [
+-    "reverse_agent/harness.py",
+-    "tests/test_harness_resource_budget.py",
++    "docs/phase2_harness_reproducibility_completion.md",
+     "project_state/codex_execution_report.md",
+     "project_state/pytest_result.txt"
+   ],
+   "tests_ran": [
+-    "python -m py_compile reverse_agent\\harness.py",
+-    "python -m pytest -q tests\\test_harness_resource_budget.py",
+-    "python -m pytest -q tests\\test_harness.py",
+     "python -m pytest -q tests\\test_harness_resume.py",
+     "python -m pytest -q tests\\test_harness_artifact_manifest.py",
+     "python -m pytest -q tests\\test_harness_compare.py",
++    "python -m pytest -q tests\\test_harness_resource_budget.py",
+     "python -m pytest -q",
+     "python -m reverse_agent.project_state status --state-dir project_state",
+     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
++    "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+     "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2d_harness_resource_budget"
++    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2_completion_audit"
+   ],
+   "generated_artifacts": [
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/round_manifest.json",
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/artifact_index.json",
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/current_state.json",
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/negative_results.json",
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/model_gate.json",
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/task_packet.json",
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/decision_packet.md",
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/codex_execution_report.md",
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/pytest_result.txt",
+-    "project_state/rounds/round_20260520_phase2d_harness_resource_budget/git_diff.patch"
++    "project_state/rounds/round_20260520_phase2_completion_audit/round_manifest.json",
++    "project_state/rounds/round_20260520_phase2_completion_audit/artifact_index.json",
++    "project_state/rounds/round_20260520_phase2_completion_audit/current_state.json",
++    "project_state/rounds/round_20260520_phase2_completion_audit/negative_results.json",
++    "project_state/rounds/round_20260520_phase2_completion_audit/model_gate.json",
++    "project_state/rounds/round_20260520_phase2_completion_audit/task_packet.json",
++    "project_state/rounds/round_20260520_phase2_completion_audit/decision_packet.md",
++    "project_state/rounds/round_20260520_phase2_completion_audit/codex_execution_report.md",
++    "project_state/rounds/round_20260520_phase2_completion_audit/pytest_result.txt",
++    "project_state/rounds/round_20260520_phase2_completion_audit/git_diff.patch"
+   ],
+-  "next_suggested_task": "Have GPT audit Phase 2D resource_budget manifest semantics before authorizing Phase 2E compare strict/path/round commit cleanup or returning to samplereverse runtime work."
++  "next_suggested_task": "Start Phase 3A or post-Phase-2 hardening only from a fresh decision packet; do not call it Phase 2E."
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-20 Phase 2D harness resource budget
++## 2026-05-21 Phase 2 completion audit
+ 
+-This pass implements the approved Phase 2D engineering branch from `project_state/decision_packet.md`. It adds a local `resource_budget` record to harness configuration and `run_manifest.json` for reproducibility auditing. It does not advance the `samplereverse` reverse-engineering mainline, run runtime probes, modify `compare_aware_search.py`, modify `olly_scripts`, modify `project_state.py`, change GPT/Codex handoff schemas, enforce process kills, delete artifacts, crop candidates, or implement queue/backpressure/worker scheduling.
++This pass executes `decision_phase2_completion_audit_20260520`. It audits the completed Phase 2A-D harness reproducibility branch, writes a bounded completion report, and corrects the earlier Phase 2E naming into Phase 3 or post-Phase-2 hardening. It does not modify harness functionality, project_state protocol semantics, reverse strategies, Olly scripts, pipeline behavior, tool runners, or the `samplereverse` runtime mainline.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| Current timeout or budget fields | Existing harness config had `copilot_timeout_seconds`; `ToolAutomationConfig` had `ida_timeout_seconds` and `ollydbg_timeout_seconds`. No existing local resource budget structure was present. |
+-| Existing timeout manifest recording | `copilot_timeout_seconds` is written directly into `pipeline_defaults`; IDA/Olly timeouts are written under `pipeline_defaults.tool_config`. |
+-| Manifest config structure | `_build_manifest()` builds `config_payload`, hashes it as `config_digest`, writes it as `pipeline_defaults`, and keeps top-level manifest fields such as `schema_version`, `status`, `run_name`, `run_dir`, `started_at`, `dataset_digest`, `git_commit`, and `case_ids`. |
+-| Resource budget placement | `resource_budget` is written at top level for direct audit visibility and inside `pipeline_defaults` so it is part of the preserved config payload. |
+-| Config digest decision | `resource_budget` is included in `config_digest`; changing a budget for the same `run_name` is rejected as a different harness config, preserving resume compatibility. |
+-| CLI naming | Added `--max-case-seconds`, `--max-tool-seconds`, `--max-artifact-bytes`, `--max-recent-artifacts`, `--max-context-pack-bytes`, `--max-candidate-count`, and `--max-probe-candidates`. These names do not conflict with existing operational timeout arguments. |
+-| Defaults | Defaults match the decision packet: `21600`, `300`, `52428800`, `20`, `1048576`, `5000`, and `50`. |
+-| Legal values | Each budget value must be a positive integer or `None` / JSON `null`. CLI accepts `null` and `none` case-insensitively. |
+-| Rejected values | Negative, zero, non-integer, and boolean-like programmatic values are rejected before a run is accepted. |
+-| Enforcement behavior | Phase 2D only records the budget. It does not override Copilot, IDA, or Olly timeouts, does not terminate processes, does not delete artifacts, and does not modify candidate/probe counts. |
+-| Equivalent existing feature | No equivalent local `resource_budget` structure was present, so a small harness-owned dataclass was added. |
+-| Runtime/probe/solve_reports risk | Implementation and tests use temporary harness runs and mocked `run_pipeline`; no runtime probe, model call, reverse-engineering sidecar, or full `solve_reports` scan is introduced. |
+-| Phase 2C limitations | Compare strictness for missing runs, artifact manifest path schema, and round manifest commit semantics were not changed or expanded; they remain follow-up items. |
++| Phase 2A-D round metadata | All four archived rounds have readable `decision_packet.md`, `codex_execution_report.md`, `pytest_result.txt`, and `round_manifest.json`. |
++| Report summaries | Each archived report has a `codex_report_summary` with `status=SUCCESS` and `acceptance_recommendation=ACCEPTED`. |
++| Decision binding | Each archived report `based_on_decision_id` matches its archived decision: Phase 2A resume, Phase 2B case artifact manifest, Phase 2C harness compare, and Phase 2D resource budget. |
++| Real pytest evidence | Each archived `pytest_result.txt` records real command results, including focused phase tests and full pytest. |
++| Round manifests | Each Phase 2A-D round has an archived `round_manifest.json`. |
++| Live lint before report | Pre-report `lint-decision` passed for `decision_phase2_completion_audit_20260520`; pre-report `lint-handoff` passed as `READY_FOR_CODEX` with the expected previous Phase 2D report mismatch. |
++| Forbidden files | Archived diffs show no changes to `reverse_agent/strategies/compare_aware_search.py` or `reverse_agent/olly_scripts/*`. Phase 2B changed `reverse_agent/project_state.py` for artifact ingestion, but the decision/report/handoff schema was not changed. |
++| Runtime probes | Phase 2A-D reports state that no reverse runtime probe, pipeline/model call, or `samplereverse` solving work was run for those engineering phases. This completion audit also ran no runtime probe. |
++| Functional boundaries | Phase 2A maps to resume semantics, Phase 2B to case artifact manifest ingestion, Phase 2C to harness compare, and Phase 2D to resource budget recording. |
++| Naming correction | Phase 2D's "Phase 2E" next-task wording is corrected here. Phase 2E is not an official phase. |
++| Phase 3 backlog | Compare strict behavior, artifact path schema, round manifest commit semantics, and archive diff replayability are Phase 3 or post-Phase-2 hardening items. |
++| Current implementation scope | This round only adds `docs/phase2_harness_reproducibility_completion.md` and updates live report/result handoff files before archive; no functional code is changed. |
++
++## Completion Report
+ 
+-## Implementation
++Generated `docs/phase2_harness_reproducibility_completion.md` with:
+ 
+-- Added `ResourceBudget` to `reverse_agent.harness` and attached it to `HarnessConfig` with decision-packet defaults.
+-- Added positive-integer-or-null CLI parsing for the seven local budget arguments.
+-- Wrote budget values into `run_manifest.json` both as top-level `resource_budget` and `pipeline_defaults.resource_budget`.
+-- Kept existing manifest fields and timeout fields compatible; `resource_budget` is not passed into `run_pipeline`.
+-- Added focused resource budget regression tests for defaults, digest mismatch, nullable CLI values, invalid CLI values, programmatic validation, and runtime kwargs isolation.
++- Phase 2 scope limited to A-D.
++- Acceptance matrix for each phase with decision, report, round, status, tests, and review result.
++- Completed capability summaries for resume semantics, artifact manifests, harness compare, and resource budget recording.
++- Evidence paths for archived decisions, reports, pytest results, and manifests.
++- Known limitations and Phase 3 backlog.
++- Explicit closure: Phase 2 A-D is complete, and there is no Phase 2E.
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+-| `python -m py_compile reverse_agent\harness.py` | passed |
+-| `python -m pytest -q tests\test_harness_resource_budget.py` | `9 passed in 0.37s` |
+-| `python -m pytest -q tests\test_harness.py` | `5 passed in 0.34s` |
+-| `python -m pytest -q tests\test_harness_resume.py` | `6 passed in 0.42s` |
++| `python -m pytest -q tests\test_harness_resume.py` | `6 passed in 0.57s` |
+ | `python -m pytest -q tests\test_harness_artifact_manifest.py` | `3 passed in 0.27s` |
+-| `python -m pytest -q tests\test_harness_compare.py` | `9 passed in 0.30s` |
+-| `python -m pytest -q` | `384 passed in 48.71s` |
+-| `python -m reverse_agent.project_state status --state-dir project_state` | passed; active decision is Phase 2D and report is consumed |
+-| `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
+-| `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed with expected `round_id` warning against current sample state |
+-| `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed as `REVIEW_COMPLETE` with expected `round_id` warning |
+-| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2d_harness_resource_budget` | passed; command returned exit code 0 with no console output |
++| `python -m pytest -q tests\test_harness_compare.py` | `9 passed in 0.43s` |
++| `python -m pytest -q tests\test_harness_resource_budget.py` | `9 passed in 0.31s` |
++| `python -m pytest -q` | `384 passed in 56.86s` |
++| pre-report `python -m reverse_agent.project_state status --state-dir project_state` | passed; active decision is `decision_phase2_completion_audit_20260520`, previous report is Phase 2D, and `decision_ready_for_execution: True` |
++| pre-report `python -m reverse_agent.project_state lint-decision --state-dir project_state` | `lint-decision: OK` |
++| pre-report `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | `lint-handoff: OK`; expected previous-report mismatch, `handoff_state: READY_FOR_CODEX` |
++| final `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed after this report was written |
++| final `python -m reverse_agent.project_state lint-handoff --state-dir project_state` | passed after this report was written |
++| `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2_completion_audit` | passed; archive created for this completion audit round |
+ 
+ ## State Notes
+ 
+-- The active state still references the sample-derived task and `sr_lhs_thread_follow_timing_20260520_r4`; this pass intentionally followed `execution_scope=decision_packet_controls_current_round` and treated `project_state/decision_packet.md` as authoritative.
+-- No `samplereverse` artifacts were rebuilt and no harness runtime probe was run.
+-- Phase 2D project_state lint and archive-round verification passed.
++- `task_packet.task` and `current_state` still reflect the sample-derived `Improve compare lhs last-writer instrumentation` state. This round follows `execution_scope=decision_packet_controls_current_round`, so `project_state/decision_packet.md` is the active authority.
++- No `solve_reports` scan, runtime sidecar, reverse probe, beam/budget widening, or strategy work was performed.
++- The correct next label for any follow-up is Phase 3A or post-Phase-2 hardening, not Phase 2E.
+ 
+ ## Next Suggested Task
+ 
+-Have GPT audit the Phase 2D `resource_budget` manifest contract and archive. Do not start Phase 2E compare strict/path/round commit cleanup or return to `samplereverse` runtime work until a fresh decision packet explicitly authorizes it.
++Have GPT review the Phase 2 completion audit and archive. If accepted, future engineering work should be authorized as Phase 3A or post-Phase-2 hardening from a fresh decision packet.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index 79c5ef4..34a5e6c 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,45 +1,89 @@
+-2026-05-20 Phase 2D harness resource budget validation
++2026-05-21 Phase 2 completion audit validation
+ 
+-python -m py_compile reverse_agent\harness.py
+-RESULT: passed
+-
+-python -m pytest -q tests\test_harness_resource_budget.py
+-RESULT: 9 passed in 0.37s
++Scope:
++- Execute only `decision_phase2_completion_audit_20260520`.
++- Do not modify harness functionality or project_state protocol semantics.
++- Do not run reverse runtime probes, pipeline/model calls, or samplereverse solving work.
++- Do not read or submit full solve_reports.
+ 
+-python -m pytest -q tests\test_harness.py
+-RESULT: 5 passed in 0.34s
++Archived Phase 2A-D evidence audit:
++- `round_20260520_phase2a_harness_resume_policy`: decision/report/pytest/round_manifest present; report status SUCCESS; based_on_decision_id matches decision.
++- `round_20260520_phase2b_case_artifact_manifest`: decision/report/pytest/round_manifest present; report status SUCCESS; based_on_decision_id matches decision.
++- `round_20260520_phase2c_harness_compare`: decision/report/pytest/round_manifest present; report status SUCCESS; based_on_decision_id matches decision.
++- `round_20260520_phase2d_harness_resource_budget`: decision/report/pytest/round_manifest present; report status SUCCESS; based_on_decision_id matches decision.
++- Archived diffs show no changes to `reverse_agent/strategies/compare_aware_search.py` or `reverse_agent/olly_scripts/*`.
++- Phase 2B modified `reverse_agent/project_state.py` for artifact manifest ingestion, not for GPT/Codex handoff schema changes.
++- Phase 2A-D did not run reverse runtime probes or advance samplereverse runtime work.
++- Phase 2E is not an official phase; compare strict, artifact path schema, round manifest commit semantics, and archive diff replayability are Phase 3 or post-Phase-2 hardening backlog.
+ 
+ python -m pytest -q tests\test_harness_resume.py
+-RESULT: 6 passed in 0.42s
++RESULT: passed
++6 passed in 0.57s
+ 
+ python -m pytest -q tests\test_harness_artifact_manifest.py
+-RESULT: 3 passed in 0.27s
++RESULT: passed
++3 passed in 0.27s
+ 
+ python -m pytest -q tests\test_harness_compare.py
+-RESULT: 9 passed in 0.30s
++RESULT: passed
++9 passed in 0.43s
++
++python -m pytest -q tests\test_harness_resource_budget.py
++RESULT: passed
++9 passed in 0.31s
+ 
+ python -m pytest -q
+-RESULT: 384 passed in 48.71s
++RESULT: passed
++384 passed in 56.86s
+ 
+-python -m reverse_agent.project_state status --state-dir project_state
++Pre-report python -m reverse_agent.project_state status --state-dir project_state
+ RESULT: passed
+-decision_id: decision_phase2d_harness_resource_budget_20260520
++decision_id: decision_phase2_completion_audit_20260520
+ report_id: report_phase2d_harness_resource_budget_20260520
+-decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+-decision_ready_for_execution: False
++decision_execution_state: READY_FOR_EXECUTION
++decision_ready_for_execution: True
++decision_report_id_match: False
++note: expected pre-report mismatch because the live report still referenced Phase 2D.
+ 
+-python -m reverse_agent.project_state lint-decision --state-dir project_state
++Pre-report python -m reverse_agent.project_state lint-decision --state-dir project_state
+ RESULT: lint-decision: OK
++decision_id: decision_phase2_completion_audit_20260520
+ 
+-python -m reverse_agent.project_state lint-report --state-dir project_state
++Pre-report python -m reverse_agent.project_state lint-handoff --state-dir project_state
++RESULT: lint-handoff: OK
++handoff_state: READY_FOR_CODEX
++decision_execution_state: READY_FOR_EXECUTION
++decision_ready_for_execution: True
++decision_report_id_match: False
++lint_report_ok: False
++note: expected pre-report mismatch because report.based_on_decision_id still pointed at Phase 2D.
++
++Final python -m reverse_agent.project_state lint-report --state-dir project_state
+ RESULT: lint-report: OK
+ warning: report round_id does not match current_state.round_id
++report_id: report_phase2_completion_audit_20260520
++report_status: SUCCESS
++acceptance_recommendation: ACCEPTED
++based_on_decision_id: decision_phase2_completion_audit_20260520
++decision_id: decision_phase2_completion_audit_20260520
++decision_report_id_match: True
++round_id: round_20260520_phase2_completion_audit
++current_state_round_id: round_20260520_052928
++tests_ran_count: 11
++generated_artifacts_count: 10
++pytest_result_present: True
+ 
+-python -m reverse_agent.project_state lint-handoff --state-dir project_state
++Final python -m reverse_agent.project_state lint-handoff --state-dir project_state
+ RESULT: lint-handoff: OK
+ warning: report round_id does not match current_state.round_id
+ handoff_state: REVIEW_COMPLETE
++decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
++decision_ready_for_execution: False
++decision_report_id_match: True
++lint_decision_ok: True
++lint_report_ok: True
+ 
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2d_harness_resource_budget
++python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260520_phase2_completion_audit
+ RESULT: passed
+ Command returned exit code 0 with no console output.
++Archive generated under project_state\rounds\round_20260520_phase2_completion_audit.
