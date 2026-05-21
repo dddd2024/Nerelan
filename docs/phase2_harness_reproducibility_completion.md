@@ -15,12 +15,12 @@ This completion audit does not advance the `samplereverse` runtime mainline, run
 
 ## Acceptance Matrix
 
-| phase | decision_id | report_id | round_id | status | tests | GPT review result |
-|---|---|---|---|---|---|---|
-| Phase 2A | `decision_phase2a_harness_resume_policy_20260520` | `report_phase2a_harness_resume_policy_20260520` | `round_20260520_phase2a_harness_resume_policy` | `SUCCESS` | `tests/test_harness_resume.py`: 6 passed; full pytest: 360 passed | `ACCEPTED` |
-| Phase 2B | `decision_phase2b_case_artifact_manifest_20260520` | `report_phase2b_case_artifact_manifest_20260520` | `round_20260520_phase2b_case_artifact_manifest` | `SUCCESS` | `tests/test_harness_artifact_manifest.py`: 3 passed; `tests/test_project_state.py`: 104 passed; full pytest: 366 passed | `ACCEPTED` |
-| Phase 2C | `decision_phase2c_harness_compare_20260520` | `report_phase2c_harness_compare_20260520` | `round_20260520_phase2c_harness_compare` | `SUCCESS` | `tests/test_harness_compare.py`: 9 passed; full pytest: 375 passed | `ACCEPTED` |
-| Phase 2D | `decision_phase2d_harness_resource_budget_20260520` | `report_phase2d_harness_resource_budget_20260520` | `round_20260520_phase2d_harness_resource_budget` | `SUCCESS` | `tests/test_harness_resource_budget.py`: 9 passed; full pytest: 384 passed | `ACCEPTED` |
+| phase | decision_id | report_id | round_id | status | tests | Codex acceptance_recommendation | GPT review result |
+|---|---|---|---|---|---|---|---|
+| Phase 2A | `decision_phase2a_harness_resume_policy_20260520` | `report_phase2a_harness_resume_policy_20260520` | `round_20260520_phase2a_harness_resume_policy` | `SUCCESS` | `tests/test_harness_resume.py`: 6 passed; full pytest: 360 passed | `ACCEPTED` | `ACCEPTED_WITH_LIMITATIONS` |
+| Phase 2B | `decision_phase2b_case_artifact_manifest_20260520` | `report_phase2b_case_artifact_manifest_20260520` | `round_20260520_phase2b_case_artifact_manifest` | `SUCCESS` | `tests/test_harness_artifact_manifest.py`: 3 passed; `tests/test_project_state.py`: 104 passed; full pytest: 366 passed | `ACCEPTED` | `ACCEPTED_WITH_LIMITATIONS` |
+| Phase 2C | `decision_phase2c_harness_compare_20260520` | `report_phase2c_harness_compare_20260520` | `round_20260520_phase2c_harness_compare` | `SUCCESS` | `tests/test_harness_compare.py`: 9 passed; full pytest: 375 passed | `ACCEPTED` | `ACCEPTED_WITH_LIMITATIONS` |
+| Phase 2D | `decision_phase2d_harness_resource_budget_20260520` | `report_phase2d_harness_resource_budget_20260520` | `round_20260520_phase2d_harness_resource_budget` | `SUCCESS` | `tests/test_harness_resource_budget.py`: 9 passed; full pytest: 384 passed | `ACCEPTED` | `ACCEPTED_WITH_LIMITATIONS` |
 
 ## Completed Capabilities
 
@@ -61,7 +61,8 @@ Current completion-audit verification on 2026-05-21:
 ## Audit Findings
 
 - Phase 2A-D archived decision, report, pytest result, and round manifest files are present and readable.
-- Each archived report has `status=SUCCESS`, `acceptance_recommendation=ACCEPTED`, and a `based_on_decision_id` matching the archived decision for that phase.
+- Each archived report has `status=SUCCESS`, Codex `acceptance_recommendation=ACCEPTED`, and a `based_on_decision_id` matching the archived decision for that phase.
+- GPT review results for Phase 2A-D are `ACCEPTED_WITH_LIMITATIONS`; the `ACCEPTED` value is retained only as Codex's `acceptance_recommendation`.
 - Each archived phase records real pytest evidence in its archived `pytest_result.txt`.
 - Phase 2A-D did not modify `reverse_agent/strategies/compare_aware_search.py` or `reverse_agent/olly_scripts/*`.
 - Phase 2B modified `reverse_agent/project_state.py` for artifact manifest ingestion, but Phase 2A-D did not change the GPT/Codex decision/report/handoff schema.
