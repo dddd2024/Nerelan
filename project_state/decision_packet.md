@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_samplereverse_sidecar_hook_install_vs_compareprobe_divergence_20260521",
-  "round_id": "round_20260521_samplereverse_sidecar_hook_install_vs_compareprobe_divergence",
+  "decision_id": "decision_samplereverse_sidecar_hook_install_message_error_audit_20260522",
+  "round_id": "round_20260522_samplereverse_sidecar_hook_install_message_error_audit",
   "based_on_state_build_id": "state_20260520_052928_8a77e6637c6c",
   "based_on_state_digest": "8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d",
   "status": "APPROVED"
@@ -13,28 +13,30 @@
 
 本轮继续 `samplereverse` 逆向解题主线。
 
-上一轮 `decision_samplereverse_sidecar_no_hook_observation_root_cause_20260521` 的 Codex 报告是可信的 `PARTIAL / REWORK_REQUIRED`：它没有把失败伪装成成功，并把 sidecar 退化问题收窄为 `timeout_before_hook_install`。但核心问题仍未解决：`compare_pre_compare_handoff_target_probe.py` 这条 sidecar 路径没有 emit `hooks_installed`，`hook_count=0`，而 `compare_probe.py` 仍然能通过 fallback 捕获 diagnostic `0x258c` compare args。
+上一轮 Codex 报告 `report_samplereverse_sidecar_hook_install_vs_compareprobe_divergence_20260521` 是可信的 `PARTIAL / REWORK_REQUIRED`：它没有把失败伪装成成功，并补充了 hook-install 层面的可观察字段。但核心目标仍未完成：sidecar 已到达 `script_load_status=loaded`、`spawn_attach_resume_status=resumed`、`ui_trigger_status=button_triggered`，却仍然没有确认 `hooks_installed`，`hook_count=0`、`requested_hook_count=3`。同时，当前代码里 `frida_message_error_count = len(script_errors)` 存在语义风险：它统计的是 Python/脚本异常列表，不是 Frida message error 列表，可能掩盖 `compare_pre_compare_handoff_target_error`。
 
-本轮目标不是推进候选搜索，也不是恢复大范围 runtime probing，而是对比 sidecar 与 CompareProbe 的 Frida script load / hook install / invocation 差异，找到为什么 sidecar 无法确认 hook 安装。
+本轮目标不是推进候选搜索，也不是运行 Base64/RC4 breakpoint probe，而是修复并验证 sidecar hook-install observability 的可信度，尤其是 Frida message error、per-hook install result、hooks_installed stage 是否 seen。
 
 ## 1. Goal
 
 本轮目标：
 
 ```text
-1. 审计 compare_pre_compare_handoff_target_probe.py 为什么在 bounded sidecar run 中只写出 script_started，未 emit hooks_installed。
-2. 审计 compare_probe.py 为什么仍能捕获 diagnostic compare args，明确它与 sidecar 在 spawn/attach/resume、script.load、module base/RVA 计算、hook point schema、message handling、timeout/stop condition、UI trigger 上的差异。
-3. 修复或最小化改造 sidecar hook-install observability，使 artifact 至少能区分：script_load_failed、js_compile_error、module_not_found、hook_install_failed、hook_installed_but_target_not_reached、ui_trigger_failed。
-4. 保持 two-candidate bounded scope；不新增候选，不扩大 beam/budget/topN/frontier iteration，不运行 Base64/RC4 breakpoint probe。
-5. 如果能修复 hook install，重新运行 bounded sidecar，目标至少恢复到 helper/write-monitor 可观察状态；如果仍失败，report.status 必须是 PARTIAL 或 BLOCKED，不能写 SUCCESS。
+1. 审计并修复 compare_pre_compare_handoff_target_probe.py 中 hook-install observability 的错误或不完整之处。
+2. 明确区分 Frida message error、Python exception、script load/compile error、hook install error。
+3. 对 0x258c / 0x2559 / 0x1b50 三个 bounded hook point 输出逐点 install result。
+4. 解释 script.load 已返回 loaded 后，为什么没有可信的 hooks_installed/hook_count 证据。
+5. 继续保持 CompareProbe fallback 只作为 diagnostic，不得把 fallback compare args 当作 provenance。
+6. 保持 two-candidate bounded scope；不新增候选，不扩大 beam/budget/topN/frontier iteration，不运行 Base64/RC4 breakpoint probe。
 ```
 
 最低可接受推进：
 
 ```text
-A. 明确解释 sidecar 没有 hooks_installed 的根因，或给出 BLOCKED 且说明缺失日志/环境。
-B. 明确解释 CompareProbe fallback 能捕获 compare args 而 sidecar 不能的差异点。
-C. 新 artifact 必须包含 hook-install 层面的可执行证据，不得只重复 timeout_before_hook_install。
+A. 修复 frida_message_error_count 的语义，使其真实统计 Frida message error 数量。
+B. artifact 能明确输出 hooks_installed_stage_seen、hook_install_error_count、python_exception_count、per_hook_install_results。
+C. 如果仍无法确认 hook install，必须明确说明是 JS 没执行到 send、message handler 未收到、Interceptor.attach 失败、module/offset 问题、进程提前结束、还是环境 BLOCKED。
+D. 如果关键日志/artifact 不足以判断，report.status 必须是 BLOCKED 或 PARTIAL，不得写 SUCCESS。
 ```
 
 ## 2. Current Evidence
@@ -96,60 +98,42 @@ runtime_backed_count = 0
 Base64/RC4 breakpoint probe remains blocked
 ```
 
-上一轮 GPT 审计结论：
+上一轮 Codex runtime artifact 摘要：
 
 ```text
-ACCEPTED_WITH_LIMITATIONS
-
-原因：
-1. decision/report 绑定正确。
-2. Codex 没有再把失败 runtime 标成 SUCCESS。
-3. root cause 被收窄到 timeout_before_hook_install。
-4. 测试、lint、archive 记录完整。
-5. 没有再次写 PROJECT_PROGRESS_LOG.txt。
-6. 没有违反 Base64/RC4 probe、旧 solver、扩大搜索等禁止方向。
-7. 但核心 sidecar 仍未恢复 hook observation，也未解决 CompareProbe 与 sidecar 可观察性差异。
-```
-
-上一轮 runtime artifact 摘要：
-
-```text
-run_name = sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1
+run_name = sr_lhs_last_writer_sidecar_hook_install_vs_compareprobe_divergence_20260521_r1
 classification = instrumentation_incomplete
 instrumentation_failure_stage = timeout_before_hook_install
 root_cause_hypothesis = timeout_before_hook_install
 hook_install_status = not_confirmed
 hook_count = 0
-spawn_attach_resume_status = empty / not confirmed
-ui_trigger_status = empty / not confirmed
+requested_hook_count = 3
+script_load_status = loaded
+script_load_error = empty
+frida_message_error_count = 0
+spawn_attach_resume_status = resumed
+ui_trigger_status = button_triggered
 helper_observation_count = 0
 static_compare_observation_count = 0
 same_process_compare_args_captured = false
 diagnostic_compare_args_captured = true
 compare_probe_fallback_used = true
 compare_probe_fallback_is_provenance = false
-write_monitor_health.observed_candidate_count = 2
-write_monitor_health.followed_thread_count = 0
-write_monitor_health.raw_write_count = 0
-write_monitor_health.filtered_intersecting_write_count = 0
-write_monitor_health.runtime_stages = [script_started]
+runtime_backed_writer_identified = false
 project_progress_log_handling = untouched
 ```
 
-需要对比的前序 sidecar run：
+上一轮审计结论：
 
 ```text
-sr_lhs_last_writer_sidecar_fix_20260521_r1:
-  classification = instrumentation_incomplete
-  instrumentation_failure_stage = same_process_compare_args_missing
-  same_process_compare_args_captured = false
-  diagnostic_compare_args_captured = true
-  compare_probe_fallback_used = true
-  compare_probe_fallback_is_provenance = false
-  write_monitor_health.observed_candidate_count = 2
-  write_monitor_health.followed_thread_count = 1
-  write_monitor_health.raw_write_count = 323
-  write_monitor_health.filtered_intersecting_write_count = 0
+REWORK_REQUIRED
+
+原因：
+1. decision/report 绑定正确，但核心目标仍未完成。
+2. Codex 只把 no-hook 现象细化到 loaded/resumed/button_triggered/hook_count=0/requested=3，没有解释 3 个 hook 为什么都未确认安装。
+3. compare_pre_compare_handoff_target_probe.py 中 frida_message_error_count = len(script_errors) 语义可疑，可能没有统计 Frida message error。
+4. 本轮 sidecar artifact 未提交到 GitHub，网页侧只能复核 report/pytest_result，不能直接复核 runtime JSON。
+5. round_manifest.source_git_commit 仍可能偏旧，archive provenance 需要谨慎对待。
 ```
 
 artifact freshness 现状：
@@ -162,13 +146,9 @@ current in live artifact_index.latest_artifacts_v2:
   run_manifest
   summary
 
-not in live artifact_index.latest_artifacts_v2:
-  sr_lhs_last_writer_sidecar_fix_20260521_r1 compare_lhs_last_writer_provenance_audit
-  sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1 compare_lhs_last_writer_provenance_audit
-  sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1 compare_lhs_last_writer_provenance_audit
+本轮 sidecar artifact 不在 live artifact_index.latest_artifacts_v2 current 范围内。
+不得把本轮 sidecar artifact 当作 live indexed current artifact，除非重新 build project_state 并明确 source_run/freshness。
 ```
-
-sidecar artifacts 可从本地路径有界读取，但不得当作 live indexed current artifact。
 
 ## 3. Do Not Do
 
@@ -208,8 +188,8 @@ project_state/negative_results.json
 project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
-project_state/rounds/round_20260521_samplereverse_sidecar_no_hook_observation_root_cause/round_manifest.json
-project_state/rounds/round_20260521_samplereverse_sidecar_no_hook_observation_root_cause/git_diff.patch
+project_state/rounds/round_20260521_samplereverse_sidecar_hook_install_vs_compareprobe_divergence/round_manifest.json
+project_state/rounds/round_20260521_samplereverse_sidecar_hook_install_vs_compareprobe_divergence/git_diff.patch
 reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
 reverse_agent/olly_scripts/compare_probe.py
 reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
@@ -225,20 +205,14 @@ solve_reports/harness_runs/sr_lhs_thread_follow_timing_20260520_r4/reports/tool_
 solve_reports/harness_runs/sr_lhs_thread_follow_timing_20260520_r4/reports/tool_artifacts/samplereverse_patched/samplereverse_patched_compare_probe.log
 ```
 
-允许有界读取 sidecar artifacts/logs：
+允许有界读取上一轮 sidecar artifacts/logs，但不得扫描完整 `solve_reports/`：
 
 ```text
-solve_reports/harness_runs/sr_lhs_last_writer_sidecar_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json
-solve_reports/harness_runs/sr_lhs_last_writer_sidecar_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/candidate_1/*
-solve_reports/harness_runs/sr_lhs_last_writer_sidecar_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/candidate_2/*
-
-solve_reports/harness_runs/sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json
-solve_reports/harness_runs/sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/candidate_1/*
-solve_reports/harness_runs/sr_lhs_last_writer_sidecar_compare_args_scope_fix_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/candidate_2/*
-
-solve_reports/harness_runs/sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json
-solve_reports/harness_runs/sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/candidate_1/*
-solve_reports/harness_runs/sr_lhs_last_writer_sidecar_no_hook_observation_root_cause_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/candidate_2/*
+solve_reports/harness_runs/sr_lhs_last_writer_sidecar_hook_install_vs_compareprobe_divergence_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json
+solve_reports/harness_runs/sr_lhs_last_writer_sidecar_hook_install_vs_compareprobe_divergence_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/c1.json
+solve_reports/harness_runs/sr_lhs_last_writer_sidecar_hook_install_vs_compareprobe_divergence_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/c1.log
+solve_reports/harness_runs/sr_lhs_last_writer_sidecar_hook_install_vs_compareprobe_divergence_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/c2.json
+solve_reports/harness_runs/sr_lhs_last_writer_sidecar_hook_install_vs_compareprobe_divergence_20260521_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/c2.log
 ```
 
 如果上述 artifact/log 本地不存在，不要扫描完整 `solve_reports/`；报告 `BLOCKED`，或者重新运行 bounded sidecar 并说明缺失路径。
@@ -249,17 +223,16 @@ solve_reports/harness_runs/sr_lhs_last_writer_sidecar_no_hook_observation_root_c
 
 ```text
 1. 当前 decision_id、state_build_id、state_digest。
-2. 为什么上一轮只能 ACCEPTED_WITH_LIMITATIONS，而不是 ACCEPTED。
-3. sidecar 的 `timeout_before_hook_install` 是从哪些 artifact/log 字段推导出来的。
-4. compare_pre_compare_handoff_target_probe.py 的 Frida script lifecycle：spawn -> attach -> create_script -> script.on -> script.load -> hooks_installed send -> resume -> UI trigger。
-5. compare_probe.py 的等价 lifecycle，逐项对比 sidecar 差异。
-6. 两者是否使用相同 target path、module base 获取方法、RVA/module_offset 解析、hook point 数组 schema。
-7. sidecar JS 是否存在编译/语法错误、异常被吞掉、send stage message 在 script.load 前失败、或 script_errors 未进入 artifact 的情况。
-8. sidecar 是否因为 Path(sys.argv[0]).stem / wrapper entrypoint / direct execution 造成 artifact kind、cwd、relative path、args 或 timeout 行为差异。
-9. sidecar 是否在 script.load 前写 initial payload 后 subprocess 被 timeout 杀死，导致 hooks_installed 未发送。
-10. CompareProbe fallback 为什么能捕获 diagnostic compare args；是否因为它用不同 wait condition、不同 hook address、不同 UI trigger、不同 process lifetime。
-11. 是否能用最小 dry-run/hook-install check 在不扩大候选的情况下确认 sidecar JS hook install。
-12. 本轮是否需要重建 project_state；如需要只能运行 project_state build/status，不得手动编辑 state JSON。
+2. 为什么上一轮是 REWORK_REQUIRED，而不是 ACCEPTED。
+3. on_message 中 compare_pre_compare_handoff_target_error 如何进入 messages。
+4. errors 与 script_errors 的语义差异。
+5. frida_message_error_count 当前是否错误统计为 len(script_errors)。
+6. hook_install_error_count 应如何统计。
+7. hooks_installed stage 是否可能 hook_count=0 但仍应出现。
+8. 如果 hooks_installed stage 完全没有出现，原因更可能是 JS 未执行到 send、message handler 未接收、进程被杀、script source 语法/运行异常，还是 hook loop 被提前中断。
+9. 每个 hook point 的 install result 是否可逐点输出：0x258c, 0x2559, 0x1b50。
+10. CompareProbe fallback 为什么能捕获 diagnostic compare args；它和 sidecar 的 Frida script lifecycle / hook schema / wait condition / process lifetime 有哪些仍未解释的差异。
+11. 是否需要重建 project_state；如需要只能运行 project_state build/status，不得手动编辑 state JSON。
 ```
 
 ## 6. Implementation Scope
@@ -281,28 +254,6 @@ reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
 reverse_agent/olly_scripts/compare_probe.py
 ```
 
-修改目的只能是：
-
-```text
-1. 增加 sidecar hook-install observability。
-2. 暴露 JS compile/load/hook-install errors。
-3. 对齐 CompareProbe 与 sidecar 的 hook schema 或 module base/RVA conversion。
-4. 增加 bounded dry-run/hook-install check。
-5. 复用 compare_probe 的已验证 hook install/capture 逻辑，但不得改变 CompareProbe 既有输出语义。
-```
-
-允许生成 runtime artifact，但不要提交完整 solve_reports：
-
-```text
-solve_reports/harness_runs/<run_name>/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json
-```
-
-允许归档：
-
-```text
-project_state/rounds/round_20260521_samplereverse_sidecar_hook_install_vs_compareprobe_divergence/*
-```
-
 不要修改：
 
 ```text
@@ -317,14 +268,21 @@ project_state/schema.md
 docs/phase2_harness_reproducibility_completion.md
 ```
 
-如确需刷新 project_state，只能运行：
+必须修复或明确证明无需修复：
 
-```powershell
-python -m reverse_agent.project_state build
-python -m reverse_agent.project_state status --state-dir project_state
+```text
+1. frida_message_error_count 应统计 Frida message error 数量，而不是只统计 script_errors。
+2. artifact 必须区分：
+   - python_exception_count
+   - frida_message_error_count
+   - hook_install_error_count
+   - hooks_installed_stage_seen
+   - hooks_installed_stage_hook_count
+   - per_hook_install_results
+3. per_hook_install_results 至少包含每个 hook point 的 name、module_offset、install_status、address、error。
+4. 如果 hooks_installed stage seen 但 hook_count=0，应输出 hook loop completed with zero installed，而不是 generic timeout。
+5. 如果 hooks_installed stage not seen，但 script_load_status=loaded，应输出具体 root_cause_evidence，说明 stage message 缺失点。
 ```
-
-并在 report 中说明原因。
 
 ### 6.1 Required sidecar behavior
 
@@ -341,10 +299,9 @@ candidate 2: 5a3e7f46ddd474d041414141414141
 必须做到以下之一：
 
 ```text
-A. 修复 hook install observability：artifact 能确认 hooks_installed/hook_count，并继续解释是否到达 helper/static compare。
-B. 恢复到 helper/write monitor 可观察状态，并解释为何还不到 0x258c。
-C. 捕获 same-process 0x258c compare args，并进入 compare_reached_but_writer_missing 或 runtime_backed_last_writer_identified。
-D. 若仍无法 hook install，classification/report 必须明确 BLOCKED 或 PARTIAL，并写出 script_load_failed/js_compile_error/module_not_found/hook_install_failed 等具体阶段。
+A. 修复 hook install observability，artifact 能确认 hooks_installed_stage_seen/hook_count/per_hook_install_results。
+B. 明确定位 hook install 失败原因，例如 module/offset invalid、Interceptor.attach failed、message handler missed stage、JS execution interrupted。
+C. 如果仍不能定位，报告 BLOCKED，并说明缺失的最小日志或环境条件。
 ```
 
 如果使用 CompareProbe fallback：
@@ -382,9 +339,14 @@ root_cause_evidence
 hook_install_status
 hook_count
 requested_hook_count
+hooks_installed_stage_seen
+hooks_installed_stage_hook_count
+per_hook_install_results
+hook_install_error_count
+python_exception_count
+frida_message_error_count
 script_load_status
 script_load_error
-frida_message_error_count
 spawn_attach_resume_status
 ui_trigger_status
 helper_observation_count
@@ -397,13 +359,6 @@ base64_rc4_breakpoint_probe_run = false
 candidate_generation_changed = false
 beam_budget_topn_timeout_frontier_limit_expanded = false
 project_progress_log_handling = untouched
-```
-
-如果没有确认 writer：
-
-```text
-bounded_failures 必须可执行，不得只写 unknown 或 generic timeout。
-next_allowed_probe 必须仍然是 bounded hook-install / last-writer instrumentation 修复方向，不得跳到 Base64/RC4 probe。
 ```
 
 ## 7. Tests
@@ -430,27 +385,41 @@ python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenan
 python -m py_compile reverse_agent\olly_scripts\compare_probe.py
 ```
 
+必须新增或更新测试覆盖：
+
+```text
+1. Frida message error 与 Python exception 分开统计。
+2. compare_pre_compare_handoff_target_error 会增加 frida_message_error_count 或 hook_install_error_count。
+3. script load/compile exception 会增加 python_exception_count 或 script_load_error，不应伪装为 hook install error。
+4. hooks_installed stage seen 但 hook_count=0 时，classification/root_cause_evidence 不能只是 generic timeout。
+5. hooks_installed stage not seen 且 script_load_status=loaded 时，artifact 要明确 stage message 缺失。
+6. per_hook_install_results 必须包含 0x258c / 0x2559 / 0x1b50 三个 bounded hook point。
+7. CompareProbe fallback 不能使 runtime_backed_last_writer_identified 成立。
+8. candidate set remains exactly two bounded candidates unless explicit fixture overrides it。
+```
+
 如果 runtime 环境可用，必须重新跑 bounded sidecar，并记录：
 
 ```text
 run_name
 candidate_inputs_hex
-scripted_hook_status
-scripted_returncode
-final_runtime_stage
+hooks_installed_stage_seen
+hooks_installed_stage_hook_count
 hook_install_status
 hook_count
 requested_hook_count
+per_hook_install_results
+hook_install_error_count
+frida_message_error_count
+python_exception_count
 script_load_status
 script_load_error
-frida_message_error_count
 spawn_attach_resume_status
 ui_trigger_status
 helper_observation_count
 static_compare_observation_count
 same_process_compare_args_captured
-followed_thread_count
-raw_write_count
+diagnostic_compare_args_captured
 compare_probe_fallback_used
 compare_probe_fallback_is_provenance=false
 compare_probe_sidecar_diff
@@ -463,7 +432,7 @@ root_cause_evidence
 ```powershell
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state lint-handoff --state-dir project_state
-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260521_samplereverse_sidecar_hook_install_vs_compareprobe_divergence
+python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260522_samplereverse_sidecar_hook_install_message_error_audit
 ```
 
 注意：
@@ -473,42 +442,27 @@ python -m reverse_agent.project_state archive-round --state-dir project_state --
 如果关键 artifact/log 缺失导致无法判断，report.status 必须是 BLOCKED。
 ```
 
-### 7.1 Required unit tests
-
-新增或更新测试必须覆盖：
-
-```text
-1. no hooks_installed message maps to timeout_before_hook_install or script_load_failed with explicit root_cause_evidence。
-2. JS compile/load error maps to script_load_failed or js_compile_error。
-3. hook install error messages are counted and surfaced as hook_install_failed / partial_or_failed。
-4. installed hooks but no helper/static observation maps to timeout_after_ui_trigger_before_helper or helper_hook_not_reached。
-5. helper observed but static compare missing maps to helper_hook_reached_but_static_compare_missing。
-6. static compare observed without args maps to argument_extraction_failed。
-7. CompareProbe fallback cannot make runtime_backed_last_writer_identified。
-8. same-process compare args + raw writes but no intersecting write maps to compare_reached_but_writer_missing。
-9. candidate set remains exactly two bounded candidates unless an explicit test fixture overrides it。
-```
-
 ## 8. Stop Conditions
 
 遇到以下情况必须停止并报告：
 
 ```text
-1. 只能重复 timeout_before_hook_install，但不能新增 hook-install 层面的 evidence。
-2. 无法读取必要 sidecar/CompareProbe logs，也无法重新运行 bounded sidecar。
-3. 需要回旧 sample_solver。
-4. 需要只靠扩大 beam/budget/topN/timeout 才能推进。
-5. 需要在 real LHS writer/provenance 识别前运行 Base64/RC4 breakpoint probe。
-6. 需要把 stale artifact 当作 current evidence。
-7. 需要手动编辑 task_packet.json / current_state.json / artifact_index.json / negative_results.json。
-8. 需要读取或提交完整 solve_reports。
-9. 需要使用 compare_semantics_agree=false candidate 作为主线。
-10. 需要重复 negative_results 中已禁止的 exact2 basin 或 H1/H3 contrast 方向。
-11. 需要把 CompareProbe fallback 当成 provenance。
-12. 无法保证 compare args 与 write events 来自同一 process/thread，却仍想输出 runtime_backed_last_writer_identified。
-13. 无法让 report.based_on_decision_id 绑定当前 decision_id。
-14. 无法让 pytest_result.txt 记录真实测试和 runtime/blocked 状态。
-15. 需要继续写 PROJECT_PROGRESS_LOG.txt。
+1. 仍只能得到 loaded/resumed/button_triggered/hook_count=0，但不能说明 hooks_installed stage 是否 seen。
+2. 无法区分 Frida message error 与 Python exception。
+3. 无法输出 per-hook install result。
+4. 无法读取必要 sidecar/CompareProbe logs，也无法重新运行 bounded sidecar。
+5. 需要回旧 sample_solver。
+6. 需要只靠扩大 beam/budget/topN/timeout 才能推进。
+7. 需要在 real LHS writer/provenance 识别前运行 Base64/RC4 breakpoint probe。
+8. 需要把 stale artifact 当作 current evidence。
+9. 需要手动编辑 task_packet.json / current_state.json / artifact_index.json / negative_results.json。
+10. 需要读取或提交完整 solve_reports。
+11. 需要使用 compare_semantics_agree=false candidate 作为主线。
+12. 需要把 CompareProbe fallback 当成 provenance。
+13. 无法保证 compare args 与 write events 来自同一 process/thread，却仍想输出 runtime_backed_last_writer_identified。
+14. 无法让 report.based_on_decision_id 绑定当前 decision_id。
+15. 无法让 pytest_result.txt 记录真实测试和 runtime/blocked 状态。
+16. 需要继续写 PROJECT_PROGRESS_LOG.txt。
 ```
 
 ## Acceptance Criteria
@@ -516,16 +470,18 @@ python -m reverse_agent.project_state archive-round --state-dir project_state --
 本轮可接受条件：
 
 ```text
-1. codex_report_summary 存在，based_on_decision_id 指向 decision_samplereverse_sidecar_hook_install_vs_compareprobe_divergence_20260521。
-2. 必须解释 sidecar 为什么没有 emit hooks_installed，或明确 BLOCKED。
-3. 必须对比 CompareProbe fallback 与 sidecar 的可观察性差异。
-4. 如果仍无法确认 hook install，report.status 不能是 SUCCESS。
-5. 不破坏 PROJECT_PROGRESS_LOG.txt revert，且不再修改 PROJECT_PROGRESS_LOG.txt。
-6. 没有手动修改 task_packet/current_state/artifact_index/negative_results。
-7. 没有运行 Base64/RC4 breakpoint probe。
-8. 没有回旧 solver 或扩大搜索。
-9. 保持两个 bounded candidates，不新增候选搜索。
-10. artifact 明确区分 diagnostic fallback 与 provenance。
-11. tests / py_compile / lint-decision / lint-report / lint-handoff / archive-round 被真实记录。
-12. 不提交完整 solve_reports。
+1. codex_report_summary 存在，based_on_decision_id 指向 decision_samplereverse_sidecar_hook_install_message_error_audit_20260522。
+2. report.status 不得在 hook install 未确认时写 SUCCESS。
+3. frida_message_error_count / python_exception_count / hook_install_error_count 语义正确且有测试覆盖。
+4. hooks_installed_stage_seen 明确记录。
+5. per_hook_install_results 包含 0x258c / 0x2559 / 0x1b50。
+6. 如果 sidecar 仍失败，root_cause_evidence 必须比 timeout_before_hook_install 更具体。
+7. CompareProbe fallback 仍为 diagnostic-only，compare_probe_fallback_is_provenance=false。
+8. 不破坏 PROJECT_PROGRESS_LOG.txt revert，且不再修改 PROJECT_PROGRESS_LOG.txt。
+9. 没有手动修改 task_packet/current_state/artifact_index/negative_results。
+10. 没有运行 Base64/RC4 breakpoint probe。
+11. 没有回旧 solver 或扩大搜索。
+12. 保持两个 bounded candidates，不新增候选搜索。
+13. tests / py_compile / lint-decision / lint-report / lint-handoff / archive-round 被真实记录。
+14. 不提交完整 solve_reports。
 ```
