@@ -14103,6 +14103,12 @@ def _compare_lhs_last_writer_bounded_failures(
     }
     if script_load_statuses and "loaded" not in script_load_statuses:
         failures.append("sidecar script load was not confirmed before the bounded stop")
+    if any(
+        int(item.get("scripted_returncode", 0) or 0) == 124
+        and str(item.get("script_load_status", "")).strip() in {"", "not_started", "not_confirmed"}
+        for item in candidate_results
+    ):
+        failures.append("sidecar timed out before script lifecycle fields advanced past not_started")
     script_load_errors = sorted(
         {
             str(item.get("script_load_error", "")).strip()
@@ -14117,6 +14123,17 @@ def _compare_lhs_last_writer_bounded_failures(
         for item in candidate_results
         if str(item.get("hook_install_status", "")).strip()
     }
+    if any(
+        str(item.get("script_load_status", "")).strip() == "loaded"
+        and not bool(item.get("hooks_installed_stage_seen"))
+        for item in candidate_results
+    ):
+        failures.append("hooks_installed stage message missing after script.load reported loaded")
+    if any(
+        bool(item.get("hooks_installed_stage_seen")) and int(item.get("hook_count", 0) or 0) == 0
+        for item in candidate_results
+    ):
+        failures.append("hooks_installed stage was seen but hook loop completed with zero installed")
     if hook_statuses and "installed" not in hook_statuses:
         requested = max((int(item.get("requested_hook_count", 0) or 0) for item in candidate_results), default=0)
         installed = max((int(item.get("hook_count", 0) or 0) for item in candidate_results), default=0)
@@ -14191,16 +14208,34 @@ def _compare_lhs_last_writer_stage_fields(
         and all(str(item.get("scripted_hook_status", "")) == "scripted_hook_no_observations" for item in candidate_results)
         and any(int(item.get("scripted_returncode", 0) or 0) == 124 for item in candidate_results)
     ):
-        root_causes = ["timeout_before_hook_install"]
+        if all(
+            str(item.get("script_load_status", "")).strip() in {"", "not_started", "not_confirmed"}
+            for item in candidate_results
+        ):
+            root_causes = ["timeout_before_script_lifecycle_observation"]
+        else:
+            root_causes = ["timeout_before_hook_install"]
         if not hook_install_statuses:
-            hook_install_statuses = ["not_confirmed"]
+            hook_install_statuses = ["not_confirmed_stage_missing"]
     root_cause_evidence: list[str] = []
     candidate_log_paths: dict[str, str] = {}
+    per_hook_install_results: list[dict[str, object]] = []
+    hooks_installed_stage_seen = False
     for item in candidate_results:
         candidate_hex = str(item.get("candidate_hex", ""))
         log_path = str(item.get("log_path", "")).strip()
         if candidate_hex and log_path:
             candidate_log_paths[candidate_hex] = log_path
+        if bool(item.get("hooks_installed_stage_seen")):
+            hooks_installed_stage_seen = True
+        per_hook_raw = item.get("per_hook_install_results", [])
+        if isinstance(per_hook_raw, list):
+            for row in per_hook_raw:
+                if isinstance(row, dict):
+                    normalized = dict(row)
+                    if candidate_hex and not normalized.get("candidate_hex"):
+                        normalized["candidate_hex"] = candidate_hex
+                    per_hook_install_results.append(normalized)
         evidence = item.get("root_cause_evidence", [])
         if isinstance(evidence, list):
             root_cause_evidence.extend(str(row) for row in evidence if str(row).strip())
@@ -14249,7 +14284,12 @@ def _compare_lhs_last_writer_stage_fields(
         "script_load_statuses": script_load_statuses,
         "script_load_error": _summary_status(script_load_errors),
         "script_load_errors": script_load_errors,
+        "python_exception_count": _sum_int("python_exception_count"),
         "frida_message_error_count": _sum_int("frida_message_error_count"),
+        "hook_install_error_count": _sum_int("hook_install_error_count"),
+        "hooks_installed_stage_seen": hooks_installed_stage_seen,
+        "hooks_installed_stage_hook_count": _max_int("hooks_installed_stage_hook_count"),
+        "per_hook_install_results": per_hook_install_results,
         "spawn_attach_resume_status": _summary_status(spawn_statuses),
         "spawn_attach_resume_statuses": spawn_statuses,
         "ui_trigger_status": _summary_status(ui_statuses),
@@ -14281,9 +14321,13 @@ def _compare_lhs_last_writer_failure_stage(
     for stage in (
         "script_load_failed",
         "js_compile_error",
+        "frida_message_error",
         "module_not_found",
-        "hook_install_failed",
-        "module_offset_mismatch",
+            "hook_install_failed",
+            "hooks_installed_stage_missing_after_script_load",
+            "hook_loop_completed_zero_installed",
+            "timeout_before_script_lifecycle_observation",
+            "module_offset_mismatch",
         "spawn_attach_resume_failed",
         "ui_trigger_failed",
         "helper_hook_not_reached",
@@ -14394,19 +14438,58 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
         frida_message_error_count = int(compare_payload.get("frida_message_error_count", 0) or 0)
     except (TypeError, ValueError):
         frida_message_error_count = 0
+    try:
+        python_exception_count = int(compare_payload.get("python_exception_count", 0) or 0)
+    except (TypeError, ValueError):
+        python_exception_count = 0
+    try:
+        hook_install_error_count = int(compare_payload.get("hook_install_error_count", 0) or 0)
+    except (TypeError, ValueError):
+        hook_install_error_count = 0
+    hooks_installed_stage_seen = bool(compare_payload.get("hooks_installed_stage_seen"))
+    try:
+        hooks_installed_stage_hook_count = int(
+            compare_payload.get("hooks_installed_stage_hook_count", 0) or 0
+        )
+    except (TypeError, ValueError):
+        hooks_installed_stage_hook_count = 0
+    per_hook_raw = compare_payload.get("per_hook_install_results", [])
+    per_hook_install_results = [
+        dict(item) for item in per_hook_raw if isinstance(item, dict)
+    ] if isinstance(per_hook_raw, list) else []
+    installed_results = [
+        item for item in per_hook_install_results if str(item.get("install_status", "")) == "installed"
+    ]
+    failed_results = [
+        item for item in per_hook_install_results if str(item.get("install_status", "")) == "failed"
+    ]
+    skipped_results = [
+        item
+        for item in per_hook_install_results
+        if str(item.get("install_status", "")).startswith("skipped")
+    ]
     hook_count = 0
     try:
         hook_count = int(compare_payload.get("hook_count", 0) or 0)
     except (TypeError, ValueError):
         hook_count = 0
     if not hook_install_status:
-        if any("runtime_stage=hooks_installed" in item for item in evidence_rows):
+        if hooks_installed_stage_seen and requested_hook_count and hook_count >= requested_hook_count:
             hook_install_status = "installed"
-            hook_count = hook_count or 3
+        elif installed_results and (failed_results or skipped_results or hook_count < requested_hook_count):
+            hook_install_status = "partial_or_failed"
+        elif failed_results or (hooks_installed_stage_seen and hook_count == 0):
+            hook_install_status = "failed_or_not_confirmed"
+        elif hooks_installed_stage_seen or any("runtime_stage=hooks_installed" in item for item in evidence_rows):
+            hooks_installed_stage_seen = True
+            hook_install_status = "installed" if hook_count > 0 else "failed_or_not_confirmed"
+            hook_count = hook_count or len(installed_results)
         elif scripted_hook_status == "scripted_hook_no_observations":
-            hook_install_status = "not_confirmed"
+            hook_install_status = "not_confirmed_stage_missing"
     if not requested_hook_count:
-        requested_hook_count = 3 if hook_count or hook_install_status else 0
+        requested_hook_count = len(per_hook_install_results) or (3 if hook_count or hook_install_status else 0)
+    if not hooks_installed_stage_hook_count and hooks_installed_stage_seen:
+        hooks_installed_stage_hook_count = hook_count
     if not script_load_status:
         if any("runtime_stage=hooks_installed" in item for item in evidence_rows):
             script_load_status = "loaded"
@@ -14420,7 +14503,15 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
     root_cause_rows = [str(item) for item in root_cause_evidence] if isinstance(root_cause_evidence, list) else []
 
     if not root_cause_hypothesis:
-        if script_load_error:
+        if frida_message_error_count > 0:
+            root_cause_hypothesis = "frida_message_error"
+        elif hook_install_error_count > 0 or failed_results:
+            root_cause_hypothesis = "hook_install_failed"
+        elif not hooks_installed_stage_seen and script_load_status == "loaded":
+            root_cause_hypothesis = "hooks_installed_stage_missing_after_script_load"
+        elif hooks_installed_stage_seen and hook_count == 0:
+            root_cause_hypothesis = "hook_loop_completed_zero_installed"
+        elif script_load_error:
             if "SyntaxError" in script_load_error or "compile" in script_load_error.lower():
                 root_cause_hypothesis = "js_compile_error"
             elif "module" in script_load_error.lower() and "not" in script_load_error.lower():
@@ -14432,7 +14523,9 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
         elif not compare_log.exists():
             root_cause_hypothesis = "log_path_missing"
         elif scripted_hook_status == "scripted_hook_no_observations" and scripted_returncode == 124:
-            if hook_install_status != "installed" or runtime_stage == "script_started":
+            if script_load_status in {"", "not_started", "not_confirmed"}:
+                root_cause_hypothesis = "timeout_before_script_lifecycle_observation"
+            elif hook_install_status != "installed" or runtime_stage == "script_started":
                 root_cause_hypothesis = "timeout_before_hook_install"
             elif ui_trigger_status and ui_trigger_status != "button_triggered":
                 root_cause_hypothesis = "ui_trigger_failed"
@@ -14450,9 +14543,13 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
             f"hook_install_status={hook_install_status}",
             f"hook_count={hook_count}",
             f"requested_hook_count={requested_hook_count}",
+            f"hooks_installed_stage_seen={str(hooks_installed_stage_seen).lower()}",
+            f"hooks_installed_stage_hook_count={hooks_installed_stage_hook_count}",
             f"script_load_status={script_load_status}",
             f"script_load_error={script_load_error}",
+            f"python_exception_count={python_exception_count}",
             f"frida_message_error_count={frida_message_error_count}",
+            f"hook_install_error_count={hook_install_error_count}",
             f"spawn_attach_resume_status={spawn_attach_resume_status}",
             f"ui_trigger_status={ui_trigger_status}",
             f"helper_observation_count={helper_observation_count}",
@@ -14464,7 +14561,12 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
         "requested_hook_count": requested_hook_count,
         "script_load_status": script_load_status,
         "script_load_error": script_load_error,
+        "python_exception_count": python_exception_count,
         "frida_message_error_count": frida_message_error_count,
+        "hook_install_error_count": hook_install_error_count,
+        "hooks_installed_stage_seen": hooks_installed_stage_seen,
+        "hooks_installed_stage_hook_count": hooks_installed_stage_hook_count,
+        "per_hook_install_results": per_hook_install_results,
         "spawn_attach_resume_status": spawn_attach_resume_status,
         "ui_trigger_status": ui_trigger_status,
         "root_cause_hypothesis": root_cause_hypothesis,
@@ -14546,7 +14648,12 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
                 "requested_hook_count": result.get("requested_hook_count", 0),
                 "script_load_status": result.get("script_load_status", ""),
                 "script_load_error": result.get("script_load_error", ""),
+                "python_exception_count": result.get("python_exception_count", 0),
                 "frida_message_error_count": result.get("frida_message_error_count", 0),
+                "hook_install_error_count": result.get("hook_install_error_count", 0),
+                "hooks_installed_stage_seen": bool(result.get("hooks_installed_stage_seen")),
+                "hooks_installed_stage_hook_count": result.get("hooks_installed_stage_hook_count", 0),
+                "per_hook_install_results": result.get("per_hook_install_results", []),
                 "spawn_attach_resume_status": result.get("spawn_attach_resume_status", ""),
                 "ui_trigger_status": result.get("ui_trigger_status", ""),
                 "helper_observation_count": result.get("helper_observation_count", 0),
@@ -14601,7 +14708,12 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
         "requested_hook_count": stage_fields.get("requested_hook_count", 0),
         "script_load_status": stage_fields.get("script_load_status", ""),
         "script_load_error": stage_fields.get("script_load_error", ""),
+        "python_exception_count": stage_fields.get("python_exception_count", 0),
         "frida_message_error_count": stage_fields.get("frida_message_error_count", 0),
+        "hook_install_error_count": stage_fields.get("hook_install_error_count", 0),
+        "hooks_installed_stage_seen": bool(stage_fields.get("hooks_installed_stage_seen")),
+        "hooks_installed_stage_hook_count": stage_fields.get("hooks_installed_stage_hook_count", 0),
+        "per_hook_install_results": stage_fields.get("per_hook_install_results", []),
         "spawn_attach_resume_status": stage_fields.get("spawn_attach_resume_status", ""),
         "ui_trigger_status": stage_fields.get("ui_trigger_status", ""),
         "helper_observation_count": stage_fields.get("helper_observation_count", 0),
@@ -14613,6 +14725,11 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
             "sidecar_hook_count": stage_fields.get("hook_count", 0),
             "sidecar_requested_hook_count": stage_fields.get("requested_hook_count", 0),
             "sidecar_script_load_status": stage_fields.get("script_load_status", ""),
+            "sidecar_hooks_installed_stage_seen": bool(stage_fields.get("hooks_installed_stage_seen")),
+            "sidecar_hooks_installed_stage_hook_count": stage_fields.get("hooks_installed_stage_hook_count", 0),
+            "sidecar_hook_install_error_count": stage_fields.get("hook_install_error_count", 0),
+            "sidecar_frida_message_error_count": stage_fields.get("frida_message_error_count", 0),
+            "sidecar_python_exception_count": stage_fields.get("python_exception_count", 0),
             "sidecar_spawn_attach_resume_status": stage_fields.get("spawn_attach_resume_status", ""),
             "sidecar_ui_trigger_status": stage_fields.get("ui_trigger_status", ""),
             "sidecar_same_process_compare_args_captured": str(actual_compare.get("entry_status", "")) == "confirmed",
@@ -14891,9 +15008,13 @@ def run_compare_lhs_last_writer_provenance_audit(
         if str(stage_metadata.get("root_cause_hypothesis", "")).strip() in {
             "script_load_failed",
             "js_compile_error",
+            "frida_message_error",
             "module_not_found",
-            "hook_install_failed",
-            "module_offset_mismatch",
+        "hook_install_failed",
+        "hooks_installed_stage_missing_after_script_load",
+        "hook_loop_completed_zero_installed",
+        "timeout_before_script_lifecycle_observation",
+        "module_offset_mismatch",
             "spawn_attach_resume_failed",
             "ui_trigger_failed",
             "helper_hook_not_reached",
@@ -14939,7 +15060,12 @@ def run_compare_lhs_last_writer_provenance_audit(
                 "requested_hook_count": stage_metadata.get("requested_hook_count", 0),
                 "script_load_status": stage_metadata.get("script_load_status", ""),
                 "script_load_error": stage_metadata.get("script_load_error", ""),
+                "python_exception_count": stage_metadata.get("python_exception_count", 0),
                 "frida_message_error_count": stage_metadata.get("frida_message_error_count", 0),
+                "hook_install_error_count": stage_metadata.get("hook_install_error_count", 0),
+                "hooks_installed_stage_seen": bool(stage_metadata.get("hooks_installed_stage_seen")),
+                "hooks_installed_stage_hook_count": stage_metadata.get("hooks_installed_stage_hook_count", 0),
+                "per_hook_install_results": stage_metadata.get("per_hook_install_results", []),
                 "spawn_attach_resume_status": stage_metadata.get("spawn_attach_resume_status", ""),
                 "ui_trigger_status": stage_metadata.get("ui_trigger_status", ""),
                 "root_cause_hypothesis": stage_metadata.get("root_cause_hypothesis", ""),

@@ -98,7 +98,12 @@ def _build_payload(
     requested_hook_count: int = 0,
     script_load_status: str = "",
     script_load_error: str = "",
+    python_exception_count: int = 0,
     frida_message_error_count: int = 0,
+    hook_install_error_count: int = 0,
+    hooks_installed_stage_seen: bool = False,
+    hooks_installed_stage_hook_count: int = 0,
+    per_hook_install_results: list[dict[str, object]] | None = None,
     spawn_attach_resume_status: str = "",
     ui_trigger_status: str = "",
     helper_observation_count: int = 0,
@@ -124,7 +129,12 @@ def _build_payload(
         "requested_hook_count": requested_hook_count,
         "script_load_status": script_load_status,
         "script_load_error": script_load_error,
+        "python_exception_count": python_exception_count,
         "frida_message_error_count": frida_message_error_count,
+        "hook_install_error_count": hook_install_error_count,
+        "hooks_installed_stage_seen": hooks_installed_stage_seen,
+        "hooks_installed_stage_hook_count": hooks_installed_stage_hook_count,
+        "per_hook_install_results": list(per_hook_install_results or []),
         "spawn_attach_resume_status": spawn_attach_resume_status,
         "ui_trigger_status": ui_trigger_status,
         "helper_observation_count": helper_observation_count,
@@ -239,7 +249,8 @@ def main() -> int:
     )
 
     messages: list[dict[str, object]] = []
-    script_errors: list[str] = []
+    frida_message_errors: list[str] = []
+    python_exceptions: list[str] = []
     runtime_stage = "script_started"
     script_load_status = "not_started"
     script_load_error = ""
@@ -259,7 +270,11 @@ def main() -> int:
         if message_type == "error":
             stack = str(message.get("stack", "")).strip()
             if stack:
-                script_errors.append(stack)
+                frida_message_errors.append(stack)
+            else:
+                description = str(message.get("description", "")).strip()
+                if description:
+                    frida_message_errors.append(description)
 
     def observation_messages() -> list[dict[str, object]]:
         return [
@@ -794,6 +809,14 @@ for (const point of hookPoints) {{
     try {{
         const offset = Number(point.module_offset || 0);
         if (!offset) {{
+            send({{
+                type: "compare_pre_compare_handoff_target_hook_install_result",
+                name: String(point.name || ""),
+                module_offset: String(point.module_offset || ""),
+                install_status: "skipped_invalid_offset",
+                address: "",
+                error: "missing_or_zero_module_offset",
+            }});
             continue;
         }}
         const address = mainModule.base.add(offset);
@@ -822,7 +845,25 @@ for (const point of hookPoints) {{
             }},
         }});
         installedHookCount++;
+        send({{
+            type: "compare_pre_compare_handoff_target_hook_install_result",
+            name: String(point.name || ""),
+            module_offset: "0x" + offset.toString(16),
+            install_status: "installed",
+            address: address.toString(),
+            error: "",
+        }});
     }} catch (error) {{
+        const offsetText = point.module_offset ? "0x" + Number(point.module_offset).toString(16) : "";
+        const addressText = point.module_offset ? mainModule.base.add(Number(point.module_offset)).toString() : "";
+        send({{
+            type: "compare_pre_compare_handoff_target_hook_install_result",
+            name: String(point.name || ""),
+            module_offset: offsetText,
+            install_status: "failed",
+            address: addressText,
+            error: String(error),
+        }});
         send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});
     }}
 }}
@@ -879,8 +920,9 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         runtime_stage = "waiting_for_observation"
         deadline = time.monotonic() + max(0.3, float(args.per_probe_timeout))
         while time.monotonic() < deadline:
-            if script_errors:
-                raise RuntimeError(script_errors[-1])
+            if frida_message_errors:
+                runtime_stage = "frida_message_error"
+                break
             static_observations = static_compare_observations()
             if any(has_compare_args(item) for item in static_observations):
                 runtime_stage = "static_compare_callsite_observed"
@@ -892,9 +934,10 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
                 runtime_stage = "helper_observed_waiting_for_static_compare"
             time.sleep(0.05)
     except Exception as exc:
-        script_load_error = _escape_runtime_text(str(exc))
-        script_errors.append(script_load_error)
+        python_error = _escape_runtime_text(str(exc))
+        python_exceptions.append(python_error)
         if runtime_stage in {"creating_script", "loading_script"}:
+            script_load_error = python_error
             script_load_status = "failed"
     finally:
         if runtime_stage == "helper_observed_waiting_for_static_compare":
@@ -929,17 +972,39 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         latest_health["runtime_stage"] = runtime_stage
         if runtime_stage == "waiting_for_observation":
             latest_health["activation_status"] = "waiting_for_hook_observation"
-    errors = [
+    hook_install_errors = [
         f"{item.get('hook_name', '')}:{item.get('error', '')}"
         for item in messages
         if str(item.get("type", "")) == "compare_pre_compare_handoff_target_error"
     ]
-    frida_message_error_count = len(script_errors)
+    hook_install_result_messages = [
+        item
+        for item in messages
+        if str(item.get("type", "")) == "compare_pre_compare_handoff_target_hook_install_result"
+    ]
+    per_hook_install_results = []
+    for item in hook_install_result_messages:
+        per_hook_install_results.append(
+            {
+                "name": str(item.get("name", "")),
+                "module_offset": str(item.get("module_offset", "")),
+                "install_status": str(item.get("install_status", "")),
+                "address": str(item.get("address", "")),
+                "error": str(item.get("error", "")),
+            }
+        )
+    frida_message_error_count = len(frida_message_errors)
+    python_exception_count = len(python_exceptions)
+    hook_install_error_count = sum(
+        1 for item in per_hook_install_results if str(item.get("install_status", "")) == "failed"
+    )
     stage_messages = [
         item
         for item in messages
         if str(item.get("type", "")) == "compare_pre_compare_handoff_target_stage"
     ]
+    hooks_installed_stage_seen = False
+    hooks_installed_stage_hook_count = 0
     if stage_messages:
         evidence.extend(
             f"compare_pre_compare_handoff_target_probe:runtime_stage={item.get('runtime_stage', '')}"
@@ -957,6 +1022,8 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
     requested_hook_count = len(hook_points)
     if stage_messages:
         for item in stage_messages:
+            if str(item.get("runtime_stage", "")) == "hooks_installed":
+                hooks_installed_stage_seen = True
             try:
                 hook_count = max(hook_count, int(item.get("hook_count", 0) or 0))
             except (TypeError, ValueError):
@@ -968,21 +1035,56 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
                 )
             except (TypeError, ValueError):
                 pass
-    hook_install_status = "installed" if hook_count > 0 else "not_confirmed"
-    if errors:
+    hooks_installed_stage_hook_count = hook_count if hooks_installed_stage_seen else 0
+    installed_results = [
+        item for item in per_hook_install_results if str(item.get("install_status", "")) == "installed"
+    ]
+    failed_results = [
+        item for item in per_hook_install_results if str(item.get("install_status", "")) == "failed"
+    ]
+    skipped_results = [
+        item
+        for item in per_hook_install_results
+        if str(item.get("install_status", "")).startswith("skipped")
+    ]
+    if hooks_installed_stage_seen and hook_count == requested_hook_count and requested_hook_count > 0:
+        hook_install_status = "installed"
+    elif installed_results and (failed_results or skipped_results or hook_count < requested_hook_count):
+        hook_install_status = "partial_or_failed"
+    elif failed_results or (hooks_installed_stage_seen and hook_count == 0):
+        hook_install_status = "failed_or_not_confirmed"
+    elif not hooks_installed_stage_seen:
+        hook_install_status = "not_confirmed_stage_missing"
+    else:
+        hook_install_status = "not_confirmed"
+    if hook_install_errors and hook_install_status == "installed":
         hook_install_status = "partial_or_failed" if hook_count > 0 else "failed_or_not_confirmed"
 
     root_cause_hypothesis = ""
     root_cause_evidence: list[str] = []
     if not static_observations:
-        if script_load_status == "failed":
+        if frida_message_errors:
+            root_cause_hypothesis = "frida_message_error"
+            root_cause_evidence.extend(f"frida_message_error={item}" for item in frida_message_errors[:3])
+        elif script_load_status == "failed":
             if "SyntaxError" in script_load_error or "compile" in script_load_error.lower():
                 root_cause_hypothesis = "js_compile_error"
             else:
                 root_cause_hypothesis = "script_load_failed"
             root_cause_evidence.append(f"script_load_error={script_load_error}")
+        elif not hooks_installed_stage_seen and script_load_status == "loaded":
+            root_cause_hypothesis = "hooks_installed_stage_missing_after_script_load"
+            root_cause_evidence.append("hooks_installed_stage_seen=false")
+            root_cause_evidence.append("script_load_status=loaded")
+            root_cause_evidence.append(
+                "stage message missing: JS did not reach hooks_installed send, message handler did not receive it, or process ended before stage emission"
+            )
+        elif hooks_installed_stage_seen and hook_count == 0:
+            root_cause_hypothesis = "hook_loop_completed_zero_installed"
+            root_cause_evidence.append("hooks_installed_stage_seen=true")
+            root_cause_evidence.append("hook loop completed with zero installed")
         elif hook_install_status != "installed":
-            root_cause_hypothesis = "timeout_before_hook_install"
+            root_cause_hypothesis = "hook_install_failed" if hook_install_error_count else "timeout_before_hook_install"
             root_cause_evidence.append(f"hook_install_status={hook_install_status}")
             root_cause_evidence.append(f"script_load_status={script_load_status}")
             root_cause_evidence.append(f"requested_hook_count={requested_hook_count}")
@@ -1003,14 +1105,18 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
                 f"runtime_stage={runtime_stage}",
                 f"hook_count={hook_count}",
                 f"requested_hook_count={requested_hook_count}",
+                f"hooks_installed_stage_seen={str(hooks_installed_stage_seen).lower()}",
+                f"hooks_installed_stage_hook_count={hooks_installed_stage_hook_count}",
                 f"script_load_status={script_load_status}",
+                f"python_exception_count={python_exception_count}",
                 f"frida_message_error_count={frida_message_error_count}",
+                f"hook_install_error_count={hook_install_error_count}",
                 f"spawn_attach_resume_status={spawn_attach_resume_status}",
                 f"ui_trigger_status={ui_trigger_status}",
                 f"static_compare_observation_count={static_compare_observation_count}",
             ]
         )
-    success = bool(static_observations) and not script_errors
+    success = bool(static_observations) and not frida_message_errors and not python_exceptions
     summary = (
         "ComparePreCompareHandoffTargetProbe captured the bounded static compare callsite."
         if static_observations
@@ -1026,20 +1132,25 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             hook_observations=observations,
             write_monitor_health=latest_health,
             write_ring_buffer=latest_ring,
-            evidence=[*evidence, *errors, *script_errors],
+            evidence=[*evidence, *hook_install_errors, *frida_message_errors, *python_exceptions],
             hook_install_status=hook_install_status,
             hook_count=hook_count,
             requested_hook_count=requested_hook_count,
             script_load_status=script_load_status,
             script_load_error=script_load_error,
+            python_exception_count=python_exception_count,
             frida_message_error_count=frida_message_error_count,
+            hook_install_error_count=hook_install_error_count,
+            hooks_installed_stage_seen=hooks_installed_stage_seen,
+            hooks_installed_stage_hook_count=hooks_installed_stage_hook_count,
+            per_hook_install_results=per_hook_install_results,
             spawn_attach_resume_status=spawn_attach_resume_status,
             ui_trigger_status=ui_trigger_status,
             helper_observation_count=helper_observation_count,
             static_compare_observation_count=static_compare_observation_count,
             root_cause_hypothesis=root_cause_hypothesis,
             root_cause_evidence=root_cause_evidence,
-            error="; ".join([*errors, *script_errors]),
+            error="; ".join([*hook_install_errors, *frida_message_errors, *python_exceptions]),
         ),
     )
 
