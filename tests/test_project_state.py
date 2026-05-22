@@ -3033,7 +3033,8 @@ def test_archive_round_writes_round_manifest(tmp_path: Path) -> None:
 
     assert manifest["schema_version"] == 1
     assert manifest["round_id"] == current_state["round_id"]
-    assert manifest["source_git_commit"] == current_state["source_git_commit"]
+    assert manifest["source_git_commit"]
+    assert manifest["source_git_commit"] != "593499f29508"
     assert manifest["source_harness_run"] == current_state["source_harness_run"]
     assert manifest["state_build_id"] == current_state["state_build_id"]
     assert manifest["state_digest"] == current_state["state_digest"]

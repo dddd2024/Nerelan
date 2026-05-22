@@ -1,0 +1,57 @@
+{
+  "archived_at": "2026-05-22T13:32:36Z",
+  "files": {
+    "artifact_index.json": {
+      "archived_path": "project_state\\rounds\\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker\\artifact_index.json",
+      "sha256": "1a84515b392bade639f5613f6ab62ce3204e2cf492fc18e019890feb68fea5ee",
+      "source_path": "project_state\\artifact_index.json"
+    },
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker\\codex_execution_report.md",
+      "sha256": "a53448be475d048d8e80354c58b86cc0f55f2d3d3b851e122b6b66160810b121",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "current_state.json": {
+      "archived_path": "project_state\\rounds\\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker\\current_state.json",
+      "sha256": "d75ce26878e4585881e8befcb6ca96aa8e86cb9acd97b213ce703a9784d8fedc",
+      "source_path": "project_state\\current_state.json"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker\\decision_packet.md",
+      "sha256": "0579ad0a0f83e95966891a18da901b9fbd6980bc33040c3839361097044edfd1",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "git_diff.patch": {
+      "archived_path": "project_state\\rounds\\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker\\git_diff.patch",
+      "sha256": "2586f6314958817dda2d06c1d9233556a68580b2fb24063d3c4c464a3b690c09",
+      "source_path": null
+    },
+    "model_gate.json": {
+      "archived_path": "project_state\\rounds\\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker\\model_gate.json",
+      "sha256": "ff2018cb77b323344a7b8a9cb1c7b37a08e29a2fe7b224382ab6a6a0ca9eaa61",
+      "source_path": "project_state\\model_gate.json"
+    },
+    "negative_results.json": {
+      "archived_path": "project_state\\rounds\\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker\\negative_results.json",
+      "sha256": "7ec98072f593fd37b9ff1f1af454082867ccadd49c5b05a40644b3211b187eff",
+      "source_path": "project_state\\negative_results.json"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker\\pytest_result.txt",
+      "sha256": "ac9b1fc0afa1f12a4af4609ca7dc9b106fd4ad1ce5b682f13f22ad11be3e58e9",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "task_packet.json": {
+      "archived_path": "project_state\\rounds\\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker\\task_packet.json",
+      "sha256": "15b83ca51fc8948dd28a2237733cc21f39a2ebaeb9f61841c056202154a9285e",
+      "source_path": "project_state\\task_packet.json"
+    }
+  },
+  "round_id": "round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker",
+  "schema_version": 1,
+  "source_git_commit": "6281cd719c32",
+  "source_harness_run": "sr_lhs_thread_follow_timing_20260520_r4",
+  "state_build_id": "state_20260520_052928_8a77e6637c6c",
+  "state_digest": "8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d",
+  "workflow_status": "REPORT_AVAILABLE"
+}

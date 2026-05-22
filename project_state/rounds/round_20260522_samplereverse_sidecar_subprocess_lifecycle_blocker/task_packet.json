@@ -1,0 +1,132 @@
+{
+  "active_decision_packet": "project_state/decision_packet.md",
+  "active_strategy": "CompareAwareSearchStrategy",
+  "artifact_refs": {
+    "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
+    "bridge_search_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_search_result.json",
+    "bridge_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_validation\\bridge_validation.json",
+    "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
+    "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
+    "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
+    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_thread_follow_timing_20260520_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_thread_follow_timing_20260520_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
+    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_lhs_thread_follow_timing_20260520_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "frontier_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_frontier_summary.json",
+    "function_semantic_audit": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+    "guided_pool_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\samplereverse_compare_aware_guided_pool_result.json",
+    "guided_pool_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
+    "pairscan_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\pairscan_summary.json",
+    "run_manifest": "solve_reports\\harness_runs\\sr_lhs_thread_follow_timing_20260520_r4\\run_manifest.json",
+    "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
+    "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
+    "summary": "solve_reports\\harness_runs\\sr_lhs_thread_follow_timing_20260520_r4\\summary.json"
+  },
+  "based_on_state_digest": "8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d",
+  "current_best": {
+    "exact1": {
+      "anchor_mode": "frontier",
+      "candidate_hex": "5a3e7f46ddd474d041414141414141",
+      "candidate_prefix": "5a3e7f46ddd474d0",
+      "compare_semantics_agree": true,
+      "frontier_role": "exact1_frontier",
+      "frontier_submode": null,
+      "runtime_ci_distance5": 258,
+      "runtime_ci_exact_wchars": 1,
+      "source": "exact2_seed(78d540b49c590770) -> refine(seed) -> guided(frontier)"
+    },
+    "exact2": {
+      "anchor_mode": "",
+      "candidate_hex": "78d540b49c59077041414141414141",
+      "candidate_prefix": "78d540b49c590770",
+      "compare_semantics_agree": true,
+      "frontier_role": "",
+      "frontier_submode": null,
+      "runtime_ci_distance5": 246,
+      "runtime_ci_exact_wchars": 2,
+      "source": "pairscan"
+    },
+    "frontier": {
+      "anchor_mode": "frontier",
+      "candidate_hex": "5a3e7f46ddd474d041414141414141",
+      "candidate_prefix": "5a3e7f46ddd474d0",
+      "compare_semantics_agree": true,
+      "frontier_role": "exact1_frontier",
+      "frontier_submode": null,
+      "runtime_ci_distance5": 258,
+      "runtime_ci_exact_wchars": 1,
+      "source": "exact2_seed(78d540b49c590770) -> refine(seed) -> guided(frontier)"
+    }
+  },
+  "current_bottleneck": {
+    "confidence": "medium",
+    "reason": "compare_lhs_runtime_backed_writer_missing",
+    "stage": "compare_real_lhs_provenance_audit"
+  },
+  "derived_task": "Improve compare lhs last-writer instrumentation",
+  "do_not_do": [
+    "do not return to old sample_solver blind search",
+    "do not only increase beam or budget",
+    "do not use compare_semantics_agree=false candidates as primary frontier",
+    "do not commit full solve_reports directory",
+    "do not repeat: exact2 basin value-pool evaluation with pools 0:78 1:d5/3e/3c 2:40/7f/80 3:b4/8f 4:9c",
+    "do not repeat: H1/H3 fixed 8-candidate prefix8 plus Base64 boundary contrast set: 78d540b49c59077041414141414141, 78d540b49c59076f41414141414141, 78d540b49c59077141414141414141, 78d540b49c5907b041414141414141, 78d540b49c5907d041414141414141, 78d540b49c59077040414141414141, 78d540b49c59077042414141414141, 78d540b49c59076f42414141414141",
+    "do not repeat: repeat current 5-candidate transform trace consistency audit without new runtime evidence",
+    "do not repeat: rerun Base64/RC4 breakpoint probe before confirming a Base64/RC4 instruction hook",
+    "do not repeat: repeat compare return-site audit without using its classification",
+    "do not repeat: repeat producer material confirmation without adding instruction-level evidence",
+    "do not repeat: treat 0x4019e0 as Base64/RC4 material producer without new semantic evidence",
+    "do not repeat: treat 0x401b50 as Base64/RC4 material producer without new semantic evidence",
+    "do not repeat: treat 0x4018cd as Base64/RC4 material producer without new semantic evidence",
+    "do not repeat: treat 0x401be3 as Base64/RC4 material producer without new semantic evidence",
+    "do not repeat: reuse old [ebp-0x1170] without real-lhs provenance evidence",
+    "do not repeat: run Base64/RC4 breakpoint probe before real lhs producer identification",
+    "do not scan entire solve_reports unless explicitly needed"
+  ],
+  "execution_scope": "decision_packet_controls_current_round",
+  "expected_gpt_output": "project_state/decision_packet.md",
+  "generated_at": "2026-05-20T05:29:28Z",
+  "included": [
+    "current state",
+    "best candidates",
+    "stall reason",
+    "negative results",
+    "artifact references"
+  ],
+  "model_gate": {
+    "context_level": 2,
+    "reason": "compare_lhs_runtime_backed_writer_missing",
+    "should_call_model": true
+  },
+  "omitted": [
+    {
+      "name": "full PROJECT_PROGRESS_LOG.txt",
+      "reason": "too long; use only for strategic review"
+    },
+    {
+      "name": "full solve_reports",
+      "reason": "runtime output; indexed via artifact_index.json"
+    }
+  ],
+  "profile": "samplereverse",
+  "relevant_files": [
+    "reverse_agent/function_semantics.py",
+    "reverse_agent/strategies/compare_aware_search.py",
+    "tests/test_compare_aware_search_strategy.py",
+    "tests/test_project_state.py"
+  ],
+  "round_id": "round_20260520_052928",
+  "sample": "samplereverse",
+  "schema_version": 2,
+  "state_build_id": "state_20260520_052928_8a77e6637c6c",
+  "state_scope": "sample_state",
+  "sufficiency_check": {
+    "has_artifact_refs": true,
+    "has_current_best": true,
+    "has_negative_results": true,
+    "has_runtime_validation": true,
+    "has_stall_stage": true
+  },
+  "task": "Improve compare lhs last-writer instrumentation",
+  "task_source": "derived_from_sample_artifacts"
+}

@@ -3222,7 +3222,7 @@ def _build_round_manifest(
         "schema_version": 1,
         "round_id": round_id,
         "archived_at": archived_at,
-        "source_git_commit": current_state.get("source_git_commit") or _git_commit(),
+        "source_git_commit": _git_commit() or current_state.get("source_git_commit") or "",
         "source_harness_run": current_state.get("source_harness_run") or "",
         "state_build_id": current_state.get("state_build_id") or "",
         "state_digest": current_state.get("state_digest") or "",

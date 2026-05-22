@@ -110,6 +110,7 @@ def _build_payload(
     static_compare_observation_count: int = 0,
     root_cause_hypothesis: str = "",
     root_cause_evidence: list[str] | None = None,
+    runtime_stage: str = "",
     error: str = "",
 ) -> dict[str, object]:
     observations = [_normalize_observation(item) for item in hook_observations or []]
@@ -141,6 +142,7 @@ def _build_payload(
         "static_compare_observation_count": static_compare_observation_count,
         "root_cause_hypothesis": root_cause_hypothesis,
         "root_cause_evidence": root_cause_evidence or [],
+        "runtime_stage": runtime_stage,
         "error": error,
     }
 
@@ -201,6 +203,7 @@ def main() -> int:
     evidence = [
         f"compare_pre_compare_handoff_target_probe:target={target}",
         f"compare_pre_compare_handoff_target_probe:points={points_path}",
+        "compare_pre_compare_handoff_target_probe:runtime_stage=arguments_parsed",
     ]
 
     if not target.exists():
@@ -211,11 +214,31 @@ def main() -> int:
                 summary="ComparePreCompareHandoffTargetProbe failed: target missing.",
                 candidate_hex=args.probe_hex,
                 hook_points=hook_points,
-                evidence=[*evidence, "compare_pre_compare_handoff_target_probe:error=target_missing"],
+                evidence=[
+                    *evidence,
+                    "compare_pre_compare_handoff_target_probe:runtime_stage=target_missing",
+                    "compare_pre_compare_handoff_target_probe:error=target_missing",
+                ],
+                runtime_stage="target_missing",
                 error="target_missing",
             ),
         )
 
+    _write_payload(
+        out_path,
+        _build_payload(
+            success=False,
+            summary="ComparePreCompareHandoffTargetProbe importing runtime dependencies.",
+            candidate_hex=args.probe_hex,
+            hook_points=hook_points,
+            evidence=[*evidence, "compare_pre_compare_handoff_target_probe:runtime_stage=importing_dependencies"],
+            requested_hook_count=len(hook_points),
+            script_load_status="not_started",
+            spawn_attach_resume_status="not_started",
+            ui_trigger_status="not_started",
+            runtime_stage="importing_dependencies",
+        ),
+    )
     try:
         import frida
         from pywinauto import Application
@@ -227,7 +250,12 @@ def main() -> int:
                 summary="ComparePreCompareHandoffTargetProbe failed: missing frida or pywinauto.",
                 candidate_hex=args.probe_hex,
                 hook_points=hook_points,
-                evidence=[*evidence, f"compare_pre_compare_handoff_target_probe:error={_escape_runtime_text(str(exc))}"],
+                evidence=[
+                    *evidence,
+                    "compare_pre_compare_handoff_target_probe:runtime_stage=dependency_import_failed",
+                    f"compare_pre_compare_handoff_target_probe:error={_escape_runtime_text(str(exc))}",
+                ],
+                runtime_stage="dependency_import_failed",
                 error=str(exc),
             ),
         )
@@ -245,6 +273,7 @@ def main() -> int:
             script_load_status="not_started",
             spawn_attach_resume_status="not_started",
             ui_trigger_status="not_started",
+            runtime_stage="script_started",
         ),
     )
 
@@ -259,6 +288,29 @@ def main() -> int:
     pid: int | None = None
     session = None
     app = None
+
+    def write_progress_payload(stage: str) -> None:
+        health = _initial_write_monitor_health(hook_points)
+        health["runtime_stage"] = stage
+        if stage not in {"script_started", "importing_dependencies"}:
+            health["activation_status"] = stage
+        _write_payload(
+            out_path,
+            _build_payload(
+                success=False,
+                summary=f"ComparePreCompareHandoffTargetProbe runtime stage: {stage}.",
+                candidate_hex=args.probe_hex,
+                hook_points=hook_points,
+                write_monitor_health=health,
+                evidence=[*evidence, f"compare_pre_compare_handoff_target_probe:runtime_stage={stage}"],
+                requested_hook_count=len(hook_points),
+                script_load_status=script_load_status,
+                script_load_error=script_load_error,
+                spawn_attach_resume_status=spawn_attach_resume_status,
+                ui_trigger_status=ui_trigger_status,
+                runtime_stage=stage,
+            ),
+        )
 
     def on_message(message: dict[str, object], data: object) -> None:  # noqa: ANN401
         message_type = str(message.get("type", ""))
@@ -872,24 +924,32 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
 
     try:
         runtime_stage = "spawning_target"
+        write_progress_payload(runtime_stage)
         pid = frida.spawn([str(target)])
         spawn_attach_resume_status = "spawned"
         runtime_stage = "attaching_frida"
+        write_progress_payload(runtime_stage)
         session = frida.attach(pid)
         spawn_attach_resume_status = "attached"
         runtime_stage = "creating_script"
+        write_progress_payload(runtime_stage)
         script = session.create_script(script_source)
         script.on("message", on_message)
         runtime_stage = "loading_script"
         script_load_status = "loading"
+        write_progress_payload(runtime_stage)
         script.load()
         script_load_status = "loaded"
+        runtime_stage = "script_loaded"
+        write_progress_payload(runtime_stage)
         runtime_stage = "resuming_target"
+        write_progress_payload(runtime_stage)
         frida.resume(pid)
         spawn_attach_resume_status = "resumed"
         time.sleep(1.0)
         runtime_stage = "connecting_window"
         ui_trigger_status = "connecting_window"
+        write_progress_payload(runtime_stage)
         app = Application(backend="uia").connect(process=pid)
         win = None
         last_exc = None
@@ -906,6 +966,7 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
 
         runtime_stage = "preparing_input"
         ui_trigger_status = "window_connected"
+        write_progress_payload(runtime_stage)
         input_edit = win.child_window(auto_id="1001", control_type="Edit")
         decrypt_btn = win.child_window(auto_id="1000", control_type="Button")
         candidate = bytes.fromhex(args.probe_hex).decode("latin1")
@@ -914,10 +975,12 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         input_edit.set_edit_text(_candidate_to_gui_text(candidate))
         ui_trigger_status = "input_injected"
         runtime_stage = "triggering_candidate"
+        write_progress_payload(runtime_stage)
         _trigger_decrypt(decrypt_btn)
         ui_trigger_status = "button_triggered"
 
         runtime_stage = "waiting_for_observation"
+        write_progress_payload(runtime_stage)
         deadline = time.monotonic() + max(0.3, float(args.per_probe_timeout))
         while time.monotonic() < deadline:
             if frida_message_errors:
@@ -1150,6 +1213,7 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             static_compare_observation_count=static_compare_observation_count,
             root_cause_hypothesis=root_cause_hypothesis,
             root_cause_evidence=root_cause_evidence,
+            runtime_stage=runtime_stage,
             error="; ".join([*hook_install_errors, *frida_message_errors, *python_exceptions]),
         ),
     )

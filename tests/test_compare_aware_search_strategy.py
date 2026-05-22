@@ -8689,7 +8689,102 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
     assert payload["helper_observation_count"] == 2
     assert payload["static_compare_observation_count"] == 2
     assert payload["candidate_log_paths"]
+    assert payload["candidate_invocation_health"]
+    first_health = payload["candidate_invocation_health"][payload["candidate_inputs_hex"][0]]
+    assert first_health["subprocess_command"][0]
+    assert first_health["subprocess_returncode"] == 0
+    assert first_health["scripted_output_exists"] is True
+    assert first_health["scripted_log_size_bytes"] > 0
+    assert first_health["scripted_lifecycle_entered"] is True
     assert payload["compare_probe_sidecar_diff"]["compare_probe_fallback_is_provenance"] is False
+
+
+def test_run_compare_lhs_last_writer_records_timeout_invocation_health(
+    tmp_path: Path, monkeypatch
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+
+    def fake_run(*args, **kwargs):  # noqa: ANN002, ANN003
+        command = list(args[0])
+        script_name = Path(command[1]).name
+        out_path = Path(command[command.index("--out") + 1])
+        candidate_hex = command[command.index("--probe-hex") + 1]
+        if script_name == "compare_lhs_last_writer_provenance.py":
+            out_path.write_text(
+                json.dumps(
+                    {
+                        "success": False,
+                        "candidate_hex": candidate_hex,
+                        "hook_observations": [],
+                        "evidence": ["compare_pre_compare_handoff_target_probe:script_started"],
+                        "requested_hook_count": 3,
+                        "script_load_status": "not_started",
+                        "spawn_attach_resume_status": "not_started",
+                        "ui_trigger_status": "not_started",
+                        "runtime_stage": "script_started",
+                        "write_monitor_health": {"runtime_stage": "script_started"},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            raise compare_aware_search.subprocess.TimeoutExpired(
+                command,
+                timeout=kwargs.get("timeout", 1.0),
+                output="sidecar stdout tail",
+                stderr="sidecar stderr tail",
+            )
+        if script_name == "compare_probe.py":
+            out_path.write_text(
+                json.dumps(
+                    {
+                        "success": True,
+                        "compare_site": "0x40258c",
+                        "lhs_ptr": "0x1100",
+                        "rhs_ptr": "0x5000",
+                        "compare_count": 5,
+                        "lhs_wide_hex": "aa" * 32,
+                        "rhs_wide_hex": "66006c00610067007b00",
+                        "esi_ptr": "0x1100",
+                        "esi_preview_hex": "aa" * 32,
+                    }
+                ),
+                encoding="utf-8",
+            )
+        return subprocess.CompletedProcess(command, 0, stdout="probe stdout", stderr="")
+
+    monkeypatch.setattr(compare_aware_search.subprocess, "run", fake_run)
+
+    result = run_compare_lhs_last_writer_provenance_audit(
+        target=target,
+        artifacts_dir=tmp_path / "compare_lhs_last_writer_provenance_audit",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.5,
+        real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+        log=lambda _: None,
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["root_cause_hypothesis"] == "timeout_after_initial_payload_before_lifecycle"
+    assert payload["compare_probe_fallback_is_provenance"] is False
+    assert payload["diagnostic_compare_args_captured"] is True
+    assert payload["same_process_compare_args_captured"] is False
+    for candidate_hex in payload["candidate_inputs_hex"]:
+        health = payload["candidate_invocation_health"][candidate_hex]
+        assert health["subprocess_returncode"] == 124
+        assert health["subprocess_timed_out"] is True
+        assert health["subprocess_stdout_tail"] == "sidecar stdout tail"
+        assert health["subprocess_stderr_tail"] == "sidecar stderr tail"
+        assert health["scripted_output_exists"] is True
+        assert health["scripted_output_size_bytes"] > 0
+        assert health["scripted_initial_payload_only"] is True
+        assert health["scripted_lifecycle_entered"] is False
+        assert health["scripted_last_runtime_stage"] == "script_started"
+        assert Path(str(health["scripted_log_path"])).exists()
+    diff = payload["compare_probe_sidecar_diff"]
+    assert diff["compare_probe_fallback_is_provenance"] is False
+    assert set(diff["compare_probe_fallback_command_or_path"]) == set(payload["candidate_inputs_hex"])
 
 
 def test_compare_probe_fallback_observation_carries_esi_snapshot() -> None:

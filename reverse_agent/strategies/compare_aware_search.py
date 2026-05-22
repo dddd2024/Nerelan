@@ -3399,6 +3399,30 @@ def _read_json_object(path: Path) -> dict[str, object]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _tail_text(value: object, limit: int = 2000) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, bytes):
+        text = value.decode("utf-8", errors="replace")
+    else:
+        text = str(value)
+    return text[-limit:]
+
+
+def _path_mtime_iso(path: Path) -> str:
+    try:
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(path.stat().st_mtime))
+    except OSError:
+        return ""
+
+
+def _path_size(path: Path) -> int:
+    try:
+        return int(path.stat().st_size)
+    except OSError:
+        return 0
+
+
 def _project_state_json(name: str) -> dict[str, object]:
     return _read_json_object(_repo_root() / "project_state" / name)
 
@@ -13397,9 +13421,26 @@ def _compare_real_lhs_candidate_execution_health(
             "same_process_observation_count": int(result.get("same_process_observation_count", 0) or 0),
             "scripted_stdout_preview": str(result.get("scripted_stdout_preview", "")),
             "scripted_stderr_preview": str(result.get("scripted_stderr_preview", "")),
+            "subprocess_command": list(result.get("subprocess_command", []))
+            if isinstance(result.get("subprocess_command"), list)
+            else [],
+            "subprocess_cwd": str(result.get("subprocess_cwd", "")),
+            "subprocess_returncode": result.get("subprocess_returncode", result.get("scripted_returncode", None)),
+            "subprocess_timeout_seconds": result.get("subprocess_timeout_seconds", None),
+            "subprocess_timed_out": bool(result.get("subprocess_timed_out")),
+            "subprocess_stdout_tail": str(result.get("subprocess_stdout_tail", "")),
+            "subprocess_stderr_tail": str(result.get("subprocess_stderr_tail", "")),
+            "scripted_output_size_bytes": int(result.get("scripted_output_size_bytes", 0) or 0),
+            "scripted_output_mtime": str(result.get("scripted_output_mtime", "")),
+            "scripted_log_path": str(result.get("scripted_log_path", result.get("log_path", ""))),
+            "scripted_log_size_bytes": int(result.get("scripted_log_size_bytes", 0) or 0),
+            "scripted_initial_payload_only": bool(result.get("scripted_initial_payload_only")),
+            "scripted_lifecycle_entered": bool(result.get("scripted_lifecycle_entered")),
+            "scripted_last_runtime_stage": str(result.get("scripted_last_runtime_stage", "")),
             "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
             "compare_probe_fallback_status": str(result.get("compare_probe_fallback_status", "")),
             "compare_probe_fallback_is_provenance": False,
+            "compare_probe_fallback_command_or_path": result.get("compare_probe_fallback_command_or_path", ""),
             "result_path": str(result.get("result_path", "")),
             "log_path": str(result.get("log_path", "")),
         }
@@ -14219,6 +14260,8 @@ def _compare_lhs_last_writer_stage_fields(
             hook_install_statuses = ["not_confirmed_stage_missing"]
     root_cause_evidence: list[str] = []
     candidate_log_paths: dict[str, str] = {}
+    candidate_invocation_health: dict[str, dict[str, object]] = {}
+    compare_probe_fallback_commands: dict[str, object] = {}
     per_hook_install_results: list[dict[str, object]] = []
     hooks_installed_stage_seen = False
     for item in candidate_results:
@@ -14226,6 +14269,29 @@ def _compare_lhs_last_writer_stage_fields(
         log_path = str(item.get("log_path", "")).strip()
         if candidate_hex and log_path:
             candidate_log_paths[candidate_hex] = log_path
+        if candidate_hex:
+            candidate_invocation_health[candidate_hex] = {
+                "subprocess_command": list(item.get("subprocess_command", []))
+                if isinstance(item.get("subprocess_command"), list)
+                else [],
+                "subprocess_cwd": str(item.get("subprocess_cwd", "")),
+                "subprocess_returncode": item.get("subprocess_returncode", item.get("scripted_returncode", None)),
+                "subprocess_timeout_seconds": item.get("subprocess_timeout_seconds", None),
+                "subprocess_timed_out": bool(item.get("subprocess_timed_out")),
+                "subprocess_stdout_tail": str(item.get("subprocess_stdout_tail", "")),
+                "subprocess_stderr_tail": str(item.get("subprocess_stderr_tail", "")),
+                "scripted_output_exists": bool(item.get("scripted_output_exists")),
+                "scripted_output_size_bytes": int(item.get("scripted_output_size_bytes", 0) or 0),
+                "scripted_output_mtime": str(item.get("scripted_output_mtime", "")),
+                "scripted_log_path": str(item.get("scripted_log_path", log_path)),
+                "scripted_log_size_bytes": int(item.get("scripted_log_size_bytes", 0) or 0),
+                "scripted_initial_payload_only": bool(item.get("scripted_initial_payload_only")),
+                "scripted_lifecycle_entered": bool(item.get("scripted_lifecycle_entered")),
+                "scripted_last_runtime_stage": str(item.get("scripted_last_runtime_stage", "")),
+            }
+            fallback_command = item.get("compare_probe_fallback_command_or_path", "")
+            if fallback_command:
+                compare_probe_fallback_commands[candidate_hex] = fallback_command
         if bool(item.get("hooks_installed_stage_seen")):
             hooks_installed_stage_seen = True
         per_hook_raw = item.get("per_hook_install_results", [])
@@ -14300,6 +14366,8 @@ def _compare_lhs_last_writer_stage_fields(
         "root_cause_hypotheses": root_causes,
         "root_cause_evidence": root_cause_evidence,
         "candidate_log_paths": candidate_log_paths,
+        "candidate_invocation_health": candidate_invocation_health,
+        "compare_probe_fallback_commands": compare_probe_fallback_commands,
     }
 
 
@@ -14327,10 +14395,11 @@ def _compare_lhs_last_writer_failure_stage(
             "hooks_installed_stage_missing_after_script_load",
             "hook_loop_completed_zero_installed",
             "timeout_before_script_lifecycle_observation",
+            "timeout_after_initial_payload_before_lifecycle",
             "module_offset_mismatch",
-        "spawn_attach_resume_failed",
-        "ui_trigger_failed",
-        "helper_hook_not_reached",
+            "spawn_attach_resume_failed",
+            "ui_trigger_failed",
+            "helper_hook_not_reached",
         "script_output_missing",
         "log_path_missing",
         "timeout_before_hook_install",
@@ -14424,7 +14493,9 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
     scripted_write_monitor_health: dict[str, object],
     compare_out: Path,
     compare_log: Path,
+    invocation_health: dict[str, object] | None = None,
 ) -> dict[str, object]:
+    invocation_health = dict(invocation_health or {})
     evidence = compare_payload.get("evidence", [])
     evidence_rows = [str(item) for item in evidence] if isinstance(evidence, list) else []
     hook_install_status = str(compare_payload.get("hook_install_status", "")).strip()
@@ -14498,6 +14569,12 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
     spawn_attach_resume_status = str(compare_payload.get("spawn_attach_resume_status", "")).strip()
     ui_trigger_status = str(compare_payload.get("ui_trigger_status", "")).strip()
     runtime_stage = str(scripted_write_monitor_health.get("runtime_stage", "") or "").strip()
+    if not runtime_stage:
+        runtime_stage = str(compare_payload.get("runtime_stage", "") or "").strip()
+    scripted_initial_payload_only = bool(invocation_health.get("scripted_initial_payload_only"))
+    scripted_lifecycle_entered = bool(invocation_health.get("scripted_lifecycle_entered"))
+    scripted_last_runtime_stage = str(invocation_health.get("scripted_last_runtime_stage", "") or runtime_stage).strip()
+    subprocess_timed_out = bool(invocation_health.get("subprocess_timed_out"))
     root_cause_hypothesis = str(compare_payload.get("root_cause_hypothesis", "")).strip()
     root_cause_evidence = compare_payload.get("root_cause_evidence", [])
     root_cause_rows = [str(item) for item in root_cause_evidence] if isinstance(root_cause_evidence, list) else []
@@ -14522,9 +14599,15 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
             root_cause_hypothesis = "script_output_missing"
         elif not compare_log.exists():
             root_cause_hypothesis = "log_path_missing"
+        elif scripted_initial_payload_only and not scripted_lifecycle_entered:
+            root_cause_hypothesis = "timeout_after_initial_payload_before_lifecycle"
         elif scripted_hook_status == "scripted_hook_no_observations" and scripted_returncode == 124:
             if script_load_status in {"", "not_started", "not_confirmed"}:
-                root_cause_hypothesis = "timeout_before_script_lifecycle_observation"
+                root_cause_hypothesis = (
+                    "timeout_after_initial_payload_before_lifecycle"
+                    if scripted_initial_payload_only
+                    else "timeout_before_script_lifecycle_observation"
+                )
             elif hook_install_status != "installed" or runtime_stage == "script_started":
                 root_cause_hypothesis = "timeout_before_hook_install"
             elif ui_trigger_status and ui_trigger_status != "button_triggered":
@@ -14540,6 +14623,14 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
             f"scripted_hook_status={scripted_hook_status}",
             f"scripted_returncode={scripted_returncode}",
             f"runtime_stage={runtime_stage}",
+            f"scripted_last_runtime_stage={scripted_last_runtime_stage}",
+            f"scripted_initial_payload_only={str(scripted_initial_payload_only).lower()}",
+            f"scripted_lifecycle_entered={str(scripted_lifecycle_entered).lower()}",
+            f"subprocess_timed_out={str(subprocess_timed_out).lower()}",
+            f"subprocess_returncode={invocation_health.get('subprocess_returncode', scripted_returncode)}",
+            f"scripted_output_exists={str(bool(invocation_health.get('scripted_output_exists', compare_out.exists()))).lower()}",
+            f"scripted_output_size_bytes={invocation_health.get('scripted_output_size_bytes', _path_size(compare_out))}",
+            f"scripted_log_path={invocation_health.get('scripted_log_path', str(compare_log))}",
             f"hook_install_status={hook_install_status}",
             f"hook_count={hook_count}",
             f"requested_hook_count={requested_hook_count}",
@@ -14571,6 +14662,9 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
         "ui_trigger_status": ui_trigger_status,
         "root_cause_hypothesis": root_cause_hypothesis,
         "root_cause_evidence": root_cause_rows,
+        "scripted_initial_payload_only": scripted_initial_payload_only,
+        "scripted_lifecycle_entered": scripted_lifecycle_entered,
+        "scripted_last_runtime_stage": scripted_last_runtime_stage,
     }
 
 
@@ -14660,8 +14754,24 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
                 "static_compare_observation_count": result.get("static_compare_observation_count", 0),
                 "root_cause_hypothesis": result.get("root_cause_hypothesis", ""),
                 "root_cause_evidence": result.get("root_cause_evidence", []),
+                "subprocess_command": result.get("subprocess_command", []),
+                "subprocess_cwd": result.get("subprocess_cwd", ""),
+                "subprocess_returncode": result.get("subprocess_returncode", result.get("scripted_returncode", None)),
+                "subprocess_timeout_seconds": result.get("subprocess_timeout_seconds", None),
+                "subprocess_timed_out": bool(result.get("subprocess_timed_out")),
+                "subprocess_stdout_tail": result.get("subprocess_stdout_tail", ""),
+                "subprocess_stderr_tail": result.get("subprocess_stderr_tail", ""),
+                "scripted_output_exists": bool(result.get("scripted_output_exists")),
+                "scripted_output_size_bytes": result.get("scripted_output_size_bytes", 0),
+                "scripted_output_mtime": result.get("scripted_output_mtime", ""),
+                "scripted_log_path": result.get("scripted_log_path", result.get("log_path", "")),
+                "scripted_log_size_bytes": result.get("scripted_log_size_bytes", 0),
+                "scripted_initial_payload_only": bool(result.get("scripted_initial_payload_only")),
+                "scripted_lifecycle_entered": bool(result.get("scripted_lifecycle_entered")),
+                "scripted_last_runtime_stage": result.get("scripted_last_runtime_stage", ""),
                 "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
                 "compare_probe_fallback_status": result.get("compare_probe_fallback_status", ""),
+                "compare_probe_fallback_command_or_path": result.get("compare_probe_fallback_command_or_path", ""),
                 "compare_probe_fallback_is_provenance": False
                 if bool(result.get("compare_probe_fallback_used"))
                 else False,
@@ -14719,6 +14829,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
         "helper_observation_count": stage_fields.get("helper_observation_count", 0),
         "static_compare_observation_count": stage_fields.get("static_compare_observation_count", 0),
         "candidate_log_paths": stage_fields.get("candidate_log_paths", {}),
+        "candidate_invocation_health": stage_fields.get("candidate_invocation_health", {}),
         "compared_prior_run": compared_prior_run,
         "compare_probe_sidecar_diff": {
             "sidecar_hook_install_status": stage_fields.get("hook_install_status", ""),
@@ -14733,9 +14844,11 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
             "sidecar_spawn_attach_resume_status": stage_fields.get("spawn_attach_resume_status", ""),
             "sidecar_ui_trigger_status": stage_fields.get("ui_trigger_status", ""),
             "sidecar_same_process_compare_args_captured": str(actual_compare.get("entry_status", "")) == "confirmed",
+            "sidecar_invocation_health": stage_fields.get("candidate_invocation_health", {}),
             "compare_probe_fallback_used": compare_probe_fallback_used,
             "compare_probe_fallback_captured_compare_args": str(diagnostic_actual_compare.get("entry_status", "")) == "confirmed",
             "compare_probe_fallback_is_provenance": False,
+            "compare_probe_fallback_command_or_path": stage_fields.get("compare_probe_fallback_commands", {}),
             "interpretation": (
                 "CompareProbe fallback is diagnostic-only; sidecar compare args require same-process hook observations."
             ),
@@ -14825,26 +14938,114 @@ def run_compare_lhs_last_writer_provenance_audit(
         ]
         if log:
             log(f"CompareLHSLastWriterProvenanceAudit scripted hooks {idx}: {candidate_hex}")
+        subprocess_timeout = max(1.0, min(float(per_probe_timeout) + 20.0, 30.0))
+        subprocess_cwd = str(Path.cwd())
+        subprocess_timed_out = False
         try:
             proc = _run_material_hook_runtime_command(
                 command,
-                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+                timeout=subprocess_timeout,
             )
             error = ""
         except subprocess.TimeoutExpired as exc:
-            proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
+            subprocess_timed_out = True
+            proc = subprocess.CompletedProcess(
+                command,
+                returncode=124,
+                stdout=_tail_text(getattr(exc, "stdout", None) or getattr(exc, "output", None), 2000),
+                stderr=_tail_text(getattr(exc, "stderr", None), 2000),
+            )
             error = "timeout"
         scripted_output_exists = compare_out.exists()
-        log_text = f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}"
-        compare_log.parent.mkdir(parents=True, exist_ok=True)
+        log_write_error = ""
+        log_text = (
+            f"[command]\n{' '.join(command)}\n\n"
+            f"[cwd]\n{subprocess_cwd}\n\n"
+            f"[returncode]\n{getattr(proc, 'returncode', '')}\n\n"
+            f"[timed_out]\n{str(subprocess_timed_out).lower()}\n\n"
+            f"[stdout]\n{getattr(proc, 'stdout', '') or ''}\n\n"
+            f"[stderr]\n{getattr(proc, 'stderr', '') or ''}"
+        )
         try:
-            compare_log.write_text(log_text, encoding="utf-8")
-        except FileNotFoundError:
-            fallback_log = artifacts_dir / f"c{idx}.log"
-            fallback_log.parent.mkdir(parents=True, exist_ok=True)
-            fallback_log.write_text(log_text, encoding="utf-8")
+            _write_text(compare_log, log_text, encoding="utf-8")
+        except OSError as exc:
+            log_write_error = str(exc)
+            fallback_log = candidate_dir / f"c{idx}.log"
+            _write_text(fallback_log, log_text, encoding="utf-8")
             compare_log = fallback_log
         compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
+        scripted_last_runtime_stage = str(
+            compare_payload.get("runtime_stage", "")
+            or (
+                compare_payload.get("write_monitor_health", {}).get("runtime_stage", "")
+                if isinstance(compare_payload.get("write_monitor_health"), dict)
+                else ""
+            )
+        ).strip()
+        scripted_evidence = compare_payload.get("evidence", [])
+        scripted_evidence_rows = (
+            [str(item) for item in scripted_evidence]
+            if isinstance(scripted_evidence, list)
+            else []
+        )
+        scripted_lifecycle_entered = str(compare_payload.get("script_load_status", "")).strip() in {
+            "loading",
+            "loaded",
+            "failed",
+        } or str(compare_payload.get("spawn_attach_resume_status", "")).strip() not in {
+            "",
+            "not_started",
+        } or any(
+            stage in {
+                "spawning_target",
+                "attaching_frida",
+                "creating_script",
+                "loading_script",
+                "script_loaded",
+                "resuming_target",
+                "connecting_window",
+                "preparing_input",
+                "triggering_candidate",
+                "waiting_for_observation",
+                "static_compare_callsite_observed",
+                "static_compare_callsite_observed_no_args",
+                "helper_observed_waiting_for_static_compare",
+                "stop_condition_before_compare",
+            }
+            for stage in [scripted_last_runtime_stage]
+        ) or any(
+            "runtime_stage=spawning_target" in row
+            or "runtime_stage=attaching_frida" in row
+            or "runtime_stage=loading_script" in row
+            or "runtime_stage=script_loaded" in row
+            or "runtime_stage=waiting_for_observation" in row
+            for row in scripted_evidence_rows
+        )
+        scripted_initial_payload_only = (
+            scripted_output_exists
+            and not scripted_lifecycle_entered
+            and str(compare_payload.get("script_load_status", "")).strip() in {"", "not_started"}
+            and not compare_payload.get("hook_observations")
+            and "compare_pre_compare_handoff_target_probe:script_started" in scripted_evidence_rows
+        )
+        invocation_health = {
+            "subprocess_command": list(command),
+            "subprocess_cwd": subprocess_cwd,
+            "subprocess_returncode": int(getattr(proc, "returncode", 0) or 0),
+            "subprocess_timeout_seconds": subprocess_timeout,
+            "subprocess_timed_out": subprocess_timed_out,
+            "subprocess_stdout_tail": _tail_text(getattr(proc, "stdout", ""), 2000),
+            "subprocess_stderr_tail": _tail_text(getattr(proc, "stderr", ""), 2000),
+            "scripted_output_exists": scripted_output_exists,
+            "scripted_output_size_bytes": _path_size(compare_out),
+            "scripted_output_mtime": _path_mtime_iso(compare_out),
+            "scripted_log_path": str(compare_log),
+            "scripted_log_size_bytes": _path_size(compare_log),
+            "scripted_log_write_error": log_write_error,
+            "scripted_initial_payload_only": scripted_initial_payload_only,
+            "scripted_lifecycle_entered": scripted_lifecycle_entered,
+            "scripted_last_runtime_stage": scripted_last_runtime_stage,
+        }
         observations = [
             _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
             for item in compare_payload.get("hook_observations", [])
@@ -14874,6 +15075,7 @@ def run_compare_lhs_last_writer_provenance_audit(
             )
         compare_probe_fallback_used = False
         compare_probe_fallback_status = ""
+        compare_probe_fallback_command_or_path: object = ""
         if not _has_actual_compare_args(observations):
             probe_out = candidate_dir / "compare_probe_static_callsite.json"
             probe_log = candidate_dir / "compare_probe_static_callsite.log"
@@ -14891,6 +15093,7 @@ def run_compare_lhs_last_writer_provenance_audit(
                 "--capture-prefix-bytes",
                 str(RUNTIME_PREFIX_BYTES),
             ]
+            compare_probe_fallback_command_or_path = list(probe_command)
             if log:
                 log(f"CompareLHSLastWriterProvenanceAudit CompareProbe fallback {idx}: {candidate_hex}")
             try:
@@ -15002,6 +15205,7 @@ def run_compare_lhs_last_writer_provenance_audit(
             scripted_write_monitor_health=scripted_write_monitor_health,
             compare_out=compare_out,
             compare_log=compare_log,
+            invocation_health=invocation_health,
         )
         same_process_compare_args_captured = _has_actual_compare_args(same_process_observations)
         instrumentation_failure_stage = ""
@@ -15073,14 +15277,30 @@ def run_compare_lhs_last_writer_provenance_audit(
                 "instrumentation_failure_stage": instrumentation_failure_stage,
                 "scripted_hook_status": scripted_hook_status,
                 "scripted_output_exists": scripted_output_exists,
+                "scripted_output_size_bytes": invocation_health["scripted_output_size_bytes"],
+                "scripted_output_mtime": invocation_health["scripted_output_mtime"],
+                "scripted_log_path": invocation_health["scripted_log_path"],
+                "scripted_log_size_bytes": invocation_health["scripted_log_size_bytes"],
+                "scripted_log_write_error": invocation_health["scripted_log_write_error"],
+                "scripted_initial_payload_only": stage_metadata.get("scripted_initial_payload_only", False),
+                "scripted_lifecycle_entered": stage_metadata.get("scripted_lifecycle_entered", False),
+                "scripted_last_runtime_stage": stage_metadata.get("scripted_last_runtime_stage", ""),
                 "scripted_returncode": scripted_returncode,
                 "scripted_observation_count": scripted_observation_count,
                 "scripted_error": error or str(compare_payload.get("error", "")),
-                "scripted_stdout_preview": str(getattr(proc, "stdout", "") or "")[:2000],
-                "scripted_stderr_preview": str(getattr(proc, "stderr", "") or "")[:2000],
+                "scripted_stdout_preview": invocation_health["subprocess_stdout_tail"],
+                "scripted_stderr_preview": invocation_health["subprocess_stderr_tail"],
+                "subprocess_command": invocation_health["subprocess_command"],
+                "subprocess_cwd": invocation_health["subprocess_cwd"],
+                "subprocess_returncode": invocation_health["subprocess_returncode"],
+                "subprocess_timeout_seconds": invocation_health["subprocess_timeout_seconds"],
+                "subprocess_timed_out": invocation_health["subprocess_timed_out"],
+                "subprocess_stdout_tail": invocation_health["subprocess_stdout_tail"],
+                "subprocess_stderr_tail": invocation_health["subprocess_stderr_tail"],
                 "compare_probe_fallback_used": compare_probe_fallback_used,
                 "compare_probe_fallback_status": compare_probe_fallback_status,
                 "compare_probe_fallback_is_provenance": False,
+                "compare_probe_fallback_command_or_path": compare_probe_fallback_command_or_path,
                 "result_path": str(compare_out),
                 "log_path": str(compare_log),
                 "success": bool(compare_payload.get("success")) and not error,
