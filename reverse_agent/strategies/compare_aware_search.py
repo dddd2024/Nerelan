@@ -13381,6 +13381,10 @@ def _compare_real_lhs_candidate_execution_health(
             "instrumentation_failure_stage": str(result.get("instrumentation_failure_stage", "")),
             "hook_install_status": str(result.get("hook_install_status", "")),
             "hook_count": result.get("hook_count", 0),
+            "requested_hook_count": result.get("requested_hook_count", 0),
+            "script_load_status": str(result.get("script_load_status", "")),
+            "script_load_error": str(result.get("script_load_error", "")),
+            "frida_message_error_count": int(result.get("frida_message_error_count", 0) or 0),
             "spawn_attach_resume_status": str(result.get("spawn_attach_resume_status", "")),
             "ui_trigger_status": str(result.get("ui_trigger_status", "")),
             "helper_observation_count": int(result.get("helper_observation_count", 0) or 0),
@@ -13838,10 +13842,15 @@ def run_compare_real_lhs_provenance_audit(
             proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
             error = "timeout"
         scripted_output_exists = compare_out.exists()
-        compare_log.write_text(
-            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
-            encoding="utf-8",
-        )
+        log_text = f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}"
+        compare_log.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            compare_log.write_text(log_text, encoding="utf-8")
+        except FileNotFoundError:
+            fallback_log = artifacts_dir / f"c{idx}.log"
+            fallback_log.parent.mkdir(parents=True, exist_ok=True)
+            fallback_log.write_text(log_text, encoding="utf-8")
+            compare_log = fallback_log
         compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
         observations = [
             _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
@@ -14087,6 +14096,31 @@ def _compare_lhs_last_writer_bounded_failures(
         for item in candidate_results
     ):
         failures.append("script timed out before any configured hook observation")
+    script_load_statuses = {
+        str(item.get("script_load_status", "")).strip()
+        for item in candidate_results
+        if str(item.get("script_load_status", "")).strip()
+    }
+    if script_load_statuses and "loaded" not in script_load_statuses:
+        failures.append("sidecar script load was not confirmed before the bounded stop")
+    script_load_errors = sorted(
+        {
+            str(item.get("script_load_error", "")).strip()
+            for item in candidate_results
+            if str(item.get("script_load_error", "")).strip()
+        }
+    )
+    if script_load_errors:
+        failures.append(f"sidecar script load errors: {'; '.join(script_load_errors[:3])}")
+    hook_statuses = {
+        str(item.get("hook_install_status", "")).strip()
+        for item in candidate_results
+        if str(item.get("hook_install_status", "")).strip()
+    }
+    if hook_statuses and "installed" not in hook_statuses:
+        requested = max((int(item.get("requested_hook_count", 0) or 0) for item in candidate_results), default=0)
+        installed = max((int(item.get("hook_count", 0) or 0) for item in candidate_results), default=0)
+        failures.append(f"sidecar hook install not confirmed: installed={installed} requested={requested}")
     stages = {
         str(item.get("instrumentation_failure_stage", "")).strip()
         for item in candidate_results
@@ -14146,6 +14180,8 @@ def _compare_lhs_last_writer_stage_fields(
         return max(values) if values else 0
 
     hook_install_statuses = _non_empty("hook_install_status")
+    script_load_statuses = _non_empty("script_load_status")
+    script_load_errors = _non_empty("script_load_error")
     spawn_statuses = _non_empty("spawn_attach_resume_status")
     ui_statuses = _non_empty("ui_trigger_status")
     root_causes = _non_empty("root_cause_hypothesis")
@@ -14208,6 +14244,12 @@ def _compare_lhs_last_writer_stage_fields(
         "hook_install_status": _summary_status(hook_install_statuses),
         "hook_install_statuses": hook_install_statuses,
         "hook_count": _max_int("hook_count"),
+        "requested_hook_count": _max_int("requested_hook_count"),
+        "script_load_status": _summary_status(script_load_statuses),
+        "script_load_statuses": script_load_statuses,
+        "script_load_error": _summary_status(script_load_errors),
+        "script_load_errors": script_load_errors,
+        "frida_message_error_count": _sum_int("frida_message_error_count"),
         "spawn_attach_resume_status": _summary_status(spawn_statuses),
         "spawn_attach_resume_statuses": spawn_statuses,
         "ui_trigger_status": _summary_status(ui_statuses),
@@ -14237,6 +14279,9 @@ def _compare_lhs_last_writer_failure_stage(
         if str(item).strip()
     }
     for stage in (
+        "script_load_failed",
+        "js_compile_error",
+        "module_not_found",
         "hook_install_failed",
         "module_offset_mismatch",
         "spawn_attach_resume_failed",
@@ -14339,6 +14384,16 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
     evidence = compare_payload.get("evidence", [])
     evidence_rows = [str(item) for item in evidence] if isinstance(evidence, list) else []
     hook_install_status = str(compare_payload.get("hook_install_status", "")).strip()
+    script_load_status = str(compare_payload.get("script_load_status", "")).strip()
+    script_load_error = str(compare_payload.get("script_load_error", "")).strip()
+    try:
+        requested_hook_count = int(compare_payload.get("requested_hook_count", 0) or 0)
+    except (TypeError, ValueError):
+        requested_hook_count = 0
+    try:
+        frida_message_error_count = int(compare_payload.get("frida_message_error_count", 0) or 0)
+    except (TypeError, ValueError):
+        frida_message_error_count = 0
     hook_count = 0
     try:
         hook_count = int(compare_payload.get("hook_count", 0) or 0)
@@ -14350,6 +14405,13 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
             hook_count = hook_count or 3
         elif scripted_hook_status == "scripted_hook_no_observations":
             hook_install_status = "not_confirmed"
+    if not requested_hook_count:
+        requested_hook_count = 3 if hook_count or hook_install_status else 0
+    if not script_load_status:
+        if any("runtime_stage=hooks_installed" in item for item in evidence_rows):
+            script_load_status = "loaded"
+        elif compare_payload and scripted_hook_status == "scripted_hook_no_observations":
+            script_load_status = "not_confirmed"
     spawn_attach_resume_status = str(compare_payload.get("spawn_attach_resume_status", "")).strip()
     ui_trigger_status = str(compare_payload.get("ui_trigger_status", "")).strip()
     runtime_stage = str(scripted_write_monitor_health.get("runtime_stage", "") or "").strip()
@@ -14358,7 +14420,14 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
     root_cause_rows = [str(item) for item in root_cause_evidence] if isinstance(root_cause_evidence, list) else []
 
     if not root_cause_hypothesis:
-        if not compare_out.exists():
+        if script_load_error:
+            if "SyntaxError" in script_load_error or "compile" in script_load_error.lower():
+                root_cause_hypothesis = "js_compile_error"
+            elif "module" in script_load_error.lower() and "not" in script_load_error.lower():
+                root_cause_hypothesis = "module_not_found"
+            else:
+                root_cause_hypothesis = "script_load_failed"
+        elif not compare_out.exists():
             root_cause_hypothesis = "script_output_missing"
         elif not compare_log.exists():
             root_cause_hypothesis = "log_path_missing"
@@ -14380,6 +14449,10 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
             f"runtime_stage={runtime_stage}",
             f"hook_install_status={hook_install_status}",
             f"hook_count={hook_count}",
+            f"requested_hook_count={requested_hook_count}",
+            f"script_load_status={script_load_status}",
+            f"script_load_error={script_load_error}",
+            f"frida_message_error_count={frida_message_error_count}",
             f"spawn_attach_resume_status={spawn_attach_resume_status}",
             f"ui_trigger_status={ui_trigger_status}",
             f"helper_observation_count={helper_observation_count}",
@@ -14388,6 +14461,10 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
     return {
         "hook_install_status": hook_install_status,
         "hook_count": hook_count,
+        "requested_hook_count": requested_hook_count,
+        "script_load_status": script_load_status,
+        "script_load_error": script_load_error,
+        "frida_message_error_count": frida_message_error_count,
         "spawn_attach_resume_status": spawn_attach_resume_status,
         "ui_trigger_status": ui_trigger_status,
         "root_cause_hypothesis": root_cause_hypothesis,
@@ -14466,6 +14543,10 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
                 "same_process_compare_args_captured": bool(result.get("same_process_compare_args_captured")),
                 "hook_install_status": result.get("hook_install_status", ""),
                 "hook_count": result.get("hook_count", 0),
+                "requested_hook_count": result.get("requested_hook_count", 0),
+                "script_load_status": result.get("script_load_status", ""),
+                "script_load_error": result.get("script_load_error", ""),
+                "frida_message_error_count": result.get("frida_message_error_count", 0),
                 "spawn_attach_resume_status": result.get("spawn_attach_resume_status", ""),
                 "ui_trigger_status": result.get("ui_trigger_status", ""),
                 "helper_observation_count": result.get("helper_observation_count", 0),
@@ -14517,12 +14598,31 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
         "root_cause_evidence": stage_fields.get("root_cause_evidence", []),
         "hook_install_status": stage_fields.get("hook_install_status", ""),
         "hook_count": stage_fields.get("hook_count", 0),
+        "requested_hook_count": stage_fields.get("requested_hook_count", 0),
+        "script_load_status": stage_fields.get("script_load_status", ""),
+        "script_load_error": stage_fields.get("script_load_error", ""),
+        "frida_message_error_count": stage_fields.get("frida_message_error_count", 0),
         "spawn_attach_resume_status": stage_fields.get("spawn_attach_resume_status", ""),
         "ui_trigger_status": stage_fields.get("ui_trigger_status", ""),
         "helper_observation_count": stage_fields.get("helper_observation_count", 0),
         "static_compare_observation_count": stage_fields.get("static_compare_observation_count", 0),
         "candidate_log_paths": stage_fields.get("candidate_log_paths", {}),
         "compared_prior_run": compared_prior_run,
+        "compare_probe_sidecar_diff": {
+            "sidecar_hook_install_status": stage_fields.get("hook_install_status", ""),
+            "sidecar_hook_count": stage_fields.get("hook_count", 0),
+            "sidecar_requested_hook_count": stage_fields.get("requested_hook_count", 0),
+            "sidecar_script_load_status": stage_fields.get("script_load_status", ""),
+            "sidecar_spawn_attach_resume_status": stage_fields.get("spawn_attach_resume_status", ""),
+            "sidecar_ui_trigger_status": stage_fields.get("ui_trigger_status", ""),
+            "sidecar_same_process_compare_args_captured": str(actual_compare.get("entry_status", "")) == "confirmed",
+            "compare_probe_fallback_used": compare_probe_fallback_used,
+            "compare_probe_fallback_captured_compare_args": str(diagnostic_actual_compare.get("entry_status", "")) == "confirmed",
+            "compare_probe_fallback_is_provenance": False,
+            "interpretation": (
+                "CompareProbe fallback is diagnostic-only; sidecar compare args require same-process hook observations."
+            ),
+        },
         "last_writer": last_writer,
         "observations": observations,
         "bounded_failures": bounded_failures,
@@ -14588,8 +14688,8 @@ def run_compare_lhs_last_writer_provenance_audit(
     for idx, candidate_hex in enumerate(entries, 1):
         candidate_dir = artifacts_dir / f"candidate_{idx}"
         candidate_dir.mkdir(parents=True, exist_ok=True)
-        compare_out = candidate_dir / COMPARE_LHS_LAST_WRITER_PROVENANCE_AUDIT_FILE_NAME
-        compare_log = candidate_dir / "compare_lhs_last_writer_provenance_audit.log"
+        compare_out = artifacts_dir / f"c{idx}.json"
+        compare_log = artifacts_dir / f"c{idx}.log"
         command = [
             sys.executable,
             str(script_path),
@@ -14618,10 +14718,15 @@ def run_compare_lhs_last_writer_provenance_audit(
             proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
             error = "timeout"
         scripted_output_exists = compare_out.exists()
-        compare_log.write_text(
-            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
-            encoding="utf-8",
-        )
+        log_text = f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}"
+        compare_log.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            compare_log.write_text(log_text, encoding="utf-8")
+        except FileNotFoundError:
+            fallback_log = artifacts_dir / f"c{idx}.log"
+            fallback_log.parent.mkdir(parents=True, exist_ok=True)
+            fallback_log.write_text(log_text, encoding="utf-8")
+            compare_log = fallback_log
         compare_payload = _read_json_object(compare_out) if compare_out.exists() else {}
         observations = [
             _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
@@ -14784,6 +14889,9 @@ def run_compare_lhs_last_writer_provenance_audit(
         same_process_compare_args_captured = _has_actual_compare_args(same_process_observations)
         instrumentation_failure_stage = ""
         if str(stage_metadata.get("root_cause_hypothesis", "")).strip() in {
+            "script_load_failed",
+            "js_compile_error",
+            "module_not_found",
             "hook_install_failed",
             "module_offset_mismatch",
             "spawn_attach_resume_failed",
@@ -14828,6 +14936,10 @@ def run_compare_lhs_last_writer_provenance_audit(
                 "static_compare_observation_count": same_process_static_observation_count,
                 "hook_install_status": stage_metadata.get("hook_install_status", ""),
                 "hook_count": stage_metadata.get("hook_count", 0),
+                "requested_hook_count": stage_metadata.get("requested_hook_count", 0),
+                "script_load_status": stage_metadata.get("script_load_status", ""),
+                "script_load_error": stage_metadata.get("script_load_error", ""),
+                "frida_message_error_count": stage_metadata.get("frida_message_error_count", 0),
                 "spawn_attach_resume_status": stage_metadata.get("spawn_attach_resume_status", ""),
                 "ui_trigger_status": stage_metadata.get("ui_trigger_status", ""),
                 "root_cause_hypothesis": stage_metadata.get("root_cause_hypothesis", ""),

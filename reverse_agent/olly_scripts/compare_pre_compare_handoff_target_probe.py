@@ -95,6 +95,10 @@ def _build_payload(
     evidence: list[str] | None = None,
     hook_install_status: str = "",
     hook_count: int = 0,
+    requested_hook_count: int = 0,
+    script_load_status: str = "",
+    script_load_error: str = "",
+    frida_message_error_count: int = 0,
     spawn_attach_resume_status: str = "",
     ui_trigger_status: str = "",
     helper_observation_count: int = 0,
@@ -117,6 +121,10 @@ def _build_payload(
         "evidence": evidence or [],
         "hook_install_status": hook_install_status,
         "hook_count": hook_count,
+        "requested_hook_count": requested_hook_count,
+        "script_load_status": script_load_status,
+        "script_load_error": script_load_error,
+        "frida_message_error_count": frida_message_error_count,
         "spawn_attach_resume_status": spawn_attach_resume_status,
         "ui_trigger_status": ui_trigger_status,
         "helper_observation_count": helper_observation_count,
@@ -223,12 +231,18 @@ def main() -> int:
             hook_points=hook_points,
             write_monitor_health=_initial_write_monitor_health(hook_points),
             evidence=[*evidence, "compare_pre_compare_handoff_target_probe:script_started"],
+            requested_hook_count=len(hook_points),
+            script_load_status="not_started",
+            spawn_attach_resume_status="not_started",
+            ui_trigger_status="not_started",
         ),
     )
 
     messages: list[dict[str, object]] = []
     script_errors: list[str] = []
     runtime_stage = "script_started"
+    script_load_status = "not_started"
+    script_load_error = ""
     spawn_attach_resume_status = "not_started"
     ui_trigger_status = "not_started"
     pid: int | None = None
@@ -822,10 +836,13 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         runtime_stage = "attaching_frida"
         session = frida.attach(pid)
         spawn_attach_resume_status = "attached"
+        runtime_stage = "creating_script"
         script = session.create_script(script_source)
         script.on("message", on_message)
         runtime_stage = "loading_script"
+        script_load_status = "loading"
         script.load()
+        script_load_status = "loaded"
         runtime_stage = "resuming_target"
         frida.resume(pid)
         spawn_attach_resume_status = "resumed"
@@ -875,7 +892,10 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
                 runtime_stage = "helper_observed_waiting_for_static_compare"
             time.sleep(0.05)
     except Exception as exc:
-        script_errors.append(_escape_runtime_text(str(exc)))
+        script_load_error = _escape_runtime_text(str(exc))
+        script_errors.append(script_load_error)
+        if runtime_stage in {"creating_script", "loading_script"}:
+            script_load_status = "failed"
     finally:
         if runtime_stage == "helper_observed_waiting_for_static_compare":
             runtime_stage = "stop_condition_before_compare"
@@ -914,6 +934,7 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         for item in messages
         if str(item.get("type", "")) == "compare_pre_compare_handoff_target_error"
     ]
+    frida_message_error_count = len(script_errors)
     stage_messages = [
         item
         for item in messages
@@ -933,10 +954,18 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
     )
     static_compare_observation_count = len(static_observations)
     hook_count = 0
+    requested_hook_count = len(hook_points)
     if stage_messages:
         for item in stage_messages:
             try:
                 hook_count = max(hook_count, int(item.get("hook_count", 0) or 0))
+            except (TypeError, ValueError):
+                pass
+            try:
+                requested_hook_count = max(
+                    requested_hook_count,
+                    int(item.get("requested_hook_count", 0) or 0),
+                )
             except (TypeError, ValueError):
                 pass
     hook_install_status = "installed" if hook_count > 0 else "not_confirmed"
@@ -946,9 +975,17 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
     root_cause_hypothesis = ""
     root_cause_evidence: list[str] = []
     if not static_observations:
-        if hook_install_status != "installed":
+        if script_load_status == "failed":
+            if "SyntaxError" in script_load_error or "compile" in script_load_error.lower():
+                root_cause_hypothesis = "js_compile_error"
+            else:
+                root_cause_hypothesis = "script_load_failed"
+            root_cause_evidence.append(f"script_load_error={script_load_error}")
+        elif hook_install_status != "installed":
             root_cause_hypothesis = "timeout_before_hook_install"
             root_cause_evidence.append(f"hook_install_status={hook_install_status}")
+            root_cause_evidence.append(f"script_load_status={script_load_status}")
+            root_cause_evidence.append(f"requested_hook_count={requested_hook_count}")
         elif spawn_attach_resume_status != "resumed":
             root_cause_hypothesis = "spawn_attach_resume_failed"
             root_cause_evidence.append(f"spawn_attach_resume_status={spawn_attach_resume_status}")
@@ -965,6 +1002,9 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             [
                 f"runtime_stage={runtime_stage}",
                 f"hook_count={hook_count}",
+                f"requested_hook_count={requested_hook_count}",
+                f"script_load_status={script_load_status}",
+                f"frida_message_error_count={frida_message_error_count}",
                 f"spawn_attach_resume_status={spawn_attach_resume_status}",
                 f"ui_trigger_status={ui_trigger_status}",
                 f"static_compare_observation_count={static_compare_observation_count}",
@@ -989,6 +1029,10 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             evidence=[*evidence, *errors, *script_errors],
             hook_install_status=hook_install_status,
             hook_count=hook_count,
+            requested_hook_count=requested_hook_count,
+            script_load_status=script_load_status,
+            script_load_error=script_load_error,
+            frida_message_error_count=frida_message_error_count,
             spawn_attach_resume_status=spawn_attach_resume_status,
             ui_trigger_status=ui_trigger_status,
             helper_observation_count=helper_observation_count,

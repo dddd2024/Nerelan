@@ -8199,6 +8199,9 @@ def test_compare_lhs_last_writer_timeout_has_precise_failure_stage() -> None:
                 "scripted_hook_status": "scripted_hook_no_observations",
                 "scripted_returncode": 124,
                 "scripted_error": "timeout",
+                "requested_hook_count": 3,
+                "script_load_status": "not_started",
+                "frida_message_error_count": 0,
             }
         )
 
@@ -8211,11 +8214,84 @@ def test_compare_lhs_last_writer_timeout_has_precise_failure_stage() -> None:
     assert payload["instrumentation_failure_stage"] == "timeout_before_hook_install"
     assert payload["root_cause_hypothesis"] == "timeout_before_hook_install"
     assert payload["hook_install_status"] == "not_confirmed"
+    assert payload["requested_hook_count"] == 3
+    assert payload["script_load_status"] == "not_started"
+    assert payload["frida_message_error_count"] == 0
     assert payload["spawn_attach_resume_status"] == ""
     assert payload["ui_trigger_status"] == ""
     assert payload["helper_observation_count"] == 0
     assert payload["static_compare_observation_count"] == 0
     assert "script timed out before any configured hook observation" in " ".join(payload["bounded_failures"])
+
+
+def test_compare_lhs_last_writer_script_load_error_maps_precisely(tmp_path: Path) -> None:
+    out_path = tmp_path / "candidate.json"
+    out_path.write_text("{}", encoding="utf-8")
+    log_path = tmp_path / "candidate.log"
+    log_path.write_text("", encoding="utf-8")
+
+    metadata = compare_aware_search._compare_lhs_last_writer_candidate_stage_metadata(
+        compare_payload={
+            "script_load_status": "failed",
+            "script_load_error": "SyntaxError: unexpected token",
+            "requested_hook_count": 3,
+            "frida_message_error_count": 1,
+        },
+        scripted_hook_status="scripted_hook_no_observations",
+        scripted_returncode=1,
+        helper_observation_count=0,
+        static_compare_observation_count=0,
+        scripted_write_monitor_health={"runtime_stage": "loading_script"},
+        compare_out=out_path,
+        compare_log=log_path,
+    )
+
+    assert metadata["root_cause_hypothesis"] == "js_compile_error"
+    assert metadata["script_load_status"] == "failed"
+    assert metadata["script_load_error"] == "SyntaxError: unexpected token"
+    assert metadata["frida_message_error_count"] == 1
+
+
+def test_compare_lhs_last_writer_hook_install_error_is_surfaced() -> None:
+    candidates = []
+    for candidate_hex in [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+    ]:
+        candidates.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_observations": [],
+                "write_monitor_health": {
+                    "observed": False,
+                    "enabled": True,
+                    "runtime_stage": "loading_script",
+                    "followed_thread_count": 0,
+                    "raw_write_count": 0,
+                },
+                "scripted_hook_status": "scripted_hook_no_observations",
+                "scripted_returncode": 0,
+                "hook_install_status": "failed_or_not_confirmed",
+                "hook_count": 0,
+                "requested_hook_count": 3,
+                "script_load_status": "loaded",
+                "frida_message_error_count": 2,
+                "root_cause_hypothesis": "hook_install_failed",
+                "root_cause_evidence": ["static_compare_callsite: access violation"],
+            }
+        )
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidates,
+        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+    )
+
+    assert payload["instrumentation_failure_stage"] == "hook_install_failed"
+    assert payload["hook_install_status"] == "failed_or_not_confirmed"
+    assert payload["requested_hook_count"] == 3
+    assert payload["script_load_status"] == "loaded"
+    assert payload["frida_message_error_count"] == 4
+    assert "access violation" in " ".join(payload["root_cause_evidence"])
 
 
 def test_compare_lhs_last_writer_helper_only_stage_is_stop_before_compare() -> None:
@@ -8358,6 +8434,10 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
                         "write_ring_buffer": [_last_writer_event(ptr, preview)],
                         "hook_install_status": "installed",
                         "hook_count": 3,
+                        "requested_hook_count": 3,
+                        "script_load_status": "loaded",
+                        "script_load_error": "",
+                        "frida_message_error_count": 0,
                         "spawn_attach_resume_status": "resumed",
                         "ui_trigger_status": "button_triggered",
                         "helper_observation_count": 1,
@@ -8411,11 +8491,14 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
     assert payload["hook_points"][2]["module_offset"] == 0x1B50
     assert payload["hook_install_status"] == "installed"
     assert payload["hook_count"] == 3
+    assert payload["requested_hook_count"] == 3
+    assert payload["script_load_status"] == "loaded"
     assert payload["spawn_attach_resume_status"] == "resumed"
     assert payload["ui_trigger_status"] == "button_triggered"
     assert payload["helper_observation_count"] == 2
     assert payload["static_compare_observation_count"] == 2
     assert payload["candidate_log_paths"]
+    assert payload["compare_probe_sidecar_diff"]["compare_probe_fallback_is_provenance"] is False
 
 
 def test_compare_probe_fallback_observation_carries_esi_snapshot() -> None:
