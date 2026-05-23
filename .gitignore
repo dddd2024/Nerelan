@@ -7,6 +7,13 @@ __pycache__/
 solve_reports/
 gpt_context_pack.zip
 
+project_state/rounds/*/git_diff.patch
+project_state/rounds/*/artifact_index.json
+project_state/rounds/*/current_state.json
+project_state/rounds/*/negative_results.json
+project_state/rounds/*/model_gate.json
+project_state/rounds/*/task_packet.json
+
 .venv/
 venv/
 env/

@@ -8563,6 +8563,9 @@ def test_compare_lhs_last_writer_hooks_installed_but_not_hit_is_distinct() -> No
     assert payload["instrumentation_failure_stage"] == "hook_not_hit"
     assert payload["hook_not_hit_vs_hook_not_installed_classification"] == "hook_not_hit"
     assert payload["compare_probe_fallback_is_provenance"] is False
+    assert payload["sidecar_health"]["hook_install"]["hook_install_status"] == "installed"
+    assert payload["sidecar_health"]["message_bridge"]["python_message_count_total"] == 10
+    assert payload["observations"][0]["sidecar_health"]["hook_install"]["hook_install_status"] == "installed"
 
 
 def test_compare_lhs_last_writer_helper_only_stage_is_stop_before_compare() -> None:

@@ -103,6 +103,9 @@ STATE_MARKDOWN_NAMES = (
     "codex_execution_report.md",
 )
 ARCHIVE_STATE_NAMES = (*STATE_JSON_NAMES, *STATE_MARKDOWN_NAMES)
+ARCHIVE_MINIMAL_NAMES = STATE_MARKDOWN_NAMES
+ARCHIVE_STATE_SNAPSHOT_NAMES = STATE_JSON_NAMES
+ARCHIVE_OPTIONAL_NAMES = (*STATE_JSON_NAMES, "git_diff.patch")
 DEFAULT_STATE_DIR = Path("project_state")
 DEFAULT_SAMPLE = "samplereverse"
 DEFAULT_REPORTS_DIR = Path("solve_reports")
@@ -3167,13 +3170,23 @@ def _git_diff_text() -> str:
     return proc.stdout or ""
 
 
-def _archive_source_file_bytes(state_dir: Path, pytest_result: Path | None) -> dict[str, bytes]:
+def _archive_source_file_bytes(
+    state_dir: Path,
+    pytest_result: Path | None,
+    *,
+    include_state_snapshot: bool,
+    include_diff: bool,
+) -> dict[str, bytes]:
     files: dict[str, bytes] = {}
-    for name in ARCHIVE_STATE_NAMES:
+    include_names = list(ARCHIVE_MINIMAL_NAMES)
+    if include_state_snapshot:
+        include_names.extend(ARCHIVE_STATE_SNAPSHOT_NAMES)
+    for name in include_names:
         src = state_dir / name
         if src.exists():
             files[name] = src.read_bytes()
-    files["git_diff.patch"] = _git_diff_text().encode("utf-8")
+    if include_diff:
+        files["git_diff.patch"] = _git_diff_text().encode("utf-8")
     result_src = pytest_result or (state_dir / "pytest_result.txt")
     if result_src.exists():
         files["pytest_result.txt"] = result_src.read_bytes()
@@ -3182,12 +3195,21 @@ def _archive_source_file_bytes(state_dir: Path, pytest_result: Path | None) -> d
     return files
 
 
-def _archive_file_source_path(state_dir: Path, name: str, pytest_result: Path | None) -> Path | None:
-    if name in ARCHIVE_STATE_NAMES:
+def _archive_file_source_path(
+    state_dir: Path,
+    name: str,
+    pytest_result: Path | None,
+    *,
+    include_state_snapshot: bool,
+    include_diff: bool,
+) -> Path | None:
+    if name in ARCHIVE_MINIMAL_NAMES or (include_state_snapshot and name in ARCHIVE_STATE_SNAPSHOT_NAMES):
         return state_dir / name
     if name == "pytest_result.txt":
         result_src = pytest_result or (state_dir / "pytest_result.txt")
         return result_src if result_src.exists() else None
+    if name == "git_diff.patch" and include_diff:
+        return None
     return None
 
 
@@ -3196,10 +3218,19 @@ def _archive_file_manifest(
     round_id: str,
     files: dict[str, bytes],
     pytest_result: Path | None,
+    *,
+    include_state_snapshot: bool,
+    include_diff: bool,
 ) -> dict[str, dict[str, str | None]]:
     manifest: dict[str, dict[str, str | None]] = {}
     for name, data in sorted(files.items()):
-        source_path = _archive_file_source_path(state_dir, name, pytest_result)
+        source_path = _archive_file_source_path(
+            state_dir,
+            name,
+            pytest_result,
+            include_state_snapshot=include_state_snapshot,
+            include_diff=include_diff,
+        )
         archived_path = state_dir / "rounds" / round_id / name
         manifest[name] = {
             "source_path": _path_for_json(source_path) if source_path is not None else None,
@@ -3216,8 +3247,14 @@ def _build_round_manifest(
     archived_at: str,
     files: dict[str, bytes],
     pytest_result: Path | None,
+    include_state_snapshot: bool,
+    include_diff: bool,
 ) -> dict[str, Any]:
     current_state = _read_json(state_dir / "current_state.json")
+    archive_mode = "full" if include_state_snapshot and include_diff else "state_snapshot" if include_state_snapshot else "minimal"
+    omitted_files = [
+        name for name in ARCHIVE_OPTIONAL_NAMES if name not in files
+    ]
     return {
         "schema_version": 1,
         "round_id": round_id,
@@ -3227,7 +3264,18 @@ def _build_round_manifest(
         "state_build_id": current_state.get("state_build_id") or "",
         "state_digest": current_state.get("state_digest") or "",
         "workflow_status": current_state.get("workflow_status") or "",
-        "files": _archive_file_manifest(state_dir, round_id, files, pytest_result),
+        "archive_mode": archive_mode,
+        "included_diff": bool(include_diff),
+        "included_state_snapshot": bool(include_state_snapshot),
+        "omitted_files": omitted_files,
+        "files": _archive_file_manifest(
+            state_dir,
+            round_id,
+            files,
+            pytest_result,
+            include_state_snapshot=include_state_snapshot,
+            include_diff=include_diff,
+        ),
     }
 
 
@@ -3242,12 +3290,19 @@ def archive_round(
     state_dir: Path,
     round_id: str = "",
     pytest_result: Path | None = None,
+    include_state_snapshot: bool = False,
+    include_diff: bool = False,
 ) -> dict[str, Any]:
     ensure_state_layout(state_dir)
     current_state = _read_json(state_dir / "current_state.json")
     selected_round_id = round_id or str(current_state.get("round_id") or "")
     round_dir = _resolve_round_dir(state_dir, round_id=selected_round_id)
-    files = _archive_source_file_bytes(state_dir, pytest_result)
+    files = _archive_source_file_bytes(
+        state_dir,
+        pytest_result,
+        include_state_snapshot=include_state_snapshot,
+        include_diff=include_diff,
+    )
     existing_manifest = _read_json(round_dir / "round_manifest.json")
     archived_at = str(existing_manifest.get("archived_at") or _now_iso())
     manifest = _build_round_manifest(
@@ -3256,6 +3311,8 @@ def archive_round(
         archived_at=archived_at,
         files=files,
         pytest_result=pytest_result,
+        include_state_snapshot=include_state_snapshot,
+        include_diff=include_diff,
     )
     if round_dir.exists():
         if not existing_manifest:
@@ -3462,6 +3519,8 @@ def main(argv: list[str] | None = None) -> int:
     archive_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     archive_parser.add_argument("--round-id", default="")
     archive_parser.add_argument("--pytest-result", default="")
+    archive_parser.add_argument("--include-state-snapshot", action="store_true")
+    archive_parser.add_argument("--include-diff", action="store_true")
 
     pack_parser = subparsers.add_parser("pack", help="Pack compact GPT context files.")
     pack_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
@@ -3498,6 +3557,8 @@ def main(argv: list[str] | None = None) -> int:
             state_dir=Path(args.state_dir),
             round_id=str(args.round_id or ""),
             pytest_result=Path(args.pytest_result) if args.pytest_result else None,
+            include_state_snapshot=bool(args.include_state_snapshot),
+            include_diff=bool(args.include_diff),
         )
         return 0
     if args.command == "pack":

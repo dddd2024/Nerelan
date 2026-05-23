@@ -3009,16 +3009,16 @@ def test_new_round_status_and_archive_round_create_expected_files(tmp_path: Path
     assert result["round_id"] == current_state["round_id"]
     assert result["status"] == "created"
     assert round_dir.exists()
-    assert (round_dir / "current_state.json").exists()
-    assert (round_dir / "artifact_index.json").exists()
-    assert (round_dir / "negative_results.json").exists()
-    assert (round_dir / "model_gate.json").exists()
-    assert (round_dir / "task_packet.json").exists()
     assert (round_dir / "decision_packet.md").exists()
     assert (round_dir / "codex_execution_report.md").exists()
-    assert (round_dir / "git_diff.patch").exists()
     assert (round_dir / "pytest_result.txt").exists()
     assert (round_dir / "round_manifest.json").exists()
+    assert not (round_dir / "current_state.json").exists()
+    assert not (round_dir / "artifact_index.json").exists()
+    assert not (round_dir / "negative_results.json").exists()
+    assert not (round_dir / "model_gate.json").exists()
+    assert not (round_dir / "task_packet.json").exists()
+    assert not (round_dir / "git_diff.patch").exists()
 
 
 def test_archive_round_writes_round_manifest(tmp_path: Path) -> None:
@@ -3039,6 +3039,11 @@ def test_archive_round_writes_round_manifest(tmp_path: Path) -> None:
     assert manifest["state_build_id"] == current_state["state_build_id"]
     assert manifest["state_digest"] == current_state["state_digest"]
     assert manifest["workflow_status"] == "REPORT_AVAILABLE"
+    assert manifest["archive_mode"] == "minimal"
+    assert manifest["included_diff"] is False
+    assert manifest["included_state_snapshot"] is False
+    assert "git_diff.patch" in manifest["omitted_files"]
+    assert "current_state.json" in manifest["omitted_files"]
 
 
 def test_round_manifest_contains_expected_files(tmp_path: Path) -> None:
@@ -3051,14 +3056,8 @@ def test_round_manifest_contains_expected_files(tmp_path: Path) -> None:
     manifest = _read_json(Path(result["round_dir"]) / "round_manifest.json")
 
     assert {
-        "artifact_index.json",
-        "current_state.json",
-        "negative_results.json",
-        "model_gate.json",
-        "task_packet.json",
         "decision_packet.md",
         "codex_execution_report.md",
-        "git_diff.patch",
         "pytest_result.txt",
     }.issubset(set(manifest["files"]))
 
@@ -3090,25 +3089,50 @@ def test_round_manifest_records_source_and_archived_paths(tmp_path: Path) -> Non
     round_dir = Path(result["round_dir"])
     manifest = _read_json(round_dir / "round_manifest.json")
 
-    for name in (
-        "artifact_index.json",
-        "current_state.json",
-        "negative_results.json",
-        "model_gate.json",
-        "task_packet.json",
-        "decision_packet.md",
-        "codex_execution_report.md",
-    ):
+    for name in ("decision_packet.md", "codex_execution_report.md"):
         info = manifest["files"][name]
         assert info["source_path"] == str(state_dir / name)
         assert info["archived_path"] == str(round_dir / name)
-
-    assert manifest["files"]["git_diff.patch"]["source_path"] is None
-    assert manifest["files"]["git_diff.patch"]["archived_path"] == str(round_dir / "git_diff.patch")
     assert manifest["files"]["pytest_result.txt"]["source_path"] is None
     assert manifest["files"]["pytest_result.txt"]["archived_path"] == str(round_dir / "pytest_result.txt")
 
 
+def test_archive_round_include_state_snapshot_archives_state_json(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    result = archive_round(state_dir=state_dir, include_state_snapshot=True)
+    round_dir = Path(result["round_dir"])
+    manifest = _read_json(round_dir / "round_manifest.json")
+
+    assert manifest["archive_mode"] == "state_snapshot"
+    assert manifest["included_state_snapshot"] is True
+    assert manifest["included_diff"] is False
+    assert (round_dir / "current_state.json").exists()
+    assert (round_dir / "artifact_index.json").exists()
+    assert (round_dir / "negative_results.json").exists()
+    assert (round_dir / "model_gate.json").exists()
+    assert (round_dir / "task_packet.json").exists()
+    assert not (round_dir / "git_diff.patch").exists()
+
+
+def test_archive_round_include_diff_archives_patch_only(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    result = archive_round(state_dir=state_dir, include_diff=True)
+    round_dir = Path(result["round_dir"])
+    manifest = _read_json(round_dir / "round_manifest.json")
+
+    assert manifest["archive_mode"] == "minimal"
+    assert manifest["included_state_snapshot"] is False
+    assert manifest["included_diff"] is True
+    assert (round_dir / "git_diff.patch").exists()
+    assert not (round_dir / "current_state.json").exists()
 def test_round_manifest_records_pytest_result_source_when_present(tmp_path: Path) -> None:
     state_dir = tmp_path / "project_state"
     reports_dir = tmp_path / "solve_reports"
@@ -3166,7 +3190,7 @@ def test_archive_round_uses_incrementing_round_for_legacy_state(tmp_path: Path) 
     result = archive_round(state_dir=state_dir)
 
     assert result["round_id"] == "round_002"
-    assert (state_dir / "rounds" / "round_002" / "task_packet.json").exists()
+    assert (state_dir / "rounds" / "round_002" / "decision_packet.md").exists()
 
 
 def test_pack_contains_only_allowed_project_state_files(tmp_path: Path) -> None:
@@ -3187,7 +3211,7 @@ def test_pack_contains_only_allowed_project_state_files(tmp_path: Path) -> None:
         names = archive.namelist()
     assert "project_state/current_state.json" in names
     assert "project_state/decision_packet.md" in names
-    assert any(name.endswith("git_diff.patch") for name in names)
+    assert not any(name.endswith("git_diff.patch") for name in names)
     assert not any(name.startswith("solve_reports/") for name in names)
     assert not any(name.endswith(".exe") for name in names)
     assert ".env" not in names

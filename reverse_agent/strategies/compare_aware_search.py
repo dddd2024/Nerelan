@@ -26,6 +26,11 @@ from ..transforms.samplereverse import (
     score_compare_prefix,
     trace_candidate_transform,
 )
+from ..sidecar_health import (
+    merge_candidate_sidecar_health,
+    normalize_sidecar_health,
+    summarize_sidecar_health,
+)
 from .base import SolverStrategy, StrategyResult
 
 RESULT_FILE_NAME = "samplereverse_compare_aware_result.json"
@@ -14223,6 +14228,18 @@ def _compare_lhs_last_writer_bounded_failures(
 def _compare_lhs_last_writer_stage_fields(
     candidate_results: Sequence[dict[str, object]],
 ) -> dict[str, object]:
+    candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
+    summarized_candidates: list[dict[str, object]] = []
+    for item in candidate_results:
+        summary = summarize_sidecar_health(normalize_sidecar_health(item))
+        if summary:
+            merged = dict(item)
+            merged.update(summary)
+            summarized_candidates.append(merged)
+        else:
+            summarized_candidates.append(dict(item))
+    candidate_results = summarized_candidates
+
     def _non_empty(field: str) -> list[str]:
         return sorted(
             {
@@ -14889,6 +14906,9 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
     compared_prior_run: str = "sr_lhs_last_writer_sidecar_fix_20260521_r1",
 ) -> dict[str, object]:
     candidate_results = [dict(item) for item in candidate_results if isinstance(item, dict)]
+    candidate_results_with_health = [
+        merge_candidate_sidecar_health(dict(item), item) for item in candidate_results
+    ]
     same_process_candidate_results = _without_compare_probe_fallback_observations(candidate_results)
     diagnostic_actual_compare = _compare_lhs_last_writer_actual_compare(candidate_results, source_real_lhs_payload)
     actual_compare = _compare_lhs_last_writer_actual_compare(same_process_candidate_results, source_real_lhs_payload)
@@ -14936,13 +14956,12 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
     observations = []
     for result in candidate_results:
         candidate_hex = str(result.get("candidate_hex", ""))
-        observations.append(
-            {
-                "candidate_input_hex": candidate_hex,
-                "arg0_lhs_ptr": arg0_values.get(candidate_hex, ""),
-                "arg0_lhs_preview": arg0_previews.get(candidate_hex, ""),
-                "scripted_hook_status": result.get("scripted_hook_status", ""),
-                "scripted_returncode": result.get("scripted_returncode", None),
+        observation = {
+            "candidate_input_hex": candidate_hex,
+            "arg0_lhs_ptr": arg0_values.get(candidate_hex, ""),
+            "arg0_lhs_preview": arg0_previews.get(candidate_hex, ""),
+            "scripted_hook_status": result.get("scripted_hook_status", ""),
+            "scripted_returncode": result.get("scripted_returncode", None),
                 "instrumentation_failure_stage": result.get("instrumentation_failure_stage", ""),
                 "same_process_compare_args_captured": bool(result.get("same_process_compare_args_captured")),
                 "hook_install_status": result.get("hook_install_status", ""),
@@ -15002,14 +15021,15 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
                 "scripted_last_runtime_stage": result.get("scripted_last_runtime_stage", ""),
                 "compare_probe_fallback_used": bool(result.get("compare_probe_fallback_used")),
                 "compare_probe_fallback_status": result.get("compare_probe_fallback_status", ""),
-                "compare_probe_fallback_command_or_path": result.get("compare_probe_fallback_command_or_path", ""),
-                "compare_probe_fallback_is_provenance": False
-                if bool(result.get("compare_probe_fallback_used"))
-                else False,
-                "write_monitor_health": result.get("write_monitor_health", {}),
-            }
-        )
+            "compare_probe_fallback_command_or_path": result.get("compare_probe_fallback_command_or_path", ""),
+            "compare_probe_fallback_is_provenance": False
+            if bool(result.get("compare_probe_fallback_used"))
+            else False,
+            "write_monitor_health": result.get("write_monitor_health", {}),
+        }
+        observations.append(merge_candidate_sidecar_health(observation, result))
     stage_fields = _compare_lhs_last_writer_stage_fields(candidate_results)
+    stage_sidecar_health = normalize_sidecar_health(stage_fields)
     bounded_failures = _compare_lhs_last_writer_bounded_failures(
         classification=classification,
         actual_compare=actual_compare,
@@ -15086,6 +15106,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
         "static_compare_observation_count": stage_fields.get("static_compare_observation_count", 0),
         "candidate_log_paths": stage_fields.get("candidate_log_paths", {}),
         "candidate_invocation_health": stage_fields.get("candidate_invocation_health", {}),
+        "sidecar_health": stage_sidecar_health,
         "compared_prior_run": compared_prior_run,
         "compare_probe_sidecar_diff": {
             "sidecar_hook_install_status": stage_fields.get("hook_install_status", ""),
@@ -15132,7 +15153,7 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
         "last_writer_candidates": writer_rows,
         "write_ring_buffer": write_ring_buffer,
         "candidate_execution_health": _compare_real_lhs_candidate_execution_health(candidate_results),
-        "candidate_results": list(candidate_results),
+        "candidate_results": list(candidate_results_with_health),
         "promotable_validations": [],
     }
 
