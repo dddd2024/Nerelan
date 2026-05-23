@@ -2151,6 +2151,14 @@ def test_status_summary_exposes_round_consistency_fields(tmp_path: Path) -> None
     assert summary["round_manifest_present"] is True
     assert summary["archive_status"] == "archived"
     assert summary["round_manifest_path"].endswith("round_manifest.json")
+    assert summary["round_manifest_files"] == [
+        "codex_execution_report.md",
+        "decision_packet.md",
+        "pytest_result.txt",
+        "round_manifest.json",
+    ]
+    assert summary["round_manifest_forbidden_files"] == []
+    assert summary["round_manifest_required_files_missing"] == []
 
 
 def test_lint_report_fails_when_report_summary_missing(tmp_path: Path) -> None:
@@ -2298,6 +2306,9 @@ def test_lint_report_allows_engineering_round_with_sample_state(tmp_path: Path) 
     assert result["report_current_state_round_relation"] == "different_but_allowed_sample_state"
     assert result["archive_status"] == "not_archived"
     assert result["round_manifest_present"] is False
+    assert result["round_manifest_files"] == []
+    assert result["round_manifest_forbidden_files"] == []
+    assert result["round_manifest_required_files_missing"] == []
     assert "report round not archived yet" in result["warnings"]
 
 
@@ -2332,7 +2343,73 @@ def test_lint_report_reports_manifest_present_for_archived_round(tmp_path: Path)
     assert result["report_current_state_round_relation"] == "same"
     assert result["archive_status"] == "archived"
     assert result["round_manifest_present"] is True
+    assert result["round_manifest_files"] == [
+        "codex_execution_report.md",
+        "decision_packet.md",
+        "pytest_result.txt",
+        "round_manifest.json",
+    ]
+    assert result["round_manifest_forbidden_files"] == []
+    assert result["round_manifest_required_files_missing"] == []
     assert result["round_manifest_warning"] == ""
+
+
+def test_lint_report_classifies_git_diff_manifest_as_polluted(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    manifest_path = state_dir / "rounds" / str(current_state["round_id"]) / "round_manifest.json"
+    manifest = _read_json(manifest_path)
+    manifest["files"]["git_diff.patch"] = {
+        "source_path": None,
+        "archived_path": str(manifest_path.parent / "git_diff.patch"),
+        "sha256": "digest",
+    }
+    _write_json(manifest_path, manifest)
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert result["archive_status"] == "polluted"
+    assert result["round_manifest_forbidden_files"] == ["git_diff.patch"]
+    assert result["round_manifest_required_files_missing"] == []
+    assert "round_manifest includes forbidden files: git_diff.patch" in result["warnings"]
+
+
+def test_lint_report_classifies_state_snapshot_manifest_as_non_minimal(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    manifest_path = state_dir / "rounds" / str(current_state["round_id"]) / "round_manifest.json"
+    manifest = _read_json(manifest_path)
+    manifest["files"]["current_state.json"] = {
+        "source_path": str(state_dir / "current_state.json"),
+        "archived_path": str(manifest_path.parent / "current_state.json"),
+        "sha256": "digest",
+    }
+    _write_json(manifest_path, manifest)
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert result["archive_status"] == "non_minimal"
+    assert result["round_manifest_forbidden_files"] == ["current_state.json"]
+    assert result["round_manifest_required_files_missing"] == []
+    assert "forbidden files: current_state.json" in result["round_manifest_warning"]
+
+
+def test_lint_report_classifies_missing_required_archive_file_as_non_minimal(
+    tmp_path: Path,
+) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    manifest_path = state_dir / "rounds" / str(current_state["round_id"]) / "round_manifest.json"
+    manifest = _read_json(manifest_path)
+    manifest["files"].pop("pytest_result.txt")
+    _write_json(manifest_path, manifest)
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert result["archive_status"] == "non_minimal"
+    assert result["round_manifest_forbidden_files"] == []
+    assert result["round_manifest_required_files_missing"] == ["pytest_result.txt"]
+    assert "missing required files: pytest_result.txt" in result["round_manifest_warning"]
 
 
 def test_lint_report_warns_for_unclassified_round_relation(tmp_path: Path) -> None:
@@ -2432,6 +2509,9 @@ def test_lint_report_cli_returns_zero_on_ok(tmp_path: Path, capsys) -> None:
     assert "pytest_result_tests_ran_count: 1" in output
     assert "pytest_result_tests_cover_report: True" in output
     assert "pytest_result_missing_report_tests: []" in output
+    assert "round_manifest_files: ['codex_execution_report.md', 'decision_packet.md', 'pytest_result.txt', 'round_manifest.json']" in output
+    assert "round_manifest_forbidden_files: []" in output
+    assert "round_manifest_required_files_missing: []" in output
 
 
 def test_lint_report_cli_returns_nonzero_on_failure(tmp_path: Path, capsys) -> None:

@@ -106,6 +106,10 @@ ARCHIVE_STATE_NAMES = (*STATE_JSON_NAMES, *STATE_MARKDOWN_NAMES)
 ARCHIVE_MINIMAL_NAMES = STATE_MARKDOWN_NAMES
 ARCHIVE_STATE_SNAPSHOT_NAMES = STATE_JSON_NAMES
 ARCHIVE_OPTIONAL_NAMES = (*STATE_JSON_NAMES, "git_diff.patch")
+ARCHIVE_MANIFEST_NAME = "round_manifest.json"
+ARCHIVE_MINIMAL_ALLOWED_NAMES = (*ARCHIVE_MINIMAL_NAMES, "pytest_result.txt", ARCHIVE_MANIFEST_NAME)
+ARCHIVE_REQUIRED_NAMES = ("codex_execution_report.md", "pytest_result.txt")
+ARCHIVE_FORBIDDEN_NAMES = ("git_diff.patch", *ARCHIVE_STATE_SNAPSHOT_NAMES)
 DEFAULT_STATE_DIR = Path("project_state")
 DEFAULT_SAMPLE = "samplereverse"
 DEFAULT_REPORTS_DIR = Path("solve_reports")
@@ -804,6 +808,53 @@ def _pytest_result_present(state_dir: Path) -> bool:
         return False
 
 
+def classify_round_archive(*, manifest: dict[str, Any], manifest_present: bool) -> dict[str, Any]:
+    files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
+    manifest_files = sorted(str(name) for name in files)
+    if manifest_present:
+        manifest_files = sorted({*manifest_files, ARCHIVE_MANIFEST_NAME})
+    forbidden_files = sorted(name for name in manifest_files if name in ARCHIVE_FORBIDDEN_NAMES)
+    required_missing = (
+        sorted(name for name in ARCHIVE_REQUIRED_NAMES if name not in manifest_files)
+        if manifest_present
+        else []
+    )
+    unexpected_files = sorted(
+        name
+        for name in manifest_files
+        if name not in ARCHIVE_MINIMAL_ALLOWED_NAMES and name not in ARCHIVE_FORBIDDEN_NAMES
+    )
+
+    if not manifest_present:
+        archive_status = "not_archived"
+        warning = "report round not archived yet"
+    elif "git_diff.patch" in forbidden_files:
+        archive_status = "polluted"
+        warning = "round_manifest includes forbidden files: " + ", ".join(forbidden_files)
+    elif forbidden_files or unexpected_files or required_missing:
+        archive_status = "non_minimal"
+        parts: list[str] = []
+        if forbidden_files:
+            parts.append("forbidden files: " + ", ".join(forbidden_files))
+        if unexpected_files:
+            parts.append("unexpected files: " + ", ".join(unexpected_files))
+        if required_missing:
+            parts.append("missing required files: " + ", ".join(required_missing))
+        warning = "round_manifest is non-minimal: " + "; ".join(parts)
+    else:
+        archive_status = "archived"
+        warning = ""
+
+    return {
+        "archive_status": archive_status,
+        "round_manifest_present": manifest_present,
+        "round_manifest_files": manifest_files,
+        "round_manifest_forbidden_files": forbidden_files,
+        "round_manifest_required_files_missing": required_missing,
+        "round_manifest_warning": warning,
+    }
+
+
 def build_round_consistency(
     *,
     decision: dict[str, Any],
@@ -839,28 +890,21 @@ def build_round_consistency(
     else:
         report_current_state_round_relation = "different_unclassified"
 
-    manifest_path = state_dir / "rounds" / report_round_id / "round_manifest.json" if report_round_id else None
-    manifest = _read_json(manifest_path) if manifest_path is not None else {}
-    round_manifest_present = bool(manifest)
     if not report_round_id:
-        archive_status = "unknown"
-        round_manifest_warning = ""
-    elif round_manifest_present:
-        archive_status = "archived"
-        files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
-        missing_files = [
-            name
-            for name in ("pytest_result.txt", "codex_execution_report.md")
-            if name not in files
-        ]
-        round_manifest_warning = (
-            "round_manifest does not archive " + ", ".join(missing_files)
-            if missing_files
-            else ""
-        )
+        manifest_path = None
+        archive = {
+            "archive_status": "unknown",
+            "round_manifest_present": False,
+            "round_manifest_files": [],
+            "round_manifest_forbidden_files": [],
+            "round_manifest_required_files_missing": [],
+            "round_manifest_warning": "",
+        }
     else:
-        archive_status = "not_archived"
-        round_manifest_warning = "report round not archived yet"
+        manifest_path = state_dir / "rounds" / report_round_id / ARCHIVE_MANIFEST_NAME
+        manifest_present = manifest_path.exists()
+        manifest = _read_json(manifest_path) if manifest_present else {}
+        archive = classify_round_archive(manifest=manifest, manifest_present=manifest_present)
 
     return {
         "report_round_id": report_round_id,
@@ -870,9 +914,7 @@ def build_round_consistency(
         "report_decision_round_id_match": report_decision_round_id_match,
         "report_current_state_round_relation": report_current_state_round_relation,
         "round_manifest_path": _path_for_json(manifest_path) if manifest_path is not None else "",
-        "round_manifest_present": round_manifest_present,
-        "archive_status": archive_status,
-        "round_manifest_warning": round_manifest_warning,
+        **archive,
     }
 
 
@@ -3730,6 +3772,12 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"round_manifest_present: {summary.get('round_manifest_present')}")
     print(f"archive_status: {summary.get('archive_status')}")
     print(f"round_manifest_path: {summary.get('round_manifest_path')}")
+    print(f"round_manifest_files: {summary.get('round_manifest_files')}")
+    print(f"round_manifest_forbidden_files: {summary.get('round_manifest_forbidden_files')}")
+    print(
+        "round_manifest_required_files_missing: "
+        f"{summary.get('round_manifest_required_files_missing')}"
+    )
 
 
 def _print_lint_decision(result: dict[str, Any]) -> None:
@@ -3770,6 +3818,12 @@ def _print_lint_report(result: dict[str, Any]) -> None:
     print(f"round_manifest_present: {result.get('round_manifest_present')}")
     print(f"archive_status: {result.get('archive_status')}")
     print(f"round_manifest_path: {result.get('round_manifest_path')}")
+    print(f"round_manifest_files: {result.get('round_manifest_files')}")
+    print(f"round_manifest_forbidden_files: {result.get('round_manifest_forbidden_files')}")
+    print(
+        "round_manifest_required_files_missing: "
+        f"{result.get('round_manifest_required_files_missing')}"
+    )
     print(f"tests_ran_count: {result.get('tests_ran_count')}")
     print(f"generated_artifacts_count: {result.get('generated_artifacts_count')}")
     print(f"pytest_result_present: {result.get('pytest_result_present')}")
