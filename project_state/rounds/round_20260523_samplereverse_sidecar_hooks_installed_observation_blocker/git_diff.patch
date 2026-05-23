@@ -1,0 +1,1584 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 3b359f7..68b07f3 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -1,109 +1,97 @@
+ ```json codex_report_summary
+ {
+   "schema_version": 1,
+-  "report_id": "report_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522",
+-  "round_id": "round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker",
+-  "based_on_decision_id": "decision_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522",
+-  "status": "BLOCKED",
+-  "acceptance_recommendation": "REWORK_REQUIRED",
++  "report_id": "report_20260523_samplereverse_sidecar_hooks_installed_observation_blocker",
++  "round_id": "round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker",
++  "based_on_decision_id": "decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker",
++  "status": "PARTIAL",
++  "acceptance_recommendation": "NEEDS_REVIEW",
+   "files_changed": [
+     "reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py",
+     "reverse_agent/strategies/compare_aware_search.py",
+-    "reverse_agent/project_state.py",
+     "tests/test_compare_aware_search_strategy.py",
+-    "tests/test_project_state.py",
+     "project_state/codex_execution_report.md",
+     "project_state/pytest_result.txt"
+   ],
+   "tests_ran": [
+-    "python -m py_compile reverse_agent\\olly_scripts\\compare_pre_compare_handoff_target_probe.py reverse_agent\\strategies\\compare_aware_search.py reverse_agent\\project_state.py",
+-    "python -m pytest -q tests\\test_compare_aware_search_strategy.py -k \"compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff\"",
++    "python -m py_compile reverse_agent\\olly_scripts\\compare_lhs_last_writer_provenance.py reverse_agent\\olly_scripts\\compare_pre_compare_handoff_target_probe.py reverse_agent\\strategies\\compare_aware_search.py",
++    "python -m pytest -q tests\\test_compare_aware_search_strategy.py -k \"compare_lhs_last_writer or compare_real_lhs_last_writer or hooks_installed or pre_compare_handoff\"",
+     "python -m pytest -q tests\\test_compare_aware_search_strategy.py",
+     "python -m pytest -q tests\\test_project_state.py",
+-    "bounded runtime sidecar sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1",
++    "bounded runtime sidecar sr_lhs_last_writer_hooks_installed_observation_20260523_r1",
+     "python -m reverse_agent.project_state status --state-dir project_state",
+-    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+-    "python -m reverse_agent.project_state lint-handoff --state-dir project_state",
+-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker"
++    "python -m reverse_agent.project_state lint-decision --state-dir project_state"
+   ],
+   "generated_artifacts": [
+-    "solve_reports/harness_runs/sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json",
+-    "project_state/rounds/round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker/round_manifest.json",
+-    "project_state/rounds/round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker/codex_execution_report.md",
+-    "project_state/rounds/round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker/pytest_result.txt",
+-    "project_state/rounds/round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker/git_diff.patch"
++    "solve_reports/harness_runs/sr_lhs_last_writer_hooks_installed_observation_20260523_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json"
+   ],
+   "next_suggested_task": [
+-    "Stay on the same two-candidate sidecar and diagnose why the loaded Frida script does not emit hooks_installed or hook observations before waiting_for_observation timeout."
++    "Keep the same two-candidate sidecar and correct the bounded hook point/timing path now that hook installation is confirmed but no same-process hook observations are hit."
+   ]
+ }
+ ```
+ 
+ # CODEX_EXECUTION_REPORT
+ 
+-## 2026-05-22 Samplereverse sidecar subprocess lifecycle blocker
++## 2026-05-23 Samplereverse sidecar hook-install observation blocker
+ 
+-This pass executes `decision_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522` against state build `state_20260520_052928_8a77e6637c6c` / digest `8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d`.
++This pass executes `decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker` against state build `state_20260520_052928_8a77e6637c6c` / digest `8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d`.
+ 
+-Result: `BLOCKED` / `REWORK_REQUIRED`. The blocker is now narrower than the previous `not_started` state: the bounded sidecar subprocess starts, writes artifact payloads, loads the script, resumes the target, triggers the UI, and reaches `waiting_for_observation`. It still times out without `hooks_installed` stage visibility or same-process hook observations, so no runtime-backed last writer is claimed.
++Result: `PARTIAL` / `NEEDS_REVIEW`. The blocker is now narrower than `hooks_installed_stage_missing_after_script_load`: the sidecar proves `script_load_status=loaded`, Python registered the message callback before `script.load()`, JS top-level executed, hook install began, module base resolved, and all three bounded hooks installed. The remaining blocker is `hook_not_hit`: no same-process hook observations fired before the watchdog timeout.
+ 
+ ## Required Audit
+ 
+ | check | result |
+ |---|---|
+-| Why previous report was `REWORK_REQUIRED` | It correctly avoided success, but runtime stayed at `script_load_status=not_started`, so it could not prove whether the subprocess entered `main()` or the Frida/script lifecycle. |
+-| Current decision binding | `decision_id=decision_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522`; `state_build_id=state_20260520_052928_8a77e6637c6c`; digest `8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d`. |
+-| Sidecar command/cwd | Recorded per candidate under `candidate_invocation_health.*.subprocess_command`; cwd is `F:\reverse-agent`; Python is `C:\Program Files\Python313\python.exe`; script is `reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py`; target is `E:\xwechat_files\wxid_9ky6h8wz58b912_a1e5\msg\file\2026-04\samplereverse.exe`; per-probe timeout is `2.2`; watchdog timeout is `22.2`. |
+-| Timeout/stdout/stderr capture | Both sidecars timed out with returncode `124`; stdout/stderr tails were captured and were empty; each `c*.log` records command, cwd, returncode, timeout flag, stdout, and stderr. |
+-| Artifact state | `scripted_output_exists=true`; size `3126` bytes for both candidates; `scripted_initial_payload_only=false`; `scripted_lifecycle_entered=true`; last runtime stage `waiting_for_observation`. |
+-| Script early lifecycle | The script now writes additive `runtime_stage` payloads for argument parsing, dependency import, target missing/import failure, spawn, attach, script create/load, resume, UI connect, input, trigger, and wait stages. |
+-| Current runtime blocker | `root_cause_hypothesis=hooks_installed_stage_missing_after_script_load`; `script_load_status=loaded`; `spawn_attach_resume_status=resumed`; `ui_trigger_status=button_triggered`; `hooks_installed_stage_seen=false`; `hook_count=0`; `requested_hook_count=3`. |
+-| CompareProbe fallback | Fallback captured diagnostic compare args and remains `compare_probe_fallback_is_provenance=false`; it is not used to identify a runtime-backed last writer. |
+-| Fallback vs sidecar difference | Fallback invokes `compare_probe.py` for static compare args only, while the sidecar invokes `compare_lhs_last_writer_provenance.py` with hook-point JSON and write-ring logic; fallback can observe diagnostic compare args even when the sidecar hook-install stage is not observed. |
+-| Archive provenance | `archive-round` previously copied stale `current_state.source_git_commit=593499f29508`; `reverse_agent/project_state.py` now records the current archive-time git commit in `round_manifest.source_git_commit` without changing schema. |
+-| Project state rebuild | Not rebuilt and generated state JSON was not hand-edited. Live `artifact_index` still does not treat the new sidecar as current indexed evidence. |
++| Why previous report was `BLOCKED` | The previous artifact reached `waiting_for_observation` but could not prove JS top-level execution, hook-install acknowledgement, message bridge health, or per-hook install result. |
++| Current decision binding | `decision_id=decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker`; `state_build_id=state_20260520_052928_8a77e6637c6c`; digest `8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d`. |
++| Candidate scope | Fixed two candidates only: `78d540b49c59077041414141414141` and `5a3e7f46ddd474d041414141414141`. |
++| Script/message ordering | `script.on("message", on_message)` is registered before `script.load()`; artifact records `python_message_callback_registered_before_load=true`. |
++| JS top-level and ack | `js_top_level_seen=true`, `js_hooks_install_begin_seen=true`, `js_hooks_installed_seen=true`. |
++| Message handler health | `python_message_count_total=47`, `python_message_decode_error_count=0`, message types include stage, write-monitor-health, and hook-install-result messages. |
++| Module/address resolution | `module_base_resolution_status=resolved`; `hook_count=3`; `requested_hook_count=3`; `hook_install_status=installed`. |
++| Per-hook install result | `per_hook_install_results` records `static_compare_callsite`, `post_handoff_lhs_reload`, and `handoff_helper_candidate` as installed. |
++| Hook hit classification | `hook_not_hit_vs_hook_not_installed_classification=hook_not_hit`; this is not a hook install failure. |
++| Same-process evidence | `same_process_compare_args_captured=false`; no same-process observations were promoted to provenance. |
++| CompareProbe fallback | Fallback captured diagnostic compare args only; `compare_probe_fallback_is_provenance=false`; `runtime_backed_writer_identified` is not claimed. |
++| Generated state JSON | `task_packet/current_state/artifact_index/negative_results` were not hand-edited. |
+ | `PROJECT_PROGRESS_LOG.txt` handling | Untouched. |
+ 
+ ## Runtime Artifact
+ 
+ | field | value |
+ |---|---|
+-| run_name | `sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1` |
+-| artifact | `solve_reports/harness_runs/sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json` |
+-| candidate_inputs_hex | `78d540b49c59077041414141414141`, `5a3e7f46ddd474d041414141414141` |
+-| classification | `instrumentation_incomplete` |
+-| instrumentation_failure_stage | `hooks_installed_stage_missing_after_script_load` |
+-| root_cause_hypothesis | `hooks_installed_stage_missing_after_script_load` |
+-| subprocess_returncode / timed_out | `124` / `true` for both candidates |
+-| subprocess_stdout_tail / stderr_tail | empty / empty for both candidates |
+-| scripted_output_exists / size | `true` / `3126` bytes for both candidates |
+-| scripted_initial_payload_only | `false` |
+-| scripted_lifecycle_entered / last stage | `true` / `waiting_for_observation` |
+-| hook_install_status / hook_count / requested_hook_count | `not_confirmed_stage_missing` / `0` / `3` |
+-| script_load_status / script_load_error | `loaded` / empty |
++| run_name | `sr_lhs_last_writer_hooks_installed_observation_20260523_r1` |
++| artifact | `solve_reports/harness_runs/sr_lhs_last_writer_hooks_installed_observation_20260523_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json` |
++| classification | `hook_not_hit` |
++| instrumentation_failure_stage | `hook_not_hit` |
++| root_cause_hypothesis | `hook_not_hit` |
++| script_load_status | `loaded` |
+ | spawn_attach_resume_status / ui_trigger_status | `resumed` / `button_triggered` |
++| js_top_level_seen / js_hooks_install_begin_seen / js_hooks_installed_seen | `true` / `true` / `true` |
++| python_message_count_total | `47` |
++| module_base_resolution_status | `resolved` |
++| hook_install_status / hook_count / requested_hook_count | `installed` / `3` / `3` |
+ | same_process_compare_args_captured | `false` |
+ | diagnostic_compare_args_captured | `true` |
+-| compare_probe_fallback_used | `true` |
+-| compare_probe_fallback_is_provenance | `false` |
++| compare_probe_fallback_used / provenance | `true` / `false` |
++| subprocess_returncode / timed_out | `124` / `true` for both bounded sidecars |
+ | candidate_generation_changed | `false` |
+ | beam_budget_topn_timeout_frontier_limit_expanded | `false` |
+ | base64_rc4_breakpoint_probe_run | `false` |
+-| project_progress_log_handling | `untouched` |
+ 
+ ## Verification
+ 
+ | command | result |
+ |---|---|
+-| `python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py` | passed |
+-| `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff"` | `26 passed, 164 deselected` |
+-| `python -m pytest -q tests\test_compare_aware_search_strategy.py` | `190 passed` |
++| `python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py` | passed |
++| `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or hooks_installed or pre_compare_handoff"` | `30 passed, 164 deselected` |
++| `python -m pytest -q tests\test_compare_aware_search_strategy.py` | `194 passed` |
+ | `python -m pytest -q tests\test_project_state.py` | `104 passed` |
+-| bounded runtime sidecar | completed with `instrumentation_incomplete`; blocker narrowed to `hooks_installed_stage_missing_after_script_load` |
+-| `python -m reverse_agent.project_state status --state-dir project_state` | passed before report rewrite; `missing: []`; current decision ready for execution |
++| bounded runtime sidecar | completed with `classification=hook_not_hit`; hook installation confirmed, no same-process hook hits |
++| `python -m reverse_agent.project_state status --state-dir project_state` | passed before report rewrite; `missing: []`; current decision ready before this report |
+ | `python -m reverse_agent.project_state lint-decision --state-dir project_state` | passed |
+ 
+ ## Next Suggested Task
+ 
+-Stay on this bounded two-candidate sidecar. The next narrow blocker is why the loaded Frida script reaches `waiting_for_observation` but does not emit the `hooks_installed` stage or hook observations before timeout. Do not move to Base64/RC4 breakpoint probing, old `sample_solver`, stale artifact promotion, or candidate search expansion.
++Stay on the same two-candidate sidecar. The next bounded correction should inspect why the installed hook points do not fire after the UI trigger, using the confirmed module base and installed hook addresses from this artifact. Do not run Base64/RC4 breakpoint probing, old solver paths, stale artifact promotion, or candidate search expansion.
+diff --git a/project_state/pytest_result.txt b/project_state/pytest_result.txt
+index e658ed9..af2d559 100644
+--- a/project_state/pytest_result.txt
++++ b/project_state/pytest_result.txt
+@@ -1,131 +1,57 @@
+-2026-05-22 samplereverse sidecar subprocess lifecycle blocker validation
++2026-05-23 verification for decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker
+ 
+-Scope:
+-- Execute `decision_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522`.
+-- Keep mainline fixed to L15(prefix8), suffix AAAAAAA, and bounded candidates:
+-  - 78d540b49c59077041414141414141
+-  - 5a3e7f46ddd474d041414141414141
+-- Do not run Base64/RC4 breakpoint probe.
+-- Do not widen beam, budget, topN, timeout policy, frontier iteration, or candidate search.
+-- Do not edit PROJECT_PROGRESS_LOG.txt or generated project_state JSON.
++Command:
++python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py
++Result:
++passed
+ 
+-python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py
+-RESULT: passed
+-
+-python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or pre_compare_handoff"
+-RESULT: passed
+-26 passed, 164 deselected in 0.40s
++Command:
++python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or hooks_installed or pre_compare_handoff"
++Result:
++30 passed, 164 deselected in 0.57s
+ 
++Command:
+ python -m pytest -q tests\test_compare_aware_search_strategy.py
+-RESULT: passed
+-190 passed in 16.35s
++Result:
++194 passed in 17.91s
+ 
++Command:
+ python -m pytest -q tests\test_project_state.py
+-RESULT: passed
+-104 passed in 17.26s
+-
+-Runtime sidecar:
+-RESULT: completed with diagnostic-only instrumentation_incomplete artifact
+-run_name: sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1
+-artifact: solve_reports\harness_runs\sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1\reports\tool_artifacts\samplereverse_patched\compare_lhs_last_writer_provenance_audit\compare_lhs_last_writer_provenance_audit.json
+-candidate_inputs_hex:
+-  - 78d540b49c59077041414141414141
+-  - 5a3e7f46ddd474d041414141414141
+-classification: instrumentation_incomplete
+-instrumentation_failure_stage: hooks_installed_stage_missing_after_script_load
+-root_cause_hypothesis: hooks_installed_stage_missing_after_script_load
+-hook_install_status: not_confirmed_stage_missing
+-hook_count: 0
+-requested_hook_count: 3
+-hooks_installed_stage_seen: false
+-hooks_installed_stage_hook_count: 0
+-hook_install_error_count: 0
+-frida_message_error_count: 0
+-python_exception_count: 0
+-script_load_status: loaded
+-script_load_error: empty
+-spawn_attach_resume_status: resumed
+-ui_trigger_status: button_triggered
+-same_process_compare_args_captured: false
+-diagnostic_compare_args_captured: true
+-compare_probe_fallback_used: true
+-compare_probe_fallback_is_provenance: false
+-runtime_backed_writer_identified: false
+-best_runtime_candidate_changed: false
+-project_progress_log_handling: untouched
+-
+-Subprocess health:
+-- candidate 1 returncode=124 timed_out=true stdout_tail=empty stderr_tail=empty output_exists=true output_size=3126 log_size=825 initial_payload_only=false lifecycle_entered=true last_runtime_stage=waiting_for_observation
+-- candidate 2 returncode=124 timed_out=true stdout_tail=empty stderr_tail=empty output_exists=true output_size=3126 log_size=825 initial_payload_only=false lifecycle_entered=true last_runtime_stage=waiting_for_observation
++Result:
++104 passed in 18.49s
+ 
++Command:
+ python -m reverse_agent.project_state status --state-dir project_state
+-RESULT: passed before report rewrite
++Result:
+ missing: []
+-reason: compare_lhs_runtime_backed_writer_missing
+-task: Improve compare lhs last-writer instrumentation
+-decision_id: decision_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522
+-decision_execution_state: READY_FOR_EXECUTION
+-decision_ready_for_execution: True
++decision_id: decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker
++decision_ready_for_execution: True before report rewrite
+ 
++Command:
+ python -m reverse_agent.project_state lint-decision --state-dir project_state
+-RESULT: passed
++Result:
+ lint-decision: OK
+-decision_id: decision_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522
+-
+-python -m reverse_agent.project_state lint-report --state-dir project_state
+-RESULT: passed
+-lint-report: OK
+-warning: report round_id does not match current_state.round_id
+-warning: report_status is BLOCKED
+-report_id: report_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522
+-report_status: BLOCKED
+-acceptance_recommendation: REWORK_REQUIRED
+-based_on_decision_id: decision_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522
+-decision_report_id_match: True
+-tests_ran_count: 10
+-generated_artifacts_count: 5
+-
+-python -m reverse_agent.project_state lint-handoff --state-dir project_state
+-RESULT: passed
+-lint-handoff: OK
+-warning: report round_id does not match current_state.round_id
+-warning: report_status is BLOCKED
+-warning: matching report is non-success and needs review
+-handoff_state: REPORT_NEEDS_REVIEW
+-decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT
+-decision_ready_for_execution: False
+-decision_report_id_match: True
+-
+-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker
+-RESULT: passed
+-Archive generated under project_state\rounds\round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker.
+-round_manifest.source_git_commit: 6281cd719c32
+-
+-Final post-archive project_state checks:
+-
+-python -m reverse_agent.project_state status --state-dir project_state
+-RESULT: passed
+-missing: []
+-report_status: BLOCKED
+-report_acceptance_recommendation: REWORK_REQUIRED
+-decision_report_id_match: True
+-decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT
+-decision_ready_for_execution: False
+-
+-python -m reverse_agent.project_state lint-report --state-dir project_state
+-RESULT: passed
+-lint-report: OK
+-warning: report round_id does not match current_state.round_id
+-warning: report_status is BLOCKED
+-decision_report_id_match: True
+ 
+-python -m reverse_agent.project_state lint-handoff --state-dir project_state
+-RESULT: passed
+-lint-handoff: OK
+-warning: report round_id does not match current_state.round_id
+-warning: report_status is BLOCKED
+-warning: matching report is non-success and needs review
+-handoff_state: REPORT_NEEDS_REVIEW
+-decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT
+-decision_ready_for_execution: False
+-decision_report_id_match: True
++Runtime:
++bounded runtime sidecar sr_lhs_last_writer_hooks_installed_observation_20260523_r1
++Artifact:
++solve_reports/harness_runs/sr_lhs_last_writer_hooks_installed_observation_20260523_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json
++Result:
++classification=hook_not_hit
++instrumentation_failure_stage=hook_not_hit
++root_cause_hypothesis=hook_not_hit
++script_load_status=loaded
++js_top_level_seen=true
++js_hooks_install_begin_seen=true
++js_hooks_installed_seen=true
++python_message_callback_registered_before_load=true
++python_message_count_total=47
++module_base_resolution_status=resolved
++hook_install_status=installed
++hook_count=3
++requested_hook_count=3
++hook_not_hit_vs_hook_not_installed_classification=hook_not_hit
++same_process_compare_args_captured=false
++diagnostic_compare_args_captured=true
++compare_probe_fallback_used=true
++compare_probe_fallback_is_provenance=false
+diff --git a/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py b/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
+index 5423588..6052a27 100644
+--- a/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
++++ b/reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
+@@ -104,6 +104,25 @@ def _build_payload(
+     hooks_installed_stage_seen: bool = False,
+     hooks_installed_stage_hook_count: int = 0,
+     per_hook_install_results: list[dict[str, object]] | None = None,
++    js_top_level_seen: bool = False,
++    js_top_level_timestamp: object = "",
++    js_hooks_install_begin_seen: bool = False,
++    js_hooks_installed_seen: bool = False,
++    js_hook_install_exception_count: int = 0,
++    js_hook_install_exception_messages: list[str] | None = None,
++    python_message_callback_registered_before_load: bool = False,
++    python_message_count_total: int = 0,
++    python_message_count_by_type: dict[str, int] | None = None,
++    python_message_decode_error_count: int = 0,
++    python_message_last_payload: dict[str, object] | None = None,
++    module_base_resolution_status: str = "",
++    hook_address_by_name: dict[str, str] | None = None,
++    hook_address_validation: list[dict[str, object]] | None = None,
++    script_load_to_hooks_installed_elapsed_ms: object = None,
++    script_load_to_ui_trigger_elapsed_ms: object = None,
++    ui_trigger_after_hooks_installed: bool = False,
++    waiting_for_observation_reason: str = "",
++    hook_not_hit_vs_hook_not_installed_classification: str = "",
+     spawn_attach_resume_status: str = "",
+     ui_trigger_status: str = "",
+     helper_observation_count: int = 0,
+@@ -136,6 +155,25 @@ def _build_payload(
+         "hooks_installed_stage_seen": hooks_installed_stage_seen,
+         "hooks_installed_stage_hook_count": hooks_installed_stage_hook_count,
+         "per_hook_install_results": list(per_hook_install_results or []),
++        "js_top_level_seen": js_top_level_seen,
++        "js_top_level_timestamp": js_top_level_timestamp,
++        "js_hooks_install_begin_seen": js_hooks_install_begin_seen,
++        "js_hooks_installed_seen": js_hooks_installed_seen,
++        "js_hook_install_exception_count": js_hook_install_exception_count,
++        "js_hook_install_exception_messages": list(js_hook_install_exception_messages or []),
++        "python_message_callback_registered_before_load": python_message_callback_registered_before_load,
++        "python_message_count_total": python_message_count_total,
++        "python_message_count_by_type": dict(python_message_count_by_type or {}),
++        "python_message_decode_error_count": python_message_decode_error_count,
++        "python_message_last_payload": dict(python_message_last_payload or {}),
++        "module_base_resolution_status": module_base_resolution_status,
++        "hook_address_by_name": dict(hook_address_by_name or {}),
++        "hook_address_validation": list(hook_address_validation or []),
++        "script_load_to_hooks_installed_elapsed_ms": script_load_to_hooks_installed_elapsed_ms,
++        "script_load_to_ui_trigger_elapsed_ms": script_load_to_ui_trigger_elapsed_ms,
++        "ui_trigger_after_hooks_installed": ui_trigger_after_hooks_installed,
++        "waiting_for_observation_reason": waiting_for_observation_reason,
++        "hook_not_hit_vs_hook_not_installed_classification": hook_not_hit_vs_hook_not_installed_classification,
+         "spawn_attach_resume_status": spawn_attach_resume_status,
+         "ui_trigger_status": ui_trigger_status,
+         "helper_observation_count": helper_observation_count,
+@@ -280,6 +318,13 @@ def main() -> int:
+     messages: list[dict[str, object]] = []
+     frida_message_errors: list[str] = []
+     python_exceptions: list[str] = []
++    python_message_decode_error_count = 0
++    python_message_callback_count = 0
++    python_message_last_payload: dict[str, object] = {}
++    python_message_callback_registered_before_load = False
++    script_load_monotonic: float | None = None
++    hooks_installed_monotonic: float | None = None
++    ui_trigger_monotonic: float | None = None
+     runtime_stage = "script_started"
+     script_load_status = "not_started"
+     script_load_error = ""
+@@ -289,11 +334,79 @@ def main() -> int:
+     session = None
+     app = None
+ 
++    def bridge_snapshot() -> dict[str, object]:
++        stage_messages = [
++            item
++            for item in messages
++            if str(item.get("type", "")) == "compare_pre_compare_handoff_target_stage"
++        ]
++        count_by_type: dict[str, int] = {}
++        for item in messages:
++            item_type = str(item.get("type", "")).strip() or "unknown"
++            count_by_type[item_type] = count_by_type.get(item_type, 0) + 1
++        js_top_level_messages = [
++            item for item in stage_messages if str(item.get("runtime_stage", "")) == "js_top_level"
++        ]
++        js_hooks_install_begin_messages = [
++            item for item in stage_messages if str(item.get("runtime_stage", "")) == "hooks_install_begin"
++        ]
++        js_hooks_installed_messages = [
++            item for item in stage_messages if str(item.get("runtime_stage", "")) == "hooks_installed"
++        ]
++        hook_install_messages = [
++            item
++            for item in messages
++            if str(item.get("type", "")) == "compare_pre_compare_handoff_target_hook_install_result"
++        ]
++        per_hook_results = [
++            {
++                "name": str(item.get("name", "")),
++                "module_offset": str(item.get("module_offset", "")),
++                "install_status": str(item.get("install_status", "")),
++                "address": str(item.get("address", "")),
++                "address_validation": str(item.get("address_validation", "")),
++                "error": str(item.get("error", "")),
++            }
++            for item in hook_install_messages
++        ]
++        module_base_resolution_status = ""
++        hook_address_by_name: dict[str, str] = {}
++        hook_address_validation: list[dict[str, object]] = []
++        for item in stage_messages:
++            if str(item.get("module_base_resolution_status", "")).strip():
++                module_base_resolution_status = str(item.get("module_base_resolution_status", "")).strip()
++            raw_by_name = item.get("hook_address_by_name", {})
++            if isinstance(raw_by_name, dict):
++                hook_address_by_name.update({str(key): str(value) for key, value in raw_by_name.items()})
++            raw_validation = item.get("hook_address_validation", [])
++            if isinstance(raw_validation, list):
++                hook_address_validation = [dict(row) for row in raw_validation if isinstance(row, dict)]
++        return {
++            "js_top_level_seen": bool(js_top_level_messages),
++            "js_top_level_timestamp": js_top_level_messages[-1].get("timestamp_ms", "") if js_top_level_messages else "",
++            "js_hooks_install_begin_seen": bool(js_hooks_install_begin_messages),
++            "js_hooks_installed_seen": bool(js_hooks_installed_messages),
++            "hook_count": max(
++                [int(item.get("hook_count", 0) or 0) for item in js_hooks_installed_messages] or [0]
++            ),
++            "hooks_installed_stage_seen": bool(js_hooks_installed_messages),
++            "hooks_installed_stage_hook_count": max(
++                [int(item.get("hook_count", 0) or 0) for item in js_hooks_installed_messages] or [0]
++            ),
++            "per_hook_install_results": per_hook_results,
++            "hook_install_error_count": sum(1 for item in per_hook_results if item["install_status"] == "failed"),
++            "python_message_count_by_type": count_by_type,
++            "module_base_resolution_status": module_base_resolution_status,
++            "hook_address_by_name": hook_address_by_name,
++            "hook_address_validation": hook_address_validation,
++        }
++
+     def write_progress_payload(stage: str) -> None:
+         health = _initial_write_monitor_health(hook_points)
+         health["runtime_stage"] = stage
+         if stage not in {"script_started", "importing_dependencies"}:
+             health["activation_status"] = stage
++        bridge = bridge_snapshot()
+         _write_payload(
+             out_path,
+             _build_payload(
+@@ -303,9 +416,31 @@ def main() -> int:
+                 hook_points=hook_points,
+                 write_monitor_health=health,
+                 evidence=[*evidence, f"compare_pre_compare_handoff_target_probe:runtime_stage={stage}"],
++                hook_install_status="installed"
++                if bool(bridge.get("hooks_installed_stage_seen"))
++                and int(bridge.get("hook_count", 0) or 0) >= len(hook_points)
++                and len(hook_points) > 0
++                else "",
++                hook_count=int(bridge.get("hook_count", 0) or 0),
+                 requested_hook_count=len(hook_points),
++                hook_install_error_count=int(bridge.get("hook_install_error_count", 0) or 0),
++                hooks_installed_stage_seen=bool(bridge.get("hooks_installed_stage_seen")),
++                hooks_installed_stage_hook_count=int(bridge.get("hooks_installed_stage_hook_count", 0) or 0),
++                per_hook_install_results=bridge.get("per_hook_install_results", []),
+                 script_load_status=script_load_status,
+                 script_load_error=script_load_error,
++                js_top_level_seen=bool(bridge.get("js_top_level_seen")),
++                js_top_level_timestamp=bridge.get("js_top_level_timestamp", ""),
++                js_hooks_install_begin_seen=bool(bridge.get("js_hooks_install_begin_seen")),
++                js_hooks_installed_seen=bool(bridge.get("js_hooks_installed_seen")),
++                python_message_callback_registered_before_load=python_message_callback_registered_before_load,
++                python_message_count_total=python_message_callback_count,
++                python_message_count_by_type=bridge.get("python_message_count_by_type", {}),
++                python_message_decode_error_count=python_message_decode_error_count,
++                python_message_last_payload=python_message_last_payload,
++                module_base_resolution_status=str(bridge.get("module_base_resolution_status", "")),
++                hook_address_by_name=bridge.get("hook_address_by_name", {}),
++                hook_address_validation=bridge.get("hook_address_validation", []),
+                 spawn_attach_resume_status=spawn_attach_resume_status,
+                 ui_trigger_status=ui_trigger_status,
+                 runtime_stage=stage,
+@@ -313,11 +448,18 @@ def main() -> int:
+         )
+ 
+     def on_message(message: dict[str, object], data: object) -> None:  # noqa: ANN401
++        nonlocal hooks_installed_monotonic, python_message_callback_count, python_message_decode_error_count, python_message_last_payload
++        python_message_callback_count += 1
+         message_type = str(message.get("type", ""))
+         if message_type == "send":
+             payload = message.get("payload", {})
+             if isinstance(payload, dict):
+                 messages.append(payload)
++                python_message_last_payload = dict(payload)
++                if str(payload.get("runtime_stage", "")) == "hooks_installed":
++                    hooks_installed_monotonic = time.monotonic()
++            else:
++                python_message_decode_error_count += 1
+             return
+         if message_type == "error":
+             stack = str(message.get("stack", "")).strip()
+@@ -327,6 +469,11 @@ def main() -> int:
+                 description = str(message.get("description", "")).strip()
+                 if description:
+                     frida_message_errors.append(description)
++            python_message_last_payload = {
++                "type": "frida_error",
++                "description": str(message.get("description", "")).strip(),
++                "stack": str(message.get("stack", "")).strip(),
++            }
+ 
+     def observation_messages() -> list[dict[str, object]]:
+         return [
+@@ -373,6 +520,17 @@ let writeMonitorActivationStatus = writeRingEnabled ? "waiting_for_hook_observat
+ let writeMonitorSelectedThreadId = "";
+ let writeMonitorFollowAttemptStage = "";
+ 
++function sendStage(fields) {{
++    try {{
++        const payload = Object.assign({{
++            type: "compare_pre_compare_handoff_target_stage",
++            timestamp_ms: Date.now(),
++        }}, fields || {{}});
++        send(payload);
++    }} catch (error) {{
++    }}
++}}
++
+ function hexBytes(raw) {{
+     if (!raw) {{
+         return "";
+@@ -836,7 +994,30 @@ function observe(point, address, context, eventName, extra) {{
+     }});
+ }}
+ 
+-const mainModule = Process.enumerateModules()[0];
++let mainModule = null;
++let moduleBaseResolutionStatus = "not_started";
++let moduleBaseText = "";
++let hookAddressByName = {{}};
++let hookAddressValidation = [];
++sendStage({{
++    runtime_stage: "js_top_level",
++    js_top_level_seen: true,
++    requested_hook_count: hookPoints.length,
++}});
++try {{
++    mainModule = Process.enumerateModules()[0];
++    moduleBaseResolutionStatus = mainModule && mainModule.base ? "resolved" : "missing";
++    moduleBaseText = mainModule && mainModule.base ? mainModule.base.toString() : "";
++}} catch (error) {{
++    moduleBaseResolutionStatus = "failed";
++    send({{ type: "compare_pre_compare_handoff_target_error", hook_name: "module_base", error: String(error) }});
++}}
++sendStage({{
++    runtime_stage: "module_base_resolved",
++    module_base_resolution_status: moduleBaseResolutionStatus,
++    module_base: moduleBaseText,
++    requested_hook_count: hookPoints.length,
++}});
+ sendWriteMonitorHealth();
+ if (writeRingEnabled) {{
+     setInterval(sendWriteMonitorHealth, 100);
+@@ -857,69 +1038,114 @@ try {{
+ }} catch (error) {{
+ }}
+ let installedHookCount = 0;
+-for (const point of hookPoints) {{
+-    try {{
+-        const offset = Number(point.module_offset || 0);
+-        if (!offset) {{
+-            send({{
+-                type: "compare_pre_compare_handoff_target_hook_install_result",
+-                name: String(point.name || ""),
+-                module_offset: String(point.module_offset || ""),
+-                install_status: "skipped_invalid_offset",
+-                address: "",
+-                error: "missing_or_zero_module_offset",
++sendStage({{
++    runtime_stage: "hooks_install_begin",
++    module_base_resolution_status: moduleBaseResolutionStatus,
++    module_base: moduleBaseText,
++    requested_hook_count: hookPoints.length,
++}});
++try {{
++    for (const point of hookPoints) {{
++        try {{
++            const offset = Number(point.module_offset || 0);
++            if (!offset) {{
++                const skipped = {{
++                    name: String(point.name || ""),
++                    module_offset: String(point.module_offset || ""),
++                    install_status: "skipped_invalid_offset",
++                    address: "",
++                    address_validation: "invalid_offset",
++                    error: "missing_or_zero_module_offset",
++                }};
++                hookAddressValidation.push(skipped);
++                send(Object.assign({{ type: "compare_pre_compare_handoff_target_hook_install_result" }}, skipped));
++                continue;
++            }}
++            if (!mainModule || !mainModule.base) {{
++                const missing = {{
++                    name: String(point.name || ""),
++                    module_offset: "0x" + offset.toString(16),
++                    install_status: "failed",
++                    address: "",
++                    address_validation: "module_base_unavailable",
++                    error: "module_base_unavailable",
++                }};
++                hookAddressValidation.push(missing);
++                send(Object.assign({{ type: "compare_pre_compare_handoff_target_hook_install_result" }}, missing));
++                send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: "module_base_unavailable" }});
++                continue;
++            }}
++            const address = mainModule.base.add(offset);
++            const pointName = String(point.name || "");
++            hookAddressByName[pointName] = address.toString();
++            Interceptor.attach(address, {{
++                onEnter(args) {{
++                    try {{
++                        const sp = ptr(this.context.sp || this.context.esp || 0);
++                        this.returnAddressForAudit = sp.readPointer();
++                    }} catch (error) {{
++                        this.returnAddressForAudit = ptr(0);
++                    }}
++                    observe(point, address, this.context, "enter", {{
++                        return_address: this.returnAddressForAudit.toString(),
++                        return_address_module_offset: moduleOffsetText(this.returnAddressForAudit, mainModule.base),
++                    }});
++                }},
++                onLeave(retval) {{
++                    if (!point.capture_leave) {{
++                        return;
++                    }}
++                    observe(point, address, this.context, "leave", {{
++                        return_address: this.returnAddressForAudit ? this.returnAddressForAudit.toString() : "",
++                        return_address_module_offset: this.returnAddressForAudit ? moduleOffsetText(this.returnAddressForAudit, mainModule.base) : "",
++                        return_value: retval ? retval.toString() : "",
++                    }});
++                }},
+             }});
+-            continue;
++            installedHookCount++;
++            const installed = {{
++                name: pointName,
++                module_offset: "0x" + offset.toString(16),
++                install_status: "installed",
++                address: address.toString(),
++                address_validation: "resolved",
++                error: "",
++            }};
++            hookAddressValidation.push(installed);
++            send(Object.assign({{ type: "compare_pre_compare_handoff_target_hook_install_result" }}, installed));
++        }} catch (error) {{
++            const offsetText = point.module_offset ? "0x" + Number(point.module_offset).toString(16) : "";
++            let addressText = "";
++            try {{
++                addressText = mainModule && mainModule.base && point.module_offset ? mainModule.base.add(Number(point.module_offset)).toString() : "";
++            }} catch (addressError) {{
++                addressText = "";
++            }}
++            const failed = {{
++                name: String(point.name || ""),
++                module_offset: offsetText,
++                install_status: "failed",
++                address: addressText,
++                address_validation: addressText ? "resolved_attach_failed" : "address_unavailable",
++                error: String(error),
++            }};
++            hookAddressValidation.push(failed);
++            send(Object.assign({{ type: "compare_pre_compare_handoff_target_hook_install_result" }}, failed));
++            send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});
+         }}
+-        const address = mainModule.base.add(offset);
+-        Interceptor.attach(address, {{
+-            onEnter(args) {{
+-                try {{
+-                    const sp = ptr(this.context.sp || this.context.esp || 0);
+-                    this.returnAddressForAudit = sp.readPointer();
+-                }} catch (error) {{
+-                    this.returnAddressForAudit = ptr(0);
+-                }}
+-                observe(point, address, this.context, "enter", {{
+-                    return_address: this.returnAddressForAudit.toString(),
+-                    return_address_module_offset: moduleOffsetText(this.returnAddressForAudit, mainModule.base),
+-                }});
+-            }},
+-            onLeave(retval) {{
+-                if (!point.capture_leave) {{
+-                    return;
+-                }}
+-                observe(point, address, this.context, "leave", {{
+-                    return_address: this.returnAddressForAudit ? this.returnAddressForAudit.toString() : "",
+-                    return_address_module_offset: this.returnAddressForAudit ? moduleOffsetText(this.returnAddressForAudit, mainModule.base) : "",
+-                    return_value: retval ? retval.toString() : "",
+-                }});
+-            }},
+-        }});
+-        installedHookCount++;
+-        send({{
+-            type: "compare_pre_compare_handoff_target_hook_install_result",
+-            name: String(point.name || ""),
+-            module_offset: "0x" + offset.toString(16),
+-            install_status: "installed",
+-            address: address.toString(),
+-            error: "",
+-        }});
+-    }} catch (error) {{
+-        const offsetText = point.module_offset ? "0x" + Number(point.module_offset).toString(16) : "";
+-        const addressText = point.module_offset ? mainModule.base.add(Number(point.module_offset)).toString() : "";
+-        send({{
+-            type: "compare_pre_compare_handoff_target_hook_install_result",
+-            name: String(point.name || ""),
+-            module_offset: offsetText,
+-            install_status: "failed",
+-            address: addressText,
+-            error: String(error),
+-        }});
+-        send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});
+     }}
++}} catch (error) {{
++    send({{ type: "compare_pre_compare_handoff_target_error", hook_name: "hook_install_loop", error: String(error) }});
+ }}
+-send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_installed", hook_count: installedHookCount, requested_hook_count: hookPoints.length }});
++sendStage({{
++    runtime_stage: "hooks_installed",
++    hook_count: installedHookCount,
++    requested_hook_count: hookPoints.length,
++    module_base_resolution_status: moduleBaseResolutionStatus,
++    module_base: moduleBaseText,
++    hook_address_by_name: hookAddressByName,
++    hook_address_validation: hookAddressValidation,
++}});
+ """
+ 
+     try:
+@@ -935,8 +1161,10 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+         write_progress_payload(runtime_stage)
+         script = session.create_script(script_source)
+         script.on("message", on_message)
++        python_message_callback_registered_before_load = True
+         runtime_stage = "loading_script"
+         script_load_status = "loading"
++        script_load_monotonic = time.monotonic()
+         write_progress_payload(runtime_stage)
+         script.load()
+         script_load_status = "loaded"
+@@ -978,6 +1206,7 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+         write_progress_payload(runtime_stage)
+         _trigger_decrypt(decrypt_btn)
+         ui_trigger_status = "button_triggered"
++        ui_trigger_monotonic = time.monotonic()
+ 
+         runtime_stage = "waiting_for_observation"
+         write_progress_payload(runtime_stage)
+@@ -1053,6 +1282,7 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+                 "module_offset": str(item.get("module_offset", "")),
+                 "install_status": str(item.get("install_status", "")),
+                 "address": str(item.get("address", "")),
++                "address_validation": str(item.get("address_validation", "")),
+                 "error": str(item.get("error", "")),
+             }
+         )
+@@ -1099,6 +1329,59 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+             except (TypeError, ValueError):
+                 pass
+     hooks_installed_stage_hook_count = hook_count if hooks_installed_stage_seen else 0
++    python_message_count_by_type: dict[str, int] = {}
++    for item in messages:
++        item_type = str(item.get("type", "")).strip() or "unknown"
++        python_message_count_by_type[item_type] = python_message_count_by_type.get(item_type, 0) + 1
++    js_top_level_messages = [item for item in stage_messages if str(item.get("runtime_stage", "")) == "js_top_level"]
++    js_hooks_install_begin_messages = [
++        item for item in stage_messages if str(item.get("runtime_stage", "")) == "hooks_install_begin"
++    ]
++    js_hooks_installed_messages = [
++        item for item in stage_messages if str(item.get("runtime_stage", "")) == "hooks_installed"
++    ]
++    js_top_level_seen = bool(js_top_level_messages)
++    js_top_level_timestamp = js_top_level_messages[-1].get("timestamp_ms", "") if js_top_level_messages else ""
++    js_hooks_install_begin_seen = bool(js_hooks_install_begin_messages)
++    js_hooks_installed_seen = bool(js_hooks_installed_messages)
++    js_hook_install_exception_messages = [
++        str(item.get("error", ""))
++        for item in per_hook_install_results
++        if str(item.get("install_status", "")) == "failed" and str(item.get("error", "")).strip()
++    ]
++    js_hook_install_exception_count = len(js_hook_install_exception_messages)
++    module_base_resolution_status = ""
++    hook_address_by_name: dict[str, str] = {}
++    hook_address_validation: list[dict[str, object]] = []
++    if stage_messages:
++        for item in stage_messages:
++            if str(item.get("module_base_resolution_status", "")).strip():
++                module_base_resolution_status = str(item.get("module_base_resolution_status", "")).strip()
++            raw_by_name = item.get("hook_address_by_name", {})
++            if isinstance(raw_by_name, dict):
++                hook_address_by_name.update({str(key): str(value) for key, value in raw_by_name.items()})
++            raw_validation = item.get("hook_address_validation", [])
++            if isinstance(raw_validation, list):
++                hook_address_validation = [dict(row) for row in raw_validation if isinstance(row, dict)]
++    if not hook_address_by_name:
++        hook_address_by_name = {
++            str(item.get("name", "")): str(item.get("address", ""))
++            for item in per_hook_install_results
++            if str(item.get("name", "")).strip() and str(item.get("address", "")).strip()
++        }
++    if not hook_address_validation:
++        hook_address_validation = [dict(item) for item in per_hook_install_results]
++    script_load_to_hooks_installed_elapsed_ms = None
++    if script_load_monotonic is not None and hooks_installed_monotonic is not None:
++        script_load_to_hooks_installed_elapsed_ms = round((hooks_installed_monotonic - script_load_monotonic) * 1000, 3)
++    script_load_to_ui_trigger_elapsed_ms = None
++    if script_load_monotonic is not None and ui_trigger_monotonic is not None:
++        script_load_to_ui_trigger_elapsed_ms = round((ui_trigger_monotonic - script_load_monotonic) * 1000, 3)
++    ui_trigger_after_hooks_installed = (
++        ui_trigger_monotonic is not None
++        and hooks_installed_monotonic is not None
++        and ui_trigger_monotonic >= hooks_installed_monotonic
++    )
+     installed_results = [
+         item for item in per_hook_install_results if str(item.get("install_status", "")) == "installed"
+     ]
+@@ -1129,6 +1412,16 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+         if frida_message_errors:
+             root_cause_hypothesis = "frida_message_error"
+             root_cause_evidence.extend(f"frida_message_error={item}" for item in frida_message_errors[:3])
++        elif script_load_status == "loaded" and python_message_callback_registered_before_load and not js_top_level_seen:
++            root_cause_hypothesis = "js_top_level_not_seen"
++            root_cause_evidence.append("script_load_status=loaded")
++            root_cause_evidence.append("python_message_callback_registered_before_load=true")
++            root_cause_evidence.append("js_top_level_seen=false")
++        elif script_load_status == "loaded" and js_top_level_seen and not js_hooks_install_begin_seen:
++            root_cause_hypothesis = "message_bridge_incomplete"
++            root_cause_evidence.append("js_top_level_seen=true")
++            root_cause_evidence.append("js_hooks_install_begin_seen=false")
++            root_cause_evidence.append(f"python_message_count_total={python_message_callback_count}")
+         elif script_load_status == "failed":
+             if "SyntaxError" in script_load_error or "compile" in script_load_error.lower():
+                 root_cause_hypothesis = "js_compile_error"
+@@ -1139,6 +1432,8 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+             root_cause_hypothesis = "hooks_installed_stage_missing_after_script_load"
+             root_cause_evidence.append("hooks_installed_stage_seen=false")
+             root_cause_evidence.append("script_load_status=loaded")
++            root_cause_evidence.append(f"js_top_level_seen={str(js_top_level_seen).lower()}")
++            root_cause_evidence.append(f"js_hooks_install_begin_seen={str(js_hooks_install_begin_seen).lower()}")
+             root_cause_evidence.append(
+                 "stage message missing: JS did not reach hooks_installed send, message handler did not receive it, or process ended before stage emission"
+             )
+@@ -1151,6 +1446,11 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+             root_cause_evidence.append(f"hook_install_status={hook_install_status}")
+             root_cause_evidence.append(f"script_load_status={script_load_status}")
+             root_cause_evidence.append(f"requested_hook_count={requested_hook_count}")
++        elif hooks_installed_stage_seen and hook_install_status == "installed":
++            root_cause_hypothesis = "hook_not_hit"
++            root_cause_evidence.append("hooks_installed_stage_seen=true")
++            root_cause_evidence.append("hook_install_status=installed")
++            root_cause_evidence.append("no same-process hook observation captured before bounded timeout")
+         elif spawn_attach_resume_status != "resumed":
+             root_cause_hypothesis = "spawn_attach_resume_failed"
+             root_cause_evidence.append(f"spawn_attach_resume_status={spawn_attach_resume_status}")
+@@ -1171,6 +1471,13 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+                 f"hooks_installed_stage_seen={str(hooks_installed_stage_seen).lower()}",
+                 f"hooks_installed_stage_hook_count={hooks_installed_stage_hook_count}",
+                 f"script_load_status={script_load_status}",
++                f"js_top_level_seen={str(js_top_level_seen).lower()}",
++                f"js_hooks_install_begin_seen={str(js_hooks_install_begin_seen).lower()}",
++                f"js_hooks_installed_seen={str(js_hooks_installed_seen).lower()}",
++                f"python_message_callback_registered_before_load={str(python_message_callback_registered_before_load).lower()}",
++                f"python_message_count_total={python_message_callback_count}",
++                f"python_message_decode_error_count={python_message_decode_error_count}",
++                f"module_base_resolution_status={module_base_resolution_status}",
+                 f"python_exception_count={python_exception_count}",
+                 f"frida_message_error_count={frida_message_error_count}",
+                 f"hook_install_error_count={hook_install_error_count}",
+@@ -1179,6 +1486,15 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+                 f"static_compare_observation_count={static_compare_observation_count}",
+             ]
+         )
++    waiting_for_observation_reason = root_cause_hypothesis if runtime_stage == "waiting_for_observation" else ""
++    if hook_install_status == "installed" and hooks_installed_stage_seen and not static_observations:
++        hook_not_hit_vs_hook_not_installed_classification = "hook_not_hit"
++    elif hook_install_status in {"failed_or_not_confirmed", "partial_or_failed"} or hook_install_error_count:
++        hook_not_hit_vs_hook_not_installed_classification = "hook_not_installed"
++    elif not hooks_installed_stage_seen:
++        hook_not_hit_vs_hook_not_installed_classification = "install_ack_missing"
++    else:
++        hook_not_hit_vs_hook_not_installed_classification = "inconclusive"
+     success = bool(static_observations) and not frida_message_errors and not python_exceptions
+     summary = (
+         "ComparePreCompareHandoffTargetProbe captured the bounded static compare callsite."
+@@ -1207,6 +1523,25 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
+             hooks_installed_stage_seen=hooks_installed_stage_seen,
+             hooks_installed_stage_hook_count=hooks_installed_stage_hook_count,
+             per_hook_install_results=per_hook_install_results,
++            js_top_level_seen=js_top_level_seen,
++            js_top_level_timestamp=js_top_level_timestamp,
++            js_hooks_install_begin_seen=js_hooks_install_begin_seen,
++            js_hooks_installed_seen=js_hooks_installed_seen,
++            js_hook_install_exception_count=js_hook_install_exception_count,
++            js_hook_install_exception_messages=js_hook_install_exception_messages,
++            python_message_callback_registered_before_load=python_message_callback_registered_before_load,
++            python_message_count_total=python_message_callback_count,
++            python_message_count_by_type=python_message_count_by_type,
++            python_message_decode_error_count=python_message_decode_error_count,
++            python_message_last_payload=python_message_last_payload,
++            module_base_resolution_status=module_base_resolution_status,
++            hook_address_by_name=hook_address_by_name,
++            hook_address_validation=hook_address_validation,
++            script_load_to_hooks_installed_elapsed_ms=script_load_to_hooks_installed_elapsed_ms,
++            script_load_to_ui_trigger_elapsed_ms=script_load_to_ui_trigger_elapsed_ms,
++            ui_trigger_after_hooks_installed=ui_trigger_after_hooks_installed,
++            waiting_for_observation_reason=waiting_for_observation_reason,
++            hook_not_hit_vs_hook_not_installed_classification=hook_not_hit_vs_hook_not_installed_classification,
+             spawn_attach_resume_status=spawn_attach_resume_status,
+             ui_trigger_status=ui_trigger_status,
+             helper_observation_count=helper_observation_count,
+diff --git a/reverse_agent/strategies/compare_aware_search.py b/reverse_agent/strategies/compare_aware_search.py
+index 6b11a7f..952514f 100644
+--- a/reverse_agent/strategies/compare_aware_search.py
++++ b/reverse_agent/strategies/compare_aware_search.py
+@@ -13409,6 +13409,19 @@ def _compare_real_lhs_candidate_execution_health(
+             "script_load_status": str(result.get("script_load_status", "")),
+             "script_load_error": str(result.get("script_load_error", "")),
+             "frida_message_error_count": int(result.get("frida_message_error_count", 0) or 0),
++            "js_top_level_seen": bool(result.get("js_top_level_seen")),
++            "js_hooks_install_begin_seen": bool(result.get("js_hooks_install_begin_seen")),
++            "js_hooks_installed_seen": bool(result.get("js_hooks_installed_seen")),
++            "js_hook_install_exception_count": int(result.get("js_hook_install_exception_count", 0) or 0),
++            "python_message_callback_registered_before_load": bool(
++                result.get("python_message_callback_registered_before_load")
++            ),
++            "python_message_count_total": int(result.get("python_message_count_total", 0) or 0),
++            "python_message_decode_error_count": int(result.get("python_message_decode_error_count", 0) or 0),
++            "module_base_resolution_status": str(result.get("module_base_resolution_status", "")),
++            "hook_not_hit_vs_hook_not_installed_classification": str(
++                result.get("hook_not_hit_vs_hook_not_installed_classification", "")
++            ),
+             "spawn_attach_resume_status": str(result.get("spawn_attach_resume_status", "")),
+             "ui_trigger_status": str(result.get("ui_trigger_status", "")),
+             "helper_observation_count": int(result.get("helper_observation_count", 0) or 0),
+@@ -14264,6 +14277,19 @@ def _compare_lhs_last_writer_stage_fields(
+     compare_probe_fallback_commands: dict[str, object] = {}
+     per_hook_install_results: list[dict[str, object]] = []
+     hooks_installed_stage_seen = False
++    js_top_level_seen = False
++    js_hooks_install_begin_seen = False
++    js_hooks_installed_seen = False
++    js_hook_install_exception_messages: list[str] = []
++    python_message_count_by_type: dict[str, int] = {}
++    python_message_last_payload: dict[str, object] = {}
++    module_base_statuses: list[str] = []
++    hook_address_by_name: dict[str, str] = {}
++    hook_address_validation: list[dict[str, object]] = []
++    elapsed_hooks: list[object] = []
++    elapsed_ui: list[object] = []
++    hook_classifications = _non_empty("hook_not_hit_vs_hook_not_installed_classification")
++    waiting_reasons = _non_empty("waiting_for_observation_reason")
+     for item in candidate_results:
+         candidate_hex = str(item.get("candidate_hex", ""))
+         log_path = str(item.get("log_path", "")).strip()
+@@ -14288,12 +14314,46 @@ def _compare_lhs_last_writer_stage_fields(
+                 "scripted_initial_payload_only": bool(item.get("scripted_initial_payload_only")),
+                 "scripted_lifecycle_entered": bool(item.get("scripted_lifecycle_entered")),
+                 "scripted_last_runtime_stage": str(item.get("scripted_last_runtime_stage", "")),
++                "python_message_count_total": item.get("python_message_count_total", 0),
++                "python_message_decode_error_count": item.get("python_message_decode_error_count", 0),
++                "python_message_callback_registered_before_load": bool(
++                    item.get("python_message_callback_registered_before_load")
++                ),
+             }
+             fallback_command = item.get("compare_probe_fallback_command_or_path", "")
+             if fallback_command:
+                 compare_probe_fallback_commands[candidate_hex] = fallback_command
+         if bool(item.get("hooks_installed_stage_seen")):
+             hooks_installed_stage_seen = True
++        js_top_level_seen = js_top_level_seen or bool(item.get("js_top_level_seen"))
++        js_hooks_install_begin_seen = js_hooks_install_begin_seen or bool(item.get("js_hooks_install_begin_seen"))
++        js_hooks_installed_seen = js_hooks_installed_seen or bool(item.get("js_hooks_installed_seen"))
++        raw_exception_messages = item.get("js_hook_install_exception_messages", [])
++        if isinstance(raw_exception_messages, list):
++            js_hook_install_exception_messages.extend(str(row) for row in raw_exception_messages if str(row).strip())
++        raw_counts = item.get("python_message_count_by_type", {})
++        if isinstance(raw_counts, dict):
++            for key, value in raw_counts.items():
++                try:
++                    python_message_count_by_type[str(key)] = python_message_count_by_type.get(str(key), 0) + int(value or 0)
++                except (TypeError, ValueError):
++                    continue
++        raw_last = item.get("python_message_last_payload", {})
++        if isinstance(raw_last, dict) and raw_last:
++            python_message_last_payload = dict(raw_last)
++        module_base_status = str(item.get("module_base_resolution_status", "")).strip()
++        if module_base_status:
++            module_base_statuses.append(module_base_status)
++        raw_by_name = item.get("hook_address_by_name", {})
++        if isinstance(raw_by_name, dict):
++            hook_address_by_name.update({str(key): str(value) for key, value in raw_by_name.items()})
++        raw_validation = item.get("hook_address_validation", [])
++        if isinstance(raw_validation, list):
++            hook_address_validation.extend(dict(row) for row in raw_validation if isinstance(row, dict))
++        if item.get("script_load_to_hooks_installed_elapsed_ms") is not None:
++            elapsed_hooks.append(item.get("script_load_to_hooks_installed_elapsed_ms"))
++        if item.get("script_load_to_ui_trigger_elapsed_ms") is not None:
++            elapsed_ui.append(item.get("script_load_to_ui_trigger_elapsed_ms"))
+         per_hook_raw = item.get("per_hook_install_results", [])
+         if isinstance(per_hook_raw, list):
+             for row in per_hook_raw:
+@@ -14356,6 +14416,31 @@ def _compare_lhs_last_writer_stage_fields(
+         "hooks_installed_stage_seen": hooks_installed_stage_seen,
+         "hooks_installed_stage_hook_count": _max_int("hooks_installed_stage_hook_count"),
+         "per_hook_install_results": per_hook_install_results,
++        "js_top_level_seen": js_top_level_seen,
++        "js_top_level_timestamp": _summary_status(_non_empty("js_top_level_timestamp")),
++        "js_hooks_install_begin_seen": js_hooks_install_begin_seen,
++        "js_hooks_installed_seen": js_hooks_installed_seen,
++        "js_hook_install_exception_count": _sum_int("js_hook_install_exception_count"),
++        "js_hook_install_exception_messages": js_hook_install_exception_messages,
++        "python_message_callback_registered_before_load": all(
++            bool(item.get("python_message_callback_registered_before_load")) for item in candidate_results
++        )
++        if candidate_results
++        else False,
++        "python_message_count_total": _sum_int("python_message_count_total"),
++        "python_message_count_by_type": python_message_count_by_type,
++        "python_message_decode_error_count": _sum_int("python_message_decode_error_count"),
++        "python_message_last_payload": python_message_last_payload,
++        "module_base_resolution_status": _summary_status(sorted(set(module_base_statuses))),
++        "hook_address_by_name": hook_address_by_name,
++        "hook_address_validation": hook_address_validation,
++        "script_load_to_hooks_installed_elapsed_ms": elapsed_hooks[-1] if elapsed_hooks else None,
++        "script_load_to_ui_trigger_elapsed_ms": elapsed_ui[-1] if elapsed_ui else None,
++        "ui_trigger_after_hooks_installed": all(bool(item.get("ui_trigger_after_hooks_installed")) for item in candidate_results)
++        if candidate_results
++        else False,
++        "waiting_for_observation_reason": _summary_status(waiting_reasons),
++        "hook_not_hit_vs_hook_not_installed_classification": _summary_status(hook_classifications),
+         "spawn_attach_resume_status": _summary_status(spawn_statuses),
+         "spawn_attach_resume_statuses": spawn_statuses,
+         "ui_trigger_status": _summary_status(ui_statuses),
+@@ -14391,15 +14476,19 @@ def _compare_lhs_last_writer_failure_stage(
+         "js_compile_error",
+         "frida_message_error",
+         "module_not_found",
+-            "hook_install_failed",
+-            "hooks_installed_stage_missing_after_script_load",
+-            "hook_loop_completed_zero_installed",
+-            "timeout_before_script_lifecycle_observation",
+-            "timeout_after_initial_payload_before_lifecycle",
+-            "module_offset_mismatch",
+-            "spawn_attach_resume_failed",
+-            "ui_trigger_failed",
+-            "helper_hook_not_reached",
++        "hook_install_error",
++        "hook_install_failed",
++        "hook_not_hit",
++        "message_bridge_incomplete",
++        "js_top_level_not_seen",
++        "hooks_installed_stage_missing_after_script_load",
++        "hook_loop_completed_zero_installed",
++        "timeout_before_script_lifecycle_observation",
++        "timeout_after_initial_payload_before_lifecycle",
++        "module_offset_mismatch",
++        "spawn_attach_resume_failed",
++        "ui_trigger_failed",
++        "helper_hook_not_reached",
+         "script_output_missing",
+         "log_path_missing",
+         "timeout_before_hook_install",
+@@ -14464,6 +14553,26 @@ def _compare_lhs_last_writer_classification(
+         for item in candidate_results
+     ):
+         return "blocked_by_environment"
++    root_causes = {
++        str(item.get("root_cause_hypothesis", "")).strip()
++        for item in candidate_results
++        if str(item.get("root_cause_hypothesis", "")).strip()
++    }
++    for root_cause in (
++        "hook_install_error",
++        "message_bridge_incomplete",
++        "js_top_level_not_seen",
++        "hooks_installed_stage_missing_after_script_load",
++    ):
++        if root_cause in root_causes:
++            return root_cause
++    if expected_count and all(
++        bool(item.get("hooks_installed_stage_seen"))
++        and str(item.get("hook_install_status", "")).strip() == "installed"
++        and not item.get("hook_observations")
++        for item in candidate_results
++    ):
++        return "hook_not_hit"
+     if expected_count <= 0 or str(actual_compare.get("entry_status", "")) != "confirmed":
+         return "instrumentation_incomplete"
+     if str(actual_compare.get("lhs_side", "")) != "arg0":
+@@ -14528,6 +14637,65 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
+     per_hook_install_results = [
+         dict(item) for item in per_hook_raw if isinstance(item, dict)
+     ] if isinstance(per_hook_raw, list) else []
++    js_top_level_seen = bool(compare_payload.get("js_top_level_seen"))
++    js_top_level_timestamp = compare_payload.get("js_top_level_timestamp", "")
++    js_hooks_install_begin_seen = bool(compare_payload.get("js_hooks_install_begin_seen"))
++    js_hooks_installed_seen = bool(compare_payload.get("js_hooks_installed_seen")) or bool(
++        compare_payload.get("hooks_installed_stage_seen")
++    )
++    try:
++        js_hook_install_exception_count = int(compare_payload.get("js_hook_install_exception_count", 0) or 0)
++    except (TypeError, ValueError):
++        js_hook_install_exception_count = 0
++    raw_js_exception_messages = compare_payload.get("js_hook_install_exception_messages", [])
++    js_hook_install_exception_messages = (
++        [str(item) for item in raw_js_exception_messages if str(item).strip()]
++        if isinstance(raw_js_exception_messages, list)
++        else []
++    )
++    python_message_callback_registered_before_load = bool(
++        compare_payload.get("python_message_callback_registered_before_load")
++    )
++    try:
++        python_message_count_total = int(compare_payload.get("python_message_count_total", 0) or 0)
++    except (TypeError, ValueError):
++        python_message_count_total = 0
++    raw_message_counts = compare_payload.get("python_message_count_by_type", {})
++    python_message_count_by_type = (
++        {str(key): int(value or 0) for key, value in raw_message_counts.items()}
++        if isinstance(raw_message_counts, dict)
++        else {}
++    )
++    try:
++        python_message_decode_error_count = int(compare_payload.get("python_message_decode_error_count", 0) or 0)
++    except (TypeError, ValueError):
++        python_message_decode_error_count = 0
++    python_message_last_payload = (
++        dict(compare_payload.get("python_message_last_payload", {}))
++        if isinstance(compare_payload.get("python_message_last_payload"), dict)
++        else {}
++    )
++    module_base_resolution_status = str(compare_payload.get("module_base_resolution_status", "")).strip()
++    hook_address_by_name = (
++        {str(key): str(value) for key, value in compare_payload.get("hook_address_by_name", {}).items()}
++        if isinstance(compare_payload.get("hook_address_by_name"), dict)
++        else {}
++    )
++    raw_hook_address_validation = compare_payload.get("hook_address_validation", [])
++    hook_address_validation = (
++        [dict(item) for item in raw_hook_address_validation if isinstance(item, dict)]
++        if isinstance(raw_hook_address_validation, list)
++        else []
++    )
++    script_load_to_hooks_installed_elapsed_ms = compare_payload.get(
++        "script_load_to_hooks_installed_elapsed_ms", None
++    )
++    script_load_to_ui_trigger_elapsed_ms = compare_payload.get("script_load_to_ui_trigger_elapsed_ms", None)
++    ui_trigger_after_hooks_installed = bool(compare_payload.get("ui_trigger_after_hooks_installed"))
++    waiting_for_observation_reason = str(compare_payload.get("waiting_for_observation_reason", "")).strip()
++    hook_not_hit_vs_hook_not_installed_classification = str(
++        compare_payload.get("hook_not_hit_vs_hook_not_installed_classification", "")
++    ).strip()
+     installed_results = [
+         item for item in per_hook_install_results if str(item.get("install_status", "")) == "installed"
+     ]
+@@ -14582,8 +14750,12 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
+     if not root_cause_hypothesis:
+         if frida_message_error_count > 0:
+             root_cause_hypothesis = "frida_message_error"
+-        elif hook_install_error_count > 0 or failed_results:
+-            root_cause_hypothesis = "hook_install_failed"
++        elif hook_install_error_count > 0 or js_hook_install_exception_count > 0 or failed_results:
++            root_cause_hypothesis = "hook_install_error"
++        elif script_load_status == "loaded" and python_message_callback_registered_before_load and not js_top_level_seen:
++            root_cause_hypothesis = "js_top_level_not_seen"
++        elif script_load_status == "loaded" and js_top_level_seen and not js_hooks_install_begin_seen:
++            root_cause_hypothesis = "message_bridge_incomplete"
+         elif not hooks_installed_stage_seen and script_load_status == "loaded":
+             root_cause_hypothesis = "hooks_installed_stage_missing_after_script_load"
+         elif hooks_installed_stage_seen and hook_count == 0:
+@@ -14612,6 +14784,8 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
+                 root_cause_hypothesis = "timeout_before_hook_install"
+             elif ui_trigger_status and ui_trigger_status != "button_triggered":
+                 root_cause_hypothesis = "ui_trigger_failed"
++            elif hooks_installed_stage_seen and hook_install_status == "installed":
++                root_cause_hypothesis = "hook_not_hit"
+             else:
+                 root_cause_hypothesis = "timeout_after_ui_trigger_before_helper"
+         elif helper_observation_count <= 0 and static_compare_observation_count <= 0:
+@@ -14638,6 +14812,14 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
+             f"hooks_installed_stage_hook_count={hooks_installed_stage_hook_count}",
+             f"script_load_status={script_load_status}",
+             f"script_load_error={script_load_error}",
++            f"js_top_level_seen={str(js_top_level_seen).lower()}",
++            f"js_hooks_install_begin_seen={str(js_hooks_install_begin_seen).lower()}",
++            f"js_hooks_installed_seen={str(js_hooks_installed_seen).lower()}",
++            f"js_hook_install_exception_count={js_hook_install_exception_count}",
++            f"python_message_callback_registered_before_load={str(python_message_callback_registered_before_load).lower()}",
++            f"python_message_count_total={python_message_count_total}",
++            f"python_message_decode_error_count={python_message_decode_error_count}",
++            f"module_base_resolution_status={module_base_resolution_status}",
+             f"python_exception_count={python_exception_count}",
+             f"frida_message_error_count={frida_message_error_count}",
+             f"hook_install_error_count={hook_install_error_count}",
+@@ -14646,6 +14828,13 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
+             f"helper_observation_count={helper_observation_count}",
+             f"static_compare_observation_count={static_compare_observation_count}",
+         ]
++    if not hook_not_hit_vs_hook_not_installed_classification:
++        if root_cause_hypothesis == "hook_not_hit":
++            hook_not_hit_vs_hook_not_installed_classification = "hook_not_hit"
++        elif hook_install_error_count > 0 or hook_install_status in {"failed_or_not_confirmed", "partial_or_failed"}:
++            hook_not_hit_vs_hook_not_installed_classification = "hook_not_installed"
++        elif not hooks_installed_stage_seen:
++            hook_not_hit_vs_hook_not_installed_classification = "install_ack_missing"
+     return {
+         "hook_install_status": hook_install_status,
+         "hook_count": hook_count,
+@@ -14658,6 +14847,25 @@ def _compare_lhs_last_writer_candidate_stage_metadata(
+         "hooks_installed_stage_seen": hooks_installed_stage_seen,
+         "hooks_installed_stage_hook_count": hooks_installed_stage_hook_count,
+         "per_hook_install_results": per_hook_install_results,
++        "js_top_level_seen": js_top_level_seen,
++        "js_top_level_timestamp": js_top_level_timestamp,
++        "js_hooks_install_begin_seen": js_hooks_install_begin_seen,
++        "js_hooks_installed_seen": js_hooks_installed_seen,
++        "js_hook_install_exception_count": js_hook_install_exception_count,
++        "js_hook_install_exception_messages": js_hook_install_exception_messages,
++        "python_message_callback_registered_before_load": python_message_callback_registered_before_load,
++        "python_message_count_total": python_message_count_total,
++        "python_message_count_by_type": python_message_count_by_type,
++        "python_message_decode_error_count": python_message_decode_error_count,
++        "python_message_last_payload": python_message_last_payload,
++        "module_base_resolution_status": module_base_resolution_status,
++        "hook_address_by_name": hook_address_by_name,
++        "hook_address_validation": hook_address_validation,
++        "script_load_to_hooks_installed_elapsed_ms": script_load_to_hooks_installed_elapsed_ms,
++        "script_load_to_ui_trigger_elapsed_ms": script_load_to_ui_trigger_elapsed_ms,
++        "ui_trigger_after_hooks_installed": ui_trigger_after_hooks_installed,
++        "waiting_for_observation_reason": waiting_for_observation_reason,
++        "hook_not_hit_vs_hook_not_installed_classification": hook_not_hit_vs_hook_not_installed_classification,
+         "spawn_attach_resume_status": spawn_attach_resume_status,
+         "ui_trigger_status": ui_trigger_status,
+         "root_cause_hypothesis": root_cause_hypothesis,
+@@ -14748,6 +14956,29 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+                 "hooks_installed_stage_seen": bool(result.get("hooks_installed_stage_seen")),
+                 "hooks_installed_stage_hook_count": result.get("hooks_installed_stage_hook_count", 0),
+                 "per_hook_install_results": result.get("per_hook_install_results", []),
++                "js_top_level_seen": bool(result.get("js_top_level_seen")),
++                "js_top_level_timestamp": result.get("js_top_level_timestamp", ""),
++                "js_hooks_install_begin_seen": bool(result.get("js_hooks_install_begin_seen")),
++                "js_hooks_installed_seen": bool(result.get("js_hooks_installed_seen")),
++                "js_hook_install_exception_count": result.get("js_hook_install_exception_count", 0),
++                "js_hook_install_exception_messages": result.get("js_hook_install_exception_messages", []),
++                "python_message_callback_registered_before_load": bool(
++                    result.get("python_message_callback_registered_before_load")
++                ),
++                "python_message_count_total": result.get("python_message_count_total", 0),
++                "python_message_count_by_type": result.get("python_message_count_by_type", {}),
++                "python_message_decode_error_count": result.get("python_message_decode_error_count", 0),
++                "python_message_last_payload": result.get("python_message_last_payload", {}),
++                "module_base_resolution_status": result.get("module_base_resolution_status", ""),
++                "hook_address_by_name": result.get("hook_address_by_name", {}),
++                "hook_address_validation": result.get("hook_address_validation", []),
++                "script_load_to_hooks_installed_elapsed_ms": result.get("script_load_to_hooks_installed_elapsed_ms", None),
++                "script_load_to_ui_trigger_elapsed_ms": result.get("script_load_to_ui_trigger_elapsed_ms", None),
++                "ui_trigger_after_hooks_installed": bool(result.get("ui_trigger_after_hooks_installed")),
++                "waiting_for_observation_reason": result.get("waiting_for_observation_reason", ""),
++                "hook_not_hit_vs_hook_not_installed_classification": result.get(
++                    "hook_not_hit_vs_hook_not_installed_classification", ""
++                ),
+                 "spawn_attach_resume_status": result.get("spawn_attach_resume_status", ""),
+                 "ui_trigger_status": result.get("ui_trigger_status", ""),
+                 "helper_observation_count": result.get("helper_observation_count", 0),
+@@ -14824,6 +15055,31 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+         "hooks_installed_stage_seen": bool(stage_fields.get("hooks_installed_stage_seen")),
+         "hooks_installed_stage_hook_count": stage_fields.get("hooks_installed_stage_hook_count", 0),
+         "per_hook_install_results": stage_fields.get("per_hook_install_results", []),
++        "js_top_level_seen": bool(stage_fields.get("js_top_level_seen")),
++        "js_top_level_timestamp": stage_fields.get("js_top_level_timestamp", ""),
++        "js_hooks_install_begin_seen": bool(stage_fields.get("js_hooks_install_begin_seen")),
++        "js_hooks_installed_seen": bool(stage_fields.get("js_hooks_installed_seen")),
++        "js_hook_install_exception_count": stage_fields.get("js_hook_install_exception_count", 0),
++        "js_hook_install_exception_messages": stage_fields.get("js_hook_install_exception_messages", []),
++        "python_message_callback_registered_before_load": bool(
++            stage_fields.get("python_message_callback_registered_before_load")
++        ),
++        "python_message_count_total": stage_fields.get("python_message_count_total", 0),
++        "python_message_count_by_type": stage_fields.get("python_message_count_by_type", {}),
++        "python_message_decode_error_count": stage_fields.get("python_message_decode_error_count", 0),
++        "python_message_last_payload": stage_fields.get("python_message_last_payload", {}),
++        "module_base_resolution_status": stage_fields.get("module_base_resolution_status", ""),
++        "hook_address_by_name": stage_fields.get("hook_address_by_name", {}),
++        "hook_address_validation": stage_fields.get("hook_address_validation", []),
++        "script_load_to_hooks_installed_elapsed_ms": stage_fields.get(
++            "script_load_to_hooks_installed_elapsed_ms", None
++        ),
++        "script_load_to_ui_trigger_elapsed_ms": stage_fields.get("script_load_to_ui_trigger_elapsed_ms", None),
++        "ui_trigger_after_hooks_installed": bool(stage_fields.get("ui_trigger_after_hooks_installed")),
++        "waiting_for_observation_reason": stage_fields.get("waiting_for_observation_reason", ""),
++        "hook_not_hit_vs_hook_not_installed_classification": stage_fields.get(
++            "hook_not_hit_vs_hook_not_installed_classification", ""
++        ),
+         "spawn_attach_resume_status": stage_fields.get("spawn_attach_resume_status", ""),
+         "ui_trigger_status": stage_fields.get("ui_trigger_status", ""),
+         "helper_observation_count": stage_fields.get("helper_observation_count", 0),
+@@ -14839,6 +15095,10 @@ def build_compare_lhs_last_writer_provenance_audit_payload(
+             "sidecar_hooks_installed_stage_seen": bool(stage_fields.get("hooks_installed_stage_seen")),
+             "sidecar_hooks_installed_stage_hook_count": stage_fields.get("hooks_installed_stage_hook_count", 0),
+             "sidecar_hook_install_error_count": stage_fields.get("hook_install_error_count", 0),
++            "sidecar_js_top_level_seen": bool(stage_fields.get("js_top_level_seen")),
++            "sidecar_js_hooks_install_begin_seen": bool(stage_fields.get("js_hooks_install_begin_seen")),
++            "sidecar_python_message_count_total": stage_fields.get("python_message_count_total", 0),
++            "sidecar_module_base_resolution_status": stage_fields.get("module_base_resolution_status", ""),
+             "sidecar_frida_message_error_count": stage_fields.get("frida_message_error_count", 0),
+             "sidecar_python_exception_count": stage_fields.get("python_exception_count", 0),
+             "sidecar_spawn_attach_resume_status": stage_fields.get("spawn_attach_resume_status", ""),
+@@ -15214,11 +15474,15 @@ def run_compare_lhs_last_writer_provenance_audit(
+             "js_compile_error",
+             "frida_message_error",
+             "module_not_found",
+-        "hook_install_failed",
+-        "hooks_installed_stage_missing_after_script_load",
+-        "hook_loop_completed_zero_installed",
+-        "timeout_before_script_lifecycle_observation",
+-        "module_offset_mismatch",
++            "hook_install_error",
++            "hook_install_failed",
++            "hook_not_hit",
++            "message_bridge_incomplete",
++            "js_top_level_not_seen",
++            "hooks_installed_stage_missing_after_script_load",
++            "hook_loop_completed_zero_installed",
++            "timeout_before_script_lifecycle_observation",
++            "module_offset_mismatch",
+             "spawn_attach_resume_failed",
+             "ui_trigger_failed",
+             "helper_hook_not_reached",
+@@ -15270,6 +15534,33 @@ def run_compare_lhs_last_writer_provenance_audit(
+                 "hooks_installed_stage_seen": bool(stage_metadata.get("hooks_installed_stage_seen")),
+                 "hooks_installed_stage_hook_count": stage_metadata.get("hooks_installed_stage_hook_count", 0),
+                 "per_hook_install_results": stage_metadata.get("per_hook_install_results", []),
++                "js_top_level_seen": bool(stage_metadata.get("js_top_level_seen")),
++                "js_top_level_timestamp": stage_metadata.get("js_top_level_timestamp", ""),
++                "js_hooks_install_begin_seen": bool(stage_metadata.get("js_hooks_install_begin_seen")),
++                "js_hooks_installed_seen": bool(stage_metadata.get("js_hooks_installed_seen")),
++                "js_hook_install_exception_count": stage_metadata.get("js_hook_install_exception_count", 0),
++                "js_hook_install_exception_messages": stage_metadata.get("js_hook_install_exception_messages", []),
++                "python_message_callback_registered_before_load": bool(
++                    stage_metadata.get("python_message_callback_registered_before_load")
++                ),
++                "python_message_count_total": stage_metadata.get("python_message_count_total", 0),
++                "python_message_count_by_type": stage_metadata.get("python_message_count_by_type", {}),
++                "python_message_decode_error_count": stage_metadata.get("python_message_decode_error_count", 0),
++                "python_message_last_payload": stage_metadata.get("python_message_last_payload", {}),
++                "module_base_resolution_status": stage_metadata.get("module_base_resolution_status", ""),
++                "hook_address_by_name": stage_metadata.get("hook_address_by_name", {}),
++                "hook_address_validation": stage_metadata.get("hook_address_validation", []),
++                "script_load_to_hooks_installed_elapsed_ms": stage_metadata.get(
++                    "script_load_to_hooks_installed_elapsed_ms", None
++                ),
++                "script_load_to_ui_trigger_elapsed_ms": stage_metadata.get(
++                    "script_load_to_ui_trigger_elapsed_ms", None
++                ),
++                "ui_trigger_after_hooks_installed": bool(stage_metadata.get("ui_trigger_after_hooks_installed")),
++                "waiting_for_observation_reason": stage_metadata.get("waiting_for_observation_reason", ""),
++                "hook_not_hit_vs_hook_not_installed_classification": stage_metadata.get(
++                    "hook_not_hit_vs_hook_not_installed_classification", ""
++                ),
+                 "spawn_attach_resume_status": stage_metadata.get("spawn_attach_resume_status", ""),
+                 "ui_trigger_status": stage_metadata.get("ui_trigger_status", ""),
+                 "root_cause_hypothesis": stage_metadata.get("root_cause_hypothesis", ""),
+diff --git a/tests/test_compare_aware_search_strategy.py b/tests/test_compare_aware_search_strategy.py
+index 40fbc06..d906255 100644
+--- a/tests/test_compare_aware_search_strategy.py
++++ b/tests/test_compare_aware_search_strategy.py
+@@ -8385,6 +8385,76 @@ def test_compare_lhs_last_writer_loaded_without_hooks_installed_stage_is_precise
+     assert "hooks_installed_stage_seen=false" in " ".join(metadata["root_cause_evidence"])
+ 
+ 
++def test_compare_lhs_last_writer_message_callback_is_registered_before_load() -> None:
++    script_path = Path("reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py")
++    source = script_path.read_text(encoding="utf-8")
++
++    assert source.index('script.on("message", on_message)') < source.index("script.load()")
++    assert "python_message_callback_registered_before_load = True" in source
++
++
++def test_compare_lhs_last_writer_loaded_without_js_top_level_is_precise(tmp_path: Path) -> None:
++    out_path = tmp_path / "candidate.json"
++    out_path.write_text("{}", encoding="utf-8")
++    log_path = tmp_path / "candidate.log"
++    log_path.write_text("", encoding="utf-8")
++
++    metadata = compare_aware_search._compare_lhs_last_writer_candidate_stage_metadata(
++        compare_payload={
++            "script_load_status": "loaded",
++            "hook_install_status": "not_confirmed_stage_missing",
++            "requested_hook_count": 3,
++            "python_message_callback_registered_before_load": True,
++            "python_message_count_total": 0,
++            "js_top_level_seen": False,
++            "js_hooks_install_begin_seen": False,
++        },
++        scripted_hook_status="scripted_hook_no_observations",
++        scripted_returncode=0,
++        helper_observation_count=0,
++        static_compare_observation_count=0,
++        scripted_write_monitor_health={"runtime_stage": "waiting_for_observation"},
++        compare_out=out_path,
++        compare_log=log_path,
++    )
++
++    assert metadata["root_cause_hypothesis"] == "js_top_level_not_seen"
++    assert metadata["python_message_callback_registered_before_load"] is True
++    assert metadata["python_message_count_total"] == 0
++
++
++def test_compare_lhs_last_writer_js_top_level_without_install_begin_is_bridge_incomplete(tmp_path: Path) -> None:
++    out_path = tmp_path / "candidate.json"
++    out_path.write_text("{}", encoding="utf-8")
++    log_path = tmp_path / "candidate.log"
++    log_path.write_text("", encoding="utf-8")
++
++    metadata = compare_aware_search._compare_lhs_last_writer_candidate_stage_metadata(
++        compare_payload={
++            "script_load_status": "loaded",
++            "hook_install_status": "not_confirmed_stage_missing",
++            "requested_hook_count": 3,
++            "python_message_callback_registered_before_load": True,
++            "python_message_count_total": 1,
++            "python_message_count_by_type": {"compare_pre_compare_handoff_target_stage": 1},
++            "js_top_level_seen": True,
++            "js_hooks_install_begin_seen": False,
++            "python_message_last_payload": {"runtime_stage": "js_top_level"},
++        },
++        scripted_hook_status="scripted_hook_no_observations",
++        scripted_returncode=0,
++        helper_observation_count=0,
++        static_compare_observation_count=0,
++        scripted_write_monitor_health={"runtime_stage": "waiting_for_observation"},
++        compare_out=out_path,
++        compare_log=log_path,
++    )
++
++    assert metadata["root_cause_hypothesis"] == "message_bridge_incomplete"
++    assert metadata["js_top_level_seen"] is True
++    assert metadata["js_hooks_install_begin_seen"] is False
++
++
+ def test_compare_lhs_last_writer_hooks_installed_zero_is_not_generic_timeout() -> None:
+     candidates = []
+     for candidate_hex in [
+@@ -8448,6 +8518,53 @@ def test_compare_lhs_last_writer_hooks_installed_zero_is_not_generic_timeout() -
+     }
+ 
+ 
++def test_compare_lhs_last_writer_hooks_installed_but_not_hit_is_distinct() -> None:
++    candidates = []
++    for candidate_hex in [
++        "78d540b49c59077041414141414141",
++        "5a3e7f46ddd474d041414141414141",
++    ]:
++        candidates.append(
++            {
++                "candidate_hex": candidate_hex,
++                "hook_observations": [],
++                "write_monitor_health": {"enabled": True, "runtime_stage": "waiting_for_observation"},
++                "scripted_hook_status": "scripted_hook_no_observations",
++                "scripted_returncode": 124,
++                "hook_install_status": "installed",
++                "hook_count": 3,
++                "requested_hook_count": 3,
++                "hooks_installed_stage_seen": True,
++                "hooks_installed_stage_hook_count": 3,
++                "script_load_status": "loaded",
++                "root_cause_hypothesis": "hook_not_hit",
++                "root_cause_evidence": ["hook_install_status=installed"],
++                "per_hook_install_results": [
++                    {"name": "static_compare_callsite", "module_offset": "0x258c", "install_status": "installed", "address": "0x40258c", "error": ""},
++                    {"name": "post_handoff_lhs_reload", "module_offset": "0x2559", "install_status": "installed", "address": "0x402559", "error": ""},
++                    {"name": "handoff_helper_candidate", "module_offset": "0x1b50", "install_status": "installed", "address": "0x401b50", "error": ""},
++                ],
++                "js_top_level_seen": True,
++                "js_hooks_install_begin_seen": True,
++                "js_hooks_installed_seen": True,
++                "python_message_callback_registered_before_load": True,
++                "python_message_count_total": 5,
++                "module_base_resolution_status": "resolved",
++                "hook_not_hit_vs_hook_not_installed_classification": "hook_not_hit",
++            }
++        )
++
++    payload = build_compare_lhs_last_writer_provenance_audit_payload(
++        candidate_results=candidates,
++        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
++    )
++
++    assert payload["classification"] == "hook_not_hit"
++    assert payload["instrumentation_failure_stage"] == "hook_not_hit"
++    assert payload["hook_not_hit_vs_hook_not_installed_classification"] == "hook_not_hit"
++    assert payload["compare_probe_fallback_is_provenance"] is False
++
++
+ def test_compare_lhs_last_writer_helper_only_stage_is_stop_before_compare() -> None:
+     candidates = []
+     for candidate_hex in [
+@@ -8596,6 +8713,26 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
+                         "hook_install_error_count": 0,
+                         "hooks_installed_stage_seen": True,
+                         "hooks_installed_stage_hook_count": 3,
++                        "js_top_level_seen": True,
++                        "js_top_level_timestamp": 123,
++                        "js_hooks_install_begin_seen": True,
++                        "js_hooks_installed_seen": True,
++                        "js_hook_install_exception_count": 0,
++                        "js_hook_install_exception_messages": [],
++                        "python_message_callback_registered_before_load": True,
++                        "python_message_count_total": 6,
++                        "python_message_count_by_type": {
++                            "compare_pre_compare_handoff_target_stage": 3,
++                            "compare_pre_compare_handoff_target_hook_install_result": 3,
++                        },
++                        "python_message_decode_error_count": 0,
++                        "python_message_last_payload": {"runtime_stage": "hooks_installed"},
++                        "module_base_resolution_status": "resolved",
++                        "hook_address_by_name": {
++                            "static_compare_callsite": "0x40258c",
++                            "post_handoff_lhs_reload": "0x402559",
++                            "handoff_helper_candidate": "0x401b50",
++                        },
+                         "per_hook_install_results": [
+                             {
+                                 "name": "static_compare_callsite",
+@@ -8679,6 +8816,13 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
+     assert payload["hook_install_error_count"] == 0
+     assert payload["hooks_installed_stage_seen"] is True
+     assert payload["hooks_installed_stage_hook_count"] == 3
++    assert payload["js_top_level_seen"] is True
++    assert payload["js_hooks_install_begin_seen"] is True
++    assert payload["js_hooks_installed_seen"] is True
++    assert payload["python_message_callback_registered_before_load"] is True
++    assert payload["python_message_count_total"] == 12
++    assert payload["module_base_resolution_status"] == "resolved"
++    assert payload["hook_address_by_name"]["static_compare_callsite"] == "0x40258c"
+     assert {item["module_offset"] for item in payload["per_hook_install_results"]} == {
+         "0x258c",
+         "0x2559",

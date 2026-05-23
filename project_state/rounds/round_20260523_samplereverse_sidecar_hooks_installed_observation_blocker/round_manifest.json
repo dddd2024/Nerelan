@@ -1,0 +1,57 @@
+{
+  "archived_at": "2026-05-23T06:05:23Z",
+  "files": {
+    "artifact_index.json": {
+      "archived_path": "project_state\\rounds\\round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker\\artifact_index.json",
+      "sha256": "1a84515b392bade639f5613f6ab62ce3204e2cf492fc18e019890feb68fea5ee",
+      "source_path": "project_state\\artifact_index.json"
+    },
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker\\codex_execution_report.md",
+      "sha256": "95358f95791924dc7a496d71cc194e9165491260018d02fe00d70fc28f9e573a",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "current_state.json": {
+      "archived_path": "project_state\\rounds\\round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker\\current_state.json",
+      "sha256": "d75ce26878e4585881e8befcb6ca96aa8e86cb9acd97b213ce703a9784d8fedc",
+      "source_path": "project_state\\current_state.json"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker\\decision_packet.md",
+      "sha256": "6cf8337b2d62c2ca97e2b2fcd5aa26ebc28d88ff7d6e681ea1788cce63ba6a2c",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "git_diff.patch": {
+      "archived_path": "project_state\\rounds\\round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker\\git_diff.patch",
+      "sha256": "881c90a8677061e8ef904ecc7ac2817a1c5fdf1361c42e7c708fd59858443afc",
+      "source_path": null
+    },
+    "model_gate.json": {
+      "archived_path": "project_state\\rounds\\round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker\\model_gate.json",
+      "sha256": "ff2018cb77b323344a7b8a9cb1c7b37a08e29a2fe7b224382ab6a6a0ca9eaa61",
+      "source_path": "project_state\\model_gate.json"
+    },
+    "negative_results.json": {
+      "archived_path": "project_state\\rounds\\round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker\\negative_results.json",
+      "sha256": "7ec98072f593fd37b9ff1f1af454082867ccadd49c5b05a40644b3211b187eff",
+      "source_path": "project_state\\negative_results.json"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker\\pytest_result.txt",
+      "sha256": "c10195ff4b6f2479c00a6cff53c7d0fcfdb63ff37cc5cb492df06bfc6225c7f8",
+      "source_path": "project_state\\pytest_result.txt"
+    },
+    "task_packet.json": {
+      "archived_path": "project_state\\rounds\\round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker\\task_packet.json",
+      "sha256": "15b83ca51fc8948dd28a2237733cc21f39a2ebaeb9f61841c056202154a9285e",
+      "source_path": "project_state\\task_packet.json"
+    }
+  },
+  "round_id": "round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker",
+  "schema_version": 1,
+  "source_git_commit": "c435af6b04c6",
+  "source_harness_run": "sr_lhs_thread_follow_timing_20260520_r4",
+  "state_build_id": "state_20260520_052928_8a77e6637c6c",
+  "state_digest": "8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d",
+  "workflow_status": "REPORT_AVAILABLE"
+}

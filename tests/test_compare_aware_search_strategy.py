@@ -8385,6 +8385,76 @@ def test_compare_lhs_last_writer_loaded_without_hooks_installed_stage_is_precise
     assert "hooks_installed_stage_seen=false" in " ".join(metadata["root_cause_evidence"])
 
 
+def test_compare_lhs_last_writer_message_callback_is_registered_before_load() -> None:
+    script_path = Path("reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py")
+    source = script_path.read_text(encoding="utf-8")
+
+    assert source.index('script.on("message", on_message)') < source.index("script.load()")
+    assert "python_message_callback_registered_before_load = True" in source
+
+
+def test_compare_lhs_last_writer_loaded_without_js_top_level_is_precise(tmp_path: Path) -> None:
+    out_path = tmp_path / "candidate.json"
+    out_path.write_text("{}", encoding="utf-8")
+    log_path = tmp_path / "candidate.log"
+    log_path.write_text("", encoding="utf-8")
+
+    metadata = compare_aware_search._compare_lhs_last_writer_candidate_stage_metadata(
+        compare_payload={
+            "script_load_status": "loaded",
+            "hook_install_status": "not_confirmed_stage_missing",
+            "requested_hook_count": 3,
+            "python_message_callback_registered_before_load": True,
+            "python_message_count_total": 0,
+            "js_top_level_seen": False,
+            "js_hooks_install_begin_seen": False,
+        },
+        scripted_hook_status="scripted_hook_no_observations",
+        scripted_returncode=0,
+        helper_observation_count=0,
+        static_compare_observation_count=0,
+        scripted_write_monitor_health={"runtime_stage": "waiting_for_observation"},
+        compare_out=out_path,
+        compare_log=log_path,
+    )
+
+    assert metadata["root_cause_hypothesis"] == "js_top_level_not_seen"
+    assert metadata["python_message_callback_registered_before_load"] is True
+    assert metadata["python_message_count_total"] == 0
+
+
+def test_compare_lhs_last_writer_js_top_level_without_install_begin_is_bridge_incomplete(tmp_path: Path) -> None:
+    out_path = tmp_path / "candidate.json"
+    out_path.write_text("{}", encoding="utf-8")
+    log_path = tmp_path / "candidate.log"
+    log_path.write_text("", encoding="utf-8")
+
+    metadata = compare_aware_search._compare_lhs_last_writer_candidate_stage_metadata(
+        compare_payload={
+            "script_load_status": "loaded",
+            "hook_install_status": "not_confirmed_stage_missing",
+            "requested_hook_count": 3,
+            "python_message_callback_registered_before_load": True,
+            "python_message_count_total": 1,
+            "python_message_count_by_type": {"compare_pre_compare_handoff_target_stage": 1},
+            "js_top_level_seen": True,
+            "js_hooks_install_begin_seen": False,
+            "python_message_last_payload": {"runtime_stage": "js_top_level"},
+        },
+        scripted_hook_status="scripted_hook_no_observations",
+        scripted_returncode=0,
+        helper_observation_count=0,
+        static_compare_observation_count=0,
+        scripted_write_monitor_health={"runtime_stage": "waiting_for_observation"},
+        compare_out=out_path,
+        compare_log=log_path,
+    )
+
+    assert metadata["root_cause_hypothesis"] == "message_bridge_incomplete"
+    assert metadata["js_top_level_seen"] is True
+    assert metadata["js_hooks_install_begin_seen"] is False
+
+
 def test_compare_lhs_last_writer_hooks_installed_zero_is_not_generic_timeout() -> None:
     candidates = []
     for candidate_hex in [
@@ -8446,6 +8516,53 @@ def test_compare_lhs_last_writer_hooks_installed_zero_is_not_generic_timeout() -
         "0x2559",
         "0x1b50",
     }
+
+
+def test_compare_lhs_last_writer_hooks_installed_but_not_hit_is_distinct() -> None:
+    candidates = []
+    for candidate_hex in [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+    ]:
+        candidates.append(
+            {
+                "candidate_hex": candidate_hex,
+                "hook_observations": [],
+                "write_monitor_health": {"enabled": True, "runtime_stage": "waiting_for_observation"},
+                "scripted_hook_status": "scripted_hook_no_observations",
+                "scripted_returncode": 124,
+                "hook_install_status": "installed",
+                "hook_count": 3,
+                "requested_hook_count": 3,
+                "hooks_installed_stage_seen": True,
+                "hooks_installed_stage_hook_count": 3,
+                "script_load_status": "loaded",
+                "root_cause_hypothesis": "hook_not_hit",
+                "root_cause_evidence": ["hook_install_status=installed"],
+                "per_hook_install_results": [
+                    {"name": "static_compare_callsite", "module_offset": "0x258c", "install_status": "installed", "address": "0x40258c", "error": ""},
+                    {"name": "post_handoff_lhs_reload", "module_offset": "0x2559", "install_status": "installed", "address": "0x402559", "error": ""},
+                    {"name": "handoff_helper_candidate", "module_offset": "0x1b50", "install_status": "installed", "address": "0x401b50", "error": ""},
+                ],
+                "js_top_level_seen": True,
+                "js_hooks_install_begin_seen": True,
+                "js_hooks_installed_seen": True,
+                "python_message_callback_registered_before_load": True,
+                "python_message_count_total": 5,
+                "module_base_resolution_status": "resolved",
+                "hook_not_hit_vs_hook_not_installed_classification": "hook_not_hit",
+            }
+        )
+
+    payload = build_compare_lhs_last_writer_provenance_audit_payload(
+        candidate_results=candidates,
+        source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
+    )
+
+    assert payload["classification"] == "hook_not_hit"
+    assert payload["instrumentation_failure_stage"] == "hook_not_hit"
+    assert payload["hook_not_hit_vs_hook_not_installed_classification"] == "hook_not_hit"
+    assert payload["compare_probe_fallback_is_provenance"] is False
 
 
 def test_compare_lhs_last_writer_helper_only_stage_is_stop_before_compare() -> None:
@@ -8596,6 +8713,26 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
                         "hook_install_error_count": 0,
                         "hooks_installed_stage_seen": True,
                         "hooks_installed_stage_hook_count": 3,
+                        "js_top_level_seen": True,
+                        "js_top_level_timestamp": 123,
+                        "js_hooks_install_begin_seen": True,
+                        "js_hooks_installed_seen": True,
+                        "js_hook_install_exception_count": 0,
+                        "js_hook_install_exception_messages": [],
+                        "python_message_callback_registered_before_load": True,
+                        "python_message_count_total": 6,
+                        "python_message_count_by_type": {
+                            "compare_pre_compare_handoff_target_stage": 3,
+                            "compare_pre_compare_handoff_target_hook_install_result": 3,
+                        },
+                        "python_message_decode_error_count": 0,
+                        "python_message_last_payload": {"runtime_stage": "hooks_installed"},
+                        "module_base_resolution_status": "resolved",
+                        "hook_address_by_name": {
+                            "static_compare_callsite": "0x40258c",
+                            "post_handoff_lhs_reload": "0x402559",
+                            "handoff_helper_candidate": "0x401b50",
+                        },
                         "per_hook_install_results": [
                             {
                                 "name": "static_compare_callsite",
@@ -8679,6 +8816,13 @@ def test_run_compare_lhs_last_writer_provenance_audit_uses_bounded_candidates(
     assert payload["hook_install_error_count"] == 0
     assert payload["hooks_installed_stage_seen"] is True
     assert payload["hooks_installed_stage_hook_count"] == 3
+    assert payload["js_top_level_seen"] is True
+    assert payload["js_hooks_install_begin_seen"] is True
+    assert payload["js_hooks_installed_seen"] is True
+    assert payload["python_message_callback_registered_before_load"] is True
+    assert payload["python_message_count_total"] == 12
+    assert payload["module_base_resolution_status"] == "resolved"
+    assert payload["hook_address_by_name"]["static_compare_callsite"] == "0x40258c"
     assert {item["module_offset"] for item in payload["per_hook_install_results"]} == {
         "0x258c",
         "0x2559",

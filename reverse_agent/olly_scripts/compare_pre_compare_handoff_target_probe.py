@@ -104,6 +104,25 @@ def _build_payload(
     hooks_installed_stage_seen: bool = False,
     hooks_installed_stage_hook_count: int = 0,
     per_hook_install_results: list[dict[str, object]] | None = None,
+    js_top_level_seen: bool = False,
+    js_top_level_timestamp: object = "",
+    js_hooks_install_begin_seen: bool = False,
+    js_hooks_installed_seen: bool = False,
+    js_hook_install_exception_count: int = 0,
+    js_hook_install_exception_messages: list[str] | None = None,
+    python_message_callback_registered_before_load: bool = False,
+    python_message_count_total: int = 0,
+    python_message_count_by_type: dict[str, int] | None = None,
+    python_message_decode_error_count: int = 0,
+    python_message_last_payload: dict[str, object] | None = None,
+    module_base_resolution_status: str = "",
+    hook_address_by_name: dict[str, str] | None = None,
+    hook_address_validation: list[dict[str, object]] | None = None,
+    script_load_to_hooks_installed_elapsed_ms: object = None,
+    script_load_to_ui_trigger_elapsed_ms: object = None,
+    ui_trigger_after_hooks_installed: bool = False,
+    waiting_for_observation_reason: str = "",
+    hook_not_hit_vs_hook_not_installed_classification: str = "",
     spawn_attach_resume_status: str = "",
     ui_trigger_status: str = "",
     helper_observation_count: int = 0,
@@ -136,6 +155,25 @@ def _build_payload(
         "hooks_installed_stage_seen": hooks_installed_stage_seen,
         "hooks_installed_stage_hook_count": hooks_installed_stage_hook_count,
         "per_hook_install_results": list(per_hook_install_results or []),
+        "js_top_level_seen": js_top_level_seen,
+        "js_top_level_timestamp": js_top_level_timestamp,
+        "js_hooks_install_begin_seen": js_hooks_install_begin_seen,
+        "js_hooks_installed_seen": js_hooks_installed_seen,
+        "js_hook_install_exception_count": js_hook_install_exception_count,
+        "js_hook_install_exception_messages": list(js_hook_install_exception_messages or []),
+        "python_message_callback_registered_before_load": python_message_callback_registered_before_load,
+        "python_message_count_total": python_message_count_total,
+        "python_message_count_by_type": dict(python_message_count_by_type or {}),
+        "python_message_decode_error_count": python_message_decode_error_count,
+        "python_message_last_payload": dict(python_message_last_payload or {}),
+        "module_base_resolution_status": module_base_resolution_status,
+        "hook_address_by_name": dict(hook_address_by_name or {}),
+        "hook_address_validation": list(hook_address_validation or []),
+        "script_load_to_hooks_installed_elapsed_ms": script_load_to_hooks_installed_elapsed_ms,
+        "script_load_to_ui_trigger_elapsed_ms": script_load_to_ui_trigger_elapsed_ms,
+        "ui_trigger_after_hooks_installed": ui_trigger_after_hooks_installed,
+        "waiting_for_observation_reason": waiting_for_observation_reason,
+        "hook_not_hit_vs_hook_not_installed_classification": hook_not_hit_vs_hook_not_installed_classification,
         "spawn_attach_resume_status": spawn_attach_resume_status,
         "ui_trigger_status": ui_trigger_status,
         "helper_observation_count": helper_observation_count,
@@ -280,6 +318,13 @@ def main() -> int:
     messages: list[dict[str, object]] = []
     frida_message_errors: list[str] = []
     python_exceptions: list[str] = []
+    python_message_decode_error_count = 0
+    python_message_callback_count = 0
+    python_message_last_payload: dict[str, object] = {}
+    python_message_callback_registered_before_load = False
+    script_load_monotonic: float | None = None
+    hooks_installed_monotonic: float | None = None
+    ui_trigger_monotonic: float | None = None
     runtime_stage = "script_started"
     script_load_status = "not_started"
     script_load_error = ""
@@ -289,11 +334,79 @@ def main() -> int:
     session = None
     app = None
 
+    def bridge_snapshot() -> dict[str, object]:
+        stage_messages = [
+            item
+            for item in messages
+            if str(item.get("type", "")) == "compare_pre_compare_handoff_target_stage"
+        ]
+        count_by_type: dict[str, int] = {}
+        for item in messages:
+            item_type = str(item.get("type", "")).strip() or "unknown"
+            count_by_type[item_type] = count_by_type.get(item_type, 0) + 1
+        js_top_level_messages = [
+            item for item in stage_messages if str(item.get("runtime_stage", "")) == "js_top_level"
+        ]
+        js_hooks_install_begin_messages = [
+            item for item in stage_messages if str(item.get("runtime_stage", "")) == "hooks_install_begin"
+        ]
+        js_hooks_installed_messages = [
+            item for item in stage_messages if str(item.get("runtime_stage", "")) == "hooks_installed"
+        ]
+        hook_install_messages = [
+            item
+            for item in messages
+            if str(item.get("type", "")) == "compare_pre_compare_handoff_target_hook_install_result"
+        ]
+        per_hook_results = [
+            {
+                "name": str(item.get("name", "")),
+                "module_offset": str(item.get("module_offset", "")),
+                "install_status": str(item.get("install_status", "")),
+                "address": str(item.get("address", "")),
+                "address_validation": str(item.get("address_validation", "")),
+                "error": str(item.get("error", "")),
+            }
+            for item in hook_install_messages
+        ]
+        module_base_resolution_status = ""
+        hook_address_by_name: dict[str, str] = {}
+        hook_address_validation: list[dict[str, object]] = []
+        for item in stage_messages:
+            if str(item.get("module_base_resolution_status", "")).strip():
+                module_base_resolution_status = str(item.get("module_base_resolution_status", "")).strip()
+            raw_by_name = item.get("hook_address_by_name", {})
+            if isinstance(raw_by_name, dict):
+                hook_address_by_name.update({str(key): str(value) for key, value in raw_by_name.items()})
+            raw_validation = item.get("hook_address_validation", [])
+            if isinstance(raw_validation, list):
+                hook_address_validation = [dict(row) for row in raw_validation if isinstance(row, dict)]
+        return {
+            "js_top_level_seen": bool(js_top_level_messages),
+            "js_top_level_timestamp": js_top_level_messages[-1].get("timestamp_ms", "") if js_top_level_messages else "",
+            "js_hooks_install_begin_seen": bool(js_hooks_install_begin_messages),
+            "js_hooks_installed_seen": bool(js_hooks_installed_messages),
+            "hook_count": max(
+                [int(item.get("hook_count", 0) or 0) for item in js_hooks_installed_messages] or [0]
+            ),
+            "hooks_installed_stage_seen": bool(js_hooks_installed_messages),
+            "hooks_installed_stage_hook_count": max(
+                [int(item.get("hook_count", 0) or 0) for item in js_hooks_installed_messages] or [0]
+            ),
+            "per_hook_install_results": per_hook_results,
+            "hook_install_error_count": sum(1 for item in per_hook_results if item["install_status"] == "failed"),
+            "python_message_count_by_type": count_by_type,
+            "module_base_resolution_status": module_base_resolution_status,
+            "hook_address_by_name": hook_address_by_name,
+            "hook_address_validation": hook_address_validation,
+        }
+
     def write_progress_payload(stage: str) -> None:
         health = _initial_write_monitor_health(hook_points)
         health["runtime_stage"] = stage
         if stage not in {"script_started", "importing_dependencies"}:
             health["activation_status"] = stage
+        bridge = bridge_snapshot()
         _write_payload(
             out_path,
             _build_payload(
@@ -303,9 +416,31 @@ def main() -> int:
                 hook_points=hook_points,
                 write_monitor_health=health,
                 evidence=[*evidence, f"compare_pre_compare_handoff_target_probe:runtime_stage={stage}"],
+                hook_install_status="installed"
+                if bool(bridge.get("hooks_installed_stage_seen"))
+                and int(bridge.get("hook_count", 0) or 0) >= len(hook_points)
+                and len(hook_points) > 0
+                else "",
+                hook_count=int(bridge.get("hook_count", 0) or 0),
                 requested_hook_count=len(hook_points),
+                hook_install_error_count=int(bridge.get("hook_install_error_count", 0) or 0),
+                hooks_installed_stage_seen=bool(bridge.get("hooks_installed_stage_seen")),
+                hooks_installed_stage_hook_count=int(bridge.get("hooks_installed_stage_hook_count", 0) or 0),
+                per_hook_install_results=bridge.get("per_hook_install_results", []),
                 script_load_status=script_load_status,
                 script_load_error=script_load_error,
+                js_top_level_seen=bool(bridge.get("js_top_level_seen")),
+                js_top_level_timestamp=bridge.get("js_top_level_timestamp", ""),
+                js_hooks_install_begin_seen=bool(bridge.get("js_hooks_install_begin_seen")),
+                js_hooks_installed_seen=bool(bridge.get("js_hooks_installed_seen")),
+                python_message_callback_registered_before_load=python_message_callback_registered_before_load,
+                python_message_count_total=python_message_callback_count,
+                python_message_count_by_type=bridge.get("python_message_count_by_type", {}),
+                python_message_decode_error_count=python_message_decode_error_count,
+                python_message_last_payload=python_message_last_payload,
+                module_base_resolution_status=str(bridge.get("module_base_resolution_status", "")),
+                hook_address_by_name=bridge.get("hook_address_by_name", {}),
+                hook_address_validation=bridge.get("hook_address_validation", []),
                 spawn_attach_resume_status=spawn_attach_resume_status,
                 ui_trigger_status=ui_trigger_status,
                 runtime_stage=stage,
@@ -313,11 +448,18 @@ def main() -> int:
         )
 
     def on_message(message: dict[str, object], data: object) -> None:  # noqa: ANN401
+        nonlocal hooks_installed_monotonic, python_message_callback_count, python_message_decode_error_count, python_message_last_payload
+        python_message_callback_count += 1
         message_type = str(message.get("type", ""))
         if message_type == "send":
             payload = message.get("payload", {})
             if isinstance(payload, dict):
                 messages.append(payload)
+                python_message_last_payload = dict(payload)
+                if str(payload.get("runtime_stage", "")) == "hooks_installed":
+                    hooks_installed_monotonic = time.monotonic()
+            else:
+                python_message_decode_error_count += 1
             return
         if message_type == "error":
             stack = str(message.get("stack", "")).strip()
@@ -327,6 +469,11 @@ def main() -> int:
                 description = str(message.get("description", "")).strip()
                 if description:
                     frida_message_errors.append(description)
+            python_message_last_payload = {
+                "type": "frida_error",
+                "description": str(message.get("description", "")).strip(),
+                "stack": str(message.get("stack", "")).strip(),
+            }
 
     def observation_messages() -> list[dict[str, object]]:
         return [
@@ -372,6 +519,17 @@ let writeMonitorFollowFailures = 0;
 let writeMonitorActivationStatus = writeRingEnabled ? "waiting_for_hook_observation" : "disabled";
 let writeMonitorSelectedThreadId = "";
 let writeMonitorFollowAttemptStage = "";
+
+function sendStage(fields) {{
+    try {{
+        const payload = Object.assign({{
+            type: "compare_pre_compare_handoff_target_stage",
+            timestamp_ms: Date.now(),
+        }}, fields || {{}});
+        send(payload);
+    }} catch (error) {{
+    }}
+}}
 
 function hexBytes(raw) {{
     if (!raw) {{
@@ -836,7 +994,30 @@ function observe(point, address, context, eventName, extra) {{
     }});
 }}
 
-const mainModule = Process.enumerateModules()[0];
+let mainModule = null;
+let moduleBaseResolutionStatus = "not_started";
+let moduleBaseText = "";
+let hookAddressByName = {{}};
+let hookAddressValidation = [];
+sendStage({{
+    runtime_stage: "js_top_level",
+    js_top_level_seen: true,
+    requested_hook_count: hookPoints.length,
+}});
+try {{
+    mainModule = Process.enumerateModules()[0];
+    moduleBaseResolutionStatus = mainModule && mainModule.base ? "resolved" : "missing";
+    moduleBaseText = mainModule && mainModule.base ? mainModule.base.toString() : "";
+}} catch (error) {{
+    moduleBaseResolutionStatus = "failed";
+    send({{ type: "compare_pre_compare_handoff_target_error", hook_name: "module_base", error: String(error) }});
+}}
+sendStage({{
+    runtime_stage: "module_base_resolved",
+    module_base_resolution_status: moduleBaseResolutionStatus,
+    module_base: moduleBaseText,
+    requested_hook_count: hookPoints.length,
+}});
 sendWriteMonitorHealth();
 if (writeRingEnabled) {{
     setInterval(sendWriteMonitorHealth, 100);
@@ -857,69 +1038,114 @@ try {{
 }} catch (error) {{
 }}
 let installedHookCount = 0;
-for (const point of hookPoints) {{
-    try {{
-        const offset = Number(point.module_offset || 0);
-        if (!offset) {{
-            send({{
-                type: "compare_pre_compare_handoff_target_hook_install_result",
-                name: String(point.name || ""),
-                module_offset: String(point.module_offset || ""),
-                install_status: "skipped_invalid_offset",
-                address: "",
-                error: "missing_or_zero_module_offset",
+sendStage({{
+    runtime_stage: "hooks_install_begin",
+    module_base_resolution_status: moduleBaseResolutionStatus,
+    module_base: moduleBaseText,
+    requested_hook_count: hookPoints.length,
+}});
+try {{
+    for (const point of hookPoints) {{
+        try {{
+            const offset = Number(point.module_offset || 0);
+            if (!offset) {{
+                const skipped = {{
+                    name: String(point.name || ""),
+                    module_offset: String(point.module_offset || ""),
+                    install_status: "skipped_invalid_offset",
+                    address: "",
+                    address_validation: "invalid_offset",
+                    error: "missing_or_zero_module_offset",
+                }};
+                hookAddressValidation.push(skipped);
+                send(Object.assign({{ type: "compare_pre_compare_handoff_target_hook_install_result" }}, skipped));
+                continue;
+            }}
+            if (!mainModule || !mainModule.base) {{
+                const missing = {{
+                    name: String(point.name || ""),
+                    module_offset: "0x" + offset.toString(16),
+                    install_status: "failed",
+                    address: "",
+                    address_validation: "module_base_unavailable",
+                    error: "module_base_unavailable",
+                }};
+                hookAddressValidation.push(missing);
+                send(Object.assign({{ type: "compare_pre_compare_handoff_target_hook_install_result" }}, missing));
+                send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: "module_base_unavailable" }});
+                continue;
+            }}
+            const address = mainModule.base.add(offset);
+            const pointName = String(point.name || "");
+            hookAddressByName[pointName] = address.toString();
+            Interceptor.attach(address, {{
+                onEnter(args) {{
+                    try {{
+                        const sp = ptr(this.context.sp || this.context.esp || 0);
+                        this.returnAddressForAudit = sp.readPointer();
+                    }} catch (error) {{
+                        this.returnAddressForAudit = ptr(0);
+                    }}
+                    observe(point, address, this.context, "enter", {{
+                        return_address: this.returnAddressForAudit.toString(),
+                        return_address_module_offset: moduleOffsetText(this.returnAddressForAudit, mainModule.base),
+                    }});
+                }},
+                onLeave(retval) {{
+                    if (!point.capture_leave) {{
+                        return;
+                    }}
+                    observe(point, address, this.context, "leave", {{
+                        return_address: this.returnAddressForAudit ? this.returnAddressForAudit.toString() : "",
+                        return_address_module_offset: this.returnAddressForAudit ? moduleOffsetText(this.returnAddressForAudit, mainModule.base) : "",
+                        return_value: retval ? retval.toString() : "",
+                    }});
+                }},
             }});
-            continue;
+            installedHookCount++;
+            const installed = {{
+                name: pointName,
+                module_offset: "0x" + offset.toString(16),
+                install_status: "installed",
+                address: address.toString(),
+                address_validation: "resolved",
+                error: "",
+            }};
+            hookAddressValidation.push(installed);
+            send(Object.assign({{ type: "compare_pre_compare_handoff_target_hook_install_result" }}, installed));
+        }} catch (error) {{
+            const offsetText = point.module_offset ? "0x" + Number(point.module_offset).toString(16) : "";
+            let addressText = "";
+            try {{
+                addressText = mainModule && mainModule.base && point.module_offset ? mainModule.base.add(Number(point.module_offset)).toString() : "";
+            }} catch (addressError) {{
+                addressText = "";
+            }}
+            const failed = {{
+                name: String(point.name || ""),
+                module_offset: offsetText,
+                install_status: "failed",
+                address: addressText,
+                address_validation: addressText ? "resolved_attach_failed" : "address_unavailable",
+                error: String(error),
+            }};
+            hookAddressValidation.push(failed);
+            send(Object.assign({{ type: "compare_pre_compare_handoff_target_hook_install_result" }}, failed));
+            send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});
         }}
-        const address = mainModule.base.add(offset);
-        Interceptor.attach(address, {{
-            onEnter(args) {{
-                try {{
-                    const sp = ptr(this.context.sp || this.context.esp || 0);
-                    this.returnAddressForAudit = sp.readPointer();
-                }} catch (error) {{
-                    this.returnAddressForAudit = ptr(0);
-                }}
-                observe(point, address, this.context, "enter", {{
-                    return_address: this.returnAddressForAudit.toString(),
-                    return_address_module_offset: moduleOffsetText(this.returnAddressForAudit, mainModule.base),
-                }});
-            }},
-            onLeave(retval) {{
-                if (!point.capture_leave) {{
-                    return;
-                }}
-                observe(point, address, this.context, "leave", {{
-                    return_address: this.returnAddressForAudit ? this.returnAddressForAudit.toString() : "",
-                    return_address_module_offset: this.returnAddressForAudit ? moduleOffsetText(this.returnAddressForAudit, mainModule.base) : "",
-                    return_value: retval ? retval.toString() : "",
-                }});
-            }},
-        }});
-        installedHookCount++;
-        send({{
-            type: "compare_pre_compare_handoff_target_hook_install_result",
-            name: String(point.name || ""),
-            module_offset: "0x" + offset.toString(16),
-            install_status: "installed",
-            address: address.toString(),
-            error: "",
-        }});
-    }} catch (error) {{
-        const offsetText = point.module_offset ? "0x" + Number(point.module_offset).toString(16) : "";
-        const addressText = point.module_offset ? mainModule.base.add(Number(point.module_offset)).toString() : "";
-        send({{
-            type: "compare_pre_compare_handoff_target_hook_install_result",
-            name: String(point.name || ""),
-            module_offset: offsetText,
-            install_status: "failed",
-            address: addressText,
-            error: String(error),
-        }});
-        send({{ type: "compare_pre_compare_handoff_target_error", hook_name: String(point.name || ""), error: String(error) }});
     }}
+}} catch (error) {{
+    send({{ type: "compare_pre_compare_handoff_target_error", hook_name: "hook_install_loop", error: String(error) }});
 }}
-send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_installed", hook_count: installedHookCount, requested_hook_count: hookPoints.length }});
+sendStage({{
+    runtime_stage: "hooks_installed",
+    hook_count: installedHookCount,
+    requested_hook_count: hookPoints.length,
+    module_base_resolution_status: moduleBaseResolutionStatus,
+    module_base: moduleBaseText,
+    hook_address_by_name: hookAddressByName,
+    hook_address_validation: hookAddressValidation,
+}});
 """
 
     try:
@@ -935,8 +1161,10 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         write_progress_payload(runtime_stage)
         script = session.create_script(script_source)
         script.on("message", on_message)
+        python_message_callback_registered_before_load = True
         runtime_stage = "loading_script"
         script_load_status = "loading"
+        script_load_monotonic = time.monotonic()
         write_progress_payload(runtime_stage)
         script.load()
         script_load_status = "loaded"
@@ -978,6 +1206,7 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         write_progress_payload(runtime_stage)
         _trigger_decrypt(decrypt_btn)
         ui_trigger_status = "button_triggered"
+        ui_trigger_monotonic = time.monotonic()
 
         runtime_stage = "waiting_for_observation"
         write_progress_payload(runtime_stage)
@@ -1053,6 +1282,7 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
                 "module_offset": str(item.get("module_offset", "")),
                 "install_status": str(item.get("install_status", "")),
                 "address": str(item.get("address", "")),
+                "address_validation": str(item.get("address_validation", "")),
                 "error": str(item.get("error", "")),
             }
         )
@@ -1099,6 +1329,59 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             except (TypeError, ValueError):
                 pass
     hooks_installed_stage_hook_count = hook_count if hooks_installed_stage_seen else 0
+    python_message_count_by_type: dict[str, int] = {}
+    for item in messages:
+        item_type = str(item.get("type", "")).strip() or "unknown"
+        python_message_count_by_type[item_type] = python_message_count_by_type.get(item_type, 0) + 1
+    js_top_level_messages = [item for item in stage_messages if str(item.get("runtime_stage", "")) == "js_top_level"]
+    js_hooks_install_begin_messages = [
+        item for item in stage_messages if str(item.get("runtime_stage", "")) == "hooks_install_begin"
+    ]
+    js_hooks_installed_messages = [
+        item for item in stage_messages if str(item.get("runtime_stage", "")) == "hooks_installed"
+    ]
+    js_top_level_seen = bool(js_top_level_messages)
+    js_top_level_timestamp = js_top_level_messages[-1].get("timestamp_ms", "") if js_top_level_messages else ""
+    js_hooks_install_begin_seen = bool(js_hooks_install_begin_messages)
+    js_hooks_installed_seen = bool(js_hooks_installed_messages)
+    js_hook_install_exception_messages = [
+        str(item.get("error", ""))
+        for item in per_hook_install_results
+        if str(item.get("install_status", "")) == "failed" and str(item.get("error", "")).strip()
+    ]
+    js_hook_install_exception_count = len(js_hook_install_exception_messages)
+    module_base_resolution_status = ""
+    hook_address_by_name: dict[str, str] = {}
+    hook_address_validation: list[dict[str, object]] = []
+    if stage_messages:
+        for item in stage_messages:
+            if str(item.get("module_base_resolution_status", "")).strip():
+                module_base_resolution_status = str(item.get("module_base_resolution_status", "")).strip()
+            raw_by_name = item.get("hook_address_by_name", {})
+            if isinstance(raw_by_name, dict):
+                hook_address_by_name.update({str(key): str(value) for key, value in raw_by_name.items()})
+            raw_validation = item.get("hook_address_validation", [])
+            if isinstance(raw_validation, list):
+                hook_address_validation = [dict(row) for row in raw_validation if isinstance(row, dict)]
+    if not hook_address_by_name:
+        hook_address_by_name = {
+            str(item.get("name", "")): str(item.get("address", ""))
+            for item in per_hook_install_results
+            if str(item.get("name", "")).strip() and str(item.get("address", "")).strip()
+        }
+    if not hook_address_validation:
+        hook_address_validation = [dict(item) for item in per_hook_install_results]
+    script_load_to_hooks_installed_elapsed_ms = None
+    if script_load_monotonic is not None and hooks_installed_monotonic is not None:
+        script_load_to_hooks_installed_elapsed_ms = round((hooks_installed_monotonic - script_load_monotonic) * 1000, 3)
+    script_load_to_ui_trigger_elapsed_ms = None
+    if script_load_monotonic is not None and ui_trigger_monotonic is not None:
+        script_load_to_ui_trigger_elapsed_ms = round((ui_trigger_monotonic - script_load_monotonic) * 1000, 3)
+    ui_trigger_after_hooks_installed = (
+        ui_trigger_monotonic is not None
+        and hooks_installed_monotonic is not None
+        and ui_trigger_monotonic >= hooks_installed_monotonic
+    )
     installed_results = [
         item for item in per_hook_install_results if str(item.get("install_status", "")) == "installed"
     ]
@@ -1129,6 +1412,16 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
         if frida_message_errors:
             root_cause_hypothesis = "frida_message_error"
             root_cause_evidence.extend(f"frida_message_error={item}" for item in frida_message_errors[:3])
+        elif script_load_status == "loaded" and python_message_callback_registered_before_load and not js_top_level_seen:
+            root_cause_hypothesis = "js_top_level_not_seen"
+            root_cause_evidence.append("script_load_status=loaded")
+            root_cause_evidence.append("python_message_callback_registered_before_load=true")
+            root_cause_evidence.append("js_top_level_seen=false")
+        elif script_load_status == "loaded" and js_top_level_seen and not js_hooks_install_begin_seen:
+            root_cause_hypothesis = "message_bridge_incomplete"
+            root_cause_evidence.append("js_top_level_seen=true")
+            root_cause_evidence.append("js_hooks_install_begin_seen=false")
+            root_cause_evidence.append(f"python_message_count_total={python_message_callback_count}")
         elif script_load_status == "failed":
             if "SyntaxError" in script_load_error or "compile" in script_load_error.lower():
                 root_cause_hypothesis = "js_compile_error"
@@ -1139,6 +1432,8 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             root_cause_hypothesis = "hooks_installed_stage_missing_after_script_load"
             root_cause_evidence.append("hooks_installed_stage_seen=false")
             root_cause_evidence.append("script_load_status=loaded")
+            root_cause_evidence.append(f"js_top_level_seen={str(js_top_level_seen).lower()}")
+            root_cause_evidence.append(f"js_hooks_install_begin_seen={str(js_hooks_install_begin_seen).lower()}")
             root_cause_evidence.append(
                 "stage message missing: JS did not reach hooks_installed send, message handler did not receive it, or process ended before stage emission"
             )
@@ -1151,6 +1446,11 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             root_cause_evidence.append(f"hook_install_status={hook_install_status}")
             root_cause_evidence.append(f"script_load_status={script_load_status}")
             root_cause_evidence.append(f"requested_hook_count={requested_hook_count}")
+        elif hooks_installed_stage_seen and hook_install_status == "installed":
+            root_cause_hypothesis = "hook_not_hit"
+            root_cause_evidence.append("hooks_installed_stage_seen=true")
+            root_cause_evidence.append("hook_install_status=installed")
+            root_cause_evidence.append("no same-process hook observation captured before bounded timeout")
         elif spawn_attach_resume_status != "resumed":
             root_cause_hypothesis = "spawn_attach_resume_failed"
             root_cause_evidence.append(f"spawn_attach_resume_status={spawn_attach_resume_status}")
@@ -1171,6 +1471,13 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
                 f"hooks_installed_stage_seen={str(hooks_installed_stage_seen).lower()}",
                 f"hooks_installed_stage_hook_count={hooks_installed_stage_hook_count}",
                 f"script_load_status={script_load_status}",
+                f"js_top_level_seen={str(js_top_level_seen).lower()}",
+                f"js_hooks_install_begin_seen={str(js_hooks_install_begin_seen).lower()}",
+                f"js_hooks_installed_seen={str(js_hooks_installed_seen).lower()}",
+                f"python_message_callback_registered_before_load={str(python_message_callback_registered_before_load).lower()}",
+                f"python_message_count_total={python_message_callback_count}",
+                f"python_message_decode_error_count={python_message_decode_error_count}",
+                f"module_base_resolution_status={module_base_resolution_status}",
                 f"python_exception_count={python_exception_count}",
                 f"frida_message_error_count={frida_message_error_count}",
                 f"hook_install_error_count={hook_install_error_count}",
@@ -1179,6 +1486,15 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
                 f"static_compare_observation_count={static_compare_observation_count}",
             ]
         )
+    waiting_for_observation_reason = root_cause_hypothesis if runtime_stage == "waiting_for_observation" else ""
+    if hook_install_status == "installed" and hooks_installed_stage_seen and not static_observations:
+        hook_not_hit_vs_hook_not_installed_classification = "hook_not_hit"
+    elif hook_install_status in {"failed_or_not_confirmed", "partial_or_failed"} or hook_install_error_count:
+        hook_not_hit_vs_hook_not_installed_classification = "hook_not_installed"
+    elif not hooks_installed_stage_seen:
+        hook_not_hit_vs_hook_not_installed_classification = "install_ack_missing"
+    else:
+        hook_not_hit_vs_hook_not_installed_classification = "inconclusive"
     success = bool(static_observations) and not frida_message_errors and not python_exceptions
     summary = (
         "ComparePreCompareHandoffTargetProbe captured the bounded static compare callsite."
@@ -1207,6 +1523,25 @@ send({{ type: "compare_pre_compare_handoff_target_stage", runtime_stage: "hooks_
             hooks_installed_stage_seen=hooks_installed_stage_seen,
             hooks_installed_stage_hook_count=hooks_installed_stage_hook_count,
             per_hook_install_results=per_hook_install_results,
+            js_top_level_seen=js_top_level_seen,
+            js_top_level_timestamp=js_top_level_timestamp,
+            js_hooks_install_begin_seen=js_hooks_install_begin_seen,
+            js_hooks_installed_seen=js_hooks_installed_seen,
+            js_hook_install_exception_count=js_hook_install_exception_count,
+            js_hook_install_exception_messages=js_hook_install_exception_messages,
+            python_message_callback_registered_before_load=python_message_callback_registered_before_load,
+            python_message_count_total=python_message_callback_count,
+            python_message_count_by_type=python_message_count_by_type,
+            python_message_decode_error_count=python_message_decode_error_count,
+            python_message_last_payload=python_message_last_payload,
+            module_base_resolution_status=module_base_resolution_status,
+            hook_address_by_name=hook_address_by_name,
+            hook_address_validation=hook_address_validation,
+            script_load_to_hooks_installed_elapsed_ms=script_load_to_hooks_installed_elapsed_ms,
+            script_load_to_ui_trigger_elapsed_ms=script_load_to_ui_trigger_elapsed_ms,
+            ui_trigger_after_hooks_installed=ui_trigger_after_hooks_installed,
+            waiting_for_observation_reason=waiting_for_observation_reason,
+            hook_not_hit_vs_hook_not_installed_classification=hook_not_hit_vs_hook_not_installed_classification,
             spawn_attach_resume_status=spawn_attach_resume_status,
             ui_trigger_status=ui_trigger_status,
             helper_observation_count=helper_observation_count,
