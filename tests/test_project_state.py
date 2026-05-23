@@ -41,6 +41,7 @@ def _write_decision_packet(
     state_dir: Path,
     *,
     decision_id: str = "decision_test",
+    round_id: str = "round_test",
     based_on_state_build_id: str = "state_test",
     based_on_state_digest: str = "digest_test",
     status: str = "APPROVED",
@@ -50,6 +51,7 @@ def _write_decision_packet(
 {{
   "schema_version": 1,
   "decision_id": "{decision_id}",
+  "round_id": "{round_id}",
   "based_on_state_build_id": "{based_on_state_build_id}",
   "based_on_state_digest": "{based_on_state_digest}",
   "status": "{status}"
@@ -2071,6 +2073,7 @@ def _prepare_lint_report_state(tmp_path: Path) -> tuple[Path, dict[str, object]]
     _write_decision_packet(
         state_dir,
         decision_id="decision_report",
+        round_id=str(current_state["round_id"]),
         based_on_state_build_id=str(current_state["state_build_id"]),
         based_on_state_digest=str(current_state["state_digest"]),
     )
@@ -2132,6 +2135,22 @@ def test_status_summary_exposes_pytest_result_tests_ran_coverage(tmp_path: Path)
     assert summary["pytest_result_tests_ran_count"] == 1
     assert summary["pytest_result_tests_cover_report"] is True
     assert summary["pytest_result_missing_report_tests"] == []
+
+
+def test_status_summary_exposes_round_consistency_fields(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["report_round_id"] == current_state["round_id"]
+    assert summary["decision_round_id"] == current_state["round_id"]
+    assert summary["current_state_round_id"] == current_state["round_id"]
+    assert summary["current_state_scope"] == "sample_state"
+    assert summary["report_decision_round_id_match"] is True
+    assert summary["report_current_state_round_relation"] == "same"
+    assert summary["round_manifest_present"] is True
+    assert summary["archive_status"] == "archived"
+    assert summary["round_manifest_path"].endswith("round_manifest.json")
 
 
 def test_lint_report_fails_when_report_summary_missing(tmp_path: Path) -> None:
@@ -2243,19 +2262,117 @@ def test_lint_report_fails_when_summary_lists_have_wrong_type(tmp_path: Path) ->
     assert "generated_artifacts must be a list" in result["errors"]
 
 
-def test_lint_report_warns_when_round_id_mismatches_current_state(tmp_path: Path) -> None:
-    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
+def test_lint_report_allows_engineering_round_with_sample_state(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    engineering_round = "round_engineering"
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_report",
+        round_id=engineering_round,
+        based_on_state_build_id=str(current_state["state_build_id"]),
+        based_on_state_digest=str(current_state["state_digest"]),
+    )
     _write_codex_report(
         state_dir,
-        round_id="round_other",
+        round_id=engineering_round,
         based_on_decision_id="decision_report",
+    )
+    _write_pytest_result(
+        state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_report",
+            "report_id": "report_test",
+            "round_id": engineering_round,
+            "generated_at": "2026-05-23T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest -q"],
+        },
     )
 
     result = lint_report(state_dir)
 
     assert result["ok"] is True
-    assert "report round_id does not match current_state.round_id" in result["warnings"]
-    assert "round_manifest missing" in result["warnings"]
+    assert "report round_id does not match current_state.round_id" not in result["warnings"]
+    assert result["report_decision_round_id_match"] is True
+    assert result["report_current_state_round_relation"] == "different_but_allowed_sample_state"
+    assert result["archive_status"] == "not_archived"
+    assert result["round_manifest_present"] is False
+    assert "report round not archived yet" in result["warnings"]
+
+
+def test_lint_report_fails_when_decision_report_round_id_mismatches(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_report",
+        round_id="round_decision",
+        based_on_state_build_id=str(current_state["state_build_id"]),
+        based_on_state_digest=str(current_state["state_digest"]),
+    )
+    _write_codex_report(
+        state_dir,
+        round_id="round_report",
+        based_on_decision_id="decision_report",
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert result["report_decision_round_id_match"] is False
+    assert "report round_id does not match current decision round_id" in result["errors"]
+
+
+def test_lint_report_reports_manifest_present_for_archived_round(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert result["report_current_state_round_relation"] == "same"
+    assert result["archive_status"] == "archived"
+    assert result["round_manifest_present"] is True
+    assert result["round_manifest_warning"] == ""
+
+
+def test_lint_report_warns_for_unclassified_round_relation(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    task_packet = _read_json(state_dir / "task_packet.json")
+    task_packet.pop("state_scope", None)
+    task_packet.pop("task_source", None)
+    task_packet.pop("execution_scope", None)
+    _write_json(state_dir / "task_packet.json", task_packet)
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_report",
+        round_id="round_other",
+        based_on_state_build_id=str(current_state["state_build_id"]),
+        based_on_state_digest=str(current_state["state_digest"]),
+    )
+    _write_codex_report(
+        state_dir,
+        round_id="round_other",
+        based_on_decision_id="decision_report",
+    )
+    _write_pytest_result(
+        state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_report",
+            "report_id": "report_test",
+            "round_id": "round_other",
+            "generated_at": "2026-05-23T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest -q"],
+        },
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert result["current_state_scope"] == "unknown"
+    assert result["report_current_state_round_relation"] == "different_unclassified"
+    assert "report round_id differs from current_state.round_id and relation is unclassified" in result["warnings"]
 
 
 def test_lint_report_warns_for_structured_non_success_report(tmp_path: Path) -> None:

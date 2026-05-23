@@ -804,12 +804,92 @@ def _pytest_result_present(state_dir: Path) -> bool:
         return False
 
 
+def build_round_consistency(
+    *,
+    decision: dict[str, Any],
+    report: dict[str, Any],
+    current_state: dict[str, Any],
+    task_packet: dict[str, Any],
+    state_dir: Path,
+) -> dict[str, Any]:
+    report_round_id = str(report.get("round_id") or "")
+    decision_round_id = str(decision.get("round_id") or "")
+    current_state_round_id = str(current_state.get("round_id") or "")
+    current_state_scope = str(
+        current_state.get("state_scope") or task_packet.get("state_scope") or ""
+    )
+    task_source = str(task_packet.get("task_source") or "")
+    execution_scope = str(task_packet.get("execution_scope") or "")
+
+    if report_round_id and decision_round_id:
+        report_decision_round_id_match: bool | str = report_round_id == decision_round_id
+    else:
+        report_decision_round_id_match = "unknown"
+
+    if not report_round_id or not current_state_round_id:
+        report_current_state_round_relation = "unknown"
+    elif report_round_id == current_state_round_id:
+        report_current_state_round_relation = "same"
+    elif (
+        current_state_scope == STATE_SCOPE_SAMPLE
+        or task_source == TASK_SOURCE_DERIVED_FROM_SAMPLE_ARTIFACTS
+        or execution_scope == EXECUTION_SCOPE_DECISION_PACKET_CONTROLS_CURRENT_ROUND
+    ):
+        report_current_state_round_relation = "different_but_allowed_sample_state"
+    else:
+        report_current_state_round_relation = "different_unclassified"
+
+    manifest_path = state_dir / "rounds" / report_round_id / "round_manifest.json" if report_round_id else None
+    manifest = _read_json(manifest_path) if manifest_path is not None else {}
+    round_manifest_present = bool(manifest)
+    if not report_round_id:
+        archive_status = "unknown"
+        round_manifest_warning = ""
+    elif round_manifest_present:
+        archive_status = "archived"
+        files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
+        missing_files = [
+            name
+            for name in ("pytest_result.txt", "codex_execution_report.md")
+            if name not in files
+        ]
+        round_manifest_warning = (
+            "round_manifest does not archive " + ", ".join(missing_files)
+            if missing_files
+            else ""
+        )
+    else:
+        archive_status = "not_archived"
+        round_manifest_warning = "report round not archived yet"
+
+    return {
+        "report_round_id": report_round_id,
+        "decision_round_id": decision_round_id,
+        "current_state_round_id": current_state_round_id,
+        "current_state_scope": current_state_scope or "unknown",
+        "report_decision_round_id_match": report_decision_round_id_match,
+        "report_current_state_round_relation": report_current_state_round_relation,
+        "round_manifest_path": _path_for_json(manifest_path) if manifest_path is not None else "",
+        "round_manifest_present": round_manifest_present,
+        "archive_status": archive_status,
+        "round_manifest_warning": round_manifest_warning,
+    }
+
+
 def lint_report(state_dir: Path) -> dict[str, Any]:
     handoff_status = build_handoff_status(state_dir)
     decision = handoff_status["decision"]
     report = handoff_status["codex_report"]
     consistency = handoff_status["handoff_consistency"]
     current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    round_consistency = build_round_consistency(
+        decision=decision,
+        report=report,
+        current_state=current_state,
+        task_packet=task_packet,
+        state_dir=state_dir,
+    )
     errors: list[str] = []
     warnings: list[str] = []
 
@@ -820,6 +900,7 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
     decision_id = str(decision.get("decision_id") or "")
     round_id = str(report.get("round_id") or "")
     current_state_round_id = str(current_state.get("round_id") or "")
+    decision_round_id = str(decision.get("round_id") or "")
     pytest_text = _read_text_or_empty(state_dir / "pytest_result.txt")
     pytest_result_present = bool(pytest_text.strip())
     pytest_validation = validate_pytest_result_for_report(pytest_text, report)
@@ -842,6 +923,8 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
         errors.append("current decision_id missing")
     if based_on_decision_id and decision_id and based_on_decision_id != decision_id:
         errors.append("based_on_decision_id does not match current decision_id")
+    if round_id and decision_round_id and round_id != decision_round_id:
+        errors.append("report round_id does not match current decision round_id")
 
     for field in ("files_changed", "tests_ran", "generated_artifacts"):
         value = report.get(field)
@@ -856,24 +939,15 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
     errors.extend(pytest_validation.get("errors") or [])
     warnings.extend(pytest_validation.get("warnings") or [])
 
-    if round_id and current_state_round_id and round_id != current_state_round_id:
-        warnings.append("report round_id does not match current_state.round_id")
+    if round_consistency["report_current_state_round_relation"] == "different_unclassified":
+        warnings.append("report round_id differs from current_state.round_id and relation is unclassified")
     if acceptance_recommendation == "UNKNOWN":
         warnings.append("acceptance_recommendation is UNKNOWN")
     if report_status in {"PARTIAL", "FAILED", "BLOCKED"}:
         warnings.append(f"report_status is {report_status}")
 
-    manifest_path = state_dir / "rounds" / round_id / "round_manifest.json" if round_id else None
-    manifest = _read_json(manifest_path) if manifest_path is not None else {}
-    if round_id:
-        if not manifest:
-            warnings.append("round_manifest missing")
-        else:
-            files = manifest.get("files") if isinstance(manifest.get("files"), dict) else {}
-            if "pytest_result.txt" not in files:
-                warnings.append("round_manifest does not archive pytest_result.txt")
-            if "codex_execution_report.md" not in files:
-                warnings.append("round_manifest does not archive codex_execution_report.md")
+    if round_consistency.get("round_manifest_warning"):
+        warnings.append(str(round_consistency["round_manifest_warning"]))
 
     return {
         "ok": not errors,
@@ -887,6 +961,7 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
         "decision_report_id_match": consistency.get("decision_report_id_match"),
         "round_id": round_id,
         "current_state_round_id": current_state_round_id,
+        **round_consistency,
         "tests_ran_count": _list_count(report.get("tests_ran")),
         "generated_artifacts_count": _list_count(report.get("generated_artifacts")),
         "pytest_result_present": pytest_result_present,
@@ -3546,6 +3621,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
     artifact_index = _read_json(state_dir / "artifact_index.json")
     model_gate = _read_json(state_dir / "model_gate.json")
     task_packet = _read_json(state_dir / "task_packet.json")
+    current_state = _read_json(state_dir / "current_state.json")
     task = task_packet.get("task")
     handoff_status = build_handoff_status(state_dir)
     decision = handoff_status["decision"]
@@ -3553,6 +3629,13 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
     handoff_consistency = handoff_status["handoff_consistency"]
     pytest_text = _read_text_or_empty(state_dir / "pytest_result.txt")
     pytest_validation = validate_pytest_result_for_report(pytest_text, codex_report)
+    round_consistency = build_round_consistency(
+        decision=decision,
+        report=codex_report,
+        current_state=current_state,
+        task_packet=task_packet,
+        state_dir=state_dir,
+    )
     return {
         "state_dir": _path_for_json(state_dir),
         "latest_harness_run": artifact_index.get("latest_harness_run"),
@@ -3596,6 +3679,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "decision_consumed_by_report": handoff_consistency.get("decision_consumed_by_report"),
         "decision_execution_state": handoff_consistency.get("decision_execution_state"),
         "decision_ready_for_execution": handoff_consistency.get("decision_ready_for_execution"),
+        **round_consistency,
     }
 
 
@@ -3637,6 +3721,15 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"decision_consumed_by_report: {summary.get('decision_consumed_by_report')}")
     print(f"decision_execution_state: {summary.get('decision_execution_state')}")
     print(f"decision_ready_for_execution: {summary.get('decision_ready_for_execution')}")
+    print(f"report_round_id: {summary.get('report_round_id')}")
+    print(f"decision_round_id: {summary.get('decision_round_id')}")
+    print(f"current_state_round_id: {summary.get('current_state_round_id')}")
+    print(f"current_state_scope: {summary.get('current_state_scope')}")
+    print(f"report_decision_round_id_match: {summary.get('report_decision_round_id_match')}")
+    print(f"report_current_state_round_relation: {summary.get('report_current_state_round_relation')}")
+    print(f"round_manifest_present: {summary.get('round_manifest_present')}")
+    print(f"archive_status: {summary.get('archive_status')}")
+    print(f"round_manifest_path: {summary.get('round_manifest_path')}")
 
 
 def _print_lint_decision(result: dict[str, Any]) -> None:
@@ -3668,7 +3761,15 @@ def _print_lint_report(result: dict[str, Any]) -> None:
     print(f"decision_id: {result.get('decision_id')}")
     print(f"decision_report_id_match: {result.get('decision_report_id_match')}")
     print(f"round_id: {result.get('round_id')}")
+    print(f"report_round_id: {result.get('report_round_id')}")
+    print(f"decision_round_id: {result.get('decision_round_id')}")
     print(f"current_state_round_id: {result.get('current_state_round_id')}")
+    print(f"current_state_scope: {result.get('current_state_scope')}")
+    print(f"report_decision_round_id_match: {result.get('report_decision_round_id_match')}")
+    print(f"report_current_state_round_relation: {result.get('report_current_state_round_relation')}")
+    print(f"round_manifest_present: {result.get('round_manifest_present')}")
+    print(f"archive_status: {result.get('archive_status')}")
+    print(f"round_manifest_path: {result.get('round_manifest_path')}")
     print(f"tests_ran_count: {result.get('tests_ran_count')}")
     print(f"generated_artifacts_count: {result.get('generated_artifacts_count')}")
     print(f"pytest_result_present: {result.get('pytest_result_present')}")
