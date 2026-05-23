@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260523_engineering_artifact_hygiene_sidecar_health_schema",
-  "round_id": "round_20260523_engineering_artifact_hygiene_sidecar_health_schema",
+  "decision_id": "decision_20260523_engineering_pytest_result_provenance",
+  "round_id": "round_20260523_engineering_pytest_result_provenance",
   "based_on_state_build_id": "state_20260520_052928_8a77e6637c6c",
   "based_on_state_digest": "8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d",
   "status": "APPROVED"
@@ -13,111 +13,81 @@
 
 本轮属于工程架构改造支线，不推进 `samplereverse` 逆向解题主线。
 
-核心目标：解决两个导致 Codex 每轮 diff 过大的工程根因：
+核心目标：修复 `project_state/pytest_result.txt` 的当前轮可信记录问题。上一轮工程审计结论是 `ACCEPTED_WITH_LIMITATIONS`：`archive-round minimal mode` 与 `sidecar_health` 第一阶段已经可接受，但 `pytest_result.txt` 混入上一轮逆向 runtime sidecar 记录，导致 GPT 后续审计无法稳定判断哪些测试属于当前 decision。
 
-```text
-A. artifact hygiene：
-   archive-round 默认把 git_diff.patch、current_state.json、artifact_index.json 等历史快照写入
-   project_state/rounds/，并且这些文件未被 Git 忽略，导致每轮改动量被生成物撑大。
-
-B. sidecar health schema：
-   sidecar 运行状态字段在 sidecar payload、compare_aware_search.py、candidate metadata、
-   stage_fields、final artifact、fixture、report 中多层重复搬运，导致小字段变成大 diff。
-```
-
-本轮只做轻量、兼容旧字段、可测试的小步改造。不要引入重型 runtime、数据库或平台化依赖。
+本轮只做小步工程 hygiene：让 `pytest_result.txt` 具备机器可读 header、当前轮覆盖写入语义、与 `codex_report_summary.based_on_decision_id` 的一致性检查。不要继续扩展 `sidecar_health`，不要推进逆向 runtime。
 
 ## 1. Goal
 
 本轮目标：
 
 ```text
-1. 将 archive-round 默认行为改成 minimal archive，避免默认生成 git_diff.patch 和完整 state snapshot。
-2. 增加显式开关：只有用户/Codex 明确传参时，才归档完整 state snapshot 或 git diff。
-3. 更新 .gitignore，阻止新的 round 大快照和 git_diff.patch 继续进入 Git。
-4. 建立统一 sidecar_health schema / normalizer，减少 sidecar 状态字段在多层手工复制。
-5. 至少把当前 last-writer / hook-install 相关 sidecar 路径接入 sidecar_health。
-6. 保留旧 top-level 字段兼容，不破坏现有消费者和测试。
-7. 增加测试证明 archive minimal mode 与 sidecar_health normalizer 行为。
+1. 定义 pytest_result.txt 的最小可信格式。
+2. 让本轮测试记录默认覆盖当前轮内容，而不是追加旧轮历史。
+3. 在 pytest_result.txt 顶部写入机器可读 header，至少包含 schema_version、decision_id、report_id、round_id、generated_at、status、tests_ran。
+4. 增加 project_state 侧的解析 / 校验 helper，用于确认 pytest_result.txt 是否对应当前 codex_report_summary。
+5. 将 status / lint-report 或等价审计路径接入该校验；如果 pytest_result stale、missing、decision mismatch，应明确报告。
+6. 更新测试覆盖当前轮通过、旧轮 stale/mismatch、legacy 无 header 不应被误判为当前可信证据。
+7. 保持旧文本测试记录可读，不破坏人工阅读。
 ```
 
-期望最终边界：
+可信测试证据必须能回答：
 
 ```text
-Git 保留：
-- 当前活跃 project_state/*.json
-- 当前 decision_packet.md
-- 当前 codex_execution_report.md
-- 当前 pytest_result.txt
-- 每轮 round_manifest.json
-- 每轮 decision_packet.md / codex_execution_report.md / pytest_result.txt
-
-Git 默认不保留：
-- project_state/rounds/*/git_diff.patch
-- project_state/rounds/*/current_state.json
-- project_state/rounds/*/artifact_index.json
-- project_state/rounds/*/negative_results.json
-- project_state/rounds/*/model_gate.json
-- project_state/rounds/*/task_packet.json
+- 这是哪个 decision_id 的测试？
+- 对应哪个 report_id？
+- 对应哪个 round_id？
+- 实际运行了哪些命令？
+- 是否和当前 codex_report_summary.based_on_decision_id 一致？
 ```
 
 ## 2. Current Evidence
 
 当前任务主线判断：工程架构改造支线。
 
-当前仓库中的 `task_packet.json` 仍主要来自样本状态派生，`task_packet.task` / `derived_task` 不是本轮工程支线的执行目标。本轮 Codex 实际执行权威以 `project_state/decision_packet.md` 为准。
+`task_packet.json` 仍来自 `samplereverse` 样本状态，`task_packet.task` / `derived_task` 是逆向主线派生建议，不是本轮工程任务。本轮 Codex 实际执行权威以 `project_state/decision_packet.md` 为准。
 
-当前已观察到两个工程问题：
+上一轮 `project_state/codex_execution_report.md` 的 `codex_report_summary` 显示：
 
 ```text
-1. archive-round 归档膨胀：
-   reverse_agent/project_state.py 中 archive_round 会通过 _archive_source_file_bytes()
-   复制 ARCHIVE_STATE_NAMES，并写入 git_diff.patch。
-   git_diff.patch 来自 git diff --no-ext-diff。
-   project_state/rounds 下的 git_diff.patch 与完整 JSON 快照会显著放大每轮 Git diff。
-
-2. sidecar 字段重复搬运：
-   最近 sidecar 报告已经包含大量 lifecycle / hook / message / subprocess 字段，例如：
-   - js_top_level_seen
-   - js_hooks_install_begin_seen
-   - js_hooks_installed_seen
-   - python_message_count_total
-   - python_message_decode_error_count
-   - module_base_resolution_status
-   - hook_install_status
-   - hook_count
-   - requested_hook_count
-   - same_process_compare_args_captured
-   - diagnostic_compare_args_captured
-   - subprocess_returncode
-   - subprocess_timed_out
-   - script_load_status
-
-   这些字段有价值，但目前新增字段通常要在多层重复搬运，导致 compare_aware_search.py、
-   final artifact、candidate metadata、fixture 和 report 同时膨胀。
+report_id = report_20260523_engineering_artifact_hygiene_sidecar_health_schema
+based_on_decision_id = decision_20260523_engineering_artifact_hygiene_sidecar_health_schema
+status = SUCCESS
+acceptance_recommendation = ACCEPTED
 ```
 
-成熟项目管理原则，用于本轮设计约束：
+上一轮核心工程目标已基本完成：
 
 ```text
-1. 源码仓库应主要保存源码、配置、少量当前 handoff 状态；运行日志、完整 diff、临时快照不应默认提交。
-2. build output / report files / runtime logs 更适合按 artifact 管理，而不是长期混进源码树。
-3. 运行观测字段应有统一 schema / semantic convention，避免每个消费层自定义和手工复制字段。
-4. 归档应默认最小化，需要完整快照时使用显式开关。
-5. 旧字段消费者必须被兼容，改造优先 additive。
+1. archive-round 默认 minimal archive。
+2. --include-state-snapshot / --include-diff 显式化。
+3. .gitignore 阻止新的 round 大生成物进入 Git。
+4. 新增 reverse_agent/sidecar_health.py。
+5. compare_lhs_last_writer 路径附加 sidecar_health 视图并保留旧 flat fields。
 ```
 
-当前活跃审计入口仍需要保留：
+但 `project_state/pytest_result.txt` 当前混合了两段不同 decision 的记录：
 
 ```text
-project_state/task_packet.json
-project_state/current_state.json
-project_state/artifact_index.json
-project_state/negative_results.json
-project_state/model_gate.json
-project_state/decision_packet.md
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
+A. decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker
+   包含 bounded runtime sidecar、solve_reports artifact path、classification=hook_not_hit 等逆向 runtime 记录。
+
+B. decision_20260523_engineering_artifact_hygiene_sidecar_health_schema
+   包含本轮工程测试：
+   - py_compile project_state.py / sidecar_health.py / compare_aware_search.py
+   - tests/test_project_state.py
+   - tests/test_compare_aware_search_strategy.py
+   - tests/test_sidecar_health.py
+```
+
+这个混合状态不阻断上一轮工程代码验收，但会破坏后续审计闭环：GPT 读取 `pytest_result.txt` 时无法机器判断当前测试证据是否对应当前 `codex_report_summary.based_on_decision_id`。
+
+artifact freshness 说明：
+
+```text
+本轮是工程 hygiene，不依赖 solve_reports 逆向 artifact。
+artifact_index.latest_artifacts_v2 中的逆向 artifact freshness 只作为背景，不应作为本轮执行依据。
+不要因 stale/missing 逆向 artifact 去重跑 runtime probe。
 ```
 
 ## 3. Do Not Do
@@ -131,16 +101,25 @@ project_state/pytest_result.txt
 不要扩大 beam、budget、timeout、topN、frontier iteration。
 不要读取完整 solve_reports。
 不要修改 PROJECT_PROGRESS_LOG.txt。
-不要引入 Temporal / Airflow / Dagster / Argo / LangGraph。
-不要引入 PostgreSQL / Redis / Kubernetes。
-不要把所有 project_state 文件都从 Git 移除。
-不要删除当前 active project_state/*.json。
-不要破坏旧字段消费者；所有 sidecar_health 改动必须 additive / backward-compatible。
-不要一次性重构整个 compare_aware_search.py。
-不要把 schema 做成重依赖系统；优先使用 dataclass / TypedDict / 普通 dict normalizer。
-不要自动删除用户历史 round 文件；如需解除 Git 跟踪，只在报告中给出 git rm --cached 建议。
-不要把历史 project_state/rounds 下的大文件继续作为必须提交的审计依据。
-不要让本轮 diff 超过 1000 行；若超过，必须停止并报告原因。
+不要继续扩展 sidecar_health schema，除非测试记录校验必须引用其结果。
+不要大规模重构 compare_aware_search.py。
+不要改动 olly_scripts。
+不要删除 active project_state/*.json。
+不要把 task_packet.task 当成本轮执行目标。
+不要自动执行 git rm --cached 历史 round 文件；这不是本轮目标。
+不要引入数据库、调度平台、外部服务或重型依赖。
+不要让本轮 diff 超过 600 行；如果超过，停止并报告原因。
+```
+
+还要避免重复 negative_results 中已禁止方向：
+
+```text
+不要回 old sample_solver blind search。
+不要只增加 guided_pool beam 或 budget。
+不要使用 compare_semantics_agree=false candidates 作为主 frontier。
+不要提交完整 solve_reports。
+不要重复 Base64/RC4 breakpoint probe。
+不要复用旧 [ebp-0x1170] 作为真实 LHS 证据。
 ```
 
 ## 4. Files To Inspect
@@ -148,25 +127,21 @@ project_state/pytest_result.txt
 必须检查：
 
 ```text
-.gitignore
-reverse_agent/project_state.py
-reverse_agent/strategies/compare_aware_search.py
-reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
-reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
-tests/test_project_state.py
-tests/test_compare_aware_search_strategy.py
-project_state/decision_packet.md
-project_state/codex_execution_report.md
 project_state/pytest_result.txt
+project_state/codex_execution_report.md
+project_state/decision_packet.md
+reverse_agent/project_state.py
+tests/test_project_state.py
 ```
 
 必要时检查：
 
 ```text
+project_state/task_packet.json
+project_state/current_state.json
+project_state/artifact_index.json
+project_state/negative_results.json
 project_state/rounds/<latest>/round_manifest.json
-project_state/rounds/<latest>/git_diff.patch
-docs/phase1_project_state_stability_plan.md
-docs/phase2_harness_reproducibility_completion.md
 ```
 
 不要默认检查：
@@ -174,6 +149,8 @@ docs/phase2_harness_reproducibility_completion.md
 ```text
 完整 solve_reports/
 完整 PROJECT_PROGRESS_LOG.txt
+reverse_agent/olly_scripts/*
+reverse_agent/strategies/compare_aware_search.py，除非测试记录校验确实需要引用已有 report 数据结构
 ```
 
 ## 5. Required Audit
@@ -181,253 +158,215 @@ docs/phase2_harness_reproducibility_completion.md
 Codex 修改前必须先完成并在报告中记录以下审计：
 
 ```text
-1. 列出 archive-round 当前默认归档哪些文件。
-2. 确认 git_diff.patch 当前是否由 archive-round 默认生成。
-3. 统计 project_state/rounds 下哪些文件类型是主要 diff 膨胀来源。
-4. 判断这些 round 大文件是否已经被 Git 跟踪；如已跟踪，只报告 git rm --cached 建议，不自动删除历史。
-5. 列出 sidecar health 字段当前在哪些层重复出现。
-6. 找出 compare_aware_search.py 中负责 candidate metadata / stage_fields / final artifact 字段搬运的函数或代码块。
-7. 找出 tests fixture 中重复校验单个 sidecar 字段的地方。
-8. 确认本轮不会破坏 GPT 审计入口文件。
-9. 确认本轮不会运行逆向 runtime probe。
+1. 读取当前 project_state/pytest_result.txt，确认它是否包含多个 decision 的测试记录。
+2. 读取当前 project_state/codex_execution_report.md，提取 codex_report_summary：report_id、round_id、based_on_decision_id、status、tests_ran。
+3. 读取当前 project_state/decision_packet.md，提取 decision_meta.decision_id。
+4. 判断当前 pytest_result.txt 是否能机器对应当前 codex_report_summary.based_on_decision_id。
+5. 找出 project_state.py 中 status / lint-report / archive-round 读取 pytest_result.txt 的代码路径。
+6. 判断 pytest_result.txt 当前是覆盖写入还是追加写入；如果没有固定写入函数，也要记录 Codex 当前如何生成该文件。
+7. 确认本轮不需要读取 solve_reports。
+8. 确认本轮不会运行任何逆向 runtime probe。
 ```
 
 ## 6. Implementation Scope
 
-### Phase A：archive-round minimal mode
+### Phase A：定义 pytest_result header
 
-修改 `reverse_agent/project_state.py`：
-
-```text
-1. 将 archive_round 默认模式改成 minimal archive。
-2. minimal archive 默认只归档：
-   - decision_packet.md
-   - codex_execution_report.md
-   - pytest_result.txt
-   - round_manifest.json
-3. 增加 CLI 参数：
-   - --include-state-snapshot
-   - --include-diff
-4. 只有显式传 --include-state-snapshot 时，才归档：
-   - artifact_index.json
-   - current_state.json
-   - negative_results.json
-   - model_gate.json
-   - task_packet.json
-5. 只有显式传 --include-diff 时，才生成 git_diff.patch。
-6. round_manifest.json 增加 additive 字段：
-   - archive_mode: "minimal" | "state_snapshot" | "full"
-   - included_diff: bool
-   - included_state_snapshot: bool
-   - omitted_files: list[str]
-7. 保持旧 round_manifest.files 字段兼容。
-8. 保持 pack_context 逻辑可用，但不要让 pack_context 依赖默认存在 git_diff.patch。
-```
-
-### Phase B：.gitignore 规则
-
-修改 `.gitignore`，新增：
-
-```gitignore
-project_state/rounds/*/git_diff.patch
-project_state/rounds/*/artifact_index.json
-project_state/rounds/*/current_state.json
-project_state/rounds/*/negative_results.json
-project_state/rounds/*/model_gate.json
-project_state/rounds/*/task_packet.json
-```
-
-如果这些文件已被 Git 跟踪，Codex 只在报告中给出建议命令，不自动执行：
-
-```bash
-git rm --cached project_state/rounds/*/git_diff.patch
-git rm --cached project_state/rounds/*/artifact_index.json
-git rm --cached project_state/rounds/*/current_state.json
-git rm --cached project_state/rounds/*/negative_results.json
-git rm --cached project_state/rounds/*/model_gate.json
-git rm --cached project_state/rounds/*/task_packet.json
-```
-
-### Phase C：sidecar_health normalizer
-
-新增文件：
+在 `reverse_agent/project_state.py` 中增加轻量 helper，名称可由 Codex 按现有风格决定，但语义必须清楚：
 
 ```text
-reverse_agent/sidecar_health.py
+parse_pytest_result_header(text: str) -> dict
+validate_pytest_result_for_report(pytest_text: str, report_summary: dict) -> dict
 ```
 
-实现最低功能：
+推荐 header 格式：文件顶部使用 fenced JSON block，名称为 `pytest_result_summary`，字段至少包括：
 
 ```text
-1. 定义 normalize_sidecar_health(raw: dict) -> dict。
-2. 定义 summarize_sidecar_health(health: dict) -> dict。
-3. 定义 merge_candidate_sidecar_health(candidate_payload: dict, sidecar_payload: dict) -> dict。
-4. 将已知 flat fields 归入统一结构：
-   - lifecycle
-   - subprocess
-   - frida
-   - hook_install
-   - message_bridge
-   - observations
-   - fallback
-   - classification
-5. 未识别字段放入 health["extra"]，避免丢字段。
-6. sidecar_health 必须包含 schema_version = 1。
-7. 旧 flat fields 仍保留在 artifact 中，sidecar_health 是新增统一视图。
+schema_version: 1
+decision_id: decision_...
+report_id: report_...
+round_id: round_...
+generated_at: ISO-8601 UTC timestamp
+status: PASSED | FAILED | PARTIAL | UNKNOWN
+tests_ran: list[str]
 ```
 
-建议结构：
-
-```python
-sidecar_health = {
-    "schema_version": 1,
-    "lifecycle": {
-        "script_load_status": "...",
-        "js_top_level_seen": True,
-        "js_hooks_install_begin_seen": True,
-        "js_hooks_installed_seen": True,
-    },
-    "subprocess": {
-        "subprocess_returncode": 124,
-        "subprocess_timed_out": True,
-    },
-    "message_bridge": {
-        "python_message_count_total": 47,
-        "python_message_decode_error_count": 0,
-    },
-    "hook_install": {
-        "hook_install_status": "installed",
-        "hook_count": 3,
-        "requested_hook_count": 3,
-        "hook_address_by_name": {},
-        "per_hook_install_results": [],
-    },
-    "observations": {
-        "same_process_compare_args_captured": False,
-        "diagnostic_compare_args_captured": True,
-    },
-    "fallback": {
-        "compare_probe_fallback_used": True,
-        "compare_probe_fallback_is_provenance": False,
-    },
-    "classification": {
-        "instrumentation_failure_stage": "hook_not_hit",
-        "root_cause_hypothesis": "hook_not_hit",
-    },
-    "extra": {},
-}
-```
-
-### Phase D：接入 compare_aware_search.py，但不大规模重构
-
-修改原则：
+要求：
 
 ```text
-1. 保留现有 top-level 字段，避免旧测试和旧消费者损坏。
-2. 在 final artifact 和 candidate metadata 中新增 sidecar_health。
-3. stage_fields 聚合优先从 summarize_sidecar_health() 获取核心字段。
-4. 后续新增 sidecar 状态字段时，必须先进入 sidecar_health.py。
-5. 不允许为每个新字段继续在 compare_aware_search.py 多处手写复制逻辑。
+1. header 必须在文件顶部。
+2. header 后可以继续保留普通文本命令输出，方便人工阅读。
+3. parser 必须兼容 legacy 无 header 文件：返回 status=legacy_without_header 或 unknown，而不是抛异常。
+4. tests_ran 必须是 list[str]。
+5. decision_id 必须能和 codex_report_summary.based_on_decision_id 比对。
+6. report_id / round_id 尽量比对；缺失时降级为 warning。
 ```
 
-最低接入范围：
+### Phase B：覆盖写入语义
+
+Codex 需要找到当前项目中生成或维护 `project_state/pytest_result.txt` 的路径。
+
+若已有函数负责写入：
 
 ```text
-- compare_lhs_last_writer_provenance 相关 sidecar payload。
-- hook-install / message bridge / subprocess lifecycle 相关字段。
-- tests 中至少覆盖 hook_not_hit、hook_installed、message_bridge_health、unknown extra 字段。
+1. 改成覆盖写入当前轮结果。
+2. 写入顶部 pytest_result_summary。
+3. 不再追加旧轮内容。
 ```
 
-### Phase E：diff budget / archive guard
-
-新增轻量检测或测试：
+若没有统一写入函数：
 
 ```text
-1. archive-round 默认不生成 git_diff.patch。
-2. archive-round 默认不归档完整 state snapshot。
-3. archive-round --include-diff 才生成 git_diff.patch。
-4. archive-round --include-state-snapshot 才归档完整 state JSON。
-5. 如果 git diff 中出现 project_state/rounds/*/git_diff.patch，报告为 generated archive pollution。
+1. 增加一个小 helper，例如 write_pytest_result(state_dir, summary, body)。
+2. 在报告中说明当前仍需 Codex 手动调用/写入，但格式已由 helper 和测试固定。
+3. 不要为了这个 helper 重构整个 Codex 工作流。
 ```
 
-可以实现为测试 helper，不要求接入正式 CI。
+### Phase C：status / lint-report 接入
+
+将校验接入 `python -m reverse_agent.project_state status --state-dir project_state` 或 `lint-report` 中至少一个路径。
+
+最低要求：
+
+```text
+status 输出中应能显示：
+- pytest_result_status
+- pytest_result_decision_id
+- pytest_result_report_id
+- pytest_result_round_id
+- pytest_result_matches_report: true/false/unknown
+```
+
+如果已有 `lint-report`，优先接入 `lint-report`：
+
+```text
+1. 当前 report_summary.status=SUCCESS 时，pytest_result 缺失 header 或 decision mismatch，应给 warning 或 fail。
+2. 对 legacy 文件可以先 warning，不必一刀切 fail，避免破坏旧轮兼容。
+3. 对当前 active report，如果 report_summary.tests_ran 非空但 pytest_result 缺失或 mismatch，应至少 warning；若测试里已有严格 lint-report，建议 fail。
+```
+
+### Phase D：更新当前 pytest_result.txt
+
+更新 `project_state/pytest_result.txt`，只保留当前轮工程测试或为下一轮执行预留格式。
+
+Codex 执行完成后，`pytest_result.txt` 应该只包含本轮 decision 的测试记录，顶部必须对应：
+
+```text
+decision_id = decision_20260523_engineering_pytest_result_provenance
+report_id = report_20260523_engineering_pytest_result_provenance
+round_id = round_20260523_engineering_pytest_result_provenance
+```
+
+不要把上一轮 `decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker` 的 runtime 记录继续留在当前 active `pytest_result.txt`。
+
+### Phase E：测试
+
+更新或新增 `tests/test_project_state.py` 用例，覆盖：
+
+```text
+1. parse_pytest_result_header 能解析 pytest_result_summary。
+2. legacy 无 header pytest_result 返回 legacy/unknown，不崩溃。
+3. validate_pytest_result_for_report 在 decision_id 匹配时通过。
+4. validate_pytest_result_for_report 在 decision_id 不匹配时返回 mismatch。
+5. status 或 lint-report 能暴露 pytest_result mismatch。
+6. 当前写入 helper 使用覆盖语义，不追加旧文本。
+```
 
 ## 7. Tests
 
 必须运行：
 
 ```bash
-python -m py_compile reverse_agent/project_state.py reverse_agent/sidecar_health.py reverse_agent/strategies/compare_aware_search.py
+python -m py_compile reverse_agent/project_state.py
 python -m pytest -q tests/test_project_state.py
-python -m pytest -q tests/test_compare_aware_search_strategy.py -k "sidecar_health or compare_lhs_last_writer or archive"
-python -m pytest -q tests/test_compare_aware_search_strategy.py
+python -m reverse_agent.project_state status --state-dir project_state
 ```
 
-如果新增独立测试文件，额外运行：
+如果实现或修改了 `lint-report`，额外运行：
 
 ```bash
-python -m pytest -q tests/test_sidecar_health.py
+python -m reverse_agent.project_state lint-report --state-dir project_state
 ```
 
-必须新增或更新测试覆盖：
+如果测试变动影响到 archive-round 相关逻辑，额外运行：
 
-```text
-1. archive-round 默认不生成 git_diff.patch。
-2. archive-round 默认不归档 current_state.json / artifact_index.json / negative_results.json / model_gate.json / task_packet.json。
-3. archive-round --include-diff 会生成 git_diff.patch。
-4. archive-round --include-state-snapshot 会归档完整 state JSON。
-5. round_manifest 记录 archive_mode / included_diff / included_state_snapshot / omitted_files。
-6. normalize_sidecar_health 能从旧 flat payload 生成 sidecar_health。
-7. unknown sidecar 字段进入 extra，不丢字段。
-8. compare_aware_search final artifact 同时保留旧 flat fields 和新增 sidecar_health。
-9. hook 安装失败、hook 已安装但未命中、message bridge 正常、subprocess timeout 能被 sidecar_health 正确表达。
+```bash
+python -m pytest -q tests/test_project_state.py -k "archive or pytest_result or report"
 ```
+
+不需要运行：
+
+```bash
+tests/test_compare_aware_search_strategy.py
+tests/test_sidecar_health.py
+任何 samplereverse runtime probe
+```
+
+除非 Codex 修改了相关文件；若修改了，就必须说明为什么越界。
 
 ## 8. Stop Conditions
 
 遇到以下情况必须停止并报告，不要硬改：
 
 ```text
-1. 发现 project_state/rounds 下历史大文件已经大量被 Git 跟踪，需要用户确认是否执行 git rm --cached。
-2. 修改 archive-round 会破坏 tests/test_project_state.py 大量旧语义，超过小步兼容范围。
-3. sidecar_health 接入需要重写 compare_aware_search.py 大段逻辑。
-4. 无法在不运行 runtime probe 的情况下构造测试 fixture。
-5. 需要读取完整 solve_reports 才能继续。
-6. 本轮 diff 超过 1000 行，且主要不是测试或必要兼容逻辑。
-7. 发现当前 project_state active 文件缺失或 decision/report 状态不可审计。
+1. 找不到任何稳定的 report_summary 解析逻辑，且需要大规模重写 project_state.py。
+2. 当前 codex_execution_report.md 缺失 codex_report_summary。
+3. 当前 decision_packet.md 缺失 decision_meta。
+4. pytest_result.txt 由外部 Codex 平台自动生成，仓库内无法控制写入语义；这种情况下只实现 parser/lint，报告平台限制。
+5. lint-report 接入会导致大量旧测试失败，超过兼容小步范围。
+6. 需要读取完整 solve_reports 才能继续。
+7. 需要运行逆向 runtime probe 才能构造测试。
+8. 本轮 diff 超过 600 行，且主要不是 tests/test_project_state.py。
 ```
 
-Codex 报告必须写入 `project_state/codex_execution_report.md`，顶部包含 `codex_report_summary`，并明确记录：
+Codex 报告必须写入 `project_state/codex_execution_report.md`，顶部包含 `codex_report_summary`，字段要求：
 
 ```text
-1. 是否完成 archive minimal mode。
-2. 是否完成 .gitignore 规则。
-3. 是否发现已被 Git 跟踪的历史 round 大文件。
-4. 是否新增 sidecar_health.py。
-5. compare_aware_search.py 中减少了哪些重复字段搬运。
-6. 哪些旧字段保留兼容。
-7. 哪些测试真实运行。
-8. git diff --stat 输出摘要。
-9. 本轮是否没有运行任何 samplereverse runtime probe。
+report_id = report_20260523_engineering_pytest_result_provenance
+round_id = round_20260523_engineering_pytest_result_provenance
+based_on_decision_id = decision_20260523_engineering_pytest_result_provenance
+status = SUCCESS / PARTIAL / FAILED / BLOCKED
+tests_ran = 真实运行命令列表
+generated_artifacts = 本轮更新的 project_state 文件列表
+```
+
+报告正文必须明确记录：
+
+```text
+1. 当前 pytest_result.txt 是否曾混入多个 decision。
+2. 是否实现 pytest_result_summary header。
+3. 是否实现覆盖写入 helper，或为什么无法控制写入路径。
+4. status / lint-report 是否能识别 stale / mismatch。
+5. 当前 active pytest_result.txt 是否只对应本轮 decision。
+6. 是否没有运行任何逆向 runtime probe。
+7. 真实测试命令和结果。
+8. git diff --stat 摘要。
 ```
 
 验收标准：
 
 ```text
 ACCEPTED：
-- archive-round 默认不再生成 git_diff.patch。
-- archive-round 默认不再复制完整 state snapshot。
-- .gitignore 阻止新的 round 大快照进入 Git。
-- sidecar_health normalizer 已建立并至少接入一个当前 sidecar 路径。
-- 旧字段兼容保留。
-- 测试通过。
-- diff 主要集中在 project_state.py、sidecar_health.py、相关测试和少量 compare_aware_search.py。
+- pytest_result.txt 顶部存在 pytest_result_summary。
+- pytest_result_summary.decision_id 匹配 codex_report_summary.based_on_decision_id。
+- 当前 active pytest_result.txt 不再混入上一轮逆向 runtime 记录。
+- status 或 lint-report 能暴露 pytest_result 是否 stale/mismatch。
+- legacy 无 header 文件兼容，不崩溃。
+- tests/test_project_state.py 相关测试通过。
+- 未运行任何逆向 runtime probe。
+
+ACCEPTED_WITH_LIMITATIONS：
+- header 和 parser 完成，但覆盖写入只能通过 helper 提供，Codex 平台仍需手动使用。
+- lint-report 只 warning 不 fail，但 status 能清楚暴露 mismatch。
 
 REWORK_REQUIRED：
-- 仍默认生成 git_diff.patch。
-- 仍默认归档完整 current_state/artifact_index。
-- 为了 sidecar_health 大规模重写 compare_aware_search.py。
+- pytest_result.txt 继续混合多个 decision。
+- report_summary.status=SUCCESS 但 pytest_result 与 based_on_decision_id 不匹配仍被当成可信。
 - 删除 active project_state 文件。
 - 运行了逆向 runtime probe。
-- 测试缺失或报告没有真实命令。
+- 缺少测试或测试记录无法对应当前 decision。
+
+BLOCKED：
+- 当前 report/decision meta 缺失，无法建立对应关系。
+- 仓库内无可控入口实现写入语义，且无法至少提供 parser/lint。
 ```
