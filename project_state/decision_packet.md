@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker",
-  "round_id": "round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker",
+  "decision_id": "decision_20260523_engineering_artifact_hygiene_sidecar_health_schema",
+  "round_id": "round_20260523_engineering_artifact_hygiene_sidecar_health_schema",
   "based_on_state_build_id": "state_20260520_052928_8a77e6637c6c",
   "based_on_state_digest": "8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d",
   "status": "APPROVED"
@@ -11,171 +11,113 @@
 
 # DECISION_PACKET
 
-本轮继续 `samplereverse` 逆向解题主线。
+本轮属于工程架构改造支线，不推进 `samplereverse` 逆向解题主线。
 
-上一轮 `report_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522` 是可信的 `BLOCKED / REWORK_REQUIRED`：它已经把阻断点从早期 `not_started / initial_payload_only` 推进并收窄到 `script_load_status=loaded`、`spawn_attach_resume_status=resumed`、`ui_trigger_status=button_triggered`、`scripted_lifecycle_entered=true`、`scripted_last_runtime_stage=waiting_for_observation`，但仍没有观察到 `hooks_installed` 阶段和任何 same-process hook observation。因此本轮目标不是重新诊断 subprocess 是否启动，而是解释 loaded Frida script 为什么没有上报 hook 安装状态，或者修复 hook install acknowledgement / message bridge，使 sidecar 能明确区分 hook 脚本未执行、hook 安装异常、message handler 丢事件、hook 点未命中四类状态。
+核心目标：解决两个导致 Codex 每轮 diff 过大的工程根因：
+
+```text
+A. artifact hygiene：
+   archive-round 默认把 git_diff.patch、current_state.json、artifact_index.json 等历史快照写入
+   project_state/rounds/，并且这些文件未被 Git 忽略，导致每轮改动量被生成物撑大。
+
+B. sidecar health schema：
+   sidecar 运行状态字段在 sidecar payload、compare_aware_search.py、candidate metadata、
+   stage_fields、final artifact、fixture、report 中多层重复搬运，导致小字段变成大 diff。
+```
+
+本轮只做轻量、兼容旧字段、可测试的小步改造。不要引入重型 runtime、数据库或平台化依赖。
 
 ## 1. Goal
 
 本轮目标：
 
 ```text
-1. 继续固定 two-candidate bounded sidecar，不新增候选，不扩大搜索。
-2. 审计 compare_lhs_last_writer_provenance sidecar 中 Frida script create/load/resume/message callback/acknowledgement 的完整路径。
-3. 定位为什么 child 已到 waiting_for_observation，却没有记录 hooks_installed stage。
-4. 明确区分：
-   - script loaded but JS top-level did not execute
-   - JS executed but hooks_installed message lost
-   - hook install threw exception before acknowledgement
-   - hooks installed but hook points never hit
-   - process/module base/address resolution wrong
-   - message callback/JSON serialization/filtering bug
-5. 修复或增加最小观测字段，使 artifact 能记录 hook-install acknowledgement、per-hook install result、script message sequence、last JS stage、message handler health。
-6. 如果 hook 点地址或 module base 解析错误，给出 bounded correction；不要扩大到 Base64/RC4 probe 或候选搜索。
-7. 如果环境或 Frida 行为导致无法继续，报告 BLOCKED，并给出缺失的最小环境条件和日志。
+1. 将 archive-round 默认行为改成 minimal archive，避免默认生成 git_diff.patch 和完整 state snapshot。
+2. 增加显式开关：只有用户/Codex 明确传参时，才归档完整 state snapshot 或 git diff。
+3. 更新 .gitignore，阻止新的 round 大快照和 git_diff.patch 继续进入 Git。
+4. 建立统一 sidecar_health schema / normalizer，减少 sidecar 状态字段在多层手工复制。
+5. 至少把当前 last-writer / hook-install 相关 sidecar 路径接入 sidecar_health。
+6. 保留旧 top-level 字段兼容，不破坏现有消费者和测试。
+7. 增加测试证明 archive minimal mode 与 sidecar_health normalizer 行为。
 ```
 
-最低可接受推进：
+期望最终边界：
 
 ```text
-A. 当前 root cause 必须比 hooks_installed_stage_missing_after_script_load 更具体。
-B. artifact 必须能说明：JS top-level 是否执行、hooks_installed message 是否发送、Python callback 是否收到、per-hook install 是否成功。
-C. 如果仍无 same-process observations，必须能判断是 hook installation failure 还是 hook not hit。
-D. CompareProbe fallback 仍只能是 diagnostic-only，不能作为 runtime-backed writer provenance。
+Git 保留：
+- 当前活跃 project_state/*.json
+- 当前 decision_packet.md
+- 当前 codex_execution_report.md
+- 当前 pytest_result.txt
+- 每轮 round_manifest.json
+- 每轮 decision_packet.md / codex_execution_report.md / pytest_result.txt
+
+Git 默认不保留：
+- project_state/rounds/*/git_diff.patch
+- project_state/rounds/*/current_state.json
+- project_state/rounds/*/artifact_index.json
+- project_state/rounds/*/negative_results.json
+- project_state/rounds/*/model_gate.json
+- project_state/rounds/*/task_packet.json
 ```
 
 ## 2. Current Evidence
 
-当前任务主线：逆向解题主线，样本为 `samplereverse`。
+当前任务主线判断：工程架构改造支线。
 
-当前 `task_packet.json` 是样本派生状态包，不是本轮 Codex 执行命令：
+当前仓库中的 `task_packet.json` 仍主要来自样本状态派生，`task_packet.task` / `derived_task` 不是本轮工程支线的执行目标。本轮 Codex 实际执行权威以 `project_state/decision_packet.md` 为准。
+
+当前已观察到两个工程问题：
 
 ```text
-task = Improve compare lhs last-writer instrumentation
-derived_task = Improve compare lhs last-writer instrumentation
-task_source = derived_from_sample_artifacts
-profile = samplereverse
-sample = samplereverse
-execution_scope = decision_packet_controls_current_round
-active_decision_packet = project_state/decision_packet.md
+1. archive-round 归档膨胀：
+   reverse_agent/project_state.py 中 archive_round 会通过 _archive_source_file_bytes()
+   复制 ARCHIVE_STATE_NAMES，并写入 git_diff.patch。
+   git_diff.patch 来自 git diff --no-ext-diff。
+   project_state/rounds 下的 git_diff.patch 与完整 JSON 快照会显著放大每轮 Git diff。
+
+2. sidecar 字段重复搬运：
+   最近 sidecar 报告已经包含大量 lifecycle / hook / message / subprocess 字段，例如：
+   - js_top_level_seen
+   - js_hooks_install_begin_seen
+   - js_hooks_installed_seen
+   - python_message_count_total
+   - python_message_decode_error_count
+   - module_base_resolution_status
+   - hook_install_status
+   - hook_count
+   - requested_hook_count
+   - same_process_compare_args_captured
+   - diagnostic_compare_args_captured
+   - subprocess_returncode
+   - subprocess_timed_out
+   - script_load_status
+
+   这些字段有价值，但目前新增字段通常要在多层重复搬运，导致 compare_aware_search.py、
+   final artifact、candidate metadata、fixture 和 report 同时膨胀。
 ```
 
-当前 Codex 执行权威来自本文件 `project_state/decision_packet.md`。
-
-当前 live state：
+成熟项目管理原则，用于本轮设计约束：
 
 ```text
-round_id = round_20260520_052928
-state_build_id = state_20260520_052928_8a77e6637c6c
-state_digest = 8a77e6637c6cf7578750af01b447ccf7c39541df00661e8c882bc89cd826339d
-source_harness_run = sr_lhs_thread_follow_timing_20260520_r4
-active_strategy = CompareAwareSearchStrategy
-current_bottleneck.reason = compare_lhs_runtime_backed_writer_missing
-current_bottleneck.stage = compare_real_lhs_provenance_audit
+1. 源码仓库应主要保存源码、配置、少量当前 handoff 状态；运行日志、完整 diff、临时快照不应默认提交。
+2. build output / report files / runtime logs 更适合按 artifact 管理，而不是长期混进源码树。
+3. 运行观测字段应有统一 schema / semantic convention，避免每个消费层自定义和手工复制字段。
+4. 归档应默认最小化，需要完整快照时使用显式开关。
+5. 旧字段消费者必须被兼容，改造优先 additive。
 ```
 
-当前 bounded candidates 固定为：
+当前活跃审计入口仍需要保留：
 
 ```text
-candidate 1 / exact2:
-  candidate_hex = 78d540b49c59077041414141414141
-  runtime_ci_distance5 = 246
-  runtime_ci_exact_wchars = 2
-  compare_semantics_agree = true
-
-candidate 2 / exact1-frontier:
-  candidate_hex = 5a3e7f46ddd474d041414141414141
-  runtime_ci_distance5 = 258
-  runtime_ci_exact_wchars = 1
-  compare_semantics_agree = true
-```
-
-当前 `compare_real_lhs_provenance_audit` 的关键事实：
-
-```text
-classification = compare_lhs_runtime_backed_writer_missing
-0x258c compare 已确认
-arg0 = candidate-dependent real LHS
-arg1 = flag side
-old [ebp-0x1170] frame anchor rejected
-last_writer_candidates = []
-runtime_backed_count = 0
-Base64/RC4 breakpoint probe remains blocked
-```
-
-上一轮 `codex_execution_report.md` 的关键事实：
-
-```text
-report_id = report_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522
-based_on_decision_id = decision_samplereverse_sidecar_subprocess_lifecycle_blocker_20260522
-status = BLOCKED
-acceptance_recommendation = REWORK_REQUIRED
-classification = instrumentation_incomplete
-instrumentation_failure_stage = hooks_installed_stage_missing_after_script_load
-root_cause_hypothesis = hooks_installed_stage_missing_after_script_load
-subprocess_returncode = 124
-subprocess_timed_out = true
-scripted_output_exists = true
-scripted_output_size_bytes = 3126
-scripted_initial_payload_only = false
-scripted_lifecycle_entered = true
-scripted_last_runtime_stage = waiting_for_observation
-script_load_status = loaded
-script_load_error = empty
-spawn_attach_resume_status = resumed
-ui_trigger_status = button_triggered
-hook_install_status = not_confirmed_stage_missing
-hook_count = 0
-requested_hook_count = 3
-hooks_installed_stage_seen = false
-same_process_compare_args_captured = false
-diagnostic_compare_args_captured = true
-compare_probe_fallback_used = true
-compare_probe_fallback_is_provenance = false
-runtime_backed_writer_identified = false
-project_progress_log_handling = untouched
-```
-
-上一轮测试与状态记录：
-
-```text
-py_compile passed
-focused pytest: 26 passed, 164 deselected
-full tests/test_compare_aware_search_strategy.py: 190 passed
-tests/test_project_state.py: 104 passed
-project_state status/lint-decision/lint-report/lint-handoff passed with BLOCKED warnings
-archive-round wrote round_manifest.source_git_commit = 6281cd719c32
-```
-
-artifact freshness 现状：
-
-```text
-current in live artifact_index.latest_artifacts_v2:
-  compare_probe
-  compare_probe_log
-  compare_real_lhs_provenance_audit
-  run_manifest
-  summary
-
-missing in live artifact_index.latest_artifacts_v2:
-  compare_pre_compare_handoff_target_probe
-
-stale in live artifact_index.latest_artifacts_v2:
-  base64_rc4_static_point_discovery
-  bridge_search_result
-  bridge_validation
-  checkpoint
-  compare_aware_result
-  compare_handoff_return_site_probe
-  compare_producer_material_confirmation
-  function_semantic_audit
-  guided_pool_result
-  guided_pool_validation
-  pairscan_summary
-  smt_result
-  strata_summary
-
-上一轮 sidecar artifact 来自 sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1，但 live artifact_index 还没有把它标为 current。Codex 可以有界读取该 artifact/log 作为上一轮报告证据，但不得把它伪装成 live indexed current artifact。
+project_state/task_packet.json
+project_state/current_state.json
+project_state/artifact_index.json
+project_state/negative_results.json
+project_state/model_gate.json
+project_state/decision_packet.md
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
 ```
 
 ## 3. Do Not Do
@@ -183,302 +125,309 @@ stale in live artifact_index.latest_artifacts_v2:
 不要做以下事情：
 
 ```text
+不要推进 samplereverse 逆向 sidecar。
 不要运行 Base64/RC4 breakpoint probe。
-不要回旧 sample_solver。
-不要扩大 beam、topN、budget、timeout、frontier iteration 作为推进方式。
-不要新增候选。
-不要使用 compare_semantics_agree=false candidates 作为主线。
-不要重复 exact2 basin value-pool evaluation。
-不要重复 H1/H3 fixed boundary contrast set。
-不要重复当前 5-candidate transform trace consistency audit，除非新增 runtime evidence。
-不要把 CompareProbe fallback 当作 provenance。
-不要跨进程、跨 run、跨 candidate 强行合并 compare arg0 地址和 write_ring 事件。
-不要复用旧 [ebp-0x1170] 作为真实 LHS 来源。
-不要手动编辑 task_packet.json / current_state.json / artifact_index.json / negative_results.json。
-不要提交完整 solve_reports。
-不要默认读取完整 solve_reports。
-不要继续写 PROJECT_PROGRESS_LOG.txt。
-不要继续 harness Phase 3 hardening。
-不要修改 docs/phase2_harness_reproducibility_completion.md。
-不要引入重型依赖或通用 agent runtime。
-不要把 live artifact_index 里 missing/stale 的 sidecar artifact 当成 current evidence。
-不要重复上一轮 subprocess startup / initial_payload_only 诊断。
-不要靠扩大 timeout 当作主要推进方式。
-不要把 loaded script 但无 hooks_installed 的情况标成 SUCCESS。
-不要将 hook 点未命中与 hook 安装失败混为一个 timeout。
+不要运行任何 runtime probe。
+不要扩大 beam、budget、timeout、topN、frontier iteration。
+不要读取完整 solve_reports。
+不要修改 PROJECT_PROGRESS_LOG.txt。
+不要引入 Temporal / Airflow / Dagster / Argo / LangGraph。
+不要引入 PostgreSQL / Redis / Kubernetes。
+不要把所有 project_state 文件都从 Git 移除。
+不要删除当前 active project_state/*.json。
+不要破坏旧字段消费者；所有 sidecar_health 改动必须 additive / backward-compatible。
+不要一次性重构整个 compare_aware_search.py。
+不要把 schema 做成重依赖系统；优先使用 dataclass / TypedDict / 普通 dict normalizer。
+不要自动删除用户历史 round 文件；如需解除 Git 跟踪，只在报告中给出 git rm --cached 建议。
+不要把历史 project_state/rounds 下的大文件继续作为必须提交的审计依据。
+不要让本轮 diff 超过 1000 行；若超过，必须停止并报告原因。
 ```
 
 ## 4. Files To Inspect
 
-必须审计：
+必须检查：
 
 ```text
-project_state/task_packet.json
-project_state/current_state.json
-project_state/artifact_index.json
-project_state/negative_results.json
-project_state/decision_packet.md
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
-project_state/rounds/round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker/round_manifest.json
-project_state/rounds/round_20260522_samplereverse_sidecar_subprocess_lifecycle_blocker/git_diff.patch
+.gitignore
+reverse_agent/project_state.py
 reverse_agent/strategies/compare_aware_search.py
 reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
 reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
-reverse_agent/olly_scripts/compare_probe.py
-tests/test_compare_aware_search_strategy.py
 tests/test_project_state.py
+tests/test_compare_aware_search_strategy.py
+project_state/decision_packet.md
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
 ```
 
-必须有界读取 current artifacts：
+必要时检查：
 
 ```text
-solve_reports/harness_runs/sr_lhs_thread_follow_timing_20260520_r4/reports/tool_artifacts/samplereverse_patched/compare_real_lhs_provenance_audit/compare_real_lhs_provenance_audit.json
-solve_reports/harness_runs/sr_lhs_thread_follow_timing_20260520_r4/reports/tool_artifacts/samplereverse_patched/samplereverse_patched_compare_probe.json
-solve_reports/harness_runs/sr_lhs_thread_follow_timing_20260520_r4/reports/tool_artifacts/samplereverse_patched/samplereverse_patched_compare_probe.log
+project_state/rounds/<latest>/round_manifest.json
+project_state/rounds/<latest>/git_diff.patch
+docs/phase1_project_state_stability_plan.md
+docs/phase2_harness_reproducibility_completion.md
 ```
 
-允许有界读取上一轮 sidecar artifacts/logs，但不得扫描完整 `solve_reports/`：
+不要默认检查：
 
 ```text
-solve_reports/harness_runs/sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json
-solve_reports/harness_runs/sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/c1.json
-solve_reports/harness_runs/sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/c1.log
-solve_reports/harness_runs/sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/c2.json
-solve_reports/harness_runs/sr_lhs_last_writer_subprocess_lifecycle_blocker_20260522_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/c2.log
+完整 solve_reports/
+完整 PROJECT_PROGRESS_LOG.txt
 ```
-
-如果上述 artifact/log 本地不存在，不要扫描完整 `solve_reports/`；报告 `BLOCKED`，或者重新运行 bounded sidecar 并说明缺失路径。
 
 ## 5. Required Audit
 
-实现前必须在 `project_state/codex_execution_report.md` 中说明：
+Codex 修改前必须先完成并在报告中记录以下审计：
 
 ```text
-1. 当前 decision_id、state_build_id、state_digest。
-2. 为什么上一轮是 BLOCKED，而不是 ACCEPTED。
-3. 上一轮已经证明 subprocess 启动、script loaded、target resumed、UI triggered；本轮不要重复 startup 诊断。
-4. compare_lhs_last_writer_provenance.py 中 Frida script source 的 top-level 代码是否在 load 后立即发送 stage/ack message。
-5. script.on('message', ...) callback 是否在 script.load() 前注册，是否可能因时序丢失早期 hooks_installed message。
-6. Python message handler 是否过滤、解析、覆盖、丢弃了 JS side payload。
-7. JS top-level 是否包裹 try/catch；hook install exception 是否能 send 到 Python。
-8. per-hook install loop 的地址计算、module base、hook address、Interceptor.attach 是否记录 result。
-9. hook points 是否位于正确进程、正确 module base、正确 instruction boundary。
-10. script_load_status=loaded 后为什么 last_runtime_stage 直接停在 waiting_for_observation，而不是 hooks_installed。
-11. 是否存在 UI trigger 过早，导致 hooks installed 之前目标路径已经执行完毕。
-12. CompareProbe fallback 与 sidecar 的脚本、attach timing、target lifecycle、input trigger、hook 点差异。
-13. 本轮 artifact 是否仍是 diagnostic-only；是否有资格更新 artifact_index current，如没有不要手动编辑 state JSON。
+1. 列出 archive-round 当前默认归档哪些文件。
+2. 确认 git_diff.patch 当前是否由 archive-round 默认生成。
+3. 统计 project_state/rounds 下哪些文件类型是主要 diff 膨胀来源。
+4. 判断这些 round 大文件是否已经被 Git 跟踪；如已跟踪，只报告 git rm --cached 建议，不自动删除历史。
+5. 列出 sidecar health 字段当前在哪些层重复出现。
+6. 找出 compare_aware_search.py 中负责 candidate metadata / stage_fields / final artifact 字段搬运的函数或代码块。
+7. 找出 tests fixture 中重复校验单个 sidecar 字段的地方。
+8. 确认本轮不会破坏 GPT 审计入口文件。
+9. 确认本轮不会运行逆向 runtime probe。
 ```
 
 ## 6. Implementation Scope
 
-允许修改：
+### Phase A：archive-round minimal mode
+
+修改 `reverse_agent/project_state.py`：
 
 ```text
-reverse_agent/olly_scripts/compare_lhs_last_writer_provenance.py
-reverse_agent/strategies/compare_aware_search.py
-tests/test_compare_aware_search_strategy.py
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
+1. 将 archive_round 默认模式改成 minimal archive。
+2. minimal archive 默认只归档：
+   - decision_packet.md
+   - codex_execution_report.md
+   - pytest_result.txt
+   - round_manifest.json
+3. 增加 CLI 参数：
+   - --include-state-snapshot
+   - --include-diff
+4. 只有显式传 --include-state-snapshot 时，才归档：
+   - artifact_index.json
+   - current_state.json
+   - negative_results.json
+   - model_gate.json
+   - task_packet.json
+5. 只有显式传 --include-diff 时，才生成 git_diff.patch。
+6. round_manifest.json 增加 additive 字段：
+   - archive_mode: "minimal" | "state_snapshot" | "full"
+   - included_diff: bool
+   - included_state_snapshot: bool
+   - omitted_files: list[str]
+7. 保持旧 round_manifest.files 字段兼容。
+8. 保持 pack_context 逻辑可用，但不要让 pack_context 依赖默认存在 git_diff.patch。
 ```
 
-只有发现兼容性回归或测试必要时，才允许小幅修改：
+### Phase B：.gitignore 规则
+
+修改 `.gitignore`，新增：
+
+```gitignore
+project_state/rounds/*/git_diff.patch
+project_state/rounds/*/artifact_index.json
+project_state/rounds/*/current_state.json
+project_state/rounds/*/negative_results.json
+project_state/rounds/*/model_gate.json
+project_state/rounds/*/task_packet.json
+```
+
+如果这些文件已被 Git 跟踪，Codex 只在报告中给出建议命令，不自动执行：
+
+```bash
+git rm --cached project_state/rounds/*/git_diff.patch
+git rm --cached project_state/rounds/*/artifact_index.json
+git rm --cached project_state/rounds/*/current_state.json
+git rm --cached project_state/rounds/*/negative_results.json
+git rm --cached project_state/rounds/*/model_gate.json
+git rm --cached project_state/rounds/*/task_packet.json
+```
+
+### Phase C：sidecar_health normalizer
+
+新增文件：
 
 ```text
-reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
+reverse_agent/sidecar_health.py
 ```
 
-不要修改：
+实现最低功能：
 
 ```text
-PROJECT_PROGRESS_LOG.txt
-reverse_agent/harness.py
-reverse_agent/project_state.py
-project_state/task_packet.json
-project_state/current_state.json
-project_state/artifact_index.json
-project_state/negative_results.json
-project_state/schema.md
-docs/phase2_harness_reproducibility_completion.md
+1. 定义 normalize_sidecar_health(raw: dict) -> dict。
+2. 定义 summarize_sidecar_health(health: dict) -> dict。
+3. 定义 merge_candidate_sidecar_health(candidate_payload: dict, sidecar_payload: dict) -> dict。
+4. 将已知 flat fields 归入统一结构：
+   - lifecycle
+   - subprocess
+   - frida
+   - hook_install
+   - message_bridge
+   - observations
+   - fallback
+   - classification
+5. 未识别字段放入 health["extra"]，避免丢字段。
+6. sidecar_health 必须包含 schema_version = 1。
+7. 旧 flat fields 仍保留在 artifact 中，sidecar_health 是新增统一视图。
 ```
 
-必须新增或保证输出：
+建议结构：
+
+```python
+sidecar_health = {
+    "schema_version": 1,
+    "lifecycle": {
+        "script_load_status": "...",
+        "js_top_level_seen": True,
+        "js_hooks_install_begin_seen": True,
+        "js_hooks_installed_seen": True,
+    },
+    "subprocess": {
+        "subprocess_returncode": 124,
+        "subprocess_timed_out": True,
+    },
+    "message_bridge": {
+        "python_message_count_total": 47,
+        "python_message_decode_error_count": 0,
+    },
+    "hook_install": {
+        "hook_install_status": "installed",
+        "hook_count": 3,
+        "requested_hook_count": 3,
+        "hook_address_by_name": {},
+        "per_hook_install_results": [],
+    },
+    "observations": {
+        "same_process_compare_args_captured": False,
+        "diagnostic_compare_args_captured": True,
+    },
+    "fallback": {
+        "compare_probe_fallback_used": True,
+        "compare_probe_fallback_is_provenance": False,
+    },
+    "classification": {
+        "instrumentation_failure_stage": "hook_not_hit",
+        "root_cause_hypothesis": "hook_not_hit",
+    },
+    "extra": {},
+}
+```
+
+### Phase D：接入 compare_aware_search.py，但不大规模重构
+
+修改原则：
 
 ```text
-js_top_level_seen
-js_top_level_timestamp
-js_hooks_install_begin_seen
-js_hooks_installed_seen
-js_hook_install_exception_count
-js_hook_install_exception_messages
-python_message_callback_registered_before_load
-python_message_count_total
-python_message_count_by_type
-python_message_decode_error_count
-python_message_last_payload
-per_hook_install_results
-per_hook_install_error_count
-module_base_resolution_status
-hook_address_by_name
-hook_address_validation
-script_load_to_hooks_installed_elapsed_ms
-script_load_to_ui_trigger_elapsed_ms
-ui_trigger_after_hooks_installed
-waiting_for_observation_reason
-hook_not_hit_vs_hook_not_installed_classification
-compare_probe_fallback_is_provenance=false
+1. 保留现有 top-level 字段，避免旧测试和旧消费者损坏。
+2. 在 final artifact 和 candidate metadata 中新增 sidecar_health。
+3. stage_fields 聚合优先从 summarize_sidecar_health() 获取核心字段。
+4. 后续新增 sidecar 状态字段时，必须先进入 sidecar_health.py。
+5. 不允许为每个新字段继续在 compare_aware_search.py 多处手写复制逻辑。
 ```
 
-### 6.1 Required sidecar behavior
-
-sidecar scope 必须保持 bounded：
+最低接入范围：
 
 ```text
-compare site: 0x258c
-post_handoff_lhs_reload: 0x2559
-bounded helper candidate: 0x1b50
-candidate 1: 78d540b49c59077041414141414141
-candidate 2: 5a3e7f46ddd474d041414141414141
+- compare_lhs_last_writer_provenance 相关 sidecar payload。
+- hook-install / message bridge / subprocess lifecycle 相关字段。
+- tests 中至少覆盖 hook_not_hit、hook_installed、message_bridge_health、unknown extra 字段。
 ```
 
-必须做到以下之一：
+### Phase E：diff budget / archive guard
+
+新增轻量检测或测试：
 
 ```text
-A. 修复 message ordering/acknowledgement，使 artifact 能看到 hooks_installed 或 hook_install_error。
-B. 证明 JS top-level 没执行，并说明 Frida load/agent error 的具体证据。
-C. 证明 hooks installed 但目标 hook points 未命中，并给出下一步 bounded hook-point correction。
-D. 证明 hook address/module base 错误，并给出 bounded correction。
-E. 如果环境无法继续，明确 BLOCKED，并说明需要的最小本地环境条件或日志。
+1. archive-round 默认不生成 git_diff.patch。
+2. archive-round 默认不归档完整 state snapshot。
+3. archive-round --include-diff 才生成 git_diff.patch。
+4. archive-round --include-state-snapshot 才归档完整 state JSON。
+5. 如果 git diff 中出现 project_state/rounds/*/git_diff.patch，报告为 generated archive pollution。
 ```
 
-如果继续使用 CompareProbe fallback：
-
-```text
-1. fallback 只能填充 diagnostic fields。
-2. artifact 必须包含 compare_probe_fallback_is_provenance = false。
-3. 不能把 fallback arg0 地址与另一进程/另一 run 的 write events 关联成 runtime-backed writer。
-4. 必须对比说明为什么 fallback 能捕获 diagnostic compare args，而 sidecar hook observation 不能。
-```
+可以实现为测试 helper，不要求接入正式 CI。
 
 ## 7. Tests
 
-至少必须运行并记录：
+必须运行：
 
-```powershell
-python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\strategies\compare_aware_search.py
-python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or hooks_installed or pre_compare_handoff"
-python -m pytest -q tests\test_compare_aware_search_strategy.py
-python -m reverse_agent.project_state status --state-dir project_state
-python -m reverse_agent.project_state lint-decision --state-dir project_state
+```bash
+python -m py_compile reverse_agent/project_state.py reverse_agent/sidecar_health.py reverse_agent/strategies/compare_aware_search.py
+python -m pytest -q tests/test_project_state.py
+python -m pytest -q tests/test_compare_aware_search_strategy.py -k "sidecar_health or compare_lhs_last_writer or archive"
+python -m pytest -q tests/test_compare_aware_search_strategy.py
 ```
 
-如果修改 `compare_pre_compare_handoff_target_probe.py`，额外运行：
+如果新增独立测试文件，额外运行：
 
-```powershell
-python -m py_compile reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py
+```bash
+python -m pytest -q tests/test_sidecar_health.py
 ```
 
 必须新增或更新测试覆盖：
 
 ```text
-1. script.on('message') 在 script.load() 前注册；测试不能允许 hooks_installed ack 因时序丢失。
-2. JS hooks_installed message 被 Python message handler 记录为 hooks_installed_stage_seen=true。
-3. JS hook install exception 被记录为 hook_install_error_count>0，且不能被映射成 generic timeout。
-4. per_hook_install_results 至少记录 hook name、address、status、error。
-5. script_load_status=loaded 但无 hooks_installed 时，classification 不得是 SUCCESS。
-6. hooks installed but no hook hit 时，classification 必须区别于 hook install failure。
-7. CompareProbe fallback 不能使 runtime_backed_writer_identified 成立。
-8. candidate set remains exactly two bounded candidates unless explicit fixture overrides it。
-9. artifact 中必须保留 subprocess health 字段，不回退上一轮 lifecycle observability。
-```
-
-如果 runtime 环境可用，必须重新跑 bounded sidecar，并记录：
-
-```text
-run_name
-candidate_inputs_hex
-subprocess_command
-subprocess_cwd
-subprocess_returncode
-subprocess_timeout_seconds
-subprocess_timed_out
-scripted_lifecycle_entered
-scripted_last_runtime_stage
-script_load_status
-spawn_attach_resume_status
-ui_trigger_status
-js_top_level_seen
-js_hooks_install_begin_seen
-js_hooks_installed_seen
-python_message_count_total
-per_hook_install_results
-hook_install_status
-hooks_installed_stage_seen
-hooks_installed_stage_hook_count
-same_process_compare_args_captured
-diagnostic_compare_args_captured
-compare_probe_fallback_used
-compare_probe_fallback_is_provenance=false
-runtime_backed_writer_identified
-root_cause_hypothesis
-root_cause_evidence
-```
-
-完成 report 写入后，还必须运行并记录：
-
-```powershell
-python -m reverse_agent.project_state lint-report --state-dir project_state
-python -m reverse_agent.project_state lint-handoff --state-dir project_state
-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260523_samplereverse_sidecar_hooks_installed_observation_blocker
-```
-
-注意：
-
-```text
-如果仍无法观察 hooks_installed 或 hook_install_error，report.status 必须是 BLOCKED 或 PARTIAL，不得是 SUCCESS。
-如果只是 hook points 未命中，但 hooks_installed 已确认，可写 PARTIAL，并给出下一步 bounded hook correction。
-如果识别出 runtime-backed writer，必须提供 same-process、same-run、same-candidate 的 evidence，不得引用 fallback diagnostic address。
+1. archive-round 默认不生成 git_diff.patch。
+2. archive-round 默认不归档 current_state.json / artifact_index.json / negative_results.json / model_gate.json / task_packet.json。
+3. archive-round --include-diff 会生成 git_diff.patch。
+4. archive-round --include-state-snapshot 会归档完整 state JSON。
+5. round_manifest 记录 archive_mode / included_diff / included_state_snapshot / omitted_files。
+6. normalize_sidecar_health 能从旧 flat payload 生成 sidecar_health。
+7. unknown sidecar 字段进入 extra，不丢字段。
+8. compare_aware_search final artifact 同时保留旧 flat fields 和新增 sidecar_health。
+9. hook 安装失败、hook 已安装但未命中、message bridge 正常、subprocess timeout 能被 sidecar_health 正确表达。
 ```
 
 ## 8. Stop Conditions
 
-遇到以下情况必须停止并报告：
+遇到以下情况必须停止并报告，不要硬改：
 
 ```text
-1. 仍然没有 hooks_installed 或 hook_install_error，且不能解释 JS/Python message bridge 是否工作。
-2. 无法记录 js_top_level_seen、python_message_count_total、per_hook_install_results。
-3. 需要靠扩大 timeout 才能推进。
-4. 需要回旧 sample_solver。
-5. 需要运行 Base64/RC4 breakpoint probe。
-6. 需要把 stale artifact 当作 current evidence。
-7. 需要手动编辑 task_packet.json / current_state.json / artifact_index.json / negative_results.json。
-8. 需要读取或提交完整 solve_reports。
-9. 需要使用 compare_semantics_agree=false candidate 作为主线。
-10. 需要把 CompareProbe fallback 当成 provenance。
-11. 无法让 report.based_on_decision_id 绑定当前 decision_id。
-12. 无法让 pytest_result.txt 记录真实测试和 runtime/blocked 状态。
-13. 需要继续写 PROJECT_PROGRESS_LOG.txt。
-14. 需要引入重型 workflow/runtime 依赖。
+1. 发现 project_state/rounds 下历史大文件已经大量被 Git 跟踪，需要用户确认是否执行 git rm --cached。
+2. 修改 archive-round 会破坏 tests/test_project_state.py 大量旧语义，超过小步兼容范围。
+3. sidecar_health 接入需要重写 compare_aware_search.py 大段逻辑。
+4. 无法在不运行 runtime probe 的情况下构造测试 fixture。
+5. 需要读取完整 solve_reports 才能继续。
+6. 本轮 diff 超过 1000 行，且主要不是测试或必要兼容逻辑。
+7. 发现当前 project_state active 文件缺失或 decision/report 状态不可审计。
 ```
 
-## Acceptance Criteria
-
-本轮可接受条件：
+Codex 报告必须写入 `project_state/codex_execution_report.md`，顶部包含 `codex_report_summary`，并明确记录：
 
 ```text
-1. codex_report_summary 存在，based_on_decision_id 指向 decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker。
-2. report.status 不得在无 hooks_installed / 无 hook_install_error / 无 hook observation 时写 SUCCESS。
-3. artifact 明确记录 JS top-level、hooks_install_begin、hooks_installed、message callback、per-hook install result。
-4. 当前 blocker 必须从 hooks_installed_stage_missing_after_script_load 进一步收窄。
-5. 如果 hooks installed 但 hook 未命中，必须明确 classification 为 hook_not_hit，而不是 generic timeout。
-6. 如果 hook install error，必须记录异常消息、hook name、address。
-7. CompareProbe fallback 仍为 diagnostic-only，compare_probe_fallback_is_provenance=false。
-8. 不破坏 subprocess health 和 lifecycle fields。
-9. 不修改 PROJECT_PROGRESS_LOG.txt。
-10. 不手动修改 task_packet/current_state/artifact_index/negative_results。
-11. 不运行 Base64/RC4 breakpoint probe。
-12. 不回旧 solver 或扩大搜索。
-13. 保持两个 bounded candidates，不新增候选搜索。
-14. tests / py_compile / lint-decision / lint-report / lint-handoff / archive-round 被真实记录。
-15. 不提交完整 solve_reports。
+1. 是否完成 archive minimal mode。
+2. 是否完成 .gitignore 规则。
+3. 是否发现已被 Git 跟踪的历史 round 大文件。
+4. 是否新增 sidecar_health.py。
+5. compare_aware_search.py 中减少了哪些重复字段搬运。
+6. 哪些旧字段保留兼容。
+7. 哪些测试真实运行。
+8. git diff --stat 输出摘要。
+9. 本轮是否没有运行任何 samplereverse runtime probe。
+```
+
+验收标准：
+
+```text
+ACCEPTED：
+- archive-round 默认不再生成 git_diff.patch。
+- archive-round 默认不再复制完整 state snapshot。
+- .gitignore 阻止新的 round 大快照进入 Git。
+- sidecar_health normalizer 已建立并至少接入一个当前 sidecar 路径。
+- 旧字段兼容保留。
+- 测试通过。
+- diff 主要集中在 project_state.py、sidecar_health.py、相关测试和少量 compare_aware_search.py。
+
+REWORK_REQUIRED：
+- 仍默认生成 git_diff.patch。
+- 仍默认归档完整 current_state/artifact_index。
+- 为了 sidecar_health 大规模重写 compare_aware_search.py。
+- 删除 active project_state 文件。
+- 运行了逆向 runtime probe。
+- 测试缺失或报告没有真实命令。
 ```
