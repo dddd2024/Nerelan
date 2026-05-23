@@ -2117,6 +2117,21 @@ def test_lint_report_ok_for_matching_success_report(tmp_path: Path) -> None:
     assert result["tests_ran_count"] == 1
     assert result["generated_artifacts_count"] == 1
     assert result["pytest_result_present"] is True
+    assert result["report_tests_ran_count"] == 1
+    assert result["pytest_result_tests_ran_count"] == 1
+    assert result["pytest_result_tests_cover_report"] is True
+    assert result["pytest_result_missing_report_tests"] == []
+
+
+def test_status_summary_exposes_pytest_result_tests_ran_coverage(tmp_path: Path) -> None:
+    state_dir, _current_state = _prepare_lint_report_state(tmp_path)
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["report_tests_ran_count"] == 1
+    assert summary["pytest_result_tests_ran_count"] == 1
+    assert summary["pytest_result_tests_cover_report"] is True
+    assert summary["pytest_result_missing_report_tests"] == []
 
 
 def test_lint_report_fails_when_report_summary_missing(tmp_path: Path) -> None:
@@ -2260,6 +2275,31 @@ def test_lint_report_warns_for_structured_non_success_report(tmp_path: Path) -> 
     assert "report_status is PARTIAL" in result["warnings"]
 
 
+def test_lint_report_warns_when_pytest_result_tests_do_not_cover_report(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    report_tests = [
+        "python -m pytest -q tests\\test_project_state.py",
+        "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    ]
+    _write_codex_report(
+        state_dir,
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+        tests_ran=report_tests,
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert result["report_tests_ran_count"] == 2
+    assert result["pytest_result_tests_ran_count"] == 1
+    assert result["pytest_result_tests_cover_report"] is False
+    assert result["pytest_result_missing_report_tests"] == [
+        "python -m reverse_agent.project_state lint-report --state-dir project_state"
+    ]
+    assert "pytest_result tests_ran does not cover codex_report_summary.tests_ran" in result["warnings"]
+
+
 def test_lint_report_cli_returns_zero_on_ok(tmp_path: Path, capsys) -> None:
     state_dir, _current_state = _prepare_lint_report_state(tmp_path)
 
@@ -2271,6 +2311,10 @@ def test_lint_report_cli_returns_zero_on_ok(tmp_path: Path, capsys) -> None:
     assert "pytest_result_present: True" in output
     assert "pytest_result_status: PASSED" in output
     assert "pytest_result_matches_report: True" in output
+    assert "report_tests_ran_count: 1" in output
+    assert "pytest_result_tests_ran_count: 1" in output
+    assert "pytest_result_tests_cover_report: True" in output
+    assert "pytest_result_missing_report_tests: []" in output
 
 
 def test_lint_report_cli_returns_nonzero_on_failure(tmp_path: Path, capsys) -> None:
@@ -2319,6 +2363,7 @@ def test_validate_pytest_result_for_report_matches() -> None:
         "based_on_decision_id": "decision_test",
         "report_id": "report_test",
         "round_id": "round_test",
+        "tests_ran": ["python -m pytest -q"],
     }
     pytest_text = """```json pytest_result_summary
 {
@@ -2335,6 +2380,75 @@ def test_validate_pytest_result_for_report_matches() -> None:
     result = validate_pytest_result_for_report(pytest_text, report_summary)
 
     assert result["matches_report"] is True
+    assert result["report_tests_ran_count"] == 1
+    assert result["pytest_result_tests_ran_count"] == 1
+    assert result["tests_ran_covers_report"] is True
+    assert result["missing_report_tests"] == []
+    assert result["errors"] == []
+
+
+def test_validate_pytest_result_for_report_warns_on_missing_report_tests() -> None:
+    report_summary = {
+        "based_on_decision_id": "decision_test",
+        "report_id": "report_test",
+        "round_id": "round_test",
+        "tests_ran": [
+            "python -m pytest -q",
+            "python -m reverse_agent.project_state status --state-dir project_state",
+        ],
+    }
+    pytest_text = """```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_test",
+  "report_id": "report_test",
+  "round_id": "round_test",
+  "generated_at": "2026-05-23T00:00:00Z",
+  "status": "PASSED",
+  "tests_ran": ["python -m pytest -q"]
+}
+```
+"""
+    result = validate_pytest_result_for_report(pytest_text, report_summary)
+
+    assert result["matches_report"] is True
+    assert result["tests_ran_covers_report"] is False
+    assert result["missing_report_tests"] == [
+        "python -m reverse_agent.project_state status --state-dir project_state"
+    ]
+    assert "pytest_result tests_ran does not cover codex_report_summary.tests_ran" in result["warnings"]
+    assert result["errors"] == []
+
+
+def test_validate_pytest_result_for_report_legacy_tests_coverage_unknown() -> None:
+    report_summary = {
+        "based_on_decision_id": "decision_test",
+        "tests_ran": ["python -m pytest -q"],
+    }
+
+    result = validate_pytest_result_for_report("pytest passed\n", report_summary)
+
+    assert result["status"] == "LEGACY_WITHOUT_HEADER"
+    assert result["tests_ran_covers_report"] == "unknown"
+    assert result["missing_report_tests"] == []
+    assert "pytest_result_summary missing" in result["warnings"]
+
+
+@pytest.mark.parametrize("tests_ran", [None, "python -m pytest -q", ["python -m pytest -q", 1]])
+def test_validate_pytest_result_for_report_handles_missing_or_invalid_report_tests(tests_ran: object) -> None:
+    report_summary = {
+        "based_on_decision_id": "decision_test",
+        "tests_ran": tests_ran,
+    }
+    pytest_text = """```json pytest_result_summary
+{"schema_version": 1, "decision_id": "decision_test", "status": "PASSED", "tests_ran": ["python -m pytest -q"]}
+```
+"""
+
+    result = validate_pytest_result_for_report(pytest_text, report_summary)
+
+    assert result["tests_ran_covers_report"] == "unknown"
+    assert result["missing_report_tests"] == []
     assert result["errors"] == []
 
 

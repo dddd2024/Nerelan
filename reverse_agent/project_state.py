@@ -568,6 +568,8 @@ def validate_pytest_result_for_report(
     errors: list[str] = []
     warnings: list[str] = []
     matches_report: str | bool = "unknown"
+    tests_ran_covers_report: str | bool = "unknown"
+    missing_report_tests: list[str] = []
     if parsed.get("status") == "LEGACY_WITHOUT_HEADER":
         warnings.append("pytest_result_summary missing")
     if parsed.get("parse_error"):
@@ -575,6 +577,8 @@ def validate_pytest_result_for_report(
     report_decision_id = str(report_summary.get("based_on_decision_id") or "")
     report_id = str(report_summary.get("report_id") or "")
     report_round_id = str(report_summary.get("round_id") or "")
+    report_tests_ran = report_summary.get("tests_ran")
+    pytest_result_tests_ran = parsed.get("tests_ran", [])
     decision_id = str(parsed.get("decision_id") or "")
     parsed_report_id = str(parsed.get("report_id") or "")
     parsed_round_id = str(parsed.get("round_id") or "")
@@ -590,6 +594,15 @@ def validate_pytest_result_for_report(
         warnings.append("pytest_result report_id does not match codex_report_summary.report_id")
     if report_round_id and parsed_round_id and parsed_round_id != report_round_id:
         warnings.append("pytest_result round_id does not match codex_report_summary.round_id")
+    if isinstance(report_tests_ran, list) and all(isinstance(item, str) for item in report_tests_ran):
+        if parsed.get("status") != "LEGACY_WITHOUT_HEADER" and report_tests_ran:
+            pytest_test_set = set(pytest_result_tests_ran) if isinstance(pytest_result_tests_ran, list) else set()
+            missing_report_tests = [item for item in report_tests_ran if item not in pytest_test_set]
+            tests_ran_covers_report = not missing_report_tests
+            if missing_report_tests:
+                warnings.append("pytest_result tests_ran does not cover codex_report_summary.tests_ran")
+    elif report_tests_ran is not None:
+        warnings.append("codex_report_summary.tests_ran must be a list of strings for coverage check")
     return {
         "found": parsed.get("found"),
         "parse_error": parsed.get("parse_error"),
@@ -598,8 +611,12 @@ def validate_pytest_result_for_report(
         "report_id": parsed_report_id,
         "round_id": parsed_round_id,
         "generated_at": parsed.get("generated_at"),
-        "tests_ran": parsed.get("tests_ran", []),
+        "tests_ran": pytest_result_tests_ran,
         "matches_report": matches_report,
+        "report_tests_ran_count": len(report_tests_ran) if isinstance(report_tests_ran, list) else 0,
+        "pytest_result_tests_ran_count": len(pytest_result_tests_ran) if isinstance(pytest_result_tests_ran, list) else 0,
+        "tests_ran_covers_report": tests_ran_covers_report,
+        "missing_report_tests": missing_report_tests,
         "errors": errors,
         "warnings": warnings,
     }
@@ -878,6 +895,10 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
         "pytest_result_report_id": pytest_validation.get("report_id"),
         "pytest_result_round_id": pytest_validation.get("round_id"),
         "pytest_result_matches_report": pytest_validation.get("matches_report"),
+        "report_tests_ran_count": pytest_validation.get("report_tests_ran_count"),
+        "pytest_result_tests_ran_count": pytest_validation.get("pytest_result_tests_ran_count"),
+        "pytest_result_tests_cover_report": pytest_validation.get("tests_ran_covers_report"),
+        "pytest_result_missing_report_tests": pytest_validation.get("missing_report_tests"),
         "pytest_result_parse_error": pytest_validation.get("parse_error"),
     }
 
@@ -3565,6 +3586,10 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "pytest_result_report_id": pytest_validation.get("report_id"),
         "pytest_result_round_id": pytest_validation.get("round_id"),
         "pytest_result_matches_report": pytest_validation.get("matches_report"),
+        "report_tests_ran_count": pytest_validation.get("report_tests_ran_count"),
+        "pytest_result_tests_ran_count": pytest_validation.get("pytest_result_tests_ran_count"),
+        "pytest_result_tests_cover_report": pytest_validation.get("tests_ran_covers_report"),
+        "pytest_result_missing_report_tests": pytest_validation.get("missing_report_tests"),
         "handoff_consistency": handoff_consistency,
         "decision_report_id_match": handoff_consistency.get("decision_report_id_match"),
         "decision_state_digest_match": handoff_consistency.get("decision_state_digest_match"),
@@ -3603,6 +3628,10 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"pytest_result_report_id: {summary.get('pytest_result_report_id')}")
     print(f"pytest_result_round_id: {summary.get('pytest_result_round_id')}")
     print(f"pytest_result_matches_report: {summary.get('pytest_result_matches_report')}")
+    print(f"report_tests_ran_count: {summary.get('report_tests_ran_count')}")
+    print(f"pytest_result_tests_ran_count: {summary.get('pytest_result_tests_ran_count')}")
+    print(f"pytest_result_tests_cover_report: {summary.get('pytest_result_tests_cover_report')}")
+    print(f"pytest_result_missing_report_tests: {summary.get('pytest_result_missing_report_tests')}")
     print(f"decision_report_id_match: {summary.get('decision_report_id_match')}")
     print(f"decision_state_digest_match: {summary.get('decision_state_digest_match')}")
     print(f"decision_consumed_by_report: {summary.get('decision_consumed_by_report')}")
@@ -3648,6 +3677,10 @@ def _print_lint_report(result: dict[str, Any]) -> None:
     print(f"pytest_result_report_id: {result.get('pytest_result_report_id')}")
     print(f"pytest_result_round_id: {result.get('pytest_result_round_id')}")
     print(f"pytest_result_matches_report: {result.get('pytest_result_matches_report')}")
+    print(f"report_tests_ran_count: {result.get('report_tests_ran_count')}")
+    print(f"pytest_result_tests_ran_count: {result.get('pytest_result_tests_ran_count')}")
+    print(f"pytest_result_tests_cover_report: {result.get('pytest_result_tests_cover_report')}")
+    print(f"pytest_result_missing_report_tests: {result.get('pytest_result_missing_report_tests')}")
     print(f"pytest_result_parse_error: {result.get('pytest_result_parse_error')}")
 
 
