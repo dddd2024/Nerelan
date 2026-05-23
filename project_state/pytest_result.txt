@@ -1,84 +1,32 @@
-2026-05-23 verification for decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker
+```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260523_engineering_pytest_result_provenance",
+  "report_id": "report_20260523_engineering_pytest_result_provenance",
+  "round_id": "round_20260523_engineering_pytest_result_provenance",
+  "generated_at": "2026-05-23T07:56:17Z",
+  "status": "PASSED",
+  "tests_ran": [
+    "python -m py_compile reverse_agent\\project_state.py",
+    "python -m pytest -q tests\\test_project_state.py",
+    "python -m pytest -q tests\\test_project_state.py -k \"archive or pytest_result or report\""
+  ]
+}
+```
+
+2026-05-23 verification for decision_20260523_engineering_pytest_result_provenance
 
 Command:
-python -m py_compile reverse_agent\olly_scripts\compare_lhs_last_writer_provenance.py reverse_agent\olly_scripts\compare_pre_compare_handoff_target_probe.py reverse_agent\strategies\compare_aware_search.py
-Result:
-passed
-
-Command:
-python -m pytest -q tests\test_compare_aware_search_strategy.py -k "compare_lhs_last_writer or compare_real_lhs_last_writer or hooks_installed or pre_compare_handoff"
-Result:
-30 passed, 164 deselected in 0.57s
-
-Command:
-python -m pytest -q tests\test_compare_aware_search_strategy.py
-Result:
-194 passed in 17.91s
-
-Command:
-python -m pytest -q tests\test_project_state.py
-Result:
-104 passed in 18.49s
-
-Command:
-python -m reverse_agent.project_state status --state-dir project_state
-Result:
-missing: []
-decision_id: decision_20260523_samplereverse_sidecar_hooks_installed_observation_blocker
-decision_ready_for_execution: True before report rewrite
-
-Command:
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-Result:
-lint-decision: OK
-
-Runtime:
-bounded runtime sidecar sr_lhs_last_writer_hooks_installed_observation_20260523_r1
-Artifact:
-solve_reports/harness_runs/sr_lhs_last_writer_hooks_installed_observation_20260523_r1/reports/tool_artifacts/samplereverse_patched/compare_lhs_last_writer_provenance_audit/compare_lhs_last_writer_provenance_audit.json
-Result:
-classification=hook_not_hit
-instrumentation_failure_stage=hook_not_hit
-root_cause_hypothesis=hook_not_hit
-script_load_status=loaded
-js_top_level_seen=true
-js_hooks_install_begin_seen=true
-js_hooks_installed_seen=true
-python_message_callback_registered_before_load=true
-python_message_count_total=47
-module_base_resolution_status=resolved
-hook_install_status=installed
-hook_count=3
-requested_hook_count=3
-hook_not_hit_vs_hook_not_installed_classification=hook_not_hit
-same_process_compare_args_captured=false
-diagnostic_compare_args_captured=true
-compare_probe_fallback_used=true
-compare_probe_fallback_is_provenance=false
-
-2026-05-23 verification for decision_20260523_engineering_artifact_hygiene_sidecar_health_schema
-
-Command:
-python -m py_compile reverse_agent\project_state.py reverse_agent\sidecar_health.py reverse_agent\strategies\compare_aware_search.py
+python -m py_compile reverse_agent\project_state.py
 Result:
 passed
 
 Command:
 python -m pytest -q tests\test_project_state.py
 Result:
-106 passed in 19.25s
+112 passed in 15.16s
 
 Command:
-python -m pytest -q tests\test_compare_aware_search_strategy.py -k "sidecar_health or compare_lhs_last_writer or archive"
+python -m pytest -q tests\test_project_state.py -k "archive or pytest_result or report"
 Result:
-18 passed, 176 deselected in 0.39s
-
-Command:
-python -m pytest -q tests\test_compare_aware_search_strategy.py
-Result:
-194 passed in 22.10s
-
-Command:
-python -m pytest -q tests\test_sidecar_health.py
-Result:
-3 passed in 0.01s
+46 passed, 66 deselected in 4.97s

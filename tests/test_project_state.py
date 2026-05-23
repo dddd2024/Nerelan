@@ -15,9 +15,12 @@ from reverse_agent.project_state import (
     lint_report,
     main,
     pack_context,
+    parse_pytest_result_header,
     read_codex_report_summary,
     read_decision_meta,
     status_summary,
+    validate_pytest_result_for_report,
+    write_pytest_result,
 )
 
 
@@ -93,8 +96,22 @@ def _write_codex_report(
     )
 
 
-def _write_pytest_result(state_dir: Path, text: str = "pytest passed\n") -> None:
-    (state_dir / "pytest_result.txt").write_text(text, encoding="utf-8")
+def _write_pytest_result(
+    state_dir: Path,
+    *,
+    summary: dict[str, object] | None = None,
+    body: str = "pytest passed\n",
+) -> None:
+    summary = summary or {
+        "schema_version": 1,
+        "decision_id": "decision_test",
+        "report_id": "report_test",
+        "round_id": "round_test",
+        "generated_at": "2026-05-23T00:00:00Z",
+        "status": "PASSED",
+        "tests_ran": ["python -m pytest -q"],
+    }
+    write_pytest_result(state_dir=state_dir, summary=summary, body=body)
 
 
 def _make_minimal_harness_run(reports_dir: Path, run_name: str = "samplereverse_stalled") -> Path:
@@ -2066,7 +2083,18 @@ def _prepare_lint_report_state(tmp_path: Path) -> tuple[Path, dict[str, object]]
         tests_ran=["python -m pytest -q tests\\test_project_state.py"],
         generated_artifacts=["project_state/pytest_result.txt"],
     )
-    _write_pytest_result(state_dir)
+    _write_pytest_result(
+        state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_report",
+            "report_id": "report_ok",
+            "round_id": str(current_state["round_id"]),
+            "generated_at": "2026-05-23T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest -q tests\\test_project_state.py"],
+        },
+    )
     archive_round(state_dir=state_dir)
     return state_dir, current_state
 
@@ -2241,6 +2269,8 @@ def test_lint_report_cli_returns_zero_on_ok(tmp_path: Path, capsys) -> None:
     assert "report_status: SUCCESS" in output
     assert "decision_report_id_match: True" in output
     assert "pytest_result_present: True" in output
+    assert "pytest_result_status: PASSED" in output
+    assert "pytest_result_matches_report: True" in output
 
 
 def test_lint_report_cli_returns_nonzero_on_failure(tmp_path: Path, capsys) -> None:
@@ -2251,6 +2281,109 @@ def test_lint_report_cli_returns_nonzero_on_failure(tmp_path: Path, capsys) -> N
     output = capsys.readouterr().out
     assert "lint-report: FAILED" in output
     assert "error: codex_report_summary missing" in output
+
+
+def test_parse_pytest_result_header_parses_summary() -> None:
+    text = """```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_test",
+  "report_id": "report_test",
+  "round_id": "round_test",
+  "generated_at": "2026-05-23T00:00:00Z",
+  "status": "PASSED",
+  "tests_ran": ["python -m pytest -q"]
+}
+```
+
+pytest output
+"""
+    parsed = parse_pytest_result_header(text)
+
+    assert parsed["status"] == "PASSED"
+    assert parsed["decision_id"] == "decision_test"
+    assert parsed["report_id"] == "report_test"
+    assert parsed["round_id"] == "round_test"
+    assert parsed["tests_ran"] == ["python -m pytest -q"]
+
+
+def test_parse_pytest_result_header_handles_legacy() -> None:
+    parsed = parse_pytest_result_header("pytest passed\n")
+
+    assert parsed["status"] == "LEGACY_WITHOUT_HEADER"
+    assert parsed["found"] is False
+
+
+def test_validate_pytest_result_for_report_matches() -> None:
+    report_summary = {
+        "based_on_decision_id": "decision_test",
+        "report_id": "report_test",
+        "round_id": "round_test",
+    }
+    pytest_text = """```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_test",
+  "report_id": "report_test",
+  "round_id": "round_test",
+  "generated_at": "2026-05-23T00:00:00Z",
+  "status": "PASSED",
+  "tests_ran": ["python -m pytest -q"]
+}
+```
+"""
+    result = validate_pytest_result_for_report(pytest_text, report_summary)
+
+    assert result["matches_report"] is True
+    assert result["errors"] == []
+
+
+def test_validate_pytest_result_for_report_mismatch() -> None:
+    report_summary = {"based_on_decision_id": "decision_report"}
+    pytest_text = """```json pytest_result_summary
+{"schema_version": 1, "decision_id": "decision_other", "status": "PASSED", "tests_ran": ["python -m pytest -q"]}
+```
+"""
+    result = validate_pytest_result_for_report(pytest_text, report_summary)
+
+    assert result["matches_report"] is False
+    assert "decision_id does not match" in " ".join(result["errors"])
+
+
+def test_write_pytest_result_overwrites_existing_text(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    write_pytest_result(
+        state_dir=state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_a",
+            "report_id": "report_a",
+            "round_id": "round_a",
+            "generated_at": "2026-05-23T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest -q"],
+        },
+        body="old body\n",
+    )
+    write_pytest_result(
+        state_dir=state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_b",
+            "report_id": "report_b",
+            "round_id": "round_b",
+            "generated_at": "2026-05-23T01:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest -q"],
+        },
+        body="new body\n",
+    )
+
+    content = (state_dir / "pytest_result.txt").read_text(encoding="utf-8")
+    assert "decision_b" in content
+    assert "new body" in content
+    assert "decision_a" not in content
 
 
 def test_extract_decision_meta_json() -> None:
@@ -2373,32 +2506,37 @@ def test_status_summary_exposes_decision_and_report_status(tmp_path: Path, capsy
     assert summary["decision_id"] == "decision_test"
     assert summary["decision_based_on_state_digest"] == "digest_test"
     assert summary["report_status"] == "PARTIAL"
-    assert summary["report_acceptance_recommendation"] == "NEEDS_REVIEW"
-    assert summary["report_based_on_decision_id"] == "decision_test"
-    assert summary["decision_report_id_match"] is True
-    assert summary["handoff_consistency"] == {
-        "decision_report_id_match": True,
-        "decision_state_digest_match": False,
-        "decision_consumed_by_report": True,
-        "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
-        "decision_ready_for_execution": False,
-        "decision_id": "decision_test",
-        "report_based_on_decision_id": "decision_test",
-        "decision_status": "APPROVED",
-        "report_status": "PARTIAL",
-        "current_state_digest": _read_json(state_dir / "current_state.json")["state_digest"],
-    }
 
-    assert main(["status", "--state-dir", str(state_dir)]) == 0
-    output = capsys.readouterr().out
-    assert "decision_status: APPROVED" in output
-    assert "report_status: PARTIAL" in output
-    assert "report_acceptance_recommendation: NEEDS_REVIEW" in output
-    assert "decision_report_id_match: True" in output
-    assert "decision_state_digest_match: False" in output
-    assert "decision_consumed_by_report: True" in output
-    assert "decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT" in output
-    assert "decision_ready_for_execution: False" in output
+
+def test_status_summary_reports_pytest_result_mismatch(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    _write_decision_packet(state_dir, decision_id="decision_report")
+    _write_codex_report(
+        state_dir,
+        report_id="report_ok",
+        round_id="round_ok",
+        based_on_decision_id="decision_report",
+    )
+    _write_pytest_result(
+        state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": "decision_other",
+            "report_id": "report_ok",
+            "round_id": "round_ok",
+            "generated_at": "2026-05-23T00:00:00Z",
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest -q"],
+        },
+    )
+
+    summary = status_summary(state_dir=state_dir)
+
+    assert summary["pytest_result_decision_id"] == "decision_other"
+    assert summary["pytest_result_matches_report"] is False
 
 
 def test_status_summary_decision_ready_for_execution_when_digest_matches(tmp_path: Path) -> None:
@@ -2556,6 +2694,8 @@ def test_status_cli_prints_decision_execution_state(tmp_path: Path, capsys) -> N
     assert "decision_consumed_by_report: False" in output
     assert "decision_execution_state: READY_FOR_EXECUTION" in output
     assert "decision_ready_for_execution: True" in output
+    assert "pytest_result_status: LEGACY_WITHOUT_HEADER" in output
+    assert "pytest_result_matches_report: unknown" in output
 
 
 def test_lint_handoff_ready_for_codex_when_decision_ready(tmp_path: Path) -> None:

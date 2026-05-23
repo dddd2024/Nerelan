@@ -127,6 +127,7 @@ STATE_DIGEST_EXCLUDED_KEYS = {
 }
 DECISION_META_BLOCK_NAME = "decision_meta"
 CODEX_REPORT_SUMMARY_BLOCK_NAME = "codex_report_summary"
+PYTEST_RESULT_SUMMARY_BLOCK_NAME = "pytest_result_summary"
 DECISION_STATUSES = {
     "TEMPLATE_ONLY",
     "DRAFT",
@@ -149,6 +150,7 @@ CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS = {
     "NEEDS_REVIEW",
     "UNKNOWN",
 }
+PYTEST_RESULT_STATUSES = {"PASSED", "FAILED", "PARTIAL", "UNKNOWN"}
 
 LEGACY_DECISION_PACKET_TEMPLATE = """# DECISION_PACKET
 
@@ -501,6 +503,140 @@ def read_codex_report_summary(state_dir: Path) -> dict[str, Any]:
     }
 
 
+def parse_pytest_result_header(text: str) -> dict[str, Any]:
+    stripped = text.strip()
+    if not stripped:
+        return {
+            "found": False,
+            "parse_error": None,
+            "schema_version": None,
+            "decision_id": "",
+            "report_id": "",
+            "round_id": "",
+            "generated_at": "",
+            "status": "LEGACY_WITHOUT_HEADER",
+            "tests_ran": [],
+        }
+    lines = text.splitlines()
+    first_line = next((line for line in lines if line.strip()), "")
+    if not (
+        first_line.strip().startswith("```")
+        and "json" in first_line
+        and PYTEST_RESULT_SUMMARY_BLOCK_NAME in first_line
+    ):
+        return {
+            "found": False,
+            "parse_error": None,
+            "schema_version": None,
+            "decision_id": "",
+            "report_id": "",
+            "round_id": "",
+            "generated_at": "",
+            "status": "LEGACY_WITHOUT_HEADER",
+            "tests_ran": [],
+        }
+    meta = extract_markdown_json_block(text, PYTEST_RESULT_SUMMARY_BLOCK_NAME)
+    status, status_error = _normalize_status(meta.get("status"), PYTEST_RESULT_STATUSES)
+    parse_errors = [item for item in (meta.get("parse_error"), status_error) if item]
+    tests_ran = meta.get("tests_ran")
+    if tests_ran is None:
+        tests_ran_list: list[str] = []
+    elif isinstance(tests_ran, list) and all(isinstance(item, str) for item in tests_ran):
+        tests_ran_list = list(tests_ran)
+    else:
+        tests_ran_list = []
+        parse_errors.append("tests_ran must be a list of strings")
+    parse_error = "; ".join(parse_errors) if parse_errors else None
+    return {
+        "found": bool(meta.get("found")),
+        "parse_error": parse_error,
+        "schema_version": meta.get("schema_version"),
+        "decision_id": meta.get("decision_id") or "",
+        "report_id": meta.get("report_id") or "",
+        "round_id": meta.get("round_id") or "",
+        "generated_at": meta.get("generated_at") or "",
+        "status": status,
+        "tests_ran": tests_ran_list,
+    }
+
+
+def validate_pytest_result_for_report(
+    pytest_text: str,
+    report_summary: dict[str, Any],
+) -> dict[str, Any]:
+    parsed = parse_pytest_result_header(pytest_text)
+    errors: list[str] = []
+    warnings: list[str] = []
+    matches_report: str | bool = "unknown"
+    if parsed.get("status") == "LEGACY_WITHOUT_HEADER":
+        warnings.append("pytest_result_summary missing")
+    if parsed.get("parse_error"):
+        errors.append(f"pytest_result_summary invalid: {parsed['parse_error']}")
+    report_decision_id = str(report_summary.get("based_on_decision_id") or "")
+    report_id = str(report_summary.get("report_id") or "")
+    report_round_id = str(report_summary.get("round_id") or "")
+    decision_id = str(parsed.get("decision_id") or "")
+    parsed_report_id = str(parsed.get("report_id") or "")
+    parsed_round_id = str(parsed.get("round_id") or "")
+    if report_decision_id and decision_id:
+        if decision_id == report_decision_id:
+            matches_report = True
+        else:
+            matches_report = False
+            errors.append("pytest_result decision_id does not match codex_report_summary.based_on_decision_id")
+    elif report_decision_id and not decision_id:
+        warnings.append("pytest_result decision_id missing")
+    if report_id and parsed_report_id and parsed_report_id != report_id:
+        warnings.append("pytest_result report_id does not match codex_report_summary.report_id")
+    if report_round_id and parsed_round_id and parsed_round_id != report_round_id:
+        warnings.append("pytest_result round_id does not match codex_report_summary.round_id")
+    return {
+        "found": parsed.get("found"),
+        "parse_error": parsed.get("parse_error"),
+        "status": parsed.get("status"),
+        "decision_id": decision_id,
+        "report_id": parsed_report_id,
+        "round_id": parsed_round_id,
+        "generated_at": parsed.get("generated_at"),
+        "tests_ran": parsed.get("tests_ran", []),
+        "matches_report": matches_report,
+        "errors": errors,
+        "warnings": warnings,
+    }
+
+
+def write_pytest_result(
+    *,
+    state_dir: Path,
+    summary: dict[str, Any],
+    body: str,
+) -> Path:
+    status, status_error = _normalize_status(summary.get("status"), PYTEST_RESULT_STATUSES, default="UNKNOWN")
+    if status_error:
+        raise ValueError(status_error)
+    tests_ran = summary.get("tests_ran", [])
+    if not isinstance(tests_ran, list) or not all(isinstance(item, str) for item in tests_ran):
+        raise ValueError("tests_ran must be a list of strings")
+    payload = {
+        "schema_version": int(summary.get("schema_version") or 1),
+        "decision_id": str(summary.get("decision_id") or ""),
+        "report_id": str(summary.get("report_id") or ""),
+        "round_id": str(summary.get("round_id") or ""),
+        "generated_at": str(summary.get("generated_at") or _now_iso()),
+        "status": status,
+        "tests_ran": list(tests_ran),
+    }
+    header = f"```json {PYTEST_RESULT_SUMMARY_BLOCK_NAME}\n"
+    header += json.dumps(payload, ensure_ascii=True, indent=2)
+    header += "\n```\n"
+    content = header
+    if body.strip():
+        content += f"\n{body.rstrip()}\n"
+    path = state_dir / "pytest_result.txt"
+    path.write_text(content, encoding="utf-8")
+    return path
+
+
 CONSUMED_REPORT_STATUSES = {"SUCCESS", "PARTIAL", "FAILED", "BLOCKED"}
 
 
@@ -667,7 +803,9 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
     decision_id = str(decision.get("decision_id") or "")
     round_id = str(report.get("round_id") or "")
     current_state_round_id = str(current_state.get("round_id") or "")
-    pytest_result_present = _pytest_result_present(state_dir)
+    pytest_text = _read_text_or_empty(state_dir / "pytest_result.txt")
+    pytest_result_present = bool(pytest_text.strip())
+    pytest_validation = validate_pytest_result_for_report(pytest_text, report)
 
     if report_status in {"TEMPLATE_ONLY", "UNKNOWN"}:
         parse_error = report.get("parse_error")
@@ -698,6 +836,8 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
         errors.append("SUCCESS report requires non-empty tests_ran")
     if report_status == "SUCCESS" and not pytest_result_present:
         errors.append("SUCCESS report requires non-empty pytest_result.txt")
+    errors.extend(pytest_validation.get("errors") or [])
+    warnings.extend(pytest_validation.get("warnings") or [])
 
     if round_id and current_state_round_id and round_id != current_state_round_id:
         warnings.append("report round_id does not match current_state.round_id")
@@ -733,6 +873,12 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
         "tests_ran_count": _list_count(report.get("tests_ran")),
         "generated_artifacts_count": _list_count(report.get("generated_artifacts")),
         "pytest_result_present": pytest_result_present,
+        "pytest_result_status": pytest_validation.get("status"),
+        "pytest_result_decision_id": pytest_validation.get("decision_id"),
+        "pytest_result_report_id": pytest_validation.get("report_id"),
+        "pytest_result_round_id": pytest_validation.get("round_id"),
+        "pytest_result_matches_report": pytest_validation.get("matches_report"),
+        "pytest_result_parse_error": pytest_validation.get("parse_error"),
     }
 
 
@@ -3384,6 +3530,8 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
     decision = handoff_status["decision"]
     codex_report = handoff_status["codex_report"]
     handoff_consistency = handoff_status["handoff_consistency"]
+    pytest_text = _read_text_or_empty(state_dir / "pytest_result.txt")
+    pytest_validation = validate_pytest_result_for_report(pytest_text, codex_report)
     return {
         "state_dir": _path_for_json(state_dir),
         "latest_harness_run": artifact_index.get("latest_harness_run"),
@@ -3412,6 +3560,11 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "report_id": codex_report.get("report_id"),
         "report_based_on_decision_id": codex_report.get("based_on_decision_id"),
         "report_parse_error": codex_report.get("parse_error"),
+        "pytest_result_status": pytest_validation.get("status"),
+        "pytest_result_decision_id": pytest_validation.get("decision_id"),
+        "pytest_result_report_id": pytest_validation.get("report_id"),
+        "pytest_result_round_id": pytest_validation.get("round_id"),
+        "pytest_result_matches_report": pytest_validation.get("matches_report"),
         "handoff_consistency": handoff_consistency,
         "decision_report_id_match": handoff_consistency.get("decision_report_id_match"),
         "decision_state_digest_match": handoff_consistency.get("decision_state_digest_match"),
@@ -3445,6 +3598,11 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"report_id: {summary.get('report_id')}")
     print(f"report_based_on_decision_id: {summary.get('report_based_on_decision_id')}")
     print(f"report_parse_error: {summary.get('report_parse_error')}")
+    print(f"pytest_result_status: {summary.get('pytest_result_status')}")
+    print(f"pytest_result_decision_id: {summary.get('pytest_result_decision_id')}")
+    print(f"pytest_result_report_id: {summary.get('pytest_result_report_id')}")
+    print(f"pytest_result_round_id: {summary.get('pytest_result_round_id')}")
+    print(f"pytest_result_matches_report: {summary.get('pytest_result_matches_report')}")
     print(f"decision_report_id_match: {summary.get('decision_report_id_match')}")
     print(f"decision_state_digest_match: {summary.get('decision_state_digest_match')}")
     print(f"decision_consumed_by_report: {summary.get('decision_consumed_by_report')}")
@@ -3485,6 +3643,12 @@ def _print_lint_report(result: dict[str, Any]) -> None:
     print(f"tests_ran_count: {result.get('tests_ran_count')}")
     print(f"generated_artifacts_count: {result.get('generated_artifacts_count')}")
     print(f"pytest_result_present: {result.get('pytest_result_present')}")
+    print(f"pytest_result_status: {result.get('pytest_result_status')}")
+    print(f"pytest_result_decision_id: {result.get('pytest_result_decision_id')}")
+    print(f"pytest_result_report_id: {result.get('pytest_result_report_id')}")
+    print(f"pytest_result_round_id: {result.get('pytest_result_round_id')}")
+    print(f"pytest_result_matches_report: {result.get('pytest_result_matches_report')}")
+    print(f"pytest_result_parse_error: {result.get('pytest_result_parse_error')}")
 
 
 def _print_lint_handoff(result: dict[str, Any]) -> None:
