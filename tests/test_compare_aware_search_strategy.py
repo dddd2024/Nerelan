@@ -7767,6 +7767,15 @@ def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_write
     assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
     assert payload["write_monitor_health"]["raw_write_count"] == 21
     assert payload["write_monitor_health"]["filtered_intersecting_write_count"] == 0
+    assert payload["write_monitor_health"]["missing_candidate_count"] == 3
+    assert payload["last_writer_summary"]["raw_write_event_count"] == 3
+    assert payload["last_writer_summary"]["non_intersecting_write_count"] == 3
+    assert payload["last_writer_summary"]["missing_candidate_reasons"][0]["reason"] == (
+        "raw_writes_observed_but_none_intersect_actual_arg0"
+    )
+    assert payload["last_writer_summary"]["missing_candidate_reasons"][0]["nearest_non_intersecting_writes"][0][
+        "bounded_failure_reason"
+    ] == "write_after_arg0_window"
     assert payload["last_writer_summary"]["retained_write_count"] == 0
     assert payload["breakpoint_probe_allowed"] is False
 
@@ -7969,6 +7978,13 @@ def test_compare_real_lhs_last_writer_filters_retained_writes_after_arg0_known()
     assert payload["classification"] == "last_writer_identified"
     assert payload["last_writer_summary"]["runtime_backed_count"] == 3
     assert all(row["sequence"] == 2 for row in payload["last_writer_candidates"])
+    assert payload["last_writer_candidates"][0]["write_address"] == "0x1100"
+    assert payload["last_writer_candidates"][0]["arg0_ptr"] == "0x1100"
+    assert payload["last_writer_candidates"][0]["compare_arg0_preview_hex"].startswith("aa")
+    assert payload["last_writer_candidates"][0]["candidate_dependent"] is True
+    assert payload["last_writer_candidates"][0]["hit_count"] == 1
+    assert payload["last_writer_summary"]["raw_write_event_count"] == 6
+    assert payload["last_writer_summary"]["non_intersecting_write_count"] == 3
     assert payload["breakpoint_probe_allowed"] is False
 
 

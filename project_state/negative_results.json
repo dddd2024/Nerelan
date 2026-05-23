@@ -126,7 +126,7 @@
   {
     "direction": "reuse old [ebp-0x1170] without real-lhs provenance evidence",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_thread_follow_timing_20260520_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
     "reason": "old frame anchor still is not a runtime-backed source for confirmed compare arg0",
@@ -136,7 +136,7 @@
   {
     "direction": "run Base64/RC4 breakpoint probe before real lhs producer identification",
     "do_not_repeat": true,
-    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_thread_follow_timing_20260520_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "evidence_artifact": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
     "override_allowed": true,
     "override_reason_required": true,
     "reason": "breakpoint probing remains blocked until a runtime-backed real lhs producer is identified",

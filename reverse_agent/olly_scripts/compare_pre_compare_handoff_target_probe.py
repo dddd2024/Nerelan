@@ -698,11 +698,18 @@ function recordMemoryWrite(context, descriptor) {{
             return;
         }}
         writeMonitorRawWriteCount++;
+        let threadId = "";
+        try {{
+            threadId = String(Process.getCurrentThreadId());
+        }} catch (error) {{
+            threadId = "";
+        }}
         const event = {{
             sequence: writeSequence++,
             address: address.toString(),
             address_u64: pointerValue(address),
             size: Number(descriptor.size || Process.pointerSize),
+            thread_id: threadId,
             instruction_address: descriptor.address,
             module_offset: descriptor.module_offset,
             instruction: descriptor.instruction,
@@ -745,13 +752,30 @@ function filteredWriteRing(compareSlots) {{
     for (const item of writeRing) {{
         const itemStart = Number(item.address_u64 || 0);
         const itemSize = Number(item.size || 1);
-        if (!itemStart || !rangesIntersect(itemStart, itemSize, arg0Start, arg0Size)) {{
-            continue;
+        const intersectsArg0 = Boolean(itemStart && rangesIntersect(itemStart, itemSize, arg0Start, arg0Size));
+        const itemEnd = itemStart + Math.max(itemSize || 1, 1);
+        const arg0End = arg0Start + Math.max(arg0Size || 1, 1);
+        let distanceToArg0 = 0;
+        let boundedFailureReason = "";
+        if (!itemStart) {{
+            boundedFailureReason = "write_address_unavailable";
+        }} else if (intersectsArg0) {{
+            boundedFailureReason = "";
+        }} else if (itemEnd <= arg0Start) {{
+            distanceToArg0 = arg0Start - itemEnd;
+            boundedFailureReason = "write_before_arg0_window";
+        }} else {{
+            distanceToArg0 = itemStart - arg0End;
+            boundedFailureReason = "write_after_arg0_window";
         }}
         out.push(Object.assign({{}}, item, {{
-            intersects_arg0: true,
+            raw_write_observed: true,
+            intersects_arg0: intersectsArg0,
             arg0_value: String(arg0.value || ""),
             arg0_preview_hex: previewHex,
+            arg0_size: arg0Size,
+            distance_to_arg0: distanceToArg0,
+            bounded_failure_reason: boundedFailureReason,
             after_preview_hex: readBytes(safePointer(item.address || 0), 96),
         }}));
     }}
@@ -759,6 +783,14 @@ function filteredWriteRing(compareSlots) {{
 }}
 
 function writeMonitorHealth(filteredWrites) {{
+    let intersectingWriteCount = 0;
+    if (filteredWrites) {{
+        for (const item of filteredWrites) {{
+            if (item && item.intersects_arg0) {{
+                intersectingWriteCount++;
+            }}
+        }}
+    }}
     return {{
         observed: true,
         enabled: Boolean(writeRingEnabled),
@@ -773,7 +805,8 @@ function writeMonitorHealth(filteredWrites) {{
         address_decode_failures: writeMonitorAddressDecodeFailures,
         follow_failures: writeMonitorFollowFailures,
         last_raw_write_samples: lastRawWriteSamples.slice(-8),
-        filtered_intersecting_write_count: filteredWrites ? filteredWrites.length : 0,
+        filtered_intersecting_write_count: intersectingWriteCount,
+        attributed_write_count: filteredWrites ? filteredWrites.length : 0,
     }};
 }}
 

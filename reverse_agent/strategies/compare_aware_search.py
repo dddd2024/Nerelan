@@ -13295,9 +13295,42 @@ def _compare_real_lhs_write_ring_events(result: dict[str, object]) -> list[dict[
                 arg0_ptr,
                 arg0_size,
             )
+            distance_to_arg0 = event.get("distance_to_arg0")
+            if distance_to_arg0 in {None, ""}:
+                distance_to_arg0 = None
+                if event_address is not None and arg0_ptr is not None:
+                    event_end = event_address + max(event_size, 1)
+                    arg0_end = arg0_ptr + max(arg0_size, 1)
+                    if event_end <= arg0_ptr:
+                        distance_to_arg0 = arg0_ptr - event_end
+                    elif event_address >= arg0_end:
+                        distance_to_arg0 = event_address - arg0_end
+                    else:
+                        distance_to_arg0 = 0
+            try:
+                distance_to_arg0_int = int(distance_to_arg0) if distance_to_arg0 is not None else None
+            except (TypeError, ValueError):
+                distance_to_arg0_int = None
+            bounded_failure_reason = str(event.get("bounded_failure_reason", "") or "").strip()
+            if not bounded_failure_reason and not intersects:
+                if event_address is None:
+                    bounded_failure_reason = "write_address_unavailable"
+                elif arg0_ptr is None:
+                    bounded_failure_reason = "arg0_pointer_unavailable"
+                elif distance_to_arg0_int == 0:
+                    bounded_failure_reason = "write_size_or_range_unavailable"
+                elif event_address + max(event_size, 1) <= arg0_ptr:
+                    bounded_failure_reason = "write_before_arg0_window"
+                else:
+                    bounded_failure_reason = "write_after_arg0_window"
             event["intersects_arg0"] = intersects
-            event["arg0_value"] = event.get("arg0_value") or lhs_arg.get("value", "") if lhs_arg else ""
+            event["raw_write_observed"] = True
+            event["arg0_value"] = event.get("arg0_value") or (lhs_arg.get("value", "") if lhs_arg else "")
             event["arg0_preview_hex"] = event.get("arg0_preview_hex") or arg0_preview
+            event["arg0_size"] = event.get("arg0_size") or arg0_size
+            event["distance_to_arg0"] = distance_to_arg0_int
+            event["bounded_failure_reason"] = "" if intersects else bounded_failure_reason
+            event["write_relation"] = "intersects_arg0" if intersects else bounded_failure_reason
             event["after_preview_matches_arg0"] = _hex_preview_matches_material(
                 event.get("after_preview_hex"),
                 event.get("arg0_preview_hex"),
@@ -13480,7 +13513,9 @@ def _compare_real_lhs_last_writer_summary(
     )
     writer_rows: list[dict[str, object]] = []
     retained_ring: list[dict[str, object]] = []
+    raw_ring: list[dict[str, object]] = []
     missing_candidates: list[str] = []
+    missing_candidate_reasons: list[dict[str, object]] = []
     final_previews: dict[str, str] = {}
     transform_backed_count = 0
     monitor_rows: list[dict[str, object]] = []
@@ -13490,10 +13525,40 @@ def _compare_real_lhs_last_writer_summary(
         monitor_health = _compare_real_lhs_write_monitor_health(result)
         monitor_rows.append({"candidate_hex": candidate_hex, **monitor_health})
         events = _compare_real_lhs_write_ring_events(result)
+        raw_ring.extend(events[-64:])
         intersecting = [event for event in events if bool(event.get("intersects_arg0"))]
         retained_ring.extend(intersecting[-64:])
         if not intersecting:
             missing_candidates.append(candidate_hex)
+            nearest = sorted(
+                events,
+                key=lambda item: (
+                    int(item.get("distance_to_arg0", 2**63 - 1) or 2**63 - 1),
+                    int(item.get("sequence", 0) or 0),
+                ),
+            )[:3]
+            missing_candidate_reasons.append(
+                {
+                    "candidate_hex": candidate_hex,
+                    "reason": "raw_writes_observed_but_none_intersect_actual_arg0"
+                    if events
+                    else "no_write_ring_events_observed",
+                    "raw_write_event_count": len(events),
+                    "nearest_non_intersecting_writes": [
+                        {
+                            "sequence": item.get("sequence"),
+                            "address": item.get("address", ""),
+                            "size": item.get("size", 0),
+                            "thread_id": item.get("thread_id", ""),
+                            "module_offset": item.get("module_offset", ""),
+                            "instruction": item.get("instruction", ""),
+                            "distance_to_arg0": item.get("distance_to_arg0"),
+                            "bounded_failure_reason": item.get("bounded_failure_reason", ""),
+                        }
+                        for item in nearest
+                    ],
+                }
+            )
             continue
         final = max(
             intersecting,
@@ -13515,15 +13580,26 @@ def _compare_real_lhs_last_writer_summary(
                 "runtime_backed": True,
                 "sequence": final.get("sequence"),
                 "address": final.get("address", ""),
+                "write_address": final.get("address", ""),
                 "size": final.get("size", 0),
+                "write_size": final.get("size", 0),
                 "instruction_address": final.get("instruction_address", ""),
                 "module_offset": final.get("module_offset", ""),
+                "writer_module_offset": final.get("module_offset", ""),
+                "compare_callsite": actual_compare.get("caller_module_offset", ""),
+                "caller_module_offset": actual_compare.get("caller_module_offset", ""),
                 "instruction": final.get("instruction", ""),
+                "writer_instruction": final.get("instruction", ""),
                 "before_preview_hex": final.get("before_preview_hex", ""),
                 "after_preview_hex": final_preview,
                 "arg0_value": final.get("arg0_value", ""),
+                "arg0_ptr": final.get("arg0_value", ""),
                 "arg0_preview_hex": final.get("arg0_preview_hex", ""),
+                "compare_arg0_preview_hex": final.get("arg0_preview_hex", ""),
                 "after_preview_matches_arg0": bool(final.get("after_preview_matches_arg0")),
+                "candidate_dependent": False,
+                "thread_id": final.get("thread_id", ""),
+                "hit_count": len(intersecting),
                 "transform_material_backed": transform_backed,
             }
         )
@@ -13585,15 +13661,26 @@ def _compare_real_lhs_last_writer_summary(
         "filtered_intersecting_write_count": sum(
             int(row.get("filtered_intersecting_write_count", 0) or 0) for row in observed_monitor_rows
         ),
+        "attributed_write_count": sum(
+            int(row.get("attributed_write_count", 0) or 0) for row in observed_monitor_rows
+        ),
+        "missing_candidate_count": len(missing_candidates),
+        "missing_candidates": missing_candidates,
+        "missing_candidate_reasons": missing_candidate_reasons,
         "per_candidate": monitor_rows,
     }
+    for row in writer_rows:
+        row["candidate_dependent"] = candidate_dependent
     summary = {
         "enabled": True,
         "expected_candidate_count": expected_count,
         "runtime_backed_count": runtime_backed_count,
         "intersecting_write_candidate_count": runtime_backed_count,
+        "raw_write_event_count": len(raw_ring),
+        "non_intersecting_write_count": max(len(raw_ring) - len(retained_ring), 0),
         "match_count": match_count,
         "missing_candidates": missing_candidates,
+        "missing_candidate_reasons": missing_candidate_reasons,
         "candidate_dependent": candidate_dependent,
         "connects_to_actual_arg0": connected,
         "transform_material_backed": transform_material_backed,
