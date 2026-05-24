@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import zipfile
 from datetime import datetime, timezone
@@ -155,6 +156,7 @@ CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS = {
     "UNKNOWN",
 }
 PYTEST_RESULT_STATUSES = {"PASSED", "FAILED", "PARTIAL", "UNKNOWN"}
+SKILL_PROFILE_RE = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9_-]*)@v(?P<version>\d+)(?P<draft>-draft)?$")
 
 LEGACY_DECISION_PACKET_TEMPLATE = """# DECISION_PACKET
 
@@ -451,6 +453,12 @@ def _template_status(text: str, template: str) -> bool:
     return bool(text.strip()) and text.strip() == template.strip()
 
 
+def _list_of_strings(value: Any) -> list[str] | None:
+    if isinstance(value, list) and all(isinstance(item, str) for item in value):
+        return list(value)
+    return None
+
+
 def read_decision_meta(state_dir: Path) -> dict[str, Any]:
     path = state_dir / "decision_packet.md"
     text = _read_text_or_empty(path)
@@ -470,6 +478,8 @@ def read_decision_meta(state_dir: Path) -> dict[str, Any]:
         "based_on_state_build_id": meta.get("based_on_state_build_id") or "",
         "based_on_state_digest": meta.get("based_on_state_digest") or "",
         "round_id": meta.get("round_id") or "",
+        "mainline": meta.get("mainline") or "",
+        "skill_profiles": meta.get("skill_profiles"),
         "parse_error": meta.get("parse_error"),
     }
 
@@ -727,6 +737,119 @@ def build_handoff_status(state_dir: Path) -> dict[str, Any]:
     }
 
 
+def _repo_root_for_state_dir(state_dir: Path) -> Path:
+    return state_dir.resolve().parent if state_dir.name == "project_state" else Path.cwd().resolve()
+
+
+def _load_skill_registry(repo_root: Path) -> tuple[dict[str, Any], str | None]:
+    registry_path = repo_root / ".codex-skills" / "registry.json"
+    try:
+        raw = registry_path.read_text(encoding="utf-8")
+    except OSError:
+        return {}, f"skill registry not found: {registry_path}"
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        return {}, f"skill registry is invalid JSON: {exc.msg}"
+    if not isinstance(data, dict):
+        return {}, "skill registry must contain a JSON object"
+    skills = data.get("skills")
+    if not isinstance(skills, dict):
+        return {}, "skill registry skills must be an object"
+    return skills, None
+
+
+def _parse_skill_profile(profile: str) -> tuple[str, int, bool, str | None]:
+    match = SKILL_PROFILE_RE.fullmatch(profile)
+    if not match:
+        return "", 0, False, f"invalid skill profile {profile!r}; expected skill-name@vN"
+    return match.group("name"), int(match.group("version")), bool(match.group("draft")), None
+
+
+def _lint_skill_profiles(
+    *,
+    state_dir: Path,
+    decision_status: str,
+    mainline: str,
+    skill_profiles_value: Any,
+) -> dict[str, Any]:
+    errors: list[str] = []
+    warnings: list[str] = []
+    parsed_profiles: list[dict[str, Any]] = []
+
+    if skill_profiles_value is None:
+        warnings.append("decision_meta.skill_profiles missing; legacy decision compatibility mode")
+        return {"errors": errors, "warnings": warnings, "skill_profiles": [], "parsed_skill_profiles": parsed_profiles}
+    skill_profiles = _list_of_strings(skill_profiles_value)
+    if skill_profiles is None:
+        errors.append("decision_meta.skill_profiles must be a list of strings")
+        return {"errors": errors, "warnings": warnings, "skill_profiles": [], "parsed_skill_profiles": parsed_profiles}
+    if not skill_profiles:
+        warnings.append("decision_meta.skill_profiles is empty; no workflow skill profile declared")
+        return {"errors": errors, "warnings": warnings, "skill_profiles": [], "parsed_skill_profiles": parsed_profiles}
+
+    registry, registry_error = _load_skill_registry(_repo_root_for_state_dir(state_dir))
+    if registry_error:
+        errors.append(registry_error)
+        return {
+            "errors": errors,
+            "warnings": warnings,
+            "skill_profiles": skill_profiles,
+            "parsed_skill_profiles": parsed_profiles,
+        }
+
+    active_generic_count = 0
+    valid_profile_count = 0
+    for profile in skill_profiles:
+        skill_name, version, is_draft, parse_error = _parse_skill_profile(profile)
+        if parse_error:
+            errors.append(parse_error)
+            continue
+        if is_draft and decision_status == "APPROVED":
+            warnings.append(f"draft skill profile {profile!r} should not be used in APPROVED decisions")
+        entry = registry.get(skill_name)
+        if not isinstance(entry, dict):
+            errors.append(f"skill profile {profile!r} references unknown skill {skill_name!r}")
+            continue
+        status = str(entry.get("status") or "")
+        scope = str(entry.get("scope") or "")
+        registry_version = entry.get("version")
+        parsed_profiles.append(
+            {
+                "profile": profile,
+                "skill_name": skill_name,
+                "version": version,
+                "draft": is_draft,
+                "registry_status": status,
+                "registry_scope": scope,
+                "registry_version": registry_version,
+            }
+        )
+        if status != "active":
+            errors.append(f"skill profile {profile!r} references non-active skill {skill_name!r} status={status!r}")
+            continue
+        if registry_version != version:
+            errors.append(
+                f"skill profile {profile!r} version mismatch: registry version is {registry_version!r}"
+            )
+            continue
+        valid_profile_count += 1
+        if scope == "generic_workflow":
+            active_generic_count += 1
+
+    if skill_profiles and valid_profile_count == 0:
+        errors.append("decision_meta.skill_profiles contains no valid active skill profiles")
+    if decision_status == "APPROVED" and mainline in {"engineering_branch", "reverse_solving"} and active_generic_count == 0:
+        warnings.append(f"decision_meta.skill_profiles for mainline={mainline} should include an active generic_workflow skill")
+
+    return {
+        "errors": errors,
+        "warnings": warnings,
+        "skill_profiles": skill_profiles,
+        "parsed_skill_profiles": parsed_profiles,
+    }
+
+
 def lint_decision(state_dir: Path) -> dict[str, Any]:
     decision = read_decision_meta(state_dir)
     current_state_path = state_dir / "current_state.json"
@@ -740,6 +863,7 @@ def lint_decision(state_dir: Path) -> dict[str, Any]:
     decision_id = str(decision.get("decision_id") or "")
     based_on_state_build_id = str(decision.get("based_on_state_build_id") or "")
     based_on_state_digest = str(decision.get("based_on_state_digest") or "")
+    mainline = str(decision.get("mainline") or "")
     current_state_build_id = str(current_state.get("state_build_id") or "")
     current_state_digest = str(current_state.get("state_digest") or "")
     execution_scope = str(task_packet.get("execution_scope") or "")
@@ -768,6 +892,15 @@ def lint_decision(state_dir: Path) -> dict[str, Any]:
     if based_on_state_digest and current_state_digest and based_on_state_digest != current_state_digest:
         errors.append("based_on_state_digest does not match current_state.state_digest")
 
+    skill_profile_lint = _lint_skill_profiles(
+        state_dir=state_dir,
+        decision_status=decision_status,
+        mainline=mainline,
+        skill_profiles_value=decision.get("skill_profiles"),
+    )
+    errors.extend(skill_profile_lint["errors"])
+    warnings.extend(skill_profile_lint["warnings"])
+
     if not task_packet_path.exists():
         warnings.append("task_packet.json missing")
     else:
@@ -787,6 +920,9 @@ def lint_decision(state_dir: Path) -> dict[str, Any]:
         "decision_id": decision_id,
         "decision_status": decision_status,
         "decision_parse_error": decision.get("parse_error"),
+        "mainline": mainline,
+        "skill_profiles": skill_profile_lint["skill_profiles"],
+        "parsed_skill_profiles": skill_profile_lint["parsed_skill_profiles"],
         "based_on_state_build_id": based_on_state_build_id,
         "based_on_state_digest": based_on_state_digest,
         "current_state_build_id": current_state_build_id,
@@ -3788,6 +3924,8 @@ def _print_lint_decision(result: dict[str, Any]) -> None:
         print(f"warning: {warning}")
     print(f"decision_id: {result.get('decision_id')}")
     print(f"decision_status: {result.get('decision_status')}")
+    print(f"mainline: {result.get('mainline')}")
+    print(f"skill_profiles: {result.get('skill_profiles')}")
     print(f"based_on_state_build_id: {result.get('based_on_state_build_id')}")
     print(f"based_on_state_digest: {result.get('based_on_state_digest')}")
     print(f"current_state_build_id: {result.get('current_state_build_id')}")

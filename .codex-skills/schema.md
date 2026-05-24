@@ -107,6 +107,46 @@ solve_reports/ by default` is compliant.
 The registry must only list repo paths that exist. For each skill entry,
 `status`, `scope`, and `version` must match the skill frontmatter.
 
+## Decision Skill Profiles
+
+`project_state/decision_packet.md` may include an additive
+`decision_meta.skill_profiles` field. This field records the durable skill
+profiles the decision expects Codex to apply for the round.
+
+Formal profile strings use:
+
+```text
+skill-name@vN
+```
+
+For example:
+
+```json
+{
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}
+```
+
+The transitional form `skill-name@vN-draft` may be parsed during migrations,
+but approved decisions should emit a lint warning when they use it.
+
+`lint-decision` validates declared profiles against
+`.codex-skills/registry.json`:
+
+```text
+unknown skill: error
+inactive/deprecated/archived skill: error
+version mismatch: error
+bad profile format: error
+missing registry for a declared profile: error
+```
+
+Legacy decision packets without `skill_profiles` remain compatible and should
+warn instead of failing. For `engineering_branch` and `reverse_solving`
+approved decisions, lint should also warn when no active `generic_workflow`
+skill is declared.
+
 ## Audit Requirements
 
 The skill audit must use Python standard library only and must:

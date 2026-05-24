@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-05-24T09:11:26Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260524_phase2_skill_profiles_lint_decision\\codex_execution_report.md",
+      "sha256": "3d9b0177565e2c9dea0825c54e08d5289cacc50166a01a022e042de4fea03323",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260524_phase2_skill_profiles_lint_decision\\decision_packet.md",
+      "sha256": "bbe37dc39855df4067fe9d3d3c020c3f5f4979bd7fd86cd9bee97c7f00abbb0b",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260524_phase2_skill_profiles_lint_decision\\pytest_result.txt",
+      "sha256": "21aa47fca3122ce58fdbda114b8b54c182b47ad9fb0528b34a9bc6284ecc6a15",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260524_phase2_skill_profiles_lint_decision",
+  "schema_version": 1,
+  "source_git_commit": "79e839a251e8",
+  "source_harness_run": "sr_lhs_hook_observation_reliability_20260524_r4",
+  "state_build_id": "state_20260524_042629_10b992a9fad9",
+  "state_digest": "10b992a9fad9e13c9c445709a1f2fb6cee05ed8450b451e0b3d2c80226af04fd",
+  "workflow_status": "REPORT_AVAILABLE"
+}

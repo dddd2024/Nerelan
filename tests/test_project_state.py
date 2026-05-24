@@ -45,23 +45,48 @@ def _write_decision_packet(
     based_on_state_build_id: str = "state_test",
     based_on_state_digest: str = "digest_test",
     status: str = "APPROVED",
+    mainline: str = "",
+    skill_profiles: object = None,
 ) -> None:
+    payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "based_on_state_build_id": based_on_state_build_id,
+        "based_on_state_digest": based_on_state_digest,
+        "status": status,
+    }
+    if mainline:
+        payload["mainline"] = mainline
+    if skill_profiles is not None:
+        payload["skill_profiles"] = skill_profiles
     (state_dir / "decision_packet.md").write_text(
         f"""```json decision_meta
-{{
-  "schema_version": 1,
-  "decision_id": "{decision_id}",
-  "round_id": "{round_id}",
-  "based_on_state_build_id": "{based_on_state_build_id}",
-  "based_on_state_digest": "{based_on_state_digest}",
-  "status": "{status}"
-}}
+{json.dumps(payload, indent=2)}
 ```
 
 # DECISION_PACKET
 """,
         encoding="utf-8",
     )
+
+
+def _write_skill_registry(tmp_path: Path, skills: dict[str, object] | None = None) -> None:
+    registry_skills = skills or {
+        "reverse-agent-iteration": {
+            "path": ".codex-skills/reverse-agent-iteration/SKILL.md",
+            "status": "active",
+            "scope": "generic_workflow",
+            "version": 2,
+        },
+        "samplereverse-frontier": {
+            "path": ".codex-skills/samplereverse-frontier/SKILL.md",
+            "status": "active",
+            "scope": "sample_profile",
+            "version": 2,
+        },
+    }
+    _write_json(tmp_path / ".codex-skills" / "registry.json", {"schema_version": 1, "skills": registry_skills})
 
 
 def _write_codex_report(
@@ -2059,7 +2084,214 @@ def test_lint_decision_reports_execution_scope_and_active_decision_packet(tmp_pa
     assert result["execution_scope"] == "decision_packet_controls_current_round"
     assert result["active_decision_packet"] == "project_state/other_decision.md"
     assert result["warnings"] == [
+        "decision_meta.skill_profiles missing; legacy decision compatibility mode",
         "task_packet.active_decision_packet is project_state/other_decision.md, expected project_state/decision_packet.md"
+    ]
+
+
+def test_lint_decision_accepts_active_skill_profile_from_registry(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(tmp_path)
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        decision_id="decision_skill_profile",
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        mainline="engineering_branch",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is True
+    assert result["errors"] == []
+    assert result["skill_profiles"] == ["reverse-agent-iteration@v2"]
+    assert result["parsed_skill_profiles"][0]["skill_name"] == "reverse-agent-iteration"
+
+
+def test_lint_decision_fails_on_skill_profile_version_mismatch(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(tmp_path)
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        mainline="engineering_branch",
+        skill_profiles=["reverse-agent-iteration@v999"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "skill profile 'reverse-agent-iteration@v999' version mismatch: registry version is 2" in result["errors"]
+
+
+def test_lint_decision_fails_on_unknown_skill_profile(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(tmp_path)
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        mainline="engineering_branch",
+        skill_profiles=["unknown-skill@v1"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "skill profile 'unknown-skill@v1' references unknown skill 'unknown-skill'" in result["errors"]
+    assert "decision_meta.skill_profiles contains no valid active skill profiles" in result["errors"]
+
+
+def test_lint_decision_fails_on_bad_skill_profile_format(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(tmp_path)
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        mainline="engineering_branch",
+        skill_profiles=["skill-name"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "invalid skill profile 'skill-name'; expected skill-name@vN" in result["errors"]
+
+
+def test_lint_decision_warns_on_draft_skill_profile_for_approved_decision(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(tmp_path)
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        mainline="engineering_branch",
+        skill_profiles=["reverse-agent-iteration@v2-draft"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is True
+    assert "draft skill profile 'reverse-agent-iteration@v2-draft' should not be used in APPROVED decisions" in result[
+        "warnings"
+    ]
+
+
+def test_lint_decision_missing_skill_profiles_is_legacy_warning(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        mainline="engineering_branch",
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is True
+    assert result["warnings"] == ["decision_meta.skill_profiles missing; legacy decision compatibility mode"]
+
+
+def test_lint_decision_fails_when_registry_missing_for_declared_profile(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        mainline="engineering_branch",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert any(error.startswith("skill registry not found:") for error in result["errors"])
+
+
+def test_lint_decision_fails_when_registry_invalid_for_declared_profile(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    registry_path = tmp_path / ".codex-skills" / "registry.json"
+    registry_path.parent.mkdir(parents=True)
+    registry_path.write_text("{", encoding="utf-8")
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        mainline="engineering_branch",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "skill registry is invalid JSON" in result["errors"][0]
+
+
+def test_lint_decision_fails_on_inactive_skill_profile(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(
+        tmp_path,
+        {
+            "reverse-agent-iteration": {
+                "path": ".codex-skills/reverse-agent-iteration/SKILL.md",
+                "status": "deprecated",
+                "scope": "generic_workflow",
+                "version": 2,
+            }
+        },
+    )
+    _make_minimal_harness_run(reports_dir)
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    _write_decision_packet(
+        state_dir,
+        based_on_state_build_id=current_state["state_build_id"],
+        based_on_state_digest=current_state["state_digest"],
+        mainline="engineering_branch",
+        skill_profiles=["reverse-agent-iteration@v2"],
+    )
+
+    result = lint_decision(state_dir)
+
+    assert result["ok"] is False
+    assert "skill profile 'reverse-agent-iteration@v2' references non-active skill 'reverse-agent-iteration' status='deprecated'" in result[
+        "errors"
     ]
 
 
