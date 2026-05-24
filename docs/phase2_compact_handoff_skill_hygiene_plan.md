@@ -496,6 +496,17 @@ python tools/audit_codex_skills.py
 python -m py_compile tools/audit_codex_skills.py
 ```
 
+当前实现约束（2026-05-24）：
+
+```text
+1. audit 工具只使用 Python 标准库。
+2. registry 只登记当前实际存在的 repo skill，不登记未来规划 skill。
+3. active skill frontmatter 已补齐 version/status/scope/owner/last_reviewed。
+4. audit 工具输出 JSON，并以非零 exit code 表示 hard error。
+5. audit 工具优先避免误杀禁止句式；复杂自然语言若无法可靠判断，应 warning 而不是 hard error。
+6. sync_codex_skills.ps1 仍留到 Phase 2F，不在 Phase 2D 中扩大参数面。
+```
+
 ### Phase 2E：decision_packet compact profile
 
 允许修改：

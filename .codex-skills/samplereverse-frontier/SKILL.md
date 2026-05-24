@@ -1,6 +1,23 @@
 ---
 name: samplereverse-frontier
 description: Use with reverse-agent-iteration for samplereverse.exe work as a sample profile guardrail. This active skill preserves stable sample constraints while requiring all dynamic candidates, run names, bottlenecks, baselines, and artifact paths to come from project_state.
+version: 2
+status: active
+scope: sample_profile
+owner: project_state
+last_reviewed: "2026-05-24"
+facts_policy:
+  dynamic_facts_allowed: false
+  source_of_truth:
+    - project_state/current_state.json
+    - project_state/artifact_index.json
+    - project_state/negative_results.json
+    - project_state/decision_packet.md
+forbidden_defaults:
+  - store_candidate_hex
+  - store_run_name
+  - store_artifact_path
+  - run_runtime_probe_without_decision
 metadata:
   short-description: Samplereverse project_state-backed profile
 ---

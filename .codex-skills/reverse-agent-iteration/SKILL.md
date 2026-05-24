@@ -1,6 +1,23 @@
 ---
 name: reverse-agent-iteration
 description: Use when working in the reverse-agent repository on project_state-driven engineering or reverse-solving iterations. This generic workflow layer defines source-of-truth order, decision packet authority, artifact freshness discipline, reporting, and validation without encoding sample-specific candidates, run names, or artifact paths.
+version: 2
+status: active
+scope: generic_workflow
+owner: project_state
+last_reviewed: "2026-05-24"
+facts_policy:
+  dynamic_facts_allowed: false
+  source_of_truth:
+    - project_state/task_packet.json
+    - project_state/current_state.json
+    - project_state/artifact_index.json
+    - project_state/negative_results.json
+forbidden_defaults:
+  - read_project_progress_log_by_default
+  - read_full_solve_reports
+  - inspect_newest_harness_run_by_default
+  - run_runtime_probe_without_decision
 metadata:
   short-description: Project_state-first reverse-agent workflow
 ---

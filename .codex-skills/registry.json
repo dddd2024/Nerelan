@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "skills": {
+    "reverse-agent-iteration": {
+      "path": ".codex-skills/reverse-agent-iteration/SKILL.md",
+      "status": "active",
+      "scope": "generic_workflow",
+      "version": 2
+    },
+    "samplereverse-frontier": {
+      "path": ".codex-skills/samplereverse-frontier/SKILL.md",
+      "status": "active",
+      "scope": "sample_profile",
+      "version": 2
+    }
+  }
+}
