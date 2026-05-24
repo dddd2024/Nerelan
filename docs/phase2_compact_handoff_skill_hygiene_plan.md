@@ -2,6 +2,41 @@
 
 本计划用于指导 reverse-agent 的第二阶段工程支线改造。Phase 2 不推进 `samplereverse` 解题，不修改逆向策略，不运行 runtime probe；目标是把长期重复工作流程沉淀到 `.codex-skills/`，让 `project_state` 继续作为动态事实来源，让 `decision_packet.md` 只承载本轮差异任务。
 
+## 0. Closeout Status (2026-05-24)
+
+Phase 2A-F 已完成并验收。本文保留原始设计意图，同时以下收口状态为当前事实来源：
+
+| phase | status | landed files / mechanism |
+| --- | --- | --- |
+| Phase 2A | complete | 本文新增 skill inventory / stale audit，明确 dynamic facts 必须留在 `project_state` |
+| Phase 2B | complete | `.codex-skills/reverse-agent-iteration/SKILL.md` 改为 project_state-first；`.codex-skills/samplereverse-frontier/SKILL.md` 去动态事实化 |
+| Phase 2C | complete | `.codex-skills/schema.md` 与 `.codex-skills/registry.json` 落地 |
+| Phase 2D | complete | `tools/audit_codex_skills.py` 与 `tests/test_codex_skills.py` 落地，audit 使用标准库并输出 JSON |
+| Phase 2E | complete | `decision_meta.skill_profiles` 接入 `lint-decision`，当前 active decision 使用 `reverse-agent-iteration@v2` |
+| Phase 2F | complete | `tools/sync_codex_skills.ps1` 支持 `-List`、`-Check`、`-DryRun`、`-IncludeDeprecated`，默认 active-only 且不删除 unknown local skill |
+
+当前最终结构刻意比早期目标更小：registry 只登记真实存在的两个 active skill：`reverse-agent-iteration` 和 `samplereverse-frontier`。早期规划中的 `project-state-handoff`、`reverse-solving-handoff`、`samplereverse-profile` 没有在 Phase 2 中新增；相关职责已由现有两个 active skill、`project_state`、`decision_packet`、lint/audit/sync 共同承载。
+
+Phase 2 的最终边界：
+
+```text
+skill 层：长期流程规范，不保存动态候选、run、artifact freshness。
+project_state 层：动态事实来源，包括 current_state、artifact_index、negative_results、report/result 状态。
+decision_packet 层：每轮差异任务、允许改动范围、测试和 stop conditions。
+lint/audit/sync 层：机器校验与受控发布，不引入远程 skill 下载或新 agent runtime。
+```
+
+已知限制：
+
+```text
+1. round_manifest.source_git_commit 通常仍记录执行前 commit。
+2. 工程支线 round_manifest.source_harness_run 仍可能继承样本 run，语义有噪声。
+3. archived skill 仍保守跳过，没有 IncludeArchived。
+4. mainline policy 仍以 warning / additive validation 为主，本阶段未收紧为 hard fail。
+```
+
+下一步建议：Phase 2 工程支线收口后，默认回到当前 `project_state` 指向的逆向解题主线，除非用户明确继续工程支线。
+
 ## 1. 背景与问题
 
 当前协作已经形成了较稳定的 `project_state` 闭环：
@@ -118,7 +153,7 @@ Additional audit notes:
 
 ## 4. 目标目录结构
 
-Phase 2 完成后建议形成：
+早期设计曾建议形成更细的 skill 目录：
 
 ```text
 .codex-skills/
@@ -143,6 +178,28 @@ tools/
 docs/
   phase2_compact_handoff_skill_hygiene_plan.md
 ```
+
+Closeout 实际落地采用更小的兼容结构：
+
+```text
+.codex-skills/
+  reverse-agent-iteration/
+    SKILL.md
+  samplereverse-frontier/
+    SKILL.md
+  registry.json
+  schema.md
+
+tools/
+  audit_codex_skills.py
+  sync_codex_skills.ps1
+
+docs/
+  phase2_compact_handoff_skill_hygiene_plan.md
+  phase2_skill_handoff_closeout_report.md
+```
+
+未新增的 `project-state-handoff`、`reverse-solving-handoff`、`samplereverse-profile` 保留为未来可选拆分方向，不是 Phase 2 验收要求。
 
 ## 5. Skill 职责划分
 
@@ -410,6 +467,8 @@ registry 用于：
 
 ## 10. 分阶段执行计划
 
+Closeout note: 以下阶段均已完成；小节保留为历史执行记录。
+
 ### Phase 2A：Inventory 与 stale audit
 
 允许修改：
@@ -446,6 +505,8 @@ project_state/*.md
 
 ### Phase 2B：Skill refactor 最小版
 
+Status: complete.
+
 允许修改：
 
 ```text
@@ -465,6 +526,8 @@ AGENT_GUIDE_FOR_AI.md
 
 ### Phase 2C：Skill schema / registry
 
+Status: complete.
+
 新增：
 
 ```text
@@ -482,6 +545,8 @@ AGENT_GUIDE_FOR_AI.md
 ```
 
 ### Phase 2D：Skill audit 工具
+
+Status: complete.
 
 新增：
 
@@ -509,6 +574,8 @@ python -m py_compile tools/audit_codex_skills.py
 
 ### Phase 2E：decision_packet compact profile
 
+Status: complete.
+
 允许修改：
 
 ```text
@@ -526,6 +593,8 @@ project_state/schema.md
 ```
 
 ### Phase 2F：sync hygiene
+
+Status: complete.
 
 允许修改：
 

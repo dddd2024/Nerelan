@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-05-24T10:39:19Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260524_phase2_skill_handoff_closeout\\codex_execution_report.md",
+      "sha256": "c11dcda31b16fdd992e93ebdf000182681bceb17760b2d01435d89e36bc85b70",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260524_phase2_skill_handoff_closeout\\decision_packet.md",
+      "sha256": "e013368bb18e728f977b1e7d8f937426318e4f99186256d3ffa1f1f2126439a3",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260524_phase2_skill_handoff_closeout\\pytest_result.txt",
+      "sha256": "529105e301c7e69e151c2a4392c694721777277e90c593236caefbc8162cad99",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260524_phase2_skill_handoff_closeout",
+  "schema_version": 1,
+  "source_git_commit": "088aa3990d64",
+  "source_harness_run": "sr_lhs_hook_observation_reliability_20260524_r4",
+  "state_build_id": "state_20260524_042629_10b992a9fad9",
+  "state_digest": "10b992a9fad9e13c9c445709a1f2fb6cee05ed8450b451e0b3d2c80226af04fd",
+  "workflow_status": "REPORT_AVAILABLE"
+}
