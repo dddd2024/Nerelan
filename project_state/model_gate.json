@@ -1,6 +1,6 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-24T11:55:10Z",
+  "generated_at": "2026-05-24T15:18:23Z",
   "missing_evidence": [],
   "next_local_action": "",
   "reason": "compare_lhs_runtime_backed_writer_missing",

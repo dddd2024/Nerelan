@@ -7769,10 +7769,15 @@ def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_write
     )
 
     assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
-    assert payload["lhs_writer_classification_blocker"] == "raw_writes_not_intersecting_arg0"
+    assert payload["lhs_writer_classification_blocker"] == "arg0_pointer_origin_untracked"
     assert payload["write_monitor_health"]["raw_write_count"] == 21
     assert payload["write_monitor_health"]["filtered_intersecting_write_count"] == 0
     assert payload["write_monitor_health"]["missing_candidate_count"] == 3
+    assert payload["raw_write_gap_summary"]["classification"] == "arg0_pointer_origin_untracked"
+    assert payload["raw_write_gap_summary"]["arg0_pointer_origin_status"] == "untracked"
+    assert payload["raw_write_gap_summary"]["write_monitor_target_source"] == "static_compare_callsite_arg0"
+    assert payload["raw_write_gap_summary"]["raw_write_window_summary"][0]["actual_arg0"] == "0x1100"
+    assert payload["raw_write_gap_summary"]["raw_write_window_summary"][0]["nearest_write_address"] == "0x9000"
     assert payload["last_writer_summary"]["raw_write_event_count"] == 3
     assert payload["last_writer_summary"]["non_intersecting_write_count"] == 3
     assert payload["last_writer_summary"]["missing_candidate_reasons"][0]["reason"] == (

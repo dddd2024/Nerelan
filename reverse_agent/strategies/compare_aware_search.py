@@ -13700,6 +13700,104 @@ def _compare_real_lhs_last_writer_summary(
     return summary, writer_rows, retained_ring[-192:], breakpoint_allowed
 
 
+def _parse_runtime_int(value: object) -> int | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return int(text, 16) if text.lower().startswith("0x") else int(text)
+    except (TypeError, ValueError):
+        return None
+
+
+def _compare_real_lhs_arg0_windows(actual_compare: dict[str, object]) -> dict[str, dict[str, object]]:
+    values = actual_compare.get("arg0_value_by_candidate", {})
+    previews = actual_compare.get("arg0_preview_by_candidate", {})
+    values = values if isinstance(values, dict) else {}
+    previews = previews if isinstance(previews, dict) else {}
+    windows: dict[str, dict[str, object]] = {}
+    for candidate_hex, raw_value in values.items():
+        candidate = str(candidate_hex)
+        start = _parse_runtime_int(raw_value)
+        preview = str(previews.get(candidate, "") or "")
+        size = max(len(preview) // 2, 16) if preview else 16
+        windows[candidate] = {
+            "actual_arg0": str(raw_value or ""),
+            "actual_arg0_start": start,
+            "actual_arg0_end": start + size if start is not None else None,
+            "arg0_size": size,
+            "actual_arg0_preview_prefix": preview[:24],
+        }
+    return windows
+
+
+def _compare_real_lhs_raw_write_gap_summary(
+    last_writer_summary: dict[str, object],
+    actual_compare: dict[str, object],
+) -> dict[str, object]:
+    reasons = last_writer_summary.get("missing_candidate_reasons", [])
+    reasons = [dict(item) for item in reasons if isinstance(item, dict)] if isinstance(reasons, list) else []
+    windows = _compare_real_lhs_arg0_windows(actual_compare)
+    rows: list[dict[str, object]] = []
+    bounded_reasons: set[str] = set()
+    for reason in reasons:
+        candidate_hex = str(reason.get("candidate_hex", "") or "")
+        nearest = reason.get("nearest_non_intersecting_writes", [])
+        nearest = [dict(item) for item in nearest if isinstance(item, dict)] if isinstance(nearest, list) else []
+        nearest_first = nearest[0] if nearest else {}
+        bounded_reason = str(nearest_first.get("bounded_failure_reason", "") or "")
+        if bounded_reason:
+            bounded_reasons.add(bounded_reason)
+        window = windows.get(candidate_hex, {})
+        rows.append(
+            {
+                "candidate_hex": candidate_hex,
+                "actual_arg0": window.get("actual_arg0", ""),
+                "actual_arg0_start": window.get("actual_arg0_start"),
+                "actual_arg0_end": window.get("actual_arg0_end"),
+                "arg0_size": window.get("arg0_size"),
+                "actual_arg0_preview_prefix": window.get("actual_arg0_preview_prefix", ""),
+                "nearest_write_address": nearest_first.get("address", ""),
+                "nearest_write_module_offset": nearest_first.get("module_offset", ""),
+                "nearest_write_instruction": nearest_first.get("instruction", ""),
+                "nearest_write_sequence": nearest_first.get("sequence"),
+                "nearest_write_thread_id": nearest_first.get("thread_id", ""),
+                "nearest_write_size": nearest_first.get("size", 0),
+                "distance_to_arg0": nearest_first.get("distance_to_arg0"),
+                "bounded_failure_reason": bounded_reason,
+                "raw_write_event_count": reason.get("raw_write_event_count", 0),
+            }
+        )
+    raw_count = int(last_writer_summary.get("raw_write_event_count", 0) or 0)
+    retained_count = int(last_writer_summary.get("retained_write_count", 0) or 0)
+    classification = ""
+    origin_status = ""
+    gap_reason = ""
+    if rows and raw_count > 0 and retained_count == 0:
+        if bounded_reasons and bounded_reasons <= {"write_before_arg0_window", "write_after_arg0_window"}:
+            classification = "arg0_pointer_origin_untracked"
+            origin_status = "untracked"
+            gap_reason = "raw_writes_observed_but_none_intersect_actual_arg0"
+        else:
+            classification = "writer_event_schema_gap"
+            origin_status = "unknown"
+            gap_reason = "nearest_write_fields_incomplete"
+    return {
+        "classification": classification,
+        "arg0_pointer_origin_status": origin_status,
+        "arg0_pointer_origin_gap_reason": gap_reason,
+        "write_monitor_target_source": "static_compare_callsite_arg0",
+        "arg0_window_by_candidate": windows,
+        "raw_write_window_summary": rows,
+        "recommended_next_hook_points": [
+            "bounded pointer-origin trace before module+0x258c actual arg0",
+            "module+0x2559..0x258b ESI source window before compare push",
+        ]
+        if classification == "arg0_pointer_origin_untracked"
+        else [],
+    }
+
+
 def _compare_real_lhs_last_writer_classification(
     *,
     runtime_backed_count: int,
@@ -13863,6 +13961,14 @@ def build_compare_real_lhs_provenance_audit_payload(
         if last_writer_mode
         else ""
     )
+    raw_write_gap_summary = (
+        _compare_real_lhs_raw_write_gap_summary(last_writer_summary, actual_compare)
+        if last_writer_mode
+        else {}
+    )
+    refined_raw_write_blocker = str(raw_write_gap_summary.get("classification", "") or "")
+    if lhs_writer_classification_blocker == "raw_writes_not_intersecting_arg0" and refined_raw_write_blocker:
+        lhs_writer_classification_blocker = refined_raw_write_blocker
     producer = identified[0] if identified else {}
     next_bounded_action = {
         "real_lhs_producer_identified": "use the identified real lhs producer as the next bounded material-hook start",
@@ -13944,6 +14050,7 @@ def build_compare_real_lhs_provenance_audit_payload(
         "write_ring_buffer": write_ring_buffer,
         "last_writer_candidates": last_writer_candidates,
         "last_writer_summary": last_writer_summary,
+        "raw_write_gap_summary": raw_write_gap_summary,
         "next_producer_window": {
             "start_rva": "0x2559",
             "end_rva": "0x258b",

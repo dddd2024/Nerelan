@@ -57,7 +57,7 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "raw_writes_not_intersecting_arg0",
+    "blocker": "arg0_pointer_origin_untracked",
     "confidence": "medium",
     "reason": "compare_lhs_runtime_backed_writer_missing",
     "stage": "compare_real_lhs_provenance_audit"
@@ -102,7 +102,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-24T11:55:10Z",
+  "generated_at": "2026-05-24T15:18:23Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -1296,7 +1296,7 @@
         ]
       }
     },
-    "lhs_writer_classification_blocker": "raw_writes_not_intersecting_arg0",
+    "lhs_writer_classification_blocker": "arg0_pointer_origin_untracked",
     "next_bounded_action": "improve bounded write ring-buffer coverage before 0x258c",
     "next_producer_window": {},
     "provenance": {
@@ -1402,6 +1402,60 @@
       ],
       "producer_call": "",
       "producer_instruction": ""
+    },
+    "raw_write_gap_summary": {
+      "arg0_pointer_origin_gap_reason": "raw_writes_observed_but_none_intersect_actual_arg0",
+      "arg0_pointer_origin_status": "untracked",
+      "classification": "arg0_pointer_origin_untracked",
+      "raw_write_window_summary": [
+        {
+          "actual_arg0": "0x35cd018",
+          "actual_arg0_preview_prefix": "46006c004464830d311c7010",
+          "bounded_failure_reason": "write_before_arg0_window",
+          "candidate_hex": "78d540b49c59077041414141414141",
+          "distance_to_arg0": 42136352,
+          "nearest_write_address": "0xd9dcf4",
+          "nearest_write_instruction": "mov dword ptr [ecx], eax",
+          "nearest_write_module_offset": "0x7851680e",
+          "nearest_write_sequence": 5,
+          "nearest_write_size": 4,
+          "nearest_write_thread_id": "10576",
+          "raw_write_event_count": 9
+        },
+        {
+          "actual_arg0": "0x378cfd8",
+          "actual_arg0_preview_prefix": "460061357f0b8c688502de32",
+          "bounded_failure_reason": "write_before_arg0_window",
+          "candidate_hex": "5a3e7f46ddd474d041414141414141",
+          "distance_to_arg0": 42266800,
+          "nearest_write_address": "0xf3df24",
+          "nearest_write_instruction": "mov dword ptr [ecx], eax",
+          "nearest_write_module_offset": "0x7736680e",
+          "nearest_write_sequence": 5,
+          "nearest_write_size": 4,
+          "nearest_write_thread_id": "32264",
+          "raw_write_event_count": 9
+        },
+        {
+          "actual_arg0": "0x421d018",
+          "actual_arg0_preview_prefix": "d6707f3ad7f8bb0e0fd64fcb",
+          "bounded_failure_reason": "write_before_arg0_window",
+          "candidate_hex": "78d540b49c59076f41414141414141",
+          "distance_to_arg0": 47051088,
+          "nearest_write_address": "0x153dec4",
+          "nearest_write_instruction": "mov dword ptr [ecx], eax",
+          "nearest_write_module_offset": "0x796c680e",
+          "nearest_write_sequence": 5,
+          "nearest_write_size": 4,
+          "nearest_write_thread_id": "11928",
+          "raw_write_event_count": 9
+        }
+      ],
+      "recommended_next_hook_points": [
+        "bounded pointer-origin trace before module+0x258c actual arg0",
+        "module+0x2559..0x258b ESI source window before compare push"
+      ],
+      "write_monitor_target_source": "static_compare_callsite_arg0"
     },
     "relation_table": [
       {
@@ -2178,13 +2232,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260524_115510",
+  "round_id": "round_20260524_151823",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "69a758c69dcc",
+  "source_git_commit": "8884942320a6",
   "source_harness_run": "sr_lhs_hook_observation_reliability_20260524_r4",
-  "state_build_id": "state_20260524_115510_fd9f1dbf2897",
-  "state_digest": "fd9f1dbf2897e27c3d377625bf5b519dfa624fba2952acc72e65953338091eee",
+  "state_build_id": "state_20260524_151823_940c73e97585",
+  "state_digest": "940c73e97585b6f5613da67ec913a1fe2a2d5d6d46a9fa067c7254e8978acca2",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

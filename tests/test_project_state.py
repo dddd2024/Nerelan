@@ -1575,7 +1575,14 @@ def test_project_state_derives_real_lhs_raw_write_blocker_from_current_artifact(
             "classification": "compare_lhs_runtime_backed_writer_missing",
             "candidate_count": 3,
             "runtime_backed_count": 3,
-            "actual_compare": {"entry_status": "confirmed", "lhs_side": "arg0"},
+            "actual_compare": {
+                "entry_status": "confirmed",
+                "lhs_side": "arg0",
+                "arg0_value_by_candidate": {"78d540b49c59077041414141414141": "0x35cd018"},
+                "arg0_preview_by_candidate": {
+                    "78d540b49c59077041414141414141": "46006c004464830d311c7010"
+                },
+            },
             "write_monitor_health": {
                 "observed_candidate_count": 3,
                 "enabled": True,
@@ -1587,6 +1594,25 @@ def test_project_state_derives_real_lhs_raw_write_blocker_from_current_artifact(
                 "actual_compare_arg0_runtime_backed": True,
                 "raw_write_event_count": 27,
                 "retained_write_count": 0,
+                "missing_candidate_reasons": [
+                    {
+                        "candidate_hex": "78d540b49c59077041414141414141",
+                        "reason": "raw_writes_observed_but_none_intersect_actual_arg0",
+                        "raw_write_event_count": 9,
+                        "nearest_non_intersecting_writes": [
+                            {
+                                "sequence": 5,
+                                "address": "0xd9dcf4",
+                                "size": 4,
+                                "thread_id": "10576",
+                                "module_offset": "0x7851680e",
+                                "instruction": "mov dword ptr [ecx], eax",
+                                "distance_to_arg0": 42136352,
+                                "bounded_failure_reason": "write_before_arg0_window",
+                            }
+                        ],
+                    }
+                ],
             },
             "last_writer_candidates": [],
             "breakpoint_probe_allowed": False,
@@ -1598,8 +1624,9 @@ def test_project_state_derives_real_lhs_raw_write_blocker_from_current_artifact(
     current_state = _read_json(state_dir / "current_state.json")
     latest = current_state["latest_compare_real_lhs_provenance_audit"]
     assert latest["classification"] == "compare_lhs_runtime_backed_writer_missing"
-    assert latest["lhs_writer_classification_blocker"] == "raw_writes_not_intersecting_arg0"
-    assert current_state["current_bottleneck"]["blocker"] == "raw_writes_not_intersecting_arg0"
+    assert latest["lhs_writer_classification_blocker"] == "arg0_pointer_origin_untracked"
+    assert latest["raw_write_gap_summary"]["write_monitor_target_source"] == "static_compare_callsite_arg0"
+    assert current_state["current_bottleneck"]["blocker"] == "arg0_pointer_origin_untracked"
 
 
 def test_project_state_indexes_compare_esi_source_window_audit(tmp_path: Path) -> None:

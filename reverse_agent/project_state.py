@@ -331,6 +331,11 @@ def _derive_real_lhs_writer_blocker(payload: dict[str, Any]) -> str:
     explicit = str(payload.get("lhs_writer_classification_blocker") or "").strip()
     if explicit:
         return explicit
+    raw_write_gap = payload.get("raw_write_gap_summary", {})
+    raw_write_gap = raw_write_gap if isinstance(raw_write_gap, dict) else {}
+    refined_gap = str(raw_write_gap.get("classification") or "").strip()
+    if refined_gap:
+        return refined_gap
     classification = str(payload.get("classification") or "").strip()
     if classification not in {"instrumentation_incomplete", "compare_lhs_runtime_backed_writer_missing"}:
         return ""
@@ -378,11 +383,99 @@ def _derive_real_lhs_writer_blocker(payload: dict[str, Any]) -> str:
         intersecting_count = 0
         retained_count = 0
     if intersecting_count <= 0 or retained_count <= 0:
+        missing_reasons = summary.get("missing_candidate_reasons", [])
+        if isinstance(missing_reasons, list) and missing_reasons:
+            nearest_reasons = {
+                str(nearest.get("bounded_failure_reason") or "").strip()
+                for reason in missing_reasons
+                if isinstance(reason, dict)
+                for nearest in (
+                    reason.get("nearest_non_intersecting_writes", [])
+                    if isinstance(reason.get("nearest_non_intersecting_writes"), list)
+                    else []
+                )
+                if isinstance(nearest, dict)
+            }
+            if nearest_reasons and nearest_reasons <= {"write_before_arg0_window", "write_after_arg0_window"}:
+                return "arg0_pointer_origin_untracked"
         return "raw_writes_not_intersecting_arg0"
     writer_candidates = payload.get("last_writer_candidates", [])
     if not isinstance(writer_candidates, list) or not writer_candidates:
         return "intersecting_writer_present_but_dropped_by_aggregation"
     return ""
+
+
+def _derive_raw_write_gap_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    explicit = payload.get("raw_write_gap_summary", {})
+    if isinstance(explicit, dict) and explicit:
+        return explicit
+    summary = payload.get("last_writer_summary", {})
+    summary = summary if isinstance(summary, dict) else {}
+    reasons = summary.get("missing_candidate_reasons", [])
+    reasons = [dict(item) for item in reasons if isinstance(item, dict)] if isinstance(reasons, list) else []
+    actual_compare = payload.get("actual_compare", {})
+    actual_compare = actual_compare if isinstance(actual_compare, dict) else {}
+    values = actual_compare.get("arg0_value_by_candidate", {})
+    previews = actual_compare.get("arg0_preview_by_candidate", {})
+    values = values if isinstance(values, dict) else {}
+    previews = previews if isinstance(previews, dict) else {}
+    rows: list[dict[str, Any]] = []
+    bounded_reasons: set[str] = set()
+    for reason in reasons:
+        candidate_hex = str(reason.get("candidate_hex") or "")
+        nearest = reason.get("nearest_non_intersecting_writes", [])
+        nearest = [dict(item) for item in nearest if isinstance(item, dict)] if isinstance(nearest, list) else []
+        nearest_first = nearest[0] if nearest else {}
+        bounded_reason = str(nearest_first.get("bounded_failure_reason") or "")
+        if bounded_reason:
+            bounded_reasons.add(bounded_reason)
+        preview = str(previews.get(candidate_hex) or "")
+        rows.append(
+            {
+                "candidate_hex": candidate_hex,
+                "actual_arg0": str(values.get(candidate_hex) or ""),
+                "actual_arg0_preview_prefix": preview[:24],
+                "nearest_write_address": nearest_first.get("address", ""),
+                "nearest_write_module_offset": nearest_first.get("module_offset", ""),
+                "nearest_write_instruction": nearest_first.get("instruction", ""),
+                "nearest_write_sequence": nearest_first.get("sequence"),
+                "nearest_write_thread_id": nearest_first.get("thread_id", ""),
+                "nearest_write_size": nearest_first.get("size", 0),
+                "distance_to_arg0": nearest_first.get("distance_to_arg0"),
+                "bounded_failure_reason": bounded_reason,
+                "raw_write_event_count": reason.get("raw_write_event_count", 0),
+            }
+        )
+    if not rows:
+        return {}
+    try:
+        raw_count = int(summary.get("raw_write_event_count", 0) or 0)
+        retained_count = int(summary.get("retained_write_count", 0) or 0)
+    except (TypeError, ValueError):
+        raw_count = 0
+        retained_count = 0
+    classification = ""
+    if raw_count > 0 and retained_count == 0:
+        classification = (
+            "arg0_pointer_origin_untracked"
+            if bounded_reasons and bounded_reasons <= {"write_before_arg0_window", "write_after_arg0_window"}
+            else "writer_event_schema_gap"
+        )
+    return {
+        "classification": classification,
+        "arg0_pointer_origin_status": "untracked" if classification == "arg0_pointer_origin_untracked" else "unknown",
+        "arg0_pointer_origin_gap_reason": "raw_writes_observed_but_none_intersect_actual_arg0"
+        if classification == "arg0_pointer_origin_untracked"
+        else "nearest_write_fields_incomplete",
+        "write_monitor_target_source": "static_compare_callsite_arg0",
+        "raw_write_window_summary": rows,
+        "recommended_next_hook_points": [
+            "bounded pointer-origin trace before module+0x258c actual arg0",
+            "module+0x2559..0x258b ESI source window before compare push",
+        ]
+        if classification == "arg0_pointer_origin_untracked"
+        else [],
+    }
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -1853,6 +1946,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
         compare_real_lhs_provenance_audit.get("classification") or ""
     ).strip()
     real_lhs_writer_blocker = _derive_real_lhs_writer_blocker(compare_real_lhs_provenance_audit)
+    real_lhs_raw_write_gap_summary = _derive_raw_write_gap_summary(compare_real_lhs_provenance_audit)
     if real_lhs_provenance_classification:
         stage = "compare_real_lhs_provenance_audit"
         reason = real_lhs_provenance_classification
@@ -2354,6 +2448,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             if isinstance(compare_real_lhs_provenance_audit.get("relation_table"), list)
             else [],
             "last_writer_summary": compare_real_lhs_provenance_audit.get("last_writer_summary", {}),
+            "raw_write_gap_summary": real_lhs_raw_write_gap_summary,
             "write_monitor_health": compare_real_lhs_provenance_audit.get("write_monitor_health", {}),
             "lhs_writer_classification_blocker": real_lhs_writer_blocker,
             "last_writer_candidates": compare_real_lhs_provenance_audit.get("last_writer_candidates", [])[:3]
