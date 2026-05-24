@@ -8566,6 +8566,11 @@ def test_compare_lhs_last_writer_hooks_installed_but_not_hit_is_distinct() -> No
                 "python_message_callback_registered_before_load": True,
                 "python_message_count_total": 5,
                 "module_base_resolution_status": "resolved",
+                "ui_trigger_status": "button_triggered",
+                "ui_trigger_after_hooks_installed": True,
+                "observation_count": 0,
+                "post_ui_observation_count": 0,
+                "hook_hit_counts_by_name": {},
                 "hook_not_hit_vs_hook_not_installed_classification": "hook_not_hit",
             }
         )
@@ -8575,12 +8580,17 @@ def test_compare_lhs_last_writer_hooks_installed_but_not_hit_is_distinct() -> No
         source_real_lhs_payload={"classification": "compare_lhs_runtime_backed_writer_missing"},
     )
 
-    assert payload["classification"] == "hook_not_hit"
-    assert payload["instrumentation_failure_stage"] == "hook_not_hit"
+    assert payload["classification"] == "hook_installed_but_not_hit_after_ui_trigger"
+    assert payload["instrumentation_failure_stage"] == "hook_installed_but_not_hit_after_ui_trigger"
+    assert payload["root_cause_hypothesis"] == "hook_installed_but_not_hit_after_ui_trigger"
+    assert payload["observation_count"] == 0
+    assert payload["post_ui_observation_count"] == 0
+    assert payload["hook_hit_counts_by_name"] == {}
     assert payload["hook_not_hit_vs_hook_not_installed_classification"] == "hook_not_hit"
     assert payload["compare_probe_fallback_is_provenance"] is False
     assert payload["sidecar_health"]["hook_install"]["hook_install_status"] == "installed"
     assert payload["sidecar_health"]["message_bridge"]["python_message_count_total"] == 10
+    assert payload["sidecar_health"]["observations"]["observation_count"] == 0
     assert payload["observations"][0]["sidecar_health"]["hook_install"]["hook_install_status"] == "installed"
 
 

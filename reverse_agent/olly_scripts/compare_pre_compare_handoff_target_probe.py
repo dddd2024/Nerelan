@@ -121,6 +121,13 @@ def _build_payload(
     script_load_to_hooks_installed_elapsed_ms: object = None,
     script_load_to_ui_trigger_elapsed_ms: object = None,
     ui_trigger_after_hooks_installed: bool = False,
+    ui_trigger_epoch_ms: object = None,
+    observation_count: int = 0,
+    post_ui_observation_count: int = 0,
+    hook_hit_counts_by_name: dict[str, int] | None = None,
+    first_observation_timestamp_ms: object = None,
+    last_observation_timestamp_ms: object = None,
+    last_observation_hook_name: str = "",
     waiting_for_observation_reason: str = "",
     hook_not_hit_vs_hook_not_installed_classification: str = "",
     spawn_attach_resume_status: str = "",
@@ -172,6 +179,13 @@ def _build_payload(
         "script_load_to_hooks_installed_elapsed_ms": script_load_to_hooks_installed_elapsed_ms,
         "script_load_to_ui_trigger_elapsed_ms": script_load_to_ui_trigger_elapsed_ms,
         "ui_trigger_after_hooks_installed": ui_trigger_after_hooks_installed,
+        "ui_trigger_epoch_ms": ui_trigger_epoch_ms,
+        "observation_count": observation_count,
+        "post_ui_observation_count": post_ui_observation_count,
+        "hook_hit_counts_by_name": dict(hook_hit_counts_by_name or {}),
+        "first_observation_timestamp_ms": first_observation_timestamp_ms,
+        "last_observation_timestamp_ms": last_observation_timestamp_ms,
+        "last_observation_hook_name": last_observation_hook_name,
         "waiting_for_observation_reason": waiting_for_observation_reason,
         "hook_not_hit_vs_hook_not_installed_classification": hook_not_hit_vs_hook_not_installed_classification,
         "spawn_attach_resume_status": spawn_attach_resume_status,
@@ -325,6 +339,7 @@ def main() -> int:
     script_load_monotonic: float | None = None
     hooks_installed_monotonic: float | None = None
     ui_trigger_monotonic: float | None = None
+    ui_trigger_epoch_ms: int | None = None
     runtime_stage = "script_started"
     script_load_status = "not_started"
     script_load_error = ""
@@ -990,8 +1005,10 @@ function observe(point, address, context, eventName, extra) {{
             ? compareEntrySlots(sp, mainModule.base)
             : [];
     const filteredWrites = isStaticCompareCallsite ? filteredWriteRing(compareSlots) : [];
+    const observationWriteRing = isStaticCompareCallsite ? filteredWrites : writeRing.slice(-64);
     send({{
         type: "compare_pre_compare_handoff_target_observation",
+        timestamp_ms: Date.now(),
         hook_name: pointName,
         event: eventName || "enter",
         address: address.toString(),
@@ -1022,8 +1039,8 @@ function observe(point, address, context, eventName, extra) {{
         current_module_offset: moduleOffsetText(ip, mainModule.base),
         return_value: String(extra.return_value || ""),
         exception: extra.exception || {{}},
-        write_monitor_health: isStaticCompareCallsite ? writeMonitorHealth(filteredWrites) : {{}},
-        write_ring_buffer: filteredWrites,
+        write_monitor_health: writeMonitorHealth(filteredWrites),
+        write_ring_buffer: observationWriteRing,
     }});
 }}
 
@@ -1240,6 +1257,7 @@ sendStage({{
         _trigger_decrypt(decrypt_btn)
         ui_trigger_status = "button_triggered"
         ui_trigger_monotonic = time.monotonic()
+        ui_trigger_epoch_ms = int(time.time() * 1000)
 
         runtime_stage = "waiting_for_observation"
         write_progress_payload(runtime_stage)
@@ -1340,6 +1358,24 @@ sendStage({{
     static_observations = [
         item for item in observations if str(item.get("hook_name", "")) == "static_compare_callsite"
     ]
+    hook_hit_counts_by_name: dict[str, int] = {}
+    observation_timestamps: list[int] = []
+    post_ui_observation_count = 0
+    for item in observations:
+        hook_name = str(item.get("hook_name", "")).strip() or "unknown"
+        hook_hit_counts_by_name[hook_name] = hook_hit_counts_by_name.get(hook_name, 0) + 1
+        try:
+            timestamp_ms = int(item.get("timestamp_ms", 0) or 0)
+        except (TypeError, ValueError):
+            timestamp_ms = 0
+        if timestamp_ms > 0:
+            observation_timestamps.append(timestamp_ms)
+            if ui_trigger_epoch_ms is not None and timestamp_ms >= ui_trigger_epoch_ms:
+                post_ui_observation_count += 1
+    observation_count = len(observations)
+    first_observation_timestamp_ms = min(observation_timestamps) if observation_timestamps else None
+    last_observation_timestamp_ms = max(observation_timestamps) if observation_timestamps else None
+    last_observation_hook_name = str(observations[-1].get("hook_name", "")) if observations else ""
     helper_observation_count = sum(
         1 for item in observations if str(item.get("hook_name", "")) == "handoff_helper_candidate"
     )
@@ -1479,17 +1515,19 @@ sendStage({{
             root_cause_evidence.append(f"hook_install_status={hook_install_status}")
             root_cause_evidence.append(f"script_load_status={script_load_status}")
             root_cause_evidence.append(f"requested_hook_count={requested_hook_count}")
-        elif hooks_installed_stage_seen and hook_install_status == "installed":
-            root_cause_hypothesis = "hook_not_hit"
-            root_cause_evidence.append("hooks_installed_stage_seen=true")
-            root_cause_evidence.append("hook_install_status=installed")
-            root_cause_evidence.append("no same-process hook observation captured before bounded timeout")
         elif spawn_attach_resume_status != "resumed":
             root_cause_hypothesis = "spawn_attach_resume_failed"
             root_cause_evidence.append(f"spawn_attach_resume_status={spawn_attach_resume_status}")
         elif ui_trigger_status != "button_triggered":
             root_cause_hypothesis = "ui_trigger_failed"
             root_cause_evidence.append(f"ui_trigger_status={ui_trigger_status}")
+        elif hooks_installed_stage_seen and hook_install_status == "installed" and observation_count <= 0:
+            root_cause_hypothesis = "hook_installed_but_not_hit_after_ui_trigger"
+            root_cause_evidence.append("hooks_installed_stage_seen=true")
+            root_cause_evidence.append("hook_install_status=installed")
+            root_cause_evidence.append("ui_trigger_status=button_triggered")
+            root_cause_evidence.append("observation_count=0")
+            root_cause_evidence.append("no same-process hook observation captured after UI trigger before bounded timeout")
         elif helper_observation_count <= 0:
             root_cause_hypothesis = "timeout_after_ui_trigger_before_helper"
             root_cause_evidence.append("helper_observation_count=0")
@@ -1516,11 +1554,18 @@ sendStage({{
                 f"hook_install_error_count={hook_install_error_count}",
                 f"spawn_attach_resume_status={spawn_attach_resume_status}",
                 f"ui_trigger_status={ui_trigger_status}",
+                f"observation_count={observation_count}",
+                f"post_ui_observation_count={post_ui_observation_count}",
                 f"static_compare_observation_count={static_compare_observation_count}",
             ]
         )
     waiting_for_observation_reason = root_cause_hypothesis if runtime_stage == "waiting_for_observation" else ""
-    if hook_install_status == "installed" and hooks_installed_stage_seen and not static_observations:
+    if (
+        root_cause_hypothesis == "hook_installed_but_not_hit_after_ui_trigger"
+        or hook_install_status == "installed"
+        and hooks_installed_stage_seen
+        and not static_observations
+    ):
         hook_not_hit_vs_hook_not_installed_classification = "hook_not_hit"
     elif hook_install_status in {"failed_or_not_confirmed", "partial_or_failed"} or hook_install_error_count:
         hook_not_hit_vs_hook_not_installed_classification = "hook_not_installed"
@@ -1573,6 +1618,13 @@ sendStage({{
             script_load_to_hooks_installed_elapsed_ms=script_load_to_hooks_installed_elapsed_ms,
             script_load_to_ui_trigger_elapsed_ms=script_load_to_ui_trigger_elapsed_ms,
             ui_trigger_after_hooks_installed=ui_trigger_after_hooks_installed,
+            ui_trigger_epoch_ms=ui_trigger_epoch_ms,
+            observation_count=observation_count,
+            post_ui_observation_count=post_ui_observation_count,
+            hook_hit_counts_by_name=hook_hit_counts_by_name,
+            first_observation_timestamp_ms=first_observation_timestamp_ms,
+            last_observation_timestamp_ms=last_observation_timestamp_ms,
+            last_observation_hook_name=last_observation_hook_name,
             waiting_for_observation_reason=waiting_for_observation_reason,
             hook_not_hit_vs_hook_not_installed_classification=hook_not_hit_vs_hook_not_installed_classification,
             spawn_attach_resume_status=spawn_attach_resume_status,

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-23T14:16:25Z",
+  "generated_at": "2026-05-24T04:26:29Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -17,11 +17,11 @@
     "compare_lhs_slot_writer_source_audit": null,
     "compare_lhs_upstream_writer_audit": null,
     "compare_pre_compare_handoff_target_probe": null,
-    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
     "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "compare_producer_trace_probe": null,
-    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
     "compare_stack_pivot_probe": null,
     "dynamic_compare_path_probe": null,
     "exact2_basin_value_pool_result": null,
@@ -37,11 +37,11 @@
     "post_handoff_exception_unwind_audit": null,
     "pre_rc4_material_probe": null,
     "profile_transform_hypothesis_matrix": null,
-    "run_manifest": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\run_manifest.json",
+    "run_manifest": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\run_manifest.json",
     "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
     "smt_validation": null,
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\summary.json",
+    "summary": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\summary.json",
     "transform_trace_consistency": null
   },
   "latest_artifacts_v2": {
@@ -192,20 +192,20 @@
     "compare_probe": {
       "freshness": "current",
       "kind": "compare_probe",
-      "modified_at": "2026-05-23T14:15:45Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-      "sha256": "200c420750034cfa607955098573636e0c7b01dd48305171e8cea8c04f7bc30c",
-      "size_bytes": 2431,
-      "source_run": "sr_lhs_last_writer_attribution_20260523_r4"
+      "modified_at": "2026-05-24T04:22:51Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+      "sha256": "d32c88682baaecbc3ca79e0057c72bc9180817355447b14e5d71b5b15ee53b97",
+      "size_bytes": 2433,
+      "source_run": "sr_lhs_hook_observation_reliability_20260524_r4"
     },
     "compare_probe_log": {
       "freshness": "current",
       "kind": "compare_probe_log",
-      "modified_at": "2026-05-23T14:15:45Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+      "modified_at": "2026-05-24T04:22:51Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
       "sha256": "1702cb8263906277204cdc2dd06562158b28fc6ea82c10cb0fe71c7f97d08a5f",
       "size_bytes": 22,
-      "source_run": "sr_lhs_last_writer_attribution_20260523_r4"
+      "source_run": "sr_lhs_hook_observation_reliability_20260524_r4"
     },
     "compare_producer_material_confirmation": {
       "freshness": "stale",
@@ -228,11 +228,11 @@
     "compare_real_lhs_provenance_audit": {
       "freshness": "current",
       "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-23T14:16:11Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-      "sha256": "bde600e4b9055a78f597b2586af15bdf16e9f3af66449816576087784e681338",
-      "size_bytes": 96809,
-      "source_run": "sr_lhs_last_writer_attribution_20260523_r4"
+      "modified_at": "2026-05-24T04:23:30Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+      "sha256": "3ab2c07f90b752f55bd99d80dac07582b4d48832c2defe4f15028745490e9927",
+      "size_bytes": 173220,
+      "source_run": "sr_lhs_hook_observation_reliability_20260524_r4"
     },
     "compare_stack_pivot_probe": {
       "freshness": "missing",
@@ -372,11 +372,11 @@
     "run_manifest": {
       "freshness": "current",
       "kind": "run_manifest",
-      "modified_at": "2026-05-23T14:16:11Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\run_manifest.json",
-      "sha256": "a960e36281da421cc33a41f62088576918eabb8252b92135464695146e7b279f",
-      "size_bytes": 2674,
-      "source_run": "sr_lhs_last_writer_attribution_20260523_r4"
+      "modified_at": "2026-05-24T04:23:31Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\run_manifest.json",
+      "sha256": "118c97b7880f418f20b48c82564d5aa74a5bad55aba477c7154886081c490d2d",
+      "size_bytes": 2689,
+      "source_run": "sr_lhs_hook_observation_reliability_20260524_r4"
     },
     "smt_result": {
       "freshness": "stale",
@@ -408,11 +408,11 @@
     "summary": {
       "freshness": "current",
       "kind": "summary",
-      "modified_at": "2026-05-23T14:16:11Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\summary.json",
-      "sha256": "9c2eb9d0e52ff001fc57c50dbaa3f68d19da2d9e113357fb57ccd67efb218124",
-      "size_bytes": 952,
-      "source_run": "sr_lhs_last_writer_attribution_20260523_r4"
+      "modified_at": "2026-05-24T04:23:31Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\summary.json",
+      "sha256": "c13df16c6f4c373194aaf252faba5fd367cd9bd7097b588dc9cf7ac97d8c575b",
+      "size_bytes": 977,
+      "source_run": "sr_lhs_hook_observation_reliability_20260524_r4"
     },
     "transform_trace_consistency": {
       "freshness": "missing",
@@ -425,74 +425,74 @@
     }
   },
   "latest_case_results": [
-    "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\case_results\\samplereverse-compare-producer-backtrace.json"
+    "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\case_results\\samplereverse-compare-producer-backtrace.json"
   ],
-  "latest_harness_run": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4",
-  "latest_summary": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\summary.json",
+  "latest_harness_run": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4",
+  "latest_summary": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\summary.json",
   "missing": [],
   "recent_artifacts": [
     {
       "kind": "summary",
-      "modified_at": "2026-05-23T14:16:11Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\summary.json",
-      "size_bytes": 952
+      "modified_at": "2026-05-24T04:23:31Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\summary.json",
+      "size_bytes": 977
     },
     {
       "kind": "run_manifest",
-      "modified_at": "2026-05-23T14:16:11Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\run_manifest.json",
-      "size_bytes": 2674
+      "modified_at": "2026-05-24T04:23:31Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\run_manifest.json",
+      "size_bytes": 2689
     },
     {
       "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-23T14:16:11Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 96809
+      "modified_at": "2026-05-24T04:23:30Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 173220
     },
     {
       "freshness": "current",
       "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-23T14:16:11Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 96809,
+      "modified_at": "2026-05-24T04:23:30Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 173220,
       "source": "case_result.artifact_manifest"
     },
     {
       "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-23T14:16:08Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_3\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 29010
+      "modified_at": "2026-05-24T04:23:24Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_3\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 51085
     },
     {
       "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-23T14:16:00Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_2\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 29970
+      "modified_at": "2026-05-24T04:23:17Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_2\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 48663
     },
     {
       "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-23T14:15:51Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_1\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 31369
+      "modified_at": "2026-05-24T04:23:02Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_1\\compare_real_lhs_provenance_audit.json",
+      "size_bytes": 49249
     },
     {
       "kind": "compare_probe",
-      "modified_at": "2026-05-23T14:15:45Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-      "size_bytes": 2431
+      "modified_at": "2026-05-24T04:22:51Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+      "size_bytes": 2433
     },
     {
       "kind": "compare_probe_log",
-      "modified_at": "2026-05-23T14:15:45Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+      "modified_at": "2026-05-24T04:22:51Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
       "size_bytes": 22
     },
     {
       "freshness": "current",
       "kind": "compare_probe",
-      "modified_at": "2026-05-23T14:15:45Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_last_writer_attribution_20260523_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-      "size_bytes": 2431,
+      "modified_at": "2026-05-24T04:22:51Z",
+      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+      "size_bytes": 2433,
       "source": "case_result.artifact_manifest"
     },
     {
