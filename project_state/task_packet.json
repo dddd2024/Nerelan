@@ -22,7 +22,7 @@
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\summary.json"
   },
-  "based_on_state_digest": "10b992a9fad9e13c9c445709a1f2fb6cee05ed8450b451e0b3d2c80226af04fd",
+  "based_on_state_digest": "fd9f1dbf2897e27c3d377625bf5b519dfa624fba2952acc72e65953338091eee",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -59,6 +59,7 @@
     }
   },
   "current_bottleneck": {
+    "blocker": "raw_writes_not_intersecting_arg0",
     "confidence": "medium",
     "reason": "compare_lhs_runtime_backed_writer_missing",
     "stage": "compare_real_lhs_provenance_audit"
@@ -85,7 +86,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-05-24T04:26:29Z",
+  "generated_at": "2026-05-24T11:55:10Z",
   "included": [
     "current state",
     "best candidates",
@@ -115,10 +116,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260524_042629",
+  "round_id": "round_20260524_115510",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260524_042629_10b992a9fad9",
+  "state_build_id": "state_20260524_115510_fd9f1dbf2897",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,

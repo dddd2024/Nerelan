@@ -57,6 +57,7 @@
     }
   },
   "current_bottleneck": {
+    "blocker": "raw_writes_not_intersecting_arg0",
     "confidence": "medium",
     "reason": "compare_lhs_runtime_backed_writer_missing",
     "stage": "compare_real_lhs_provenance_audit"
@@ -101,7 +102,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-24T04:26:29Z",
+  "generated_at": "2026-05-24T11:55:10Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -1295,6 +1296,7 @@
         ]
       }
     },
+    "lhs_writer_classification_blocker": "raw_writes_not_intersecting_arg0",
     "next_bounded_action": "improve bounded write ring-buffer coverage before 0x258c",
     "next_producer_window": {},
     "provenance": {
@@ -2176,13 +2178,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260524_042629",
+  "round_id": "round_20260524_115510",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "029ed2615c20",
+  "source_git_commit": "69a758c69dcc",
   "source_harness_run": "sr_lhs_hook_observation_reliability_20260524_r4",
-  "state_build_id": "state_20260524_042629_10b992a9fad9",
-  "state_digest": "10b992a9fad9e13c9c445709a1f2fb6cee05ed8450b451e0b3d2c80226af04fd",
+  "state_build_id": "state_20260524_115510_fd9f1dbf2897",
+  "state_digest": "fd9f1dbf2897e27c3d377625bf5b519dfa624fba2952acc72e65953338091eee",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

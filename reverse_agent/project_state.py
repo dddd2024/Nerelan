@@ -327,6 +327,64 @@ def _read_json(path: str | Path | None) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _derive_real_lhs_writer_blocker(payload: dict[str, Any]) -> str:
+    explicit = str(payload.get("lhs_writer_classification_blocker") or "").strip()
+    if explicit:
+        return explicit
+    classification = str(payload.get("classification") or "").strip()
+    if classification not in {"instrumentation_incomplete", "compare_lhs_runtime_backed_writer_missing"}:
+        return ""
+    summary = payload.get("last_writer_summary", {})
+    summary = summary if isinstance(summary, dict) else {}
+    health = payload.get("write_monitor_health", {})
+    if not isinstance(health, dict) or not health:
+        health = summary.get("write_monitor_health", {})
+    health = health if isinstance(health, dict) else {}
+    try:
+        runtime_backed_count = int(payload.get("runtime_backed_count", 0) or 0)
+    except (TypeError, ValueError):
+        runtime_backed_count = 0
+    actual_compare = payload.get("actual_compare", {})
+    actual_compare_ready = bool(summary.get("actual_compare_arg0_runtime_backed"))
+    if not actual_compare_ready and isinstance(actual_compare, dict):
+        actual_compare_ready = (
+            str(actual_compare.get("entry_status") or "") == "confirmed"
+            and str(actual_compare.get("lhs_side") or "") == "arg0"
+        )
+    if runtime_backed_count < 3 or not actual_compare_ready:
+        return "runtime_compare_arg0_not_ready"
+    try:
+        observed_count = int(health.get("observed_candidate_count", 3) or 0)
+    except (TypeError, ValueError):
+        observed_count = 0
+    if observed_count < 3:
+        return "write_monitor_observation_incomplete"
+    try:
+        followed_thread_count = int(health.get("followed_thread_count", 0) or 0)
+    except (TypeError, ValueError):
+        followed_thread_count = 0
+    if not bool(health.get("enabled")) or followed_thread_count <= 0:
+        return "write_monitor_not_following_thread"
+    try:
+        raw_write_count = int(health.get("raw_write_count", 0) or 0)
+    except (TypeError, ValueError):
+        raw_write_count = 0
+    if raw_write_count <= 0:
+        return "no_raw_write_events_observed"
+    try:
+        intersecting_count = int(health.get("filtered_intersecting_write_count", 0) or 0)
+        retained_count = int(summary.get("retained_write_count", 0) or 0)
+    except (TypeError, ValueError):
+        intersecting_count = 0
+        retained_count = 0
+    if intersecting_count <= 0 or retained_count <= 0:
+        return "raw_writes_not_intersecting_arg0"
+    writer_candidates = payload.get("last_writer_candidates", [])
+    if not isinstance(writer_candidates, list) or not writer_candidates:
+        return "intersecting_writer_present_but_dropped_by_aggregation"
+    return ""
+
+
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
@@ -1794,6 +1852,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     real_lhs_provenance_classification = str(
         compare_real_lhs_provenance_audit.get("classification") or ""
     ).strip()
+    real_lhs_writer_blocker = _derive_real_lhs_writer_blocker(compare_real_lhs_provenance_audit)
     if real_lhs_provenance_classification:
         stage = "compare_real_lhs_provenance_audit"
         reason = real_lhs_provenance_classification
@@ -1883,6 +1942,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
         "current_bottleneck": {
             "stage": stage,
             "reason": reason,
+            "blocker": real_lhs_writer_blocker if stage == "compare_real_lhs_provenance_audit" else "",
             "confidence": "medium" if stage or reason else "low",
         },
         "latest_transform_trace_consistency": {
@@ -2295,6 +2355,7 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             else [],
             "last_writer_summary": compare_real_lhs_provenance_audit.get("last_writer_summary", {}),
             "write_monitor_health": compare_real_lhs_provenance_audit.get("write_monitor_health", {}),
+            "lhs_writer_classification_blocker": real_lhs_writer_blocker,
             "last_writer_candidates": compare_real_lhs_provenance_audit.get("last_writer_candidates", [])[:3]
             if isinstance(compare_real_lhs_provenance_audit.get("last_writer_candidates"), list)
             else [],

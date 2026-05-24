@@ -7632,6 +7632,7 @@ def test_compare_real_lhs_last_writer_followed_thread_with_raw_write_zero_is_wri
     )
 
     assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
+    assert payload["lhs_writer_classification_blocker"] == "no_raw_write_events_observed"
     assert payload["write_monitor_health"]["raw_write_count"] == 0
     assert payload["write_monitor_health"]["followed_thread_count"] == 3
     assert payload["write_monitor_health"]["activation_statuses"] == ["following_current_thread"]
@@ -7670,6 +7671,7 @@ def test_compare_real_lhs_last_writer_unfollowed_thread_is_instrumentation_incom
     )
 
     assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["lhs_writer_classification_blocker"] == "write_monitor_not_following_thread"
     assert payload["write_monitor_health"]["followed_thread_count"] == 0
     assert payload["write_monitor_health"]["raw_write_count"] == 0
     assert payload["write_monitor_health"]["activation_statuses"] == ["waiting_for_hook_observation"]
@@ -7706,6 +7708,7 @@ def test_compare_real_lhs_last_writer_uses_top_level_write_monitor_health() -> N
     )
 
     assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
+    assert payload["lhs_writer_classification_blocker"] == "no_raw_write_events_observed"
     assert payload["write_monitor_health"]["observed_candidate_count"] == 3
     assert payload["write_monitor_health"]["enabled"] is True
     assert payload["write_monitor_health"]["ring_capacity"] == 4096
@@ -7735,6 +7738,7 @@ def test_compare_real_lhs_last_writer_missing_write_monitor_health_is_instrument
     )
 
     assert payload["classification"] == "instrumentation_incomplete"
+    assert payload["lhs_writer_classification_blocker"] == "write_monitor_observation_incomplete"
     assert payload["write_monitor_health"]["observed_candidate_count"] == 0
     assert payload["write_monitor_health"]["raw_write_count"] == 0
     assert payload["breakpoint_probe_allowed"] is False
@@ -7765,6 +7769,7 @@ def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_write
     )
 
     assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
+    assert payload["lhs_writer_classification_blocker"] == "raw_writes_not_intersecting_arg0"
     assert payload["write_monitor_health"]["raw_write_count"] == 21
     assert payload["write_monitor_health"]["filtered_intersecting_write_count"] == 0
     assert payload["write_monitor_health"]["missing_candidate_count"] == 3

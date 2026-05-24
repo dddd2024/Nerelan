@@ -13736,6 +13736,43 @@ def _compare_real_lhs_last_writer_classification(
     return "compare_lhs_runtime_backed_writer_missing"
 
 
+def _compare_real_lhs_writer_blocker(
+    *,
+    runtime_backed_count: int,
+    last_writer_summary: dict[str, object],
+    last_writer_candidates: Sequence[dict[str, object]],
+) -> str:
+    expected_count = len(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES)
+    actual_compare_ready = bool(last_writer_summary.get("actual_compare_arg0_runtime_backed"))
+    monitor_health = last_writer_summary.get("write_monitor_health", {})
+    monitor_health = monitor_health if isinstance(monitor_health, dict) else {}
+    monitor_observed_count = int(monitor_health.get("observed_candidate_count", 0) or 0)
+    monitor_enabled = bool(monitor_health.get("enabled"))
+    followed_thread_count = int(monitor_health.get("followed_thread_count", 0) or 0)
+    raw_write_count = int(monitor_health.get("raw_write_count", 0) or 0)
+    filtered_intersecting_write_count = int(monitor_health.get("filtered_intersecting_write_count", 0) or 0)
+    retained_write_count = int(last_writer_summary.get("retained_write_count", 0) or 0)
+    if runtime_backed_count < expected_count or not actual_compare_ready:
+        return "runtime_compare_arg0_not_ready"
+    if monitor_observed_count < expected_count:
+        return "write_monitor_observation_incomplete"
+    if not monitor_enabled or followed_thread_count <= 0:
+        return "write_monitor_not_following_thread"
+    if raw_write_count <= 0:
+        return "no_raw_write_events_observed"
+    if filtered_intersecting_write_count <= 0 or retained_write_count <= 0:
+        return "raw_writes_not_intersecting_arg0"
+    if not last_writer_candidates:
+        return "intersecting_writer_present_but_dropped_by_aggregation"
+    if int(last_writer_summary.get("runtime_backed_count", 0) or 0) < expected_count:
+        return "intersecting_writer_present_but_not_runtime_backed_for_all_candidates"
+    if not bool(last_writer_summary.get("connects_to_actual_arg0")):
+        return "intersecting_writer_present_but_not_connected_to_arg0"
+    if not bool(last_writer_summary.get("candidate_dependent")):
+        return "intersecting_writer_present_but_not_candidate_dependent"
+    return ""
+
+
 def build_compare_real_lhs_provenance_audit_payload(
     *,
     candidate_results: Sequence[dict[str, object]],
@@ -13817,6 +13854,15 @@ def build_compare_real_lhs_provenance_audit_payload(
     else:
         classification = "inconclusive"
 
+    lhs_writer_classification_blocker = (
+        _compare_real_lhs_writer_blocker(
+            runtime_backed_count=runtime_backed_count,
+            last_writer_summary=last_writer_summary,
+            last_writer_candidates=last_writer_candidates,
+        )
+        if last_writer_mode
+        else ""
+    )
     producer = identified[0] if identified else {}
     next_bounded_action = {
         "real_lhs_producer_identified": "use the identified real lhs producer as the next bounded material-hook start",
@@ -13854,6 +13900,7 @@ def build_compare_real_lhs_provenance_audit_payload(
         "candidate_count": len(candidate_results),
         "candidate_limit": len(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES),
         "fixed_candidates": list(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES),
+        "lhs_writer_classification_blocker": lhs_writer_classification_blocker,
         "source_callsite_reanchor_classification": source_callsite_reanchor_payload.get("classification", ""),
         "source_post_handoff_exception_unwind_classification": source_exception_classification,
         "hook_points": hook_points,
