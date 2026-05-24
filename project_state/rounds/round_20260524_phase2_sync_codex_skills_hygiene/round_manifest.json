@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-05-24T10:26:50Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260524_phase2_sync_codex_skills_hygiene\\codex_execution_report.md",
+      "sha256": "3d3d6896ffc51d00fd087e5f6b64a0db5514d7f763718f331e7ca76f41f4b49b",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260524_phase2_sync_codex_skills_hygiene\\decision_packet.md",
+      "sha256": "b9c6fc0b6daa0b2854439d11c58e55a7500d4cc9d07950ffdbf18df93b108cb9",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260524_phase2_sync_codex_skills_hygiene\\pytest_result.txt",
+      "sha256": "ad6b80e63093ee257ecb3592661d80f1de198010b457946ad19ade7004a19907",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260524_phase2_sync_codex_skills_hygiene",
+  "schema_version": 1,
+  "source_git_commit": "fd321e7e72cc",
+  "source_harness_run": "sr_lhs_hook_observation_reliability_20260524_r4",
+  "state_build_id": "state_20260524_042629_10b992a9fad9",
+  "state_digest": "10b992a9fad9e13c9c445709a1f2fb6cee05ed8450b451e0b3d2c80226af04fd",
+  "workflow_status": "REPORT_AVAILABLE"
+}

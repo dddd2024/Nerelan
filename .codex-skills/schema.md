@@ -165,3 +165,21 @@ exit non-zero on hard errors
 Heuristic content checks should prefer warnings over false hard failures when
 language is ambiguous. Obvious dynamic facts and direct artifact paths in
 active sample profile skills are hard errors.
+
+## Sync Requirements
+
+`tools/sync_codex_skills.ps1` must read `.codex-skills/registry.json` by
+default and sync only `status=active` skills unless `-IncludeDeprecated` is
+passed. Archived skills remain excluded from normal sync.
+
+Supported sync script modes:
+
+```text
+-List prints visible skill name, status, scope, version, and path.
+-Check runs the skill audit and propagates audit failure.
+-DryRun prints planned sync destinations.
+```
+
+`-List`, `-Check`, and `-DryRun` must not create or write
+`DestinationRoot`. Actual sync must preserve unknown local skills already
+present under `DestinationRoot`.
