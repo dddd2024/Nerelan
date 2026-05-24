@@ -1,124 +1,119 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260524_samplereverse_hook_observation_reliability",
-  "round_id": "round_20260523_samplereverse_lhs_last_writer_instrumentation",
-  "based_on_decision_id": "decision_20260523_samplereverse_lhs_last_writer_instrumentation",
+  "report_id": "report_20260524_phase2_skill_centered_handoff_refactor",
+  "round_id": "round_20260524_phase2_skill_centered_handoff_refactor",
+  "based_on_decision_id": "decision_20260524_phase2_skill_centered_handoff_refactor",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
-    "reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py",
-    "reverse_agent/sidecar_health.py",
-    "reverse_agent/strategies/compare_aware_search.py",
-    "tests/test_compare_aware_search_strategy.py",
-    "project_state/artifact_index.json",
-    "project_state/current_state.json",
-    "project_state/model_gate.json",
-    "project_state/negative_results.json",
-    "project_state/task_packet.json",
+    ".codex-skills/reverse-agent-iteration/SKILL.md",
+    ".codex-skills/samplereverse-frontier/SKILL.md",
+    "AGENT_GUIDE_FOR_AI.md",
+    "docs/phase2_compact_handoff_skill_hygiene_plan.md",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
   "tests_ran": [
-    "python -m py_compile reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/strategies/compare_aware_search.py",
-    "python -m pytest -q tests/test_compare_aware_search_strategy.py -k \"last_writer or real_lhs or hook_observation or provenance\"",
-    "python -m pytest -q tests/test_project_state.py -k \"last_writer or provenance or artifact\"",
-    "python -m reverse_agent.harness --dataset solve_reports\\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_lhs_hook_observation_reliability_20260524_r1 --reports-dir solve_reports --analysis-mode Auto --model-type \"Copilot CLI\" --runtime-validation-enabled --tool-enabled --case-id samplereverse-compare-producer-backtrace --no-resume",
-    "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_hook_observation_reliability_20260524_r1",
-    "python -m reverse_agent.harness --dataset solve_reports\\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_lhs_hook_observation_reliability_20260524_r2 --reports-dir solve_reports --analysis-mode Auto --model-type \"Copilot CLI\" --runtime-validation-enabled --tool-enabled --case-id samplereverse-compare-producer-backtrace --no-resume",
-    "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_hook_observation_reliability_20260524_r2",
-    "python -m reverse_agent.harness --dataset solve_reports\\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_lhs_hook_observation_reliability_20260524_r3 --reports-dir solve_reports --analysis-mode Auto --model-type \"Copilot CLI\" --runtime-validation-enabled --tool-enabled --case-id samplereverse-compare-producer-backtrace --no-resume",
-    "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_hook_observation_reliability_20260524_r3",
-    "python -m reverse_agent.harness --dataset solve_reports\\samplereverse_compare_producer_backtrace_20260508_dataset.json --run-name sr_lhs_hook_observation_reliability_20260524_r4 --reports-dir solve_reports --analysis-mode Auto --model-type \"Copilot CLI\" --runtime-validation-enabled --tool-enabled --case-id samplereverse-compare-producer-backtrace --no-resume",
-    "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_hook_observation_reliability_20260524_r4",
-    "python -m reverse_agent.project_state status --state-dir project_state",
+    "python -m py_compile reverse_agent/project_state.py",
+    "python -m pytest -q tests/test_project_state.py",
+    "powershell -ExecutionPolicy Bypass -File .\\tools\\sync_codex_skills.ps1 -SkillName reverse-agent-iteration -DestinationRoot $env:TEMP\\reverse-agent-skill-sync-reverse-agent-iteration",
+    "powershell -ExecutionPolicy Bypass -File .\\tools\\sync_codex_skills.ps1 -SkillName samplereverse-frontier -DestinationRoot $env:TEMP\\reverse-agent-skill-sync-samplereverse-frontier",
+    "git diff --check -- .codex-skills/reverse-agent-iteration/SKILL.md .codex-skills/samplereverse-frontier/SKILL.md AGENT_GUIDE_FOR_AI.md docs/phase2_compact_handoff_skill_hygiene_plan.md",
     "python -m reverse_agent.project_state lint-report --state-dir project_state"
   ],
   "generated_artifacts": [
-    "solve_reports/harness_runs/sr_lhs_hook_observation_reliability_20260524_r1/summary.json",
-    "solve_reports/harness_runs/sr_lhs_hook_observation_reliability_20260524_r1/reports/tool_artifacts/samplereverse_patched/post_handoff_exception_unwind_audit/post_handoff_exception_unwind_audit.json",
-    "solve_reports/harness_runs/sr_lhs_hook_observation_reliability_20260524_r2/summary.json",
-    "solve_reports/harness_runs/sr_lhs_hook_observation_reliability_20260524_r2/reports/tool_artifacts/samplereverse_patched/compare_real_lhs_provenance_audit/compare_real_lhs_provenance_audit.json",
-    "solve_reports/harness_runs/sr_lhs_hook_observation_reliability_20260524_r3/summary.json",
-    "solve_reports/harness_runs/sr_lhs_hook_observation_reliability_20260524_r3/reports/tool_artifacts/samplereverse_patched/post_handoff_exception_unwind_audit/post_handoff_exception_unwind_audit.json",
-    "solve_reports/harness_runs/sr_lhs_hook_observation_reliability_20260524_r4/summary.json",
-    "solve_reports/harness_runs/sr_lhs_hook_observation_reliability_20260524_r4/reports/tool_artifacts/samplereverse_patched/compare_real_lhs_provenance_audit/compare_real_lhs_provenance_audit.json",
-    "project_state/artifact_index.json",
-    "project_state/current_state.json",
-    "project_state/model_gate.json",
-    "project_state/negative_results.json",
-    "project_state/task_packet.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
   "next_suggested_task": [
-    "Use the r4 raw write samples to trace why followed current-thread writes remain before/outside the actual compare arg0 window.",
-    "Keep Base64/RC4 breakpoint probing blocked until an arg0-intersecting runtime-backed writer is identified."
+    "Phase 2C: add .codex-skills registry/schema for active/deprecated skill metadata.",
+    "Phase 2D: add an audit tool that detects dynamic facts and forbidden defaults in active skills."
   ]
 }
 ```
 
 # CODEX_EXECUTION_REPORT
 
-## 2026-05-24 samplereverse hook observation reliability
+## 2026-05-24 Phase 2 Skill-Centered Handoff Refactor
 
-Result: `SUCCESS` / `ACCEPTED`. The same-process sidecar no longer collapses the current failure into a generic no-observation timeout. It now records per-hook observation liveness, post-UI observation counts, hook-hit counts, and write-monitor health on every same-process hook observation, not only on the static compare hook.
+Result: `SUCCESS` / `ACCEPTED`.
+
+This round stayed on the engineering branch. It did not advance `samplereverse` solving, did not run a runtime harness, did not run Base64/RC4 probes, and did not modify `reverse_agent/strategies/compare_aware_search.py` or `reverse_agent/olly_scripts/*`.
+
+## Decision And State Audit
+
+| item | result |
+|---|---|
+| decision id | `decision_20260524_phase2_skill_centered_handoff_refactor` |
+| decision status | `APPROVED` |
+| mainline | `engineering_branch` |
+| task_packet task | `Improve compare lhs last-writer instrumentation` |
+| execution scope | `decision_packet_controls_current_round`; decision packet controls this round |
+| current state | `profile=samplereverse`, `active_strategy=CompareAwareSearchStrategy`, bottleneck `compare_lhs_runtime_backed_writer_missing` |
+| artifact freshness | `latest_artifacts_v2` contains current, stale, and missing entries; active skills must not bypass it |
+| negative directions honored | old `sample_solver`, Base64/RC4 probe repetition, full `solve_reports` commit, and old `[ebp-0x1170]` reuse remain blocked |
+
+## Skill Inventory
+
+| skill_name | status_before | issue | action |
+|---|---|---|---|
+| `reverse-agent-iteration` | active pre-v2 workflow | defaulted to `PROJECT_PROGRESS_LOG.txt` tail and newest `solve_reports/harness_runs/*`; lacked project_state-first source order | rewritten in place as a generic project_state-first workflow skill |
+| `samplereverse-frontier` | active stale sample handoff | embedded candidate hex, old baselines, stale run name, and artifact paths | rewritten in place as a stable sample profile guardrail |
+
+The detailed inventory was added to `docs/phase2_compact_handoff_skill_hygiene_plan.md`.
 
 ## Changes
 
-- `compare_pre_compare_handoff_target_probe.py`
-  - Added observation timestamps, `observation_count`, `post_ui_observation_count`, `hook_hit_counts_by_name`, first/last observation timing fields, and `last_observation_hook_name`.
-  - Added `hook_installed_but_not_hit_after_ui_trigger` for the precise case where hooks are installed, the UI button is triggered, and no same-process hook observation is captured.
-  - Flushes `write_monitor_health` with every hook observation so current-thread Stalker activation is visible as soon as an upstream hook fires.
-- `compare_aware_search.py` and `sidecar_health.py`
-  - Preserve the new lifecycle/observation fields through candidate rows, sidecar health, aggregate payloads, and candidate execution health.
-  - Normalize old `hook_not_hit` rows with `button_triggered + observation_count=0` into `hook_installed_but_not_hit_after_ui_trigger`.
-  - Keep `compare_probe_fallback_is_provenance=false`; fallback compare args remain diagnostic-only.
-- Tests
-  - Updated last-writer hook-observation regression coverage for the new precise classification and observation fields.
+- `.codex-skills/reverse-agent-iteration/SKILL.md`
+  - Added the default source order: `task_packet`, `current_state`, `artifact_index`, `negative_results`, prior report, decision packet, and pytest result.
+  - Made `decision_packet.md` the current execution authority and clarified that `task_packet.task` / `derived_task` are not automatic execution instructions.
+  - Added engineering-vs-reverse-solving classification.
+  - Replaced default `PROJECT_PROGRESS_LOG.txt` and newest harness-run reads with bounded exception rules.
+  - Required reports to be written to `project_state/codex_execution_report.md` with `codex_report_summary`.
+- `.codex-skills/samplereverse-frontier/SKILL.md`
+  - Removed old exact1/exact2 baselines, candidate hex strings, stale run name, and hard-coded artifact paths.
+  - Converted the file into a project_state-backed sample profile guardrail.
+  - Preserved stable constraints around CompareAwareSearchStrategy, artifact freshness, `negative_results`, Base64/RC4 probes, old sample_solver, beam/budget expansion, `compare_semantics_agree=false`, and old `[ebp-0x1170]` provenance.
+- `AGENT_GUIDE_FOR_AI.md`
+  - Tightened the Codex Skill Workflow section to say repo skills are durable workflow/guardrail sources, not dynamic fact storage.
+- `docs/phase2_compact_handoff_skill_hygiene_plan.md`
+  - Added the bounded current skill inventory and stale audit.
 
-## Runtime Evidence
+## Acceptance Checks
 
-Final accepted run:
-
-`solve_reports/harness_runs/sr_lhs_hook_observation_reliability_20260524_r4/reports/tool_artifacts/samplereverse_patched/compare_real_lhs_provenance_audit/compare_real_lhs_provenance_audit.json`
-
-Key fields:
-
-| field | value |
+| check | result |
 |---|---|
-| classification | `compare_lhs_runtime_backed_writer_missing` |
-| runtime_backed_count | `3` |
-| write_monitor_health.observed_candidate_count | `3` |
-| write_monitor_health.followed_thread_count | `6` |
-| write_monitor_health.raw_write_count | `27` |
-| write_monitor_health.filtered_intersecting_write_count | `0` |
-| write_monitor_health.selected_thread_ids | `10576`, `11928`, `32264` |
-| write_monitor_health.follow_attempt_stages | `upstream_candidate_context` |
-| last_writer_summary.raw_write_event_count | `27` |
-| last_writer_summary.retained_write_count | `0` |
-| last_writer_summary.connects_to_actual_arg0 | `false` |
-| breakpoint_probe_allowed | `false` |
-
-This moves the bottleneck back out of `instrumentation_incomplete`: same-process hooks now fire, Stalker follows the current runtime threads, and raw writes are captured. The remaining problem is that none of those raw writes intersect the actual compare arg0 buffer before `0x258c`.
+| active skill defaults to `PROJECT_PROGRESS_LOG.txt` | no; only bounded exception reads remain |
+| active skill defaults to newest/full `solve_reports` scan | no; reads must go through `artifact_index` or a recorded exception |
+| active sample skill hard-codes candidate/run/artifact | no candidate hex, old run name, or old artifact path remains in active sample skill |
+| `sync_codex_skills.ps1` changed | no; left for Phase 2F because current script already supports `-SkillName` and does not delete unknown local skills |
+| strategy / olly scripts changed | no |
+| runtime harness or probes run | no |
 
 ## Verification
 
 | command | result |
 |---|---|
-| `python -m py_compile reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/strategies/compare_aware_search.py` | passed |
-| `python -m pytest -q tests/test_compare_aware_search_strategy.py -k "last_writer or real_lhs or hook_observation or provenance"` | passed, `40 passed, 154 deselected` |
-| `python -m pytest -q tests/test_project_state.py -k "last_writer or provenance or artifact"` | passed, `10 passed, 116 deselected` |
-| `python -m reverse_agent.harness ... --run-name sr_lhs_hook_observation_reliability_20260524_r1 ...` | completed, generated `post_handoff_exception_unwind_audit`, classification `seh_unwind_to_compare_path` |
-| `python -m reverse_agent.harness ... --run-name sr_lhs_hook_observation_reliability_20260524_r2 ...` | completed, generated pre-flush `compare_real_lhs_provenance_audit`, classification `instrumentation_incomplete`; exposed upstream observations without aggregate thread-follow health |
-| `python -m reverse_agent.harness ... --run-name sr_lhs_hook_observation_reliability_20260524_r3 ...` | completed, refreshed precursor `post_handoff_exception_unwind_audit`, classification `seh_unwind_to_compare_path` |
-| `python -m reverse_agent.harness ... --run-name sr_lhs_hook_observation_reliability_20260524_r4 ...` | completed, generated accepted `compare_real_lhs_provenance_audit`, classification `compare_lhs_runtime_backed_writer_missing` |
-| `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_lhs_hook_observation_reliability_20260524_r4` | passed |
-| `python -m reverse_agent.project_state status --state-dir project_state` | passed; latest run is `sr_lhs_hook_observation_reliability_20260524_r4`, `missing=[]`, reason `compare_lhs_runtime_backed_writer_missing` |
+| `python -m py_compile reverse_agent/project_state.py` | passed |
+| `python -m pytest -q tests/test_project_state.py` | passed, `126 passed in 19.51s` |
+| `powershell -ExecutionPolicy Bypass -File .\tools\sync_codex_skills.ps1 -SkillName reverse-agent-iteration -DestinationRoot $env:TEMP\reverse-agent-skill-sync-reverse-agent-iteration` | passed; synced `reverse-agent-iteration/SKILL.md` |
+| `powershell -ExecutionPolicy Bypass -File .\tools\sync_codex_skills.ps1 -SkillName samplereverse-frontier -DestinationRoot $env:TEMP\reverse-agent-skill-sync-samplereverse-frontier` | passed; synced `samplereverse-frontier/SKILL.md` |
+| `git diff --check -- .codex-skills/reverse-agent-iteration/SKILL.md .codex-skills/samplereverse-frontier/SKILL.md AGENT_GUIDE_FOR_AI.md docs/phase2_compact_handoff_skill_hygiene_plan.md` | passed; only line-ending warnings were reported |
+| `python -m reverse_agent.project_state lint-report --state-dir project_state` | passed; `lint-report: OK`, with expected warning that the report round is not archived yet |
 
-## Guardrails
+## Git Diff Stat
 
-- No Base64/RC4 breakpoint probe was run.
-- No old `sample_solver` path was used.
-- No search, beam, budget, topN, timeout, frontier, ranking, or candidate-generation expansion was made.
-- `PROJECT_PROGRESS_LOG.txt` was not modified.
+```text
+ .codex-skills/reverse-agent-iteration/SKILL.md    |  98 +++++++------
+ .codex-skills/samplereverse-frontier/SKILL.md     |  84 ++++-------
+ AGENT_GUIDE_FOR_AI.md                             |   4 +-
+ docs/phase2_compact_handoff_skill_hygiene_plan.md |  21 +++
+ project_state/codex_execution_report.md           | 169 +++++++++++-----------
+ project_state/pytest_result.txt                   |  82 +++--------
+ 6 files changed, 209 insertions(+), 249 deletions(-)
+```
+
+## Next Suggested Task
+
+Proceed to Phase 2C/2D in a separate engineering round: add `.codex-skills` registry/schema and a small audit tool that can mechanically detect forbidden defaults and stale dynamic facts in active skills.

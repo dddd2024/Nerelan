@@ -51,6 +51,27 @@ tools/sync_codex_skills.ps1
 AGENT_GUIDE_FOR_AI.md 中的 Codex Skill Workflow 说明
 ```
 
+### 3.0 Current Skill Inventory / Stale Audit
+
+本审计基于 `decision_20260524_phase2_skill_centered_handoff_refactor`，时间点为 2026-05-24。本轮只审计 repo-tracked `.codex-skills`，不读取完整 `solve_reports/`，不读取完整 `PROJECT_PROGRESS_LOG.txt`，不运行 runtime harness。
+
+| skill_name | path | status_before | scope_before | contains_dynamic_facts | contains_project_progress_log_default | contains_full_solve_reports_default | contains_stale_run_or_candidate | recommended_action |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `reverse-agent-iteration` | `.codex-skills/reverse-agent-iteration/SKILL.md` | active source, pre-v2 workflow | generic reverse-agent iteration | no sample candidate facts, but artifact workflow assumed dynamic latest run discovery | yes, `Start Every Iteration` required reading `PROJECT_PROGRESS_LOG.txt` tail | yes, required inspecting newest `solve_reports/harness_runs/*` | no candidate hex, but latest harness discovery could bypass `artifact_index` freshness | rewrite in place as project_state-first generic workflow skill |
+| `samplereverse-frontier` | `.codex-skills/samplereverse-frontier/SKILL.md` | active source, stale sample handoff | sample-specific frontier handoff | yes, included baselines, metrics, run name, and preferred artifact paths | no | yes, preferred newest matching harness/tool artifact path outside `artifact_index` | yes, included exact1/exact2 candidate hex and `samplereverse_exact1_borderline_escape_20260423` | rewrite in place as stable sample profile guardrail |
+
+Additional audit notes:
+
+```text
+1. decision_packet.md is APPROVED and mainline=engineering_branch.
+2. task_packet.task / derived_task are sample-derived, but execution_scope=decision_packet_controls_current_round makes the decision packet authoritative.
+3. current_state keeps dynamic sample facts under project_state: profile=samplereverse, active_strategy=CompareAwareSearchStrategy, current_bottleneck.reason=compare_lhs_runtime_backed_writer_missing.
+4. artifact_index.latest_artifacts_v2 has current/stale/missing freshness, including current run sr_lhs_hook_observation_reliability_20260524_r4 and multiple stale legacy artifacts.
+5. negative_results blocks old sample_solver, Base64/RC4 probe repetition before real LHS producer identification, full solve_reports commit, and reuse of old [ebp-0x1170] without runtime-backed provenance.
+6. tools/sync_codex_skills.ps1 only copies repo skills to a destination root, supports -SkillName, and does not delete unknown local skills; Phase 2F should handle registry/list/check/dry-run behavior later.
+7. AGENT_GUIDE_FOR_AI.md already states project_state-first startup and bounded solve_reports reads, but Codex Skill Workflow needed a tighter statement that skills are stable workflow sources, not dynamic fact storage.
+```
+
 ### 3.1 reverse-agent-iteration
 
 定位：通用 reverse-agent 迭代工作流。

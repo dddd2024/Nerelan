@@ -1,74 +1,46 @@
 ---
 name: samplereverse-frontier
-description: Use together with reverse-agent-iteration when the user is solving or optimizing samplereverse.exe, samplereverse, compare-aware search, exact1/exact2 frontier work, L15(prefix8), or samplereverse frontier/refine/SMT artifacts. This is the sample-specific layer that records the current samplereverse facts, baselines, constraints, and next default direction without replacing the generic reverse-agent iteration workflow.
+description: Use with reverse-agent-iteration for samplereverse.exe work as a sample profile guardrail. This active skill preserves stable sample constraints while requiring all dynamic candidates, run names, bottlenecks, baselines, and artifact paths to come from project_state.
 metadata:
-  short-description: Samplereverse frontier handoff facts
+  short-description: Samplereverse project_state-backed profile
 ---
 
-# Samplereverse Frontier
+# Samplereverse Profile Guardrails
 
-Use this skill only after the generic reverse-agent iteration workflow has established the latest artifacts. This skill supplies the sample-specific facts and guardrails for `samplereverse.exe`.
+Use this skill only after the generic `reverse-agent-iteration` workflow has loaded the current project_state packet and classified the round. This skill is a stable sample profile, not a dynamic handoff memo.
 
-## Fixed Mainline
+## Source Of Truth
 
-- Keep the main search line locked to `L15(prefix8)`.
-- Fixed suffix remains `AAAAAAA`.
-- Runtime compare truth should use 64-byte CompareProbe capture when available.
-- Do not reopen older length windows, blind brute force, or the old `sample_solver` path unless fresh compare/runtime evidence explicitly invalidates the `L15(prefix8)` line.
+Read current sample facts from:
 
-## Current Baselines
+1. `project_state/current_state.json`
+2. `project_state/artifact_index.json`
+3. `project_state/negative_results.json`
+4. `project_state/decision_packet.md`
 
-- Best exact2 runtime-consistent basin:
-  - anchor: `78d540b49c590770`
-  - candidate form: `78d540b49c59077041414141414141`
-  - runtime: `runtime_ci_exact_wchars=2`, `runtime_ci_distance5=246`
-- Best exact1 runtime-consistent frontier:
-  - anchor: `5a3e7f46ddd474d0`
-  - candidate form: `5a3e7f46ddd474d041414141414141`
-  - runtime: `runtime_ci_exact_wchars=1`, `runtime_ci_distance5=258`
-- Recent exact1 frontier status:
-  - `local_escape` generation works.
-  - borderline handoff works.
-  - latest stall is `frontier_refine`, not `pair_pool`.
-  - current borderline candidates are too low quality: they enter handoff but have distance around `558+`, so runtime does not improve.
+Do not treat candidate hex strings, run names, historical baselines, or artifact paths from this skill as current evidence. Current bottleneck, candidate quality, runtime metrics, and artifact freshness must come from `project_state`.
 
-## Latest Artifact To Prefer
+## Stable Constraints
 
-Prefer the newest matching run under `solve_reports/harness_runs/`. As of the current handoff, the most relevant run is:
+- `samplereverse` work uses the profile and CompareAwareSearchStrategy path unless a decision packet gives a fresh evidence-backed override.
+- Check `artifact_index.latest_artifacts_v2` before reading any runtime or compare-aware artifact.
+- Treat `freshness=stale` as historical evidence only; do not promote stale artifacts to current facts.
+- Respect `negative_results.json` before repeating a direction.
+- Do not return to the old `sample_solver` blind-search path by default.
+- Do not widen beam, topN, budget, timeout, or frontier iteration by default.
+- Do not use `compare_semantics_agree=false` candidates as the primary frontier.
 
-- `samplereverse_exact1_borderline_escape_20260423`
+## Runtime Probe Guardrails
 
-Important files inside that run:
+- Do not run the Base64/RC4 breakpoint probe by default.
+- Do not treat Base64/RC4 material producer hypotheses as confirmed without new instruction-level evidence.
+- Do not reuse old `[ebp-0x1170]` as a real LHS source unless there is new runtime-backed provenance.
+- Prefer bounded compare/runtime evidence captured through current artifact paths listed in `artifact_index`.
 
-- `reports/tool_artifacts/samplereverse/samplereverse_compare_aware_frontier_summary.json`
-- `reports/tool_artifacts/samplereverse/samplereverse_compare_aware_strata_summary.json`
-- `reports/tool_artifacts/samplereverse/frontier_guided_1_5a3e7f46ddd474d0/samplereverse_compare_aware_guided_pool_result.json`
+## Engineering Rounds
 
-## Default Next Direction
+When the decision packet classifies the round as an engineering branch, do not advance sample solving, candidate search, runtime probing, or strategy tuning. Sample facts may explain why a skill or handoff rule is stale, but the implementation should stay in the authorized engineering files.
 
-Do not keep widening the exact1 gate. The next default direction is exact1 borderline quality:
+## Reverse-Solving Rounds
 
-- Split borderline local escapes into `near_local_escape` and `wide_local_escape`.
-- Let only near-local candidates enter the main pair frontier/refine handoff.
-- Keep wide-local candidates as diagnostics only.
-- Add a single-byte guard before pair escape combinations so pair generation does not create distance-exploding candidates.
-- Prioritize lower `ci_distance5/raw_distance10`, small mutation radius, and preserved local structure over simply increasing borderline count.
-
-## Acceptance Criteria
-
-Minimum useful progress for the next real run:
-
-- `exact1_near_local_escape_count > 0`, or
-- best exact1 borderline offline distance improves below the current weak borderline region, or
-- `best exact1 runtime_ci_distance5 < 258`, or
-- any runtime candidate reaches `runtime_ci_exact_wchars >= 2`.
-
-If none of these happen, the next diagnosis should answer whether the failure is from single-byte guard strictness, pair neighborhood quality, refine handoff, or SMT value selection.
-
-## Regression Expectations
-
-- Run focused compare-aware strategy tests after code edits.
-- Run full `python -m pytest -q` when feasible.
-- For real regression, use the known target path when present:
-  - `E:\xwechat_files\wxid_9ky6h8wz58b912_a1e5\msg\file\2026-04\samplereverse.exe`
-- If the harness fails later in model fallback with the known GBK encoding issue, inspect compare-aware artifacts before discarding the run.
+When a future decision packet authorizes reverse-solving work, use current project_state to identify the active mainline, current bottleneck, candidate set, run name, and acceptance criteria. If project_state and a historical note disagree, prefer project_state and report the conflict.
