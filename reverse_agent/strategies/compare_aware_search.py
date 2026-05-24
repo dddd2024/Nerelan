@@ -13798,6 +13798,178 @@ def _compare_real_lhs_raw_write_gap_summary(
     }
 
 
+def _frame_slot_matching_pointer(
+    observation: dict[str, object],
+    pointer_value: object,
+) -> dict[str, object]:
+    target = str(pointer_value or "").strip().lower()
+    if not target:
+        return {}
+    frame_slots = observation.get("frame_slots", [])
+    frame_slots = frame_slots if isinstance(frame_slots, list) else []
+    for slot in frame_slots:
+        if not isinstance(slot, dict):
+            continue
+        if str(slot.get("value", "")).strip().lower() == target:
+            return dict(slot)
+    return {}
+
+
+def _first_real_lhs_row(
+    rows: Sequence[dict[str, object]],
+    hook_names: Sequence[str],
+) -> dict[str, object]:
+    names = {str(name) for name in hook_names}
+    for row in rows:
+        if str(row.get("hook_name", "")) in names:
+            return dict(row)
+    return {}
+
+
+def _compare_real_lhs_arg0_pointer_origin_trace(
+    candidate_results: Sequence[dict[str, object]],
+    actual_compare: dict[str, object],
+    last_writer_summary: dict[str, object],
+    last_writer_candidates: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    actual_values = actual_compare.get("arg0_value_by_candidate", {})
+    actual_values = actual_values if isinstance(actual_values, dict) else {}
+    actual_previews = actual_compare.get("arg0_preview_by_candidate", {})
+    actual_previews = actual_previews if isinstance(actual_previews, dict) else {}
+    rows: list[dict[str, object]] = []
+
+    for result in candidate_results:
+        if not isinstance(result, dict):
+            continue
+        candidate_hex = str(result.get("candidate_hex", "") or "")
+        observations = [
+            dict(item)
+            for item in result.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        actual_arg0 = _actual_compare_arg(result, "arg0")
+        actual_arg0_value = str(
+            actual_arg0.get("value")
+            or actual_values.get(candidate_hex)
+            or ""
+        )
+        actual_arg0_preview = str(
+            actual_arg0.get("preview_hex")
+            or actual_previews.get(candidate_hex)
+            or ""
+        )
+        static_compare = _first_real_lhs_row(observations, ("static_compare_callsite",))
+        pre_compare = _first_real_lhs_row(
+            observations,
+            ("pre_compare_lhs_push", "pre_compare_push_esi"),
+        )
+        reload_source = _first_real_lhs_row(
+            observations,
+            ("initial_lhs_reload", "final_lhs_reload", "post_handoff_lhs_reload"),
+        )
+        carrier = pre_compare or static_compare
+        carrier_value = str(carrier.get("esi_ptr", "") or "")
+        carrier_equals_arg0 = _pointer_text_equal(carrier_value, actual_arg0_value)
+        source_slot = _frame_slot_matching_pointer(reload_source or carrier, actual_arg0_value)
+        reload_source_value = str(
+            reload_source.get("esi_ptr")
+            or source_slot.get("value")
+            or ""
+        )
+        reload_source_equals_arg0 = _pointer_text_equal(reload_source_value, actual_arg0_value)
+        if carrier_equals_arg0:
+            pointer_status = (
+                "carrier_identified"
+                if last_writer_candidates
+                and bool(last_writer_summary.get("connects_to_actual_arg0"))
+                else "carrier_identified_writer_missing"
+            )
+            gap_reason = (
+                ""
+                if pointer_status == "carrier_identified"
+                else "final_data_writer_not_observed_for_actual_arg0"
+            )
+            carrier_relation = "pointer_carrier"
+        elif actual_arg0_value and carrier_value:
+            pointer_status = "source_slot_rejected"
+            gap_reason = "observed_esi_does_not_equal_actual_arg0"
+            carrier_relation = "rejected_pointer_carrier"
+        elif actual_arg0_value:
+            pointer_status = "schema_gap"
+            gap_reason = "pre_compare_esi_or_callsite_esi_missing"
+            carrier_relation = ""
+        else:
+            pointer_status = "not_observed"
+            gap_reason = "actual_arg0_missing"
+            carrier_relation = ""
+        rows.append(
+            {
+                "candidate_hex": candidate_hex,
+                "actual_arg0_at_compare": actual_arg0_value,
+                "actual_arg0_preview_prefix": actual_arg0_preview[:24],
+                "actual_compare_site": actual_compare.get("caller_module_offset", ""),
+                "pre_compare_esi_value": carrier_value,
+                "pre_compare_esi_hook": carrier.get("hook_name", ""),
+                "pre_compare_esi_module_offset": carrier.get("module_offset", ""),
+                "pre_compare_esi_equals_arg0": carrier_equals_arg0,
+                "reload_site": reload_source.get("module_offset", ""),
+                "reload_source_kind": "frame_slot" if source_slot else (
+                    "register_esi" if reload_source_value else ""
+                ),
+                "reload_source_address": source_slot.get("address", ""),
+                "reload_source_slot": source_slot.get("name", ""),
+                "reload_source_value": reload_source_value,
+                "reload_source_equals_arg0": reload_source_equals_arg0,
+                "carrier_relation": carrier_relation,
+                "pointer_origin_status": pointer_status,
+                "pointer_origin_gap_reason": gap_reason,
+            }
+        )
+
+    candidate_dependent = len({str(value) for value in actual_values.values() if str(value)}) > 1
+    status_counts: dict[str, int] = {}
+    for row in rows:
+        status = str(row.get("pointer_origin_status", "") or "")
+        status_counts[status] = status_counts.get(status, 0) + 1
+    row_count = len(rows)
+    carrier_identified_count = sum(
+        1
+        for row in rows
+        if str(row.get("pointer_origin_status")) in {"carrier_identified", "carrier_identified_writer_missing"}
+    )
+    if row_count and status_counts.get("carrier_identified_writer_missing", 0) == row_count:
+        classification = "carrier_identified_writer_missing"
+    elif row_count and status_counts.get("carrier_identified", 0) == row_count:
+        classification = "carrier_identified"
+    elif any(status in status_counts for status in ("source_slot_rejected", "source_slot_unstable")):
+        classification = "source_slot_rejected"
+    elif row_count and status_counts.get("schema_gap", 0) == row_count:
+        classification = "schema_gap"
+    else:
+        classification = "not_observed" if row_count else "schema_gap"
+    final_writer_status = (
+        "identified"
+        if last_writer_candidates and bool(last_writer_summary.get("connects_to_actual_arg0"))
+        else "missing"
+    )
+    return {
+        "classification": classification,
+        "candidate_count": row_count,
+        "carrier_identified_count": carrier_identified_count,
+        "carrier_candidate_dependent": candidate_dependent,
+        "final_writer_status": final_writer_status,
+        "pointer_carrier_is_final_writer": False,
+        "rows": rows,
+        "recommended_next_hook_points": [
+            "module+0x253a slot writer before [ebp-0x1170]",
+            "module+0x2559 reload source into ESI",
+            "module+0x258b push ESI before compare arg0",
+        ]
+        if classification in {"carrier_identified_writer_missing", "schema_gap", "source_slot_rejected"}
+        else [],
+    }
+
+
 def _compare_real_lhs_last_writer_classification(
     *,
     runtime_backed_count: int,
@@ -13966,9 +14138,18 @@ def build_compare_real_lhs_provenance_audit_payload(
         if last_writer_mode
         else {}
     )
+    arg0_pointer_origin_trace = _compare_real_lhs_arg0_pointer_origin_trace(
+        candidate_results,
+        actual_compare,
+        last_writer_summary,
+        last_writer_candidates,
+    )
     refined_raw_write_blocker = str(raw_write_gap_summary.get("classification", "") or "")
     if lhs_writer_classification_blocker == "raw_writes_not_intersecting_arg0" and refined_raw_write_blocker:
         lhs_writer_classification_blocker = refined_raw_write_blocker
+    refined_pointer_origin = str(arg0_pointer_origin_trace.get("classification", "") or "")
+    if lhs_writer_classification_blocker == "arg0_pointer_origin_untracked" and refined_pointer_origin:
+        lhs_writer_classification_blocker = f"arg0_pointer_{refined_pointer_origin}"
     producer = identified[0] if identified else {}
     next_bounded_action = {
         "real_lhs_producer_identified": "use the identified real lhs producer as the next bounded material-hook start",
@@ -14051,6 +14232,7 @@ def build_compare_real_lhs_provenance_audit_payload(
         "last_writer_candidates": last_writer_candidates,
         "last_writer_summary": last_writer_summary,
         "raw_write_gap_summary": raw_write_gap_summary,
+        "arg0_pointer_origin_trace": arg0_pointer_origin_trace,
         "next_producer_window": {
             "start_rva": "0x2559",
             "end_rva": "0x258b",

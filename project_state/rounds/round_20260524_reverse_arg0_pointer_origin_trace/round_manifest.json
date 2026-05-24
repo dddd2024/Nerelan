@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-05-24T15:55:25Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260524_reverse_arg0_pointer_origin_trace\\codex_execution_report.md",
+      "sha256": "25d153f470b13e011d105b0cf35e917ad7a065b26f8ab66bc193885f03380d42",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260524_reverse_arg0_pointer_origin_trace\\decision_packet.md",
+      "sha256": "9279828b1cfa9312a6c9ca4531512e17ef61271ccb790c1c851a5258a4d01055",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260524_reverse_arg0_pointer_origin_trace\\pytest_result.txt",
+      "sha256": "f7a028851689662f066abaeaa783502937826de66469e09b2250778456e39854",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260524_reverse_arg0_pointer_origin_trace",
+  "schema_version": 1,
+  "source_git_commit": "6cc9cea5480c",
+  "source_harness_run": "sr_lhs_hook_observation_reliability_20260524_r4",
+  "state_build_id": "state_20260524_155155_c3441de6ffe8",
+  "state_digest": "c3441de6ffe8a5f84b665dcc35dc25a487bb1f5e491d50f78d75c713ae0b64c2",
+  "workflow_status": "REPORT_AVAILABLE"
+}

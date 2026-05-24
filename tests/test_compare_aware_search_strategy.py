@@ -7769,7 +7769,7 @@ def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_write
     )
 
     assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
-    assert payload["lhs_writer_classification_blocker"] == "arg0_pointer_origin_untracked"
+    assert payload["lhs_writer_classification_blocker"] == "arg0_pointer_carrier_identified_writer_missing"
     assert payload["write_monitor_health"]["raw_write_count"] == 21
     assert payload["write_monitor_health"]["filtered_intersecting_write_count"] == 0
     assert payload["write_monitor_health"]["missing_candidate_count"] == 3
@@ -7787,6 +7787,12 @@ def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_write
         "bounded_failure_reason"
     ] == "write_after_arg0_window"
     assert payload["last_writer_summary"]["retained_write_count"] == 0
+    trace = payload["arg0_pointer_origin_trace"]
+    assert trace["classification"] == "carrier_identified_writer_missing"
+    assert trace["carrier_identified_count"] == 3
+    assert trace["final_writer_status"] == "missing"
+    assert trace["rows"][0]["pre_compare_esi_equals_arg0"] is True
+    assert trace["rows"][0]["carrier_relation"] == "pointer_carrier"
     assert payload["breakpoint_probe_allowed"] is False
 
 

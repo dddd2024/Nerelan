@@ -1629,6 +1629,119 @@ def test_project_state_derives_real_lhs_raw_write_blocker_from_current_artifact(
     assert current_state["current_bottleneck"]["blocker"] == "arg0_pointer_origin_untracked"
 
 
+def test_project_state_derives_arg0_pointer_carrier_without_final_writer(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_real_lhs_arg0_carrier")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_real_lhs_provenance_audit.json",
+        {
+            "artifact_kind": "compare_real_lhs_provenance_audit",
+            "classification": "compare_lhs_runtime_backed_writer_missing",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {
+                "entry_status": "confirmed",
+                "caller_module_offset": "0x258c",
+                "lhs_side": "arg0",
+                "arg0_value_by_candidate": {
+                    "78d540b49c59077041414141414141": "0x35cd018",
+                    "5a3e7f46ddd474d041414141414141": "0x378cfd8",
+                    "78d540b49c59076f41414141414141": "0x421d018",
+                },
+                "arg0_preview_by_candidate": {
+                    "78d540b49c59077041414141414141": "46",
+                    "5a3e7f46ddd474d041414141414141": "47",
+                    "78d540b49c59076f41414141414141": "48",
+                },
+            },
+            "write_monitor_health": {
+                "observed_candidate_count": 3,
+                "enabled": True,
+                "followed_thread_count": 3,
+                "raw_write_count": 27,
+                "filtered_intersecting_write_count": 0,
+            },
+            "last_writer_summary": {
+                "actual_compare_arg0_runtime_backed": True,
+                "connects_to_actual_arg0": False,
+                "raw_write_event_count": 27,
+                "retained_write_count": 0,
+            },
+            "last_writer_candidates": [],
+            "candidate_results": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "runtime_backed": True,
+                    "hook_observations": [
+                        {
+                            "hook_name": "static_compare_callsite",
+                            "module_offset": "0x258c",
+                            "esi_ptr": "0x35cd018",
+                            "compare_args": {
+                                "args": [
+                                    {"index": 0, "role": "arg0", "value": "0x35cd018", "preview_hex": "46"},
+                                    {"index": 1, "role": "arg1", "value": "0x1141c4c", "preview_hex": "66"},
+                                ]
+                            },
+                        }
+                    ],
+                },
+                {
+                    "candidate_hex": "5a3e7f46ddd474d041414141414141",
+                    "runtime_backed": True,
+                    "hook_observations": [
+                        {
+                            "hook_name": "static_compare_callsite",
+                            "module_offset": "0x258c",
+                            "esi_ptr": "0x378cfd8",
+                            "compare_args": {
+                                "args": [
+                                    {"index": 0, "role": "arg0", "value": "0x378cfd8", "preview_hex": "47"},
+                                    {"index": 1, "role": "arg1", "value": "0x1141c4c", "preview_hex": "66"},
+                                ]
+                            },
+                        }
+                    ],
+                },
+                {
+                    "candidate_hex": "78d540b49c59076f41414141414141",
+                    "runtime_backed": True,
+                    "hook_observations": [
+                        {
+                            "hook_name": "static_compare_callsite",
+                            "module_offset": "0x258c",
+                            "esi_ptr": "0x421d018",
+                            "compare_args": {
+                                "args": [
+                                    {"index": 0, "role": "arg0", "value": "0x421d018", "preview_hex": "48"},
+                                    {"index": 1, "role": "arg1", "value": "0x1141c4c", "preview_hex": "66"},
+                                ]
+                            },
+                        }
+                    ],
+                },
+            ],
+            "breakpoint_probe_allowed": False,
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    latest = current_state["latest_compare_real_lhs_provenance_audit"]
+    trace = latest["arg0_pointer_origin_trace"]
+    assert trace["classification"] == "carrier_identified_writer_missing"
+    assert trace["carrier_identified_count"] == 3
+    assert trace["final_writer_status"] == "missing"
+    assert trace["rows"][0]["pre_compare_esi_equals_arg0"] is True
+    assert latest["lhs_writer_classification_blocker"] == "arg0_pointer_carrier_identified_writer_missing"
+    assert current_state["current_bottleneck"]["blocker"] == "arg0_pointer_carrier_identified_writer_missing"
+    assert task_packet["task"] == "Trace final writer for actual compare arg0 after confirmed ESI carrier"
+
+
 def test_project_state_indexes_compare_esi_source_window_audit(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
