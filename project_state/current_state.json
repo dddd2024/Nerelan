@@ -56,7 +56,7 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "arg0_final_writer_trace_schema_gap",
+    "blocker": "arg0_ui_trigger_or_timeout_blocked",
     "confidence": "medium",
     "reason": "inconclusive",
     "stage": "compare_real_lhs_provenance_audit"
@@ -101,7 +101,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-25T15:09:11Z",
+  "generated_at": "2026-05-25T16:14:38Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -789,7 +789,7 @@
     "identified_producers": [],
     "last_writer_candidates": [],
     "last_writer_summary": {},
-    "lhs_writer_classification_blocker": "arg0_final_writer_trace_schema_gap",
+    "lhs_writer_classification_blocker": "arg0_ui_trigger_or_timeout_blocked",
     "next_bounded_action": "rerun real-lhs provenance only after improving pre-compare push or static callsite capture",
     "next_producer_window": {},
     "provenance": {
@@ -879,6 +879,7 @@
       "post_handoff_reload_to_compare_arg0": "inconclusive"
     },
     "runtime_backed_count": 3,
+    "sidecar_observation_blocker": "arg0_ui_trigger_or_timeout_blocked",
     "write_monitor_health": {}
   },
   "latest_compare_stack_pivot_probe": {},
@@ -1085,13 +1086,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260525_150911",
+  "round_id": "round_20260525_161438",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "a5d827e00f85",
+  "source_git_commit": "42d8928ebd25",
   "source_harness_run": "sr_arg0_bounded_writer_trace_20260525_r1",
-  "state_build_id": "state_20260525_150911_78117fa9b052",
-  "state_digest": "78117fa9b052e0908bbd18bcd1a1a6ecb4ecc2d9a3a383baa6d4f8d74b1fb64f",
+  "state_build_id": "state_20260525_161438_9a1014f18931",
+  "state_digest": "9a1014f18931ac3ab635b4813e692f4d967346df92d0cab8b2a03c33d3ec67e8",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

@@ -327,10 +327,97 @@ def _read_json(path: str | Path | None) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+def _int_value(value: Any, default: int = 0) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return default
+
+
+def _dict_rows(value: Any) -> list[dict[str, Any]]:
+    return [dict(item) for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _derive_sidecar_observation_blocker(payload: dict[str, Any]) -> str:
+    rows = _dict_rows(payload.get("candidate_execution_health"))
+    if not rows:
+        rows = _dict_rows(payload.get("candidate_results"))
+    if not rows:
+        return ""
+
+    scripted_no_observations = any(
+        str(row.get("scripted_hook_status") or "") == "scripted_hook_no_observations"
+        for row in rows
+    )
+    if not scripted_no_observations:
+        return ""
+
+    def all_non_empty_equal(field: str, expected: str) -> bool:
+        values = [str(row.get(field) or "").strip() for row in rows]
+        return bool(values) and all(value == expected for value in values)
+
+    target_mismatch_markers = {
+        "module_base_resolution_status": {"failed", "missing", "unresolved", "not_resolved"},
+        "spawn_attach_resume_status": {"spawn_failed", "attach_failed", "resume_failed", "failed"},
+    }
+    for field, bad_values in target_mismatch_markers.items():
+        values = {str(row.get(field) or "").strip().lower() for row in rows if str(row.get(field) or "").strip()}
+        if values & bad_values:
+            return "arg0_target_path_or_process_mismatch"
+
+    if any(_int_value(row.get("hook_install_error_count")) > 0 for row in rows):
+        return "arg0_target_path_or_process_mismatch"
+
+    message_error_seen = any(
+        _int_value(row.get("frida_message_error_count")) > 0
+        or _int_value(row.get("python_message_decode_error_count")) > 0
+        for row in rows
+    )
+    hook_hit_seen = any(
+        sum(_int_value(count) for count in dict(row.get("hook_hit_counts_by_name") or {}).values()) > 0
+        for row in rows
+        if isinstance(row.get("hook_hit_counts_by_name"), dict)
+    )
+    no_python_observation = all(_int_value(row.get("observation_count")) == 0 for row in rows)
+    if hook_hit_seen and (message_error_seen or no_python_observation):
+        return "arg0_hook_hit_but_message_delivery_failed"
+
+    hooks_installed = all_non_empty_equal("hook_install_status", "installed") or all(
+        bool(row.get("hooks_installed_seen") or row.get("hooks_installed_stage_seen"))
+        and _int_value(row.get("hook_count")) >= _int_value(row.get("requested_hook_count"))
+        and _int_value(row.get("requested_hook_count")) > 0
+        for row in rows
+    )
+    script_loaded = all_non_empty_equal("script_load_status", "loaded") or all(
+        bool(row.get("js_top_level_seen")) for row in rows
+    )
+    callback_ready = all(bool(row.get("python_message_callback_registered_before_load")) for row in rows)
+    message_bridge_ready = all(_int_value(row.get("python_message_count_total")) > 0 for row in rows)
+    ui_trigger_values = [str(row.get("ui_trigger_status") or "").strip() for row in rows]
+    ui_trigger_field_present = any(bool(value) for value in ui_trigger_values)
+    ui_triggered = bool(ui_trigger_values) and all(value == "button_triggered" for value in ui_trigger_values)
+    ui_after_field_present = any("ui_trigger_after_hooks_installed" in row for row in rows)
+    ui_after_hooks = all(bool(row.get("ui_trigger_after_hooks_installed")) for row in rows)
+
+    if hooks_installed and script_loaded and callback_ready:
+        if (ui_trigger_field_present and not ui_triggered) or (ui_after_field_present and not ui_after_hooks):
+            return "arg0_ui_trigger_or_timeout_blocked"
+        if (
+            message_bridge_ready
+            and ui_triggered
+            and no_python_observation
+            and not message_error_seen
+        ):
+            return "arg0_hook_installed_but_not_hit"
+
+    return "arg0_writer_trace_runtime_blocked"
+
+
 def _derive_real_lhs_writer_blocker(payload: dict[str, Any]) -> str:
     explicit = str(payload.get("lhs_writer_classification_blocker") or "").strip()
     if explicit:
         return explicit
+    sidecar_blocker = _derive_sidecar_observation_blocker(payload)
     final_trace = _derive_arg0_final_data_writer_trace(payload)
     final_classification = str(final_trace.get("classification") or "").strip()
     final_blockers = {
@@ -340,8 +427,12 @@ def _derive_real_lhs_writer_blocker(payload: dict[str, Any]) -> str:
         "writer_not_observed_in_bounded_window": "arg0_final_writer_not_observed_in_bounded_window",
         "runtime_blocked": "arg0_writer_trace_runtime_blocked",
     }
+    if final_classification == "final_writer_trace_schema_gap" and sidecar_blocker:
+        return sidecar_blocker
     if final_classification in final_blockers:
         return final_blockers[final_classification]
+    if sidecar_blocker:
+        return sidecar_blocker
     pointer_trace = _derive_arg0_pointer_origin_trace(payload)
     pointer_classification = str(pointer_trace.get("classification") or "").strip()
     if pointer_classification in {
@@ -2793,6 +2884,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "arg0_final_data_writer_trace": _derive_arg0_final_data_writer_trace(
                 compare_real_lhs_provenance_audit
             ),
+            "sidecar_observation_blocker": _derive_sidecar_observation_blocker(
+                compare_real_lhs_provenance_audit
+            ),
             "write_monitor_health": compare_real_lhs_provenance_audit.get("write_monitor_health", {}),
             "lhs_writer_classification_blocker": real_lhs_writer_blocker,
             "last_writer_candidates": compare_real_lhs_provenance_audit.get("last_writer_candidates", [])[:3]
@@ -3793,6 +3887,13 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         "arg0_writer_trace_runtime_blocked",
     }:
         return "Refine bounded actual arg0 final data writer trace"
+    if stage == "compare_real_lhs_provenance_audit" and blocker in {
+        "arg0_hook_installed_but_not_hit",
+        "arg0_hook_hit_but_message_delivery_failed",
+        "arg0_ui_trigger_or_timeout_blocked",
+        "arg0_target_path_or_process_mismatch",
+    }:
+        return "Diagnose sidecar observation delivery blocker"
     if stage == "compare_real_lhs_provenance_audit" and blocker == "arg0_pointer_carrier_identified_writer_missing":
         return "Trace final writer for actual compare arg0 after confirmed ESI carrier"
     if stage == "compare_real_lhs_provenance_audit" and reason in {

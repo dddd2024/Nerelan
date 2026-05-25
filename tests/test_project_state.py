@@ -1786,6 +1786,119 @@ def test_project_state_projects_arg0_final_data_writer_trace_blocker(tmp_path: P
     assert current_state["current_bottleneck"]["blocker"] == "arg0_pointer_chain_identified_writer_missing"
 
 
+def _write_sidecar_blocker_artifact(
+    artifacts_dir: Path,
+    candidate_health: list[dict[str, object]],
+) -> None:
+    _write_json(
+        artifacts_dir / "compare_real_lhs_provenance_audit.json",
+        {
+            "artifact_kind": "compare_real_lhs_provenance_audit",
+            "classification": "inconclusive",
+            "candidate_count": len(candidate_health),
+            "runtime_backed_count": len(candidate_health),
+            "actual_compare": {"entry_status": "confirmed", "observed_count": len(candidate_health)},
+            "arg0_final_data_writer_trace": {
+                "classification": "final_writer_trace_schema_gap",
+                "rows": [
+                    {
+                        "candidate_hex": item["candidate_hex"],
+                        "final_writer_status": "final_writer_trace_schema_gap",
+                        "final_writer_gap_reason": "actual_compare_arg0_missing",
+                    }
+                    for item in candidate_health
+                ],
+            },
+            "candidate_execution_health": candidate_health,
+            "breakpoint_probe_allowed": False,
+        },
+    )
+
+
+def _sidecar_health_row(candidate_hex: str, **overrides: object) -> dict[str, object]:
+    row: dict[str, object] = {
+        "candidate_hex": candidate_hex,
+        "scripted_hook_status": "scripted_hook_no_observations",
+        "scripted_returncode": 124,
+        "scripted_error": "timeout",
+        "hook_install_status": "installed",
+        "hook_count": 4,
+        "requested_hook_count": 4,
+        "script_load_status": "loaded",
+        "js_top_level_seen": True,
+        "js_hooks_installed_seen": True,
+        "python_message_callback_registered_before_load": True,
+        "python_message_count_total": 12,
+        "python_message_decode_error_count": 0,
+        "frida_message_error_count": 0,
+        "hook_install_error_count": 0,
+        "module_base_resolution_status": "resolved",
+        "spawn_attach_resume_status": "resumed",
+        "ui_trigger_status": "button_triggered",
+        "ui_trigger_after_hooks_installed": True,
+        "observation_count": 0,
+        "post_ui_observation_count": 0,
+        "hook_hit_counts_by_name": {},
+        "compare_probe_fallback_used": True,
+        "compare_probe_fallback_status": "compare_probe_fallback_captured_compare_args",
+        "compare_probe_fallback_is_provenance": False,
+    }
+    row.update(overrides)
+    return row
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        (
+            {"ui_trigger_after_hooks_installed": False},
+            "arg0_ui_trigger_or_timeout_blocked",
+        ),
+        ({}, "arg0_hook_installed_but_not_hit"),
+        (
+            {
+                "hook_hit_counts_by_name": {"static_compare_callsite": 1},
+                "python_message_decode_error_count": 1,
+            },
+            "arg0_hook_hit_but_message_delivery_failed",
+        ),
+        (
+            {"module_base_resolution_status": "unresolved"},
+            "arg0_target_path_or_process_mismatch",
+        ),
+    ],
+)
+def test_project_state_projects_sidecar_observation_blocker(
+    tmp_path: Path,
+    overrides: dict[str, object],
+    expected: str,
+) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_sidecar_observation_blocker")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    candidates = [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+        "78d540b49c59076f41414141414141",
+    ]
+    _write_sidecar_blocker_artifact(
+        artifacts_dir,
+        [_sidecar_health_row(candidate, **overrides) for candidate in candidates],
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    latest = current_state["latest_compare_real_lhs_provenance_audit"]
+    assert latest["arg0_final_data_writer_trace"]["classification"] == "final_writer_trace_schema_gap"
+    assert latest["sidecar_observation_blocker"] == expected
+    assert latest["lhs_writer_classification_blocker"] == expected
+    assert current_state["current_bottleneck"]["blocker"] == expected
+    assert task_packet["task"] == "Diagnose sidecar observation delivery blocker"
+
+
 def test_project_state_indexes_compare_esi_source_window_audit(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
