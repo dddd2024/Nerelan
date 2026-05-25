@@ -4999,9 +4999,6 @@ def _fake_compare_real_lhs_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN
         "pre_compare_lhs_push",
         "post_handoff_lhs_reload",
         "old_lhs_slot_store",
-        "upstream_candidate_context",
-        "upstream_slot_1168_reload",
-        "upstream_material_call",
     }
     static_point = next(point for point in points_payload["hook_points"] if point["name"] == "static_compare_callsite")
     assert static_point["capture_write_ring"] is True

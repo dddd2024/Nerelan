@@ -8,21 +8,20 @@
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
     "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
-    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_probe": "solve_reports\\tool_artifacts\\samplereverse_compare_probe_real\\samplereverse_compare_probe.json",
     "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
-    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
     "frontier_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_frontier_summary.json",
     "function_semantic_audit": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
     "guided_pool_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\samplereverse_compare_aware_guided_pool_result.json",
     "guided_pool_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
     "pairscan_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\pairscan_summary.json",
-    "run_manifest": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\run_manifest.json",
+    "run_manifest": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\run_manifest.json",
     "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\summary.json"
+    "summary": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\summary.json"
   },
-  "based_on_state_digest": "26b80fabb7feee513ef3b3e94bc799e4242613b7d0c25938d4ae46b2e965ab95",
+  "based_on_state_digest": "78117fa9b052e0908bbd18bcd1a1a6ecb4ecc2d9a3a383baa6d4f8d74b1fb64f",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -61,7 +60,7 @@
   "current_bottleneck": {
     "blocker": "arg0_final_writer_trace_schema_gap",
     "confidence": "medium",
-    "reason": "compare_lhs_runtime_backed_writer_missing",
+    "reason": "inconclusive",
     "stage": "compare_real_lhs_provenance_audit"
   },
   "derived_task": "Refine bounded actual arg0 final data writer trace",
@@ -86,7 +85,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-05-25T08:50:52Z",
+  "generated_at": "2026-05-25T15:09:11Z",
   "included": [
     "current state",
     "best candidates",
@@ -96,7 +95,7 @@
   ],
   "model_gate": {
     "context_level": 2,
-    "reason": "compare_lhs_runtime_backed_writer_missing",
+    "reason": "inconclusive",
     "should_call_model": true
   },
   "omitted": [
@@ -116,10 +115,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260525_085052",
+  "round_id": "round_20260525_150911",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260525_085052_26b80fabb7fe",
+  "state_build_id": "state_20260525_150911_78117fa9b052",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,

@@ -13150,24 +13150,6 @@ def _compare_real_lhs_provenance_hook_points() -> list[dict[str, object]]:
             "instruction": "mov dword ptr [ebp - 0x1170], eax",
             "role": "old_frame_anchor_store_observation",
         },
-        {
-            "name": "upstream_candidate_context",
-            "module_offset": 0x2312,
-            "instruction": "sub eax, dword ptr [edx - 4]",
-            "role": "context_only_candidate_dependent_upstream",
-        },
-        {
-            "name": "upstream_slot_1168_reload",
-            "module_offset": 0x2325,
-            "instruction": "mov edx, dword ptr [ebp - 0x1168]",
-            "role": "context_only_slot_1168_after_transform",
-        },
-        {
-            "name": "upstream_material_call",
-            "module_offset": 0x2338,
-            "instruction": "call 0x401b50",
-            "role": "context_only_slot_116c_material_call_input",
-        },
     ]
 
 
