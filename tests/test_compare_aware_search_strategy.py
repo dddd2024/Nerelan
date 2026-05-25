@@ -4963,6 +4963,31 @@ def _compare_real_lhs_candidate_result(
     return result
 
 
+def _with_arg0_pointer_chain(result: dict[str, object], ptr: str, preview: str) -> dict[str, object]:
+    observations = result["hook_observations"]
+    for observation in observations:
+        if observation.get("hook_name") == "old_lhs_slot_store":
+            observation["eax_ptr"] = ptr
+            observation["eax_preview_hex"] = preview
+            observation["frame_slots"] = [
+                {"name": "[ebp-0x1170]", "offset": "-0x1170", "value": ptr, "preview_hex": preview}
+            ]
+    observations.append(
+        {
+            "candidate_hex": result["candidate_hex"],
+            "hook_name": "post_handoff_lhs_reload",
+            "module_offset": "0x2559",
+            "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+            "esi_ptr": ptr,
+            "esi_preview_hex": preview,
+            "frame_slots": [
+                {"name": "[ebp-0x1170]", "offset": "-0x1170", "value": ptr, "preview_hex": preview}
+            ],
+        }
+    )
+    return result
+
+
 def _fake_compare_real_lhs_subprocess_run(*args, **kwargs):  # noqa: ANN002, ANN003
     command = list(args[0])
     out_path = Path(command[command.index("--out") + 1])
@@ -7769,7 +7794,7 @@ def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_write
     )
 
     assert payload["classification"] == "compare_lhs_runtime_backed_writer_missing"
-    assert payload["lhs_writer_classification_blocker"] == "arg0_pointer_carrier_identified_writer_missing"
+    assert payload["lhs_writer_classification_blocker"] == "arg0_final_writer_trace_schema_gap"
     assert payload["write_monitor_health"]["raw_write_count"] == 21
     assert payload["write_monitor_health"]["filtered_intersecting_write_count"] == 0
     assert payload["write_monitor_health"]["missing_candidate_count"] == 3
@@ -7793,7 +7818,88 @@ def test_compare_real_lhs_last_writer_raw_writes_without_intersections_are_write
     assert trace["final_writer_status"] == "missing"
     assert trace["rows"][0]["pre_compare_esi_equals_arg0"] is True
     assert trace["rows"][0]["carrier_relation"] == "pointer_carrier"
+    final_trace = payload["arg0_final_data_writer_trace"]
+    assert final_trace["classification"] == "final_writer_trace_schema_gap"
+    assert final_trace["rows"][0]["final_writer_gap_reason"] == "bounded_pointer_chain_rows_missing"
     assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_compare_real_lhs_arg0_final_trace_keeps_pointer_chain_separate_from_writer() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidates.append(
+            _with_arg0_pointer_chain(
+                _compare_real_lhs_candidate_result(
+                    candidate_hex,
+                    ptr,
+                    preview,
+                    write_events=[
+                        _last_writer_event(ptr, preview, sequence=1, address="0x9000", after_preview="11" * 32),
+                    ],
+                    write_monitor_health=_write_monitor_health(raw_write_count=7),
+                ),
+                ptr,
+                preview,
+            )
+        )
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    trace = payload["arg0_final_data_writer_trace"]
+    assert trace["classification"] == "writer_not_observed_in_bounded_window"
+    assert payload["lhs_writer_classification_blocker"] == "arg0_final_writer_not_observed_in_bounded_window"
+    assert payload["last_writer_candidates"] == []
+    assert trace["pointer_carrier_is_final_writer"] is False
+    assert trace["pointer_write_is_final_data_writer"] is False
+    assert trace["rows"][0]["slot_writer_equals_reload_source"] is True
+    assert trace["rows"][0]["nearest_write_intersects_arg0"] is False
+
+
+def test_compare_real_lhs_arg0_final_trace_promotes_only_intersecting_data_writes() -> None:
+    candidates = []
+    for candidate_hex, ptr, preview in [
+        ("78d540b49c59077041414141414141", "0x1100", "aa" * 32),
+        ("5a3e7f46ddd474d041414141414141", "0x2200", "bb" * 32),
+        ("78d540b49c59076f41414141414141", "0x3300", "cc" * 32),
+    ]:
+        candidates.append(
+            _with_arg0_pointer_chain(
+                _compare_real_lhs_candidate_result(
+                    candidate_hex,
+                    ptr,
+                    preview,
+                    write_events=[
+                        _last_writer_event(ptr, preview, sequence=1, address="0x9000", after_preview="11" * 32),
+                        _last_writer_event(ptr, preview, sequence=2),
+                    ],
+                    write_monitor_health=_write_monitor_health(
+                        raw_write_count=7,
+                        filtered_intersecting_write_count=1,
+                    ),
+                ),
+                ptr,
+                preview,
+            )
+        )
+
+    payload = build_compare_real_lhs_provenance_audit_payload(
+        candidate_results=candidates,
+        source_post_handoff_exception_payload={"classification": "compare_reached_but_path_unresolved"},
+    )
+
+    trace = payload["arg0_final_data_writer_trace"]
+    assert trace["classification"] == "final_writer_identified"
+    assert payload["lhs_writer_classification_blocker"] == "arg0_final_data_writer_identified"
+    assert len(payload["last_writer_candidates"]) == 3
+    assert trace["rows"][0]["nearest_write_intersects_arg0"] is True
+    assert trace["rows"][0]["nearest_write_address"] == "0x1100"
 
 
 def test_run_compare_real_lhs_no_script_output_marks_fallback_non_provenance(

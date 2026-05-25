@@ -13970,6 +13970,195 @@ def _compare_real_lhs_arg0_pointer_origin_trace(
     }
 
 
+def _first_nearest_non_intersecting_write(
+    last_writer_summary: dict[str, object],
+    candidate_hex: str,
+) -> dict[str, object]:
+    reasons = last_writer_summary.get("missing_candidate_reasons", [])
+    if not isinstance(reasons, list):
+        return {}
+    for reason in reasons:
+        if not isinstance(reason, dict) or str(reason.get("candidate_hex", "")) != candidate_hex:
+            continue
+        nearest = reason.get("nearest_non_intersecting_writes", [])
+        if isinstance(nearest, list) and nearest and isinstance(nearest[0], dict):
+            return dict(nearest[0])
+    return {}
+
+
+def _compare_real_lhs_writer_candidate_by_candidate(
+    last_writer_candidates: Sequence[dict[str, object]],
+) -> dict[str, dict[str, object]]:
+    rows: dict[str, dict[str, object]] = {}
+    for candidate in last_writer_candidates:
+        if not isinstance(candidate, dict):
+            continue
+        candidate_hex = str(candidate.get("candidate_hex", "") or "")
+        if candidate_hex:
+            rows[candidate_hex] = dict(candidate)
+    return rows
+
+
+def _compare_real_lhs_arg0_final_data_writer_trace(
+    candidate_results: Sequence[dict[str, object]],
+    actual_compare: dict[str, object],
+    last_writer_summary: dict[str, object],
+    last_writer_candidates: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    actual_values = actual_compare.get("arg0_value_by_candidate", {})
+    actual_values = actual_values if isinstance(actual_values, dict) else {}
+    actual_previews = actual_compare.get("arg0_preview_by_candidate", {})
+    actual_previews = actual_previews if isinstance(actual_previews, dict) else {}
+    writer_by_candidate = _compare_real_lhs_writer_candidate_by_candidate(last_writer_candidates)
+    rows: list[dict[str, object]] = []
+
+    for result in candidate_results:
+        if not isinstance(result, dict):
+            continue
+        candidate_hex = str(result.get("candidate_hex", "") or "")
+        observations = [
+            dict(item)
+            for item in result.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        actual_arg0 = _actual_compare_arg(result, "arg0")
+        actual_arg0_value = str(
+            actual_arg0.get("value")
+            or actual_values.get(candidate_hex)
+            or ""
+        )
+        actual_arg0_preview = str(
+            actual_arg0.get("preview_hex")
+            or actual_previews.get(candidate_hex)
+            or ""
+        )
+        actual_compare_row = _first_real_lhs_row(observations, ("static_compare_callsite",))
+        pre_push = _first_real_lhs_row(observations, ("pre_compare_lhs_push", "pre_compare_push_esi"))
+        reload_source = _first_real_lhs_row(
+            observations,
+            ("initial_lhs_reload", "final_lhs_reload", "post_handoff_lhs_reload"),
+        )
+        slot_writer = _first_real_lhs_row(observations, ("old_lhs_slot_store", "slot_writer"))
+        source_slot = _frame_slot_matching_pointer(reload_source or pre_push or actual_compare_row, actual_arg0_value)
+        reload_source_value = str(reload_source.get("esi_ptr") or source_slot.get("value") or "")
+        slot_writer_value = str(slot_writer.get("eax_ptr") or "")
+        if not slot_writer_value:
+            slot_writer_slot = _frame_slot_matching_pointer(slot_writer, actual_arg0_value)
+            slot_writer_value = str(slot_writer_slot.get("value") or "")
+        pre_push_esi_value = str(pre_push.get("esi_ptr") or "")
+        writer = writer_by_candidate.get(candidate_hex, {})
+        nearest_write = _first_nearest_non_intersecting_write(last_writer_summary, candidate_hex)
+
+        final_writer_status = "final_writer_identified" if writer else ""
+        gap_reason = ""
+        if writer:
+            gap_reason = ""
+        elif not actual_arg0_value or not actual_compare_row:
+            final_writer_status = "final_writer_trace_schema_gap"
+            gap_reason = "actual_compare_arg0_missing"
+        elif not pre_push or not reload_source or not slot_writer:
+            final_writer_status = "final_writer_trace_schema_gap"
+            gap_reason = "bounded_pointer_chain_rows_missing"
+        elif not (
+            _pointer_text_equal(pre_push_esi_value, actual_arg0_value)
+            and _pointer_text_equal(reload_source_value, actual_arg0_value)
+            and _pointer_text_equal(slot_writer_value, reload_source_value)
+        ):
+            final_writer_status = "runtime_blocked"
+            gap_reason = "pointer_chain_not_connected"
+        elif nearest_write:
+            final_writer_status = "writer_not_observed_in_bounded_window"
+            gap_reason = "raw_writes_observed_but_none_intersect_actual_arg0"
+        else:
+            final_writer_status = "pointer_chain_identified_writer_missing"
+            gap_reason = "final_data_writer_not_observed_for_actual_arg0"
+
+        rows.append(
+            {
+                "candidate_hex": candidate_hex,
+                "actual_arg0_at_compare": actual_arg0_value,
+                "actual_arg0_preview_prefix": actual_arg0_preview[:24],
+                "compare_site": actual_compare.get("caller_module_offset", ""),
+                "actual_compare_site_observed": bool(actual_compare_row),
+                "pre_push_esi_site": pre_push.get("module_offset", ""),
+                "pre_push_esi_value": pre_push_esi_value,
+                "pre_push_esi_equals_arg0": _pointer_text_equal(pre_push_esi_value, actual_arg0_value),
+                "reload_site": reload_source.get("module_offset", ""),
+                "reload_source_kind": "frame_slot" if source_slot else ("register_esi" if reload_source_value else ""),
+                "reload_source_address": source_slot.get("address", ""),
+                "reload_source_value": reload_source_value,
+                "reload_source_equals_arg0": _pointer_text_equal(reload_source_value, actual_arg0_value),
+                "slot_writer_site": slot_writer.get("module_offset", ""),
+                "slot_writer_value": slot_writer_value,
+                "slot_writer_equals_reload_source": _pointer_text_equal(slot_writer_value, reload_source_value),
+                "candidate_dependent_pointer_chain": len({str(value) for value in actual_values.values() if str(value)}) > 1,
+                "raw_write_count": last_writer_summary.get("raw_write_event_count", 0),
+                "intersecting_write_count": last_writer_summary.get("retained_write_count", 0),
+                "nearest_write_site": writer.get("writer_module_offset") or nearest_write.get("module_offset", ""),
+                "nearest_write_address": writer.get("write_address") or nearest_write.get("address", ""),
+                "nearest_write_range": {
+                    "address": writer.get("write_address") or nearest_write.get("address", ""),
+                    "size": writer.get("write_size") or nearest_write.get("size", 0),
+                },
+                "nearest_write_preview": writer.get("after_preview_hex")
+                or writer.get("before_preview_hex")
+                or nearest_write.get("before_preview_hex", ""),
+                "nearest_write_temporal_relation": "before_0x258c_compare"
+                if writer or nearest_write
+                else "",
+                "nearest_write_intersects_arg0": bool(writer),
+                "final_writer_status": final_writer_status,
+                "final_writer_gap_reason": gap_reason,
+            }
+        )
+
+    if not rows:
+        return {
+            "classification": "final_writer_trace_schema_gap",
+            "candidate_count": 0,
+            "final_writer_status": "final_writer_trace_schema_gap",
+            "rows": [],
+            "recommended_next_hook_points": [
+                "module+0x253a slot writer before [ebp-0x1170]",
+                "module+0x2559 reload source into ESI",
+                "module+0x258b push ESI before compare arg0",
+                "module+0x258c actual compare callsite",
+            ],
+        }
+
+    statuses = {str(row.get("final_writer_status", "")) for row in rows}
+    if statuses == {"final_writer_identified"}:
+        classification = "final_writer_identified"
+    elif "runtime_blocked" in statuses:
+        classification = "runtime_blocked"
+    elif "final_writer_trace_schema_gap" in statuses:
+        classification = "final_writer_trace_schema_gap"
+    elif statuses == {"writer_not_observed_in_bounded_window"}:
+        classification = "writer_not_observed_in_bounded_window"
+    elif statuses <= {"pointer_chain_identified_writer_missing", "writer_not_observed_in_bounded_window"}:
+        classification = "pointer_chain_identified_writer_missing"
+    else:
+        classification = "final_writer_trace_schema_gap"
+
+    return {
+        "classification": classification,
+        "candidate_count": len(rows),
+        "final_writer_status": classification,
+        "pointer_carrier_is_final_writer": False,
+        "pointer_write_is_final_data_writer": False,
+        "candidate_dependent_pointer_chain": len({str(value) for value in actual_values.values() if str(value)}) > 1,
+        "rows": rows,
+        "recommended_next_hook_points": [
+            "module+0x253a slot writer before [ebp-0x1170]",
+            "module+0x2559 reload source into ESI",
+            "module+0x258b push ESI before compare arg0",
+            "module+0x258c actual compare callsite",
+        ]
+        if classification != "final_writer_identified"
+        else [],
+    }
+
+
 def _compare_real_lhs_last_writer_classification(
     *,
     runtime_backed_count: int,
@@ -14144,12 +14333,34 @@ def build_compare_real_lhs_provenance_audit_payload(
         last_writer_summary,
         last_writer_candidates,
     )
+    arg0_final_data_writer_trace = _compare_real_lhs_arg0_final_data_writer_trace(
+        candidate_results,
+        actual_compare,
+        last_writer_summary,
+        last_writer_candidates,
+    )
     refined_raw_write_blocker = str(raw_write_gap_summary.get("classification", "") or "")
     if lhs_writer_classification_blocker == "raw_writes_not_intersecting_arg0" and refined_raw_write_blocker:
         lhs_writer_classification_blocker = refined_raw_write_blocker
     refined_pointer_origin = str(arg0_pointer_origin_trace.get("classification", "") or "")
     if lhs_writer_classification_blocker == "arg0_pointer_origin_untracked" and refined_pointer_origin:
         lhs_writer_classification_blocker = f"arg0_pointer_{refined_pointer_origin}"
+    refined_final_writer = str(arg0_final_data_writer_trace.get("classification", "") or "")
+    final_writer_blockers = {
+        "final_writer_identified": "arg0_final_data_writer_identified",
+        "pointer_chain_identified_writer_missing": "arg0_pointer_chain_identified_writer_missing",
+        "final_writer_trace_schema_gap": "arg0_final_writer_trace_schema_gap",
+        "writer_not_observed_in_bounded_window": "arg0_final_writer_not_observed_in_bounded_window",
+        "runtime_blocked": "arg0_writer_trace_runtime_blocked",
+    }
+    if refined_final_writer == "final_writer_identified":
+        lhs_writer_classification_blocker = final_writer_blockers[refined_final_writer]
+    elif lhs_writer_classification_blocker in {
+        "arg0_pointer_origin_untracked",
+        "arg0_pointer_carrier_identified_writer_missing",
+        "raw_writes_not_intersecting_arg0",
+    } and refined_final_writer in final_writer_blockers:
+        lhs_writer_classification_blocker = final_writer_blockers[refined_final_writer]
     producer = identified[0] if identified else {}
     next_bounded_action = {
         "real_lhs_producer_identified": "use the identified real lhs producer as the next bounded material-hook start",
@@ -14233,6 +14444,7 @@ def build_compare_real_lhs_provenance_audit_payload(
         "last_writer_summary": last_writer_summary,
         "raw_write_gap_summary": raw_write_gap_summary,
         "arg0_pointer_origin_trace": arg0_pointer_origin_trace,
+        "arg0_final_data_writer_trace": arg0_final_data_writer_trace,
         "next_producer_window": {
             "start_rva": "0x2559",
             "end_rva": "0x258b",

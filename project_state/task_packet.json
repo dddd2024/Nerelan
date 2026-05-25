@@ -22,7 +22,7 @@
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\summary.json"
   },
-  "based_on_state_digest": "c3441de6ffe8a5f84b665dcc35dc25a487bb1f5e491d50f78d75c713ae0b64c2",
+  "based_on_state_digest": "26b80fabb7feee513ef3b3e94bc799e4242613b7d0c25938d4ae46b2e965ab95",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -59,12 +59,12 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "arg0_pointer_carrier_identified_writer_missing",
+    "blocker": "arg0_final_writer_trace_schema_gap",
     "confidence": "medium",
     "reason": "compare_lhs_runtime_backed_writer_missing",
     "stage": "compare_real_lhs_provenance_audit"
   },
-  "derived_task": "Trace final writer for actual compare arg0 after confirmed ESI carrier",
+  "derived_task": "Refine bounded actual arg0 final data writer trace",
   "do_not_do": [
     "do not return to old sample_solver blind search",
     "do not only increase beam or budget",
@@ -86,7 +86,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-05-24T15:51:55Z",
+  "generated_at": "2026-05-25T08:50:52Z",
   "included": [
     "current state",
     "best candidates",
@@ -116,10 +116,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260524_155155",
+  "round_id": "round_20260525_085052",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260524_155155_c3441de6ffe8",
+  "state_build_id": "state_20260525_085052_26b80fabb7fe",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,
@@ -128,6 +128,6 @@
     "has_runtime_validation": true,
     "has_stall_stage": true
   },
-  "task": "Trace final writer for actual compare arg0 after confirmed ESI carrier",
+  "task": "Refine bounded actual arg0 final data writer trace",
   "task_source": "derived_from_sample_artifacts"
 }

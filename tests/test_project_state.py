@@ -1737,9 +1737,53 @@ def test_project_state_derives_arg0_pointer_carrier_without_final_writer(tmp_pat
     assert trace["carrier_identified_count"] == 3
     assert trace["final_writer_status"] == "missing"
     assert trace["rows"][0]["pre_compare_esi_equals_arg0"] is True
-    assert latest["lhs_writer_classification_blocker"] == "arg0_pointer_carrier_identified_writer_missing"
-    assert current_state["current_bottleneck"]["blocker"] == "arg0_pointer_carrier_identified_writer_missing"
-    assert task_packet["task"] == "Trace final writer for actual compare arg0 after confirmed ESI carrier"
+    final_trace = latest["arg0_final_data_writer_trace"]
+    assert final_trace["classification"] == "final_writer_trace_schema_gap"
+    assert final_trace["rows"][0]["final_writer_gap_reason"] == "bounded_pointer_chain_rows_missing"
+    assert latest["lhs_writer_classification_blocker"] == "arg0_final_writer_trace_schema_gap"
+    assert current_state["current_bottleneck"]["blocker"] == "arg0_final_writer_trace_schema_gap"
+    assert task_packet["task"] == "Refine bounded actual arg0 final data writer trace"
+
+
+def test_project_state_projects_arg0_final_data_writer_trace_blocker(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_arg0_final_writer_trace")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_real_lhs_provenance_audit.json",
+        {
+            "artifact_kind": "compare_real_lhs_provenance_audit",
+            "classification": "compare_lhs_runtime_backed_writer_missing",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "actual_compare": {"entry_status": "confirmed", "lhs_side": "arg0"},
+            "arg0_final_data_writer_trace": {
+                "classification": "pointer_chain_identified_writer_missing",
+                "pointer_carrier_is_final_writer": False,
+                "pointer_write_is_final_data_writer": False,
+                "rows": [
+                    {
+                        "candidate_hex": "78d540b49c59077041414141414141",
+                        "pre_push_esi_equals_arg0": True,
+                        "slot_writer_equals_reload_source": True,
+                        "nearest_write_intersects_arg0": False,
+                        "final_writer_status": "pointer_chain_identified_writer_missing",
+                    }
+                ],
+            },
+            "last_writer_candidates": [],
+            "breakpoint_probe_allowed": False,
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    latest = current_state["latest_compare_real_lhs_provenance_audit"]
+    assert latest["arg0_final_data_writer_trace"]["classification"] == "pointer_chain_identified_writer_missing"
+    assert latest["lhs_writer_classification_blocker"] == "arg0_pointer_chain_identified_writer_missing"
+    assert current_state["current_bottleneck"]["blocker"] == "arg0_pointer_chain_identified_writer_missing"
 
 
 def test_project_state_indexes_compare_esi_source_window_audit(tmp_path: Path) -> None:

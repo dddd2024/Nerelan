@@ -1006,6 +1006,31 @@ function observe(point, address, context, eventName, extra) {{
             : [];
     const filteredWrites = isStaticCompareCallsite ? filteredWriteRing(compareSlots) : [];
     const observationWriteRing = isStaticCompareCallsite ? filteredWrites : writeRing.slice(-64);
+    const tracePointByName = {{
+        old_lhs_slot_store: "slot_writer",
+        pre_compare_lhs_push: "pre_push_esi",
+        pre_compare_push_esi: "pre_push_esi",
+        post_handoff_lhs_reload: "reload_source",
+        initial_lhs_reload: "reload_source",
+        final_lhs_reload: "reload_source",
+        static_compare_callsite: "actual_compare",
+    }};
+    const arg0TracePoint = {{
+        role: tracePointByName[pointName] || "",
+        site: moduleOffsetText(address, mainModule.base),
+        hook_name: pointName,
+        event: eventName || "enter",
+        esi_value: esi.toString(),
+        esi_preview_hex: readBytes(esi, 128),
+        eax_value: eax.toString(),
+        eax_preview_hex: eaxPreview,
+        frame_slots: frameSlots(bp, mainModule.base),
+        compare_args: compareSlots.length > 0 ? compareSlots.slice(1).map((slot, index) => Object.assign({{}}, slot, {{
+            index: index,
+            role: "arg" + index.toString(),
+        }})) : [],
+        write_ring_buffer: observationWriteRing,
+    }};
     send({{
         type: "compare_pre_compare_handoff_target_observation",
         timestamp_ms: Date.now(),
@@ -1041,6 +1066,7 @@ function observe(point, address, context, eventName, extra) {{
         exception: extra.exception || {{}},
         write_monitor_health: writeMonitorHealth(filteredWrites),
         write_ring_buffer: observationWriteRing,
+        arg0_final_data_writer_trace_point: arg0TracePoint,
     }});
 }}
 
