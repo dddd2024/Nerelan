@@ -101,7 +101,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-26T08:09:37Z",
+  "generated_at": "2026-05-26T09:16:52Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -1086,13 +1086,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260526_080937",
+  "round_id": "round_20260526_091652",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "24d817da8ce0",
+  "source_git_commit": "a0388544822d",
   "source_harness_run": "sr_arg0_bounded_writer_trace_20260525_r1",
-  "state_build_id": "state_20260526_080937_c7583ea6dc32",
-  "state_digest": "c7583ea6dc3287378a856af210a6f00853908844427ad5673fa0d652872faac9",
+  "state_build_id": "state_20260526_091652_bce32934a6b5",
+  "state_digest": "bce32934a6b55d4808d9580e6f1ecf87e24c13a2c137cd767fb3dc79cec308b9",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

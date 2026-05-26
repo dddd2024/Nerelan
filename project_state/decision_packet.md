@@ -3,8 +3,8 @@
   "schema_version": 1,
   "decision_id": "decision_20260526_rework_restore_compare_aware_search",
   "round_id": "round_20260526_rework_restore_compare_aware_search",
-  "based_on_state_build_id": "state_20260526_080937_c7583ea6dc32",
-  "based_on_state_digest": "c7583ea6dc3287378a856af210a6f00853908844427ad5673fa0d652872faac9",
+  "based_on_state_build_id": "state_20260526_091652_bce32934a6b5",
+  "based_on_state_digest": "bce32934a6b55d4808d9580e6f1ecf87e24c13a2c137cd767fb3dc79cec308b9",
   "status": "APPROVED",
   "mainline": "reverse_solving",
   "skill_profiles": [
