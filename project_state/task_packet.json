@@ -21,7 +21,7 @@
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\summary.json"
   },
-  "based_on_state_digest": "9a1014f18931ac3ab635b4813e692f4d967346df92d0cab8b2a03c33d3ec67e8",
+  "based_on_state_digest": "c7583ea6dc3287378a856af210a6f00853908844427ad5673fa0d652872faac9",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -85,7 +85,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-05-25T16:14:38Z",
+  "generated_at": "2026-05-26T08:09:37Z",
   "included": [
     "current state",
     "best candidates",
@@ -115,10 +115,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260525_161438",
+  "round_id": "round_20260526_080937",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260525_161438_9a1014f18931",
+  "state_build_id": "state_20260526_080937_c7583ea6dc32",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,

@@ -7988,6 +7988,26 @@ def test_run_compare_real_lhs_script_health_survives_compare_probe_fallback(
                         "hook_observations": [],
                         "write_monitor_health": _write_monitor_health(raw_write_count=0),
                         "write_ring_buffer": [],
+                        "hook_install_status": "installed",
+                        "hook_count": 4,
+                        "requested_hook_count": 4,
+                        "script_load_status": "loaded",
+                        "process_spawned_at_ms": 1000,
+                        "frida_attached_at_ms": 1100,
+                        "script_load_start_at_ms": 1200,
+                        "script_loaded_at_ms": 1300,
+                        "message_callback_registered_at_ms": 1190,
+                        "hooks_install_begin_at_ms": 1210,
+                        "hooks_installed_at_ms": 1250,
+                        "ui_trigger_start_at_ms": 1400,
+                        "ui_trigger_end_at_ms": 1450,
+                        "hooks_ready_barrier_seen": True,
+                        "hooks_ready_barrier_wait_ms": 20.0,
+                        "hooks_ready_before_ui_trigger": True,
+                        "ui_trigger_timing_status": "hooks_ready_before_ui_trigger",
+                        "timeout_or_wait_reason": "bounded_wait_ended_without_static_compare_observation",
+                        "ui_trigger_status": "button_triggered",
+                        "ui_trigger_after_hooks_installed": True,
                     }
                 ),
                 encoding="utf-8",
@@ -8029,6 +8049,9 @@ def test_run_compare_real_lhs_script_health_survives_compare_probe_fallback(
     assert payload["write_monitor_health"]["ring_capacity"] == 4096
     assert payload["candidate_execution_health"][0]["scripted_hook_status"] == "scripted_hook_no_observations"
     assert payload["candidate_execution_health"][0]["compare_probe_fallback_is_provenance"] is False
+    assert payload["candidate_execution_health"][0]["hooks_ready_before_ui_trigger"] is True
+    assert payload["candidate_execution_health"][0]["ui_trigger_start_at_ms"] == 1400
+    assert payload["candidate_results"][0]["hooks_installed_at_ms"] == 1250
 
 
 def test_compare_real_lhs_last_writer_requires_all_three_candidates() -> None:

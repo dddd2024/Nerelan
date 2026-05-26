@@ -1854,13 +1854,29 @@ def _sidecar_health_row(candidate_hex: str, **overrides: object) -> dict[str, ob
             {"ui_trigger_after_hooks_installed": False},
             "arg0_ui_trigger_or_timeout_blocked",
         ),
-        ({}, "arg0_hook_installed_but_not_hit"),
+        ({}, "arg0_hooks_ready_but_not_hit"),
         (
             {
                 "hook_hit_counts_by_name": {"static_compare_callsite": 1},
                 "python_message_decode_error_count": 1,
             },
-            "arg0_hook_hit_but_message_delivery_failed",
+            "arg0_hooks_ready_message_delivery_failed",
+        ),
+        (
+            {
+                "hooks_ready_before_ui_trigger": False,
+                "ui_trigger_timing_status": "hooks_ready_barrier_timeout_before_ui_trigger",
+                "root_cause_hypothesis": "hooks_ready_barrier_missing_before_ui_trigger",
+            },
+            "arg0_ui_trigger_barrier_missing_fixed",
+        ),
+        (
+            {
+                "ui_trigger_after_hooks_installed": False,
+                "hooks_ready_before_ui_trigger": True,
+                "ui_trigger_timing_status": "hooks_ready_before_ui_trigger",
+            },
+            "arg0_ui_trigger_timing_telemetry_bug_fixed",
         ),
         (
             {"module_base_resolution_status": "unresolved"},

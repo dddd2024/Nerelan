@@ -13439,12 +13439,26 @@ def _compare_real_lhs_candidate_execution_health(
             "python_message_count_total": int(result.get("python_message_count_total", 0) or 0),
             "python_message_decode_error_count": int(result.get("python_message_decode_error_count", 0) or 0),
             "module_base_resolution_status": str(result.get("module_base_resolution_status", "")),
+            "process_spawned_at_ms": result.get("process_spawned_at_ms", None),
+            "frida_attached_at_ms": result.get("frida_attached_at_ms", None),
+            "script_load_start_at_ms": result.get("script_load_start_at_ms", None),
+            "script_loaded_at_ms": result.get("script_loaded_at_ms", None),
+            "message_callback_registered_at_ms": result.get("message_callback_registered_at_ms", None),
+            "hooks_install_begin_at_ms": result.get("hooks_install_begin_at_ms", None),
+            "hooks_installed_at_ms": result.get("hooks_installed_at_ms", None),
             "hook_not_hit_vs_hook_not_installed_classification": str(
                 result.get("hook_not_hit_vs_hook_not_installed_classification", "")
             ),
             "spawn_attach_resume_status": str(result.get("spawn_attach_resume_status", "")),
             "ui_trigger_status": str(result.get("ui_trigger_status", "")),
+            "ui_trigger_start_at_ms": result.get("ui_trigger_start_at_ms", None),
+            "ui_trigger_end_at_ms": result.get("ui_trigger_end_at_ms", None),
             "ui_trigger_after_hooks_installed": bool(result.get("ui_trigger_after_hooks_installed")),
+            "hooks_ready_barrier_seen": bool(result.get("hooks_ready_barrier_seen")),
+            "hooks_ready_barrier_wait_ms": result.get("hooks_ready_barrier_wait_ms", None),
+            "hooks_ready_before_ui_trigger": bool(result.get("hooks_ready_before_ui_trigger")),
+            "ui_trigger_timing_status": str(result.get("ui_trigger_timing_status", "")),
+            "timeout_or_wait_reason": str(result.get("timeout_or_wait_reason", "")),
             "observation_count": int(result.get("observation_count", 0) or 0),
             "post_ui_observation_count": int(result.get("post_ui_observation_count", 0) or 0),
             "hook_hit_counts_by_name": dict(result.get("hook_hit_counts_by_name", {}))
@@ -14669,12 +14683,26 @@ def run_compare_real_lhs_provenance_audit(
                 "module_base_resolution_status": compare_payload.get("module_base_resolution_status", ""),
                 "hook_address_by_name": compare_payload.get("hook_address_by_name", {}),
                 "hook_address_validation": compare_payload.get("hook_address_validation", []),
+                "process_spawned_at_ms": compare_payload.get("process_spawned_at_ms", None),
+                "frida_attached_at_ms": compare_payload.get("frida_attached_at_ms", None),
+                "script_load_start_at_ms": compare_payload.get("script_load_start_at_ms", None),
+                "script_loaded_at_ms": compare_payload.get("script_loaded_at_ms", None),
+                "message_callback_registered_at_ms": compare_payload.get("message_callback_registered_at_ms", None),
+                "hooks_install_begin_at_ms": compare_payload.get("hooks_install_begin_at_ms", None),
+                "hooks_installed_at_ms": compare_payload.get("hooks_installed_at_ms", None),
                 "script_load_to_hooks_installed_elapsed_ms": compare_payload.get(
                     "script_load_to_hooks_installed_elapsed_ms", None
                 ),
                 "script_load_to_ui_trigger_elapsed_ms": compare_payload.get("script_load_to_ui_trigger_elapsed_ms", None),
+                "ui_trigger_start_at_ms": compare_payload.get("ui_trigger_start_at_ms", None),
+                "ui_trigger_end_at_ms": compare_payload.get("ui_trigger_end_at_ms", None),
                 "ui_trigger_after_hooks_installed": bool(compare_payload.get("ui_trigger_after_hooks_installed")),
                 "ui_trigger_epoch_ms": compare_payload.get("ui_trigger_epoch_ms", None),
+                "hooks_ready_barrier_seen": bool(compare_payload.get("hooks_ready_barrier_seen")),
+                "hooks_ready_barrier_wait_ms": compare_payload.get("hooks_ready_barrier_wait_ms", None),
+                "hooks_ready_before_ui_trigger": bool(compare_payload.get("hooks_ready_before_ui_trigger")),
+                "ui_trigger_timing_status": compare_payload.get("ui_trigger_timing_status", ""),
+                "timeout_or_wait_reason": compare_payload.get("timeout_or_wait_reason", ""),
                 "observation_count": compare_payload.get("observation_count", scripted_observation_count),
                 "post_ui_observation_count": compare_payload.get("post_ui_observation_count", 0),
                 "hook_hit_counts_by_name": compare_payload.get("hook_hit_counts_by_name", {}),
@@ -14989,9 +15017,19 @@ def _compare_lhs_last_writer_stage_fields(
     module_base_statuses: list[str] = []
     hook_address_by_name: dict[str, str] = {}
     hook_address_validation: list[dict[str, object]] = []
+    process_spawned_timestamps: list[object] = []
+    frida_attached_timestamps: list[object] = []
+    script_load_start_timestamps: list[object] = []
+    script_loaded_timestamps: list[object] = []
+    callback_registered_timestamps: list[object] = []
+    hooks_install_begin_timestamps: list[object] = []
+    hooks_installed_timestamps: list[object] = []
     elapsed_hooks: list[object] = []
     elapsed_ui: list[object] = []
+    ui_trigger_start_timestamps: list[object] = []
+    ui_trigger_end_timestamps: list[object] = []
     ui_trigger_epochs: list[object] = []
+    barrier_wait_values: list[object] = []
     hook_hit_counts_by_name: dict[str, int] = {}
     first_observation_timestamps: list[object] = []
     last_observation_timestamps: list[object] = []
@@ -15058,6 +15096,20 @@ def _compare_lhs_last_writer_stage_fields(
         raw_validation = item.get("hook_address_validation", [])
         if isinstance(raw_validation, list):
             hook_address_validation.extend(dict(row) for row in raw_validation if isinstance(row, dict))
+        for field, target in (
+            ("process_spawned_at_ms", process_spawned_timestamps),
+            ("frida_attached_at_ms", frida_attached_timestamps),
+            ("script_load_start_at_ms", script_load_start_timestamps),
+            ("script_loaded_at_ms", script_loaded_timestamps),
+            ("message_callback_registered_at_ms", callback_registered_timestamps),
+            ("hooks_install_begin_at_ms", hooks_install_begin_timestamps),
+            ("hooks_installed_at_ms", hooks_installed_timestamps),
+            ("ui_trigger_start_at_ms", ui_trigger_start_timestamps),
+            ("ui_trigger_end_at_ms", ui_trigger_end_timestamps),
+            ("hooks_ready_barrier_wait_ms", barrier_wait_values),
+        ):
+            if item.get(field) is not None:
+                target.append(item.get(field))
         if item.get("script_load_to_hooks_installed_elapsed_ms") is not None:
             elapsed_hooks.append(item.get("script_load_to_hooks_installed_elapsed_ms"))
         if item.get("script_load_to_ui_trigger_elapsed_ms") is not None:
@@ -15157,12 +15209,32 @@ def _compare_lhs_last_writer_stage_fields(
         "module_base_resolution_status": _summary_status(sorted(set(module_base_statuses))),
         "hook_address_by_name": hook_address_by_name,
         "hook_address_validation": hook_address_validation,
+        "process_spawned_at_ms": process_spawned_timestamps[-1] if process_spawned_timestamps else None,
+        "frida_attached_at_ms": frida_attached_timestamps[-1] if frida_attached_timestamps else None,
+        "script_load_start_at_ms": script_load_start_timestamps[-1] if script_load_start_timestamps else None,
+        "script_loaded_at_ms": script_loaded_timestamps[-1] if script_loaded_timestamps else None,
+        "message_callback_registered_at_ms": callback_registered_timestamps[-1]
+        if callback_registered_timestamps
+        else None,
+        "hooks_install_begin_at_ms": hooks_install_begin_timestamps[-1] if hooks_install_begin_timestamps else None,
+        "hooks_installed_at_ms": hooks_installed_timestamps[-1] if hooks_installed_timestamps else None,
         "script_load_to_hooks_installed_elapsed_ms": elapsed_hooks[-1] if elapsed_hooks else None,
         "script_load_to_ui_trigger_elapsed_ms": elapsed_ui[-1] if elapsed_ui else None,
+        "ui_trigger_start_at_ms": ui_trigger_start_timestamps[-1] if ui_trigger_start_timestamps else None,
+        "ui_trigger_end_at_ms": ui_trigger_end_timestamps[-1] if ui_trigger_end_timestamps else None,
         "ui_trigger_after_hooks_installed": all(bool(item.get("ui_trigger_after_hooks_installed")) for item in candidate_results)
         if candidate_results
         else False,
         "ui_trigger_epoch_ms": ui_trigger_epochs[-1] if ui_trigger_epochs else None,
+        "hooks_ready_barrier_seen": all(bool(item.get("hooks_ready_barrier_seen")) for item in candidate_results)
+        if candidate_results
+        else False,
+        "hooks_ready_barrier_wait_ms": barrier_wait_values[-1] if barrier_wait_values else None,
+        "hooks_ready_before_ui_trigger": all(bool(item.get("hooks_ready_before_ui_trigger")) for item in candidate_results)
+        if candidate_results
+        else False,
+        "ui_trigger_timing_status": _summary_status(_non_empty("ui_trigger_timing_status")),
+        "timeout_or_wait_reason": _summary_status(_non_empty("timeout_or_wait_reason")),
         "observation_count": _sum_int("observation_count"),
         "post_ui_observation_count": _sum_int("post_ui_observation_count"),
         "hook_hit_counts_by_name": hook_hit_counts_by_name,

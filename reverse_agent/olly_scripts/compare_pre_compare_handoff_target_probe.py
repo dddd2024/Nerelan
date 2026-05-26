@@ -118,10 +118,24 @@ def _build_payload(
     module_base_resolution_status: str = "",
     hook_address_by_name: dict[str, str] | None = None,
     hook_address_validation: list[dict[str, object]] | None = None,
+    process_spawned_at_ms: object = None,
+    frida_attached_at_ms: object = None,
+    script_load_start_at_ms: object = None,
+    script_loaded_at_ms: object = None,
+    message_callback_registered_at_ms: object = None,
+    hooks_install_begin_at_ms: object = None,
+    hooks_installed_at_ms: object = None,
     script_load_to_hooks_installed_elapsed_ms: object = None,
     script_load_to_ui_trigger_elapsed_ms: object = None,
+    ui_trigger_start_at_ms: object = None,
+    ui_trigger_end_at_ms: object = None,
     ui_trigger_after_hooks_installed: bool = False,
     ui_trigger_epoch_ms: object = None,
+    hooks_ready_barrier_seen: bool = False,
+    hooks_ready_barrier_wait_ms: object = None,
+    hooks_ready_before_ui_trigger: bool = False,
+    ui_trigger_timing_status: str = "",
+    timeout_or_wait_reason: str = "",
     observation_count: int = 0,
     post_ui_observation_count: int = 0,
     hook_hit_counts_by_name: dict[str, int] | None = None,
@@ -176,10 +190,24 @@ def _build_payload(
         "module_base_resolution_status": module_base_resolution_status,
         "hook_address_by_name": dict(hook_address_by_name or {}),
         "hook_address_validation": list(hook_address_validation or []),
+        "process_spawned_at_ms": process_spawned_at_ms,
+        "frida_attached_at_ms": frida_attached_at_ms,
+        "script_load_start_at_ms": script_load_start_at_ms,
+        "script_loaded_at_ms": script_loaded_at_ms,
+        "message_callback_registered_at_ms": message_callback_registered_at_ms,
+        "hooks_install_begin_at_ms": hooks_install_begin_at_ms,
+        "hooks_installed_at_ms": hooks_installed_at_ms,
         "script_load_to_hooks_installed_elapsed_ms": script_load_to_hooks_installed_elapsed_ms,
         "script_load_to_ui_trigger_elapsed_ms": script_load_to_ui_trigger_elapsed_ms,
+        "ui_trigger_start_at_ms": ui_trigger_start_at_ms,
+        "ui_trigger_end_at_ms": ui_trigger_end_at_ms,
         "ui_trigger_after_hooks_installed": ui_trigger_after_hooks_installed,
         "ui_trigger_epoch_ms": ui_trigger_epoch_ms,
+        "hooks_ready_barrier_seen": hooks_ready_barrier_seen,
+        "hooks_ready_barrier_wait_ms": hooks_ready_barrier_wait_ms,
+        "hooks_ready_before_ui_trigger": hooks_ready_before_ui_trigger,
+        "ui_trigger_timing_status": ui_trigger_timing_status,
+        "timeout_or_wait_reason": timeout_or_wait_reason,
         "observation_count": observation_count,
         "post_ui_observation_count": post_ui_observation_count,
         "hook_hit_counts_by_name": dict(hook_hit_counts_by_name or {}),
@@ -336,10 +364,25 @@ def main() -> int:
     python_message_callback_count = 0
     python_message_last_payload: dict[str, object] = {}
     python_message_callback_registered_before_load = False
+    process_spawned_at_ms: int | None = None
+    frida_attached_at_ms: int | None = None
+    script_load_start_at_ms: int | None = None
+    script_loaded_at_ms: int | None = None
+    message_callback_registered_at_ms: int | None = None
+    hooks_install_begin_at_ms: int | None = None
+    hooks_installed_at_ms: int | None = None
     script_load_monotonic: float | None = None
     hooks_installed_monotonic: float | None = None
     ui_trigger_monotonic: float | None = None
+    ui_trigger_start_monotonic: float | None = None
+    ui_trigger_start_at_ms: int | None = None
+    ui_trigger_end_at_ms: int | None = None
     ui_trigger_epoch_ms: int | None = None
+    hooks_ready_barrier_seen = False
+    hooks_ready_barrier_wait_ms: float | None = None
+    hooks_ready_before_ui_trigger = False
+    ui_trigger_timing_status = ""
+    timeout_or_wait_reason = ""
     runtime_stage = "script_started"
     script_load_status = "not_started"
     script_load_error = ""
@@ -348,6 +391,9 @@ def main() -> int:
     pid: int | None = None
     session = None
     app = None
+
+    def epoch_ms() -> int:
+        return int(time.time() * 1000)
 
     def bridge_snapshot() -> dict[str, object]:
         stage_messages = [
@@ -401,6 +447,12 @@ def main() -> int:
             "js_top_level_timestamp": js_top_level_messages[-1].get("timestamp_ms", "") if js_top_level_messages else "",
             "js_hooks_install_begin_seen": bool(js_hooks_install_begin_messages),
             "js_hooks_installed_seen": bool(js_hooks_installed_messages),
+            "hooks_install_begin_at_ms": js_hooks_install_begin_messages[-1].get("timestamp_ms", None)
+            if js_hooks_install_begin_messages
+            else None,
+            "hooks_installed_at_ms": js_hooks_installed_messages[-1].get("timestamp_ms", None)
+            if js_hooks_installed_messages
+            else None,
             "hook_count": max(
                 [int(item.get("hook_count", 0) or 0) for item in js_hooks_installed_messages] or [0]
             ),
@@ -456,6 +508,22 @@ def main() -> int:
                 module_base_resolution_status=str(bridge.get("module_base_resolution_status", "")),
                 hook_address_by_name=bridge.get("hook_address_by_name", {}),
                 hook_address_validation=bridge.get("hook_address_validation", []),
+                process_spawned_at_ms=process_spawned_at_ms,
+                frida_attached_at_ms=frida_attached_at_ms,
+                script_load_start_at_ms=script_load_start_at_ms,
+                script_loaded_at_ms=script_loaded_at_ms,
+                message_callback_registered_at_ms=message_callback_registered_at_ms,
+                hooks_install_begin_at_ms=bridge.get("hooks_install_begin_at_ms", None),
+                hooks_installed_at_ms=bridge.get("hooks_installed_at_ms", None),
+                ui_trigger_start_at_ms=ui_trigger_start_at_ms,
+                ui_trigger_end_at_ms=ui_trigger_end_at_ms,
+                ui_trigger_after_hooks_installed=bool(hooks_ready_before_ui_trigger),
+                ui_trigger_epoch_ms=ui_trigger_epoch_ms,
+                hooks_ready_barrier_seen=hooks_ready_barrier_seen,
+                hooks_ready_barrier_wait_ms=hooks_ready_barrier_wait_ms,
+                hooks_ready_before_ui_trigger=hooks_ready_before_ui_trigger,
+                ui_trigger_timing_status=ui_trigger_timing_status,
+                timeout_or_wait_reason=timeout_or_wait_reason,
                 spawn_attach_resume_status=spawn_attach_resume_status,
                 ui_trigger_status=ui_trigger_status,
                 runtime_stage=stage,
@@ -463,7 +531,8 @@ def main() -> int:
         )
 
     def on_message(message: dict[str, object], data: object) -> None:  # noqa: ANN401
-        nonlocal hooks_installed_monotonic, python_message_callback_count, python_message_decode_error_count, python_message_last_payload
+        nonlocal hooks_installed_at_ms, hooks_installed_monotonic, python_message_callback_count
+        nonlocal python_message_decode_error_count, python_message_last_payload
         python_message_callback_count += 1
         message_type = str(message.get("type", ""))
         if message_type == "send":
@@ -473,6 +542,10 @@ def main() -> int:
                 python_message_last_payload = dict(payload)
                 if str(payload.get("runtime_stage", "")) == "hooks_installed":
                     hooks_installed_monotonic = time.monotonic()
+                    try:
+                        hooks_installed_at_ms = int(payload.get("timestamp_ms", 0) or 0) or epoch_ms()
+                    except (TypeError, ValueError):
+                        hooks_installed_at_ms = epoch_ms()
             else:
                 python_message_decode_error_count += 1
             return
@@ -1228,21 +1301,26 @@ sendStage({{
         runtime_stage = "spawning_target"
         write_progress_payload(runtime_stage)
         pid = frida.spawn([str(target)])
+        process_spawned_at_ms = epoch_ms()
         spawn_attach_resume_status = "spawned"
         runtime_stage = "attaching_frida"
         write_progress_payload(runtime_stage)
         session = frida.attach(pid)
+        frida_attached_at_ms = epoch_ms()
         spawn_attach_resume_status = "attached"
         runtime_stage = "creating_script"
         write_progress_payload(runtime_stage)
         script = session.create_script(script_source)
         script.on("message", on_message)
         python_message_callback_registered_before_load = True
+        message_callback_registered_at_ms = epoch_ms()
         runtime_stage = "loading_script"
         script_load_status = "loading"
+        script_load_start_at_ms = epoch_ms()
         script_load_monotonic = time.monotonic()
         write_progress_payload(runtime_stage)
         script.load()
+        script_loaded_at_ms = epoch_ms()
         script_load_status = "loaded"
         runtime_stage = "script_loaded"
         write_progress_payload(runtime_stage)
@@ -1250,7 +1328,18 @@ sendStage({{
         write_progress_payload(runtime_stage)
         frida.resume(pid)
         spawn_attach_resume_status = "resumed"
-        time.sleep(1.0)
+        barrier_start = time.monotonic()
+        barrier_deadline = barrier_start + 1.0
+        while hooks_installed_monotonic is None and time.monotonic() < barrier_deadline:
+            time.sleep(0.02)
+        hooks_ready_barrier_wait_ms = round((time.monotonic() - barrier_start) * 1000, 3)
+        hooks_ready_barrier_seen = hooks_installed_monotonic is not None
+        hooks_ready_before_ui_trigger = hooks_ready_barrier_seen
+        if hooks_ready_barrier_seen:
+            ui_trigger_timing_status = "hooks_ready_before_ui_trigger"
+        else:
+            ui_trigger_timing_status = "hooks_ready_barrier_timeout_before_ui_trigger"
+            timeout_or_wait_reason = "hooks_installed_not_observed_before_ui_trigger_within_existing_window"
         runtime_stage = "connecting_window"
         ui_trigger_status = "connecting_window"
         write_progress_payload(runtime_stage)
@@ -1280,10 +1369,26 @@ sendStage({{
         ui_trigger_status = "input_injected"
         runtime_stage = "triggering_candidate"
         write_progress_payload(runtime_stage)
+        ui_trigger_start_monotonic = time.monotonic()
+        ui_trigger_start_at_ms = epoch_ms()
         _trigger_decrypt(decrypt_btn)
         ui_trigger_status = "button_triggered"
         ui_trigger_monotonic = time.monotonic()
-        ui_trigger_epoch_ms = int(time.time() * 1000)
+        ui_trigger_end_at_ms = epoch_ms()
+        ui_trigger_epoch_ms = ui_trigger_end_at_ms
+        hooks_ready_before_ui_trigger = (
+            hooks_installed_monotonic is not None
+            and ui_trigger_start_monotonic is not None
+            and ui_trigger_start_monotonic >= hooks_installed_monotonic
+        )
+        if hooks_ready_before_ui_trigger:
+            ui_trigger_timing_status = "hooks_ready_before_ui_trigger"
+        elif hooks_installed_monotonic is None:
+            ui_trigger_timing_status = "hooks_ready_missing_before_ui_trigger"
+            timeout_or_wait_reason = timeout_or_wait_reason or "hooks_installed_not_observed_before_ui_trigger"
+        else:
+            ui_trigger_timing_status = "ui_trigger_started_before_hooks_ready"
+            timeout_or_wait_reason = "ui_trigger_started_before_hooks_ready"
 
         runtime_stage = "waiting_for_observation"
         write_progress_payload(runtime_stage)
@@ -1439,6 +1544,16 @@ sendStage({{
     js_top_level_timestamp = js_top_level_messages[-1].get("timestamp_ms", "") if js_top_level_messages else ""
     js_hooks_install_begin_seen = bool(js_hooks_install_begin_messages)
     js_hooks_installed_seen = bool(js_hooks_installed_messages)
+    if js_hooks_install_begin_messages:
+        try:
+            hooks_install_begin_at_ms = int(js_hooks_install_begin_messages[-1].get("timestamp_ms", 0) or 0) or None
+        except (TypeError, ValueError):
+            hooks_install_begin_at_ms = None
+    if js_hooks_installed_messages:
+        try:
+            hooks_installed_at_ms = int(js_hooks_installed_messages[-1].get("timestamp_ms", 0) or 0) or None
+        except (TypeError, ValueError):
+            hooks_installed_at_ms = hooks_installed_at_ms
     js_hook_install_exception_messages = [
         str(item.get("error", ""))
         for item in per_hook_install_results
@@ -1477,6 +1592,22 @@ sendStage({{
         and hooks_installed_monotonic is not None
         and ui_trigger_monotonic >= hooks_installed_monotonic
     )
+    hooks_ready_before_ui_trigger = (
+        hooks_installed_monotonic is not None
+        and ui_trigger_start_monotonic is not None
+        and ui_trigger_start_monotonic >= hooks_installed_monotonic
+    )
+    if not ui_trigger_timing_status:
+        if hooks_ready_before_ui_trigger:
+            ui_trigger_timing_status = "hooks_ready_before_ui_trigger"
+        elif ui_trigger_monotonic is not None and hooks_installed_monotonic is None:
+            ui_trigger_timing_status = "hooks_ready_missing_before_ui_trigger"
+            timeout_or_wait_reason = timeout_or_wait_reason or "hooks_installed_not_observed_before_ui_trigger"
+        elif ui_trigger_monotonic is not None:
+            ui_trigger_timing_status = "ui_trigger_started_before_hooks_ready"
+            timeout_or_wait_reason = timeout_or_wait_reason or "ui_trigger_started_before_hooks_ready"
+    if not timeout_or_wait_reason and runtime_stage == "waiting_for_observation":
+        timeout_or_wait_reason = "bounded_wait_ended_without_static_compare_observation"
     installed_results = [
         item for item in per_hook_install_results if str(item.get("install_status", "")) == "installed"
     ]
@@ -1547,6 +1678,13 @@ sendStage({{
         elif ui_trigger_status != "button_triggered":
             root_cause_hypothesis = "ui_trigger_failed"
             root_cause_evidence.append(f"ui_trigger_status={ui_trigger_status}")
+        elif not hooks_ready_before_ui_trigger:
+            root_cause_hypothesis = "hooks_ready_barrier_missing_before_ui_trigger"
+            root_cause_evidence.append(f"hooks_ready_barrier_seen={str(hooks_ready_barrier_seen).lower()}")
+            root_cause_evidence.append(f"hooks_ready_before_ui_trigger={str(hooks_ready_before_ui_trigger).lower()}")
+            root_cause_evidence.append(f"ui_trigger_timing_status={ui_trigger_timing_status}")
+            if timeout_or_wait_reason:
+                root_cause_evidence.append(f"timeout_or_wait_reason={timeout_or_wait_reason}")
         elif hooks_installed_stage_seen and hook_install_status == "installed" and observation_count <= 0:
             root_cause_hypothesis = "hook_installed_but_not_hit_after_ui_trigger"
             root_cause_evidence.append("hooks_installed_stage_seen=true")
@@ -1580,6 +1718,10 @@ sendStage({{
                 f"hook_install_error_count={hook_install_error_count}",
                 f"spawn_attach_resume_status={spawn_attach_resume_status}",
                 f"ui_trigger_status={ui_trigger_status}",
+                f"hooks_ready_barrier_seen={str(hooks_ready_barrier_seen).lower()}",
+                f"hooks_ready_before_ui_trigger={str(hooks_ready_before_ui_trigger).lower()}",
+                f"ui_trigger_timing_status={ui_trigger_timing_status}",
+                f"timeout_or_wait_reason={timeout_or_wait_reason}",
                 f"observation_count={observation_count}",
                 f"post_ui_observation_count={post_ui_observation_count}",
                 f"static_compare_observation_count={static_compare_observation_count}",
@@ -1641,10 +1783,24 @@ sendStage({{
             module_base_resolution_status=module_base_resolution_status,
             hook_address_by_name=hook_address_by_name,
             hook_address_validation=hook_address_validation,
+            process_spawned_at_ms=process_spawned_at_ms,
+            frida_attached_at_ms=frida_attached_at_ms,
+            script_load_start_at_ms=script_load_start_at_ms,
+            script_loaded_at_ms=script_loaded_at_ms,
+            message_callback_registered_at_ms=message_callback_registered_at_ms,
+            hooks_install_begin_at_ms=hooks_install_begin_at_ms,
+            hooks_installed_at_ms=hooks_installed_at_ms,
             script_load_to_hooks_installed_elapsed_ms=script_load_to_hooks_installed_elapsed_ms,
             script_load_to_ui_trigger_elapsed_ms=script_load_to_ui_trigger_elapsed_ms,
+            ui_trigger_start_at_ms=ui_trigger_start_at_ms,
+            ui_trigger_end_at_ms=ui_trigger_end_at_ms,
             ui_trigger_after_hooks_installed=ui_trigger_after_hooks_installed,
             ui_trigger_epoch_ms=ui_trigger_epoch_ms,
+            hooks_ready_barrier_seen=hooks_ready_barrier_seen,
+            hooks_ready_barrier_wait_ms=hooks_ready_barrier_wait_ms,
+            hooks_ready_before_ui_trigger=hooks_ready_before_ui_trigger,
+            ui_trigger_timing_status=ui_trigger_timing_status,
+            timeout_or_wait_reason=timeout_or_wait_reason,
             observation_count=observation_count,
             post_ui_observation_count=post_ui_observation_count,
             hook_hit_counts_by_name=hook_hit_counts_by_name,

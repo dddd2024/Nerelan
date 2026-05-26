@@ -1,18 +1,18 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260525_reverse_arg0_sidecar_observation_blocker_fix",
-  "report_id": "report_20260525_reverse_arg0_sidecar_observation_blocker_fix",
-  "round_id": "round_20260525_reverse_arg0_sidecar_observation_blocker_fix",
-  "generated_at": "2026-05-25T16:14:38+08:00",
+  "decision_id": "decision_20260526_reverse_arg0_ui_trigger_timing_validation",
+  "report_id": "report_20260526_reverse_arg0_ui_trigger_timing_validation",
+  "round_id": "round_20260526_reverse_arg0_ui_trigger_timing_validation",
+  "generated_at": "2026-05-26T16:09:37+08:00",
   "status": "PASSED",
   "tests_ran": [
-    "python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/project_state.py",
-    "python -m pytest -q tests/test_project_state.py -k \"sidecar_observation_blocker or arg0_final_data_writer_trace or artifact or bottleneck or report or pointer or writer or runtime\"",
-    "python -m pytest -q tests/test_compare_aware_search_strategy.py -k \"arg0 or hook or timeout or observation or writer or classification\"",
+    "python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/project_state.py reverse_agent/sidecar_health.py",
+    "python -m pytest -q tests/test_compare_aware_search_strategy.py -k \"arg0 or hook or timeout or observation or ui or trigger or timing or classification\"",
+    "python -m pytest -q tests/test_project_state.py -k \"sidecar or ui or trigger or timing or observation or blocker or report or runtime\"",
+    "python -m pytest -q tests/test_project_state.py",
     "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_bounded_writer_trace_20260525_r1",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "python -m pytest -q tests/test_project_state.py",
     "python -m reverse_agent.project_state status --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "git diff --check"
@@ -20,47 +20,47 @@
 }
 ```
 
-2026-05-25 verification for decision_20260525_reverse_arg0_sidecar_observation_blocker_fix
+2026-05-26 verification for decision_20260526_reverse_arg0_ui_trigger_timing_validation
 
 Command:
-python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/project_state.py
+python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/project_state.py reverse_agent/sidecar_health.py
 Result:
 passed.
 
 Command:
-python -m pytest -q tests/test_project_state.py -k "sidecar_observation_blocker or arg0_final_data_writer_trace or artifact or bottleneck or report or pointer or writer or runtime"
+python -m pytest -q tests/test_compare_aware_search_strategy.py -k "arg0 or hook or timeout or observation or ui or trigger or timing or classification"
 Result:
-passed, 74 passed and 68 deselected.
+passed, 49 passed and 147 deselected.
 
 Command:
-python -m pytest -q tests/test_compare_aware_search_strategy.py -k "arg0 or hook or timeout or observation or writer or classification"
+python -m pytest -q tests/test_project_state.py -k "sidecar or ui or trigger or timing or observation or blocker or report or runtime"
 Result:
-passed, 67 passed and 129 deselected.
-
-Command:
-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_bounded_writer_trace_20260525_r1
-Result:
-passed. Rebuilt active project_state from existing run `sr_arg0_bounded_writer_trace_20260525_r1`; current blocker is `arg0_ui_trigger_or_timeout_blocked`.
-
-Command:
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-Result:
-passed. Decision metadata matches current state build `state_20260525_161438_9a1014f18931`.
+passed, 59 passed and 85 deselected.
 
 Command:
 python -m pytest -q tests/test_project_state.py
 Result:
-passed, 142 passed.
+passed, 144 passed.
+
+Command:
+python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_bounded_writer_trace_20260525_r1
+Result:
+passed. Rebuilt active project_state from existing run `sr_arg0_bounded_writer_trace_20260525_r1`; current blocker remains `arg0_ui_trigger_or_timeout_blocked` because the selected runtime artifact predates the new UI timing fields.
+
+Command:
+python -m reverse_agent.project_state lint-decision --state-dir project_state
+Result:
+passed. Decision metadata matches current state build `state_20260526_080937_c7583ea6dc32`.
 
 Command:
 python -m reverse_agent.project_state status --state-dir project_state
 Result:
-passed. Decision is consumed by the success report, current blocker is `arg0_ui_trigger_or_timeout_blocked`, and the round was not archived yet at this check.
+passed. Report matches the active decision, report status is `PARTIAL`, and archive status is `not_archived`.
 
 Command:
 python -m reverse_agent.project_state lint-report --state-dir project_state
 Result:
-passed with pre-archive warning `report round not archived yet`.
+passed with warnings `report_status is PARTIAL` and `report round not archived yet`.
 
 Command:
 git diff --check
