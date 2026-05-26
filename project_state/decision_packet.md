@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260526_rework_restore_compare_aware_search",
-  "round_id": "round_20260526_rework_restore_compare_aware_search",
+  "decision_id": "decision_20260526_diagnose_arg0_observation_delivery",
+  "round_id": "round_20260526_diagnose_arg0_observation_delivery",
   "based_on_state_build_id": "state_20260526_091652_bce32934a6b5",
   "based_on_state_digest": "bce32934a6b55d4808d9580e6f1ecf87e24c13a2c137cd767fb3dc79cec308b9",
   "status": "APPROVED",
@@ -16,79 +16,81 @@
 
 # DECISION_PACKET
 
-本轮是上一轮审计后的 **返工修复任务**。当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`，不是 `project_state/task_packet.json` 中的 `task` 或 `derived_task`。
+本轮属于 **reverse_solving** 主线，但目标不是搜索 candidate，也不是追 final writer。目标是对当前 blocker `arg0_ui_trigger_or_timeout_blocked` 做 bounded diagnosis，并在必要时做最小代码修复，使下一轮能明确知道 sidecar observation 是被 UI trigger、hook readiness、message bridge、schema projection，还是 artifact aggregation 阶段阻断。
 
-本轮仍属于 **reverse_solving** 主线，但目标不是推进逆向解题，而是修复当前 GitHub committed tree 的一致性问题：`reverse_agent/strategies/compare_aware_search.py` 在当前 main 上为空，导致上一轮报告中的测试通过结论与提交状态不可信。
+当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。`project_state/task_packet.json` 中的 `task` / `derived_task` 只作为派生建议，不自动覆盖本 decision。
 
 ## 1. Goal
 
-恢复并验证 `reverse_agent/strategies/compare_aware_search.py` 的有效内容，重新应用上一轮必要的 UI trigger timing / sidecar health 聚合改动，使当前 committed tree 与报告、测试结果重新一致。
+诊断并最小修复 `compare_real_lhs_provenance_audit` 的 observation delivery blocker。
 
 必须完成：
 
 ```text
-1. 恢复 reverse_agent/strategies/compare_aware_search.py 到上一轮可用的非空版本。
-2. 保留或重新应用上一轮合理的 UI trigger timing / sidecar health aggregation 改动。
-3. 证明 tests/test_compare_aware_search_strategy.py 中的大量 import 在当前 committed tree 下可以正常执行。
-4. 重新运行并记录真实测试结果。
-5. 更新 codex_execution_report.md 和 pytest_result.txt，使其与本 decision_id 匹配。
+1. 读取当前 current artifact：
+   solve_reports\harness_runs\sr_arg0_bounded_writer_trace_20260525_r1\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json
+
+2. 明确解释为什么 actual_compare.entry 已 confirmed / observed_count=3，但 actual_compare.arg0/arg1 为空。
+
+3. 将当前宽泛 blocker：
+   arg0_ui_trigger_or_timeout_blocked
+
+   拆成更具体分类之一：
+   - hooks_not_ready_before_ui_trigger
+   - ui_trigger_not_executed
+   - ui_trigger_executed_but_compare_arg_observation_missing
+   - message_bridge_dropped_observation
+   - sidecar_payload_schema_gap
+   - project_state_projection_gap
+   - artifact_aggregation_gap
+   - inconclusive_with_missing_required_telemetry
+
+4. 如果原因是代码层 schema / aggregation / projection 缺口，做最小修复并加测试。
+
+5. 如果 current artifact 本身缺少必要 telemetry，先补 sidecar/aggregation telemetry，不要直接扩大 runtime 搜索。
+
+6. 只有在完成静态/单测修复后，才允许一次 bounded rerun，用同一批 current candidates 验证 observation delivery；不允许扩大 candidate、beam、topN、timeout、budget。
 ```
 
-本轮不是 final writer 追踪任务，不生成新的解题结论。
+本轮完成标准不是解出 flag，而是把 blocker 从泛化的 `arg0_ui_trigger_or_timeout_blocked` 收敛成一个可审计、可复现、可进入下一轮的具体原因。
 
 ## 2. Current Evidence
 
-当前主线：**reverse_solving**。
-
-当前 state 基础：
+当前主线：
 
 ```text
-state_build_id = state_20260526_080937_c7583ea6dc32
-state_digest = c7583ea6dc3287378a856af210a6f00853908844427ad5673fa0d652872faac9
+mainline = reverse_solving
 profile = samplereverse
-source_harness_run = sr_arg0_bounded_writer_trace_20260525_r1
-current_bottleneck.stage = compare_real_lhs_provenance_audit
-current_bottleneck.reason = inconclusive
-current_bottleneck.blocker = arg0_ui_trigger_or_timeout_blocked
-workflow_status = REPORT_AVAILABLE
-review_status = PENDING_REVIEW
+active_strategy = CompareAwareSearchStrategy
 ```
 
-`task_packet.task` / `task_packet.derived_task` 当前只能作为派生建议。本轮执行权威是本 `decision_packet.md`。
-
-上一轮审计结论：**REWORK_REQUIRED**。
-
-阻断性证据：
+当前 state：
 
 ```text
-reverse_agent/strategies/compare_aware_search.py 当前 GitHub main 内容为空。
-empty blob sha = db45c3c1b692ede76c6d39c20f1d209affeefd68
+state_build_id = state_20260526_091652_bce32934a6b5
+state_digest = bce32934a6b55d4808d9580e6f1ecf87e24c13a2c137cd767fb3dc79cec308b9
+source_run = sr_arg0_bounded_writer_trace_20260525_r1
 ```
 
-而 `tests/test_compare_aware_search_strategy.py` 仍从该文件导入大量符号，包括：
+当前 bottleneck：
 
 ```text
-CompareAwareSearchStrategy
-COMPARE_REAL_LHS_PROVENANCE_AUDIT_FILE_NAME
-COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME
-build_compare_real_lhs_provenance_audit_payload
-run_compare_real_lhs_provenance_audit
-run_compare_pre_compare_handoff_target_probe
-validate_compare_aware_results
-resolve_compare_aware_anchors
+stage = compare_real_lhs_provenance_audit
+reason = inconclusive
+blocker = arg0_ui_trigger_or_timeout_blocked
+confidence = medium
 ```
 
-因此，上一轮 `pytest_result.txt` 中记录的 compare-aware tests passed 与当前 GitHub committed tree 不一致，不能接受。
-
-上一轮可保留的正向实现方向：
+当前 candidate evidence：
 
 ```text
-1. compare_pre_compare_handoff_target_probe.py 增加 hooks installed readiness barrier。
-2. Python message callback 仍在 script.load 前注册。
-3. UI trigger 前等待 hooks_installed message，但不能扩大 timeout/budget。
-4. sidecar lifecycle 增加 hooks_ready_before_ui_trigger、ui_trigger_start/end、timeout_or_wait_reason 等字段。
-5. sidecar_health.py 增加 lifecycle / hook_install / message_bridge / observations / classification 归一化。
-6. project_state.py 增加 UI timing blocker 分类投影。
+exact2 candidate_hex = 78d540b49c59077041414141414141
+exact2 runtime_ci_exact_wchars = 2
+exact2 runtime_ci_distance5 = 246
+
+frontier candidate_hex = 5a3e7f46ddd474d041414141414141
+frontier runtime_ci_exact_wchars = 1
+frontier runtime_ci_distance5 = 258
 ```
 
 当前 artifact freshness：
@@ -96,12 +98,42 @@ resolve_compare_aware_anchors
 ```text
 latest_artifacts_v2.compare_real_lhs_provenance_audit.freshness = current
 latest_artifacts_v2.compare_real_lhs_provenance_audit.source_run = sr_arg0_bounded_writer_trace_20260525_r1
+
+latest_artifacts_v2.summary.freshness = current
+latest_artifacts_v2.run_manifest.freshness = current
+
 latest_artifacts_v2.compare_probe.freshness = stale
+latest_artifacts_v2.compare_handoff_return_site_probe.freshness = stale
+latest_artifacts_v2.compare_producer_material_confirmation.freshness = stale
+latest_artifacts_v2.function_semantic_audit.freshness = stale
 ```
 
-不能把 stale `compare_probe` 当 current evidence。
+当前 critical symptom：
 
-当前 skill_profiles：
+```text
+latest_compare_real_lhs_provenance_audit.actual_compare.entry = 0x258c
+latest_compare_real_lhs_provenance_audit.actual_compare.entry_status = confirmed
+latest_compare_real_lhs_provenance_audit.actual_compare.observed_count = 3
+
+但是：
+actual_compare.arg0_value_by_candidate = {}
+actual_compare.arg0_preview_by_candidate = {}
+actual_compare.arg1_value_by_candidate = {}
+actual_compare.arg1_preview_by_candidate = {}
+arg0_final_data_writer_trace.final_writer_status = final_writer_trace_schema_gap
+final_writer_gap_reason = actual_compare_arg0_missing
+```
+
+上一轮已接受的前置修复：
+
+```text
+compare_aware_search.py 已确认非空且 CompareAwareSearchStrategy 可 import。
+compare-aware focused tests passed。
+project_state focused tests passed。
+pytest_result 与 report/decision 元数据已匹配。
+```
+
+当前 skill profiles：
 
 ```text
 reverse-agent-iteration@v2
@@ -113,17 +145,26 @@ samplereverse-frontier@v2
 严禁：
 
 ```text
-1. 不运行 Base64/RC4 probe。
-2. 不回退到旧 sample_solver 盲搜。
+1. 不运行 Base64/RC4 breakpoint probe。
+2. 不回退旧 sample_solver 盲搜。
 3. 不扩大 beam / topN / budget / timeout / frontier iteration。
 4. 不启动新的 candidate search。
 5. 不追 final writer。
-6. 不默认读取完整 solve_reports/。
-7. 不提交完整 solve_reports/。
-8. 不把 stale / missing artifact 当 current evidence。
-9. 不把动态 runtime facts 写入 .codex-skills/。
-10. 不扩张 skill registry / sync / agent runtime。
-11. 不继续推进解题，直到 compare_aware_search.py 恢复并通过测试。
+6. 不把 stale compare_probe / stale handoff artifacts 当 current evidence。
+7. 不读取完整 solve_reports/。
+8. 不读取完整 PROJECT_PROGRESS_LOG.txt。
+9. 不提交完整 solve_reports/。
+10. 不把动态 runtime facts 写入 .codex-skills/。
+11. 不扩张 skill registry / sync / agent runtime。
+12. 不通过删除测试断言来掩盖 observation delivery 缺口。
+```
+
+特别注意：
+
+```text
+本轮可以 inspect 当前 run 的 bounded artifact，但不能扫描完整 solve_reports。
+本轮可以修复 sidecar / aggregation / project_state projection，但不能推进解题搜索。
+本轮只有在静态诊断和测试完成后，才允许一次 bounded rerun 验证当前 blocker。
 ```
 
 ## 4. Files To Inspect
@@ -131,93 +172,156 @@ samplereverse-frontier@v2
 必须检查：
 
 ```text
+project_state/task_packet.json
+project_state/current_state.json
+project_state/artifact_index.json
+project_state/negative_results.json
 project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
-project_state/current_state.json
-project_state/artifact_index.json
+
 reverse_agent/strategies/compare_aware_search.py
+reverse_agent/project_state.py
+reverse_agent/sidecar_health.py
+tests/test_compare_aware_search_strategy.py
+tests/test_project_state.py
+```
+
+必须有界检查当前 run artifact：
+
+```text
+solve_reports\harness_runs\sr_arg0_bounded_writer_trace_20260525_r1\summary.json
+solve_reports\harness_runs\sr_arg0_bounded_writer_trace_20260525_r1\run_manifest.json
+solve_reports\harness_runs\sr_arg0_bounded_writer_trace_20260525_r1\case_results\samplereverse-compare-producer-backtrace.json
+solve_reports\harness_runs\sr_arg0_bounded_writer_trace_20260525_r1\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json
+```
+
+必要时检查：
+
+```text
 reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
+reverse_agent/olly_scripts/*compare*lhs* 或 compare_aware_search.py 引用到的具体 Olly/sidecar script template
+```
+
+不要默认检查：
+
+```text
+完整 solve_reports/
+完整 PROJECT_PROGRESS_LOG.txt
+历史所有 rounds/
+```
+
+## 5. Required Audit
+
+Codex 报告必须回答：
+
+```text
+1. current artifact 中是否已经包含 lifecycle / hook readiness / UI trigger / message callback / observation count 字段。
+
+2. actual_compare.entry confirmed 但 arg0/arg1 为空，是以下哪一类：
+   - hook 没装好；
+   - UI trigger 没执行；
+   - UI trigger 执行但 compare arg hook 没上报；
+   - Python message bridge 收到消息但丢字段；
+   - sidecar payload schema 没解析；
+   - aggregation 丢失 candidate rows；
+   - project_state projection 丢失字段；
+   - current artifact telemetry 不足，无法判断。
+
+3. 如果 artifact 中已有 raw observation，但 project_state/current_state 没投影，必须修复 project_state projection。
+
+4. 如果 sidecar_health classification 过粗，必须补充 classification normalization，使其能输出更具体 blocker。
+
+5. 如果 compare_aware_search aggregation 丢失字段，必须修复 aggregation，不允许只改报告文字。
+
+6. 如果 current artifact 缺少必要 telemetry，必须指出缺少哪些字段，并补单测防止未来继续生成不可诊断 artifact。
+
+7. 是否需要 bounded rerun；若需要，必须说明 rerun 只使用 current candidates，不扩大搜索。
+```
+
+报告顶部必须包含：
+
+```json codex_report_summary
+{
+  "schema_version": 1,
+  "report_id": "report_20260526_diagnose_arg0_observation_delivery",
+  "round_id": "round_20260526_diagnose_arg0_observation_delivery",
+  "based_on_decision_id": "decision_20260526_diagnose_arg0_observation_delivery",
+  "status": "SUCCESS_OR_BLOCKED_OR_REWORK_REQUIRED",
+  "acceptance_recommendation": "ACCEPTED_OR_ACCEPTED_WITH_LIMITATIONS_OR_REWORK_REQUIRED_OR_BLOCKED",
+  "files_changed": [],
+  "tests_ran": [],
+  "generated_artifacts": []
+}
+```
+
+## 6. Implementation Scope
+
+允许修改：
+
+```text
+reverse_agent/strategies/compare_aware_search.py
 reverse_agent/sidecar_health.py
 reverse_agent/project_state.py
 tests/test_compare_aware_search_strategy.py
 tests/test_project_state.py
 ```
 
-必要时检查：
+仅在确认为 sidecar script telemetry 缺失时，允许最小修改：
 
 ```text
-当前 git diff
-git log -- reverse_agent/strategies/compare_aware_search.py
-上一轮可用提交中的 reverse_agent/strategies/compare_aware_search.py
+reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
+或 compare_aware_search.py 实际引用的 compare_real_lhs_provenance sidecar script/template
 ```
 
-不要默认读取完整 `solve_reports/` 或 `PROJECT_PROGRESS_LOG.txt`。
-
-## 5. Required Audit
-
-Codex 必须在报告中明确回答：
+允许新增的测试方向：
 
 ```text
-1. compare_aware_search.py 为什么在 GitHub 当前 main 上为空。
-2. 这是否是误提交、合并错误、脚本写入错误、还是工具读取异常。
-3. 恢复后的 compare_aware_search.py 是否非空。
-4. 恢复后的文件是否包含 CompareAwareSearchStrategy 和测试中导入的关键符号。
-5. 上一轮 UI trigger timing / sidecar health aggregation 改动是否仍存在。
-6. tests/test_compare_aware_search_strategy.py 是否能在当前 committed tree 下真实导入并运行。
-7. codex_execution_report.md 的 based_on_decision_id 是否等于本轮 decision_id。
-8. pytest_result.txt 的 decision_id / report_id / round_id 是否与本轮匹配。
+1. mock artifact: entry confirmed but arg0 missing -> classify as specific blocker, not generic inconclusive。
+2. mock artifact: lifecycle shows hooks not ready before UI trigger -> classify hooks_not_ready_before_ui_trigger。
+3. mock artifact: ui trigger start/end exists but no compare arg observation -> classify ui_trigger_executed_but_compare_arg_observation_missing。
+4. mock artifact: raw observation exists but projected current_state drops it -> test project_state projection keeps it。
+5. mock artifact: sidecar payload has candidate rows but aggregation drops them -> test aggregation preserves them。
 ```
 
-报告顶部必须包含 `codex_report_summary` fenced JSON block，且：
+允许生成或更新：
 
 ```text
-based_on_decision_id = decision_20260526_rework_restore_compare_aware_search
-round_id = round_20260526_rework_restore_compare_aware_search
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
+project_state/current_state.json
+project_state/artifact_index.json
+project_state/task_packet.json
+project_state/model_gate.json
 ```
 
-如果只恢复文件但未重新运行测试，不能标记 SUCCESS。
-
-## 6. Implementation Scope
-
-允许的改动范围：
+如果执行 bounded rerun，允许生成一个新 harness run，例如：
 
 ```text
-1. reverse_agent/strategies/compare_aware_search.py
-   - 恢复上一轮可用内容。
-   - 重新应用必要的 UI trigger timing / sidecar health aggregation 字段传播。
-   - 保证 tests/test_compare_aware_search_strategy.py 的 import 符号全部存在。
-
-2. reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
-   - 仅在发现上一轮 timing telemetry 改动被破坏时做最小修复。
-   - 保持 callback-before-load 和 hooks-ready barrier。
-
-3. reverse_agent/sidecar_health.py
-   - 仅允许为 compare_aware_search.py 聚合字段做兼容性修复。
-
-4. reverse_agent/project_state.py
-   - 仅允许修复 UI timing blocker projection 的明显不一致。
-
-5. tests/test_compare_aware_search_strategy.py / tests/test_project_state.py
-   - 只允许补充或修正针对恢复内容的测试。
-   - 不允许通过删除 import 或降低断言来掩盖 compare_aware_search.py 为空的问题。
-
-6. project_state/codex_execution_report.md / project_state/pytest_result.txt
-   - 必须更新为本轮真实执行结果。
+sr_arg0_observation_delivery_20260526_r1
 ```
 
-不要求也不允许本轮生成新 runtime artifact。
+但必须满足：
+
+```text
+1. 只跑当前 3 个已知 candidates。
+2. 不扩大 timeout/budget。
+3. 不跑 Base64/RC4 probe。
+4. 不启动 search。
+5. 不提交完整 solve_reports。
+6. 只通过 project_state index 引用新 artifact。
+```
 
 ## 7. Tests
 
 必须运行并记录：
 
 ```text
-python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/project_state.py reverse_agent/sidecar_health.py
+python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/project_state.py reverse_agent/sidecar_health.py
 
-python -m pytest -q tests/test_compare_aware_search_strategy.py -k "arg0 or hook or timeout or observation or ui or trigger or timing or classification"
+python -m pytest -q tests/test_compare_aware_search_strategy.py -k "arg0 or observation or sidecar or ui or trigger or timeout or lifecycle or classification"
 
-python -m pytest -q tests/test_project_state.py -k "sidecar or ui or trigger or timing or observation or blocker or report or runtime"
+python -m pytest -q tests/test_project_state.py -k "sidecar or ui or trigger or timing or observation or blocker or report or runtime or projection"
 
 python -m pytest -q tests/test_project_state.py
 
@@ -232,29 +336,50 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 git diff --check
 ```
 
-强烈建议额外运行：
+如果执行 bounded rerun，还必须追加记录：
 
 ```text
-python - <<'PY'
-from reverse_agent.strategies.compare_aware_search import CompareAwareSearchStrategy
-print(CompareAwareSearchStrategy.__name__)
-PY
+1. 实际 rerun command。
+2. 新 run_name。
+3. 新 compare_real_lhs_provenance_audit path。
+4. 新 artifact freshness 是否为 current。
+5. 新 classification 是否比 arg0_ui_trigger_or_timeout_blocked 更具体。
 ```
 
-如果恢复后 import 仍失败，立即停止并报告 `REWORK_REQUIRED`，不要继续改 project_state 假装通过。
+如果没有执行 bounded rerun，必须明确说明：
+
+```text
+rerun skipped because artifact-only/code-level diagnosis was sufficient
+```
+
+或者：
+
+```text
+rerun skipped because current artifact lacks safe preconditions; next decision must explicitly authorize bounded rerun
+```
 
 ## 8. Stop Conditions
 
-出现以下任一情况必须停止并报告：
+遇到以下情况立即停止并报告 `BLOCKED` 或 `REWORK_REQUIRED`：
 
 ```text
-1. 无法恢复 compare_aware_search.py 的上一轮可用内容。
-2. compare_aware_search.py 恢复后仍为空或核心符号缺失。
-3. tests/test_compare_aware_search_strategy.py 无法导入 compare_aware_search。
-4. Codex 无法解释为什么上一轮报告中的测试通过与当前 committed tree 冲突。
-5. 需要读取完整 solve_reports/ 才能继续。
-6. 需要运行 runtime probe 才能继续。
-7. 任何测试失败且无法在本轮最小范围内修复。
+1. 需要读取完整 solve_reports/ 才能继续。
+2. 需要 PROJECT_PROGRESS_LOG.txt 才能继续。
+3. 需要 Base64/RC4 runtime probe 才能继续。
+4. 需要扩大 candidate、beam、topN、timeout、budget 才能继续。
+5. current artifact 不是 current，或 source_run 不匹配 sr_arg0_bounded_writer_trace_20260525_r1。
+6. 无法区分 artifact 缺字段和 project_state projection 丢字段。
+7. 修复只能靠删除测试、降低断言或绕过 classification。
+8. bounded rerun 需要生成大范围 solve_reports 提交。
+9. lint-decision / lint-report / pytest_result 元数据无法与本 decision_id 对齐。
 ```
 
-本轮完成标准：当前 GitHub committed tree 中 `compare_aware_search.py` 恢复为非空有效策略文件，compare-aware 与 project_state 测试真实通过，report/pytest 元数据与本 decision 匹配。
+本轮成功标准：
+
+```text
+1. blocker 从 arg0_ui_trigger_or_timeout_blocked 收敛为更具体分类；
+2. 相关 parser / sidecar_health / project_state projection 有测试覆盖；
+3. current artifact freshness 未被误用；
+4. report 与 pytest_result 元数据匹配；
+5. 没有推进搜索、没有 Base64/RC4 probe、没有 final-writer chase。
+```
