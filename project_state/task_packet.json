@@ -21,7 +21,7 @@
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\summary.json"
   },
-  "based_on_state_digest": "bce32934a6b55d4808d9580e6f1ecf87e24c13a2c137cd767fb3dc79cec308b9",
+  "based_on_state_digest": "b67381ec8490e43797eef345662a874256e77c116b6081104672a6d7e8d024f6",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -58,7 +58,7 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "arg0_ui_trigger_or_timeout_blocked",
+    "blocker": "hooks_not_ready_before_ui_trigger",
     "confidence": "medium",
     "reason": "inconclusive",
     "stage": "compare_real_lhs_provenance_audit"
@@ -85,7 +85,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-05-26T09:16:52Z",
+  "generated_at": "2026-05-26T14:27:59Z",
   "included": [
     "current state",
     "best candidates",
@@ -115,10 +115,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260526_091652",
+  "round_id": "round_20260526_142759",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260526_091652_bce32934a6b5",
+  "state_build_id": "state_20260526_142759_b67381ec8490",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,

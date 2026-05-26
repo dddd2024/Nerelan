@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .function_semantics import FUNCTION_SEMANTIC_AUDIT_FILE_NAME
+from .sidecar_health import classify_observation_delivery
 
 
 IMPORTANT_ARTIFACTS = {
@@ -345,103 +346,14 @@ def _derive_sidecar_observation_blocker(payload: dict[str, Any]) -> str:
     if not rows:
         return ""
 
-    def all_non_empty_equal(field: str, expected: str) -> bool:
-        values = [str(row.get(field) or "").strip() for row in rows]
-        return bool(values) and all(value == expected for value in values)
-
     if any(_int_value(row.get("post_ui_observation_count")) > 0 for row in rows):
         return "arg0_ui_trigger_timing_fixed_observations_available"
-
-    scripted_no_observations = any(
-        str(row.get("scripted_hook_status") or "") == "scripted_hook_no_observations"
-        for row in rows
-    )
-    if not scripted_no_observations:
-        return ""
-
-    target_mismatch_markers = {
-        "module_base_resolution_status": {"failed", "missing", "unresolved", "not_resolved"},
-        "spawn_attach_resume_status": {"spawn_failed", "attach_failed", "resume_failed", "failed"},
-    }
-    for field, bad_values in target_mismatch_markers.items():
-        values = {str(row.get(field) or "").strip().lower() for row in rows if str(row.get(field) or "").strip()}
-        if values & bad_values:
-            return "arg0_target_path_or_process_mismatch"
-
-    if any(_int_value(row.get("hook_install_error_count")) > 0 for row in rows):
-        return "arg0_target_path_or_process_mismatch"
-
-    message_error_seen = any(
-        _int_value(row.get("frida_message_error_count")) > 0
-        or _int_value(row.get("python_message_decode_error_count")) > 0
-        for row in rows
-    )
-    hook_hit_seen = any(
-        sum(_int_value(count) for count in dict(row.get("hook_hit_counts_by_name") or {}).values()) > 0
-        for row in rows
-        if isinstance(row.get("hook_hit_counts_by_name"), dict)
-    )
-    no_python_observation = all(_int_value(row.get("observation_count")) == 0 for row in rows)
-    if hook_hit_seen and (message_error_seen or no_python_observation):
-        return "arg0_hooks_ready_message_delivery_failed"
-
-    hooks_installed = all_non_empty_equal("hook_install_status", "installed") or all(
-        bool(row.get("hooks_installed_seen") or row.get("hooks_installed_stage_seen"))
-        and _int_value(row.get("hook_count")) >= _int_value(row.get("requested_hook_count"))
-        and _int_value(row.get("requested_hook_count")) > 0
-        for row in rows
-    )
-    script_loaded = all_non_empty_equal("script_load_status", "loaded") or all(
-        bool(row.get("js_top_level_seen")) for row in rows
-    )
-    callback_ready = all(bool(row.get("python_message_callback_registered_before_load")) for row in rows)
-    message_bridge_ready = all(_int_value(row.get("python_message_count_total")) > 0 for row in rows)
-    ui_trigger_values = [str(row.get("ui_trigger_status") or "").strip() for row in rows]
-    ui_trigger_field_present = any(bool(value) for value in ui_trigger_values)
-    ui_triggered = bool(ui_trigger_values) and all(value == "button_triggered" for value in ui_trigger_values)
-    ui_after_field_present = any("ui_trigger_after_hooks_installed" in row for row in rows)
-    ui_after_hooks = all(bool(row.get("ui_trigger_after_hooks_installed")) for row in rows)
-    hooks_ready_field_present = any("hooks_ready_before_ui_trigger" in row for row in rows)
-    hooks_ready_before_ui = all(bool(row.get("hooks_ready_before_ui_trigger")) for row in rows)
-    timing_statuses = {
-        str(row.get("ui_trigger_timing_status") or "").strip()
-        for row in rows
-        if str(row.get("ui_trigger_timing_status") or "").strip()
-    }
-    root_causes = {
-        str(row.get("root_cause_hypothesis") or "").strip()
-        for row in rows
-        if str(row.get("root_cause_hypothesis") or "").strip()
-    }
-
-    if hooks_installed and script_loaded and callback_ready:
-        if ui_trigger_field_present and not ui_triggered:
-            return "arg0_ui_trigger_or_timeout_blocked"
-        if hooks_ready_field_present and hooks_ready_before_ui and ui_after_field_present and not ui_after_hooks:
-            return "arg0_ui_trigger_timing_telemetry_bug_fixed"
-        if (
-            "hooks_ready_barrier_missing_before_ui_trigger" in root_causes
-            or "hooks_ready_barrier_timeout_before_ui_trigger" in timing_statuses
-            or "hooks_ready_missing_before_ui_trigger" in timing_statuses
-            or "ui_trigger_started_before_hooks_ready" in timing_statuses
-        ):
-            return "arg0_ui_trigger_barrier_missing_fixed"
-        if ui_after_field_present and not ui_after_hooks:
-            return "arg0_ui_trigger_or_timeout_blocked"
-        if (
-            message_bridge_ready
-            and ui_triggered
-            and no_python_observation
-            and not message_error_seen
-        ):
-            return "arg0_hooks_ready_but_not_hit"
-
-    return "arg0_writer_trace_runtime_blocked"
+    return classify_observation_delivery(rows)
 
 
 def _derive_real_lhs_writer_blocker(payload: dict[str, Any]) -> str:
     explicit = str(payload.get("lhs_writer_classification_blocker") or "").strip()
-    if explicit:
+    if explicit and explicit != "arg0_ui_trigger_or_timeout_blocked":
         return explicit
     sidecar_blocker = _derive_sidecar_observation_blocker(payload)
     final_trace = _derive_arg0_final_data_writer_trace(payload)
@@ -3915,14 +3827,18 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         return "Refine bounded actual arg0 final data writer trace"
     if stage == "compare_real_lhs_provenance_audit" and blocker in {
         "arg0_hook_installed_but_not_hit",
-        "arg0_hooks_ready_but_not_hit",
+        "ui_trigger_executed_but_compare_arg_observation_missing",
         "arg0_hook_hit_but_message_delivery_failed",
-        "arg0_hooks_ready_message_delivery_failed",
+        "message_bridge_dropped_observation",
         "arg0_ui_trigger_timing_fixed_observations_available",
-        "arg0_ui_trigger_barrier_missing_fixed",
-        "arg0_ui_trigger_timing_telemetry_bug_fixed",
+        "hooks_not_ready_before_ui_trigger",
         "arg0_ui_trigger_or_timeout_blocked",
         "arg0_target_path_or_process_mismatch",
+        "ui_trigger_not_executed",
+        "sidecar_payload_schema_gap",
+        "project_state_projection_gap",
+        "artifact_aggregation_gap",
+        "inconclusive_with_missing_required_telemetry",
     }:
         return "Diagnose sidecar observation delivery blocker"
     if stage == "compare_real_lhs_provenance_audit" and blocker == "arg0_pointer_carrier_identified_writer_missing":

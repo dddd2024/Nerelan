@@ -27,6 +27,7 @@ from ..transforms.samplereverse import (
     trace_candidate_transform,
 )
 from ..sidecar_health import (
+    classify_observation_delivery,
     merge_candidate_sidecar_health,
     normalize_sidecar_health,
     summarize_sidecar_health,
@@ -14309,6 +14310,8 @@ def build_compare_real_lhs_provenance_audit_payload(
     else:
         classification = "inconclusive"
 
+    candidate_execution_health = _compare_real_lhs_candidate_execution_health(candidate_results)
+    sidecar_observation_blocker = classify_observation_delivery(candidate_execution_health)
     lhs_writer_classification_blocker = (
         _compare_real_lhs_writer_blocker(
             runtime_backed_count=runtime_backed_count,
@@ -14318,6 +14321,13 @@ def build_compare_real_lhs_provenance_audit_payload(
         if last_writer_mode
         else ""
     )
+    if sidecar_observation_blocker and lhs_writer_classification_blocker in {
+        "runtime_compare_arg0_not_ready",
+        "write_monitor_observation_incomplete",
+        "write_monitor_not_following_thread",
+        "arg0_ui_trigger_or_timeout_blocked",
+    }:
+        lhs_writer_classification_blocker = sidecar_observation_blocker
     raw_write_gap_summary = (
         _compare_real_lhs_raw_write_gap_summary(last_writer_summary, actual_compare)
         if last_writer_mode
@@ -14394,6 +14404,7 @@ def build_compare_real_lhs_provenance_audit_payload(
         "candidate_count": len(candidate_results),
         "candidate_limit": len(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES),
         "fixed_candidates": list(COMPARE_REAL_LHS_PROVENANCE_AUDIT_CANDIDATES),
+        "sidecar_observation_blocker": sidecar_observation_blocker,
         "lhs_writer_classification_blocker": lhs_writer_classification_blocker,
         "source_callsite_reanchor_classification": source_callsite_reanchor_payload.get("classification", ""),
         "source_post_handoff_exception_unwind_classification": source_exception_classification,
@@ -14434,7 +14445,7 @@ def build_compare_real_lhs_provenance_audit_payload(
         "write_monitor_health": last_writer_summary.get("write_monitor_health", {})
         if isinstance(last_writer_summary, dict)
         else {},
-        "candidate_execution_health": _compare_real_lhs_candidate_execution_health(candidate_results),
+        "candidate_execution_health": candidate_execution_health,
         "write_ring_buffer": write_ring_buffer,
         "last_writer_candidates": last_writer_candidates,
         "last_writer_summary": last_writer_summary,

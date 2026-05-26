@@ -101,6 +101,104 @@ def _copy_known(raw: dict[str, object], keys: tuple[str, ...]) -> dict[str, obje
     return out
 
 
+def _int_value(value: object, default: int = 0) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return default
+
+
+def classify_observation_delivery(rows: list[dict[str, object]] | tuple[dict[str, object], ...]) -> str:
+    rows = [dict(row) for row in rows if isinstance(row, dict)]
+    if not rows:
+        return ""
+
+    scripted_no_observations = any(
+        str(row.get("scripted_hook_status") or "") == "scripted_hook_no_observations"
+        for row in rows
+    )
+    if not scripted_no_observations:
+        return ""
+
+    target_mismatch_markers = {
+        "module_base_resolution_status": {"failed", "missing", "unresolved", "not_resolved"},
+        "spawn_attach_resume_status": {"spawn_failed", "attach_failed", "resume_failed", "failed"},
+    }
+    for field, bad_values in target_mismatch_markers.items():
+        values = {str(row.get(field) or "").strip().lower() for row in rows if str(row.get(field) or "").strip()}
+        if values & bad_values:
+            return "arg0_target_path_or_process_mismatch"
+
+    if any(_int_value(row.get("hook_install_error_count")) > 0 for row in rows):
+        return "arg0_target_path_or_process_mismatch"
+
+    message_error_seen = any(
+        _int_value(row.get("frida_message_error_count")) > 0
+        or _int_value(row.get("python_message_decode_error_count")) > 0
+        for row in rows
+    )
+    hook_hit_seen = any(
+        sum(_int_value(count) for count in dict(row.get("hook_hit_counts_by_name") or {}).values()) > 0
+        for row in rows
+        if isinstance(row.get("hook_hit_counts_by_name"), dict)
+    )
+    no_python_observation = all(_int_value(row.get("observation_count")) == 0 for row in rows)
+    if hook_hit_seen and (message_error_seen or no_python_observation):
+        return "message_bridge_dropped_observation"
+
+    hooks_installed = all(
+        str(row.get("hook_install_status") or "").strip() == "installed"
+        or (
+            bool(row.get("hooks_installed_seen") or row.get("hooks_installed_stage_seen"))
+            and _int_value(row.get("hook_count")) >= _int_value(row.get("requested_hook_count"))
+            and _int_value(row.get("requested_hook_count")) > 0
+        )
+        for row in rows
+    )
+    script_loaded = all(
+        str(row.get("script_load_status") or "").strip() == "loaded"
+        or bool(row.get("js_top_level_seen"))
+        for row in rows
+    )
+    callback_ready = all(bool(row.get("python_message_callback_registered_before_load")) for row in rows)
+    message_bridge_ready = all(_int_value(row.get("python_message_count_total")) > 0 for row in rows)
+    ui_trigger_values = [str(row.get("ui_trigger_status") or "").strip() for row in rows]
+    ui_trigger_field_present = any(bool(value) for value in ui_trigger_values)
+    ui_triggered = bool(ui_trigger_values) and all(value == "button_triggered" for value in ui_trigger_values)
+    ui_after_field_present = any("ui_trigger_after_hooks_installed" in row for row in rows)
+    ui_after_hooks = all(bool(row.get("ui_trigger_after_hooks_installed")) for row in rows)
+    timing_statuses = {
+        str(row.get("ui_trigger_timing_status") or "").strip()
+        for row in rows
+        if str(row.get("ui_trigger_timing_status") or "").strip()
+    }
+    root_causes = {
+        str(row.get("root_cause_hypothesis") or "").strip()
+        for row in rows
+        if str(row.get("root_cause_hypothesis") or "").strip()
+    }
+
+    if hooks_installed and script_loaded and callback_ready:
+        if ui_trigger_field_present and not ui_triggered:
+            return "ui_trigger_not_executed"
+        if ui_triggered and ui_after_field_present and not ui_after_hooks:
+            return "hooks_not_ready_before_ui_trigger"
+        if (
+            "hooks_ready_barrier_missing_before_ui_trigger" in root_causes
+            or "hooks_ready_barrier_timeout_before_ui_trigger" in timing_statuses
+            or "hooks_ready_missing_before_ui_trigger" in timing_statuses
+            or "ui_trigger_started_before_hooks_ready" in timing_statuses
+        ):
+            return "hooks_not_ready_before_ui_trigger"
+        if ui_triggered and not message_bridge_ready:
+            return "message_bridge_dropped_observation"
+        if message_bridge_ready and ui_triggered and no_python_observation and not message_error_seen:
+            return "ui_trigger_executed_but_compare_arg_observation_missing"
+        return "inconclusive_with_missing_required_telemetry"
+
+    return "inconclusive_with_missing_required_telemetry"
+
+
 def normalize_sidecar_health(raw: dict[str, object] | None) -> dict[str, object]:
     raw = dict(raw or {})
     health = {

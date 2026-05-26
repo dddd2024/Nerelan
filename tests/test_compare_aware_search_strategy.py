@@ -8051,6 +8051,14 @@ def test_run_compare_real_lhs_script_health_survives_compare_probe_fallback(
     assert payload["candidate_execution_health"][0]["compare_probe_fallback_is_provenance"] is False
     assert payload["candidate_execution_health"][0]["hooks_ready_before_ui_trigger"] is True
     assert payload["candidate_execution_health"][0]["ui_trigger_start_at_ms"] == 1400
+    assert (
+        payload["sidecar_observation_blocker"]
+        == "ui_trigger_executed_but_compare_arg_observation_missing"
+    )
+    assert (
+        payload["lhs_writer_classification_blocker"]
+        == "ui_trigger_executed_but_compare_arg_observation_missing"
+    )
     assert payload["candidate_results"][0]["hooks_installed_at_ms"] == 1250
 
 

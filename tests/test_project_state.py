@@ -1852,15 +1852,15 @@ def _sidecar_health_row(candidate_hex: str, **overrides: object) -> dict[str, ob
     [
         (
             {"ui_trigger_after_hooks_installed": False},
-            "arg0_ui_trigger_or_timeout_blocked",
+            "hooks_not_ready_before_ui_trigger",
         ),
-        ({}, "arg0_hooks_ready_but_not_hit"),
+        ({}, "ui_trigger_executed_but_compare_arg_observation_missing"),
         (
             {
                 "hook_hit_counts_by_name": {"static_compare_callsite": 1},
                 "python_message_decode_error_count": 1,
             },
-            "arg0_hooks_ready_message_delivery_failed",
+            "message_bridge_dropped_observation",
         ),
         (
             {
@@ -1868,7 +1868,7 @@ def _sidecar_health_row(candidate_hex: str, **overrides: object) -> dict[str, ob
                 "ui_trigger_timing_status": "hooks_ready_barrier_timeout_before_ui_trigger",
                 "root_cause_hypothesis": "hooks_ready_barrier_missing_before_ui_trigger",
             },
-            "arg0_ui_trigger_barrier_missing_fixed",
+            "hooks_not_ready_before_ui_trigger",
         ),
         (
             {
@@ -1876,7 +1876,24 @@ def _sidecar_health_row(candidate_hex: str, **overrides: object) -> dict[str, ob
                 "hooks_ready_before_ui_trigger": True,
                 "ui_trigger_timing_status": "hooks_ready_before_ui_trigger",
             },
-            "arg0_ui_trigger_timing_telemetry_bug_fixed",
+            "hooks_not_ready_before_ui_trigger",
+        ),
+        (
+            {"ui_trigger_status": "not_triggered"},
+            "ui_trigger_not_executed",
+        ),
+        (
+            {
+                "python_message_count_total": 0,
+            },
+            "message_bridge_dropped_observation",
+        ),
+        (
+            {
+                "ui_trigger_status": "",
+                "ui_trigger_after_hooks_installed": False,
+            },
+            "inconclusive_with_missing_required_telemetry",
         ),
         (
             {"module_base_resolution_status": "unresolved"},

@@ -56,7 +56,7 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "arg0_ui_trigger_or_timeout_blocked",
+    "blocker": "hooks_not_ready_before_ui_trigger",
     "confidence": "medium",
     "reason": "inconclusive",
     "stage": "compare_real_lhs_provenance_audit"
@@ -101,7 +101,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-26T09:16:52Z",
+  "generated_at": "2026-05-26T14:27:59Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -789,7 +789,7 @@
     "identified_producers": [],
     "last_writer_candidates": [],
     "last_writer_summary": {},
-    "lhs_writer_classification_blocker": "arg0_ui_trigger_or_timeout_blocked",
+    "lhs_writer_classification_blocker": "hooks_not_ready_before_ui_trigger",
     "next_bounded_action": "rerun real-lhs provenance only after improving pre-compare push or static callsite capture",
     "next_producer_window": {},
     "provenance": {
@@ -879,7 +879,7 @@
       "post_handoff_reload_to_compare_arg0": "inconclusive"
     },
     "runtime_backed_count": 3,
-    "sidecar_observation_blocker": "arg0_ui_trigger_or_timeout_blocked",
+    "sidecar_observation_blocker": "hooks_not_ready_before_ui_trigger",
     "write_monitor_health": {}
   },
   "latest_compare_stack_pivot_probe": {},
@@ -1086,13 +1086,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260526_091652",
+  "round_id": "round_20260526_142759",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "a0388544822d",
+  "source_git_commit": "3602b6f32777",
   "source_harness_run": "sr_arg0_bounded_writer_trace_20260525_r1",
-  "state_build_id": "state_20260526_091652_bce32934a6b5",
-  "state_digest": "bce32934a6b55d4808d9580e6f1ecf87e24c13a2c137cd767fb3dc79cec308b9",
+  "state_build_id": "state_20260526_142759_b67381ec8490",
+  "state_digest": "b67381ec8490e43797eef345662a874256e77c116b6081104672a6d7e8d024f6",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }
