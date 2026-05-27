@@ -353,9 +353,15 @@ def _derive_sidecar_observation_blocker(payload: dict[str, Any]) -> str:
 
 def _derive_real_lhs_writer_blocker(payload: dict[str, Any]) -> str:
     explicit = str(payload.get("lhs_writer_classification_blocker") or "").strip()
+    sidecar_blocker = _derive_sidecar_observation_blocker(payload)
+    if (
+        explicit == "ui_trigger_executed_but_compare_arg_observation_missing"
+        and sidecar_blocker
+        and sidecar_blocker != explicit
+    ):
+        return sidecar_blocker
     if explicit and explicit != "arg0_ui_trigger_or_timeout_blocked":
         return explicit
-    sidecar_blocker = _derive_sidecar_observation_blocker(payload)
     final_trace = _derive_arg0_final_data_writer_trace(payload)
     final_classification = str(final_trace.get("classification") or "").strip()
     final_blockers = {
@@ -3827,6 +3833,11 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         return "Refine bounded actual arg0 final data writer trace"
     if stage == "compare_real_lhs_provenance_audit" and blocker in {
         "arg0_hook_installed_but_not_hit",
+        "hook_installed_but_compare_call_not_reached_after_ui_trigger",
+        "ui_trigger_success_but_target_path_skipped_compare_call",
+        "static_compare_callsite_address_mismatch",
+        "hook_hit_payload_emitted_but_python_filter_dropped",
+        "python_message_bridge_received_but_aggregation_dropped",
         "ui_trigger_executed_but_compare_arg_observation_missing",
         "arg0_hook_hit_but_message_delivery_failed",
         "message_bridge_dropped_observation",

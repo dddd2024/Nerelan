@@ -1854,7 +1854,7 @@ def _sidecar_health_row(candidate_hex: str, **overrides: object) -> dict[str, ob
             {"ui_trigger_after_hooks_installed": False},
             "hooks_not_ready_before_ui_trigger",
         ),
-        ({}, "ui_trigger_executed_but_compare_arg_observation_missing"),
+        ({}, "hook_installed_but_compare_call_not_reached_after_ui_trigger"),
         (
             {
                 "hook_hit_counts_by_name": {"static_compare_callsite": 1},

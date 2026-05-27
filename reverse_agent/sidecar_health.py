@@ -202,6 +202,8 @@ def classify_observation_delivery(rows: list[dict[str, object]] | tuple[dict[str
         if ui_triggered and not message_bridge_ready:
             return "message_bridge_dropped_observation"
         if message_bridge_ready and ui_triggered and no_python_observation and not message_error_seen:
+            if hooks_installed and not hook_hit_seen:
+                return "hook_installed_but_compare_call_not_reached_after_ui_trigger"
             return "ui_trigger_executed_but_compare_arg_observation_missing"
         return "inconclusive_with_missing_required_telemetry"
 

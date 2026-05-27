@@ -56,7 +56,7 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "ui_trigger_executed_but_compare_arg_observation_missing",
+    "blocker": "hook_installed_but_compare_call_not_reached_after_ui_trigger",
     "confidence": "medium",
     "reason": "instrumentation_incomplete",
     "stage": "compare_real_lhs_provenance_audit"
@@ -101,7 +101,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-27T08:48:21Z",
+  "generated_at": "2026-05-27T13:58:35Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -956,7 +956,7 @@
         "selected_thread_ids": []
       }
     },
-    "lhs_writer_classification_blocker": "ui_trigger_executed_but_compare_arg_observation_missing",
+    "lhs_writer_classification_blocker": "hook_installed_but_compare_call_not_reached_after_ui_trigger",
     "next_bounded_action": "fix compare lhs last-writer instrumentation before new semantic claims",
     "next_producer_window": {},
     "provenance": {
@@ -1106,7 +1106,7 @@
       "post_handoff_reload_to_compare_arg0": "inconclusive"
     },
     "runtime_backed_count": 3,
-    "sidecar_observation_blocker": "ui_trigger_executed_but_compare_arg_observation_missing",
+    "sidecar_observation_blocker": "hook_installed_but_compare_call_not_reached_after_ui_trigger",
     "write_monitor_health": {
       "activation_statuses": [
         "waiting_for_observation"
@@ -1440,13 +1440,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260527_084821",
+  "round_id": "round_20260527_135835",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "1af3d87918ae",
+  "source_git_commit": "c3b11901b421",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260527_084821_6904311ce1cc",
-  "state_digest": "6904311ce1cc50bc324c75e2807dce7d08584c9d7e14469f736d8910477eeb77",
+  "state_build_id": "state_20260527_135835_189861793d69",
+  "state_digest": "189861793d69622a050663bd67ce33dd1a04e8f62ec193d0a4ba1b21d3d9c9b6",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }
