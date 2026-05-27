@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-26T14:27:59Z",
+  "generated_at": "2026-05-27T08:48:21Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "inconclusive",
+  "reason": "instrumentation_incomplete",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }

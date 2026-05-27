@@ -1876,7 +1876,17 @@ def _sidecar_health_row(candidate_hex: str, **overrides: object) -> dict[str, ob
                 "hooks_ready_before_ui_trigger": True,
                 "ui_trigger_timing_status": "hooks_ready_before_ui_trigger",
             },
-            "hooks_not_ready_before_ui_trigger",
+            "compare_arg_payload_schema_gap",
+        ),
+        (
+            {
+                "ui_trigger_status": "not_triggered_hooks_ready_timeout",
+                "ui_trigger_after_hooks_installed": False,
+                "hooks_ready_before_ui_trigger": False,
+                "ui_trigger_timing_status": "hooks_ready_barrier_timeout_before_ui_trigger",
+                "timeout_or_wait_reason": "hooks_installed_not_observed_before_ui_trigger_within_existing_window",
+            },
+            "sidecar_runtime_precondition_failed",
         ),
         (
             {"ui_trigger_status": "not_triggered"},

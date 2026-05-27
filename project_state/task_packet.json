@@ -10,18 +10,18 @@
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_probe": "solve_reports\\tool_artifacts\\samplereverse_compare_probe_real\\samplereverse_compare_probe.json",
     "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
-    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
+    "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
     "frontier_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_frontier_summary.json",
     "function_semantic_audit": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
     "guided_pool_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\samplereverse_compare_aware_guided_pool_result.json",
     "guided_pool_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
     "pairscan_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\pairscan_summary.json",
-    "run_manifest": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\run_manifest.json",
+    "run_manifest": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
     "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\summary.json"
+    "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json"
   },
-  "based_on_state_digest": "b67381ec8490e43797eef345662a874256e77c116b6081104672a6d7e8d024f6",
+  "based_on_state_digest": "6904311ce1cc50bc324c75e2807dce7d08584c9d7e14469f736d8910477eeb77",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -58,9 +58,9 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "hooks_not_ready_before_ui_trigger",
+    "blocker": "ui_trigger_executed_but_compare_arg_observation_missing",
     "confidence": "medium",
-    "reason": "inconclusive",
+    "reason": "instrumentation_incomplete",
     "stage": "compare_real_lhs_provenance_audit"
   },
   "derived_task": "Diagnose sidecar observation delivery blocker",
@@ -85,7 +85,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-05-26T14:27:59Z",
+  "generated_at": "2026-05-27T08:48:21Z",
   "included": [
     "current state",
     "best candidates",
@@ -95,7 +95,7 @@
   ],
   "model_gate": {
     "context_level": 2,
-    "reason": "inconclusive",
+    "reason": "instrumentation_incomplete",
     "should_call_model": true
   },
   "omitted": [
@@ -115,10 +115,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260526_142759",
+  "round_id": "round_20260527_084821",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260526_142759_b67381ec8490",
+  "state_build_id": "state_20260527_084821_6904311ce1cc",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,

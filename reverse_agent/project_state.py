@@ -3836,6 +3836,8 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         "arg0_target_path_or_process_mismatch",
         "ui_trigger_not_executed",
         "sidecar_payload_schema_gap",
+        "compare_arg_payload_schema_gap",
+        "sidecar_runtime_precondition_failed",
         "project_state_projection_gap",
         "artifact_aggregation_gap",
         "inconclusive_with_missing_required_telemetry",

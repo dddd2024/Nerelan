@@ -1328,6 +1328,8 @@ sendStage({{
         write_progress_payload(runtime_stage)
         frida.resume(pid)
         spawn_attach_resume_status = "resumed"
+        runtime_stage = "waiting_for_hooks_ready"
+        write_progress_payload(runtime_stage)
         barrier_start = time.monotonic()
         barrier_deadline = barrier_start + 1.0
         while hooks_installed_monotonic is None and time.monotonic() < barrier_deadline:
@@ -1340,6 +1342,10 @@ sendStage({{
         else:
             ui_trigger_timing_status = "hooks_ready_barrier_timeout_before_ui_trigger"
             timeout_or_wait_reason = "hooks_installed_not_observed_before_ui_trigger_within_existing_window"
+            runtime_stage = "hooks_ready_barrier_timeout_before_ui_trigger"
+            ui_trigger_status = "not_triggered_hooks_ready_timeout"
+            write_progress_payload(runtime_stage)
+            raise RuntimeError(timeout_or_wait_reason)
         runtime_stage = "connecting_window"
         ui_trigger_status = "connecting_window"
         write_progress_payload(runtime_stage)

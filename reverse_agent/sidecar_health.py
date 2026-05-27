@@ -179,8 +179,17 @@ def classify_observation_delivery(rows: list[dict[str, object]] | tuple[dict[str
     }
 
     if hooks_installed and script_loaded and callback_ready:
+        if "not_triggered_hooks_ready_timeout" in ui_trigger_values:
+            return "sidecar_runtime_precondition_failed"
         if ui_trigger_field_present and not ui_triggered:
             return "ui_trigger_not_executed"
+        if (
+            ui_triggered
+            and ui_after_field_present
+            and not ui_after_hooks
+            and all(bool(row.get("hooks_ready_before_ui_trigger")) for row in rows)
+        ):
+            return "compare_arg_payload_schema_gap"
         if ui_triggered and ui_after_field_present and not ui_after_hooks:
             return "hooks_not_ready_before_ui_trigger"
         if (
