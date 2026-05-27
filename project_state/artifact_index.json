@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-27T13:58:34Z",
+  "generated_at": "2026-05-27T15:30:28Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -12,6 +12,7 @@
     "compare_handoff_probe": null,
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_handoff_slice_probe": null,
+    "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
     "compare_lhs_producer_audit": null,
     "compare_lhs_slot_writer_predecessor_audit": null,
     "compare_lhs_slot_writer_source_audit": null,
@@ -143,6 +144,15 @@
       "sha256": null,
       "size_bytes": null,
       "source_run": ""
+    },
+    "compare_hook_path_reachability_audit": {
+      "freshness": "current",
+      "kind": "compare_hook_path_reachability_audit",
+      "modified_at": "2026-05-27T15:29:40Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
+      "sha256": "7f91e39293f09b5e91186f80b858b867eec43ba4a76cb89f292a0d2da734c150",
+      "size_bytes": 197326,
+      "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_lhs_producer_audit": {
       "freshness": "missing",
@@ -432,6 +442,30 @@
   "missing": [],
   "recent_artifacts": [
     {
+      "kind": "compare_hook_path_reachability_audit",
+      "modified_at": "2026-05-27T15:29:40Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
+      "size_bytes": 197326
+    },
+    {
+      "kind": "compare_hook_path_reachability_audit",
+      "modified_at": "2026-05-27T15:29:39Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\candidate_3\\compare_hook_path_reachability_audit.json",
+      "size_bytes": 40099
+    },
+    {
+      "kind": "compare_hook_path_reachability_audit",
+      "modified_at": "2026-05-27T15:29:29Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\candidate_2\\compare_hook_path_reachability_audit.json",
+      "size_bytes": 41982
+    },
+    {
+      "kind": "compare_hook_path_reachability_audit",
+      "modified_at": "2026-05-27T15:29:23Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\candidate_1\\compare_hook_path_reachability_audit.json",
+      "size_bytes": 41979
+    },
+    {
       "kind": "summary",
       "modified_at": "2026-05-27T08:48:10Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
@@ -528,30 +562,6 @@
       "modified_at": "2026-05-10T14:44:13Z",
       "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\candidate_1\\compare_handoff_return_site_probe.json",
       "size_bytes": 34225
-    },
-    {
-      "kind": "base64_rc4_static_point_discovery",
-      "modified_at": "2026-05-08T12:48:04Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
-      "size_bytes": 11109
-    },
-    {
-      "kind": "smt_result",
-      "modified_at": "2026-04-22T05:17:05Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
-      "size_bytes": 780
-    },
-    {
-      "kind": "frontier_summary",
-      "modified_at": "2026-04-22T05:17:01Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_frontier_summary.json",
-      "size_bytes": 39895
-    },
-    {
-      "kind": "strata_summary",
-      "modified_at": "2026-04-22T05:17:01Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-      "size_bytes": 24414
     }
   ],
   "reports_dir": "solve_reports",

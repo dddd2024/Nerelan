@@ -1226,6 +1226,64 @@ def test_project_state_indexes_post_handoff_exception_unwind_audit(tmp_path: Pat
     assert any(item.get("scope") == "post_handoff_exception_unwind_audit" for item in negative_results)
 
 
+def test_project_state_indexes_compare_hook_path_reachability_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_path")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "compare_hook_path_reachability_audit").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "compare_hook_path_reachability_audit" / "compare_hook_path_reachability_audit.json",
+        {
+            "artifact_kind": "compare_hook_path_reachability_audit",
+            "classification": "handoff_helper_entered_but_return_path_skips_compare_window",
+            "new_blocker": "handoff_helper_entered_but_return_path_skips_compare_window",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "fixed_candidates": [
+                "78d540b49c59077041414141414141",
+                "5a3e7f46ddd474d041414141414141",
+                "78d540b49c59076f41414141414141",
+            ],
+            "hook_points": [
+                {"name": "handoff_helper_entry", "module_offset": "0x1b50"},
+                {"name": "static_compare_callsite", "module_offset": "0x258c"},
+            ],
+            "hook_address_validation": {"resolved_count": 6, "unresolved_count": 0},
+            "path_observed_counts": {"handoff_helper_entry": 3, "static_compare_callsite": 0},
+            "actual_compare": {},
+            "candidate_execution_health": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "hook_install_status": "installed",
+                    "ui_trigger_status": "button_triggered",
+                }
+            ],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "trace 0x401b50 return or tail path before any Base64/RC4 probe",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert artifact_index["latest_artifacts"]["compare_hook_path_reachability_audit"].endswith(
+        "compare_hook_path_reachability_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_hook_path_reachability_audit"
+    assert (
+        current_state["current_bottleneck"]["blocker"]
+        == "handoff_helper_entered_but_return_path_skips_compare_window"
+    )
+    latest = current_state["latest_compare_hook_path_reachability_audit"]
+    assert latest["classification"] == "handoff_helper_entered_but_return_path_skips_compare_window"
+    assert latest["path_observed_counts"]["handoff_helper_entry"] == 3
+    assert latest["breakpoint_probe_allowed"] is False
+    assert task_packet["task"] == "Diagnose bounded compare hook path reachability"
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

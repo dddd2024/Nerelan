@@ -1,13 +1,15 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260527_diagnose_compare_arg_observation_missing",
-  "round_id": "round_20260527_diagnose_compare_arg_observation_missing",
-  "based_on_decision_id": "decision_20260527_diagnose_compare_arg_observation_missing",
+  "report_id": "report_20260527_diagnose_compare_hook_path_not_reached",
+  "round_id": "round_20260527_diagnose_compare_hook_path_not_reached",
+  "based_on_decision_id": "decision_20260527_diagnose_compare_hook_path_not_reached",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
-    "reverse_agent/sidecar_health.py",
+    "reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py",
+    "reverse_agent/olly_scripts/compare_hook_path_reachability_audit.py",
+    "reverse_agent/strategies/compare_aware_search.py",
     "reverse_agent/project_state.py",
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py",
@@ -19,15 +21,17 @@
     "project_state/pytest_result.txt"
   ],
   "tests_ran": [
-    "python -m py_compile reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/project_state.py reverse_agent/sidecar_health.py reverse_agent/strategies/compare_aware_search.py",
-    "python -m pytest -q tests/test_compare_aware_search_strategy.py -k \"arg0 or observation or sidecar or ui or trigger or timing or classification or readiness or payload\"",
-    "python -m pytest -q tests/test_project_state.py -k \"sidecar or observation or blocker or report or runtime or projection or payload\"",
+    "python -m py_compile reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/olly_scripts/compare_hook_path_reachability_audit.py reverse_agent/project_state.py reverse_agent/sidecar_health.py reverse_agent/strategies/compare_aware_search.py",
+    "python -m pytest -q tests/test_compare_aware_search_strategy.py -k \"path or reachability or compare or sidecar or ui or trigger or timing or classification\"",
+    "python -m pytest -q tests/test_project_state.py -k \"path or reachability or sidecar or observation or blocker or report or runtime or projection\"",
+    "python -c \"from pathlib import Path; from reverse_agent.strategies.compare_aware_search import run_compare_hook_path_reachability_audit; from reverse_agent.transforms.samplereverse import SamplereverseTransformModel; run_compare_hook_path_reachability_audit(target=Path('solve_reports/samplereverse_patched.exe'), artifacts_dir=Path('solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_hook_path_reachability_audit'), transform_model=SamplereverseTransformModel(), per_probe_timeout=2.2, run_name='sr_compare_hook_path_reachability_20260527_r1', log=print)\"",
     "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_hook_readiness_ordering_20260526_r1",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "git diff --check"
   ],
   "generated_artifacts": [
+    "solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_hook_path_reachability_audit/compare_hook_path_reachability_audit.json",
     "project_state/current_state.json",
     "project_state/artifact_index.json",
     "project_state/model_gate.json",
@@ -40,38 +44,34 @@
 
 # CODEX_EXECUTION_REPORT
 
-## 2026-05-27 Compare-Arg Observation Delivery Diagnosis
+## 2026-05-27 Compare Hook Path Reachability Diagnosis
 
 Result: `SUCCESS` / `ACCEPTED`.
 
-This round executed `decision_20260527_diagnose_compare_arg_observation_missing` on the reverse-solving mainline. It did not attempt to solve the flag. The bounded audit advanced the active blocker from:
-
-```text
-ui_trigger_executed_but_compare_arg_observation_missing
-```
-
-to the more specific, evidence-backed blocker:
+This round executed `decision_20260527_diagnose_compare_hook_path_not_reached` on the reverse-solving mainline. It did not attempt to solve the flag. The bounded runtime audit advanced the active blocker from:
 
 ```text
 hook_installed_but_compare_call_not_reached_after_ui_trigger
 ```
 
-No bounded runtime rerun was performed. The existing current artifact and code audit were sufficient because all three per-candidate sidecars already showed installed/resolved hooks, successful UI trigger, a live Python message bridge, and zero hook observations.
-
-## Artifact Audit
-
-Current artifact used:
+to the more specific, evidence-backed blocker:
 
 ```text
-solve_reports\harness_runs\sr_arg0_hook_readiness_ordering_20260526_r1\reports\tool_artifacts\samplereverse_patched\compare_real_lhs_provenance_audit\compare_real_lhs_provenance_audit.json
+decrypt_handler_entered_but_candidate_path_exits_before_handoff
 ```
 
-Current run records:
+## Runtime Artifact
+
+Run name used for the bounded runtime validation:
 
 ```text
-run_name = sr_arg0_hook_readiness_ordering_20260526_r1
-summary = solve_reports\harness_runs\sr_arg0_hook_readiness_ordering_20260526_r1\summary.json
-run_manifest = solve_reports\harness_runs\sr_arg0_hook_readiness_ordering_20260526_r1\run_manifest.json
+sr_compare_hook_path_reachability_20260527_r1
+```
+
+Artifact path:
+
+```text
+solve_reports\harness_runs\sr_arg0_hook_readiness_ordering_20260526_r1\reports\tool_artifacts\samplereverse_patched\compare_hook_path_reachability_audit\compare_hook_path_reachability_audit.json
 ```
 
 Candidate set used exactly:
@@ -82,72 +82,92 @@ Candidate set used exactly:
 78d540b49c59076f41414141414141
 ```
 
-Per-candidate evidence, consistent across all three candidates:
+Runtime classification:
+
+```text
+classification = decrypt_handler_entered_but_candidate_path_exits_before_handoff
+new_blocker = decrypt_handler_entered_but_candidate_path_exits_before_handoff
+candidate_count = 3
+runtime_backed_count = 3
+breakpoint_probe_allowed = false
+```
+
+Path observations across the fixed candidates:
+
+```text
+predecessor_handoff_call = 3
+handoff_helper_entry = 3
+predecessor_handoff_return = 0
+old_lhs_slot_store = 0
+post_handoff_lhs_reload = 0
+pre_compare_lhs_push = 0
+static_compare_callsite = 0
+process_exception = 3
+```
+
+Hook/address/bridge evidence:
 
 ```text
 hook_install_status = installed
-hook_count/requested_hook_count = 4/4
-module_base_resolution_status = resolved
-hook_address_validation = resolved for static_compare_callsite 0x258c, pre_compare_lhs_push 0x258b, post_handoff_lhs_reload 0x2559, old_lhs_slot_store 0x253a
-hooks_ready_before_ui_trigger = true
+hook_count/requested_hook_count = 7/7
+hook_address_validation = 21 resolved, 0 unresolved
 ui_trigger_status = button_triggered
-python_message_count_total = 21 / 20 / 19
-python_message_count_by_type = stage + write_monitor_health + hook_install_result only
-observation_count = 0
-post_ui_observation_count = 0
-static_compare_observation_count = 0
-helper_observation_count = 0
-actual_compare.entry_status = confirmed
+python_message_count_total = 45
+actual_compare.observed_count = 0
 actual_compare.arg0/arg1 maps = empty
 ```
 
 Interpretation:
 
 ```text
-Hook address and install telemetry are good.
-Python message callback and message bridge are alive.
-JS did not send any compare observation payload.
-Aggregation and project_state projection were not the point of loss for this artifact.
-The narrow failure is that the target path did not hit the installed compare hooks after the UI trigger.
+The UI action reaches the upstream handoff call and 0x401b50 entry.
+The path does not return to 0x233d and does not reach the compare-side window at 0x253a/0x2559/0x258b/0x258c.
+Each candidate observed a process exception after the handoff entry.
+The static compare hook address is not stale for this binary; all requested hooks resolved and installed.
 ```
 
 ## Code Changes
 
-- `reverse_agent/sidecar_health.py`: refined observation-delivery classification so the combination of installed hooks, successful UI trigger, working message bridge, no message errors, and zero hook hits projects as `hook_installed_but_compare_call_not_reached_after_ui_trigger`.
-- `reverse_agent/project_state.py`: recomputes the older generic `ui_trigger_executed_but_compare_arg_observation_missing` value from current telemetry when a sharper sidecar blocker is available, and keeps the new blocker on the sidecar-diagnosis task path.
-- Tests now cover the sharper blocker through both the strategy payload path and the `project_state` projection path.
+- Added `reverse_agent/olly_scripts/compare_hook_path_reachability_audit.py` as a thin wrapper over the existing Frida/pywinauto sidecar.
+- Extended `compare_pre_compare_handoff_target_probe.py` so the wrapper emits `artifact_kind=compare_hook_path_reachability_audit`.
+- Added fixed-candidate path-reachability hook points, payload classification, runner, and artifact creation in `reverse_agent/strategies/compare_aware_search.py`.
+- Added `compare_hook_path_reachability_audit` indexing/projection in `reverse_agent/project_state.py`, including `latest_artifacts_v2`, `latest_compare_hook_path_reachability_audit`, `current_bottleneck`, and task routing.
+- Added focused strategy and project_state tests for the new path-reachability blocker.
 
 ## Scope Audit
 
 - No Base64/RC4 breakpoint probe was run.
 - No old `sample_solver` path was used.
 - No candidate search, frontier expansion, beam/topN/budget expansion, timeout expansion, or final-writer chase was performed.
-- No stale compare_probe or stale handoff artifact was used as current evidence.
+- No stale artifact was used as current evidence; the new current evidence is the path-reachability artifact above.
 - CompareProbe fallback remains diagnostic-only and was not promoted to provenance.
-- No full `solve_reports/` scan was performed.
-- `.codex-skills/*`, `PROJECT_PROGRESS_LOG.txt`, full `solve_reports/*`, and `project_state/decision_packet.md` were not modified.
-- Negative-results directions were respected; no exact2 basin pool, H1/H3 contrast set, transform trace repeat, Base64/RC4 probe, producer material repeat, or old `[ebp-0x1170]` assumption was repeated.
+- `project_state/decision_packet.md` was not modified, even after rebuild changed the state digest.
+- `.codex-skills/*`, `PROJECT_PROGRESS_LOG.txt`, and full `solve_reports/*` were not modified.
+- Negative-results directions were respected; no Base64/RC4 probe, old `[ebp-0x1170]` provenance assumption, final-writer direction, candidate/frontier/beam/budget expansion, or stale negative-results direction was repeated.
 
 ## Verification
 
 ```text
-python -m py_compile reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/project_state.py reverse_agent/sidecar_health.py reverse_agent/strategies/compare_aware_search.py
+python -m py_compile reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/olly_scripts/compare_hook_path_reachability_audit.py reverse_agent/project_state.py reverse_agent/sidecar_health.py reverse_agent/strategies/compare_aware_search.py
 passed
 
-python -m pytest -q tests/test_compare_aware_search_strategy.py -k "arg0 or observation or sidecar or ui or trigger or timing or classification or readiness or payload"
-passed: 49 passed, 147 deselected
+python -m pytest -q tests/test_compare_aware_search_strategy.py -k "path or reachability or compare or sidecar or ui or trigger or timing or classification"
+passed: 198 passed
 
-python -m pytest -q tests/test_project_state.py -k "sidecar or observation or blocker or report or runtime or projection or payload"
-passed: 60 passed, 88 deselected
+python -m pytest -q tests/test_project_state.py -k "path or reachability or sidecar or observation or blocker or report or runtime or projection"
+passed: 64 passed, 85 deselected
+
+python -c "from pathlib import Path; from reverse_agent.strategies.compare_aware_search import run_compare_hook_path_reachability_audit; from reverse_agent.transforms.samplereverse import SamplereverseTransformModel; run_compare_hook_path_reachability_audit(target=Path('solve_reports/samplereverse_patched.exe'), artifacts_dir=Path('solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_hook_path_reachability_audit'), transform_model=SamplereverseTransformModel(), per_probe_timeout=2.2, run_name='sr_compare_hook_path_reachability_20260527_r1', log=print)"
+passed; wrote the path-reachability artifact
 
 python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_hook_readiness_ordering_20260526_r1
-passed; current blocker is hook_installed_but_compare_call_not_reached_after_ui_trigger
+passed; current blocker is decrypt_handler_entered_but_candidate_path_exits_before_handoff
 
 python -m reverse_agent.project_state lint-decision --state-dir project_state
-failed as expected after the required project_state rebuild: decision digest 6904311ce1cc50bc324c75e2807dce7d08584c9d7e14469f736d8910477eeb77 does not match rebuilt current_state digest 189861793d69622a050663bd67ce33dd1a04e8f62ec193d0a4ba1b21d3d9c9b6. This decision packet forbids rewriting project_state/decision_packet.md, so the mismatch is recorded rather than patched.
+failed as expected after the required project_state rebuild: decision digest 189861793d69622a050663bd67ce33dd1a04e8f62ec193d0a4ba1b21d3d9c9b6 does not match rebuilt current_state digest 1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02. This decision forbids editing project_state/decision_packet.md, so the mismatch is recorded rather than patched.
 
 python -m reverse_agent.project_state lint-report --state-dir project_state
-passed after this report refresh
+passed with warning: report round not archived yet
 
 git diff --check
 passed; only existing CRLF working-copy warnings were emitted
@@ -155,4 +175,4 @@ passed; only existing CRLF working-copy warnings were emitted
 
 ## Next Bottleneck
 
-The next bounded direction should treat the installed compare hooks as not reached after UI trigger, not as a message bridge or project_state projection loss. The next decision should decide whether to instrument target-path control flow after `button_triggered`, revalidate that the UI action reaches the intended compare path, or add a narrower path-skipped classification around the installed static compare hook addresses without expanding candidate/search/runtime budgets.
+The next bounded direction should treat the compare-side hook miss as a path/exception outcome after entering the handoff helper. The next decision should inspect the exception/return path out of `0x401b50` and why it exits before `0x233d` and the compare window, without expanding candidates, search budget, timeouts, Base64/RC4 probes, or final-writer work.

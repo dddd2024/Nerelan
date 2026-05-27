@@ -17,6 +17,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_PROBE_FILE_NAME,
     COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME,
     COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME,
+    COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME,
     COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
     COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
@@ -75,6 +76,7 @@ from reverse_agent.strategies.compare_aware_search import (
     build_compare_lhs_slot_writer_source_audit_payload,
     build_compare_lhs_upstream_writer_audit_payload,
     build_compare_lhs_last_writer_provenance_audit_payload,
+    build_compare_hook_path_reachability_audit_payload,
     build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
@@ -92,6 +94,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_lhs_slot_writer_source_audit,
     run_compare_lhs_upstream_writer_audit,
     run_compare_lhs_last_writer_provenance_audit,
+    run_compare_hook_path_reachability_audit,
     run_compare_esi_source_window_audit,
     run_compare_real_lhs_provenance_audit,
     run_compare_pre_compare_handoff_target_probe,
@@ -7992,6 +7995,8 @@ def test_run_compare_real_lhs_script_health_survives_compare_probe_fallback(
                         "hook_count": 4,
                         "requested_hook_count": 4,
                         "script_load_status": "loaded",
+                        "python_message_callback_registered_before_load": True,
+                        "python_message_count_total": 21,
                         "process_spawned_at_ms": 1000,
                         "frida_attached_at_ms": 1100,
                         "script_load_start_at_ms": 1200,
@@ -10418,6 +10423,110 @@ def test_compare_aware_strategy_runs_exception_unwind_sidecar_before_search(
     assert result.metadata["early_sidecar"] is True
     assert captured["source_classification"] == "handoff_exception_or_unwind"
     assert Path(str(result.artifacts[0].output_path)).name == POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME
+
+
+def test_compare_hook_path_reachability_payload_classifies_path_gaps() -> None:
+    base_result = {
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "hook_install_status": "installed",
+        "ui_trigger_status": "button_triggered",
+        "python_message_count_total": 12,
+        "hook_address_validation": [
+            {
+                "name": "static_compare_callsite",
+                "install_status": "installed",
+                "address_validation": "resolved",
+            }
+        ],
+    }
+
+    no_path = build_compare_hook_path_reachability_audit_payload(candidate_results=[base_result])
+    assert no_path["artifact_kind"] == "compare_hook_path_reachability_audit"
+    assert no_path["classification"] == "ui_button_triggered_but_decrypt_handler_not_entered"
+    assert no_path["breakpoint_probe_allowed"] is False
+
+    handoff_call = {
+        **base_result,
+        "hook_observations": [{"hook_name": "predecessor_handoff_call", "event": "enter"}],
+    }
+    payload = build_compare_hook_path_reachability_audit_payload(candidate_results=[handoff_call])
+    assert payload["classification"] == "handoff_helper_not_entered_after_ui_trigger"
+
+    helper_entry = {
+        **base_result,
+        "hook_observations": [{"hook_name": "handoff_helper_entry", "event": "enter"}],
+    }
+    payload = build_compare_hook_path_reachability_audit_payload(candidate_results=[helper_entry])
+    assert payload["classification"] == "handoff_helper_entered_but_return_path_skips_compare_window"
+
+    compare_window = {
+        **base_result,
+        "hook_observations": [{"hook_name": "static_compare_callsite", "event": "enter"}],
+    }
+    payload = build_compare_hook_path_reachability_audit_payload(candidate_results=[compare_window])
+    assert payload["classification"] == "compare_window_reached_after_ui_trigger"
+
+
+def test_run_compare_hook_path_reachability_audit_records_fixed_candidates(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ" + b"\0" * 4096)
+
+    def fake_run(command, timeout):  # noqa: ANN001
+        command = list(command)
+        out_path = Path(command[command.index("--out") + 1])
+        candidate_hex = command[command.index("--probe-hex") + 1]
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
+            json.dumps(
+                {
+                    "artifact_kind": "compare_hook_path_reachability_audit",
+                    "success": True,
+                    "candidate_hex": candidate_hex,
+                    "hook_observations": [],
+                    "hook_install_status": "installed",
+                    "hook_count": 7,
+                    "requested_hook_count": 7,
+                    "hooks_installed_stage_seen": True,
+                    "script_load_status": "loaded",
+                    "python_message_callback_registered_before_load": True,
+                    "python_message_count_total": 12,
+                    "ui_trigger_status": "button_triggered",
+                    "observation_count": 0,
+                    "hook_address_validation": [
+                        {
+                            "name": "static_compare_callsite",
+                            "install_status": "installed",
+                            "address_validation": "resolved",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(compare_aware_search, "_run_material_hook_runtime_command", fake_run)
+    result = run_compare_hook_path_reachability_audit(
+        target=target,
+        artifacts_dir=tmp_path / "artifacts",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.1,
+        run_name="unit_path_reachability",
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME
+    assert payload["candidate_count"] == 3
+    assert payload["fixed_candidates"] == [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+        "78d540b49c59076f41414141414141",
+    ]
+    assert payload["classification"] == "ui_button_triggered_but_decrypt_handler_not_entered"
+    assert payload["breakpoint_probe_allowed"] is False
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

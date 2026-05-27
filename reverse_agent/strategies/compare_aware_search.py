@@ -68,6 +68,7 @@ COMPARE_PRE_COMPARE_HANDOFF_TARGET_PROBE_FILE_NAME = "compare_pre_compare_handof
 MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME = "material_hook_runtime_validation.json"
 POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME = "post_handoff_branch_outcome_audit.json"
 POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME = "post_handoff_exception_unwind_audit.json"
+COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME = "compare_hook_path_reachability_audit.json"
 COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME = "compare_lhs_producer_audit.json"
 COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME = "compare_lhs_upstream_writer_audit.json"
 COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
@@ -237,6 +238,7 @@ COMPARE_ESI_SOURCE_WINDOW_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDAT
 COMPARE_LHS_SLOT_WRITER_SOURCE_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 POST_HANDOFF_BRANCH_OUTCOME_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+COMPARE_HOOK_PATH_REACHABILITY_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 POST_HANDOFF_COMPARE_PATH_READY_CLASSIFICATIONS = {
     "compare_reached_but_path_unresolved",
     "seh_unwind_to_compare_path",
@@ -309,6 +311,10 @@ def _post_handoff_branch_outcome_audit_script_path() -> Path:
 
 def _post_handoff_exception_unwind_audit_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "post_handoff_exception_unwind_audit.py"
+
+
+def _compare_hook_path_reachability_audit_script_path() -> Path:
+    return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_hook_path_reachability_audit.py"
 
 
 def _compare_lhs_producer_audit_script_path() -> Path:
@@ -3454,6 +3460,7 @@ def _artifact_file_name_for_kind(kind: str) -> str:
         "material_hook_runtime_validation": MATERIAL_HOOK_RUNTIME_VALIDATION_FILE_NAME,
         "post_handoff_branch_outcome_audit": POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME,
         "post_handoff_exception_unwind_audit": POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME,
+        "compare_hook_path_reachability_audit": COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME,
         "compare_lhs_producer_audit": COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
         "compare_lhs_upstream_writer_audit": COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
         "compare_callsite_reanchor_and_lhs_provenance_audit": (
@@ -10946,6 +10953,411 @@ def run_post_handoff_branch_outcome_audit(
         "result_path": str(result_path),
         "payload": payload,
         "validations": [],
+        "promotable_validations": [],
+    }
+
+
+def _compare_hook_path_reachability_hook_points() -> list[dict[str, object]]:
+    return [
+        {
+            "name": "predecessor_handoff_call",
+            "module_offset": 0x2338,
+            "instruction": "call 0x401b50",
+            "role": "ui_trigger_to_handoff_call",
+        },
+        {
+            "name": "handoff_helper_entry",
+            "module_offset": 0x1B50,
+            "instruction": "0x401b50 entry",
+            "role": "handoff_helper_entry_leave",
+            "capture_leave": True,
+        },
+        {
+            "name": "predecessor_handoff_return",
+            "module_offset": 0x233D,
+            "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+            "role": "linear_return_after_handoff",
+        },
+        {
+            "name": "old_lhs_slot_store",
+            "module_offset": 0x253A,
+            "instruction": "mov dword ptr [ebp - 0x1170], eax",
+            "role": "pre_compare_lhs_slot_store",
+        },
+        {
+            "name": "post_handoff_lhs_reload",
+            "module_offset": 0x2559,
+            "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+            "role": "compare_window_lhs_reload",
+        },
+        {
+            "name": "pre_compare_lhs_push",
+            "module_offset": 0x258B,
+            "instruction": "push esi",
+            "role": "pre_compare_arg0_push",
+        },
+        {
+            "name": "static_compare_callsite",
+            "module_offset": 0x258C,
+            "instruction": "call 0x5028ac",
+            "role": "static_compare_callsite",
+        },
+    ]
+
+
+def _compare_hook_path_reachability_static_audit(
+    target: Path,
+    hook_points: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    try:
+        data = target.read_bytes()
+    except Exception:
+        data = b""
+    sections = _pe_sections_for_rva_mapping(data)
+    sizes = {0x1B50: 1, 0x2338: 5, 0x233D: 6, 0x253A: 6, 0x2559: 6, 0x258B: 1, 0x258C: 5}
+    return {
+        "classification": "static_compare_hook_path_reachability_audit_complete"
+        if data and sections
+        else "static_compare_hook_path_reachability_audit_partial",
+        "windows": {
+            "ui_to_handoff_path": {
+                "start_rva": "0x2338",
+                "end_rva": "0x2343",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x2338, 0x2343 - 0x2338),
+            },
+            "handoff_helper_entry": {
+                "start_rva": "0x1b50",
+                "end_rva": "0x1b51",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x1B50, 1),
+            },
+            "compare_window": {
+                "start_rva": "0x253a",
+                "end_rva": "0x2591",
+                "bytes_hex": _read_rva_bytes(data, sections, 0x253A, 0x2591 - 0x253A),
+            },
+        },
+        "instruction_boundaries": [
+            {
+                "name": point.get("name", ""),
+                "rva": f"0x{offset:x}",
+                "end_rva": f"0x{offset + sizes.get(offset, 1):x}",
+                "size": sizes.get(offset, 1),
+                "instruction": point.get("instruction", ""),
+                "bytes_hex": _read_rva_bytes(data, sections, offset, sizes.get(offset, 1)),
+                "boundary_status": "instruction_confirmed",
+            }
+            for point in hook_points
+            for offset in [_parse_int_hex(point.get("module_offset"))]
+            if offset is not None
+        ],
+    }
+
+
+def _compare_hook_path_observed_counts(candidate_results: Sequence[dict[str, object]]) -> dict[str, int]:
+    hook_names = (
+        "predecessor_handoff_call",
+        "handoff_helper_entry",
+        "predecessor_handoff_return",
+        "old_lhs_slot_store",
+        "post_handoff_lhs_reload",
+        "pre_compare_lhs_push",
+        "static_compare_callsite",
+        "process_exception",
+    )
+    return {
+        hook_name: sum(1 for result in candidate_results if _post_handoff_observations(result, hook_name))
+        for hook_name in hook_names
+    }
+
+
+def _compare_hook_path_address_validation_status(
+    candidate_results: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    rows: list[dict[str, object]] = []
+    for result in candidate_results:
+        candidate_hex = str(result.get("candidate_hex", ""))
+        raw_rows = result.get("hook_address_validation", [])
+        raw_rows = raw_rows if isinstance(raw_rows, list) else []
+        for row in raw_rows:
+            if not isinstance(row, dict):
+                continue
+            rows.append({"candidate_hex": candidate_hex, **dict(row)})
+    unresolved = [
+        row
+        for row in rows
+        if str(row.get("address_validation", "")).strip() not in {"", "resolved"}
+        or str(row.get("install_status", "")).strip() not in {"", "installed"}
+    ]
+    return {
+        "rows": rows,
+        "resolved_count": len(rows) - len(unresolved),
+        "unresolved_count": len(unresolved),
+        "unresolved": unresolved[:12],
+    }
+
+
+def _classify_compare_hook_path_reachability(
+    *,
+    candidate_results: Sequence[dict[str, object]],
+    path_observed_counts: dict[str, int],
+    hook_address_validation: dict[str, object],
+) -> str:
+    if int(hook_address_validation.get("unresolved_count", 0) or 0) > 0:
+        return "static_compare_hook_address_stale_for_current_binary"
+    if not candidate_results:
+        return "sidecar_runtime_precondition_failed"
+    if any(str(item.get("ui_trigger_status", "")).strip() not in {"", "button_triggered"} for item in candidate_results):
+        return "ui_action_targets_wrong_process_or_window"
+    if any(str(item.get("hook_install_status", "")).strip() not in {"", "installed"} for item in candidate_results):
+        return "sidecar_runtime_precondition_failed"
+    compare_count = sum(
+        int(path_observed_counts.get(name, 0) or 0)
+        for name in ("old_lhs_slot_store", "post_handoff_lhs_reload", "pre_compare_lhs_push", "static_compare_callsite")
+    )
+    if compare_count > 0:
+        return "compare_window_reached_after_ui_trigger"
+    if int(path_observed_counts.get("process_exception", 0) or 0) > 0:
+        return "decrypt_handler_entered_but_candidate_path_exits_before_handoff"
+    if int(path_observed_counts.get("handoff_helper_entry", 0) or 0) > 0:
+        return "handoff_helper_entered_but_return_path_skips_compare_window"
+    if int(path_observed_counts.get("predecessor_handoff_call", 0) or 0) > 0:
+        return "handoff_helper_not_entered_after_ui_trigger"
+    if any(int(item.get("python_message_count_total", 0) or 0) > 0 for item in candidate_results):
+        return "ui_button_triggered_but_decrypt_handler_not_entered"
+    return "sidecar_runtime_precondition_failed"
+
+
+def build_compare_hook_path_reachability_audit_payload(
+    *,
+    candidate_results: Sequence[dict[str, object]] | None = None,
+    hook_points: Sequence[dict[str, object]] | None = None,
+    static_audit: dict[str, object] | None = None,
+    run_name: str = "",
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+) -> dict[str, object]:
+    candidate_results = [dict(item) for item in (candidate_results or []) if isinstance(item, dict)]
+    hook_points = list(hook_points or _compare_hook_path_reachability_hook_points())
+    actual_compare = _compare_callsite_side_summary(candidate_results) if candidate_results else {}
+    path_observed_counts = _compare_hook_path_observed_counts(candidate_results)
+    hook_address_validation = _compare_hook_path_address_validation_status(candidate_results)
+    classification = _classify_compare_hook_path_reachability(
+        candidate_results=candidate_results,
+        path_observed_counts=path_observed_counts,
+        hook_address_validation=hook_address_validation,
+    )
+    stage_fields = _compare_lhs_last_writer_stage_fields(candidate_results)
+    return {
+        "schema_version": 1,
+        "artifact_kind": "compare_hook_path_reachability_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "classification": classification,
+        "new_blocker": classification,
+        "attempted": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(candidate_results),
+        "candidate_limit": len(COMPARE_HOOK_PATH_REACHABILITY_AUDIT_CANDIDATES),
+        "fixed_candidates": list(COMPARE_HOOK_PATH_REACHABILITY_AUDIT_CANDIDATES),
+        "runtime_backed_count": sum(1 for item in candidate_results if bool(item.get("runtime_backed"))),
+        "hook_points": hook_points,
+        "static_audit": static_audit or {},
+        "hook_address_validation": hook_address_validation,
+        "path_observed_counts": path_observed_counts,
+        "actual_compare": actual_compare,
+        "candidate_execution_health": _compare_real_lhs_candidate_execution_health(candidate_results),
+        "candidate_results": candidate_results,
+        "hook_install_status": stage_fields.get("hook_install_status", ""),
+        "hook_count": stage_fields.get("hook_count", 0),
+        "requested_hook_count": stage_fields.get("requested_hook_count", 0),
+        "python_message_count_total": stage_fields.get("python_message_count_total", 0),
+        "ui_trigger_status": stage_fields.get("ui_trigger_status", ""),
+        "root_cause_hypothesis": stage_fields.get("root_cause_hypothesis", ""),
+        "root_cause_evidence": stage_fields.get("root_cause_evidence", []),
+        "sidecar_health": normalize_sidecar_health(stage_fields),
+        "breakpoint_probe_allowed": False,
+        "compare_probe_fallback_used": False,
+        "compare_probe_fallback_is_provenance": False,
+        "next_bounded_action": {
+            "compare_window_reached_after_ui_trigger": "resume bounded compare-arg observation diagnosis at the reached compare window",
+            "ui_button_triggered_but_decrypt_handler_not_entered": "identify the correct UI control event before any compare-side probe",
+            "handoff_helper_not_entered_after_ui_trigger": "trace the branch or exception path between 0x2338 and 0x401b50",
+            "handoff_helper_entered_but_return_path_skips_compare_window": "trace 0x401b50 return or tail path before any Base64/RC4 probe",
+            "static_compare_hook_address_stale_for_current_binary": "refresh static compare hook address validation for the current binary",
+            "sidecar_runtime_precondition_failed": "restore sidecar runtime prerequisites before expanding search",
+        }.get(classification, "continue the bounded path-reachability diagnosis without search expansion"),
+    }
+
+
+def run_compare_hook_path_reachability_audit(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel | None = None,
+    per_probe_timeout: float = 2.2,
+    run_name: str = "",
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME
+    script_path = _compare_hook_path_reachability_audit_script_path()
+    hook_points = _compare_hook_path_reachability_hook_points()
+    static_audit = _compare_hook_path_reachability_static_audit(target, hook_points)
+    entries = list(COMPARE_HOOK_PATH_REACHABILITY_AUDIT_CANDIDATES)
+    labels = ("exact2_best", "exact1_frontier", "single_byte_contrast")
+    initial_payload = build_compare_hook_path_reachability_audit_payload(
+        candidate_results=[],
+        hook_points=hook_points,
+        static_audit=static_audit,
+        run_name=run_name,
+    )
+    initial_payload["candidate_count"] = len(entries)
+    _write_json(result_path, initial_payload)
+    if not script_path.exists():
+        raise RuntimeError(f"Compare hook path reachability audit script missing: {script_path}")
+    points_path = artifacts_dir / "compare_hook_path_reachability_hook_points.json"
+    _write_json(points_path, {"hook_points": hook_points})
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        audit_out = candidate_dir / COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME
+        audit_log = candidate_dir / "compare_hook_path_reachability_audit.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(audit_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            "",
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"CompareHookPathReachabilityAudit scripted hooks {idx}: {candidate_hex}")
+        timed_out = False
+        try:
+            proc = _run_material_hook_runtime_command(
+                command,
+                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+            )
+            error = ""
+        except subprocess.TimeoutExpired as exc:
+            proc = subprocess.CompletedProcess(command, returncode=124, stdout=exc.stdout or "", stderr=exc.stderr or "")
+            error = "timeout"
+            timed_out = True
+        audit_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        compare_payload = _read_json_object(audit_out) if audit_out.exists() else {}
+        observations = [
+            _normalize_pre_compare_handoff_observation(dict(item), candidate_hex)
+            for item in compare_payload.get("hook_observations", [])
+            if isinstance(item, dict)
+        ]
+        scripted_observation_count = len(observations)
+        scripted_hook_status = (
+            "scripted_hook_missing"
+            if not audit_out.exists()
+            else "scripted_hook_observed"
+            if scripted_observation_count > 0
+            else "scripted_hook_no_observations"
+        )
+        helper_observation_count = len(
+            [item for item in observations if str(item.get("hook_name", "")) == "handoff_helper_entry"]
+        )
+        static_compare_observation_count = len(
+            [
+                item
+                for item in observations
+                if str(item.get("hook_name", ""))
+                in {"old_lhs_slot_store", "post_handoff_lhs_reload", "pre_compare_lhs_push", "static_compare_callsite"}
+            ]
+        )
+        invocation_health = {
+            "subprocess_command": command,
+            "subprocess_cwd": str(Path.cwd()),
+            "subprocess_returncode": int(getattr(proc, "returncode", 0) or 0),
+            "subprocess_timeout_seconds": max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+            "subprocess_timed_out": timed_out,
+            "subprocess_stdout_tail": str(getattr(proc, "stdout", "") or "")[-2000:],
+            "subprocess_stderr_tail": str(getattr(proc, "stderr", "") or "")[-2000:],
+            "scripted_output_exists": audit_out.exists(),
+            "scripted_output_size_bytes": _path_size(audit_out),
+            "scripted_log_path": str(audit_log),
+            "scripted_log_size_bytes": _path_size(audit_log),
+            "scripted_initial_payload_only": False,
+            "scripted_lifecycle_entered": bool(compare_payload),
+            "scripted_last_runtime_stage": str(compare_payload.get("runtime_stage", "")),
+        }
+        stage_metadata = _compare_lhs_last_writer_candidate_stage_metadata(
+            compare_payload=compare_payload,
+            scripted_hook_status=scripted_hook_status,
+            scripted_returncode=int(getattr(proc, "returncode", 0) or 0),
+            helper_observation_count=helper_observation_count,
+            static_compare_observation_count=static_compare_observation_count,
+            scripted_write_monitor_health=dict(compare_payload.get("write_monitor_health", {}))
+            if isinstance(compare_payload.get("write_monitor_health"), dict)
+            else {},
+            compare_out=audit_out,
+            compare_log=audit_log,
+            invocation_health=invocation_health,
+        )
+        candidate_results.append(
+            {
+                "label": labels[idx - 1] if idx - 1 < len(labels) else f"candidate_{idx}",
+                "candidate_hex": candidate_hex,
+                "candidate_prefix": candidate_hex[:16],
+                "runtime_backed": bool(observations),
+                "hook_observations": observations[:240],
+                "result_path": str(audit_out),
+                "log_path": str(audit_log),
+                "success": bool(compare_payload.get("success")) and not error,
+                "error": error or str(compare_payload.get("error", "")),
+                "scripted_returncode": int(getattr(proc, "returncode", 0) or 0),
+                "scripted_hook_status": scripted_hook_status,
+                "scripted_observation_count": scripted_observation_count,
+                "scripted_output_exists": audit_out.exists(),
+                "scripted_output_size_bytes": _path_size(audit_out),
+                "scripted_log_path": str(audit_log),
+                "scripted_log_size_bytes": _path_size(audit_log),
+                "subprocess_command": command,
+                "subprocess_cwd": str(Path.cwd()),
+                "subprocess_returncode": int(getattr(proc, "returncode", 0) or 0),
+                "subprocess_timeout_seconds": invocation_health["subprocess_timeout_seconds"],
+                "subprocess_timed_out": timed_out,
+                "subprocess_stdout_tail": invocation_health["subprocess_stdout_tail"],
+                "subprocess_stderr_tail": invocation_health["subprocess_stderr_tail"],
+                **stage_metadata,
+            }
+        )
+
+    payload = build_compare_hook_path_reachability_audit_payload(
+        candidate_results=candidate_results,
+        hook_points=hook_points,
+        static_audit=static_audit,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    if log:
+        log(f"Compare hook path reachability audit wrote {result_path}")
+    return {
+        "result_path": str(result_path),
+        "payload": payload,
+        "validations": candidate_results,
         "promotable_validations": [],
     }
 

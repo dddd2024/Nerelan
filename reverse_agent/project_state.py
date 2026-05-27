@@ -38,6 +38,7 @@ IMPORTANT_ARTIFACTS = {
     "material_hook_runtime_validation": "material_hook_runtime_validation.json",
     "post_handoff_branch_outcome_audit": "post_handoff_branch_outcome_audit.json",
     "post_handoff_exception_unwind_audit": "post_handoff_exception_unwind_audit.json",
+    "compare_hook_path_reachability_audit": "compare_hook_path_reachability_audit.json",
     "compare_lhs_producer_audit": "compare_lhs_producer_audit.json",
     "compare_lhs_upstream_writer_audit": "compare_lhs_upstream_writer_audit.json",
     "compare_callsite_reanchor_and_lhs_provenance_audit": (
@@ -84,6 +85,7 @@ RUNTIME_VALIDATION_KEYS = {
     "material_hook_runtime_validation",
     "post_handoff_branch_outcome_audit",
     "post_handoff_exception_unwind_audit",
+    "compare_hook_path_reachability_audit",
     "compare_lhs_producer_audit",
     "compare_lhs_upstream_writer_audit",
     "compare_callsite_reanchor_and_lhs_provenance_audit",
@@ -2168,6 +2170,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     post_handoff_exception_unwind_audit = _read_json(
         artifact_refs.get("post_handoff_exception_unwind_audit")
     )
+    compare_hook_path_reachability_audit = _read_json(
+        artifact_refs.get("compare_hook_path_reachability_audit")
+    )
     compare_lhs_producer_audit = _read_json(artifact_refs.get("compare_lhs_producer_audit"))
     compare_lhs_upstream_writer_audit = _read_json(artifact_refs.get("compare_lhs_upstream_writer_audit"))
     compare_callsite_reanchor_audit = _read_json(
@@ -2299,6 +2304,16 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if exception_unwind_classification:
         stage = "post_handoff_exception_unwind_audit"
         reason = exception_unwind_classification
+    hook_path_reachability_classification = str(
+        compare_hook_path_reachability_audit.get("classification") or ""
+    ).strip()
+    hook_path_reachability_blocker = str(
+        compare_hook_path_reachability_audit.get("new_blocker")
+        or hook_path_reachability_classification
+    ).strip()
+    if hook_path_reachability_classification:
+        stage = "compare_hook_path_reachability_audit"
+        reason = hook_path_reachability_blocker or hook_path_reachability_classification
     compare_lhs_producer_classification = str(
         compare_lhs_producer_audit.get("classification") or ""
     ).strip()
@@ -2343,6 +2358,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if slot_writer_predecessor_classification:
         stage = "compare_lhs_slot_writer_predecessor_audit"
         reason = slot_writer_predecessor_classification
+    if hook_path_reachability_classification:
+        stage = "compare_hook_path_reachability_audit"
+        reason = hook_path_reachability_blocker or hook_path_reachability_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -2411,7 +2429,13 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
         "current_bottleneck": {
             "stage": stage,
             "reason": reason,
-            "blocker": real_lhs_writer_blocker if stage == "compare_real_lhs_provenance_audit" else "",
+            "blocker": (
+                real_lhs_writer_blocker
+                if stage == "compare_real_lhs_provenance_audit"
+                else hook_path_reachability_blocker
+                if stage == "compare_hook_path_reachability_audit"
+                else ""
+            ),
             "confidence": "medium" if stage or reason else "low",
         },
         "latest_transform_trace_consistency": {
@@ -2727,6 +2751,35 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": post_handoff_exception_unwind_audit.get("next_bounded_action"),
         }
         if post_handoff_exception_unwind_audit
+        else {},
+        "latest_compare_hook_path_reachability_audit": {
+            "classification": hook_path_reachability_classification or None,
+            "new_blocker": hook_path_reachability_blocker or None,
+            "artifact": artifact_refs.get("compare_hook_path_reachability_audit"),
+            "candidate_count": compare_hook_path_reachability_audit.get("candidate_count"),
+            "runtime_backed_count": compare_hook_path_reachability_audit.get("runtime_backed_count"),
+            "fixed_candidates": compare_hook_path_reachability_audit.get("fixed_candidates", []),
+            "hook_points": compare_hook_path_reachability_audit.get("hook_points", [])[:8]
+            if isinstance(compare_hook_path_reachability_audit.get("hook_points"), list)
+            else [],
+            "hook_address_validation": compare_hook_path_reachability_audit.get(
+                "hook_address_validation", {}
+            ),
+            "path_observed_counts": compare_hook_path_reachability_audit.get(
+                "path_observed_counts", {}
+            ),
+            "actual_compare": compare_hook_path_reachability_audit.get("actual_compare", {}),
+            "candidate_execution_health": compare_hook_path_reachability_audit.get(
+                "candidate_execution_health", []
+            )[:3]
+            if isinstance(compare_hook_path_reachability_audit.get("candidate_execution_health"), list)
+            else [],
+            "breakpoint_probe_allowed": compare_hook_path_reachability_audit.get(
+                "breakpoint_probe_allowed"
+            ),
+            "next_bounded_action": compare_hook_path_reachability_audit.get("next_bounded_action"),
+        }
+        if compare_hook_path_reachability_audit
         else {},
         "latest_compare_lhs_producer_audit": {
             "classification": compare_lhs_producer_classification or None,
@@ -3856,6 +3909,14 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         return "Diagnose sidecar observation delivery blocker"
     if stage == "compare_real_lhs_provenance_audit" and blocker == "arg0_pointer_carrier_identified_writer_missing":
         return "Trace final writer for actual compare arg0 after confirmed ESI carrier"
+    if stage == "compare_hook_path_reachability_audit":
+        if reason == "compare_window_reached_after_ui_trigger":
+            return "Resume bounded compare-arg observation diagnosis"
+        if reason == "static_compare_hook_address_stale_for_current_binary":
+            return "Refresh static compare hook address validation"
+        if reason == "sidecar_runtime_precondition_failed":
+            return "Restore bounded sidecar runtime prerequisites"
+        return "Diagnose bounded compare hook path reachability"
     if stage == "compare_real_lhs_provenance_audit" and reason in {
         "writer_path_observed_but_unconnected",
         "compare_lhs_runtime_backed_writer_missing",

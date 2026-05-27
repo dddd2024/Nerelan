@@ -17,8 +17,11 @@ WRITE_RING_LIMIT = 4096
 
 
 def _artifact_kind_for_script() -> str:
-    if Path(sys.argv[0]).stem == "compare_lhs_last_writer_provenance":
+    stem = Path(sys.argv[0]).stem
+    if stem == "compare_lhs_last_writer_provenance":
         return "compare_lhs_last_writer_provenance_audit"
+    if stem == "compare_hook_path_reachability_audit":
+        return "compare_hook_path_reachability_audit"
     return "compare_pre_compare_handoff_target_probe"
 
 
