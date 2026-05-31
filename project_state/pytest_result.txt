@@ -1,17 +1,15 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260527_diagnose_compare_hook_path_not_reached",
-  "report_id": "report_20260527_diagnose_compare_hook_path_not_reached",
-  "round_id": "round_20260527_diagnose_compare_hook_path_not_reached",
-  "generated_at": "2026-05-27T23:35:00+08:00",
-  "status": "PARTIAL",
+  "decision_id": "decision_20260528_fix_material_hook_utf16_kind_protocol",
+  "report_id": "report_20260531_fix_material_hook_utf16_kind_protocol",
+  "round_id": "round_20260528_fix_material_hook_utf16_kind_protocol",
+  "generated_at": "2026-05-31T12:44:52+08:00",
+  "status": "PASSED",
   "tests_ran": [
-    "python -m py_compile reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/olly_scripts/compare_hook_path_reachability_audit.py reverse_agent/project_state.py reverse_agent/sidecar_health.py reverse_agent/strategies/compare_aware_search.py",
-    "python -m pytest -q tests/test_compare_aware_search_strategy.py -k \"path or reachability or compare or sidecar or ui or trigger or timing or classification\"",
-    "python -m pytest -q tests/test_project_state.py -k \"path or reachability or sidecar or observation or blocker or report or runtime or projection\"",
-    "python -c \"from pathlib import Path; from reverse_agent.strategies.compare_aware_search import run_compare_hook_path_reachability_audit; from reverse_agent.transforms.samplereverse import SamplereverseTransformModel; run_compare_hook_path_reachability_audit(target=Path('solve_reports/samplereverse_patched.exe'), artifacts_dir=Path('solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_hook_path_reachability_audit'), transform_model=SamplereverseTransformModel(), per_probe_timeout=2.2, run_name='sr_compare_hook_path_reachability_20260527_r1', log=print)\"",
-    "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_hook_readiness_ordering_20260526_r1",
+    "python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/olly_scripts/base64_rc4_breakpoint_probe.py",
+    "python -m pytest -q tests/test_compare_aware_search_strategy.py -k \"material_hook or base64_rc4 or breakpoint or utf16\"",
+    "python -m pytest -q tests/test_project_state.py -k \"material_hook or report or lint\"",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "git diff --check"
@@ -19,44 +17,34 @@
 }
 ```
 
-2026-05-27 verification for decision_20260527_diagnose_compare_hook_path_not_reached
+2026-05-31 verification for decision_20260528_fix_material_hook_utf16_kind_protocol
 
 Command:
-python -m py_compile reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py reverse_agent/olly_scripts/compare_hook_path_reachability_audit.py reverse_agent/project_state.py reverse_agent/sidecar_health.py reverse_agent/strategies/compare_aware_search.py
+python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/olly_scripts/base64_rc4_breakpoint_probe.py
 Result:
 passed.
 
 Command:
-python -m pytest -q tests/test_compare_aware_search_strategy.py -k "path or reachability or compare or sidecar or ui or trigger or timing or classification"
+python -m pytest -q tests/test_compare_aware_search_strategy.py -k "material_hook or base64_rc4 or breakpoint or utf16"
 Result:
-passed, 198 passed.
+passed, 20 passed and 179 deselected.
 
 Command:
-python -m pytest -q tests/test_project_state.py -k "path or reachability or sidecar or observation or blocker or report or runtime or projection"
+python -m pytest -q tests/test_project_state.py -k "material_hook or report or lint"
 Result:
-passed, 64 passed and 85 deselected.
-
-Command:
-python -c "from pathlib import Path; from reverse_agent.strategies.compare_aware_search import run_compare_hook_path_reachability_audit; from reverse_agent.transforms.samplereverse import SamplereverseTransformModel; run_compare_hook_path_reachability_audit(target=Path('solve_reports/samplereverse_patched.exe'), artifacts_dir=Path('solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_hook_path_reachability_audit'), transform_model=SamplereverseTransformModel(), per_probe_timeout=2.2, run_name='sr_compare_hook_path_reachability_20260527_r1', log=print)"
-Result:
-passed. Wrote compare_hook_path_reachability_audit.json with classification decrypt_handler_entered_but_candidate_path_exits_before_handoff.
-
-Command:
-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_hook_readiness_ordering_20260526_r1
-Result:
-passed. Rebuilt active project_state from current run sr_arg0_hook_readiness_ordering_20260526_r1. Current blocker is decrypt_handler_entered_but_candidate_path_exits_before_handoff.
+passed, 72 passed and 77 deselected.
 
 Command:
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 Result:
-failed as expected after the required build. The decision packet is based on state digest 189861793d69622a050663bd67ce33dd1a04e8f62ec193d0a4ba1b21d3d9c9b6, while the rebuilt current state digest is 1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02. This cannot be fixed without modifying project_state/decision_packet.md, which this decision forbids.
+passed.
 
 Command:
 python -m reverse_agent.project_state lint-report --state-dir project_state
 Result:
-passed with warning: report round not archived yet.
+passed.
 
 Command:
 git diff --check
 Result:
-passed. The command emitted only CRLF working-copy warnings for touched files.
+passed.

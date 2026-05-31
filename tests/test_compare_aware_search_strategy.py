@@ -8,6 +8,7 @@ from reverse_agent.evidence import StructuredEvidence
 from reverse_agent.function_semantics import FUNCTION_SEMANTIC_AUDIT_FILE_NAME
 from reverse_agent.profiles.samplereverse import SamplereverseProfile
 from reverse_agent.samplereverse_z3 import _optimize_ready, solve_targeted_prefix8
+from reverse_agent.olly_scripts import base64_rc4_breakpoint_probe
 from reverse_agent.strategies import compare_aware_search
 from reverse_agent.strategies.base import StrategyResult
 from reverse_agent.strategies.compare_aware_search import (
@@ -6608,6 +6609,43 @@ def test_material_hook_runtime_validation_accepts_only_transform_material(
     assert compare_aware_search._material_hook_runtime_validation_allows_breakpoint(payload) is True
     points = compare_aware_search._breakpoint_static_points_from_material_hook_runtime_validation_payload(payload)
     assert points["utf16le_payload"][0]["module_offset"] == 0x233D
+    assert points["utf16le_payload"][0]["kind"] == "utf16le"
+    assert points["utf16le_payload"][0]["material_kind"] == "utf16le_payload"
+    hook_results = base64_rc4_breakpoint_probe._hook_results_from_events(
+        [{"point_kind": points["utf16le_payload"][0]["kind"]}]
+    )
+    assert hook_results["utf16le_payload"] == "inferred"
+
+
+def test_material_hook_static_points_map_utf16_material_kind_to_probe_protocol() -> None:
+    payload = {
+        "classification": "ACCEPT",
+        "breakpoint_probe_allowed": True,
+        "validated_hooks": [
+            {
+                "material_kind": "utf16le_payload",
+                "module_offset": "0x2559",
+                "instruction_confirmed": True,
+                "hookable": True,
+                "candidate_dependent": True,
+                "connects_to_transform_chain": True,
+            }
+        ],
+    }
+
+    points = compare_aware_search._breakpoint_static_points_from_material_hook_runtime_validation_payload(payload)
+
+    point = points["utf16le_payload"][0]
+    assert point["kind"] == "utf16le"
+    assert point["material_kind"] == "utf16le_payload"
+    assert point["semantic_kind"] == "utf16le_payload"
+    assert point["module_offset"] == 0x2559
+    assert point["hook_kind"] == "interceptor"
+    hook_results = base64_rc4_breakpoint_probe._hook_results_from_events([{"point_kind": point["kind"]}])
+    assert hook_results["utf16le_payload"] == "inferred"
+
+    blocked = {**payload, "classification": "BLOCKED", "breakpoint_probe_allowed": False}
+    assert compare_aware_search._breakpoint_static_points_from_material_hook_runtime_validation_payload(blocked) == {}
 
 
 def test_material_hook_runtime_validation_blocks_candidate_dependent_non_transform_material(

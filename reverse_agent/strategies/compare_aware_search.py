@@ -8972,7 +8972,7 @@ def _semantic_guess_for_material_kind(kind: str) -> str:
 
 
 def _semantic_record_from_material_hook_candidate(item: dict[str, object]) -> dict[str, object]:
-    kind = str(item.get("kind", ""))
+    kind = str(item.get("material_kind") or item.get("semantic_kind") or item.get("kind") or "")
     return {
         "function": str(item.get("function") or item.get("module_offset") or ""),
         "call_sites": [str(item.get("module_offset", ""))],
@@ -9671,10 +9671,13 @@ def _breakpoint_static_points_from_material_hook_runtime_validation_payload(
         module_offset = _static_point_module_offset(hook.get("module_offset"))
         if kind not in BASE64_RC4_BREAKPOINT_READY_KINDS or module_offset is None:
             continue
+        downstream_kind = "utf16le" if kind == "utf16le_payload" else kind
         out.setdefault(kind, []).append(
             {
                 **hook,
-                "kind": kind,
+                "kind": downstream_kind,
+                "material_kind": kind,
+                "semantic_kind": str(hook.get("semantic_kind") or kind),
                 "hook_kind": "interceptor",
                 "module_offset": module_offset,
                 "rva": f"0x{module_offset:x}",
