@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-05-27T15:30:28Z",
+  "generated_at": "2026-05-31T14:06:37Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -9,6 +9,7 @@
     "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
     "compare_callsite_reanchor_and_lhs_provenance_audit": null,
     "compare_esi_source_window_audit": null,
+    "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
     "compare_handoff_probe": null,
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_handoff_slice_probe": null,
@@ -117,6 +118,15 @@
       "sha256": null,
       "size_bytes": null,
       "source_run": ""
+    },
+    "compare_handoff_exit_classifier_audit": {
+      "freshness": "current",
+      "kind": "compare_handoff_exit_classifier_audit",
+      "modified_at": "2026-05-31T14:06:29Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
+      "sha256": "d22c67b35e72292dbf90ba201b1a2ebc222f7bcfcb099d6a04c91c227720241d",
+      "size_bytes": 168922,
+      "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_probe": {
       "freshness": "missing",
@@ -442,6 +452,30 @@
   "missing": [],
   "recent_artifacts": [
     {
+      "kind": "compare_handoff_exit_classifier_audit",
+      "modified_at": "2026-05-31T14:06:29Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
+      "size_bytes": 168922
+    },
+    {
+      "kind": "compare_handoff_exit_classifier_audit",
+      "modified_at": "2026-05-31T14:06:29Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\candidate_3\\compare_handoff_exit_classifier_audit.json",
+      "size_bytes": 34780
+    },
+    {
+      "kind": "compare_handoff_exit_classifier_audit",
+      "modified_at": "2026-05-31T14:06:24Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\candidate_2\\compare_handoff_exit_classifier_audit.json",
+      "size_bytes": 40612
+    },
+    {
+      "kind": "compare_handoff_exit_classifier_audit",
+      "modified_at": "2026-05-31T14:06:20Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\candidate_1\\compare_handoff_exit_classifier_audit.json",
+      "size_bytes": 40219
+    },
+    {
       "kind": "compare_hook_path_reachability_audit",
       "modified_at": "2026-05-27T15:29:40Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
@@ -538,30 +572,6 @@
       "modified_at": "2026-05-10T14:44:39Z",
       "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\candidate_1\\compare_producer_material_confirmation.json",
       "size_bytes": 15519
-    },
-    {
-      "kind": "compare_handoff_return_site_probe",
-      "modified_at": "2026-05-10T14:44:27Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
-      "size_bytes": 132806
-    },
-    {
-      "kind": "compare_handoff_return_site_probe",
-      "modified_at": "2026-05-10T14:44:27Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\candidate_3\\compare_handoff_return_site_probe.json",
-      "size_bytes": 35193
-    },
-    {
-      "kind": "compare_handoff_return_site_probe",
-      "modified_at": "2026-05-10T14:44:18Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\candidate_2\\compare_handoff_return_site_probe.json",
-      "size_bytes": 34153
-    },
-    {
-      "kind": "compare_handoff_return_site_probe",
-      "modified_at": "2026-05-10T14:44:13Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\candidate_1\\compare_handoff_return_site_probe.json",
-      "size_bytes": 34225
     }
   ],
   "reports_dir": "solve_reports",

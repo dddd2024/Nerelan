@@ -18,6 +18,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_PROBE_FILE_NAME,
     COMPARE_HANDOFF_RETURN_SITE_PROBE_FILE_NAME,
     COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME,
+    COMPARE_HANDOFF_EXIT_CLASSIFIER_AUDIT_FILE_NAME,
     COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME,
     COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
@@ -78,6 +79,7 @@ from reverse_agent.strategies.compare_aware_search import (
     build_compare_lhs_upstream_writer_audit_payload,
     build_compare_lhs_last_writer_provenance_audit_payload,
     build_compare_hook_path_reachability_audit_payload,
+    build_compare_handoff_exit_classifier_audit_payload,
     build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
@@ -96,6 +98,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_lhs_upstream_writer_audit,
     run_compare_lhs_last_writer_provenance_audit,
     run_compare_hook_path_reachability_audit,
+    run_compare_handoff_exit_classifier_audit,
     run_compare_esi_source_window_audit,
     run_compare_real_lhs_provenance_audit,
     run_compare_pre_compare_handoff_target_probe,
@@ -10565,6 +10568,197 @@ def test_run_compare_hook_path_reachability_audit_records_fixed_candidates(
     ]
     assert payload["classification"] == "ui_button_triggered_but_decrypt_handler_not_entered"
     assert payload["breakpoint_probe_allowed"] is False
+
+
+def test_handoff_exit_classifier_payload_classifies_candidate_outcomes() -> None:
+    base_result = {
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "candidate_prefix": "78d540b49c590770",
+        "runtime_backed": True,
+        "hook_install_status": "installed",
+        "ui_trigger_status": "button_triggered",
+    }
+
+    exception_payload = build_compare_handoff_exit_classifier_audit_payload(
+        candidate_results=[
+            {
+                **base_result,
+                "hook_observations": [
+                    {"hook_name": "predecessor_handoff_call", "event": "enter"},
+                    {"hook_name": "handoff_helper_entry", "event": "enter"},
+                    {"hook_name": "process_exception", "event": "exception"},
+                ],
+            }
+        ],
+        source_run="sr_path",
+    )
+    assert exception_payload["artifact_kind"] == "compare_handoff_exit_classifier_audit"
+    assert exception_payload["overall_classification"] == "exception_unwind_before_compare"
+    assert exception_payload["candidates"][0]["classification"] == "exception_unwind_before_compare"
+    assert exception_payload["candidates"][0]["process_exception_context"]["event"]["name"] == "process_exception"
+    assert exception_payload["breakpoint_probe_allowed"] is False
+
+    branch_payload = build_compare_handoff_exit_classifier_audit_payload(
+        candidate_results=[
+            {
+                **base_result,
+                "hook_observations": [
+                    {"hook_name": "predecessor_handoff_call", "event": "enter"},
+                    {"hook_name": "handoff_helper_entry", "event": "enter"},
+                ],
+            }
+        ]
+    )
+    assert branch_payload["overall_classification"] == "branch_guard_before_compare"
+    assert branch_payload["candidates"][0]["first_compare_successor_observed"] is False
+
+    wrong_successor_payload = build_compare_handoff_exit_classifier_audit_payload(
+        candidate_results=[
+            {
+                **base_result,
+                "hook_observations": [{"hook_name": "predecessor_handoff_call", "event": "enter"}],
+            }
+        ]
+    )
+    assert wrong_successor_payload["overall_classification"] == "wrong_successor_or_hook_site"
+
+    inconclusive_payload = build_compare_handoff_exit_classifier_audit_payload(
+        candidate_results=[{**base_result, "hook_install_status": "failed", "hook_observations": []}]
+    )
+    assert inconclusive_payload["overall_classification"] == "instrumentation_inconclusive"
+
+
+def test_run_handoff_exit_classifier_records_fixed_candidates(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ" + b"\0" * 4096)
+
+    def fake_run(command, timeout):  # noqa: ANN001
+        command = list(command)
+        out_path = Path(command[command.index("--out") + 1])
+        candidate_hex = command[command.index("--probe-hex") + 1]
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
+            json.dumps(
+                {
+                    "artifact_kind": "compare_handoff_exit_classifier_audit",
+                    "success": True,
+                    "candidate_hex": candidate_hex,
+                    "hook_observations": [
+                        {"hook_name": "predecessor_handoff_call", "event": "enter"},
+                        {"hook_name": "handoff_helper_entry", "event": "enter"},
+                        {"hook_name": "process_exception", "event": "exception"},
+                    ],
+                    "hook_install_status": "installed",
+                    "hook_count": 4,
+                    "requested_hook_count": 4,
+                    "hooks_installed_stage_seen": True,
+                    "script_load_status": "loaded",
+                    "python_message_callback_registered_before_load": True,
+                    "python_message_count_total": 12,
+                    "ui_trigger_status": "button_triggered",
+                    "hook_address_validation": [
+                        {
+                            "name": "actual_compare_entry",
+                            "install_status": "installed",
+                            "address_validation": "resolved",
+                        }
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        return subprocess.CompletedProcess(command, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(compare_aware_search, "_run_material_hook_runtime_command", fake_run)
+    result = run_compare_handoff_exit_classifier_audit(
+        target=target,
+        artifacts_dir=tmp_path / "artifacts",
+        transform_model=SamplereverseTransformModel(),
+        per_probe_timeout=0.1,
+        run_name="unit_handoff_exit",
+        source_run="sr_path",
+    )
+
+    payload = result["payload"]
+    assert Path(result["result_path"]).name == COMPARE_HANDOFF_EXIT_CLASSIFIER_AUDIT_FILE_NAME
+    assert payload["candidate_count"] == 3
+    assert payload["runtime_backed_count"] == 3
+    assert payload["fixed_candidates"] == [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+        "78d540b49c59076f41414141414141",
+    ]
+    assert payload["overall_classification"] == "exception_unwind_before_compare"
+    assert all(item["classification"] == "exception_unwind_before_compare" for item in payload["candidates"])
+
+
+def test_strategy_runs_handoff_exit_classifier_as_early_sidecar(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+
+    def fake_project_state(name: str) -> dict[str, object]:
+        if name == "current_state.json":
+            return {
+                "latest_compare_hook_path_reachability_audit": {
+                    "classification": "decrypt_handler_entered_but_candidate_path_exits_before_handoff",
+                    "new_blocker": "decrypt_handler_entered_but_candidate_path_exits_before_handoff",
+                    "source_run": "sr_path",
+                }
+            }
+        return {}
+
+    def fake_indexed(kind: str):  # noqa: ANN001
+        if kind == "compare_hook_path_reachability_audit":
+            return (
+                {
+                    "classification": "decrypt_handler_entered_but_candidate_path_exits_before_handoff",
+                    "new_blocker": "decrypt_handler_entered_but_candidate_path_exits_before_handoff",
+                    "source_run": "sr_path",
+                },
+                "indexed",
+            )
+        return ({}, "")
+
+    def fake_run(**kwargs):  # noqa: ANN003
+        out = Path(kwargs["artifacts_dir"]) / COMPARE_HANDOFF_EXIT_CLASSIFIER_AUDIT_FILE_NAME
+        payload = {
+            "artifact_kind": "compare_handoff_exit_classifier_audit",
+            "classification": "exception_unwind_before_compare",
+            "overall_classification": "exception_unwind_before_compare",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+        }
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(json.dumps(payload), encoding="utf-8")
+        return {"result_path": str(out), "payload": payload, "validations": [], "promotable_validations": []}
+
+    monkeypatch.setattr(compare_aware_search, "_project_state_json", fake_project_state)
+    monkeypatch.setattr(compare_aware_search, "_indexed_artifact_payload", fake_indexed)
+    monkeypatch.setattr(compare_aware_search, "_indexed_or_latest_report_artifact_payload", fake_indexed)
+    monkeypatch.setattr(compare_aware_search, "run_compare_handoff_exit_classifier_audit", fake_run)
+    monkeypatch.setattr(
+        compare_aware_search,
+        "run_compare_aware_bridge",
+        lambda **kwargs: pytest.fail("bridge search should not run for handoff-exit classifier"),
+    )
+
+    result = CompareAwareSearchStrategy().run(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        transform_model=SamplereverseTransformModel(),
+        project_state_sidecar_enabled=True,
+    )
+
+    assert result.metadata["completed_stage"] == "compare_handoff_exit_classifier_audit"
+    assert result.metadata["early_sidecar"] is True
+    assert Path(str(result.artifacts[0].output_path)).name == COMPARE_HANDOFF_EXIT_CLASSIFIER_AUDIT_FILE_NAME
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

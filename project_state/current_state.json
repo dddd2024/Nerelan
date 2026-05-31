@@ -6,6 +6,7 @@
     "bridge_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
     "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
+    "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
     "compare_probe": "solve_reports\\tool_artifacts\\samplereverse_compare_probe_real\\samplereverse_compare_probe.json",
@@ -57,10 +58,10 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "decrypt_handler_entered_but_candidate_path_exits_before_handoff",
+    "blocker": "candidate_dependent_non_reaching_path",
     "confidence": "medium",
-    "reason": "decrypt_handler_entered_but_candidate_path_exits_before_handoff",
-    "stage": "compare_hook_path_reachability_audit"
+    "reason": "candidate_dependent_non_reaching_path",
+    "stage": "compare_handoff_exit_classifier_audit"
   },
   "current_mainline": "L15(prefix8)",
   "current_owner": "web_gpt",
@@ -102,7 +103,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-27T15:30:28Z",
+  "generated_at": "2026-05-31T14:06:37Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -270,6 +271,237 @@
   },
   "latest_compare_callsite_reanchor_and_lhs_provenance_audit": {},
   "latest_compare_esi_source_window_audit": {},
+  "latest_compare_handoff_exit_classifier_audit": {
+    "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "candidates": [
+      {
+        "actual_compare_observed": false,
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "candidate_prefix": "78d540b49c590770",
+        "classification": "exception_unwind_before_compare",
+        "classification_reason": "process exception was observed before any compare successor",
+        "events": [
+          {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x2338",
+            "name": "predecessor_handoff_call",
+            "order": 1,
+            "return_address_module_offset": "0xffdfdc38"
+          },
+          {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry",
+            "order": 2,
+            "return_address_module_offset": "0xc5052f"
+          },
+          {
+            "event": "exception",
+            "exception": {
+              "address": "0xf41913",
+              "memory": "0x5305154b",
+              "type": "access-violation"
+            },
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "order": 3,
+            "return_address_module_offset": ""
+          }
+        ],
+        "first_compare_successor_observed": false,
+        "hook_hit_order": [
+          {
+            "event": "enter",
+            "name": "predecessor_handoff_call",
+            "order": 1
+          },
+          {
+            "event": "enter",
+            "name": "handoff_helper_entry",
+            "order": 2
+          },
+          {
+            "event": "exception",
+            "name": "process_exception",
+            "order": 3
+          }
+        ],
+        "log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\candidate_1\\compare_handoff_exit_classifier_audit.log",
+        "process_exception_context": {
+          "event": {
+            "event": "exception",
+            "exception": {
+              "address": "0xf41913",
+              "memory": "0x5305154b",
+              "type": "access-violation"
+            },
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "order": 3,
+            "return_address_module_offset": ""
+          },
+          "next_event": {},
+          "previous_event": {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry",
+            "order": 2,
+            "return_address_module_offset": "0xc5052f"
+          }
+        },
+        "process_exception_observed": true,
+        "result_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\candidate_1\\compare_handoff_exit_classifier_audit.json",
+        "runtime_backed": true,
+        "scripted_hook_status": "scripted_hook_observed",
+        "scripted_returncode": 0
+      },
+      {
+        "actual_compare_observed": false,
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "candidate_prefix": "5a3e7f46ddd474d0",
+        "classification": "exception_unwind_before_compare",
+        "classification_reason": "process exception was observed before any compare successor",
+        "events": [
+          {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x2338",
+            "name": "predecessor_handoff_call",
+            "order": 1,
+            "return_address_module_offset": "0x5bdc98"
+          },
+          {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry",
+            "order": 2,
+            "return_address_module_offset": "0x2ae052f"
+          },
+          {
+            "event": "exception",
+            "exception": {
+              "address": "0xf41913",
+              "memory": "0x820004",
+              "type": "access-violation"
+            },
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "order": 3,
+            "return_address_module_offset": ""
+          }
+        ],
+        "first_compare_successor_observed": false,
+        "hook_hit_order": [
+          {
+            "event": "enter",
+            "name": "predecessor_handoff_call",
+            "order": 1
+          },
+          {
+            "event": "enter",
+            "name": "handoff_helper_entry",
+            "order": 2
+          },
+          {
+            "event": "exception",
+            "name": "process_exception",
+            "order": 3
+          }
+        ],
+        "log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\candidate_2\\compare_handoff_exit_classifier_audit.log",
+        "process_exception_context": {
+          "event": {
+            "event": "exception",
+            "exception": {
+              "address": "0xf41913",
+              "memory": "0x820004",
+              "type": "access-violation"
+            },
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "order": 3,
+            "return_address_module_offset": ""
+          },
+          "next_event": {},
+          "previous_event": {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry",
+            "order": 2,
+            "return_address_module_offset": "0x2ae052f"
+          }
+        },
+        "process_exception_observed": true,
+        "result_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\candidate_2\\compare_handoff_exit_classifier_audit.json",
+        "runtime_backed": true,
+        "scripted_hook_status": "scripted_hook_observed",
+        "scripted_returncode": 0
+      },
+      {
+        "actual_compare_observed": false,
+        "candidate_hex": "78d540b49c59076f41414141414141",
+        "candidate_prefix": "78d540b49c59076f",
+        "classification": "branch_guard_before_compare",
+        "classification_reason": "handoff helper was entered but no compare successor or compare entry was observed",
+        "events": [
+          {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x2338",
+            "name": "predecessor_handoff_call",
+            "order": 1,
+            "return_address_module_offset": "0xff2bdcf8"
+          },
+          {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry",
+            "order": 2,
+            "return_address_module_offset": "0xfff4052f"
+          }
+        ],
+        "first_compare_successor_observed": false,
+        "hook_hit_order": [
+          {
+            "event": "enter",
+            "name": "predecessor_handoff_call",
+            "order": 1
+          },
+          {
+            "event": "enter",
+            "name": "handoff_helper_entry",
+            "order": 2
+          }
+        ],
+        "log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\candidate_3\\compare_handoff_exit_classifier_audit.log",
+        "process_exception_context": {},
+        "process_exception_observed": false,
+        "result_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\candidate_3\\compare_handoff_exit_classifier_audit.json",
+        "runtime_backed": true,
+        "scripted_hook_status": "scripted_hook_observed",
+        "scripted_returncode": 0
+      }
+    ],
+    "classification": "candidate_dependent_non_reaching_path",
+    "fixed_candidates": [
+      "78d540b49c59077041414141414141",
+      "5a3e7f46ddd474d041414141414141",
+      "78d540b49c59076f41414141414141"
+    ],
+    "new_blocker": "candidate_dependent_non_reaching_path",
+    "next_bounded_action": "compare per-candidate path divergence on the bounded handoff surface",
+    "overall_classification": "candidate_dependent_non_reaching_path",
+    "runtime_backed_count": 3,
+    "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
+  },
   "latest_compare_handoff_probe": {},
   "latest_compare_handoff_return_site_probe": {
     "artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
@@ -2085,13 +2317,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260527_153028",
+  "round_id": "round_20260531_140637",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "1eb3247f1278",
+  "source_git_commit": "4c1dc24ad26c",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260527_153028_1d6dd81ecbd6",
-  "state_digest": "1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02",
+  "state_build_id": "state_20260531_140637_bec34f75e725",
+  "state_digest": "bec34f75e725e19caacd862d21c6989ae9cc44bd5a89610c6a48ca490a328c28",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

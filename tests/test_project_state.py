@@ -1284,6 +1284,64 @@ def test_project_state_indexes_compare_hook_path_reachability_audit(tmp_path: Pa
     assert task_packet["task"] == "Diagnose bounded compare hook path reachability"
 
 
+def test_project_state_indexes_compare_handoff_exit_classifier_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_exit_classifier")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "compare_handoff_exit_classifier_audit").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "compare_handoff_exit_classifier_audit" / "compare_handoff_exit_classifier_audit.json",
+        {
+            "artifact_kind": "compare_handoff_exit_classifier_audit",
+            "classification": "exception_unwind_before_compare",
+            "overall_classification": "exception_unwind_before_compare",
+            "new_blocker": "exception_unwind_before_compare",
+            "source_run": "sr_path",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "fixed_candidates": [
+                "78d540b49c59077041414141414141",
+                "5a3e7f46ddd474d041414141414141",
+                "78d540b49c59076f41414141414141",
+            ],
+            "candidates": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "classification": "exception_unwind_before_compare",
+                    "events": [
+                        {"order": 1, "name": "predecessor_handoff_call"},
+                        {"order": 2, "name": "handoff_helper_entry"},
+                        {"order": 3, "name": "process_exception"},
+                    ],
+                    "process_exception_observed": True,
+                    "first_compare_successor_observed": False,
+                    "actual_compare_observed": False,
+                }
+            ],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "trace the exception unwind edge before any search expansion",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert artifact_index["latest_artifacts"]["compare_handoff_exit_classifier_audit"].endswith(
+        "compare_handoff_exit_classifier_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_handoff_exit_classifier_audit"
+    assert current_state["current_bottleneck"]["blocker"] == "exception_unwind_before_compare"
+    latest = current_state["latest_compare_handoff_exit_classifier_audit"]
+    assert latest["classification"] == "exception_unwind_before_compare"
+    assert latest["candidate_count"] == 3
+    assert latest["candidates"][0]["process_exception_observed"] is True
+    assert latest["breakpoint_probe_allowed"] is False
+    assert task_packet["task"] == "Trace exception unwind edge before compare"
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

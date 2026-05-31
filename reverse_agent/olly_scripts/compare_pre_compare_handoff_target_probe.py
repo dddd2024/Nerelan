@@ -22,6 +22,8 @@ def _artifact_kind_for_script() -> str:
         return "compare_lhs_last_writer_provenance_audit"
     if stem == "compare_hook_path_reachability_audit":
         return "compare_hook_path_reachability_audit"
+    if stem == "compare_handoff_exit_classifier_audit":
+        return "compare_handoff_exit_classifier_audit"
     return "compare_pre_compare_handoff_target_probe"
 
 

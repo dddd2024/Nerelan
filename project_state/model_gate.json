@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-27T15:30:28Z",
+  "generated_at": "2026-05-31T14:06:37Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "decrypt_handler_entered_but_candidate_path_exits_before_handoff",
+  "reason": "candidate_dependent_non_reaching_path",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }
