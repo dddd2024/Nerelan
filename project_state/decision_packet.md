@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260531_local_reverse_samples_ignore",
-  "round_id": "round_20260531_local_reverse_samples_ignore",
+  "decision_id": "decision_20260531_local_sample_intake_solve_bootstrap",
+  "round_id": "round_20260531_local_sample_intake_solve_bootstrap",
   "based_on_state_build_id": "state_20260527_153028_1d6dd81ecbd6",
   "based_on_state_digest": "1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02",
   "status": "APPROVED",
@@ -15,43 +15,53 @@
 
 # DECISION_PACKET
 
-本轮属于 **engineering_branch**，目标是新增一个本地逆向例题目录约定，让用户可以在项目工作区内直接放置 `.exe`、`notes.md`、`case.json` 等本地训练材料，同时保证该目录不会上传到 GitHub。
+本轮属于 **engineering_branch**。上一轮已经完成 `local_reverse_samples/` 本地逆向样本目录约定：`.gitignore` 已忽略该目录，README 已说明用途、不会上传 GitHub，并给出 harness `case.json` 示例和运行命令。
+
+当前用户进一步澄清目标：不希望长期手写每个 `case.json`，而是希望“提供一个逆向题目后，项目自动登记样本，自动生成 `case.json` / `metadata.json` / `notes.md`，并生成 Codex 可以继续写本题 solver 的本地任务入口”。因此本轮计划替代上一版单纯 `local_samples list/run` 方案，改为 **local sample intake + solve bootstrap**。
 
 当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。`project_state/task_packet.json` 中的 `task` / `derived_task` 仍是旧 reverse_solving 状态派生建议，不自动覆盖本 decision。
 
 ## 1. Goal
 
-新增并文档化一个本地目录：
+新增一个最小本地样本导入与解题引导入口：
 
 ```text
-local_reverse_samples/
+python -m reverse_agent.local_samples add <path-to-exe-or-attachment> [--case-id <case_id>]
+python -m reverse_agent.local_samples solve <case_id>
 ```
 
-该目录用于用户本地存放真实逆向训练题目，例如：
+目标不是实现完整自动训练平台，而是建立如下本地工作流：
 
 ```text
-local_reverse_samples/
-  crackme_sha256_001/
-    sample.exe
-    notes.md
-    case.json
-  crackme_rc4_001/
-    sample.exe
-    notes.md
-    case.json
+用户提供一个逆向题目文件
+        ↓
+local_samples add 自动复制/登记样本
+        ↓
+自动生成 case.json / metadata.json / notes.md
+        ↓
+local_samples solve 运行最小静态 harness 或生成解题 bootstrap
+        ↓
+生成 local_reverse_samples/<case_id>/codex_task.md
+        ↓
+本地 Codex 可依据 codex_task.md 和本地样本继续写 local solver.py
 ```
 
-核心要求：
+本轮必须实现的最小能力：
 
 ```text
-1. local_reverse_samples/ 可以存在于项目工作区根目录。
-2. 用户可以直接把 .exe、.dll、压缩包、notes、case.json 放进去。
-3. local_reverse_samples/ 必须被 Git 忽略，不上传到 GitHub。
-4. README.txt 必须说明该目录的用途、不会提交、以及 harness 如何引用其中的 case.json。
-5. 不把 local_reverse_samples/ 设计成正式训练语料库，不引入 schema/lint/复杂样本管理系统。
-6. 不修改 .codex-skills/。
-7. 不推进 samplereverse 解题主线。
+1. 新增 reverse_agent/local_samples.py。
+2. add 命令接受一个本地题目文件路径，自动创建 local_reverse_samples/<case_id>/。
+3. add 命令自动复制题目文件到样本目录，推荐命名为 sample<原扩展名>，例如 sample.exe。
+4. add 命令自动生成 case.json，不再要求用户手写。
+5. add 命令自动生成 metadata.json，至少包含 case_id、original_path、stored_sample_path、sha256、size_bytes、created_at、category、tags。
+6. add 命令自动生成 notes.md 模板。
+7. solve 命令读取 metadata.json / case.json，生成 codex_task.md，说明本地 Codex 下一步应如何分析该题和写 solver.py。
+8. solve 命令默认先走静态、安全、可审计路径；不要自动运行 IDA/Olly/Frida runtime probe。
+9. 允许 solve 命令可选调用现有 harness 的 Static Analysis 路径，但必须可在测试中 monkeypatch，不依赖真实 .exe。
+10. README.txt 更新为“用户只需提供样本文件，不必手写 case.json”的流程说明。
 ```
+
+本轮不要求 Codex 真的对某个真实 `.exe` 写出 solver；本轮只建设本地样本 intake 和 solver bootstrap 机制。真实 solver.py 应在本地样本目录下由后续本地 Codex/人工迭代生成，不提交 GitHub。
 
 ## 2. Current Evidence
 
@@ -59,37 +69,35 @@ local_reverse_samples/
 
 ```text
 mainline = engineering_branch
-reason = 用户明确要求新增本地样本目录，并保证不上传 GitHub；这是仓库使用方式和本地工作区约定，不是 samplereverse 解题推进。
+reason = 用户明确要求把 local_reverse_samples 从“本地文件夹约定”推进到“提供题目后自动登记并生成 solver 工作入口”；这是本地工作流建设，不是 samplereverse 当前解题推进。
 ```
 
-当前 project_state：
+上一轮已完成并接受：
 
 ```text
-state_build_id = state_20260527_153028_1d6dd81ecbd6
-state_digest = 1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02
-active_strategy = CompareAwareSearchStrategy
-task_packet.task = Diagnose bounded compare hook path reachability
-task_packet.derived_task = Diagnose bounded compare hook path reachability
+previous_decision_id = decision_20260531_local_reverse_samples_ignore
+previous_report_id = report_20260531_local_reverse_samples_ignore
+previous_status = SUCCESS / ACCEPTED
 ```
 
-说明：
+上一轮事实：
 
 ```text
-1. task_packet.task / derived_task 是旧 reverse_solving 状态派生建议，不是本轮实际执行任务。
-2. 本轮由本 decision_packet 控制。
-3. 本轮不读取完整 solve_reports/，不读取完整 PROJECT_PROGRESS_LOG.txt。
-4. 本轮不使用 stale/missing artifact 作为 runtime evidence。
-5. 本轮不运行任何逆向 runtime probe。
+1. .gitignore 已忽略 local_reverse_samples/。
+2. README.txt 已说明 local_reverse_samples\ 是本地逆向训练样本目录。
+3. README.txt 已给出手写 case.json 的 harness 示例。
+4. 未提交真实 .exe/.dll/.bin/.zip/.7z/.rar 样本。
+5. 未运行 reverse runtime probe。
 ```
 
-当前上一轮 Codex 状态：
+当前 `task_packet.task` / `derived_task` 仍然是旧 samplereverse 状态派生建议：
 
 ```text
-previous_decision_id = decision_20260528_fix_material_hook_utf16_kind_protocol
-previous_report_status = SUCCESS
-previous_acceptance_recommendation = ACCEPTED
-pytest_result.status = PASSED
+task = Diagnose bounded compare hook path reachability
+derived_task = Diagnose bounded compare hook path reachability
 ```
+
+这些不是本轮执行任务。本轮由本 `decision_packet.md` 控制。
 
 当前 skill profiles：
 
@@ -103,7 +111,7 @@ reverse-agent-iteration@v2
 samplereverse-frontier@v2
 ```
 
-原因：本轮不是 samplereverse 样本前沿推进，不涉及 candidate、frontier、artifact freshness、runtime evidence 推进。
+原因：本轮不推进 samplereverse 样本，不涉及 candidate、frontier、runtime evidence 或 artifact freshness 推进。
 
 ## 3. Do Not Do
 
@@ -113,22 +121,23 @@ samplereverse-frontier@v2
 1. 不修改 .codex-skills/、registry、sync 脚本或 skill 内容。
 2. 不运行 samplereverse harness。
 3. 不运行 Base64/RC4 breakpoint probe。
-4. 不运行任何真实逆向 runtime probe。
+4. 不运行 IDA/Olly/Frida runtime probe。
 5. 不读取完整 solve_reports/。
 6. 不读取完整 PROJECT_PROGRESS_LOG.txt。
-7. 不提交任何 .exe、.dll、.bin、.zip、.7z、.rar 样本文件。
-8. 不提交 local_reverse_samples/ 目录内的任何实际内容。
-9. 不把 local_reverse_samples/ 放进 project_state/。
-10. 不把 local_reverse_samples/ 放进 solve_reports/。
-11. 不把 local_reverse_samples/ 设计成长期事实源。
-12. 不引入数据库、消息队列、重型 workflow 平台。
-13. 不新增复杂训练材料 schema/lint，除非当前最小需求无法满足。
+7. 不提交 local_reverse_samples/ 下任何内容。
+8. 不提交任何 .exe、.dll、.bin、.zip、.7z、.rar。
+9. 不新增数据库、消息队列、Web 服务或复杂训练平台。
+10. 不新增样本 schema/lint 系统。
+11. 不改动 CompareAwareSearchStrategy、samplereverse profile 或任何当前解题策略。
+12. 不把 local_reverse_samples/ 当成 project_state 动态事实源。
+13. 不把单题 solver.py 提交到 GitHub；solver.py 应位于被忽略的 local_reverse_samples/<case_id>/ 下。
+14. 不实现自动分类、自动训练、自动通用 solver 提升。
 ```
 
-特别注意：
+特别限制：
 
 ```text
-Git 不跟踪空目录。因此如果 local_reverse_samples/ 整个目录被 .gitignore 忽略，那么该目录本身不会出现在 GitHub 上。Codex 可以在本地创建该目录用于用户使用，但它不应出现在 git diff 中。
+本轮只提供 local sample intake 和 solve bootstrap。不要把它扩展成完整解题 agent、后台任务系统、多 worker 平台或训练材料数据库。
 ```
 
 ## 4. Files To Inspect
@@ -145,7 +154,7 @@ project_state/decision_packet.md
 project_state/pytest_result.txt
 ```
 
-代码/文档必须检查：
+必须检查：
 
 ```text
 .gitignore
@@ -154,10 +163,19 @@ reverse_agent/harness.py
 tests/test_harness.py
 ```
 
+允许新增：
+
+```text
+reverse_agent/local_samples.py
+tests/test_local_samples.py
+```
+
 可以有界检查：
 
 ```text
-tests/
+reverse_agent/__init__.py
+pyproject.toml
+requirements.txt
 ```
 
 不要默认检查：
@@ -173,18 +191,23 @@ project_state/rounds/ 全量历史
 Codex 报告必须回答：
 
 ```text
-1. 当前 .gitignore 是否已经忽略 local_reverse_samples/。
-2. 当前 README.txt 是否已经说明 local_reverse_samples/ 的用途。
-3. README.txt 是否明确说明 local_reverse_samples/ 不上传 GitHub。
-4. README.txt 是否给出 harness 使用 local_reverse_samples/**/case.json 的示例。
-5. 是否没有提交任何真实 .exe/.dll/.bin/.zip/.7z/.rar 样本。
-6. 是否没有修改 .codex-skills/。
-7. 是否没有运行 reverse runtime probe。
-8. 是否没有读取完整 solve_reports/。
-9. 是否没有改变 samplereverse 当前解题主线。
-10. codex_execution_report.md 顶部必须包含 codex_report_summary。
-11. codex_report_summary.based_on_decision_id 必须等于 decision_20260531_local_reverse_samples_ignore。
-12. pytest_result.txt 必须记录本轮实际检查命令。
+1. local_samples add 是否能在不手写 case.json 的情况下自动创建样本目录。
+2. add 是否自动复制输入文件到 local_reverse_samples/<case_id>/sample<ext>。
+3. add 是否自动生成 case.json，且格式兼容 reverse_agent.harness.load_harness_cases。
+4. add 是否自动生成 metadata.json，且包含 sha256、size_bytes、original_path、stored_sample_path。
+5. add 是否自动生成 notes.md 模板。
+6. add 是否能在未指定 --case-id 时生成稳定、安全的 case_id，例如 stem + sha256 前缀。
+7. add 是否拒绝覆盖已有 case_id，除非显式提供安全选项；如果不实现覆盖选项，应清晰报错。
+8. solve 是否能根据 case_id 定位本地样本目录和 case.json。
+9. solve 是否生成 codex_task.md，说明后续本地 Codex 写 solver.py 的输入、输出、约束和禁止行为。
+10. solve 是否默认不运行 IDA/Olly/Frida runtime probe。
+11. 是否没有提交 local_reverse_samples/ 内任何文件。
+12. 是否没有提交 .exe/.dll/.bin/.zip/.7z/.rar。
+13. 是否没有修改 .codex-skills/。
+14. 是否没有修改 samplereverse 解题主线。
+15. codex_execution_report.md 顶部必须包含 codex_report_summary。
+16. codex_report_summary.based_on_decision_id 必须等于 decision_20260531_local_sample_intake_solve_bootstrap。
+17. pytest_result.txt 必须记录本轮实际测试结果。
 ```
 
 ## 6. Implementation Scope
@@ -192,88 +215,123 @@ Codex 报告必须回答：
 允许修改：
 
 ```text
-.gitignore
+reverse_agent/local_samples.py
+tests/test_local_samples.py
 README.txt
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
 
-允许本地创建但不提交：
+必要时允许修改：
+
+```text
+reverse_agent/__init__.py
+```
+
+不应修改：
+
+```text
+.gitignore
+reverse_agent/harness.py
+reverse_agent/strategies/compare_aware_search.py
+reverse_agent/profiles/samplereverse.py
+.codex-skills/
+project_state/task_packet.json
+project_state/current_state.json
+project_state/artifact_index.json
+project_state/negative_results.json
+```
+
+如果发现必须修改 `reverse_agent/harness.py` 才能复用 dataset 格式或 Static Analysis 调用，Codex 应优先停止并报告 `BLOCKED`，不要扩大范围。
+
+推荐实现方式：
+
+```text
+1. 新增 reverse_agent/local_samples.py。
+2. 使用 argparse 实现子命令：
+   - add <path>
+   - solve <case_id>
+   - list   # 可选，但不是核心目标；若实现必须保持轻量。
+3. 默认 samples root = local_reverse_samples。
+4. 支持 --samples-dir 覆盖本地样本目录，便于测试。
+5. add 流程：
+   a. 校验输入文件存在且是文件。
+   b. 计算 sha256、size_bytes。
+   c. case_id 规则：
+      - 如果用户提供 --case-id，则 sanitize 后使用。
+      - 否则使用 <stem>_<sha256前8位>。
+   d. 创建 local_reverse_samples/<case_id>/。
+   e. 复制输入文件为 sample<原扩展名>。
+   f. 写 case.json：object with cases list。
+   g. 写 metadata.json。
+   h. 写 notes.md。
+6. case.json 默认字段：
+   case_id = <case_id>
+   input_value = local_reverse_samples/<case_id>/sample<ext>
+   expected_flag = ""
+   category = "unknown"
+   tags = ["local", "reverse", "auto_imported"]
+   notes = "Auto-generated from local sample intake."
+7. solve 流程：
+   a. 读取 local_reverse_samples/<case_id>/metadata.json 和 case.json。
+   b. 生成 codex_task.md。
+   c. codex_task.md 应要求本地 Codex 写 local_reverse_samples/<case_id>/solver.py。
+   d. codex_task.md 应说明 solver.py 不提交 GitHub。
+   e. codex_task.md 应默认先做静态分析，不运行 runtime probe，除非用户后续显式授权。
+8. solve 可选参数：
+   --run-static-harness
+   如果实现该选项，必须调用现有 reverse_agent.harness.main([...]) 或等价公开入口，并且测试中 monkeypatch，不运行真实样本。
+9. README.txt 更新：
+   从“手写 case.json”改为“add 自动生成 case.json；solve 生成 Codex 解题任务”。保留手写 case.json 作为高级用法即可。
+```
+
+推荐命令示例：
+
+```powershell
+python -m reverse_agent.local_samples add .\crackme.exe --case-id crackme_sha256_001
+python -m reverse_agent.local_samples solve crackme_sha256_001
+```
+
+推荐生成结构：
 
 ```text
 local_reverse_samples/
-local_reverse_samples/.local_README.txt
+  crackme_sha256_001/
+    sample.exe
+    case.json
+    metadata.json
+    notes.md
+    codex_task.md        # solve 命令生成
+    solver.py            # 后续本地 Codex/人工生成，不由本轮提交
 ```
 
-如果创建 `local_reverse_samples/.local_README.txt`，必须确认它被 `.gitignore` 忽略，不应出现在 `git diff --name-only` 中。
-
-推荐 `.gitignore` 修改：
-
-```gitignore
-local_reverse_samples/
-```
-
-推荐 README.txt 新增内容位置：
+`codex_task.md` 至少包含：
 
 ```text
-放在“项目结构”部分，紧接 solve_reports/project_state 说明附近；
-或者放在“批量 Harness”部分，说明本地 dataset 可以位于 local_reverse_samples/ 下。
+1. case_id
+2. sample path
+3. sha256 / size
+4. harness command
+5. expected solver output path: local_reverse_samples/<case_id>/solver.py
+6. first-pass analysis requirements: strings/imports/constants/compare points/hash or encoding indicators
+7. do not run runtime probe unless user explicitly authorizes
+8. do not commit local_reverse_samples/ contents
+9. if a reusable pattern is found, propose a future project strategy instead of modifying strategy immediately
 ```
-
-推荐 README.txt 新增说明：
-
-```text
-- `local_reverse_samples\`：本地逆向训练样本目录，用于放置用户自己的 `.exe`、`.dll`、题目附件、notes 和 harness `case.json`。该目录被 `.gitignore` 忽略，不提交 GitHub；适合保存版权不明确、体积较大、可能包含恶意逻辑或仅限本地使用的逆向例题。
-```
-
-推荐 README.txt 中给出示例：
-
-```json
-{
-  "cases": [
-    {
-      "case_id": "crackme-sha256-001",
-      "input_value": "local_reverse_samples/crackme_sha256_001/sample.exe",
-      "expected_flag": "",
-      "category": "hash_check",
-      "tags": ["sha256", "static", "crackme"],
-      "notes": "本地 SHA-256 判断类逆向练习样本"
-    }
-  ]
-}
-```
-
-推荐 README.txt 中给出运行命令：
-
-```powershell
-python -m reverse_agent.harness --dataset .\local_reverse_samples\crackme_sha256_001\case.json --run-name crackme_sha256_001
-```
-
-可选本地初始化动作：
-
-```powershell
-mkdir local_reverse_samples
-```
-
-注意：这个目录被忽略后不会上传 GitHub，这是预期行为。
 
 ## 7. Tests
 
 必须运行：
 
 ```text
+python -m py_compile reverse_agent/local_samples.py
+python -m pytest -q tests/test_local_samples.py
+python -m pytest -q tests/test_harness.py
+python -m reverse_agent.project_state lint-decision --state-dir project_state
+python -m reverse_agent.project_state lint-report --state-dir project_state
 git diff --check
 git status --short
 git check-ignore -v local_reverse_samples/
-python -m py_compile reverse_agent/harness.py
-python -m pytest -q tests/test_harness.py
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-```
-
-如果修改了 `project_state/codex_execution_report.md`，还必须运行：
-
-```text
-python -m reverse_agent.project_state lint-report --state-dir project_state
 ```
 
 不要求运行：
@@ -281,46 +339,50 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 ```text
 python -m pytest -q
 真实 samplereverse harness
-Base64/RC4 runtime breakpoint probe
-任何 IDA/Olly/Frida runtime probe
+真实 local_reverse_samples 样本
+IDA/Olly/Frida runtime probe
+Base64/RC4 runtime probe
 ```
 
-如果 `git check-ignore -v local_reverse_samples/` 在目录不存在时无法验证，Codex 应先本地创建空目录：
-
-```powershell
-mkdir local_reverse_samples
-```
-
-然后重新运行：
+测试最低覆盖：
 
 ```text
-git check-ignore -v local_reverse_samples/
+1. add 在 tmp_path 下复制 fake binary，并自动生成 case.json / metadata.json / notes.md。
+2. add 未指定 --case-id 时能生成稳定、安全的 case_id。
+3. add 指定 --case-id 时使用该 case_id 并 sanitize。
+4. add 不覆盖已有 case_id，返回清晰错误。
+5. case.json 能被 reverse_agent.harness.load_harness_cases 读取。
+6. metadata.json 包含 sha256、size_bytes、original_path、stored_sample_path。
+7. solve 对存在 case_id 生成 codex_task.md。
+8. solve 对不存在 case_id 返回非零或抛出 SystemExit，并有清晰错误。
+9. 所有测试使用 tmp_path 和 fake file，不依赖真实 .exe。
+10. 不需要创建或提交真实 local_reverse_samples/ 内容。
 ```
-
-该目录仍不得进入 git diff。
 
 ## 8. Stop Conditions
 
 立即停止并报告 `BLOCKED`：
 
 ```text
-1. .gitignore 规则无法忽略 local_reverse_samples/。
-2. README.txt 与现有项目结构冲突，无法安全插入本地样本目录说明。
-3. Codex 发现仓库已有同名目录且已被跟踪，需要用户决定是否迁移。
-4. lint-decision 因当前 decision_meta 与 project_state 状态不兼容而失败，且无法在本轮安全修正。
-5. 任何测试要求必须运行真实逆向样本或 runtime probe 才能验证本轮变更。
+1. 当前分支不是 feature/training-materials-corpus。
+2. 当前 decision_id 不是 decision_20260531_local_sample_intake_solve_bootstrap。
+3. 无法安全新增 reverse_agent/local_samples.py。
+4. 无法在不提交 local_reverse_samples/ 内容的情况下测试 add/solve。
+5. 必须修改 reverse_agent/harness.py 才能完成本轮目标。
+6. 必须运行真实 .exe 或 runtime probe 才能验证本轮目标。
+7. lint-decision 或 lint-report 因当前 project_state 元信息不兼容而失败，且无法在本轮安全修复。
 ```
 
 完成条件：
 
 ```text
-1. .gitignore 包含 local_reverse_samples/。
-2. README.txt 说明 local_reverse_samples/ 是本地逆向例题目录。
-3. README.txt 明确说明该目录不上传 GitHub。
-4. README.txt 给出 harness dataset 示例和运行命令。
-5. git check-ignore 能确认 local_reverse_samples/ 被忽略。
-6. git diff 中不包含 local_reverse_samples/ 下任何文件。
+1. python -m reverse_agent.local_samples add <file> 可自动生成本地样本目录、case.json、metadata.json、notes.md。
+2. 用户不再需要手写 case.json 才能登记单个本地样本。
+3. python -m reverse_agent.local_samples solve <case_id> 可生成 codex_task.md。
+4. README.txt 记录 add/solve 使用方式。
+5. 测试覆盖 tmp_path fake samples，不依赖真实 .exe。
+6. 未提交 local_reverse_samples/ 内容。
 7. 未修改 .codex-skills/。
 8. 未运行逆向 runtime probe。
-9. codex_execution_report.md、pytest_result.txt 与 decision_20260531_local_reverse_samples_ignore 对齐。
+9. codex_execution_report.md、pytest_result.txt 与 decision_20260531_local_sample_intake_solve_bootstrap 对齐。
 ```
