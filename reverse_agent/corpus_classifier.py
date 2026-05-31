@@ -192,11 +192,11 @@ def classify_from_features(features: StaticFeatures) -> tuple[str, str, list[dic
 
     # Check for SEH hints (exception handling)
     seh_keywords = ["seh", "exception", "try", "catch", "handler"]
-    seh_hits = [h for h in features.keyword_hits if any(k in h["keyword"] for k in seh_hits)]
+    seh_hits = [h for h in features.keyword_hits if any(k in h.get("keyword", "") for k in seh_keywords)]
     if seh_hits:
         evidence.append({
             "type": "keyword_hint",
-            "detail": f"Found SEH-related keywords: {[h['keyword'] for h in seh_hits[:3]]}",
+            "detail": f"Found SEH-related keywords: {[h.get('keyword', '') for h in seh_hits[:3]]}",
             "strength": "medium",
         })
         return "seh_or_exception", "medium", evidence

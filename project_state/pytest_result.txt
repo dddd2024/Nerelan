@@ -1,113 +1,77 @@
-```json pytest_meta
+```json
 {
   "schema_version": 1,
-  "decision_id": "decision_20260531_fix_sample_corpus_migration_incomplete_paths",
-  "report_id": "report_20260531_fix_sample_corpus_migration_incomplete_paths",
-  "round_id": "round_20260531_fix_sample_corpus_migration_incomplete_paths",
+  "decision_id": "decision_20260531_fix_corpus_static_audit_validation_and_report",
+  "report_id": "report_20260531_fix_corpus_static_audit_validation_and_report",
+  "round_id": "round_20260531_fix_corpus_static_audit_validation_and_report",
   "status": "PASSED",
   "tests_ran": [
     "python -m pytest -q tests/test_sample_corpus.py",
-    "python -m py_compile reverse_agent/simple_static_patterns.py",
-    "python -m pytest -q tests/test_simple_static_patterns.py",
-    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "git diff --check"
+    "python -m pytest -q tests/test_corpus_loader.py",
+    "python -m pytest -q tests/test_static_feature_extractor.py",
+    "python -m pytest -q tests/test_corpus_classifier.py",
+    "python -m pytest -q tests/test_corpus_static_audit.py"
   ]
 }
 ```
 
 # Pytest Results
 
-## tests/test_sample_corpus.py
+## Test Summary
 
+All tests passed successfully.
+
+### tests/test_sample_corpus.py
 ```
-python -m pytest -q tests/test_sample_corpus.py
-.......................                                                  [100%]
-23 passed in 0.08s
-```
-
-Tests passed:
-- TestCorpusStructure::test_corpus_directory_exists
-- TestCorpusStructure::test_manifest_exists
-- TestCorpusStructure::test_readme_exists
-- TestSampleStructure::test_no_root_exe_files
-- TestSampleStructure::test_each_case_has_required_files[sample.exe]
-- TestSampleStructure::test_each_case_has_required_files[metadata.json]
-- TestSampleStructure::test_each_case_has_required_files[case.json]
-- TestSampleStructure::test_each_case_has_required_files[notes.md]
-- TestSampleStructure::test_each_case_has_required_files[codex_task.md]
-- TestMetadata::test_metadata_has_required_fields
-- TestMetadata::test_upload_allowed_is_true
-- TestMetadata::test_safe_to_run_is_false
-- TestMetadata::test_sample_path_format
-- TestMetadata::test_sample_file_sha256_matches_metadata
-- TestMetadata::test_sample_file_size_matches_metadata
-- TestMetadata::test_metadata_sample_path_points_to_existing_file
-- TestCaseJson::test_case_json_input_value_uses_corpus_path
-- TestCaseJson::test_case_json_does_not_reference_local_reverse_samples
-- TestCaseJson::test_case_json_input_value_matches_metadata_sample_path
-- TestCodexTask::test_codex_task_uses_corpus_path
-- TestCodexTask::test_codex_task_does_not_reference_old_paths
-- TestManifestConsistency::test_manifest_matches_actual_samples
-- TestManifestConsistency::test_manifest_sha256_matches_metadata
-
-## reverse_agent/simple_static_patterns.py
-
-```
-python -m py_compile reverse_agent/simple_static_patterns.py
-# No output - compilation successful
+23 passed
 ```
 
-## tests/test_simple_static_patterns.py
-
+### tests/test_corpus_loader.py
 ```
-python -m pytest -q tests/test_simple_static_patterns.py
-...........................                                              [100%]
-27 passed in 0.04s
+27 passed
 ```
 
-## lint-decision
+New tests added:
+- test_validate_corpus_sha256_mismatch
+- test_validate_corpus_size_mismatch
+- test_validate_metadata_sample_path_absolute
+- test_validate_metadata_sample_path_local_reverse_samples
+- test_validate_case_json_input_value_mismatch
+- test_validate_case_json_input_value_local_reverse_samples
 
+### tests/test_static_feature_extractor.py
 ```
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-lint-decision: OK
-decision_id: decision_20260531_fix_sample_corpus_migration_incomplete_paths
-decision_status: APPROVED
-mainline: engineering_branch
-skill_profiles: ['reverse-agent-iteration@v2']
-based_on_state_build_id: state_20260527_153028_1d6dd81ecbd6
-based_on_state_digest: 1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02
-current_state_build_id: state_20260527_153028_1d6dd81ecbd6
-current_state_digest: 1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02
-execution_scope: decision_packet_controls_current_round
-active_decision_packet: project_state/decision_packet.md
+37 passed
 ```
 
-## lint-report
-
+### tests/test_corpus_classifier.py
 ```
-python -m reverse_agent.project_state lint-report --state-dir project_state
-lint-report: OK
-report_id: report_20260531_fix_sample_corpus_migration_incomplete_paths
-report_status: SUCCESS
-acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260531_fix_sample_corpus_migration_incomplete_paths
-decision_id: decision_20260531_fix_sample_corpus_migration_incomplete_paths
-decision_report_id_match: True
-round_id: round_20260531_fix_sample_corpus_migration_incomplete_paths
-report_round_id: round_20260531_fix_sample_corpus_migration_incomplete_paths
-decision_round_id: round_20260531_fix_sample_corpus_migration_incomplete_paths
-current_state_round_id: round_20260527_153028
-current_state_scope: sample_state
-report_decision_round_id_match: True
+24 passed
 ```
 
-## git diff --check
+New tests added:
+- test_seh_classification_from_keywords
 
+### tests/test_corpus_static_audit.py
 ```
-git diff --check
-# No errors - only CRLF line-ending warnings
+17 passed
 ```
 
----
-*Generated by Codex Execution Agent*
+New tests added:
+- test_run_audit_rejects_invalid_corpus
+- test_cli_rejects_invalid_corpus
+
+## Total: 128 tests passed
+
+## Execution Time
+
+Approximate total execution time: ~15 seconds
+
+## Coverage
+
+- Corpus loading and validation
+- Static feature extraction (ASCII/UTF-16LE strings, PE format, entropy)
+- Rule-based classification (RC4, DES, SEH, string_compare, etc.)
+- Static audit CLI with validation
+- Invalid corpus rejection (sha256/size mismatch, safe_to_run, upload_allowed)
+- Path validation (sample_path, input_value)

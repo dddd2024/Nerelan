@@ -249,6 +249,60 @@ def validate_corpus(corpus_dir: Path) -> dict[str, Any]:
                     f"[{case_id}] upload_allowed must be true"
                 )
 
+            # Validate sample_path in metadata
+            sample_path_meta = metadata.get("sample_path", "")
+            if sample_path_meta:
+                # Must be relative path
+                if sample_path_meta.startswith("/") or sample_path_meta.startswith("\\"):
+                    result["valid"] = False
+                    result["errors"].append(
+                        f"[{case_id}] sample_path must be relative, got: {sample_path_meta}"
+                    )
+                # Must not contain local_reverse_samples
+                if "local_reverse_samples" in sample_path_meta.lower():
+                    result["valid"] = False
+                    result["errors"].append(
+                        f"[{case_id}] sample_path must not contain 'local_reverse_samples'"
+                    )
+                # Must not escape corpus_dir (no ..)
+                if ".." in sample_path_meta:
+                    result["valid"] = False
+                    result["errors"].append(
+                        f"[{case_id}] sample_path must not contain '..'"
+                    )
+
+        # Validate case.json
+        case_json_path = case_dir / "case.json"
+        if case_json_path.exists():
+            try:
+                with open(case_json_path, "r", encoding="utf-8") as f:
+                    case_data = json.load(f)
+
+                cases_list = case_data.get("cases", [])
+                if cases_list:
+                    first_case = cases_list[0]
+                    input_value = first_case.get("input_value", "")
+
+                    # input_value must match sample_path from metadata
+                    if input_value:
+                        # Must not contain local_reverse_samples
+                        if "local_reverse_samples" in input_value.lower():
+                            result["valid"] = False
+                            result["errors"].append(
+                                f"[{case_id}] case.json input_value must not contain 'local_reverse_samples'"
+                            )
+                        # Must not escape corpus_dir
+                        if ".." in input_value:
+                            result["valid"] = False
+                            result["errors"].append(
+                                f"[{case_id}] case.json input_value must not contain '..'"
+                            )
+            except json.JSONDecodeError as e:
+                result["valid"] = False
+                result["errors"].append(
+                    f"[{case_id}] Invalid case.json: {e}"
+                )
+
         if not any(e.startswith(f"[{case_id}]") for e in result["errors"]):
             result["cases_valid"] += 1
 

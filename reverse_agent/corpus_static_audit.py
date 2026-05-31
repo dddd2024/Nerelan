@@ -23,7 +23,7 @@ from reverse_agent.corpus_classifier import (
     classify_sample,
     classification_to_dict,
 )
-from reverse_agent.corpus_loader import load_corpus_cases
+from reverse_agent.corpus_loader import load_corpus_cases, validate_corpus
 from reverse_agent.static_feature_extractor import extract_static_features, features_to_dict
 
 
@@ -35,7 +35,16 @@ def run_audit(corpus_dir: Path) -> dict[str, Any]:
 
     Returns:
         Audit result dictionary
+
+    Raises:
+        ValueError: If corpus validation fails
     """
+    # Pre-validation: ensure corpus is valid before auditing
+    validation = validate_corpus(corpus_dir)
+    if not validation["valid"]:
+        error_msg = "Corpus validation failed:\n" + "\n".join(validation["errors"])
+        raise ValueError(error_msg)
+
     cases = load_corpus_cases(corpus_dir)
 
     audit_cases = []
@@ -318,7 +327,11 @@ def main():
 
     # Run audit
     print(f"Running static audit on {args.corpus_dir}...")
-    audit_result = run_audit(args.corpus_dir)
+    try:
+        audit_result = run_audit(args.corpus_dir)
+    except ValueError as e:
+        print(f"Error: {e}", file=__import__('sys').stderr)
+        __import__('sys').exit(1)
     print(f"Audited {audit_result['summary']['total_cases']} samples")
 
     # Write JSON output

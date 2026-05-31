@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-31T18:21:31.086638",
+  "generated_at": "2026-05-31T20:12:47.636651",
   "corpus_dir": "sample_corpus\\reverse",
   "execution_policy": {
     "executed_samples": false,
@@ -392,9 +392,9 @@
             "context": "Sorry you are wrong!"
           },
           {
-            "keyword": "correct",
+            "keyword": "encrypt",
             "source": "please input a correct string to encrypt:",
-            "context": "please input a correct string to encrypt:"
+            "context": "a correct string to encrypt:"
           },
           {
             "keyword": "scanf",

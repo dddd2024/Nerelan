@@ -46,10 +46,16 @@ class TestRunAudit:
             case_dir.mkdir()
 
             # Create sample.exe
+            sample_content = b"MZ" + b"\x00" * 100  # Fake PE
             with open(case_dir / "sample.exe", "wb") as f:
-                f.write(b"MZ" + b"\x00" * 100)  # Fake PE
+                f.write(sample_content)
 
-            # Create manifest
+            # Compute actual sha256 and size
+            import hashlib
+            actual_sha256 = hashlib.sha256(sample_content).hexdigest()
+            actual_size = len(sample_content)
+
+            # Create manifest with correct sha256 and size
             manifest = {
                 "schema_version": 1,
                 "corpus_name": "test",
@@ -57,19 +63,19 @@ class TestRunAudit:
                     {
                         "case_id": case_id,
                         "path": str(case_dir / "sample.exe"),
-                        "sha256": "abc123",
-                        "size_bytes": 102,
+                        "sha256": actual_sha256,
+                        "size_bytes": actual_size,
                     }
                 ],
             }
             with open(corpus_dir / "manifest.json", "w") as f:
                 json.dump(manifest, f)
 
-            # Create metadata
+            # Create metadata with correct sha256 and size
             metadata = {
                 "case_id": case_id,
-                "sha256": "abc123",
-                "size_bytes": 102,
+                "sha256": actual_sha256,
+                "size_bytes": actual_size,
                 "category": "test",
                 "tags": ["test"],
                 "safe_to_run": False,
@@ -94,7 +100,7 @@ class TestRunAudit:
 
             case_result = result["cases"][0]
             assert case_result["case_id"] == case_id
-            assert case_result["sha256"] == "abc123"
+            assert case_result["sha256"] == actual_sha256
             assert case_result["status"] == "static_profiled"
             assert "static_features" in case_result
             assert "classification" in case_result
@@ -278,6 +284,141 @@ class TestMain:
             with open(gap_path) as f:
                 report = f.read()
             assert "Corpus Solver Gap Report" in report
+
+
+class TestValidationRejection:
+    """Tests for validation rejection."""
+
+    def test_run_audit_rejects_invalid_corpus(self):
+        """Test that run_audit rejects invalid corpus."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corpus_dir = Path(tmpdir)
+            case_id = "test_case"
+            case_dir = corpus_dir / case_id
+            case_dir.mkdir()
+
+            # Create manifest
+            manifest = {
+                "schema_version": 1,
+                "corpus_name": "test",
+                "samples": [
+                    {
+                        "case_id": case_id,
+                        "path": str(case_dir / "sample.exe"),
+                        "sha256": "wrong_hash",
+                        "size_bytes": 0,
+                    }
+                ],
+            }
+            with open(corpus_dir / "manifest.json", "w") as f:
+                json.dump(manifest, f)
+
+            # Create sample.exe with different content
+            with open(case_dir / "sample.exe", "w") as f:
+                f.write("actual content")
+
+            # Create metadata with wrong sha256
+            metadata = {
+                "case_id": case_id,
+                "sha256": "wrong_hash",
+                "size_bytes": 0,
+                "safe_to_run": False,
+                "upload_allowed": True,
+            }
+            with open(case_dir / "metadata.json", "w") as f:
+                json.dump(metadata, f)
+
+            with open(case_dir / "case.json", "w") as f:
+                json.dump({"cases": []}, f)
+
+            with open(case_dir / "notes.md", "w") as f:
+                f.write("")
+
+            with open(case_dir / "codex_task.md", "w") as f:
+                f.write("")
+
+            # Should raise ValueError
+            with pytest.raises(ValueError) as exc_info:
+                run_audit(corpus_dir)
+            assert "Corpus validation failed" in str(exc_info.value)
+
+    def test_cli_rejects_invalid_corpus(self, capsys):
+        """Test that CLI exits with error on invalid corpus."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corpus_dir = Path(tmpdir) / "corpus"
+            corpus_dir.mkdir()
+            out_path = Path(tmpdir) / "audit.json"
+
+            # Create manifest with case that will fail validation
+            case_id = "test_case"
+            case_dir = corpus_dir / case_id
+            case_dir.mkdir()
+
+            manifest = {
+                "schema_version": 1,
+                "corpus_name": "test",
+                "samples": [
+                    {
+                        "case_id": case_id,
+                        "path": str(case_dir / "sample.exe"),
+                        "sha256": "wrong_hash",
+                        "size_bytes": 0,
+                    }
+                ],
+            }
+            with open(corpus_dir / "manifest.json", "w") as f:
+                json.dump(manifest, f)
+
+            # Create sample.exe
+            with open(case_dir / "sample.exe", "w") as f:
+                f.write("actual content")
+
+            # Create metadata with wrong sha256
+            metadata = {
+                "case_id": case_id,
+                "sha256": "wrong_hash",
+                "size_bytes": 0,
+                "safe_to_run": False,
+                "upload_allowed": True,
+            }
+            with open(case_dir / "metadata.json", "w") as f:
+                json.dump(metadata, f)
+
+            with open(case_dir / "case.json", "w") as f:
+                json.dump({"cases": []}, f)
+
+            with open(case_dir / "notes.md", "w") as f:
+                f.write("")
+
+            with open(case_dir / "codex_task.md", "w") as f:
+                f.write("")
+
+            # Mock argv and test exit
+            import sys
+            old_argv = sys.argv
+            old_exit = sys.exit
+            exit_code = [None]
+
+            def mock_exit(code):
+                exit_code[0] = code
+                raise SystemExit(code)
+
+            sys.exit = mock_exit
+
+            try:
+                sys.argv = [
+                    "corpus_static_audit",
+                    "--corpus-dir", str(corpus_dir),
+                    "--out", str(out_path),
+                ]
+                main()
+            except SystemExit:
+                pass
+            finally:
+                sys.argv = old_argv
+                sys.exit = old_exit
+
+            assert exit_code[0] == 1
 
 
 class TestRealCorpus:

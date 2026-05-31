@@ -205,6 +205,18 @@ class TestClassifySample:
         assert result.predicted_category == "unknown"
         assert result.confidence == "low"
 
+    def test_seh_classification_from_keywords(self):
+        """Test SEH classification from keyword hits."""
+        features = StaticFeatures(
+            keyword_hits=[
+                {"keyword": "seh", "source": "test", "context": "seh_handler"},
+                {"keyword": "exception", "source": "test", "context": "exception_handler"},
+            ]
+        )
+        result = classify_sample("seh_test", features)
+        assert result.predicted_category == "seh_or_exception"
+        assert result.confidence == "medium"
+
 
 class TestGetRecommendedStep:
     """Tests for get_recommended_step function."""
