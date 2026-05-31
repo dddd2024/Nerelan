@@ -1,0 +1,723 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-31T18:21:31.086638",
+  "corpus_dir": "sample_corpus\\reverse",
+  "execution_policy": {
+    "executed_samples": false,
+    "runtime_probe_used": false,
+    "static_only": true
+  },
+  "cases": [
+    {
+      "case_id": "cpp_6af7c7f1",
+      "sha256": "6af7c7f131eb4991b04f1dc04fd2341113da1aaa318018c14b9e9b81a37186c3",
+      "size_bytes": 196690,
+      "static_features": {
+        "format": "pe",
+        "file_size": 196690,
+        "ascii_strings_sample": [
+          "!This program cannot be run in DOS mode.",
+          "Rich",
+          ".text",
+          "`.rdata",
+          "@.data",
+          ".idata",
+          ".reloc",
+          "hdpB",
+          "Ph`pB",
+          "hLpB",
+          "h$pB",
+          "hLpB",
+          "SVWh",
+          "t&:a",
+          "PRSVWh",
+          "_^[ZX",
+          "h`rB",
+          "jLhTrB",
+          "h<rB",
+          "jMhTrB"
+        ],
+        "utf16_strings_sample": [
+          "jjjj",
+          "Bjjjj",
+          "Bjjjj",
+          "Bjjj",
+          "Bjjj",
+          "Bjjjj",
+          "Bjjjj",
+          "Bjjj",
+          "Bjjj",
+          "Bjjjj"
+        ],
+        "keyword_hits": [
+          {
+            "keyword": "input",
+            "source": "please input a string:",
+            "context": "please input a string:"
+          },
+          {
+            "keyword": "printf",
+            "source": "printf.c",
+            "context": "printf.c"
+          },
+          {
+            "keyword": "scanf",
+            "source": "scanf.c",
+            "context": "scanf.c"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion Failed",
+            "context": "Assertion Failed"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed!",
+            "context": "Assertion failed!"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed: ",
+            "context": "Assertion failed: "
+          },
+          {
+            "keyword": "fail",
+            "source": "Second Chance Assertion Failed: File %s, Line %d",
+            "context": "nd Chance Assertion Failed: File %s, Line %d"
+          },
+          {
+            "keyword": "printf",
+            "source": "wsprintfA",
+            "context": "wsprintfA"
+          },
+          {
+            "keyword": "fail",
+            "source": "failure, see the Visual C++ documentation on asser...",
+            "context": "failure, see the Visual "
+          },
+          {
+            "keyword": "flag",
+            "source": "flag == 0 || flag == 1",
+            "context": "flag == 0 || flag == 1"
+          },
+          {
+            "keyword": "input",
+            "source": "input.c",
+            "context": "input.c"
+          }
+        ],
+        "crypto_hints": [],
+        "compare_hints": [
+          {
+            "keyword": "input",
+            "source": "please input a string:",
+            "context": "please input a string:"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion Failed",
+            "context": "Assertion Failed"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed!",
+            "context": "Assertion failed!"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed: ",
+            "context": "Assertion failed: "
+          },
+          {
+            "keyword": "fail",
+            "source": "Second Chance Assertion Failed: File %s, Line %d",
+            "context": "nd Chance Assertion Failed: File %s, Line %d"
+          },
+          {
+            "keyword": "fail",
+            "source": "failure, see the Visual C++ documentation on asser...",
+            "context": "failure, see the Visual "
+          },
+          {
+            "keyword": "flag",
+            "source": "flag == 0 || flag == 1",
+            "context": "flag == 0 || flag == 1"
+          },
+          {
+            "keyword": "input",
+            "source": "input.c",
+            "context": "input.c"
+          }
+        ],
+        "interesting_constants": [
+          {
+            "hex": "22282A2E2",
+            "offset": 190945,
+            "length": 9,
+            "kind": "unknown"
+          }
+        ],
+        "entropy_hint": "low"
+      },
+      "classification": {
+        "case_id": "cpp_6af7c7f1",
+        "predicted_category": "string_compare",
+        "confidence": "medium",
+        "evidence": [
+          {
+            "type": "compare_hint",
+            "detail": "Found comparison keywords: ['flag']",
+            "strength": "medium"
+          }
+        ],
+        "recommended_next_step": "Look for strcmp/memcmp calls; expected string may be nearby in binary"
+      },
+      "status": "static_profiled"
+    },
+    {
+      "case_id": "desenc_40cba418",
+      "sha256": "40cba4189a9639da601b9d9b74fd9937c3d03fc93c90f5df12840e8b7763700f",
+      "size_bytes": 200784,
+      "static_features": {
+        "format": "pe",
+        "file_size": 200784,
+        "ascii_strings_sample": [
+          "!This program cannot be run in DOS mode.",
+          "]1K|",
+          "P%//v//WP%/",
+          "P$/\"P%/{O6/",
+          "P%//v./",
+          "P%/Rich",
+          ".text",
+          "`.rdata",
+          "@.data",
+          ".idata",
+          ".reloc",
+          "lSVW",
+          "HSVW",
+          "LSVW",
+          "tSVW",
+          "TSVW",
+          "dSVW",
+          "DSVW",
+          "DSVW",
+          "DSVW"
+        ],
+        "utf16_strings_sample": [
+          "jjjj",
+          "Bjjjj",
+          "Bjjjj",
+          "Bjjj",
+          "Bjjj",
+          "Bjjjj",
+          "Bjjjj",
+          "Bjjj",
+          "Bjjj",
+          "Bjjjj"
+        ],
+        "keyword_hits": [
+          {
+            "keyword": "wrong",
+            "source": "Wrong!!",
+            "context": "Wrong!!"
+          },
+          {
+            "keyword": "encrypt",
+            "source": "give me a string to encrypt:",
+            "context": "give me a string to encrypt:"
+          },
+          {
+            "keyword": "scanf",
+            "source": "scanf.c",
+            "context": "scanf.c"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion Failed",
+            "context": "Assertion Failed"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed!",
+            "context": "Assertion failed!"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed: ",
+            "context": "Assertion failed: "
+          },
+          {
+            "keyword": "fail",
+            "source": "Second Chance Assertion Failed: File %s, Line %d",
+            "context": "nd Chance Assertion Failed: File %s, Line %d"
+          },
+          {
+            "keyword": "printf",
+            "source": "wsprintfA",
+            "context": "wsprintfA"
+          },
+          {
+            "keyword": "fail",
+            "source": "failure, see the Visual C++ documentation on asser...",
+            "context": "failure, see the Visual "
+          },
+          {
+            "keyword": "input",
+            "source": "input.c",
+            "context": "input.c"
+          },
+          {
+            "keyword": "flag",
+            "source": "flag == 0 || flag == 1",
+            "context": "flag == 0 || flag == 1"
+          }
+        ],
+        "crypto_hints": [
+          {
+            "keyword": "encrypt",
+            "source": "give me a string to encrypt:",
+            "context": "give me a string to encrypt:"
+          }
+        ],
+        "compare_hints": [
+          {
+            "keyword": "wrong",
+            "source": "Wrong!!",
+            "context": "Wrong!!"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion Failed",
+            "context": "Assertion Failed"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed!",
+            "context": "Assertion failed!"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed: ",
+            "context": "Assertion failed: "
+          },
+          {
+            "keyword": "fail",
+            "source": "Second Chance Assertion Failed: File %s, Line %d",
+            "context": "nd Chance Assertion Failed: File %s, Line %d"
+          },
+          {
+            "keyword": "fail",
+            "source": "failure, see the Visual C++ documentation on asser...",
+            "context": "failure, see the Visual "
+          },
+          {
+            "keyword": "input",
+            "source": "input.c",
+            "context": "input.c"
+          },
+          {
+            "keyword": "flag",
+            "source": "flag == 0 || flag == 1",
+            "context": "flag == 0 || flag == 1"
+          }
+        ],
+        "interesting_constants": [],
+        "entropy_hint": "low"
+      },
+      "classification": {
+        "case_id": "desenc_40cba418",
+        "predicted_category": "des_like",
+        "confidence": "low",
+        "evidence": [
+          {
+            "type": "filename",
+            "detail": "Case ID 'desenc_40cba418' contains 'des'",
+            "strength": "weak"
+          },
+          {
+            "type": "compare_hint",
+            "detail": "Found comparison keywords: ['flag']",
+            "strength": "medium"
+          }
+        ],
+        "recommended_next_step": "Static analysis: look for DES key schedule, S-boxes, or permutation tables. Key and ciphertext may be in binary. DO NOT assume key is known."
+      },
+      "status": "static_profiled"
+    },
+    {
+      "case_id": "rc4enc_3480917d",
+      "sha256": "3480917ddedce512f76e97c26df3b3ad12b71b34db472fa8836ba67528bcb09f",
+      "size_bytes": 196693,
+      "static_features": {
+        "format": "pe",
+        "file_size": 196693,
+        "ascii_strings_sample": [
+          "!This program cannot be run in DOS mode.",
+          "]1K|",
+          "P%//v//WP%/",
+          "P$/\"P%/{O6/",
+          "P%//v./",
+          "P%/Rich",
+          ".text",
+          "`.rdata",
+          "@.data",
+          ".idata",
+          ".reloc",
+          "hlpB",
+          "PhhpB",
+          "hLpB",
+          "hDpB",
+          "hDpB",
+          "PSVW",
+          "HSVW",
+          "HSVW",
+          "SVWh"
+        ],
+        "utf16_strings_sample": [
+          "jjjj",
+          "Bjjjj",
+          "Bjjjj",
+          "Bjjj",
+          "Bjjj",
+          "Bjjjj",
+          "Bjjjj",
+          "Bjjj",
+          "Bjjj",
+          "Bjjjj"
+        ],
+        "keyword_hits": [
+          {
+            "keyword": "wrong",
+            "source": "Sorry you are wrong!",
+            "context": "Sorry you are wrong!"
+          },
+          {
+            "keyword": "correct",
+            "source": "please input a correct string to encrypt:",
+            "context": "please input a correct string to encrypt:"
+          },
+          {
+            "keyword": "scanf",
+            "source": "scanf.c",
+            "context": "scanf.c"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion Failed",
+            "context": "Assertion Failed"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed!",
+            "context": "Assertion failed!"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed: ",
+            "context": "Assertion failed: "
+          },
+          {
+            "keyword": "fail",
+            "source": "Second Chance Assertion Failed: File %s, Line %d",
+            "context": "nd Chance Assertion Failed: File %s, Line %d"
+          },
+          {
+            "keyword": "printf",
+            "source": "wsprintfA",
+            "context": "wsprintfA"
+          },
+          {
+            "keyword": "fail",
+            "source": "failure, see the Visual C++ documentation on asser...",
+            "context": "failure, see the Visual "
+          },
+          {
+            "keyword": "input",
+            "source": "input.c",
+            "context": "input.c"
+          },
+          {
+            "keyword": "flag",
+            "source": "flag == 0 || flag == 1",
+            "context": "flag == 0 || flag == 1"
+          }
+        ],
+        "crypto_hints": [
+          {
+            "keyword": "encrypt",
+            "source": "please input a correct string to encrypt:",
+            "context": "a correct string to encrypt:"
+          }
+        ],
+        "compare_hints": [
+          {
+            "keyword": "wrong",
+            "source": "Sorry you are wrong!",
+            "context": "Sorry you are wrong!"
+          },
+          {
+            "keyword": "input",
+            "source": "please input a correct string to encrypt:",
+            "context": "please input a correct string to"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion Failed",
+            "context": "Assertion Failed"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed!",
+            "context": "Assertion failed!"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed: ",
+            "context": "Assertion failed: "
+          },
+          {
+            "keyword": "fail",
+            "source": "Second Chance Assertion Failed: File %s, Line %d",
+            "context": "nd Chance Assertion Failed: File %s, Line %d"
+          },
+          {
+            "keyword": "fail",
+            "source": "failure, see the Visual C++ documentation on asser...",
+            "context": "failure, see the Visual "
+          },
+          {
+            "keyword": "input",
+            "source": "input.c",
+            "context": "input.c"
+          },
+          {
+            "keyword": "flag",
+            "source": "flag == 0 || flag == 1",
+            "context": "flag == 0 || flag == 1"
+          }
+        ],
+        "interesting_constants": [],
+        "entropy_hint": "low"
+      },
+      "classification": {
+        "case_id": "rc4enc_3480917d",
+        "predicted_category": "rc4_like",
+        "confidence": "low",
+        "evidence": [
+          {
+            "type": "filename",
+            "detail": "Case ID 'rc4enc_3480917d' contains 'rc4'",
+            "strength": "weak"
+          },
+          {
+            "type": "compare_hint",
+            "detail": "Found comparison keywords: ['flag']",
+            "strength": "medium"
+          }
+        ],
+        "recommended_next_step": "Static analysis: look for S-box initialization (KSA) and keystream generation (PRGA). Key may be in strings or hardcoded. DO NOT assume key is known."
+      },
+      "status": "static_profiled"
+    },
+    {
+      "case_id": "seh_52be8d5c",
+      "sha256": "52be8d5c485f7c7c3340d42791505b9f55cf4ff63191768c0cc62f30cde4ae07",
+      "size_bytes": 196685,
+      "static_features": {
+        "format": "pe",
+        "file_size": 196685,
+        "ascii_strings_sample": [
+          "!This program cannot be run in DOS mode.",
+          "Rich",
+          ".text",
+          "`.rdata",
+          "@.data",
+          ".idata",
+          ".reloc",
+          "HSVW",
+          "hDpB",
+          "pSVW",
+          "PRSVWh",
+          "_^[ZX",
+          "SVWh rB",
+          "j4h(rB",
+          "h0rB",
+          "hHrB",
+          "jAh<rB",
+          "uZj^h<rB",
+          "QSVW",
+          "t!hTrB"
+        ],
+        "utf16_strings_sample": [
+          "jjjj",
+          "Bjjjj",
+          "Bjjjj",
+          "Bjjj",
+          "Bjjj",
+          "Bjjjj",
+          "Bjjjj",
+          "Bjjj",
+          "Bjjj",
+          "Bjjjj"
+        ],
+        "keyword_hits": [
+          {
+            "keyword": "wrong",
+            "source": "2 Sorry, you are wrong!",
+            "context": "2 Sorry, you are wrong!"
+          },
+          {
+            "keyword": "wrong",
+            "source": "1 Sorry,you are wrong!",
+            "context": "1 Sorry,you are wrong!"
+          },
+          {
+            "keyword": "password",
+            "source": "please input password : ",
+            "context": "please input password : "
+          },
+          {
+            "keyword": "printf",
+            "source": "printf.c",
+            "context": "printf.c"
+          },
+          {
+            "keyword": "scanf",
+            "source": "scanf.c",
+            "context": "scanf.c"
+          },
+          {
+            "keyword": "flag",
+            "source": "flag == 0 || flag == 1",
+            "context": "flag == 0 || flag == 1"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion Failed",
+            "context": "Assertion Failed"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed!",
+            "context": "Assertion failed!"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed: ",
+            "context": "Assertion failed: "
+          },
+          {
+            "keyword": "fail",
+            "source": "Second Chance Assertion Failed: File %s, Line %d",
+            "context": "nd Chance Assertion Failed: File %s, Line %d"
+          },
+          {
+            "keyword": "printf",
+            "source": "wsprintfA",
+            "context": "wsprintfA"
+          },
+          {
+            "keyword": "fail",
+            "source": "failure, see the Visual C++ documentation on asser...",
+            "context": "failure, see the Visual "
+          },
+          {
+            "keyword": "input",
+            "source": "input.c",
+            "context": "input.c"
+          },
+          {
+            "keyword": "read",
+            "source": "- unexpected multithread lock error",
+            "context": "- unexpected multithread lock error"
+          }
+        ],
+        "crypto_hints": [],
+        "compare_hints": [
+          {
+            "keyword": "wrong",
+            "source": "2 Sorry, you are wrong!",
+            "context": "2 Sorry, you are wrong!"
+          },
+          {
+            "keyword": "wrong",
+            "source": "1 Sorry,you are wrong!",
+            "context": "1 Sorry,you are wrong!"
+          },
+          {
+            "keyword": "input",
+            "source": "please input password : ",
+            "context": "please input password : "
+          },
+          {
+            "keyword": "flag",
+            "source": "flag == 0 || flag == 1",
+            "context": "flag == 0 || flag == 1"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion Failed",
+            "context": "Assertion Failed"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed!",
+            "context": "Assertion failed!"
+          },
+          {
+            "keyword": "fail",
+            "source": "Assertion failed: ",
+            "context": "Assertion failed: "
+          },
+          {
+            "keyword": "fail",
+            "source": "Second Chance Assertion Failed: File %s, Line %d",
+            "context": "nd Chance Assertion Failed: File %s, Line %d"
+          },
+          {
+            "keyword": "fail",
+            "source": "failure, see the Visual C++ documentation on asser...",
+            "context": "failure, see the Visual "
+          },
+          {
+            "keyword": "input",
+            "source": "input.c",
+            "context": "input.c"
+          }
+        ],
+        "interesting_constants": [],
+        "entropy_hint": "low"
+      },
+      "classification": {
+        "case_id": "seh_52be8d5c",
+        "predicted_category": "seh_or_exception",
+        "confidence": "low",
+        "evidence": [
+          {
+            "type": "filename",
+            "detail": "Case ID 'seh_52be8d5c' contains 'seh'",
+            "strength": "weak"
+          },
+          {
+            "type": "compare_hint",
+            "detail": "Found comparison keywords: ['flag']",
+            "strength": "medium"
+          }
+        ],
+        "recommended_next_step": "Analyze exception handler structure; control flow may be obfuscated via SEH"
+      },
+      "status": "static_profiled"
+    }
+  ],
+  "summary": {
+    "total_cases": 4,
+    "classified_cases": 4,
+    "unknown_cases": 0,
+    "category_counts": {
+      "rc4_like": 1,
+      "des_like": 1,
+      "seh_or_exception": 1,
+      "string_compare": 1
+    }
+  }
+}
