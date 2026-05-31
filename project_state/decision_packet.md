@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260531_local_simple_batch_solver_capability_extraction",
-  "round_id": "round_20260531_local_simple_batch_solver_capability_extraction",
+  "decision_id": "decision_20260531_rework_local_sample_normalization_and_batch_solver",
+  "round_id": "round_20260531_rework_local_sample_normalization_and_batch_solver",
   "based_on_state_build_id": "state_20260527_153028_1d6dd81ecbd6",
   "based_on_state_digest": "1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02",
   "status": "APPROVED",
@@ -15,89 +15,50 @@
 
 # DECISION_PACKET
 
-本轮属于 **engineering_branch**。目标是把 `local_reverse_samples/` 中多个简单本地逆向题的解题过程，与项目级通用能力提炼合并成一轮小步可审计任务。
+本轮属于 **engineering_branch**，是对上一轮 `decision_20260531_local_simple_batch_solver_capability_extraction` 的返工。
 
-本轮不是继续推进旧 `samplereverse` 主线。当前 `task_packet.task` / `derived_task` 仍然是旧 `samplereverse` 状态派生建议，不能作为本轮执行权威；本轮以本文件 `project_state/decision_packet.md` 为准。
+上一轮核心问题是：`local_reverse_samples/` 根目录中仍存在裸 `.exe` 样本，没有按 `local_samples add/solve` 规范整理成 `<case_id>/` 目录；同时只处理了 `cpp_6af7c7f1` 一个样本，并过早跳过 DES/RC4/SEH 相关样本。
+
+当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。`project_state/task_packet.json` 中的 `task` / `derived_task` 仍是旧 reverse_solving 状态派生建议，不自动覆盖本 decision。
 
 ## 1. Goal
 
-本轮做两件事，但必须合并在同一个受限闭环内：
+修正本地样本目录规范，并重新执行受限批量解题：
 
 ```text
-A. 批量解 3–5 个简单 local_reverse_samples 样本；
-B. 从这些解题过程里提炼 1 个轻量通用能力。
+1. 扫描 local_reverse_samples/ 根目录下的裸 .exe 文件。
+2. 对每个裸 .exe 使用现有 local_samples intake 流程登记成 case 目录。
+3. 确保每个样本都有：
+   - metadata.json
+   - case.json
+   - notes.md
+   - codex_task.md
+   - sample.exe
+4. 对 3–5 个 case 做静态分析。
+5. 能解则写本地 solver.py 和 solve_result.json。
+6. 不能解则写 SKIPPED_STATIC_INSUFFICIENT，不允许无证据地写 runtime_required。
+7. 项目级 simple_static_patterns.py 只保留有样本证据支撑的能力，或者把无样本证据的函数降级为未推广 helper。
+8. 修复 codex_report_summary 字段完整性。
 ```
-
-目标结构：
-
-```text
-local_reverse_samples/<case_id>/
-  sample.exe 或 sample.<ext>
-  case.json
-  metadata.json
-  notes.md
-  codex_task.md
-  analysis_notes.md       # 本轮可更新，但不得提交 Git
-  solver.py               # 本轮可生成，但不得提交 Git
-  solve_result.json       # 本轮可生成，但不得提交 Git
-```
-
-项目级允许新增一个轻量能力文件，例如：
-
-```text
-reverse_agent/simple_static_patterns.py
-tests/test_simple_static_patterns.py
-```
-
-该能力只服务于简单题型，不要接入复杂 agent runtime。
-
-本轮优先提炼的 pattern：
-
-```text
-1. simple string compare
-2. lowercase affine alphabet transform + literal compare
-3. xor single-byte / repeating-key transform
-4. Caesar / ROT / add-sub constant transform
-5. MD5 / SHA1 / SHA256 literal hash check
-6. Base64 literal decode / compare
-```
-
-其中 `lowercase affine alphabet transform + literal compare` 已有上一轮样本证据：目标字符串 `qvldxt`、小写输入约束、affine alphabet transform，solver 输出 `higuys`。
 
 ## 2. Current Evidence
 
-上一轮完成：
+用户截图显示本地目录当前为：
 
 ```text
-decision_id = decision_20260531_local_sample_single_solver_round
-report_id = report_20260531_local_sample_single_solver_round
-status = SUCCESS
-acceptance_recommendation = ACCEPTED
+local_reverse_samples/
+  cpp_6af7c7f1/
+  cpp.exe
+  desenc.exe
+  rc4enc.exe
+  SEH.exe
 ```
 
-上一轮报告记录：
+其中只有 `cpp_6af7c7f1/` 是规范 case 目录；其余 `.exe` 仍裸放在根目录。
 
-```text
-case_id = cpp_6af7c7f1
-classification = string_compare
-solver output = higuys
-sample.exe executed = no
-runtime probe used = no
-local_reverse_samples content submitted = no
-```
+上一轮报告只处理了 `cpp_6af7c7f1`，并跳过 `SEH.exe`、`desenc.exe`、`rc4enc.exe`。上一轮报告还把它们直接归为 DES/RC4/SEH 相关并标记为需要动态分析，但缺少足够静态证据。
 
-上一轮测试记录：
-
-```text
-python .\local_reverse_samples\cpp_6af7c7f1\solver.py
-git status --short
-git check-ignore -v local_reverse_samples/
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-python -m reverse_agent.project_state lint-report --state-dir project_state
-git diff --check
-```
-
-当前 `local_reverse_samples/` 已被 `.gitignore` 忽略，因此本轮可以在其中生成 solver 和分析记录，但不得提交这些文件。
+当前项目级能力文件 `reverse_agent/simple_static_patterns.py` 已新增，但其支持范围包含 affine、Caesar、XOR、hash digest detection。当前明确有样本证据支撑的是 `affine_lowercase_transform`；其他 helper 若保留，报告中必须明确它们是 generic helper，不是本轮样本沉淀出的能力。
 
 当前 skill profiles：
 
@@ -119,30 +80,18 @@ samplereverse-frontier@v2
 
 ```text
 1. 不提交 local_reverse_samples/ 下任何内容。
-2. 不提交 sample.exe / .dll / .bin / .zip / .7z / .rar。
-3. 不提交每题 solver.py。
-4. 不提交 solve_result.json。
-5. 不执行未知 sample.exe。
-6. 不运行 IDA/Olly/Frida runtime probe。
-7. 不运行 Base64/RC4 breakpoint probe。
-8. 不运行 samplereverse harness。
-9. 不修改 CompareAwareSearchStrategy。
-10. 不修改 reverse_agent/profiles/samplereverse.py。
-11. 不修改 .codex-skills/。
-12. 不读取完整 solve_reports/。
-13. 不读取完整 PROJECT_PROGRESS_LOG.txt。
-14. 不把本地样本内容写入 project_state。
-15. 不把本轮做成自动训练平台、数据库、队列、多 worker 或后台任务系统。
-16. 不一次性处理全部 local_reverse_samples。
-17. 不把没有样本证据支撑的猜测 pattern 写成项目能力。
-```
-
-特别限制：
-
-```text
-本轮最多处理 5 个样本。
-如果可用样本超过 5 个，只选择最简单、最适合静态分析的 3–5 个。
-如果某个样本需要动态运行才能继续，跳过该样本并记录为 skipped_runtime_required。
+2. 不提交 .exe/.dll/.bin/.zip/.7z/.rar。
+3. 不执行未知 sample.exe。
+4. 不运行 IDA/Olly/Frida runtime probe。
+5. 不运行 Base64/RC4 breakpoint probe。
+6. 不运行 samplereverse harness。
+7. 不修改 .codex-skills/。
+8. 不修改 CompareAwareSearchStrategy。
+9. 不修改 reverse_agent/profiles/samplereverse.py。
+10. 不读取完整 solve_reports/。
+11. 不读取完整 PROJECT_PROGRESS_LOG.txt。
+12. 不把无样本证据支撑的 pattern 作为“已沉淀能力”宣传。
+13. 不把本轮扩展成自动训练平台、数据库、队列、多 worker 或后台任务系统。
 ```
 
 ## 4. Files To Inspect
@@ -163,33 +112,28 @@ project_state/pytest_result.txt
 
 ```text
 local_reverse_samples/
+local_reverse_samples/*.exe
 local_reverse_samples/*/metadata.json
 local_reverse_samples/*/case.json
 local_reverse_samples/*/codex_task.md
 local_reverse_samples/*/notes.md
 ```
 
-允许读取样本字节：
-
-```text
-local_reverse_samples/<case_id>/sample.*
-```
-
-允许新增或修改但不得提交：
-
-```text
-local_reverse_samples/<case_id>/analysis_notes.md
-local_reverse_samples/<case_id>/solver.py
-local_reverse_samples/<case_id>/solve_result.json
-```
-
-允许提交的项目级文件：
+允许修改并提交：
 
 ```text
 reverse_agent/simple_static_patterns.py
 tests/test_simple_static_patterns.py
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
+```
+
+允许本地新增或修改但不得提交：
+
+```text
+local_reverse_samples/<case_id>/analysis_notes.md
+local_reverse_samples/<case_id>/solver.py
+local_reverse_samples/<case_id>/solve_result.json
 ```
 
 不应修改：
@@ -202,27 +146,27 @@ reverse_agent/profiles/samplereverse.py
 .codex-skills/
 ```
 
-如果发现必须修改 `local_samples.py` 或 `harness.py` 才能继续，停止并报告 `BLOCKED`，不要扩大范围。
+如果发现必须修改 `local_samples.py` 或 `harness.py` 才能完成本轮目标，停止并报告 `BLOCKED`，不要扩大范围。
 
 ## 5. Required Audit
 
 Codex 报告必须回答：
 
 ```text
-1. 本轮选择了哪些 case_id。
-2. 每个 case 的选择依据是什么。
-3. 每个样本的 sha256 / size_bytes 是多少。
-4. 每个样本是否只做静态分析。
-5. 每个样本是否生成 solver.py。
-6. 每个 solver.py 是否运行。
-7. 每个 solver.py 输出了什么 candidate。
-8. 每个 solve_result.json 的 status 是 SOLVED / PARTIAL / SKIPPED / BLOCKED 中哪一种。
-9. 有哪些样本被跳过，跳过原因是什么。
-10. 本轮归纳出了哪些 pattern。
-11. 哪一个 pattern 被提升为项目级通用能力。
-12. 该通用能力是否有至少一个本地样本证据支撑。
-13. 是否新增 reverse_agent/simple_static_patterns.py。
-14. 是否新增 tests/test_simple_static_patterns.py。
+1. 根目录下发现了哪些裸 .exe。
+2. 每个裸 .exe 是否已经登记成 case 目录。
+3. 每个 case_id 是什么。
+4. 每个 case 是否有 metadata.json / case.json / notes.md / codex_task.md。
+5. 根目录裸 .exe 是否被删除、移动或保留；如果保留，理由是什么。
+6. 每个样本是否只做静态分析。
+7. 每个样本的初步分类是什么。
+8. 每个样本是否生成 solver.py。
+9. 每个 solver.py 是否运行。
+10. 每个样本 solve_result.json 的 status 是什么。
+11. 对 DES/RC4/SEH 样本，如果跳过，必须给出静态证据，而不是只按文件名判断。
+12. simple_static_patterns.py 中哪些能力有样本证据。
+13. 哪些能力只是 helper，不能声明为本轮样本沉淀能力。
+14. codex_report_summary 是否包含 files_changed / tests_ran / generated_artifacts。
 15. 是否没有提交 local_reverse_samples/ 内容。
 16. 是否没有执行 sample.exe。
 17. 是否没有运行 runtime probe。
@@ -233,154 +177,98 @@ Codex 报告必须回答：
 
 ## 6. Implementation Scope
 
-### 6.1 选择样本
+### 6.1 规范化本地样本目录
 
-优先选择用户指定列表：
+对根目录裸 `.exe` 执行规范化登记。
+
+推荐命令：
 
 ```powershell
-$env:LOCAL_REVERSE_CASE_IDS
+python -m reverse_agent.local_samples add .\local_reverse_samples\desenc.exe
+python -m reverse_agent.local_samples add .\local_reverse_samples\rc4enc.exe
+python -m reverse_agent.local_samples add .\local_reverse_samples\SEH.exe
 ```
 
-格式：
+如果 `cpp.exe` 已经对应 `cpp_6af7c7f1/`，则：
 
 ```text
-case1,case2,case3
+1. 校验 cpp.exe 与 cpp_6af7c7f1/sample.exe 的 sha256 是否一致。
+2. 如果一致，记录为 duplicate_root_sample。
+3. 不要重复创建 case。
 ```
 
-如果没有指定，则自动选择：
+对每个新登记的样本继续执行：
+
+```powershell
+python -m reverse_agent.local_samples solve <case_id>
+```
+
+以生成 `codex_task.md`。
+
+注意：如果 `local_samples add` 默认复制而不是移动裸 `.exe`，Codex 不应自行删除原始裸 `.exe`。应在报告里明确记录：root sample retained as local source attachment and ignored by Git。若要删除或移动根目录原始附件，必须等待用户确认。
+
+### 6.2 静态 triage
+
+对每个 case 做静态 triage：
 
 ```text
-1. 包含 metadata.json / case.json / codex_task.md 的 case；
-2. 未存在 solve_result.json，或 solve_result.json.status != SOLVED；
-3. 样本体积较小；
-4. notes.md / codex_task.md 看起来是简单题；
-5. 最多 5 个。
+1. 提取 ASCII / UTF-16LE 字符串。
+2. 查看 PE imports。
+3. 搜索 key/password/flag/input/correct/wrong/success/fail。
+4. 搜索 DES/RC4/Base64/hash/XOR/rotate/SEH 特征。
+5. 判断能否纯静态写 solver。
 ```
 
-如果没有足够样本，也可以处理 1–2 个，不要强行造样本。
-
-### 6.2 每题静态解题流程
-
-对每个 case 执行：
+如果不能解，状态必须是：
 
 ```text
-1. 读取 metadata.json / case.json / codex_task.md。
-2. 读取 sample bytes。
-3. 提取 ASCII / UTF-16LE 字符串。
-4. 检查 imports。
-5. 搜索常见提示字符串：
-   - flag
-   - password
-   - serial
-   - key
-   - input
-   - correct
-   - wrong
-   - success
-   - fail
-6. 搜索简单变换特征：
-   - literal compare string
-   - lowercase guard
-   - XOR constant
-   - add/sub constant
-   - ROT/Caesar
-   - MD5/SHA constants or 32/40/64 hex digest
-   - Base64 alphabet
-7. 写 analysis_notes.md。
-8. 写 solver.py。
-9. 运行 solver.py。
-10. 写 solve_result.json。
+SKIPPED_STATIC_INSUFFICIENT
 ```
 
-### 6.3 pattern 归纳规则
+只有在确有静态证据说明必须运行样本才能继续时，才允许写：
 
-对每题写一个本地 pattern summary：
+```text
+SKIPPED_RUNTIME_REQUIRED
+```
+
+不允许只根据文件名 `desenc` / `rc4enc` / `SEH` 判定 runtime_required。
+
+### 6.3 修正 simple_static_patterns.py 范围
+
+二选一：
+
+```text
+A. 只保留 affine_lowercase_transform 作为本轮沉淀能力；
+B. 保留 Caesar/XOR/hash helper，但报告必须明确它们是 generic helper，不是本轮样本证据沉淀能力。
+```
+
+如果保留 helper，测试可以保留；但 `codex_execution_report.md` 不能写成这些能力都来自本轮样本。
+
+### 6.4 修正报告 meta
+
+`codex_report_summary` 顶部必须包含：
 
 ```json
 {
-  "case_id": "<case_id>",
-  "status": "SOLVED",
-  "classification": "xor_or_bitshift | string_compare | hash_check | affine_lowercase | base64_or_encoding | unknown",
-  "candidate": "<candidate>",
-  "evidence": [
-    "static string ...",
-    "literal compare ...",
-    "transform ..."
-  ],
-  "reusable_pattern": "<pattern name>"
+  "schema_version": 1,
+  "report_id": "report_20260531_rework_local_sample_normalization_and_batch_solver",
+  "round_id": "round_20260531_rework_local_sample_normalization_and_batch_solver",
+  "based_on_decision_id": "decision_20260531_rework_local_sample_normalization_and_batch_solver",
+  "status": "SUCCESS | PARTIAL | BLOCKED",
+  "acceptance_recommendation": "ACCEPTED | ACCEPTED_WITH_LIMITATIONS | REWORK_REQUIRED | BLOCKED",
+  "files_changed": [],
+  "tests_ran": [],
+  "generated_artifacts": []
 }
 ```
 
-然后在 `project_state/codex_execution_report.md` 里只写摘要，不写样本内容。
-
-### 6.4 通用能力实现
-
-本轮只允许实现一个轻量通用能力文件：
-
-```text
-reverse_agent/simple_static_patterns.py
-```
-
-建议提供纯函数，不接入 GUI / harness / runtime：
-
-```python
-def solve_affine_lowercase_literal(target: str, a: int, b: int) -> str | None:
-    ...
-
-def solve_caesar_lowercase_literal(target: str, shift: int) -> str:
-    ...
-
-def xor_bytes(data: bytes, key: bytes) -> bytes:
-    ...
-
-def detect_hex_digest_kind(s: str) -> str | None:
-    ...
-```
-
-但本轮不要贪多。优先实现已有证据最强的：
-
-```text
-affine lowercase transform inverse
-```
-
-原因：上一轮已有样本 `cpp_6af7c7f1` 支撑该 pattern。
-
-测试文件：
-
-```text
-tests/test_simple_static_patterns.py
-```
-
-最低测试：
-
-```text
-1. affine lowercase inverse 能从 qvldxt 还原 higuys。
-2. 非小写输入返回 None 或抛出清晰错误。
-3. Caesar/ROT helper 如果实现，必须有 round-trip 测试。
-4. hex digest detector 如果实现，必须区分 md5/sha1/sha256 长度。
-```
-
-### 6.5 不接入策略主线
-
-本轮不要把 `simple_static_patterns.py` 接入：
-
-```text
-CompareAwareSearchStrategy
-samplereverse profile
-GUI pipeline
-harness runtime
-```
-
-原因：先把能力做成可测试库函数，下一轮再决定如何接入项目主流程。
+`generated_artifacts` 可以列出 ignored local artifacts，但必须明确它们没有提交 Git。
 
 ## 7. Tests
 
 必须运行：
 
 ```text
-python .\local_reverse_samples\<case_id_1>\solver.py
-python .\local_reverse_samples\<case_id_2>\solver.py
-...
 python -m py_compile reverse_agent/simple_static_patterns.py
 python -m pytest -q tests/test_simple_static_patterns.py
 git status --short
@@ -390,10 +278,10 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 git diff --check
 ```
 
-如果本轮只实现本地 solver，没有新增项目级能力，则必须说明原因：
+如果生成了多个 solver.py，则逐个运行：
 
-```text
-No project-level pattern promoted because fewer than one reusable pattern had sufficient evidence.
+```powershell
+python .\local_reverse_samples\<case_id>\solver.py
 ```
 
 不要求运行：
@@ -411,29 +299,28 @@ Base64/RC4 runtime probe
 立即停止并报告 `BLOCKED`：
 
 ```text
-1. local_reverse_samples/ 不存在。
-2. 找不到任何包含 metadata.json / case.json / codex_task.md 的 case。
-3. 所有样本都必须动态运行才能继续。
-4. 必须修改 local_samples.py 或 harness.py 才能继续。
-5. 必须提交 local_reverse_samples/ 内容才能完成。
-6. 必须运行 IDA/Olly/Frida runtime probe。
-7. 必须联网或下载外部资源。
-8. lint-decision 或 lint-report 无法通过，且不是本轮可安全修复的问题。
+1. local_samples add 无法登记根目录裸 .exe。
+2. local_samples solve 无法生成 codex_task.md。
+3. 必须执行 sample.exe 才能继续。
+4. 必须运行 IDA/Olly/Frida runtime probe。
+5. 必须提交 local_reverse_samples/ 内容。
+6. 必须修改 local_samples.py 或 harness.py。
+7. lint-report 无法通过且不是本轮可安全修复的问题。
 ```
 
 完成条件：
 
 ```text
-1. 解出或部分解出 3–5 个简单本地样本；如果不足 3 个，报告实际可用数量。
-2. 每个处理过的样本都有 analysis_notes.md / solver.py / solve_result.json。
-3. 所有 solver.py 都已运行，结果写入 pytest_result.txt。
-4. 至少归纳出一个 reusable pattern。
-5. 至少一个 pattern 被实现为 reverse_agent/simple_static_patterns.py 中的可测试纯函数；如果没有实现，必须给出明确证据不足原因。
-6. tests/test_simple_static_patterns.py 通过。
-7. local_reverse_samples/ 内容仍未进入 Git。
-8. 未执行未知 sample.exe。
-9. 未运行 runtime probe。
-10. project_state/codex_execution_report.md 只记录摘要，不包含样本内容或完整 solver。
+1. 根目录裸 .exe 已被登记为规范 case，或明确记录为 duplicate_root_sample / retained_source_attachment。
+2. 每个登记 case 都有 metadata.json / case.json / notes.md / codex_task.md。
+3. 至少重新 triage 3 个本地样本；如果不足 3 个，报告实际原因。
+4. 能静态解的样本生成 solver.py / solve_result.json。
+5. 不能静态解的样本给出 SKIPPED_STATIC_INSUFFICIENT 及静态证据。
+6. simple_static_patterns.py 的能力边界与样本证据一致。
+7. codex_report_summary 字段完整。
+8. local_reverse_samples/ 内容没有进入 Git。
+9. 未执行未知样本。
+10. 未运行 runtime probe。
 ```
 
-这个合并计划的核心是：本地 solver 作为训练材料，项目级 pattern 作为沉淀结果。每轮不是单纯“多解几题”，而是至少产出一个可测试、可复用的小能力。
+这轮返工的重点不是继续加新能力，而是先把本地样本目录治理回规范状态，再做有证据的静态 triage。
