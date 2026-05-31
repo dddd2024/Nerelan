@@ -5,6 +5,7 @@ __pycache__/
 .pytest_cache/
 
 solve_reports/
+local_reverse_samples/
 gpt_context_pack.zip
 
 project_state/rounds/*/git_diff.patch

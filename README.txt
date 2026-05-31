@@ -41,6 +41,7 @@ Reverse Agent（GUI 逆向解题助手）
 - `project_state\`：GPT 与 Codex 的轻量协作接口，应提交到 GitHub。
 - `PROJECT_PROGRESS_LOG.txt`：人工总账，仅在状态包缺失、战略复盘或追溯历史失败方向时读取，不是每轮默认上下文。
 - `solve_reports\`：运行产物目录，默认不应提交到 GitHub。
+- `local_reverse_samples\`：本地逆向训练样本目录，用于放置用户自己的 `.exe`、`.dll`、题目附件、压缩包、notes 和 harness `case.json`。该目录被 `.gitignore` 忽略，不上传 GitHub；适合保存版权不明确、体积较大、可能包含恶意逻辑或仅限本地使用的逆向例题。
 
 
 快速开始
@@ -84,6 +85,29 @@ Harness 的目标是把 reverse-agent 作为可复现实验系统运行，而不
     }
   ]
 }
+```
+
+本地训练样本也可以放在被 Git 忽略的 `local_reverse_samples\` 下，例如：
+
+```json
+{
+  "cases": [
+    {
+      "case_id": "crackme-sha256-001",
+      "input_value": "local_reverse_samples/crackme_sha256_001/sample.exe",
+      "expected_flag": "",
+      "category": "hash_check",
+      "tags": ["sha256", "static", "crackme"],
+      "notes": "本地 SHA-256 判断类逆向练习样本"
+    }
+  ]
+}
+```
+
+对应运行命令：
+
+```powershell
+python -m reverse_agent.harness --dataset .\local_reverse_samples\crackme_sha256_001\case.json --run-name crackme_sha256_001
 ```
 
 2) 运行可复现实验：
