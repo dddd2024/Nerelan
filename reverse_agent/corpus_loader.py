@@ -251,7 +251,12 @@ def validate_corpus(corpus_dir: Path) -> dict[str, Any]:
 
             # Validate sample_path in metadata
             sample_path_meta = metadata.get("sample_path", "")
-            if sample_path_meta:
+            if not sample_path_meta:
+                result["valid"] = False
+                result["errors"].append(
+                    f"[{case_id}] metadata.sample_path is required"
+                )
+            else:
                 # Must be relative path
                 if sample_path_meta.startswith("/") or sample_path_meta.startswith("\\"):
                     result["valid"] = False
@@ -270,6 +275,15 @@ def validate_corpus(corpus_dir: Path) -> dict[str, Any]:
                     result["errors"].append(
                         f"[{case_id}] sample_path must not contain '..'"
                     )
+                # Must equal sample_corpus/reverse/<case_id>/sample.exe
+                expected_path = f"sample_corpus/reverse/{case_id}/sample.exe"
+                # Normalize path separators for comparison
+                normalized_actual = sample_path_meta.replace("\\", "/")
+                if normalized_actual != expected_path:
+                    result["valid"] = False
+                    result["errors"].append(
+                        f"[{case_id}] sample_path must be '{expected_path}', got: '{sample_path_meta}'"
+                    )
 
         # Validate case.json
         case_json_path = case_dir / "case.json"
@@ -278,25 +292,69 @@ def validate_corpus(corpus_dir: Path) -> dict[str, Any]:
                 with open(case_json_path, "r", encoding="utf-8") as f:
                     case_data = json.load(f)
 
-                cases_list = case_data.get("cases", [])
-                if cases_list:
-                    first_case = cases_list[0]
-                    input_value = first_case.get("input_value", "")
+                # Check cases exists and is a list
+                if "cases" not in case_data:
+                    result["valid"] = False
+                    result["errors"].append(
+                        f"[{case_id}] case.json must have 'cases' field"
+                    )
+                else:
+                    cases_list = case_data["cases"]
+                    if not isinstance(cases_list, list):
+                        result["valid"] = False
+                        result["errors"].append(
+                            f"[{case_id}] case.json 'cases' must be a list"
+                        )
+                    elif len(cases_list) != 1:
+                        result["valid"] = False
+                        result["errors"].append(
+                            f"[{case_id}] case.json 'cases' must have exactly 1 element, got {len(cases_list)}"
+                        )
+                    else:
+                        first_case = cases_list[0]
+                        if not isinstance(first_case, dict):
+                            result["valid"] = False
+                            result["errors"].append(
+                                f"[{case_id}] case.json cases[0] must be an object"
+                            )
+                        else:
+                            # Check case_id matches
+                            case_id_in_json = first_case.get("case_id", "")
+                            if case_id_in_json != case_id:
+                                result["valid"] = False
+                                result["errors"].append(
+                                    f"[{case_id}] case.json cases[0].case_id must be '{case_id}', got: '{case_id_in_json}'"
+                                )
 
-                    # input_value must match sample_path from metadata
-                    if input_value:
-                        # Must not contain local_reverse_samples
-                        if "local_reverse_samples" in input_value.lower():
-                            result["valid"] = False
-                            result["errors"].append(
-                                f"[{case_id}] case.json input_value must not contain 'local_reverse_samples'"
-                            )
-                        # Must not escape corpus_dir
-                        if ".." in input_value:
-                            result["valid"] = False
-                            result["errors"].append(
-                                f"[{case_id}] case.json input_value must not contain '..'"
-                            )
+                            # Check input_value
+                            input_value = first_case.get("input_value", "")
+                            if not input_value:
+                                result["valid"] = False
+                                result["errors"].append(
+                                    f"[{case_id}] case.json cases[0].input_value is required"
+                                )
+                            else:
+                                # Must not contain local_reverse_samples
+                                if "local_reverse_samples" in input_value.lower():
+                                    result["valid"] = False
+                                    result["errors"].append(
+                                        f"[{case_id}] case.json input_value must not contain 'local_reverse_samples'"
+                                    )
+                                # Must not escape corpus_dir
+                                if ".." in input_value:
+                                    result["valid"] = False
+                                    result["errors"].append(
+                                        f"[{case_id}] case.json input_value must not contain '..'"
+                                    )
+                                # Must equal metadata.sample_path
+                                if sample_path_meta:
+                                    normalized_input = input_value.replace("\\", "/")
+                                    normalized_expected = sample_path_meta.replace("\\", "/")
+                                    if normalized_input != normalized_expected:
+                                        result["valid"] = False
+                                        result["errors"].append(
+                                            f"[{case_id}] case.json input_value must equal metadata.sample_path: expected '{sample_path_meta}', got: '{input_value}'"
+                                        )
             except json.JSONDecodeError as e:
                 result["valid"] = False
                 result["errors"].append(

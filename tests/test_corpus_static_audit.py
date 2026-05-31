@@ -71,11 +71,13 @@ class TestRunAudit:
             with open(corpus_dir / "manifest.json", "w") as f:
                 json.dump(manifest, f)
 
-            # Create metadata with correct sha256 and size
+            # Create metadata with correct sha256, size, and sample_path
+            expected_sample_path = f"sample_corpus/reverse/{case_id}/sample.exe"
             metadata = {
                 "case_id": case_id,
                 "sha256": actual_sha256,
                 "size_bytes": actual_size,
+                "sample_path": expected_sample_path,
                 "category": "test",
                 "tags": ["test"],
                 "safe_to_run": False,
@@ -84,8 +86,17 @@ class TestRunAudit:
             with open(case_dir / "metadata.json", "w") as f:
                 json.dump(metadata, f)
 
+            # Create case.json with valid case
+            case_data = {
+                "cases": [
+                    {
+                        "case_id": case_id,
+                        "input_value": expected_sample_path,
+                    }
+                ]
+            }
             with open(case_dir / "case.json", "w") as f:
-                json.dump({"cases": []}, f)
+                json.dump(case_data, f)
 
             with open(case_dir / "notes.md", "w") as f:
                 f.write("Test notes")

@@ -646,3 +646,188 @@ class TestValidateCorpusPathValidation:
             result = validate_corpus(corpus_dir)
             assert result["valid"] is False
             assert any("local_reverse_samples" in e for e in result["errors"])
+
+    def test_validate_metadata_sample_path_wrong_relative_path(self):
+        """Test that metadata.sample_path pointing to wrong relative path is rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corpus_dir = Path(tmpdir)
+            case_id = "test_case"
+            case_dir = corpus_dir / case_id
+            case_dir.mkdir()
+
+            # Create sample.exe
+            with open(case_dir / "sample.exe", "w") as f:
+                f.write("")
+
+            # Create manifest
+            manifest = {
+                "schema_version": 1,
+                "corpus_name": "test",
+                "samples": [
+                    {
+                        "case_id": case_id,
+                        "path": str(case_dir / "sample.exe"),
+                        "sha256": "",
+                        "size_bytes": 0,
+                    }
+                ],
+            }
+            with open(corpus_dir / "manifest.json", "w") as f:
+                json.dump(manifest, f)
+
+            # Create metadata with wrong sample_path (pointing to other.exe)
+            metadata = {
+                "case_id": case_id,
+                "sha256": "",
+                "size_bytes": 0,
+                "sample_path": "sample_corpus/reverse/test_case/other.exe",
+                "safe_to_run": False,
+                "upload_allowed": True,
+            }
+            with open(case_dir / "metadata.json", "w") as f:
+                json.dump(metadata, f)
+
+            # Create case.json
+            with open(case_dir / "case.json", "w") as f:
+                json.dump({"cases": []}, f)
+
+            with open(case_dir / "notes.md", "w") as f:
+                f.write("")
+
+            with open(case_dir / "codex_task.md", "w") as f:
+                f.write("")
+
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is False
+            assert any("sample_path must be" in e for e in result["errors"])
+
+    def test_validate_case_json_cases_empty(self):
+        """Test that case.json with empty cases array is rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            case_dir = self._create_basic_corpus(tmpdir)
+            case_id = "test_case"
+
+            # Create valid metadata
+            metadata = {
+                "case_id": case_id,
+                "sha256": "",
+                "size_bytes": 0,
+                "sample_path": f"sample_corpus/reverse/{case_id}/sample.exe",
+                "safe_to_run": False,
+                "upload_allowed": True,
+            }
+            with open(case_dir / "metadata.json", "w") as f:
+                json.dump(metadata, f)
+
+            # Create case.json with empty cases array
+            case_data = {"cases": []}
+            with open(case_dir / "case.json", "w") as f:
+                json.dump(case_data, f)
+
+            corpus_dir = Path(tmpdir)
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is False
+            assert any("must have exactly 1 element" in e for e in result["errors"])
+
+    def test_validate_case_json_cases_multiple(self):
+        """Test that case.json with multiple cases is rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            case_dir = self._create_basic_corpus(tmpdir)
+            case_id = "test_case"
+
+            # Create valid metadata
+            metadata = {
+                "case_id": case_id,
+                "sha256": "",
+                "size_bytes": 0,
+                "sample_path": f"sample_corpus/reverse/{case_id}/sample.exe",
+                "safe_to_run": False,
+                "upload_allowed": True,
+            }
+            with open(case_dir / "metadata.json", "w") as f:
+                json.dump(metadata, f)
+
+            # Create case.json with multiple cases
+            case_data = {
+                "cases": [
+                    {"case_id": case_id, "input_value": f"sample_corpus/reverse/{case_id}/sample.exe"},
+                    {"case_id": "other_case", "input_value": "sample_corpus/reverse/other_case/sample.exe"},
+                ]
+            }
+            with open(case_dir / "case.json", "w") as f:
+                json.dump(case_data, f)
+
+            corpus_dir = Path(tmpdir)
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is False
+            assert any("must have exactly 1 element" in e for e in result["errors"])
+
+    def test_validate_case_json_case_id_mismatch(self):
+        """Test that case.json with mismatched case_id is rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            case_dir = self._create_basic_corpus(tmpdir)
+            case_id = "test_case"
+
+            # Create valid metadata
+            metadata = {
+                "case_id": case_id,
+                "sha256": "",
+                "size_bytes": 0,
+                "sample_path": f"sample_corpus/reverse/{case_id}/sample.exe",
+                "safe_to_run": False,
+                "upload_allowed": True,
+            }
+            with open(case_dir / "metadata.json", "w") as f:
+                json.dump(metadata, f)
+
+            # Create case.json with wrong case_id
+            case_data = {
+                "cases": [
+                    {
+                        "case_id": "wrong_case_id",
+                        "input_value": f"sample_corpus/reverse/{case_id}/sample.exe"
+                    }
+                ]
+            }
+            with open(case_dir / "case.json", "w") as f:
+                json.dump(case_data, f)
+
+            corpus_dir = Path(tmpdir)
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is False
+            assert any("case_id must be" in e for e in result["errors"])
+
+    def test_validate_case_json_input_value_mismatch_metadata(self):
+        """Test that case.json input_value not matching metadata.sample_path is rejected."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            case_dir = self._create_basic_corpus(tmpdir)
+            case_id = "test_case"
+
+            # Create valid metadata
+            metadata = {
+                "case_id": case_id,
+                "sha256": "",
+                "size_bytes": 0,
+                "sample_path": f"sample_corpus/reverse/{case_id}/sample.exe",
+                "safe_to_run": False,
+                "upload_allowed": True,
+            }
+            with open(case_dir / "metadata.json", "w") as f:
+                json.dump(metadata, f)
+
+            # Create case.json with input_value not matching metadata.sample_path
+            case_data = {
+                "cases": [
+                    {
+                        "case_id": case_id,
+                        "input_value": f"sample_corpus/reverse/{case_id}/other.exe"
+                    }
+                ]
+            }
+            with open(case_dir / "case.json", "w") as f:
+                json.dump(case_data, f)
+
+            corpus_dir = Path(tmpdir)
+            result = validate_corpus(corpus_dir)
+            assert result["valid"] is False
+            assert any("input_value must equal metadata.sample_path" in e for e in result["errors"])
