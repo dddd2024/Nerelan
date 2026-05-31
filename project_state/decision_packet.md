@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260531_resume_samplereverse_handoff_exit_diagnosis",
-  "round_id": "round_20260531_resume_samplereverse_handoff_exit_diagnosis",
+  "decision_id": "decision_20260531_rework_artifact_readability_and_report_scope",
+  "round_id": "round_20260531_rework_artifact_readability_and_report_scope",
   "based_on_state_build_id": "state_20260527_153028_1d6dd81ecbd6",
   "based_on_state_digest": "1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02",
   "status": "APPROVED",
@@ -16,43 +16,38 @@
 
 # DECISION_PACKET
 
-本轮正式从 corpus/static-audit 工程支线切回 **samplereverse 逆向解题主线**。
+本轮是上一轮 `decision_20260531_resume_samplereverse_handoff_exit_diagnosis` 的返工轮。GPT 审计结论为 `REWORK_REQUIRED`：上一轮诊断文本形式基本完整，但没有闭合 artifact 可读性证据链，并且 report 的变更清单疑似遗漏 `rc4enc_static_analysis_report.md`。
 
-当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。`project_state/task_packet.json` 中的 `task` / `derived_task` 只是状态派生建议，不能自动覆盖本 decision。
+当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。`project_state/task_packet.json` 中的 `task` / `derived_task` 仍只能作为状态派生建议，不能覆盖本 decision。
 
-本轮目标不是继续 corpus 工程，也不是重新盲搜，而是基于当前 `project_state` 中已经标记为 current 的 samplereverse artifacts，恢复解题上下文并做一次 **bounded no-runtime handoff-exit diagnosis**：解释为什么 candidate path 已进入 decrypt handler，但在 handoff / compare 连接之前退出，并给出下一轮最小可执行修复或探针计划。
+本轮仍属于 **samplereverse 逆向解题主线**，但不是新解题尝试。本轮只做 project_state/report 返工审计，不运行任何 runtime probe，不执行 sample，不扩大搜索。
 
 ## 1. Goal
 
-恢复 `samplereverse` 解题主线，围绕当前瓶颈做有界诊断：
+修复上一轮验收链条中的两个阻断问题：
 
 ```text
-current_bottleneck.stage = compare_hook_path_reachability_audit
-current_bottleneck.reason = decrypt_handler_entered_but_candidate_path_exits_before_handoff
+1. 验证 artifact_index 标为 current 的四个 artifact 在 Codex 本地工作树中是否真实存在、是否可读。
+2. 修正上一轮报告/诊断对 artifact 可读性的表述，避免把 artifact_index freshness 直接当作可读证据。
+3. 解释 `rc4enc_static_analysis_report.md` 的来源，并修正 codex_execution_report 的 files_changed / generated_artifacts。
+4. 重新写入 codex_execution_report.md 和 pytest_result.txt，使它们准确反映本轮返工。
 ```
 
-本轮只允许使用当前 project_state 与 current artifacts 做诊断，不运行新 runtime probe。
-
-产出：
+本轮允许的输出：
 
 ```text
-project_state/samplereverse_handoff_exit_diagnosis.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
+project_state/samplereverse_handoff_exit_diagnosis.md  # 仅在需要降级或修正文案时修改
 ```
 
-`samplereverse_handoff_exit_diagnosis.md` 必须回答：
+可选输出：
 
 ```text
-1. 当前 selected/current run 是什么。
-2. 哪些 artifact 是 current，哪些是 stale/missing。
-3. compare_hook_path_reachability_audit 说明了什么。
-4. compare_real_lhs_provenance_audit 说明了什么。
-5. 当前 handoff 前退出最可能是哪类原因：branch guard、exception unwind、wrong hook site、candidate-dependent path not reaching handoff、or unknown。
-6. 当前证据是否足够生成下一轮具体 runtime probe。
-7. 如果证据不足，是否需要先重建 project_state，而不是运行 probe。
-8. 下一轮最小行动建议，必须避免 negative_results 中已失败方向。
+project_state/artifact_readability_rework_notes.md
 ```
+
+不得新增求解 artifact，不得修改 solver/runtime/harness 代码。
 
 ## 2. Current Evidence
 
@@ -75,47 +70,15 @@ reverse-agent-iteration@v2
 samplereverse-frontier@v2
 ```
 
-当前 `task_packet.json` 中仍有旧 derived task：
+当前 `task_packet.json` 的 `task` / `derived_task` 仍是旧派生任务：
 
 ```text
 Diagnose bounded compare hook path reachability
 ```
 
-但它不是执行权威；本 decision 才是当前轮执行权威。
+它不是本轮执行权威。本轮执行权威是本 `decision_packet.md`。
 
-当前 project_state 中的关键状态：
-
-```text
-current_bottleneck.stage = compare_hook_path_reachability_audit
-current_bottleneck.blocker = decrypt_handler_entered_but_candidate_path_exits_before_handoff
-current_bottleneck.confidence = medium
-```
-
-当前 known transform 仍为：
-
-```text
-input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix
-```
-
-当前 best/frontier 候选仍来自旧 project_state：
-
-```text
-exact2: 78d540b49c59077041414141414141, runtime_ci_exact_wchars=2, runtime_ci_distance5=246
-frontier/exact1: 5a3e7f46ddd474d041414141414141, runtime_ci_exact_wchars=1, runtime_ci_distance5=258
-```
-
-artifact freshness 约束：
-
-```text
-1. latest_artifacts_v2.compare_hook_path_reachability_audit is current.
-2. latest_artifacts_v2.compare_real_lhs_provenance_audit is current.
-3. latest_artifacts_v2.run_manifest is current.
-4. latest_artifacts_v2.summary is current.
-5. base64_rc4_static_point_discovery / compare_probe / function_semantic_audit / compare_handoff_return_site_probe 等旧 tool_artifacts 多数是 stale，只能作为历史背景，不能作为当前证据。
-6. missing artifacts 不能当作证据。
-```
-
-当前可用 current artifact 路径来自 `project_state/artifact_index.json`：
+上一轮 Codex 报告声称读取了以下 current artifacts：
 
 ```text
 solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/run_manifest.json
@@ -124,18 +87,22 @@ solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/t
 solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_real_lhs_provenance_audit/compare_real_lhs_provenance_audit.json
 ```
 
-如果上述路径不存在或无法读取，不要读取完整 `solve_reports/`，而是报告 `BLOCKED` 并建议重新执行：
+但 GPT 审计通过 GitHub contents API 复核时，至少 `run_manifest.json` 返回 `404 Not Found`。因此，上一轮报告中的 “current artifacts are readable / not required to rebuild project_state” 不能直接验收。
+
+`artifact_index.json` 可以作为索引证据：它标记上述 run/artifacts 为 `freshness=current`；但 freshness 只说明索引状态，不等于当前仓库或本地工作树可读性。Codex 必须在本轮显式区分：
 
 ```text
-python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_hook_readiness_ordering_20260526_r1
+artifact_index_freshness_current != artifact_file_readable
 ```
+
+上一轮还存在报告范围问题：GPT 对比提交时发现实际仓库差异包含 `rc4enc_static_analysis_report.md`，但上一轮 `codex_execution_report.md` 的 `files_changed` / `generated_artifacts` 未列出该文件。Codex 必须解释其来源并修正报告。
 
 ## 3. Do Not Do
 
 严禁：
 
 ```text
-1. 不运行任何 sample.exe。
+1. 不运行 sample.exe。
 2. 不运行 samplereverse harness。
 3. 不运行 runtime probe。
 4. 不运行 Base64/RC4 breakpoint probe。
@@ -155,15 +122,20 @@ python -m reverse_agent.project_state build --reports-dir solve_reports --sample
 18. 不修改 .codex-skills/。
 19. 不推进 corpus static audit 支线。
 20. 不修改 sample_corpus/reverse/。
+21. 不修改 reverse_agent/strategies/compare_aware_search.py。
+22. 不修改 reverse_agent/harness.py。
+23. 不修改 reverse_agent/profiles/samplereverse.py。
+24. 不新增 `rc4enc` 解题分析文档，除非只是解释已经存在的未登记文件来源。
 ```
 
 特别限制：
 
 ```text
-1. 本轮是 no-runtime diagnosis，只允许读取 project_state 和有界 current artifacts。
-2. 如果必须运行新 probe 才能回答问题，停止并在 diagnosis 中给出下一轮最小 probe 设计，不要直接执行。
-3. 不得把 stale/missing artifact 当作 current evidence。
-4. 不得仅因为 task_packet 仍是旧 derived_task 就跳过本 decision。
+1. 本轮只做 local file existence/readability audit 与 report correction。
+2. 可以直接检查指定 artifact path 是否存在；这不等于扫描完整 solve_reports/。
+3. 不得遍历 solve_reports/ 查找替代 artifact。
+4. 如果指定 artifact 不存在或不可读，必须把上一轮诊断降级为基于 artifact_index 摘要的未验真诊断，或者报告 BLOCKED。
+5. 不得继续声称 “all current artifact paths exist and are readable”，除非本轮用本地文件系统检查证明。
 ```
 
 ## 4. Files To Inspect
@@ -178,9 +150,10 @@ project_state/negative_results.json
 project_state/codex_execution_report.md
 project_state/decision_packet.md
 project_state/pytest_result.txt
+project_state/samplereverse_handoff_exit_diagnosis.md
 ```
 
-必须有界读取：
+必须有界检查这些路径是否存在、是否可读：
 
 ```text
 solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/run_manifest.json
@@ -189,25 +162,27 @@ solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/t
 solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_real_lhs_provenance_audit/compare_real_lhs_provenance_audit.json
 ```
 
-允许检查源码，只读为主：
+必须检查是否存在未登记或未解释的文件：
 
 ```text
-reverse_agent/strategies/compare_aware_search.py
-reverse_agent/profiles/samplereverse.py
-reverse_agent/project_state.py
-tests/test_compare_aware_search_strategy.py
-tests/test_project_state.py
+rc4enc_static_analysis_report.md
 ```
 
-允许新增或修改：
+允许只读检查源码或 git 状态：
 
 ```text
-project_state/samplereverse_handoff_exit_diagnosis.md
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
+git status --short
+git diff --name-only HEAD~1..HEAD  # 或等价范围；只用于确认本轮变更范围
 ```
 
-原则上不修改代码。如果 Codex 发现 project_state lint/report 小问题需要最小修复，只能修改 project_state 报告文件，不得改 runtime/harness/strategy 代码。
+如果本地提交历史范围不一致，Codex 必须在报告中说明使用了什么命令确认变更范围。
+
+不得读取：
+
+```text
+完整 solve_reports/
+完整 PROJECT_PROGRESS_LOG.txt
+```
 
 不得修改：
 
@@ -226,124 +201,112 @@ solve_reports/
 Codex 报告必须逐项回答：
 
 ```text
-1. 当前 mainline 是否已切回 reverse_solving。
-2. task_packet.task 是否只是 derived_task，而不是当前执行权威。
-3. decision_packet.md 是否控制当前轮。
+1. 当前 mainline 是否为 reverse_solving。
+2. task_packet.task / derived_task 是否只是派生任务，而不是当前执行权威。
+3. 本 decision_packet.md 是否控制当前轮。
 4. 当前 skill_profiles 是否为 reverse-agent-iteration@v2 + samplereverse-frontier@v2。
-5. compare_hook_path_reachability_audit 是否为 current。
-6. compare_real_lhs_provenance_audit 是否为 current。
-7. run_manifest / summary 是否为 current。
-8. 是否没有把 stale/missing artifact 当作 current evidence。
-9. compare_hook_path_reachability_audit 的核心结论是什么。
-10. compare_real_lhs_provenance_audit 的核心结论是什么。
-11. handoff 前退出的最小解释是什么。
-12. 现在是否足以设计下一轮 bounded runtime probe。
-13. 如果不足，是否需要先 project_state build 或补 artifact index。
-14. 是否没有运行 sample.exe。
-15. 是否没有运行 runtime probe。
-16. 是否没有运行 Base64/RC4 breakpoint probe。
-17. 是否没有读取完整 solve_reports/。
-18. 是否没有读取完整 PROJECT_PROGRESS_LOG.txt。
-19. 是否没有修改 .codex-skills/。
-20. 是否没有修改 sample_corpus/reverse/。
-21. 是否没有回旧 sample_solver 或扩大搜索预算。
-22. 是否没有重复 negative_results 中已失败方向。
+5. artifact_index 是否把 run_manifest 标为 current。
+6. 本地工作树中 run_manifest.json 是否存在、是否可读。
+7. artifact_index 是否把 summary 标为 current。
+8. 本地工作树中 summary.json 是否存在、是否可读。
+9. artifact_index 是否把 compare_hook_path_reachability_audit 标为 current。
+10. 本地工作树中 compare_hook_path_reachability_audit.json 是否存在、是否可读。
+11. artifact_index 是否把 compare_real_lhs_provenance_audit 标为 current。
+12. 本地工作树中 compare_real_lhs_provenance_audit.json 是否存在、是否可读。
+13. 是否明确区分 artifact freshness 与 file readability。
+14. 如果任一 current artifact 不存在或不可读，是否把上一轮 diagnosis 降级或标记 BLOCKED。
+15. 是否解释 `rc4enc_static_analysis_report.md` 的来源。
+16. 如果 `rc4enc_static_analysis_report.md` 是本轮/上一轮 Codex 产物，是否补入 files_changed / generated_artifacts。
+17. 是否没有运行 sample.exe。
+18. 是否没有运行 runtime probe。
+19. 是否没有运行 Base64/RC4 breakpoint probe。
+20. 是否没有读取完整 solve_reports/。
+21. 是否没有读取完整 PROJECT_PROGRESS_LOG.txt。
+22. 是否没有修改 .codex-skills/。
+23. 是否没有修改 sample_corpus/reverse/。
+24. 是否没有回旧 sample_solver 或扩大搜索预算。
+25. 是否没有重复 negative_results 中已失败方向。
+26. lint-decision 是否通过。
+27. lint-report 是否通过。
+28. git diff --check 是否通过。
 ```
 
 ## 6. Implementation Scope
 
-### 6.1 生成 diagnosis 文档
+### 6.1 Artifact readability audit
 
-新增：
+Codex 必须用本地文件系统直接检查四个指定 path。
 
-```text
-project_state/samplereverse_handoff_exit_diagnosis.md
-```
-
-必须包含：
+允许方式示例：
 
 ```text
-1. Decision / round metadata 摘要。
-2. State source 摘要：state_build_id、digest、selected/current run。
-3. Artifact freshness table：current / stale / missing。
-4. Current evidence：逐项总结 current artifacts。
-5. Handoff-exit hypothesis：列出 2-4 个候选原因，并按证据强弱排序。
-6. Negative-results compliance：说明没有重复哪些已失败方向。
-7. Next action recommendation：给出下一轮最小行动。
-8. Stop condition：如果证据不足，明确要求 project_state build 或 bounded artifact rebuild，而不是 runtime probe。
+python - <<'PY'
+from pathlib import Path
+paths = [
+  Path('solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/run_manifest.json'),
+  Path('solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/summary.json'),
+  Path('solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_hook_path_reachability_audit/compare_hook_path_reachability_audit.json'),
+  Path('solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_real_lhs_provenance_audit/compare_real_lhs_provenance_audit.json'),
+]
+for p in paths:
+    print(p, 'exists=', p.exists(), 'is_file=', p.is_file())
+    if p.is_file():
+        print('size=', p.stat().st_size)
+PY
 ```
 
-### 6.2 不实现新 solver
+只能检查这些精确 path，不得遍历 `solve_reports/`。
+
+### 6.2 Diagnosis correction
+
+如果四个 artifact 全部存在且可读：
+
+```text
+1. 保留上一轮 diagnosis 的核心结论。
+2. 在 diagnosis 或 report 中补充一节 Artifact Readability Verification。
+3. 明确说明 GitHub contents API 可能无法复核 solve_reports 本地 runtime artifacts，因此 GitHub 审计只能验证 project_state/report 文件，artifact 细节来自 Codex 本地工作树读取。
+```
+
+如果任一 artifact 不存在或不可读：
+
+```text
+1. 修改 samplereverse_handoff_exit_diagnosis.md，把相关 runtime 细节降级为 artifact_index/current_state 摘要证据，而不是已读取 artifact 证据。
+2. 报告状态不得写 SUCCESS + ACCEPTED。
+3. codex_report_summary.status 应为 BLOCKED 或 PARTIAL。
+4. acceptance_recommendation 应为 REWORK_REQUIRED 或 BLOCKED。
+5. Stop condition 应建议重新 build project_state：
+   python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_hook_readiness_ordering_20260526_r1
+```
+
+### 6.3 Report scope correction
+
+Codex 必须解释 `rc4enc_static_analysis_report.md`：
+
+```text
+1. 它是否存在于当前工作树。
+2. 它是否是本轮 Codex 生成。
+3. 它是否应当提交。
+4. 如果已经提交但不属于本轮，应说明它来自哪个提交或外部操作。
+5. 如果属于本轮/上一轮 Codex 改动，必须补入 codex_execution_report.md 的 files_changed / generated_artifacts。
+6. 如果不应存在，不能擅自删除；只能报告需要人工或后续 decision 处理。
+```
+
+### 6.4 不实现新功能
 
 本轮不得实现：
 
 ```text
-1. DES / RC4 / Base64 solver。
+1. new solver。
 2. new guided pool search。
-3. new candidate beam expansion。
+3. new candidate expansion。
 4. new runtime hook / breakpoint probe。
 5. sample_solver fallback。
-```
-
-### 6.3 不修改运行逻辑
-
-本轮不得修改：
-
-```text
-reverse_agent/strategies/compare_aware_search.py
-reverse_agent/harness.py
-reverse_agent/profiles/samplereverse.py
-```
-
-如果 Codex 认为必须修改代码才能继续，停止并在 diagnosis 中提出下一轮 code-change decision，不要直接改。
-
-### 6.4 更新 Codex report
-
-更新：
-
-```text
-project_state/codex_execution_report.md
-```
-
-顶部必须为：
-
-```text
-```json codex_report_summary
-```
-
-字段必须包含：
-
-```text
-schema_version
-report_id = report_20260531_resume_samplereverse_handoff_exit_diagnosis
-round_id = round_20260531_resume_samplereverse_handoff_exit_diagnosis
-based_on_decision_id = decision_20260531_resume_samplereverse_handoff_exit_diagnosis
-status
-acceptance_recommendation
-files_changed
-tests_ran
-generated_artifacts
-```
-
-### 6.5 更新 pytest_result.txt
-
-即使本轮不改代码，也必须记录最小检查命令：
-
-```text
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-python -m reverse_agent.project_state lint-report --state-dir project_state
-git diff --check
-```
-
-如果没有运行 pytest，`pytest_result.txt` 中必须明确写：
-
-```text
-No pytest required: documentation/project_state diagnosis only; no code changed.
+6. rc4enc 解题文档扩写。
 ```
 
 ## 7. Tests
 
-必须运行：
+必须运行并记录：
 
 ```text
 python -m reverse_agent.project_state lint-decision --state-dir project_state
@@ -351,52 +314,52 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 git diff --check
 ```
 
-不要求运行：
+本轮通常不需要 pytest，因为不应修改代码。若 Codex 修改了任何 Python 源码或测试文件，必须运行相关 pytest，并在 `pytest_result.txt` 和 `codex_execution_report.md` 中记录。
+
+`pytest_result.txt` 顶部必须包含 fenced JSON block，名称为：
 
 ```text
-python -m pytest -q
+pytest_result_summary
 ```
 
-除非 Codex 修改了代码。若修改代码，则必须运行相关测试，并在 report 中解释为什么违反了“原则上不修改代码”的默认限制。
+至少包含：
 
-不得运行：
-
-```text
-任何 sample.exe
-samplereverse harness
-IDA / OllyDbg / Frida / pywinauto
-runtime probe
-Base64/RC4 breakpoint probe
-old sample_solver blind search
+```json
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260531_rework_artifact_readability_and_report_scope",
+  "report_id": "<actual_report_id>",
+  "round_id": "round_20260531_rework_artifact_readability_and_report_scope",
+  "status": "PASSED_or_FAILED_or_BLOCKED",
+  "tests_ran": []
+}
 ```
 
 ## 8. Stop Conditions
 
-立即停止并报告 `BLOCKED`：
+立即停止并报告 `BLOCKED` 的条件：
 
 ```text
-1. current artifact 路径不存在或无法读取。
-2. artifact_index 与实际文件冲突，无法判断 current evidence。
-3. 必须读取完整 solve_reports/ 才能继续。
-4. 必须运行 runtime probe 才能回答当前问题。
-5. 必须修改 compare_aware_search.py / harness.py / samplereverse.py 才能继续。
-6. 必须修改 .codex-skills/。
-7. lint-decision 或 lint-report 无法通过。
+1. 任一必须检查的 artifact path 不存在或不可读，并且无法仅靠 project_state 摘要安全修正 diagnosis。
+2. project_state 文件互相冲突，例如 artifact_index 标 current，但 current_state 指向不同 selected run。
+3. `lint-decision` 或 `lint-report` 失败且不能通过只修改 project_state 报告文件修复。
+4. 发现 `rc4enc_static_analysis_report.md` 来源不明且可能污染本轮 diff，但无法在不删除文件的前提下解释。
 ```
 
-完成条件：
+如果停止，报告中必须给出下一步最小命令，不得泛泛要求“继续完善”。优先建议：
 
 ```text
-1. project_state/samplereverse_handoff_exit_diagnosis.md 已生成。
-2. diagnosis 只基于 project_state 和 bounded current artifacts。
-3. diagnosis 明确 artifact freshness，不把 stale/missing 当 current。
-4. diagnosis 明确 handoff 前退出的最小解释。
-5. diagnosis 给出下一轮最小行动建议。
-6. codex_execution_report.md 与本 decision 对齐。
-7. pytest_result.txt 记录 lint-decision / lint-report / git diff --check。
-8. 未执行任何 sample.exe。
-9. 未运行 runtime probe。
-10. 未读取完整 solve_reports/。
-11. 未修改 .codex-skills/。
-12. 未修改 samplereverse runtime/strategy 代码。
+python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_hook_readiness_ordering_20260526_r1
+```
+
+验收标准：
+
+```text
+ACCEPTED 仅在以下条件全部满足时成立：
+1. decision/report/pytest_result 三者 id 对齐。
+2. 四个 current artifact 的本地存在性和可读性被明确审计，或诊断被正确降级为 BLOCKED/PARTIAL。
+3. `rc4enc_static_analysis_report.md` 的来源被解释，report 文件清单被修正。
+4. 未运行任何 runtime/sample/probe。
+5. 未修改 .codex-skills/、sample_corpus/reverse/、solver/runtime/harness 代码。
+6. lint-decision、lint-report、git diff --check 均通过。
 ```
