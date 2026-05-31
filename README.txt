@@ -41,7 +41,8 @@ Reverse Agent（GUI 逆向解题助手）
 - `project_state\`：GPT 与 Codex 的轻量协作接口，应提交到 GitHub。
 - `PROJECT_PROGRESS_LOG.txt`：人工总账，仅在状态包缺失、战略复盘或追溯历史失败方向时读取，不是每轮默认上下文。
 - `solve_reports\`：运行产物目录，默认不应提交到 GitHub。
-- `local_reverse_samples\`：本地逆向训练样本目录，用于放置用户自己的 `.exe`、`.dll`、题目附件、压缩包、notes、harness `case.json` 和本地 `solver.py`。该目录被 `.gitignore` 忽略，不上传 GitHub；适合保存版权不明确、体积较大、可能包含恶意逻辑或仅限本地使用的逆向例题。
+- `local_reverse_samples\`：本地临时逆向样本导入目录，用于放置用户自己的 `.exe`、`.dll`、题目附件、压缩包、notes、harness `case.json` 和本地 `solver.py`。该目录被 `.gitignore` 忽略，不上传 GitHub；适合作为临时导入目录，样本经过整理后可迁移到 `sample_corpus/reverse/`。
+- `sample_corpus/reverse/`：可提交、可审计、可复现的精选逆向样本语料库。样本由用户明确允许上传，包含完整的 metadata.json、case.json、notes.md、codex_task.md 等文件。所有样本标记为 `safe_to_run=false`（禁止默认执行）和 `upload_allowed=true`（允许上传）。该目录应提交到 GitHub。
 
 
 快速开始

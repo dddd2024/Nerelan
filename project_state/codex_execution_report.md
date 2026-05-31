@@ -15,7 +15,8 @@
     "sample_corpus/reverse/desenc_40cba418/metadata.json",
     "sample_corpus/reverse/rc4enc_3480917d/metadata.json",
     "sample_corpus/reverse/seh_52be8d5c/metadata.json",
-    "tests/test_sample_corpus.py"
+    "tests/test_sample_corpus.py",
+    "README.txt"
   ],
   "tests_ran": [
     "python -m pytest tests/test_sample_corpus.py -v",
