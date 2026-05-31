@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-05-31T16:20:00+08:00",
+  "source_directory": "local_reverse_samples renamed to sample_corpus/reverse",
+  "corpus_name": "reverse",
+  "description": "Curated reverse engineering training samples for static analysis",
+  "samples": [
+    {
+      "case_id": "cpp_6af7c7f1",
+      "path": "sample_corpus/reverse/cpp_6af7c7f1/sample.exe",
+      "sha256": "6af7c7f131eb4991b04f1dc04fd2341113da1aaa318018c14b9e9b81a37186c3",
+      "size_bytes": 196690,
+      "category": "unknown",
+      "safe_to_run": false,
+      "upload_allowed": true
+    },
+    {
+      "case_id": "desenc_40cba418",
+      "path": "sample_corpus/reverse/desenc_40cba418/sample.exe",
+      "sha256": "40cba4189a9639da601b9d9b74fd9937c3d03fc93c90f5df12840e8b7763700f",
+      "size_bytes": 200784,
+      "category": "unknown",
+      "safe_to_run": false,
+      "upload_allowed": true
+    },
+    {
+      "case_id": "rc4enc_3480917d",
+      "path": "sample_corpus/reverse/rc4enc_3480917d/sample.exe",
+      "sha256": "3480917ddedce512f76e97c26df3b3ad12b71b34db472fa8836ba67528bcb09f",
+      "size_bytes": 196693,
+      "category": "unknown",
+      "safe_to_run": false,
+      "upload_allowed": true
+    },
+    {
+      "case_id": "seh_52be8d5c",
+      "path": "sample_corpus/reverse/seh_52be8d5c/sample.exe",
+      "sha256": "52be8d5c485f7c7c3340d42791505b9f55cf4ff63191768c0cc62f30cde4ae07",
+      "size_bytes": 196685,
+      "category": "unknown",
+      "safe_to_run": false,
+      "upload_allowed": true
+    }
+  ]
+}

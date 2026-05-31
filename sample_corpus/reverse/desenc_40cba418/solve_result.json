@@ -1,0 +1,18 @@
+{
+  "case_id": "desenc_40cba418",
+  "status": "SOLVED",
+  "answer": "itiseasy",
+  "method": "static_analysis + brute-force DES-ECB decryption scan",
+  "details": {
+    "des_key": "TakeEasy",
+    "algorithm": "DES-ECB",
+    "ciphertext_offset": "0x2AA30",
+    "total_candidates": 31,
+    "selected_candidate": "itiseasy",
+    "rationale": "Among 31 blocks that decrypt to printable ASCII, only offset 0x2AA30 produces a meaningful English phrase 'itiseasy' (it is easy). All other candidates are random-looking character sequences."
+  },
+  "files": {
+    "analysis_notes": "analysis_notes.md",
+    "solver": "solver.py"
+  }
+}

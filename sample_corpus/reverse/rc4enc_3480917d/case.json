@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "rc4enc_3480917d",
+      "input_value": "local_reverse_samples/rc4enc_3480917d/sample.exe",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "auto_imported"
+      ],
+      "notes": "Auto-generated from local sample intake."
+    }
+  ]
+}

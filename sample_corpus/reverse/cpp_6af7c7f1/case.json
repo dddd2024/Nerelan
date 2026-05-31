@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "cpp_6af7c7f1",
+      "input_value": "local_reverse_samples/cpp_6af7c7f1/sample.exe",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "auto_imported"
+      ],
+      "notes": "Auto-generated from local sample intake."
+    }
+  ]
+}

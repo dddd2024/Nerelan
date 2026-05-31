@@ -1,0 +1,26 @@
+{
+  "case_id": "rc4enc_3480917d",
+  "status": "SKIPPED_STATIC_INSUFFICIENT",
+  "candidate": null,
+  "confidence": "none",
+  "evidence": [
+    "RC4 key 'WORKER' (6 bytes) identified at .data 0x29A30",
+    "target ciphertext d5 23 a5 22 75 d8 b7 80 identified at .data 0x29B30",
+    "non-standard S-box init detected: fill 0xCC, first 6 bytes +2, then KSA",
+    "prompt: 'please input a correct string to encrypt:'",
+    "success: 'WoW!!!Great!!!You are a genius!!!'",
+    "failure: 'Sorry you are wrong!'",
+    "Imports: KERNEL32.dll only, no crypto API",
+    "RC4 implementation fully inlined in .text segment"
+  ],
+  "classification": "rc4_modified",
+  "skip_reason": "STATIC_INSUFFICIENT: RC4 key and target ciphertext extracted, but exact S-box preprocessing algorithm cannot be determined from static analysis alone. Multiple init variants tested (0xCC fill +2 + KSA, standard RC4, 0xCC fill + KSA, std KSA +2 after), none produced printable ASCII output. Requires disassembly to determine exact non-standard S-box initialization sequence.",
+  "solver_variants_tested": [
+    "0xCC fill, first 6 bytes +2, then KSA",
+    "standard RC4 (identity init + KSA)",
+    "0xCC fill, KSA (no +2 modification)",
+    "standard KSA, then first 6 bytes +2"
+  ],
+  "sample_executed": false,
+  "runtime_probe_used": false
+}

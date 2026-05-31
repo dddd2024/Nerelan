@@ -1,0 +1,18 @@
+{
+  "case_id": "seh_52be8d5c",
+  "status": "SKIPPED_STATIC_INSUFFICIENT",
+  "candidate": null,
+  "confidence": "none",
+  "evidence": [
+    "password constant extracted from .data: backslash-eluxfqvF|Puzzce",
+    "prompt and success/failure strings identified",
+    "SEH-related imports: UnhandledExceptionFilter, RtlUnwind, DebugBreak",
+    "three distinct execution paths detected from string analysis",
+    "transform algorithm cannot be determined from static strings alone",
+    "SEH control flow obfuscation requires disassembly to trace"
+  ],
+  "classification": "seh_obfuscation",
+  "skip_reason": "STATIC_INSUFFICIENT: password constant found but transform algorithm unknown; SEH obfuscation requires disassembly",
+  "sample_executed": false,
+  "runtime_probe_used": false
+}

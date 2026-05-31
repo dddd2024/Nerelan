@@ -3,9 +3,12 @@
 This module provides pure functions for solving simple reverse engineering patterns
 without requiring runtime execution or complex analysis frameworks.
 
-Patterns supported:
+Evidence-backed capabilities (derived from local sample analysis):
 - Affine lowercase alphabet transform (ax + b mod 26)
-- Caesar/ROT cipher
+  Evidence: cpp_6af7c7f1 (qvldxt -> higuys, a=5, b=7)
+
+Generic helpers (not derived from sample evidence, included for utility):
+- Caesar/ROT cipher (special case of affine with a=1)
 - XOR with single-byte or repeating key
 - Hex digest detection (MD5/SHA1/SHA256)
 """

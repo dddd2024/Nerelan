@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "case_id": "rc4enc_3480917d",
+  "sample_filename": "sample.exe",
+  "sample_path": "sample_corpus/reverse/rc4enc_3480917d/sample.exe",
+  "sha256": "3480917ddedce512f76e97c26df3b3ad12b71b34db472fa8836ba67528bcb09f",
+  "size_bytes": 196693,
+  "source": "renamed_from_local_reverse_samples",
+  "upload_allowed": true,
+  "safe_to_run": false,
+  "analysis_mode": "Static Analysis",
+  "category": "unknown",
+  "tags": [
+    "reverse",
+    "local-sample",
+    "curated"
+  ],
+  "created_at": "2026-05-31T07:57:41Z"
+}

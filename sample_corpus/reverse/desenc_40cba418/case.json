@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "desenc_40cba418",
+      "input_value": "local_reverse_samples/desenc_40cba418/sample.exe",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "auto_imported"
+      ],
+      "notes": "Auto-generated from local sample intake."
+    }
+  ]
+}

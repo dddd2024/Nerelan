@@ -1,0 +1,16 @@
+{
+  "case_id": "cpp_6af7c7f1",
+  "status": "SOLVED",
+  "candidate": "higuys",
+  "confidence": "high",
+  "evidence": [
+    "static prompt and success/failure strings identified",
+    "target string qvldxt identified in .data",
+    "lowercase-only input guard recovered from static disassembly",
+    "affine transform y = (x * 5 + 7) mod 26 reversed with inverse 21",
+    "solver re-encodes candidate to verify it matches qvldxt"
+  ],
+  "classification": "string_compare",
+  "sample_executed": false,
+  "runtime_probe_used": false
+}

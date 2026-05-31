@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "seh_52be8d5c",
+      "input_value": "local_reverse_samples/seh_52be8d5c/sample.exe",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "auto_imported"
+      ],
+      "notes": "Auto-generated from local sample intake."
+    }
+  ]
+}

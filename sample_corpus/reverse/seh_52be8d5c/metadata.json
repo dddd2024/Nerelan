@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "case_id": "seh_52be8d5c",
+  "sample_filename": "sample.exe",
+  "sample_path": "sample_corpus/reverse/seh_52be8d5c/sample.exe",
+  "sha256": "52be8d5c485f7c7c3340d42791505b9f55cf4ff63191768c0cc62f30cde4ae07",
+  "size_bytes": 196685,
+  "source": "renamed_from_local_reverse_samples",
+  "upload_allowed": true,
+  "safe_to_run": false,
+  "analysis_mode": "Static Analysis",
+  "category": "unknown",
+  "tags": [
+    "reverse",
+    "local-sample",
+    "curated"
+  ],
+  "created_at": "2026-05-31T07:57:36Z"
+}

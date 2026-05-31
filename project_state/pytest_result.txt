@@ -1,17 +1,13 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260531_local_simple_batch_solver_capability_extraction",
-  "report_id": "report_20260531_local_simple_batch_solver_capability_extraction",
-  "round_id": "round_20260531_local_simple_batch_solver_capability_extraction",
-  "generated_at": "2026-05-31T16:00:00+08:00",
+  "decision_id": "decision_20260531_rename_local_samples_to_uploadable_corpus",
+  "report_id": "report_20260531_rename_local_samples_to_uploadable_corpus",
+  "round_id": "round_20260531_rename_local_samples_to_uploadable_corpus",
+  "generated_at": "2026-05-31T16:30:00+08:00",
   "status": "PASSED",
   "tests_ran": [
-    "python .\\local_reverse_samples\\cpp_6af7c7f1\\solver.py",
-    "python -m py_compile reverse_agent/simple_static_patterns.py",
-    "python -m pytest -q tests/test_simple_static_patterns.py",
-    "git status --short",
-    "git check-ignore -v local_reverse_samples/",
+    "python -m pytest tests/test_sample_corpus.py -v",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "git diff --check"
@@ -19,37 +15,17 @@
 }
 ```
 
-2026-05-31 verification for decision_20260531_local_simple_batch_solver_capability_extraction
+2026-05-31 verification for decision_20260531_rename_local_samples_to_uploadable_corpus
 
 Command:
-python .\local_reverse_samples\cpp_6af7c7f1\solver.py
+python -m pytest tests/test_sample_corpus.py -v
 Result:
-passed; output `higuys`.
-
-Command:
-python -m py_compile reverse_agent/simple_static_patterns.py
-Result:
-passed; no syntax errors.
-
-Command:
-python -m pytest -q tests/test_simple_static_patterns.py
-Result:
-passed; 27 tests passed in 0.19s.
-
-Command:
-git status --short
-Result:
-passed; new files reverse_agent/simple_static_patterns.py and tests/test_simple_static_patterns.py ready for commit.
-
-Command:
-git check-ignore -v local_reverse_samples/
-Result:
-passed; .gitignore:8:local_reverse_samples/.
+passed; 15 tests passed in 0.05s.
 
 Command:
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 Result:
-passed; lint-decision OK for decision_20260531_local_simple_batch_solver_capability_extraction.
+passed; lint-decision OK for decision_20260531_rename_local_samples_to_uploadable_corpus.
 
 Command:
 python -m reverse_agent.project_state lint-report --state-dir project_state
