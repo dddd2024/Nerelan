@@ -1,56 +1,65 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260528_fix_material_hook_utf16_kind_protocol",
-  "round_id": "round_20260528_fix_material_hook_utf16_kind_protocol",
+  "decision_id": "decision_20260531_local_reverse_samples_ignore",
+  "round_id": "round_20260531_local_reverse_samples_ignore",
   "based_on_state_build_id": "state_20260527_153028_1d6dd81ecbd6",
   "based_on_state_digest": "1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02",
   "status": "APPROVED",
-  "mainline": "reverse_solving",
+  "mainline": "engineering_branch",
   "skill_profiles": [
-    "reverse-agent-iteration@v2",
-    "samplereverse-frontier@v2"
+    "reverse-agent-iteration@v2"
   ]
 }
 ```
 
 # DECISION_PACKET
 
-本轮属于 **reverse_solving** 主线，但任务是一个窄范围 correctness repair：修复 `material_hook_runtime_validation` 的 ACCEPT 路径与 `base64_rc4_breakpoint_probe` 之间的 UTF-16LE static point kind 协议不一致问题。
+本轮属于 **engineering_branch**，目标是新增一个本地逆向例题目录约定，让用户可以在项目工作区内直接放置 `.exe`、`notes.md`、`case.json` 等本地训练材料，同时保证该目录不会上传到 GitHub。
 
-当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。`project_state/task_packet.json` 中的 `task` / `derived_task` 是状态派生建议，不自动覆盖本 decision。
+当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。`project_state/task_packet.json` 中的 `task` / `derived_task` 仍是旧 reverse_solving 状态派生建议，不自动覆盖本 decision。
 
 ## 1. Goal
 
-修复 material-hook validation ACCEPT 后续路径中的协议 bug：
+新增并文档化一个本地目录：
 
 ```text
-material_hook_runtime_validation validated hook semantic kind = utf16le_payload
-base64_rc4_breakpoint_probe downstream protocol kind = utf16le
+local_reverse_samples/
 ```
 
-当前下游脚本 `reverse_agent/olly_scripts/base64_rc4_breakpoint_probe.py` 中 `_hook_results_from_events()` 只在 `point_kind == "utf16le"` 时把 material 计入 `hook_results["utf16le_payload"] = "inferred"`。因此，若上游把 static point 的 `kind` 写成 `utf16le_payload`，ACCEPT 路径即使命中 hook，也可能被误分类为 `breakpoint_probe_partial` 或 material unavailable。
-
-本轮目标是让 material validation 生成的 static point 同时满足：
+该目录用于用户本地存放真实逆向训练题目，例如：
 
 ```text
-1. 下游 probe 协议字段 kind 使用 utf16le。
-2. 上游语义字段保留 utf16le_payload，例如 material_kind 或 semantic_kind。
-3. 现有 gating 仍以 validated material hook 为前提，不放宽到未验证 hook。
-4. 单元测试覆盖 ACCEPT 后 static point kind 映射和下游 hook result 归一化。
+local_reverse_samples/
+  crackme_sha256_001/
+    sample.exe
+    notes.md
+    case.json
+  crackme_rc4_001/
+    sample.exe
+    notes.md
+    case.json
 ```
 
-本轮不要求重新跑真实 samplereverse runtime harness；重点是修复代码协议和测试覆盖。
+核心要求：
+
+```text
+1. local_reverse_samples/ 可以存在于项目工作区根目录。
+2. 用户可以直接把 .exe、.dll、压缩包、notes、case.json 放进去。
+3. local_reverse_samples/ 必须被 Git 忽略，不上传到 GitHub。
+4. README.txt 必须说明该目录的用途、不会提交、以及 harness 如何引用其中的 case.json。
+5. 不把 local_reverse_samples/ 设计成正式训练语料库，不引入 schema/lint/复杂样本管理系统。
+6. 不修改 .codex-skills/。
+7. 不推进 samplereverse 解题主线。
+```
 
 ## 2. Current Evidence
 
-当前主线：
+当前主线判断：
 
 ```text
-mainline = reverse_solving
-profile = samplereverse
-active_strategy = CompareAwareSearchStrategy
-current_mainline = L15(prefix8)
+mainline = engineering_branch
+reason = 用户明确要求新增本地样本目录，并保证不上传 GitHub；这是仓库使用方式和本地工作区约定，不是 samplereverse 解题推进。
 ```
 
 当前 project_state：
@@ -58,69 +67,68 @@ current_mainline = L15(prefix8)
 ```text
 state_build_id = state_20260527_153028_1d6dd81ecbd6
 state_digest = 1d6dd81ecbd615598f7b0fda09f1e859a4cba6a0d28b45711434e174ba6b5e02
-source_run = sr_arg0_hook_readiness_ordering_20260526_r1
-current_bottleneck.stage = compare_hook_path_reachability_audit
-current_bottleneck.reason = decrypt_handler_entered_but_candidate_path_exits_before_handoff
+active_strategy = CompareAwareSearchStrategy
+task_packet.task = Diagnose bounded compare hook path reachability
+task_packet.derived_task = Diagnose bounded compare hook path reachability
 ```
 
-当前 `task_packet.task` / `derived_task`：
+说明：
 
 ```text
-task = Diagnose bounded compare hook path reachability
-derived_task = Diagnose bounded compare hook path reachability
+1. task_packet.task / derived_task 是旧 reverse_solving 状态派生建议，不是本轮实际执行任务。
+2. 本轮由本 decision_packet 控制。
+3. 本轮不读取完整 solve_reports/，不读取完整 PROJECT_PROGRESS_LOG.txt。
+4. 本轮不使用 stale/missing artifact 作为 runtime evidence。
+5. 本轮不运行任何逆向 runtime probe。
 ```
 
-这些是当前状态派生建议，不是本轮实际执行任务。本轮由本 `decision_packet.md` 控制。
-
-相关 artifact freshness：
+当前上一轮 Codex 状态：
 
 ```text
-latest_artifacts_v2.compare_hook_path_reachability_audit.freshness = current
-latest_artifacts_v2.compare_hook_path_reachability_audit.source_run = sr_arg0_hook_readiness_ordering_20260526_r1
-latest_artifacts_v2.material_hook_runtime_validation.freshness = missing
-latest_artifacts_v2.base64_rc4_breakpoint_probe.freshness = missing
-latest_artifacts_v2.base64_rc4_static_point_discovery.freshness = stale
-```
-
-当前证据说明：
-
-```text
-1. material_hook_runtime_validation 当前没有 current runtime artifact；不能把旧 PR 的 partial run 当作当前 runtime 证据。
-2. base64_rc4_breakpoint_probe 当前 missing；本轮不应运行新的 Base64/RC4 runtime probe。
-3. base64_rc4_static_point_discovery 是 stale，只能作为协议/历史上下文，不可作为当前 runtime evidence。
-4. 这次修复来自代码协议审计：下游 base64_rc4_breakpoint_probe 的 _hook_results_from_events() 当前只识别 point_kind == "utf16le"。
+previous_decision_id = decision_20260528_fix_material_hook_utf16_kind_protocol
+previous_report_status = SUCCESS
+previous_acceptance_recommendation = ACCEPTED
+pytest_result.status = PASSED
 ```
 
 当前 skill profiles：
 
 ```text
 reverse-agent-iteration@v2
+```
+
+不使用：
+
+```text
 samplereverse-frontier@v2
 ```
+
+原因：本轮不是 samplereverse 样本前沿推进，不涉及 candidate、frontier、artifact freshness、runtime evidence 推进。
 
 ## 3. Do Not Do
 
 严禁：
 
 ```text
-1. 不运行 Base64/RC4 breakpoint probe。
-2. 不运行新的 reverse runtime probe 或 harness rerun，除非现有单元测试已经无法覆盖纯协议路径；即便需要，也必须先在 report 中标为 blocked 而不是擅自扩大 runtime。
-3. 不扩大 candidate set、beam、topN、budget、timeout、frontier iteration。
-4. 不回退旧 sample_solver 盲搜。
-5. 不追 final writer。
-6. 不把 stale base64_rc4_static_point_discovery 或 missing material_hook_runtime_validation 当 current evidence。
-7. 不读取完整 solve_reports/。
-8. 不读取完整 PROJECT_PROGRESS_LOG.txt。
-9. 不修改 `.codex-skills/`、registry、sync 或 agent runtime。
-10. 不通过修改下游 `base64_rc4_breakpoint_probe.py` 放宽所有 unknown kind 来绕过协议问题。
-11. 不删除或削弱现有 gating 测试。
-12. 不提交完整 solve_reports/。
+1. 不修改 .codex-skills/、registry、sync 脚本或 skill 内容。
+2. 不运行 samplereverse harness。
+3. 不运行 Base64/RC4 breakpoint probe。
+4. 不运行任何真实逆向 runtime probe。
+5. 不读取完整 solve_reports/。
+6. 不读取完整 PROJECT_PROGRESS_LOG.txt。
+7. 不提交任何 .exe、.dll、.bin、.zip、.7z、.rar 样本文件。
+8. 不提交 local_reverse_samples/ 目录内的任何实际内容。
+9. 不把 local_reverse_samples/ 放进 project_state/。
+10. 不把 local_reverse_samples/ 放进 solve_reports/。
+11. 不把 local_reverse_samples/ 设计成长期事实源。
+12. 不引入数据库、消息队列、重型 workflow 平台。
+13. 不新增复杂训练材料 schema/lint，除非当前最小需求无法满足。
 ```
 
-特别限制：
+特别注意：
 
 ```text
-本轮是协议修复，不是解题推进。修复点应尽量小，并保持 material validation 必须 ACCEPT 后才可生成可用于 Base64/RC4 probe 的 static points。
+Git 不跟踪空目录。因此如果 local_reverse_samples/ 整个目录被 .gitignore 忽略，那么该目录本身不会出现在 GitHub 上。Codex 可以在本地创建该目录用于用户使用，但它不应出现在 git diff 中。
 ```
 
 ## 4. Files To Inspect
@@ -137,27 +145,27 @@ project_state/decision_packet.md
 project_state/pytest_result.txt
 ```
 
-代码必须检查：
+代码/文档必须检查：
 
 ```text
-reverse_agent/strategies/compare_aware_search.py
-reverse_agent/olly_scripts/base64_rc4_breakpoint_probe.py
-tests/test_compare_aware_search_strategy.py
-tests/test_project_state.py
+.gitignore
+README.txt
+reverse_agent/harness.py
+tests/test_harness.py
 ```
 
 可以有界检查：
 
 ```text
-reverse_agent/project_state.py
+tests/
 ```
 
 不要默认检查：
 
 ```text
-完整 solve_reports/
-完整 PROJECT_PROGRESS_LOG.txt
-历史所有 rounds/
+solve_reports/
+PROJECT_PROGRESS_LOG.txt
+project_state/rounds/ 全量历史
 ```
 
 ## 5. Required Audit
@@ -165,15 +173,18 @@ reverse_agent/project_state.py
 Codex 报告必须回答：
 
 ```text
-1. 当前 `_breakpoint_static_points_from_material_hook_runtime_validation_payload()` 或等价函数是否把 `kind` 写成 `utf16le_payload`。
-2. 当前 `base64_rc4_breakpoint_probe.py` 是否仍只在 `point_kind == "utf16le"` 时设置 `hook_results["utf16le_payload"]`。
-3. 修复后传给下游 probe 的 static point 是否为 `kind="utf16le"`。
-4. 修复后是否仍保留上游语义字段，例如 `material_kind="utf16le_payload"`。
-5. 修复是否只影响 material-hook validation ACCEPT -> Base64/RC4 static point handoff，不影响 BLOCKED/REJECTED gating。
-6. 是否没有运行 Base64/RC4 probe、没有扩大搜索、没有使用 stale/missing artifact 作为 current evidence。
-7. 是否遵守 negative_results。
-8. `codex_execution_report.md` 顶部必须包含 `codex_report_summary`，且 `based_on_decision_id` 必须等于 `decision_20260528_fix_material_hook_utf16_kind_protocol`。
-9. `pytest_result.txt` 必须记录实际测试结果，不能只写摘要。
+1. 当前 .gitignore 是否已经忽略 local_reverse_samples/。
+2. 当前 README.txt 是否已经说明 local_reverse_samples/ 的用途。
+3. README.txt 是否明确说明 local_reverse_samples/ 不上传 GitHub。
+4. README.txt 是否给出 harness 使用 local_reverse_samples/**/case.json 的示例。
+5. 是否没有提交任何真实 .exe/.dll/.bin/.zip/.7z/.rar 样本。
+6. 是否没有修改 .codex-skills/。
+7. 是否没有运行 reverse runtime probe。
+8. 是否没有读取完整 solve_reports/。
+9. 是否没有改变 samplereverse 当前解题主线。
+10. codex_execution_report.md 顶部必须包含 codex_report_summary。
+11. codex_report_summary.based_on_decision_id 必须等于 decision_20260531_local_reverse_samples_ignore。
+12. pytest_result.txt 必须记录本轮实际检查命令。
 ```
 
 ## 6. Implementation Scope
@@ -181,62 +192,85 @@ Codex 报告必须回答：
 允许修改：
 
 ```text
-reverse_agent/strategies/compare_aware_search.py
-tests/test_compare_aware_search_strategy.py
-tests/test_project_state.py
+.gitignore
+README.txt
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
 
-必要时允许修改：
+允许本地创建但不提交：
 
 ```text
-reverse_agent/project_state.py
+local_reverse_samples/
+local_reverse_samples/.local_README.txt
 ```
 
-不建议修改：
+如果创建 `local_reverse_samples/.local_README.txt`，必须确认它被 `.gitignore` 忽略，不应出现在 `git diff --name-only` 中。
+
+推荐 `.gitignore` 修改：
+
+```gitignore
+local_reverse_samples/
+```
+
+推荐 README.txt 新增内容位置：
 
 ```text
-reverse_agent/olly_scripts/base64_rc4_breakpoint_probe.py
+放在“项目结构”部分，紧接 solve_reports/project_state 说明附近；
+或者放在“批量 Harness”部分，说明本地 dataset 可以位于 local_reverse_samples/ 下。
 ```
 
-除非审计证明更正确的修复点在下游脚本；如果修改下游脚本，必须保留现有 `utf16le` 协议兼容，并新增回归测试证明不会误把任意 unknown kind 当 material。
-
-推荐实现方式：
+推荐 README.txt 新增说明：
 
 ```text
-1. 在 material-hook validation -> static point 转换处增加映射：
-   semantic material_kind / kind = utf16le_payload
-   downstream static point kind = utf16le
-
-2. 保留 hook payload 中的语义字段：
-   material_kind = utf16le_payload
-   semantic_kind = utf16le_payload   # 可选
-
-3. 新增测试：
-   - 构造 material validation ACCEPT payload。
-   - 调用 `_breakpoint_static_points_from_material_hook_runtime_validation_payload()`。
-   - 断言返回 static point 位于 `static_points["utf16le_payload"]` 或现有容器结构中，但 point 内部下游协议 `kind == "utf16le"`。
-   - 断言保留 `material_kind == "utf16le_payload"`。
-   - 通过 base64_rc4_breakpoint_probe 的 `_hook_results_from_events()` 或等价公开路径验证 `point_kind="utf16le"` 会得到 `hook_results["utf16le_payload"] == "inferred"`。
-
-4. 如现有测试已经导入私有函数，允许继续使用私有函数做窄回归；否则通过较高层 runner fake subprocess 覆盖。
+- `local_reverse_samples\`：本地逆向训练样本目录，用于放置用户自己的 `.exe`、`.dll`、题目附件、notes 和 harness `case.json`。该目录被 `.gitignore` 忽略，不提交 GitHub；适合保存版权不明确、体积较大、可能包含恶意逻辑或仅限本地使用的逆向例题。
 ```
+
+推荐 README.txt 中给出示例：
+
+```json
+{
+  "cases": [
+    {
+      "case_id": "crackme-sha256-001",
+      "input_value": "local_reverse_samples/crackme_sha256_001/sample.exe",
+      "expected_flag": "",
+      "category": "hash_check",
+      "tags": ["sha256", "static", "crackme"],
+      "notes": "本地 SHA-256 判断类逆向练习样本"
+    }
+  ]
+}
+```
+
+推荐 README.txt 中给出运行命令：
+
+```powershell
+python -m reverse_agent.harness --dataset .\local_reverse_samples\crackme_sha256_001\case.json --run-name crackme_sha256_001
+```
+
+可选本地初始化动作：
+
+```powershell
+mkdir local_reverse_samples
+```
+
+注意：这个目录被忽略后不会上传 GitHub，这是预期行为。
 
 ## 7. Tests
 
 必须运行：
 
 ```text
-python -m py_compile reverse_agent/strategies/compare_aware_search.py reverse_agent/olly_scripts/base64_rc4_breakpoint_probe.py
-python -m pytest -q tests/test_compare_aware_search_strategy.py -k "material_hook or base64_rc4 or breakpoint or utf16"
-python -m pytest -q tests/test_project_state.py -k "material_hook or report or lint"
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-python -m reverse_agent.project_state lint-report --state-dir project_state
 git diff --check
+git status --short
+git check-ignore -v local_reverse_samples/
+python -m py_compile reverse_agent/harness.py
+python -m pytest -q tests/test_harness.py
+python -m reverse_agent.project_state lint-decision --state-dir project_state
 ```
 
-如果 Codex 修改了 `project_state` 或新增 report/test summary，还必须运行：
+如果修改了 `project_state/codex_execution_report.md`，还必须运行：
 
 ```text
 python -m reverse_agent.project_state lint-report --state-dir project_state
@@ -248,28 +282,45 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m pytest -q
 真实 samplereverse harness
 Base64/RC4 runtime breakpoint probe
+任何 IDA/Olly/Frida runtime probe
 ```
 
-如果 Codex 认为必须运行 broader pytest，允许运行，但不能以 broader pytest 替代上述 focused tests。
+如果 `git check-ignore -v local_reverse_samples/` 在目录不存在时无法验证，Codex 应先本地创建空目录：
+
+```powershell
+mkdir local_reverse_samples
+```
+
+然后重新运行：
+
+```text
+git check-ignore -v local_reverse_samples/
+```
+
+该目录仍不得进入 git diff。
 
 ## 8. Stop Conditions
 
 立即停止并报告 `BLOCKED`：
 
 ```text
-1. 找不到 material-hook validation 到 Base64/RC4 static point 的转换函数。
-2. 当前主干代码已经没有该协议问题，但测试无法证明；此时只新增回归测试和报告，不做无意义重写。
-3. 需要真实 runtime artifact 才能判断协议修复是否正确。
-4. lint-decision 显示本 decision 的 digest/meta 不匹配，且无法在本轮安全修复。
+1. .gitignore 规则无法忽略 local_reverse_samples/。
+2. README.txt 与现有项目结构冲突，无法安全插入本地样本目录说明。
+3. Codex 发现仓库已有同名目录且已被跟踪，需要用户决定是否迁移。
+4. lint-decision 因当前 decision_meta 与 project_state 状态不兼容而失败，且无法在本轮安全修正。
+5. 任何测试要求必须运行真实逆向样本或 runtime probe 才能验证本轮变更。
 ```
 
 完成条件：
 
 ```text
-1. ACCEPT path 中传给 downstream Base64/RC4 probe 的 static point 使用 `kind="utf16le"`。
-2. 上游语义仍保留 `utf16le_payload`。
-3. BLOCKED/REJECTED 不放行 Base64/RC4 probe。
-4. focused tests 覆盖该协议映射。
-5. codex_execution_report.md、pytest_result.txt 与本 decision_id 对齐。
-6. lint-report 通过；lint-decision 若因本轮 build 后 digest 变化失败，必须在 pytest_result 和 report 中明确标为 PARTIAL，不得写 PASSED。
+1. .gitignore 包含 local_reverse_samples/。
+2. README.txt 说明 local_reverse_samples/ 是本地逆向例题目录。
+3. README.txt 明确说明该目录不上传 GitHub。
+4. README.txt 给出 harness dataset 示例和运行命令。
+5. git check-ignore 能确认 local_reverse_samples/ 被忽略。
+6. git diff 中不包含 local_reverse_samples/ 下任何文件。
+7. 未修改 .codex-skills/。
+8. 未运行逆向 runtime probe。
+9. codex_execution_report.md、pytest_result.txt 与 decision_20260531_local_reverse_samples_ignore 对齐。
 ```
