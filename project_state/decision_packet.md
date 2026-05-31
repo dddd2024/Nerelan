@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260531_rework_classifier_report_consistency",
-  "round_id": "round_20260531_rework_classifier_report_consistency",
+  "decision_id": "decision_20260531_bounded_handoff_path_divergence_audit",
+  "round_id": "round_20260531_bounded_handoff_path_divergence_audit",
   "based_on_state_build_id": "state_20260531_140637_bec34f75e725",
   "based_on_state_digest": "bec34f75e725e19caacd862d21c6989ae9cc44bd5a89610c6a48ca490a328c28",
   "status": "APPROVED",
@@ -16,46 +16,40 @@
 
 # DECISION_PACKET
 
-本轮是上一轮 `decision_20260531_bounded_handoff_exit_classifier_probe` 的返工轮。GPT 审计结论为 `REWORK_REQUIRED`：classifier 核心功能已完成，但 `lint-decision` 失败，`pytest_result_summary.status=PARTIAL`，而 `codex_report_summary.status=SUCCESS` / `acceptance_recommendation=ACCEPTED`，三者状态语义不一致。
+本轮继续 **samplereverse 逆向解题主线**。上一轮 `decision_20260531_rework_classifier_report_consistency` 已完成状态一致性返工，当前 `lint-decision` / `lint-report` / `git diff --check` 已记录通过，`current_state.current_bottleneck.stage=compare_handoff_exit_classifier_audit`，`blocker/reason=candidate_dependent_non_reaching_path`。
 
-当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。`project_state/task_packet.json` 中的 `task` / `derived_task` 只能作为状态派生建议，不能覆盖本 decision。
+当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。`project_state/task_packet.json` 中的 `task` / `derived_task` 只是状态派生建议，不能覆盖本 decision。
 
-本轮仍属于 **samplereverse 逆向解题主线**，但不是新 runtime 解题轮。本轮只修 `lint-decision` / report / pytest_result / round manifest 状态一致性，不重新运行 handoff classifier，不运行新 probe，不扩大搜索。
+本轮目标不是继续报告修复，也不是求最终 flag。本轮只围绕上一轮 classifier 已确认的 3 个固定候选，做一个有界 handoff path divergence audit，定位候选间第一次控制流分歧点和最小下一步证据目标。
 
 ## 1. Goal
 
-修复上一轮 classifier probe 的验收阻断问题，使 project_state 状态一致、机器可审计：
+新增或生成一个 **bounded handoff path divergence audit**，建议 artifact 名称：
 
 ```text
-1. 解决或正确定义 `lint-decision` 在 classifier artifact/project_state rebuild 后的 digest mismatch 行为。
-2. 让 `codex_execution_report.md`、`pytest_result.txt`、lint 结果三者状态一致。
-3. 如果仍无法让 `lint-decision` 通过，则不得写 SUCCESS/ACCEPTED，必须降级为 PARTIAL / ACCEPTED_WITH_LIMITATIONS 或 REWORK_REQUIRED。
-4. 补齐 `files_changed` / `generated_artifacts`，明确列出 round archive 文件和 `project_state/model_gate.json` 的变更来源。
-5. 保留上一轮 classifier 结果，不重新生成 runtime artifact。
+compare_handoff_path_divergence_audit.json
 ```
 
-上一轮 classifier 结果可以保留：
+核心问题：
 
 ```text
-compare_handoff_exit_classifier_audit.json generated
-candidate_count=3
-runtime_backed_count=3
-overall_classification=candidate_dependent_non_reaching_path
+同 3 个候选都进入 predecessor_handoff_call 和 handoff_helper_entry，
+但两个候选随后 process_exception，另一个候选没有 exception、也没有到达 compare successor / actual compare。
+它们第一次产生候选相关差异的位置在哪里？差异是 return address、branch condition、exception target、内存状态，还是 instrumentation gap？
 ```
 
-本轮允许修改：
+本轮必须输出：
 
 ```text
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
-project_state/decision_packet.md
-project_state/model_gate.json  # 仅当需要同步状态且必须解释
-project_state/rounds/round_20260531_bounded_handoff_exit_classifier_probe/*  # 仅补充/修正归档元数据
-reverse_agent/project_state.py  # 仅当选择修复 lint-decision 消费后 digest mismatch 语义
-相关 tests/test_project_state.py  # 仅当修改 lint 逻辑
+1. per-candidate event sequence comparison。
+2. cross-candidate first_divergence classification。
+3. 对 exception_unwind_before_compare 的两个候选，记录 exception address / memory / previous event / next event。
+4. 对 branch_guard_before_compare 的候选，记录 handoff_helper_entry 后未命中 successor/compare/exception 的最小解释。
+5. overall classification 是否仍为 candidate_dependent_non_reaching_path。
+6. 下一轮最小 action：branch operand provenance、exception edge audit、hook surface correction，或 instrumentation repair。
 ```
 
-原则上不应修改 runtime/solver/strategy。若为了 lint 修复只需报告降级，则不要改 Python 源码。
+本轮可以优先从已有 current classifier artifact 做离线 divergence projection；只有当已有 artifact 缺少必要字段时，才允许新增一个 bounded runtime sidecar。若新增 runtime sidecar，必须使用同 3 个固定候选，且只围绕 handoff surface 捕获事件，不做 material capture。
 
 ## 2. Current Evidence
 
@@ -78,74 +72,106 @@ reverse-agent-iteration@v2
 samplereverse-frontier@v2
 ```
 
-当前 `task_packet.task` / `derived_task` 已被上一轮 build 更新为：
+当前 `task_packet.task` / `derived_task` 为：
 
 ```text
 Classify bounded candidate-dependent handoff exit
 ```
 
-它仍不是当前执行权威。本轮执行权威是本 `decision_packet.md`。
+它不是当前执行权威；本 decision 才是当前轮执行权威。
 
-上一轮已完成的有效结果：
-
-```text
-1. 新 artifact `compare_handoff_exit_classifier_audit` 已进入 artifact_index.latest_artifacts_v2，freshness=current。
-2. current_state.current_bottleneck.stage=compare_handoff_exit_classifier_audit。
-3. current_state.current_bottleneck.reason/blocker=candidate_dependent_non_reaching_path。
-4. 3 个固定候选都有 per-candidate classification。
-5. 未扩大候选、beam、topN、budget、timeout。
-6. 未运行 Base64/RC4 material capture。
-7. 未回旧 sample_solver。
-```
-
-上一轮阻断证据：
-
-```text
-1. pytest_result_summary.status=PARTIAL。
-2. lint-decision FAILED。
-3. 失败原因为 based_on_state_digest 不匹配 current_state.state_digest。
-4. codex_report_summary.status 仍写 SUCCESS。
-5. codex_report_summary.acceptance_recommendation 仍写 ACCEPTED。
-6. report 与 pytest_result 语义不一致。
-```
-
-当前 state build 已更新为：
+当前 state：
 
 ```text
 state_build_id=state_20260531_140637_bec34f75e725
 state_digest=bec34f75e725e19caacd862d21c6989ae9cc44bd5a89610c6a48ca490a328c28
 ```
 
-本 decision 的 `based_on_state_digest` 已使用当前 digest，因此本轮 `lint-decision` 应该能够通过。若不能通过，必须明确报告失败原因。
+当前 bottleneck：
+
+```text
+stage=compare_handoff_exit_classifier_audit
+blocker=candidate_dependent_non_reaching_path
+reason=candidate_dependent_non_reaching_path
+confidence=medium
+```
+
+current artifact：
+
+```text
+compare_handoff_exit_classifier_audit:
+  freshness=current
+  source_run=sr_arg0_hook_readiness_ordering_20260526_r1
+  path=solve_reports\harness_runs\sr_arg0_hook_readiness_ordering_20260526_r1\reports\tool_artifacts\samplereverse_patched\compare_handoff_exit_classifier_audit\compare_handoff_exit_classifier_audit.json
+```
+
+上一轮 classifier 结果：
+
+```text
+candidate_count=3
+runtime_backed_count=3
+overall_classification=candidate_dependent_non_reaching_path
+```
+
+固定候选必须保持不变：
+
+```text
+78d540b49c59077041414141414141 -> exception_unwind_before_compare
+5a3e7f46ddd474d041414141414141 -> exception_unwind_before_compare
+78d540b49c59076f41414141414141 -> branch_guard_before_compare
+```
+
+已知 event surface：
+
+```text
+predecessor_handoff_call
+handoff_helper_entry
+process_exception
+first_compare_successor
+actual_compare
+```
+
+已知禁止结论：
+
+```text
+1. fallback compare args 仍不能当作 provenance。
+2. old [ebp-0x1170] 不能复用为 real LHS source。
+3. Base64/RC4 breakpoint probe 仍被 negative_results 阻断，直到 real lhs producer 被证明。
+```
 
 ## 3. Do Not Do
 
 严禁：
 
 ```text
-1. 不重新运行 compare_handoff_exit_classifier_audit runtime sidecar。
-2. 不运行 sample.exe。
-3. 不运行 samplereverse harness。
-4. 不运行任何新 runtime probe。
-5. 不运行 Base64/RC4 breakpoint probe。
-6. 不做 Base64/RC4 material capture。
-7. 不回旧 sample_solver。
-8. 不扩大候选、beam、topN、budget、timeout。
-9. 不新增候选池。
-10. 不重复 exact2 basin value-pool evaluation。
-11. 不重复 H1/H3 fixed boundary contrast set。
-12. 不重复 current 5-candidate transform trace consistency audit。
-13. 不读取完整 solve_reports/。
-14. 不读取完整 PROJECT_PROGRESS_LOG.txt。
-15. 不修改 .codex-skills/。
-16. 不修改 sample_corpus/reverse/。
-17. 不提交完整 solve_reports/。
-18. 不新增 rc4enc 静态分析报告。
-19. 不把动态事实写入 .codex-skills/。
-20. 不把 stale/missing artifact 当 current evidence。
+1. 不回旧 sample_solver 盲搜。
+2. 不扩大 beam / topN / budget / timeout。
+3. 不新增候选池。
+4. 不运行 Base64/RC4 breakpoint probe。
+5. 不做 Base64/RC4 material capture。
+6. 不重复 exact2 basin value-pool evaluation。
+7. 不重复 H1/H3 fixed boundary contrast set。
+8. 不重复 current 5-candidate transform trace consistency audit。
+9. 不重复 compare_handoff_exit_classifier_audit 只为得到同样分类。
+10. 不把 0x4019e0 / 0x401b50 / 0x4018cd / 0x401be3 当作 Base64/RC4 material producer，除非本轮产生新的 instruction-level semantic evidence。
+11. 不复用旧 [ebp-0x1170] 作为 real LHS source。
+12. 不读取完整 solve_reports/。
+13. 不读取完整 PROJECT_PROGRESS_LOG.txt。
+14. 不修改 .codex-skills/。
+15. 不修改 sample_corpus/reverse/。
+16. 不提交完整 solve_reports/。
+17. 不新增 rc4enc 静态分析报告。
+18. 不把 stale/missing artifact 当 current evidence。
 ```
 
-本轮重点是状态一致性，不是继续逆向执行。
+本轮允许 runtime 的边界：
+
+```text
+1. 只有在 current classifier artifact 不足以做 divergence projection 时，才允许新增 bounded runtime sidecar。
+2. 必须使用同 3 个固定候选。
+3. 只允许 handoff surface：predecessor_handoff_call / handoff_helper_entry / process_exception / first_compare_successor / actual_compare / 必要的 branch/return context。
+4. 不允许 candidate search、material hooks、crypto hooks、Base64/RC4 hooks。
+```
 
 ## 4. Files To Inspect
 
@@ -161,27 +187,37 @@ project_state/decision_packet.md
 project_state/pytest_result.txt
 ```
 
-必须读取：
+必须有界读取：
 
 ```text
-project_state/rounds/round_20260531_bounded_handoff_exit_classifier_probe/round_manifest.json
-project_state/rounds/round_20260531_bounded_handoff_exit_classifier_probe/codex_execution_report.md
-project_state/rounds/round_20260531_bounded_handoff_exit_classifier_probe/pytest_result.txt
-project_state/rounds/round_20260531_bounded_handoff_exit_classifier_probe/decision_packet.md
+solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_handoff_exit_classifier_audit/compare_handoff_exit_classifier_audit.json
 ```
 
-只在选择修复 lint 逻辑时读取/修改：
+允许有界读取同 artifact 目录下的 3 个 candidate 子结果，但不得遍历完整 solve_reports：
 
 ```text
+solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_handoff_exit_classifier_audit/candidate_1/compare_handoff_exit_classifier_audit.json
+solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_handoff_exit_classifier_audit/candidate_2/compare_handoff_exit_classifier_audit.json
+solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_handoff_exit_classifier_audit/candidate_3/compare_handoff_exit_classifier_audit.json
+```
+
+允许检查和修改：
+
+```text
+reverse_agent/strategies/compare_aware_search.py
+tests/test_compare_aware_search_strategy.py
 reverse_agent/project_state.py
 tests/test_project_state.py
+project_state/artifact_index.json
+project_state/current_state.json
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
 ```
 
-不得读取：
+只有需要新增 runtime sidecar 时，才允许新增/修改：
 
 ```text
-完整 solve_reports/
-完整 PROJECT_PROGRESS_LOG.txt
+reverse_agent/olly_scripts/compare_handoff_path_divergence_audit.py
 ```
 
 不得修改：
@@ -189,11 +225,10 @@ tests/test_project_state.py
 ```text
 .codex-skills/
 sample_corpus/reverse/
-reverse_agent/strategies/compare_aware_search.py
-reverse_agent/olly_scripts/compare_handoff_exit_classifier_audit.py
-reverse_agent/olly_scripts/compare_pre_compare_handoff_target_probe.py
 reverse_agent/harness.py
 reverse_agent/sample_solver.py
+PROJECT_PROGRESS_LOG.txt
+rc4enc_static_analysis_report.md
 ```
 
 ## 5. Required Audit
@@ -205,92 +240,162 @@ Codex 报告必须逐项回答：
 2. task_packet.task / derived_task 是否只是派生任务。
 3. 本 decision_packet.md 是否控制当前轮。
 4. skill_profiles 是否为 reverse-agent-iteration@v2 + samplereverse-frontier@v2。
-5. 是否没有重新运行 classifier runtime sidecar。
-6. 是否没有运行 sample.exe。
-7. 是否没有运行新 runtime probe。
-8. 是否没有运行 Base64/RC4 breakpoint probe。
+5. 是否保持同 3 个固定候选。
+6. 是否没有扩大候选、beam、topN、budget、timeout。
+7. 是否没有运行 Base64/RC4 breakpoint probe。
+8. 是否没有运行 material capture。
 9. 是否没有回旧 sample_solver。
-10. 是否没有扩大候选、beam、topN、budget、timeout。
-11. 是否保留上一轮 classifier artifact 结果。
-12. 上一轮 artifact_index/current_state 是否仍指向 compare_handoff_exit_classifier_audit current。
-13. pytest_result_summary.status 是否与实际 checks 一致。
-14. codex_report_summary.status 是否与 pytest_result_summary.status 一致。
-15. acceptance_recommendation 是否与 lint 结果一致。
-16. lint-decision 是否通过。
-17. lint-report 是否通过。
-18. git diff --check 是否通过。
-19. 如果 lint-decision 仍失败，是否把 report 降级而不是写 SUCCESS/ACCEPTED。
-20. files_changed 是否列出本轮实际变更。
-21. generated_artifacts 是否列出本轮新生成/更新的 round archive 或报告文件。
-22. 是否解释 `project_state/model_gate.json` 的变更来源，若发生变更。
-23. 是否没有修改 .codex-skills/。
-24. 是否没有修改 sample_corpus/reverse/。
-25. 是否没有读取完整 solve_reports/。
-26. 是否没有读取完整 PROJECT_PROGRESS_LOG.txt。
-27. negative_results 是否未被重复违反。
+10. 是否没有读取完整 solve_reports/。
+11. 是否没有读取完整 PROJECT_PROGRESS_LOG.txt。
+12. 是否没有修改 .codex-skills/。
+13. 是否没有修改 sample_corpus/reverse/。
+14. 是否没有把 stale/missing artifact 当 current。
+15. 是否读取了 current compare_handoff_exit_classifier_audit。
+16. 是否输出 compare_handoff_path_divergence_audit 或等价 artifact。
+17. artifact 是否包含 per-candidate event sequence。
+18. artifact 是否包含 cross-candidate first_divergence。
+19. artifact 是否记录两个 exception candidates 的 exception address / memory / previous event。
+20. artifact 是否记录 branch_guard candidate 未到达 successor/compare/exception 的原因。
+21. artifact 是否给出 next_bounded_action。
+22. artifact_index 是否 additive 更新，不删除旧字段。
+23. current_state 是否只更新当前 bottleneck/latest artifact 摘要，不写入 skill。
+24. negative_results 是否未被重复违反。
+25. lint-decision 是否通过。
+26. lint-report 是否通过。
+27. 相关 pytest 是否通过。
+28. git diff --check 是否通过。
 ```
 
 ## 6. Implementation Scope
 
-### 6.1 首选方案：只修报告状态一致性
+### 6.1 首选：offline divergence projection
 
-如果当前 rework decision 的 `based_on_state_digest` 与 current_state digest 一致，优先只执行：
-
-```text
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-python -m reverse_agent.project_state lint-report --state-dir project_state
-git diff --check
-```
-
-如果三项都通过：
+先从 current classifier artifact 中提取：
 
 ```text
-1. 更新 codex_execution_report.md 为 SUCCESS / ACCEPTED。
-2. 更新 pytest_result.txt 为 PASSED。
-3. 在 report 中说明上一轮 classifier artifact 未重新运行，仅保留结果。
-4. files_changed 只列本轮改动文件。
-5. generated_artifacts 只列本轮实际生成/更新的归档或报告文件。
+candidate_hex
+classification
+events
+hook_hit_order
+process_exception_context
+first_compare_successor_observed
+actual_compare_observed
+process_exception_observed
+return_address_module_offset
+scripted_hook_status
+scripted_returncode
 ```
 
-### 6.2 如果 lint-decision 仍失败
+生成 `compare_handoff_path_divergence_audit.json`，最小 schema：
 
-若 `lint-decision` 仍因 digest mismatch 或 consumed decision 语义失败，不能掩盖失败。必须二选一：
+```json
+{
+  "schema_version": 1,
+  "sample": "samplereverse",
+  "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+  "source_artifact": "compare_handoff_exit_classifier_audit",
+  "candidate_count": 3,
+  "runtime_backed_count": 3,
+  "candidates": [
+    {
+      "candidate_hex": "...",
+      "prior_classification": "exception_unwind_before_compare",
+      "event_sequence": ["predecessor_handoff_call", "handoff_helper_entry", "process_exception"],
+      "return_address_summary": {},
+      "exception_summary": {},
+      "first_divergence_role": "exception_path"
+    }
+  ],
+  "cross_candidate": {
+    "common_prefix_events": ["predecessor_handoff_call", "handoff_helper_entry"],
+    "first_divergence_after": "handoff_helper_entry",
+    "divergence_classes": ["exception_unwind_before_compare", "branch_guard_before_compare"],
+    "overall_classification": "candidate_dependent_non_reaching_path"
+  },
+  "next_bounded_action": "..."
+}
+```
+
+如果 existing artifact 已足够，禁止重新运行 runtime。
+
+### 6.2 仅在必要时新增 bounded runtime sidecar
+
+如果 offline projection 无法回答 first divergence，需要新增 runtime sidecar 时：
 
 ```text
-方案 A：修复 reverse_agent.project_state 的 lint-decision 语义
-- 仅允许针对“decision 已被 matching report 消费后 current_state digest 更新”的场景做明确、可测试的兼容逻辑。
-- 必须新增/更新 tests/test_project_state.py。
-- 必须运行完整 tests/test_project_state.py。
-
-方案 B：不改源码，降级 report
-- codex_report_summary.status 不得为 SUCCESS。
-- acceptance_recommendation 不得为 ACCEPTED。
-- pytest_result_summary.status 保持 PARTIAL 或 FAILED。
-- 明确给出下一轮最小修复任务。
+artifact kind: compare_handoff_path_divergence_audit
+候选数: 3
+surface: predecessor_handoff_call / handoff_helper_entry / process_exception / first_compare_successor / actual_compare / branch-or-return context
+不得加入 Base64/RC4/material hooks
+不得扩大 timeout/budget，除非必须沿用已有 per_probe_timeout
 ```
 
-不得出现：
+sidecar 只允许补充：
 
 ```text
-lint-decision FAILED
-pytest_result_summary.status=PARTIAL
-codex_report_summary.status=SUCCESS
-acceptance_recommendation=ACCEPTED
+1. handoff_helper_entry 后的 branch/return context。
+2. exception 前后一条事件。
+3. first_compare_successor 是否命中。
+4. actual_compare 是否命中。
+5. candidate-specific divergence point。
 ```
 
-### 6.3 Round archive 修正
+### 6.3 分类规则
 
-如果本轮更新了 report/pytest_result，应同步归档当前 rework round，或明确不归档的原因。
+建议分类：
 
-上一轮 classifier round archive 已存在时，不要重复覆盖其事实内容；只允许补充状态说明，且必须在 report 中列出。
+```text
+两个候选 event sequence = predecessor_handoff_call -> handoff_helper_entry -> process_exception
+且第三个候选 = predecessor_handoff_call -> handoff_helper_entry -> no successor/no compare/no exception
+=> first_divergence_after=handoff_helper_entry
+=> overall_classification=candidate_dependent_non_reaching_path
+```
 
-### 6.4 不实现新 runtime 功能
+更细分：
 
-本轮不得修改上一轮新增 classifier sidecar、Olly script 或 strategy runtime 逻辑。若发现上一轮 classifier 代码有 bug，只记录为后续 decision，不在本轮修。
+```text
+exception candidates share same exception module_offset/address pattern
+=> exception_edge_shared_for_subset
+
+branch candidate has no exception but also no successor/compare
+=> branch_guard_or_silent_non_reaching_path
+
+return_address_module_offset differs across candidates before divergence
+=> return_context_candidate_dependent
+
+insufficient event data
+=> instrumentation_inconclusive
+```
+
+### 6.4 Project state update
+
+如果生成 artifact：
+
+```text
+artifact_index.latest_artifacts_v2.compare_handoff_path_divergence_audit = current
+current_state.latest_compare_handoff_path_divergence_audit = summary
+current_state.current_bottleneck.stage = compare_handoff_path_divergence_audit
+```
+
+如果 next action 是 branch operand provenance，下一轮应聚焦 branch guard operand，不得搜索扩展。
+
+如果 next action 是 exception edge audit，下一轮应聚焦 exception source / faulting memory provenance，不得 Base64/RC4 probe。
+
+如果 next action 是 instrumentation repair，下一轮应修 hook surface，不得扩大候选。
 
 ## 7. Tests
 
-必须运行并记录：
+必须运行：
+
+```text
+python -m pytest -q tests/test_compare_aware_search_strategy.py
+python -m pytest -q tests/test_project_state.py
+python -m reverse_agent.project_state lint-decision --state-dir project_state
+python -m reverse_agent.project_state lint-report --state-dir project_state
+git diff --check
+```
+
+如果只做 offline projection 且不修改 Python 源码，可不跑 full pytest，但必须说明原因，并至少运行：
 
 ```text
 python -m reverse_agent.project_state lint-decision --state-dir project_state
@@ -298,40 +403,45 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 git diff --check
 ```
 
-如果修改 `reverse_agent/project_state.py` 或 `tests/test_project_state.py`，还必须运行：
+如果新增/修改 Python 文件，必须运行对应 pytest 和 py_compile。
+
+如果实际运行 bounded runtime sidecar，必须在 report 中记录：
 
 ```text
-python -m pytest -q tests/test_project_state.py
-python -m py_compile reverse_agent/project_state.py
+1. exact command
+2. candidate_count
+3. timeout/budget
+4. generated artifact path
+5. runtime result status
+6. proof that no Base64/RC4/material hook was used
 ```
-
-如果意外修改其他 Python 文件，必须运行对应测试，并在 report 中解释为什么发生修改。
 
 `pytest_result.txt` 顶部必须包含：
 
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260531_rework_classifier_report_consistency",
+  "decision_id": "decision_20260531_bounded_handoff_path_divergence_audit",
   "report_id": "<actual_report_id>",
-  "round_id": "round_20260531_rework_classifier_report_consistency",
-  "status": "PASSED_or_PARTIAL_or_FAILED",
+  "round_id": "round_20260531_bounded_handoff_path_divergence_audit",
+  "status": "PASSED_or_PARTIAL_or_FAILED_or_BLOCKED",
   "tests_ran": []
 }
 ```
 
 ## 8. Stop Conditions
 
-立即停止并报告 `BLOCKED` 或 `REWORK_REQUIRED` 的条件：
+立即停止并报告 `BLOCKED` 的条件：
 
 ```text
-1. 当前 project_state 文件缺失，无法判断 classifier round 状态。
-2. `lint-decision` 失败且无法通过本轮允许范围修复。
-3. `lint-report` 失败且无法通过只修 report/pytest_result 修复。
-4. 必须重新运行 runtime sidecar 才能继续。
-5. 必须读取完整 solve_reports/ 才能继续。
-6. 必须修改 .codex-skills/ 才能继续。
-7. 必须修改 sample_corpus/reverse/ 才能继续。
+1. current compare_handoff_exit_classifier_audit artifact 在 Codex 本地不可读。
+2. 无法确认 3 个固定候选。
+3. 需要扩大候选、beam、topN、budget、timeout 才能继续。
+4. 需要运行 Base64/RC4 breakpoint probe 才能继续。
+5. 需要 material capture 才能继续。
+6. 需要读取完整 solve_reports/ 才能继续。
+7. 无法生成 per-candidate divergence summary。
+8. lint-decision 或 lint-report 失败且不能通过只修 project_state/report 修复。
 ```
 
 验收标准：
@@ -339,24 +449,26 @@ python -m py_compile reverse_agent/project_state.py
 ```text
 ACCEPTED:
 - decision/report/pytest_result ID 对齐。
-- lint-decision 通过。
-- lint-report 通过。
-- git diff --check 通过。
-- pytest_result_summary.status 与 codex_report_summary.status 语义一致。
-- acceptance_recommendation 与实际 checks 一致。
-- 没有重新运行 runtime classifier。
-- 没有修改 solver/runtime/strategy/skill/sample_corpus。
-- files_changed/generated_artifacts 完整准确。
+- 保持同 3 个固定候选。
+- 输出 compare_handoff_path_divergence_audit 或等价 artifact。
+- artifact 包含 per-candidate event sequence 和 cross-candidate first_divergence。
+- 明确 next_bounded_action。
+- 没有搜索扩展，没有 Base64/RC4 probe，没有 material capture，没有旧 sample_solver。
+- artifact_index/current_state additive 更新正确。
+- lint 和相关测试通过。
 
 ACCEPTED_WITH_LIMITATIONS:
-- 核心状态一致性完成，但 GitHub 侧仍无法复核 solve_reports artifact 内容。
-- 或只采用 report 降级方案，明确保留 classifier 功能结果但不宣称 full ACCEPTED。
+- artifact 由 offline projection 生成，未新增 runtime，但字段足够支撑下一步。
+- 或 GitHub 侧无法复核 solve_reports artifact 内容，但 Codex 本地路径、schema、size 已记录。
 
 REWORK_REQUIRED:
-- lint-decision 仍失败但 report 仍写 SUCCESS/ACCEPTED。
-- pytest_result 与 codex_report_summary 状态不一致。
-- files_changed/generated_artifacts 缺失关键变更。
+- artifact 缺少 per-candidate divergence。
+- 未区分 exception subset 与 branch_guard subset。
+- report 与 pytest_result 状态不一致。
+- 把 stale/missing artifact 当 current。
+- 重复 negative_results 已禁止方向。
 
 BLOCKED:
-- project_state 缺失或冲突，无法在本轮范围内修复。
+- current classifier artifact 本地不可读。
+- 必须重新 build project_state 或重新生成 classifier 才能继续。
 ```
