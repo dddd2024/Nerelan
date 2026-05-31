@@ -2,15 +2,15 @@
   "cases": [
     {
       "case_id": "cpp_6af7c7f1",
-      "input_value": "local_reverse_samples/cpp_6af7c7f1/sample.exe",
+      "input_value": "sample_corpus/reverse/cpp_6af7c7f1/sample.exe",
       "expected_flag": "",
       "category": "unknown",
       "tags": [
-        "local",
         "reverse",
-        "auto_imported"
+        "local-sample",
+        "curated"
       ],
-      "notes": "Auto-generated from local sample intake."
+      "notes": "Curated reverse training sample. Static analysis first. Do not execute by default."
     }
   ]
 }

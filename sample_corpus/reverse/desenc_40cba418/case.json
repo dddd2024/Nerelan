@@ -2,15 +2,15 @@
   "cases": [
     {
       "case_id": "desenc_40cba418",
-      "input_value": "local_reverse_samples/desenc_40cba418/sample.exe",
+      "input_value": "sample_corpus/reverse/desenc_40cba418/sample.exe",
       "expected_flag": "",
       "category": "unknown",
       "tags": [
-        "local",
         "reverse",
-        "auto_imported"
+        "local-sample",
+        "curated"
       ],
-      "notes": "Auto-generated from local sample intake."
+      "notes": "Curated reverse training sample. Static analysis first. Do not execute by default."
     }
   ]
 }

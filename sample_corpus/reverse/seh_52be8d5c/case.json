@@ -2,15 +2,15 @@
   "cases": [
     {
       "case_id": "seh_52be8d5c",
-      "input_value": "local_reverse_samples/seh_52be8d5c/sample.exe",
+      "input_value": "sample_corpus/reverse/seh_52be8d5c/sample.exe",
       "expected_flag": "",
       "category": "unknown",
       "tags": [
-        "local",
         "reverse",
-        "auto_imported"
+        "local-sample",
+        "curated"
       ],
-      "notes": "Auto-generated from local sample intake."
+      "notes": "Curated reverse training sample. Static analysis first. Do not execute by default."
     }
   ]
 }
