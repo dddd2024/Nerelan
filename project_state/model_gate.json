@@ -1,6 +1,6 @@
 {
   "context_level": 2,
-  "generated_at": "2026-05-31T14:06:37Z",
+  "generated_at": "2026-05-31T14:45:09Z",
   "missing_evidence": [],
   "next_local_action": "",
   "reason": "candidate_dependent_non_reaching_path",

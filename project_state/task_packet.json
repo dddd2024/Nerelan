@@ -8,6 +8,7 @@
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
     "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
+    "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
     "compare_probe": "solve_reports\\tool_artifacts\\samplereverse_compare_probe_real\\samplereverse_compare_probe.json",
@@ -23,7 +24,7 @@
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json"
   },
-  "based_on_state_digest": "bec34f75e725e19caacd862d21c6989ae9cc44bd5a89610c6a48ca490a328c28",
+  "based_on_state_digest": "d2e114f45b75080eadf84cfb6a85235ebc126abea6246dc295fbce5f0b7a9857",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -63,9 +64,9 @@
     "blocker": "candidate_dependent_non_reaching_path",
     "confidence": "medium",
     "reason": "candidate_dependent_non_reaching_path",
-    "stage": "compare_handoff_exit_classifier_audit"
+    "stage": "compare_handoff_path_divergence_audit"
   },
-  "derived_task": "Classify bounded candidate-dependent handoff exit",
+  "derived_task": "Trace bounded branch operand or exception edge provenance",
   "do_not_do": [
     "do not return to old sample_solver blind search",
     "do not only increase beam or budget",
@@ -87,7 +88,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-05-31T14:06:37Z",
+  "generated_at": "2026-05-31T14:45:09Z",
   "included": [
     "current state",
     "best candidates",
@@ -117,10 +118,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260531_140637",
+  "round_id": "round_20260531_144509",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260531_140637_bec34f75e725",
+  "state_build_id": "state_20260531_144509_d2e114f45b75",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,
@@ -129,6 +130,6 @@
     "has_runtime_validation": true,
     "has_stall_stage": true
   },
-  "task": "Classify bounded candidate-dependent handoff exit",
+  "task": "Trace bounded branch operand or exception edge provenance",
   "task_source": "derived_from_sample_artifacts"
 }

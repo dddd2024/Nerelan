@@ -70,6 +70,7 @@ POST_HANDOFF_BRANCH_OUTCOME_AUDIT_FILE_NAME = "post_handoff_branch_outcome_audit
 POST_HANDOFF_EXCEPTION_UNWIND_AUDIT_FILE_NAME = "post_handoff_exception_unwind_audit.json"
 COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME = "compare_hook_path_reachability_audit.json"
 COMPARE_HANDOFF_EXIT_CLASSIFIER_AUDIT_FILE_NAME = "compare_handoff_exit_classifier_audit.json"
+COMPARE_HANDOFF_PATH_DIVERGENCE_AUDIT_FILE_NAME = "compare_handoff_path_divergence_audit.json"
 COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME = "compare_lhs_producer_audit.json"
 COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME = "compare_lhs_upstream_writer_audit.json"
 COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
@@ -11574,6 +11575,214 @@ def build_compare_handoff_exit_classifier_audit_payload(
             "instrumentation_inconclusive": "fix bounded sidecar instrumentation before expanding search",
         }.get(overall_classification, "continue bounded handoff-exit diagnosis"),
     }
+
+
+def _handoff_divergence_event_sequence(candidate: dict[str, object]) -> list[str]:
+    hook_hit_order = candidate.get("hook_hit_order", [])
+    if isinstance(hook_hit_order, list) and hook_hit_order:
+        return [
+            str(item.get("name") or item.get("event") or "")
+            for item in hook_hit_order
+            if isinstance(item, dict) and str(item.get("name") or item.get("event") or "").strip()
+        ]
+    events = candidate.get("events", [])
+    events = events if isinstance(events, list) else []
+    return [
+        str(item.get("name") or item.get("event") or "")
+        for item in events
+        if isinstance(item, dict) and str(item.get("name") or item.get("event") or "").strip()
+    ]
+
+
+def _handoff_divergence_common_prefix(sequences: Sequence[Sequence[str]]) -> list[str]:
+    if not sequences:
+        return []
+    prefix: list[str] = []
+    for values in zip(*sequences):
+        if len(set(values)) != 1:
+            break
+        prefix.append(values[0])
+    return prefix
+
+
+def _handoff_divergence_return_summary(candidate: dict[str, object]) -> dict[str, object]:
+    events = candidate.get("events", [])
+    events = events if isinstance(events, list) else []
+    rows = [
+        {
+            "name": item.get("name") or item.get("event") or "",
+            "event": item.get("event") or "",
+            "module_offset": item.get("module_offset") or "",
+            "return_address_module_offset": item.get("return_address_module_offset") or "",
+            "order": item.get("order"),
+        }
+        for item in events
+        if isinstance(item, dict)
+    ]
+    return {
+        "event_return_addresses": rows,
+        "handoff_helper_entry_return_address": next(
+            (
+                str(item.get("return_address_module_offset") or "")
+                for item in rows
+                if str(item.get("name") or "") == "handoff_helper_entry"
+            ),
+            "",
+        ),
+        "return_context_candidate_dependent": True,
+    }
+
+
+def _handoff_divergence_exception_summary(candidate: dict[str, object]) -> dict[str, object]:
+    context = candidate.get("process_exception_context", {})
+    context = context if isinstance(context, dict) else {}
+    event = context.get("event", {})
+    event = event if isinstance(event, dict) else {}
+    exception = event.get("exception", {})
+    exception = exception if isinstance(exception, dict) else {}
+    return {
+        "observed": bool(candidate.get("process_exception_observed")),
+        "address": exception.get("address", ""),
+        "memory": exception.get("memory", ""),
+        "type": exception.get("type", ""),
+        "module_offset": event.get("module_offset", ""),
+        "previous_event": context.get("previous_event", {}),
+        "next_event": context.get("next_event", {}),
+    }
+
+
+def build_compare_handoff_path_divergence_audit_payload(
+    *,
+    source_payload: dict[str, object],
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    source_candidates = source_payload.get("candidates", [])
+    source_candidates = [dict(item) for item in source_candidates if isinstance(item, dict)]
+    candidate_rows: list[dict[str, object]] = []
+    sequences: list[list[str]] = []
+    divergence_classes: list[str] = []
+    exception_subset = 0
+    branch_subset = 0
+    for candidate in source_candidates:
+        sequence = _handoff_divergence_event_sequence(candidate)
+        sequences.append(sequence)
+        classification = str(candidate.get("classification") or "").strip()
+        if classification and classification not in divergence_classes:
+            divergence_classes.append(classification)
+        exception_observed = bool(candidate.get("process_exception_observed"))
+        successor_observed = bool(candidate.get("first_compare_successor_observed"))
+        compare_observed = bool(candidate.get("actual_compare_observed"))
+        if exception_observed:
+            role = "exception_path"
+            exception_subset += 1
+            minimal_explanation = "process_exception observed before compare successor or actual compare"
+        elif not successor_observed and not compare_observed:
+            role = "branch_guard_or_silent_non_reaching_path"
+            branch_subset += 1
+            minimal_explanation = (
+                "handoff_helper_entry observed, then no process_exception, first_compare_successor, or actual_compare"
+            )
+        else:
+            role = "compare_reached_or_instrumentation_inconclusive"
+            minimal_explanation = "event surface does not match the known exception or branch-guard subsets"
+        candidate_rows.append(
+            {
+                "candidate_hex": candidate.get("candidate_hex", ""),
+                "candidate_prefix": candidate.get("candidate_prefix", ""),
+                "runtime_backed": bool(candidate.get("runtime_backed")),
+                "prior_classification": classification,
+                "event_sequence": sequence,
+                "return_address_summary": _handoff_divergence_return_summary(candidate),
+                "exception_summary": _handoff_divergence_exception_summary(candidate),
+                "first_compare_successor_observed": successor_observed,
+                "actual_compare_observed": compare_observed,
+                "process_exception_observed": exception_observed,
+                "scripted_hook_status": candidate.get("scripted_hook_status", ""),
+                "scripted_returncode": candidate.get("scripted_returncode"),
+                "first_divergence_role": role,
+                "minimal_explanation": minimal_explanation,
+            }
+        )
+    common_prefix = _handoff_divergence_common_prefix(sequences)
+    first_divergence_after = common_prefix[-1] if common_prefix else ""
+    overall = str(
+        source_payload.get("overall_classification")
+        or source_payload.get("classification")
+        or "candidate_dependent_non_reaching_path"
+    ).strip()
+    first_divergence_classification = (
+        "candidate_dependent_handoff_exit_after_helper_entry"
+        if first_divergence_after == "handoff_helper_entry" and exception_subset and branch_subset
+        else "instrumentation_inconclusive"
+    )
+    return {
+        "schema_version": 1,
+        "artifact_kind": "compare_handoff_path_divergence_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "source_run": source_payload.get("source_run") or "sr_arg0_hook_readiness_ordering_20260526_r1",
+        "source_artifact": "compare_handoff_exit_classifier_audit",
+        "source_artifact_kind": source_payload.get("artifact_kind", "compare_handoff_exit_classifier_audit"),
+        "classification": overall,
+        "overall_classification": overall,
+        "attempted": True,
+        "offline_projection": True,
+        "runtime_sidecar_executed": False,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(candidate_rows),
+        "runtime_backed_count": sum(1 for item in candidate_rows if bool(item.get("runtime_backed"))),
+        "fixed_candidates": source_payload.get("fixed_candidates", []),
+        "candidates": candidate_rows,
+        "cross_candidate": {
+            "common_prefix_events": common_prefix,
+            "first_divergence_after": first_divergence_after,
+            "first_divergence_classification": first_divergence_classification,
+            "divergence_classes": divergence_classes,
+            "exception_subset_classification": "exception_edge_shared_for_subset"
+            if exception_subset
+            else "",
+            "branch_subset_classification": "branch_guard_or_silent_non_reaching_path"
+            if branch_subset
+            else "",
+            "overall_classification": overall,
+            "exception_candidate_count": exception_subset,
+            "branch_guard_candidate_count": branch_subset,
+        },
+        "breakpoint_probe_allowed": False,
+        "blocked_actions": [
+            "do not expand candidates, beam, topN, budget, timeout, or frontier from this diagnostic",
+            "do not run Base64/RC4 breakpoint probe from handoff divergence evidence alone",
+            "do not treat fallback compare args or old [ebp-0x1170] as provenance",
+        ],
+        "next_bounded_action": "branch_operand_provenance_or_exception_edge_audit",
+    }
+
+
+def run_compare_handoff_path_divergence_audit(
+    *,
+    source_payload: dict[str, object],
+    artifacts_dir: Path,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_HANDOFF_PATH_DIVERGENCE_AUDIT_FILE_NAME
+    payload = build_compare_handoff_path_divergence_audit_payload(
+        source_payload=source_payload,
+        sample=sample,
+        profile=profile,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    return {"payload": payload, "result_path": str(result_path)}
 
 
 def run_compare_handoff_exit_classifier_audit(

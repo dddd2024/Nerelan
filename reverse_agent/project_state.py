@@ -40,6 +40,7 @@ IMPORTANT_ARTIFACTS = {
     "post_handoff_exception_unwind_audit": "post_handoff_exception_unwind_audit.json",
     "compare_hook_path_reachability_audit": "compare_hook_path_reachability_audit.json",
     "compare_handoff_exit_classifier_audit": "compare_handoff_exit_classifier_audit.json",
+    "compare_handoff_path_divergence_audit": "compare_handoff_path_divergence_audit.json",
     "compare_lhs_producer_audit": "compare_lhs_producer_audit.json",
     "compare_lhs_upstream_writer_audit": "compare_lhs_upstream_writer_audit.json",
     "compare_callsite_reanchor_and_lhs_provenance_audit": (
@@ -88,6 +89,7 @@ RUNTIME_VALIDATION_KEYS = {
     "post_handoff_exception_unwind_audit",
     "compare_hook_path_reachability_audit",
     "compare_handoff_exit_classifier_audit",
+    "compare_handoff_path_divergence_audit",
     "compare_lhs_producer_audit",
     "compare_lhs_upstream_writer_audit",
     "compare_callsite_reanchor_and_lhs_provenance_audit",
@@ -2178,6 +2180,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_handoff_exit_classifier_audit = _read_json(
         artifact_refs.get("compare_handoff_exit_classifier_audit")
     )
+    compare_handoff_path_divergence_audit = _read_json(
+        artifact_refs.get("compare_handoff_path_divergence_audit")
+    )
     compare_lhs_producer_audit = _read_json(artifact_refs.get("compare_lhs_producer_audit"))
     compare_lhs_upstream_writer_audit = _read_json(artifact_refs.get("compare_lhs_upstream_writer_audit"))
     compare_callsite_reanchor_audit = _read_json(
@@ -2331,6 +2336,14 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if handoff_exit_classifier_classification:
         stage = "compare_handoff_exit_classifier_audit"
         reason = handoff_exit_classifier_blocker or handoff_exit_classifier_classification
+    handoff_path_divergence_classification = str(
+        compare_handoff_path_divergence_audit.get("classification")
+        or compare_handoff_path_divergence_audit.get("overall_classification")
+        or ""
+    ).strip()
+    if handoff_path_divergence_classification:
+        stage = "compare_handoff_path_divergence_audit"
+        reason = handoff_path_divergence_classification
     compare_lhs_producer_classification = str(
         compare_lhs_producer_audit.get("classification") or ""
     ).strip()
@@ -2381,6 +2394,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if handoff_exit_classifier_classification:
         stage = "compare_handoff_exit_classifier_audit"
         reason = handoff_exit_classifier_blocker or handoff_exit_classifier_classification
+    if handoff_path_divergence_classification:
+        stage = "compare_handoff_path_divergence_audit"
+        reason = handoff_path_divergence_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -2456,6 +2472,8 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
                 if stage == "compare_hook_path_reachability_audit"
                 else handoff_exit_classifier_blocker
                 if stage == "compare_handoff_exit_classifier_audit"
+                else handoff_path_divergence_classification
+                if stage == "compare_handoff_path_divergence_audit"
                 else ""
             ),
             "confidence": "medium" if stage or reason else "low",
@@ -2823,6 +2841,27 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             "next_bounded_action": compare_handoff_exit_classifier_audit.get("next_bounded_action"),
         }
         if compare_handoff_exit_classifier_audit
+        else {},
+        "latest_compare_handoff_path_divergence_audit": {
+            "classification": handoff_path_divergence_classification or None,
+            "overall_classification": compare_handoff_path_divergence_audit.get(
+                "overall_classification"
+            ),
+            "artifact": artifact_refs.get("compare_handoff_path_divergence_audit"),
+            "source_run": compare_handoff_path_divergence_audit.get("source_run"),
+            "source_artifact": compare_handoff_path_divergence_audit.get("source_artifact"),
+            "candidate_count": compare_handoff_path_divergence_audit.get("candidate_count"),
+            "runtime_backed_count": compare_handoff_path_divergence_audit.get("runtime_backed_count"),
+            "cross_candidate": compare_handoff_path_divergence_audit.get("cross_candidate", {}),
+            "candidates": compare_handoff_path_divergence_audit.get("candidates", [])[:3]
+            if isinstance(compare_handoff_path_divergence_audit.get("candidates"), list)
+            else [],
+            "breakpoint_probe_allowed": compare_handoff_path_divergence_audit.get(
+                "breakpoint_probe_allowed"
+            ),
+            "next_bounded_action": compare_handoff_path_divergence_audit.get("next_bounded_action"),
+        }
+        if compare_handoff_path_divergence_audit
         else {},
         "latest_compare_lhs_producer_audit": {
             "classification": compare_lhs_producer_classification or None,
@@ -3970,6 +4009,8 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         if reason == "instrumentation_inconclusive":
             return "Restore bounded handoff-exit classifier instrumentation"
         return "Classify bounded candidate-dependent handoff exit"
+    if stage == "compare_handoff_path_divergence_audit":
+        return "Trace bounded branch operand or exception edge provenance"
     if stage == "compare_real_lhs_provenance_audit" and reason in {
         "writer_path_observed_but_unconnected",
         "compare_lhs_runtime_backed_writer_missing",

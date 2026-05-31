@@ -1342,6 +1342,68 @@ def test_project_state_indexes_compare_handoff_exit_classifier_audit(tmp_path: P
     assert task_packet["task"] == "Trace exception unwind edge before compare"
 
 
+def test_project_state_indexes_compare_handoff_path_divergence_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_path_divergence")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    (artifacts_dir / "compare_handoff_path_divergence_audit").mkdir(parents=True, exist_ok=True)
+    _write_json(
+        artifacts_dir / "compare_handoff_path_divergence_audit" / "compare_handoff_path_divergence_audit.json",
+        {
+            "artifact_kind": "compare_handoff_path_divergence_audit",
+            "classification": "candidate_dependent_non_reaching_path",
+            "overall_classification": "candidate_dependent_non_reaching_path",
+            "source_run": "sr_path",
+            "source_artifact": "compare_handoff_exit_classifier_audit",
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "cross_candidate": {
+                "common_prefix_events": ["predecessor_handoff_call", "handoff_helper_entry"],
+                "first_divergence_after": "handoff_helper_entry",
+                "exception_subset_classification": "exception_edge_shared_for_subset",
+                "branch_subset_classification": "branch_guard_or_silent_non_reaching_path",
+            },
+            "candidates": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "prior_classification": "exception_unwind_before_compare",
+                    "event_sequence": [
+                        "predecessor_handoff_call",
+                        "handoff_helper_entry",
+                        "process_exception",
+                    ],
+                    "exception_summary": {"address": "0xf41913", "memory": "0x5305154b"},
+                },
+                {
+                    "candidate_hex": "78d540b49c59076f41414141414141",
+                    "prior_classification": "branch_guard_before_compare",
+                    "event_sequence": ["predecessor_handoff_call", "handoff_helper_entry"],
+                    "first_divergence_role": "branch_guard_or_silent_non_reaching_path",
+                },
+            ],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "branch_operand_provenance_or_exception_edge_audit",
+        },
+    )
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    assert artifact_index["latest_artifacts"]["compare_handoff_path_divergence_audit"].endswith(
+        "compare_handoff_path_divergence_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == "compare_handoff_path_divergence_audit"
+    assert current_state["current_bottleneck"]["reason"] == "candidate_dependent_non_reaching_path"
+    latest = current_state["latest_compare_handoff_path_divergence_audit"]
+    assert latest["classification"] == "candidate_dependent_non_reaching_path"
+    assert latest["candidate_count"] == 3
+    assert latest["cross_candidate"]["first_divergence_after"] == "handoff_helper_entry"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert latest["next_bounded_action"] == "branch_operand_provenance_or_exception_edge_audit"
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

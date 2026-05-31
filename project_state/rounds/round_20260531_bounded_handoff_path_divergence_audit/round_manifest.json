@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-05-31T14:47:24Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260531_bounded_handoff_path_divergence_audit\\codex_execution_report.md",
+      "sha256": "ca71a47db65bd55be3f3c195d4ff0a6985300d266d1bb6bcbb79e033cbf8644b",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260531_bounded_handoff_path_divergence_audit\\decision_packet.md",
+      "sha256": "a863ca4b35e5642cdbc4e11e252bf2a0729982ccac041a37cd134d78125652e2",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260531_bounded_handoff_path_divergence_audit\\pytest_result.txt",
+      "sha256": "c4d300c17cb2a25394ad2169e700732b001394bf29331eac6b01f7f6ddd6e39f",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260531_bounded_handoff_path_divergence_audit",
+  "schema_version": 1,
+  "source_git_commit": "a5e47d4ba5f3",
+  "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+  "state_build_id": "state_20260531_144509_d2e114f45b75",
+  "state_digest": "d2e114f45b75080eadf84cfb6a85235ebc126abea6246dc295fbce5f0b7a9857",
+  "workflow_status": "REPORT_AVAILABLE"
+}
