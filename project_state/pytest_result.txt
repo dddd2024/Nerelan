@@ -1,18 +1,11 @@
-```json
+```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260531_fix_corpus_loader_path_consistency_and_test_record",
-  "report_id": "report_20260531_fix_corpus_loader_path_consistency_and_test_record",
-  "round_id": "round_20260531_fix_corpus_loader_path_consistency_and_test_record",
+  "decision_id": "decision_20260531_resume_samplereverse_handoff_exit_diagnosis",
+  "report_id": "report_20260531_resume_samplereverse_handoff_exit_diagnosis",
+  "round_id": "round_20260531_resume_samplereverse_handoff_exit_diagnosis",
   "status": "PASSED",
   "tests_ran": [
-    "python -m pytest -q tests/test_sample_corpus.py",
-    "python -m pytest -q tests/test_corpus_loader.py",
-    "python -m pytest -q tests/test_static_feature_extractor.py",
-    "python -m pytest -q tests/test_corpus_classifier.py",
-    "python -m pytest -q tests/test_corpus_static_audit.py",
-    "python -m reverse_agent.corpus_static_audit --corpus-dir sample_corpus/reverse --out project_state/corpus_static_audit.json --gap-report project_state/corpus_solver_gap_report.md",
-    "python -m py_compile reverse_agent/corpus_loader.py reverse_agent/static_feature_extractor.py reverse_agent/corpus_classifier.py reverse_agent/corpus_static_audit.py",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "git diff --check"
@@ -22,86 +15,19 @@
 
 # Pytest Results
 
-## Test Summary
+No pytest required: documentation/project_state diagnosis only; no code changed.
 
-All tests passed successfully.
+## Required Checks
 
-### tests/test_sample_corpus.py
-```
-23 passed
-```
+- `python -m reverse_agent.project_state lint-decision --state-dir project_state` -> PASSED
+- `python -m reverse_agent.project_state lint-report --state-dir project_state` -> PASSED
+- `git diff --check` -> PASSED
 
-### tests/test_corpus_loader.py
-```
-32 passed
-```
+## Runtime Scope
 
-New tests added:
-- test_validate_corpus_sha256_mismatch
-- test_validate_corpus_size_mismatch
-- test_validate_metadata_sample_path_absolute
-- test_validate_metadata_sample_path_local_reverse_samples
-- test_validate_case_json_input_value_mismatch
-- test_validate_case_json_input_value_local_reverse_samples
-- test_validate_metadata_sample_path_wrong_relative_path
-- test_validate_case_json_cases_empty
-- test_validate_case_json_cases_multiple
-- test_validate_case_json_case_id_mismatch
-- test_validate_case_json_input_value_mismatch_metadata
-
-### tests/test_static_feature_extractor.py
-```
-37 passed
-```
-
-### tests/test_corpus_classifier.py
-```
-24 passed
-```
-
-### tests/test_corpus_static_audit.py
-```
-17 passed
-```
-
-## Total: 133 tests passed
-
-## Other Commands
-
-### corpus_static_audit CLI
-```
-Running static audit on sample_corpus\reverse...
-Audited 4 samples
-Wrote audit results to project_state\corpus_static_audit.json
-Wrote gap report to project_state\corpus_solver_gap_report.md
-```
-
-### py_compile
-```
-All modules compiled successfully
-```
-
-### lint-decision
-```
-PASSED
-```
-
-### lint-report
-```
-PASSED
-```
-
-### git diff --check
-```
-PASSED (no trailing whitespace issues)
-```
-
-## Coverage
-
-- Corpus loading and validation
-- Static feature extraction (ASCII/UTF-16LE strings, PE format, entropy)
-- Rule-based classification (RC4, DES, SEH, string_compare, etc.)
-- Static audit CLI with validation
-- Invalid corpus rejection (sha256/size mismatch, safe_to_run, upload_allowed)
-- Path validation (sample_path must equal sample_corpus/reverse/<case_id>/sample.exe)
-- case.json structure validation (cases length == 1, case_id match, input_value match)
+- sample.exe executed: no
+- samplereverse harness run: no
+- runtime probe run: no
+- Base64/RC4 breakpoint probe run: no
+- IDA / OllyDbg / Frida / pywinauto run: no
+- old `sample_solver` or search expansion: no
