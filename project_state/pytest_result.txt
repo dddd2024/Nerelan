@@ -1,9 +1,9 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260531_resume_samplereverse_handoff_exit_diagnosis",
-  "report_id": "report_20260531_resume_samplereverse_handoff_exit_diagnosis",
-  "round_id": "round_20260531_resume_samplereverse_handoff_exit_diagnosis",
+  "decision_id": "decision_20260531_rework_artifact_readability_and_report_scope",
+  "report_id": "report_20260531_rework_artifact_readability_and_report_scope",
+  "round_id": "round_20260531_rework_artifact_readability_and_report_scope",
   "status": "PASSED",
   "tests_ran": [
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
@@ -15,13 +15,20 @@
 
 # Pytest Results
 
-No pytest required: documentation/project_state diagnosis only; no code changed.
+No pytest required: documentation/project_state report rework only; no code changed.
 
 ## Required Checks
 
 - `python -m reverse_agent.project_state lint-decision --state-dir project_state` -> PASSED
 - `python -m reverse_agent.project_state lint-report --state-dir project_state` -> PASSED
 - `git diff --check` -> PASSED
+
+## Artifact Readability Check
+
+- `run_manifest.json`: exists=true, is_file=true, readable=true, size=1580
+- `summary.json`: exists=true, is_file=true, readable=true, size=954
+- `compare_hook_path_reachability_audit.json`: exists=true, is_file=true, readable=true, size=197326
+- `compare_real_lhs_provenance_audit.json`: exists=true, is_file=true, readable=true, size=76124
 
 ## Runtime Scope
 

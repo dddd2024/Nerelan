@@ -1,5 +1,24 @@
 # Samplereverse Handoff-Exit Diagnosis
 
+## Rework Verification
+
+This diagnosis was rechecked under `decision_20260531_rework_artifact_readability_and_report_scope`.
+
+The original handoff-exit conclusion is retained because the four artifacts marked `freshness=current` in `project_state/artifact_index.json` were also verified directly in the local working tree. This section closes the earlier evidence-chain gap by separating index freshness from local file readability:
+
+- `artifact_index.freshness=current` means the project_state index selected the artifact for this state snapshot.
+- `artifact_file_readable=true` means Codex directly checked the exact local path with the filesystem and could read it.
+- GitHub contents/API review may not be able to fetch local runtime artifacts under `solve_reports/`; GitHub-side absence is therefore not equivalent to local unreadability.
+
+| Artifact path | Index freshness | Exists | File | Readable | Size |
+|---|---:|---:|---:|---:|---:|
+| `solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/run_manifest.json` | current | true | true | true | 1580 |
+| `solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/summary.json` | current | true | true | true | 954 |
+| `solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_hook_path_reachability_audit/compare_hook_path_reachability_audit.json` | current | true | true | true | 197326 |
+| `solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/reports/tool_artifacts/samplereverse_patched/compare_real_lhs_provenance_audit/compare_real_lhs_provenance_audit.json` | current | true | true | true | 76124 |
+
+Because all four exact paths are locally readable, this document does not need to downgrade the runtime-artifact-derived details to index-only summaries or mark the diagnosis `BLOCKED`.
+
 ## Decision Metadata
 
 - Decision: `decision_20260531_resume_samplereverse_handoff_exit_diagnosis`
@@ -139,7 +158,7 @@ If implementation cannot design that probe from these current artifacts without 
 | 10 | Real-LHS provenance audit core conclusion | Instrumentation remains incomplete; fallback compare args are not provenance |
 | 11 | Minimal handoff-exit explanation | Candidate-dependent exit or exception before compare/handoff connection |
 | 12 | Enough to design next bounded runtime probe | Yes, for a targeted handoff/exception path classifier |
-| 13 | Need project_state build first? | Not currently; all four current artifact paths exist and are readable |
+| 13 | Need project_state build first? | Not currently; all four current artifact paths were locally checked and are readable |
 | 14 | sample.exe not run | Yes |
 | 15 | runtime probe not run | Yes |
 | 16 | Base64/RC4 breakpoint probe not run | Yes |
@@ -149,4 +168,3 @@ If implementation cannot design that probe from these current artifacts without 
 | 20 | `sample_corpus/reverse/` not modified | Yes |
 | 21 | Old sample_solver/search budget not used | Yes |
 | 22 | negative_results failed directions not repeated | Yes |
-
