@@ -6,6 +6,7 @@
     "bridge_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
     "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
+    "compare_handoff_edge_operand_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_edge_operand_provenance_audit\\compare_handoff_edge_operand_provenance_audit.json",
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
@@ -59,10 +60,10 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "candidate_dependent_non_reaching_path",
+    "blocker": "candidate_dependent_handoff_exit_edge_unresolved",
     "confidence": "medium",
-    "reason": "candidate_dependent_non_reaching_path",
-    "stage": "compare_handoff_path_divergence_audit"
+    "reason": "candidate_dependent_handoff_exit_edge_unresolved",
+    "stage": "compare_handoff_edge_operand_provenance_audit"
   },
   "current_mainline": "L15(prefix8)",
   "current_owner": "web_gpt",
@@ -104,7 +105,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-05-31T14:45:09Z",
+  "generated_at": "2026-06-01T04:36:26Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -272,6 +273,185 @@
   },
   "latest_compare_callsite_reanchor_and_lhs_provenance_audit": {},
   "latest_compare_esi_source_window_audit": {},
+  "latest_compare_handoff_edge_operand_provenance_audit": {
+    "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_edge_operand_provenance_audit\\compare_handoff_edge_operand_provenance_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "candidates": [
+      {
+        "branch_operand_summary": {
+          "classification": "not_observed",
+          "condition": "",
+          "minimal_explanation": "exception edge occurred before a branch operand observation",
+          "observed": false,
+          "operand_source": "unknown"
+        },
+        "candidate_classification": "exception_edge_after_handoff",
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "candidate_prefix": "78d540b49c590770",
+        "common_prefix_observed": [
+          "predecessor_handoff_call",
+          "handoff_helper_entry"
+        ],
+        "exception_edge_summary": {
+          "address": "0xf41913",
+          "candidate_dependent_memory": true,
+          "classification": "candidate_dependent",
+          "memory": "0x5305154b",
+          "module_offset": "0x1913",
+          "next_event": {},
+          "observed": true,
+          "previous_event": {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry",
+            "order": 2,
+            "return_address_module_offset": "0xc5052f"
+          },
+          "type": "access-violation"
+        },
+        "handoff_helper_entry_context": {
+          "return_address_module_offset": "0xc5052f",
+          "return_context_candidate_dependent": true
+        },
+        "minimal_explanation": "process_exception observed before compare successor or actual compare",
+        "post_entry_probe_summary": {
+          "actual_compare_observed": false,
+          "process_exception_observed": true,
+          "successor_observed": false
+        },
+        "prior_classification": "exception_unwind_before_compare",
+        "prior_divergence_role": "exception_path",
+        "runtime_backed": true,
+        "scripted_hook_status": "scripted_hook_observed",
+        "scripted_returncode": 0
+      },
+      {
+        "branch_operand_summary": {
+          "classification": "not_observed",
+          "condition": "",
+          "minimal_explanation": "exception edge occurred before a branch operand observation",
+          "observed": false,
+          "operand_source": "unknown"
+        },
+        "candidate_classification": "exception_edge_after_handoff",
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "candidate_prefix": "5a3e7f46ddd474d0",
+        "common_prefix_observed": [
+          "predecessor_handoff_call",
+          "handoff_helper_entry"
+        ],
+        "exception_edge_summary": {
+          "address": "0xf41913",
+          "candidate_dependent_memory": true,
+          "classification": "candidate_dependent",
+          "memory": "0x820004",
+          "module_offset": "0x1913",
+          "next_event": {},
+          "observed": true,
+          "previous_event": {
+            "event": "enter",
+            "exception": {},
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry",
+            "order": 2,
+            "return_address_module_offset": "0x2ae052f"
+          },
+          "type": "access-violation"
+        },
+        "handoff_helper_entry_context": {
+          "return_address_module_offset": "0x2ae052f",
+          "return_context_candidate_dependent": true
+        },
+        "minimal_explanation": "process_exception observed before compare successor or actual compare",
+        "post_entry_probe_summary": {
+          "actual_compare_observed": false,
+          "process_exception_observed": true,
+          "successor_observed": false
+        },
+        "prior_classification": "exception_unwind_before_compare",
+        "prior_divergence_role": "exception_path",
+        "runtime_backed": true,
+        "scripted_hook_status": "scripted_hook_observed",
+        "scripted_returncode": 0
+      },
+      {
+        "branch_operand_summary": {
+          "classification": "schema_gap",
+          "condition": "",
+          "minimal_explanation": "handoff_helper_entry observed, then no process_exception, first_compare_successor, or actual_compare; the prior artifact did not capture the branch operand or flags",
+          "observed": false,
+          "operand_source": "unknown"
+        },
+        "candidate_classification": "branch_guard_silent_after_handoff",
+        "candidate_hex": "78d540b49c59076f41414141414141",
+        "candidate_prefix": "78d540b49c59076f",
+        "common_prefix_observed": [
+          "predecessor_handoff_call",
+          "handoff_helper_entry"
+        ],
+        "exception_edge_summary": {
+          "address": "",
+          "candidate_dependent_memory": false,
+          "classification": "not_observed",
+          "memory": "",
+          "module_offset": "",
+          "next_event": {},
+          "observed": false,
+          "previous_event": {},
+          "type": ""
+        },
+        "handoff_helper_entry_context": {
+          "return_address_module_offset": "0xfff4052f",
+          "return_context_candidate_dependent": true
+        },
+        "minimal_explanation": "handoff_helper_entry observed, then no process_exception, first_compare_successor, or actual_compare",
+        "post_entry_probe_summary": {
+          "actual_compare_observed": false,
+          "process_exception_observed": false,
+          "successor_observed": false
+        },
+        "prior_classification": "branch_guard_before_compare",
+        "prior_divergence_role": "branch_guard_or_silent_non_reaching_path",
+        "runtime_backed": true,
+        "scripted_hook_status": "scripted_hook_observed",
+        "scripted_returncode": 0
+      }
+    ],
+    "classification": "candidate_dependent_handoff_exit_edge_unresolved",
+    "cross_candidate": {
+      "branch_guard_candidate_count": 1,
+      "common_prefix_events": [
+        "predecessor_handoff_call",
+        "handoff_helper_entry"
+      ],
+      "evidence_strength": "offline_projected_from_runtime_backed_source",
+      "exception_candidate_count": 2,
+      "exception_edge_candidate_dependent_memory": true,
+      "exception_edge_shared_for_subset": true,
+      "first_divergence_after": "handoff_helper_entry",
+      "next_bounded_action": "bounded_branch_operand_runtime_sidecar_or_instruction_boundary_audit",
+      "return_context_candidate_dependent": true,
+      "return_context_values": [
+        "0xc5052f",
+        "0x2ae052f",
+        "0xfff4052f"
+      ],
+      "root_cause_classification": "candidate_dependent_handoff_exit_edge_unresolved",
+      "schema_gap_fields": [
+        "branch_operand_summary"
+      ]
+    },
+    "next_bounded_action": "bounded_branch_operand_runtime_sidecar_or_instruction_boundary_audit",
+    "overall_classification": "candidate_dependent_handoff_exit_edge_unresolved",
+    "runtime_backed_count": 3,
+    "source_artifacts": [
+      "compare_handoff_path_divergence_audit",
+      "compare_handoff_exit_classifier_audit"
+    ],
+    "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
+  },
   "latest_compare_handoff_exit_classifier_audit": {
     "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
     "breakpoint_probe_allowed": false,
@@ -2516,13 +2696,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260531_144509",
+  "round_id": "round_20260601_043626",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "a5e47d4ba5f3",
+  "source_git_commit": "0e3136eb0de8",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260531_144509_d2e114f45b75",
-  "state_digest": "d2e114f45b75080eadf84cfb6a85235ebc126abea6246dc295fbce5f0b7a9857",
+  "state_build_id": "state_20260601_043626_759cb075799e",
+  "state_digest": "759cb075799e71e94ceb6076765b78a8d67bfc61ccfdb3ea1928836b2bdd460a",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

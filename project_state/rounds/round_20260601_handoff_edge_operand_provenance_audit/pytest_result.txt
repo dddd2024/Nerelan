@@ -36,7 +36,7 @@
 - `python -m reverse_agent.project_state lint-report --state-dir project_state` -> PASSED with expected warnings: `report_status is PARTIAL`, `report round not archived yet`
 - `python -m reverse_agent.project_state status --state-dir project_state` -> PASSED
 - `git diff --check` -> PASSED
-- `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260601_handoff_edge_operand_provenance_audit` -> PASSED
+- `python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260601_handoff_edge_operand_provenance_audit` -> pending after report update
 - Final `python -m reverse_agent.project_state status --state-dir project_state` -> pending after archive
 - Final `python -m reverse_agent.project_state lint-report --state-dir project_state` -> pending after archive
 

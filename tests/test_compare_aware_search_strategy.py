@@ -20,6 +20,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_SLICE_PROBE_FILE_NAME,
     COMPARE_HANDOFF_EXIT_CLASSIFIER_AUDIT_FILE_NAME,
     COMPARE_HANDOFF_PATH_DIVERGENCE_AUDIT_FILE_NAME,
+    COMPARE_HANDOFF_EDGE_OPERAND_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME,
     COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
@@ -82,6 +83,7 @@ from reverse_agent.strategies.compare_aware_search import (
     build_compare_hook_path_reachability_audit_payload,
     build_compare_handoff_exit_classifier_audit_payload,
     build_compare_handoff_path_divergence_audit_payload,
+    build_compare_handoff_edge_operand_provenance_audit_payload,
     build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
@@ -102,6 +104,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_hook_path_reachability_audit,
     run_compare_handoff_exit_classifier_audit,
     run_compare_handoff_path_divergence_audit,
+    run_compare_handoff_edge_operand_provenance_audit,
     run_compare_esi_source_window_audit,
     run_compare_real_lhs_provenance_audit,
     run_compare_pre_compare_handoff_target_probe,
@@ -10904,6 +10907,120 @@ def test_handoff_path_divergence_projection_uses_classifier_events(tmp_path: Pat
         run_name="sr_path",
     )
     assert Path(result["result_path"]).name == COMPARE_HANDOFF_PATH_DIVERGENCE_AUDIT_FILE_NAME
+
+
+def test_handoff_edge_operand_projection_preserves_exception_and_branch_gaps(tmp_path: Path) -> None:
+    divergence_payload = {
+        "artifact_kind": "compare_handoff_path_divergence_audit",
+        "source_run": "sr_path",
+        "source_artifact": "compare_handoff_exit_classifier_audit",
+        "classification": "candidate_dependent_non_reaching_path",
+        "overall_classification": "candidate_dependent_non_reaching_path",
+        "fixed_candidates": [
+            "78d540b49c59077041414141414141",
+            "5a3e7f46ddd474d041414141414141",
+            "78d540b49c59076f41414141414141",
+        ],
+        "cross_candidate": {
+            "common_prefix_events": ["predecessor_handoff_call", "handoff_helper_entry"],
+            "first_divergence_after": "handoff_helper_entry",
+        },
+        "candidates": [
+            {
+                "candidate_hex": "78d540b49c59077041414141414141",
+                "candidate_prefix": "78d540b49c590770",
+                "runtime_backed": True,
+                "prior_classification": "exception_unwind_before_compare",
+                "event_sequence": [
+                    "predecessor_handoff_call",
+                    "handoff_helper_entry",
+                    "process_exception",
+                ],
+                "return_address_summary": {
+                    "handoff_helper_entry_return_address": "0xc5052f",
+                },
+                "exception_summary": {
+                    "observed": True,
+                    "address": "0xf41913",
+                    "memory": "0x5305154b",
+                    "type": "access-violation",
+                    "module_offset": "0x1913",
+                    "previous_event": {"name": "handoff_helper_entry"},
+                },
+                "first_compare_successor_observed": False,
+                "actual_compare_observed": False,
+                "process_exception_observed": True,
+                "first_divergence_role": "exception_path",
+            },
+            {
+                "candidate_hex": "5a3e7f46ddd474d041414141414141",
+                "candidate_prefix": "5a3e7f46ddd474d0",
+                "runtime_backed": True,
+                "prior_classification": "exception_unwind_before_compare",
+                "event_sequence": [
+                    "predecessor_handoff_call",
+                    "handoff_helper_entry",
+                    "process_exception",
+                ],
+                "return_address_summary": {
+                    "handoff_helper_entry_return_address": "0x2ae052f",
+                },
+                "exception_summary": {
+                    "observed": True,
+                    "address": "0xf41913",
+                    "memory": "0x820004",
+                    "type": "access-violation",
+                    "module_offset": "0x1913",
+                    "previous_event": {"name": "handoff_helper_entry"},
+                },
+                "first_compare_successor_observed": False,
+                "actual_compare_observed": False,
+                "process_exception_observed": True,
+                "first_divergence_role": "exception_path",
+            },
+            {
+                "candidate_hex": "78d540b49c59076f41414141414141",
+                "candidate_prefix": "78d540b49c59076f",
+                "runtime_backed": True,
+                "prior_classification": "branch_guard_before_compare",
+                "event_sequence": ["predecessor_handoff_call", "handoff_helper_entry"],
+                "return_address_summary": {
+                    "handoff_helper_entry_return_address": "0xfff4052f",
+                },
+                "exception_summary": {"observed": False},
+                "first_compare_successor_observed": False,
+                "actual_compare_observed": False,
+                "process_exception_observed": False,
+                "first_divergence_role": "branch_guard_or_silent_non_reaching_path",
+            },
+        ],
+    }
+
+    payload = build_compare_handoff_edge_operand_provenance_audit_payload(
+        source_payload=divergence_payload
+    )
+    assert payload["artifact_kind"] == "compare_handoff_edge_operand_provenance_audit"
+    assert payload["classification"] == "candidate_dependent_handoff_exit_edge_unresolved"
+    assert payload["runtime_sidecar_executed"] is False
+    assert payload["candidate_generation_changed"] is False
+    assert payload["cross_candidate"]["return_context_candidate_dependent"] is True
+    assert payload["cross_candidate"]["exception_edge_candidate_dependent_memory"] is True
+    assert payload["candidates"][0]["exception_edge_summary"]["memory"] == "0x5305154b"
+    assert payload["candidates"][0]["exception_edge_summary"]["previous_event"]["name"] == "handoff_helper_entry"
+    assert payload["candidates"][2]["branch_operand_summary"]["classification"] == "schema_gap"
+    assert payload["candidates"][2]["post_entry_probe_summary"] == {
+        "successor_observed": False,
+        "actual_compare_observed": False,
+        "process_exception_observed": False,
+    }
+    assert payload["breakpoint_probe_allowed"] is False
+
+    result = run_compare_handoff_edge_operand_provenance_audit(
+        source_payload=divergence_payload,
+        artifacts_dir=tmp_path / "edge_operand",
+        run_name="sr_path",
+    )
+    assert Path(result["result_path"]).name == COMPARE_HANDOFF_EDGE_OPERAND_PROVENANCE_AUDIT_FILE_NAME
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

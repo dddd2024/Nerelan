@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-01T04:39:27Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_handoff_edge_operand_provenance_audit\\codex_execution_report.md",
+      "sha256": "ad09acb7f177c3b793a9137aefa9195e85abf183e7b159041ba73705440cd26a",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_handoff_edge_operand_provenance_audit\\decision_packet.md",
+      "sha256": "5b69cca33673a9cd8dcadbd0dbd1c8bf527e95f87f6a0cc940f94973d49b321b",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260601_handoff_edge_operand_provenance_audit\\pytest_result.txt",
+      "sha256": "06f8b96e8bae15c12af77fd1d0d115a0aea80e8c3dea6a43168ae4eeeb8c288b",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260601_handoff_edge_operand_provenance_audit",
+  "schema_version": 1,
+  "source_git_commit": "0e3136eb0de8",
+  "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+  "state_build_id": "state_20260601_043626_759cb075799e",
+  "state_digest": "759cb075799e71e94ceb6076765b78a8d67bfc61ccfdb3ea1928836b2bdd460a",
+  "workflow_status": "REPORT_AVAILABLE"
+}
