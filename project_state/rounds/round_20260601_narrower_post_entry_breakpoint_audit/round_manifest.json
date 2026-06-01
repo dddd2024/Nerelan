@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-01T10:52:36Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_narrower_post_entry_breakpoint_audit\\codex_execution_report.md",
+      "sha256": "0e2a509b1d0ff77c0870e7090a7512d13046861575a841386ec4d7ea20b040fa",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_narrower_post_entry_breakpoint_audit\\decision_packet.md",
+      "sha256": "c50e7a4790e4353507e2fced9d3afa110372b8ab392080c5be9a5ea78b5f0257",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260601_narrower_post_entry_breakpoint_audit\\pytest_result.txt",
+      "sha256": "f4d41381be0fd90764fd13247601e61586f9a6053b94cdda7c82d547ac630f17",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260601_narrower_post_entry_breakpoint_audit",
+  "schema_version": 1,
+  "source_git_commit": "b2c24fdc6619",
+  "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+  "state_build_id": "state_20260601_104951_ecca8f86272a",
+  "state_digest": "ecca8f86272aa5a550e93ce3f4b554ba233a8584ab64e21073f80526d6ae3b9e",
+  "workflow_status": "REPORT_AVAILABLE"
+}

@@ -10,6 +10,7 @@
     "compare_handoff_edge_operand_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_edge_operand_provenance_audit\\compare_handoff_edge_operand_provenance_audit.json",
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
     "compare_handoff_hook_surface_repair_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
+    "compare_handoff_narrower_post_entry_breakpoint_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_post_entry_step_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
@@ -63,10 +64,10 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "step_api_unavailable",
+    "blocker": "",
     "confidence": "medium",
-    "reason": "step_api_unavailable",
-    "stage": "compare_handoff_post_entry_step_runtime_audit"
+    "reason": "frida_attach_or_spawn_failed",
+    "stage": "compare_handoff_narrower_post_entry_breakpoint_audit"
   },
   "current_mainline": "L15(prefix8)",
   "current_owner": "web_gpt",
@@ -108,7 +109,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-06-01T10:12:27Z",
+  "generated_at": "2026-06-01T10:49:51Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -1004,6 +1005,246 @@
       "compare_handoff_edge_operand_provenance_audit",
       "compare_handoff_path_divergence_audit",
       "compare_handoff_exit_classifier_audit"
+    ],
+    "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
+  },
+  "latest_compare_handoff_narrower_post_entry_breakpoint_audit": {
+    "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+    "breakpoint_plan": [
+      {
+        "module_offset": "0x2338",
+        "name": "predecessor_handoff_call"
+      },
+      {
+        "module_offset": "0x1b50",
+        "name": "handoff_helper_entry"
+      },
+      {
+        "module_offset": "0x1913",
+        "name": "process_exception"
+      },
+      {
+        "module_offset": "0x258c",
+        "name": "actual_compare"
+      }
+    ],
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "candidates": [
+      {
+        "actual_compare_observed": false,
+        "breakpoints": [
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x2338",
+            "name": "predecessor_handoff_call"
+          },
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry"
+          },
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x1913",
+            "name": "process_exception"
+          },
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x258c",
+            "name": "actual_compare"
+          }
+        ],
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "classification": "frida_attach_or_spawn_failed",
+        "compare_successor_observed": false,
+        "error": "sidecar timed out before writing candidate artifact; returncode=124",
+        "event_sequence": [],
+        "handoff_helper_entry_observed": false,
+        "process_exception_observed": false,
+        "successor_surface_observed": false,
+        "target_launch": {
+          "attempted": true,
+          "error": "sidecar timed out before writing candidate artifact; returncode=124",
+          "ok": false,
+          "pid": null
+        }
+      },
+      {
+        "actual_compare_observed": false,
+        "breakpoints": [
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x2338",
+            "name": "predecessor_handoff_call"
+          },
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry"
+          },
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x1913",
+            "name": "process_exception"
+          },
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x258c",
+            "name": "actual_compare"
+          }
+        ],
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "classification": "frida_attach_or_spawn_failed",
+        "compare_successor_observed": false,
+        "error": "sidecar timed out before writing candidate artifact; returncode=124",
+        "event_sequence": [],
+        "handoff_helper_entry_observed": false,
+        "process_exception_observed": false,
+        "successor_surface_observed": false,
+        "target_launch": {
+          "attempted": true,
+          "error": "sidecar timed out before writing candidate artifact; returncode=124",
+          "ok": false,
+          "pid": null
+        }
+      },
+      {
+        "actual_compare_observed": false,
+        "breakpoints": [
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x2338",
+            "name": "predecessor_handoff_call"
+          },
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x1b50",
+            "name": "handoff_helper_entry"
+          },
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x1913",
+            "name": "process_exception"
+          },
+          {
+            "eip": "",
+            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "hit": false,
+            "hit_order": null,
+            "install_attempted": false,
+            "install_ok": false,
+            "module_offset": "0x258c",
+            "name": "actual_compare"
+          }
+        ],
+        "candidate_hex": "78d540b49c59076f41414141414141",
+        "classification": "frida_attach_or_spawn_failed",
+        "compare_successor_observed": false,
+        "error": "sidecar timed out before writing candidate artifact; returncode=124",
+        "event_sequence": [],
+        "handoff_helper_entry_observed": false,
+        "process_exception_observed": false,
+        "successor_surface_observed": false,
+        "target_launch": {
+          "attempted": true,
+          "error": "sidecar timed out before writing candidate artifact; returncode=124",
+          "ok": false,
+          "pid": null
+        }
+      }
+    ],
+    "classification": "frida_attach_or_spawn_failed",
+    "cross_candidate": {
+      "breakpoint_hit_counts": {},
+      "classification": "frida_attach_or_spawn_failed",
+      "first_divergence_after": "",
+      "next_bounded_action": "review_narrower_post_entry_breakpoint_result"
+    },
+    "diagnostic_summary": {
+      "blocker_counts": {
+        "frida_attach_or_spawn_failed": 3
+      },
+      "breakpoint_hit_counts": {},
+      "breakpoint_install_attempted_count": 0,
+      "breakpoint_install_ok_count": 0,
+      "target_launch_attempted_count": 3,
+      "target_launch_ok_count": 0
+    },
+    "fixed_candidates": [
+      "78d540b49c59077041414141414141",
+      "5a3e7f46ddd474d041414141414141",
+      "78d540b49c59076f41414141414141"
+    ],
+    "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
+    "overall_classification": "frida_attach_or_spawn_failed",
+    "runtime_scope": {
+      "breakpoint_probe_allowed": false,
+      "crypto_hook_allowed": false,
+      "debugger_backend": "frida",
+      "material_capture_allowed": false,
+      "mode": "narrower_post_entry_breakpoint",
+      "single_step_required": false
+    },
+    "source_artifacts": [
+      "compare_handoff_post_entry_step_runtime_audit",
+      "compare_handoff_hook_surface_repair_audit",
+      "compare_handoff_branch_operand_runtime_audit"
     ],
     "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
   },
@@ -3367,13 +3608,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260601_101227",
+  "round_id": "round_20260601_104951",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "c5e24632c151",
+  "source_git_commit": "b2c24fdc6619",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260601_101227_0ec04ab18c9d",
-  "state_digest": "0ec04ab18c9d7aeac6a1e284a67f7448e1b815ec86af1149c249ef5005651e8a",
+  "state_build_id": "state_20260601_104951_ecca8f86272a",
+  "state_digest": "ecca8f86272aa5a550e93ce3f4b554ba233a8584ab64e21073f80526d6ae3b9e",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

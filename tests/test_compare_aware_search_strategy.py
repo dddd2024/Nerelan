@@ -23,6 +23,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_EDGE_OPERAND_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_HANDOFF_BRANCH_OPERAND_RUNTIME_AUDIT_FILE_NAME,
     COMPARE_HANDOFF_HOOK_SURFACE_REPAIR_AUDIT_FILE_NAME,
+    COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_FILE_NAME,
     COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME,
     COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME,
     COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
@@ -89,6 +90,7 @@ from reverse_agent.strategies.compare_aware_search import (
     build_compare_handoff_edge_operand_provenance_audit_payload,
     build_compare_handoff_branch_operand_runtime_audit_payload,
     build_compare_handoff_hook_surface_repair_audit_payload,
+    build_compare_handoff_narrower_post_entry_breakpoint_audit_payload,
     build_compare_handoff_post_entry_step_runtime_audit_payload,
     build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
@@ -113,6 +115,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_edge_operand_provenance_audit,
     run_compare_handoff_branch_operand_runtime_audit,
     run_compare_handoff_hook_surface_repair_audit,
+    run_compare_handoff_narrower_post_entry_breakpoint_audit,
     run_compare_handoff_post_entry_step_runtime_audit,
     run_compare_esi_source_window_audit,
     run_compare_real_lhs_provenance_audit,
@@ -11349,6 +11352,106 @@ def test_handoff_post_entry_step_runtime_audit_keeps_control_flow_scope(
     )
     assert result_payload["single_step_diagnostics"]["step_api_available"] is False
     assert result_payload["candidates"][0]["post_entry_events"] == []
+
+
+def test_handoff_narrower_post_entry_breakpoint_audit_keeps_bounded_scope(
+    tmp_path: Path,
+) -> None:
+    candidate_results = [
+        {
+            "candidate_hex": "78d540b49c59077041414141414141",
+            "target_launch": {"attempted": True, "ok": True, "pid": 1234, "error": ""},
+            "breakpoint_plan": [
+                {"name": "predecessor_handoff_call", "module_offset": "0x2338"},
+                {"name": "handoff_helper_entry", "module_offset": "0x1b50"},
+                {"name": "process_exception", "module_offset": "0x1913"},
+                {"name": "actual_compare", "module_offset": "0x258c"},
+            ],
+            "breakpoints": [
+                {
+                    "name": "predecessor_handoff_call",
+                    "module_offset": "0x2338",
+                    "install_attempted": True,
+                    "install_ok": True,
+                    "hit": True,
+                    "hit_order": 1,
+                    "eip": "0x2338",
+                    "error": "",
+                },
+                {
+                    "name": "handoff_helper_entry",
+                    "module_offset": "0x1b50",
+                    "install_attempted": True,
+                    "install_ok": True,
+                    "hit": True,
+                    "hit_order": 2,
+                    "eip": "0x1b50",
+                    "error": "",
+                },
+            ],
+            "event_sequence": [
+                {"name": "predecessor_handoff_call", "module_offset": "0x2338", "hit_order": 1},
+                {"name": "handoff_helper_entry", "module_offset": "0x1b50", "hit_order": 2},
+            ],
+            "handoff_helper_entry_observed": True,
+            "successor_surface_observed": False,
+            "process_exception_observed": False,
+            "compare_successor_observed": False,
+            "actual_compare_observed": False,
+            "classification": "successor_breakpoint_not_hit",
+        }
+    ]
+
+    payload = build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
+        candidate_results=candidate_results,
+        source_payload={
+            "source_run": "sr_path",
+            "classification": "step_api_unavailable",
+        },
+    )
+
+    assert payload["artifact_kind"] == "compare_handoff_narrower_post_entry_breakpoint_audit"
+    assert payload["classification"] == "successor_breakpoint_not_hit"
+    assert payload["candidate_count"] == 3
+    assert payload["fixed_candidates"] == [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+        "78d540b49c59076f41414141414141",
+    ]
+    assert payload["runtime_scope"]["single_step_required"] is False
+    assert payload["runtime_scope"]["material_capture_allowed"] is False
+    assert payload["runtime_scope"]["crypto_hook_allowed"] is False
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    assert payload["search_budget_changed"] is False
+    assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+    assert payload["candidates"][0]["event_sequence"][1]["name"] == "handoff_helper_entry"
+    assert payload["cross_candidate"]["first_divergence_after"] == "event_sequence"
+
+    result = run_compare_handoff_narrower_post_entry_breakpoint_audit(
+        target=tmp_path / "missing.exe",
+        artifacts_dir=tmp_path / "narrower_post_entry",
+        per_probe_timeout=0.1,
+        source_payload={"source_run": "sr_path"},
+        run_name="sr_path",
+    )
+    result_payload = result["payload"]
+    assert Path(result["result_path"]).name == (
+        COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_FILE_NAME
+    )
+    assert result_payload["candidate_count"] == 3
+    assert result_payload["classification"] == "target_launch_failed"
+    assert result_payload["diagnostic_summary"]["blocker_counts"] == {
+        "target_launch_failed": 3
+    }
+    assert result_payload["diagnostic_summary"]["breakpoint_install_ok_count"] == 0
+    assert result_payload["breakpoint_probe_allowed"] is False
+    assert result_payload["material_capture_allowed"] is False
+    assert result_payload["crypto_hook_allowed"] is False
+    assert result_payload["candidates"][0]["target_launch"]["ok"] is False
+    assert result_payload["candidates"][0]["breakpoints"][0]["hit"] is False
+    assert result_payload["candidates"][0]["event_sequence"] == []
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

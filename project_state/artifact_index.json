@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-01T10:12:27Z",
+  "generated_at": "2026-06-01T10:49:51Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -13,6 +13,7 @@
     "compare_handoff_edge_operand_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_edge_operand_provenance_audit\\compare_handoff_edge_operand_provenance_audit.json",
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
     "compare_handoff_hook_surface_repair_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
+    "compare_handoff_narrower_post_entry_breakpoint_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_post_entry_step_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
     "compare_handoff_probe": null,
@@ -158,6 +159,15 @@
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
       "sha256": "7dc7006a912e820972af7ac8746df86bb9a8333d192472f979c06f6020db79d2",
       "size_bytes": 7598,
+      "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
+    },
+    "compare_handoff_narrower_post_entry_breakpoint_audit": {
+      "freshness": "current",
+      "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+      "modified_at": "2026-06-01T10:49:43Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+      "sha256": "096319424f3fbd623c07a1ff5185ea98e5cc9c506ce852086ac088940324de25",
+      "size_bytes": 8769,
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_path_divergence_audit": {
@@ -502,6 +512,12 @@
   "missing": [],
   "recent_artifacts": [
     {
+      "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+      "modified_at": "2026-06-01T10:49:43Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+      "size_bytes": 8769
+    },
+    {
       "kind": "compare_handoff_post_entry_step_runtime_audit",
       "modified_at": "2026-06-01T10:12:15Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
@@ -614,14 +630,6 @@
       "modified_at": "2026-05-27T08:40:17Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
       "size_bytes": 76124
-    },
-    {
-      "freshness": "current",
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-27T08:40:17Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 76124,
-      "source": "case_result.artifact_manifest"
     }
   ],
   "reports_dir": "solve_reports",

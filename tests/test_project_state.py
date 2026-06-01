@@ -1796,6 +1796,135 @@ def test_project_state_indexes_compare_handoff_post_entry_step_runtime_audit(tmp
     assert task_packet["task"] == "Repair bounded post-entry step instrumentation"
 
 
+def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_audit(
+    tmp_path: Path,
+) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_narrower_post_entry")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_handoff_post_entry_step_runtime_audit.json",
+        {
+            "artifact_kind": "compare_handoff_post_entry_step_runtime_audit",
+            "classification": "step_api_unavailable",
+            "overall_classification": "step_api_unavailable",
+            "source_run": "sr_narrower_post_entry",
+            "candidate_count": 3,
+            "breakpoint_probe_allowed": False,
+        },
+    )
+    _write_json(
+        artifacts_dir / "compare_handoff_narrower_post_entry_breakpoint_audit.json",
+        {
+            "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+            "classification": "entry_breakpoint_not_hit",
+            "overall_classification": "entry_breakpoint_not_hit",
+            "source_run": "sr_narrower_post_entry",
+            "source_artifacts": [
+                "compare_handoff_post_entry_step_runtime_audit",
+                "compare_handoff_hook_surface_repair_audit",
+                "compare_handoff_branch_operand_runtime_audit",
+            ],
+            "candidate_count": 3,
+            "fixed_candidates": [
+                "78d540b49c59077041414141414141",
+                "5a3e7f46ddd474d041414141414141",
+                "78d540b49c59076f41414141414141",
+            ],
+            "runtime_scope": {
+                "mode": "narrower_post_entry_breakpoint",
+                "debugger_backend": "frida",
+                "single_step_required": False,
+                "breakpoint_probe_allowed": False,
+                "material_capture_allowed": False,
+                "crypto_hook_allowed": False,
+            },
+            "breakpoint_plan": [
+                {"name": "predecessor_handoff_call", "module_offset": "0x2338"},
+                {"name": "handoff_helper_entry", "module_offset": "0x1b50"},
+                {"name": "process_exception", "module_offset": "0x1913"},
+                {"name": "actual_compare", "module_offset": "0x258c"},
+            ],
+            "diagnostic_summary": {
+                "blocker_counts": {"entry_breakpoint_not_hit": 3},
+                "target_launch_attempted_count": 3,
+                "target_launch_ok_count": 3,
+                "breakpoint_install_attempted_count": 12,
+                "breakpoint_install_ok_count": 12,
+                "breakpoint_hit_counts": {},
+            },
+            "cross_candidate": {
+                "classification": "entry_breakpoint_not_hit",
+                "first_divergence_after": "",
+                "breakpoint_hit_counts": {},
+                "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
+            },
+            "candidates": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "target_launch": {"attempted": True, "ok": True, "pid": 1234, "error": ""},
+                    "breakpoints": [
+                        {
+                            "name": "handoff_helper_entry",
+                            "module_offset": "0x1b50",
+                            "install_attempted": True,
+                            "install_ok": True,
+                            "hit": False,
+                            "hit_order": None,
+                            "eip": "",
+                            "error": "",
+                        }
+                    ],
+                    "event_sequence": [],
+                    "handoff_helper_entry_observed": False,
+                    "successor_surface_observed": False,
+                    "classification": "entry_breakpoint_not_hit",
+                }
+            ],
+            "candidate_generation_changed": False,
+            "ranking_changed": False,
+            "search_budget_changed": False,
+            "beam_budget_topn_timeout_frontier_limit_expanded": False,
+            "breakpoint_probe_allowed": False,
+            "material_capture_allowed": False,
+            "crypto_hook_allowed": False,
+            "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
+        },
+    )
+
+    build_project_state(
+        reports_dir=reports_dir,
+        state_dir=state_dir,
+        sample="samplereverse",
+        run_name="sr_narrower_post_entry",
+    )
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    assert artifact_index["latest_artifacts"][
+        "compare_handoff_narrower_post_entry_breakpoint_audit"
+    ].endswith("compare_handoff_narrower_post_entry_breakpoint_audit.json")
+    assert artifact_index["latest_artifacts_v2"][
+        "compare_handoff_narrower_post_entry_breakpoint_audit"
+    ]["freshness"] == "current"
+    assert current_state["current_bottleneck"]["stage"] == (
+        "compare_handoff_narrower_post_entry_breakpoint_audit"
+    )
+    assert current_state["current_bottleneck"]["reason"] == "entry_breakpoint_not_hit"
+    latest = current_state["latest_compare_handoff_narrower_post_entry_breakpoint_audit"]
+    assert latest["classification"] == "entry_breakpoint_not_hit"
+    assert latest["candidate_count"] == 3
+    assert len(latest["fixed_candidates"]) == 3
+    assert latest["runtime_scope"]["single_step_required"] is False
+    assert latest["diagnostic_summary"]["breakpoint_install_ok_count"] == 12
+    assert latest["breakpoint_plan"][1]["module_offset"] == "0x1b50"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert current_state["latest_compare_handoff_post_entry_step_runtime_audit"][
+        "classification"
+    ] == "step_api_unavailable"
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

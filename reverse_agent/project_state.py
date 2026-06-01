@@ -45,6 +45,9 @@ IMPORTANT_ARTIFACTS = {
     "compare_handoff_branch_operand_runtime_audit": "compare_handoff_branch_operand_runtime_audit.json",
     "compare_handoff_hook_surface_repair_audit": "compare_handoff_hook_surface_repair_audit.json",
     "compare_handoff_post_entry_step_runtime_audit": "compare_handoff_post_entry_step_runtime_audit.json",
+    "compare_handoff_narrower_post_entry_breakpoint_audit": (
+        "compare_handoff_narrower_post_entry_breakpoint_audit.json"
+    ),
     "compare_lhs_producer_audit": "compare_lhs_producer_audit.json",
     "compare_lhs_upstream_writer_audit": "compare_lhs_upstream_writer_audit.json",
     "compare_callsite_reanchor_and_lhs_provenance_audit": (
@@ -98,6 +101,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_handoff_branch_operand_runtime_audit",
     "compare_handoff_hook_surface_repair_audit",
     "compare_handoff_post_entry_step_runtime_audit",
+    "compare_handoff_narrower_post_entry_breakpoint_audit",
     "compare_lhs_producer_audit",
     "compare_lhs_upstream_writer_audit",
     "compare_callsite_reanchor_and_lhs_provenance_audit",
@@ -2203,6 +2207,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_handoff_post_entry_step_runtime_audit = _read_json(
         artifact_refs.get("compare_handoff_post_entry_step_runtime_audit")
     )
+    compare_handoff_narrower_post_entry_breakpoint_audit = _read_json(
+        artifact_refs.get("compare_handoff_narrower_post_entry_breakpoint_audit")
+    )
     compare_lhs_producer_audit = _read_json(artifact_refs.get("compare_lhs_producer_audit"))
     compare_lhs_upstream_writer_audit = _read_json(artifact_refs.get("compare_lhs_upstream_writer_audit"))
     compare_callsite_reanchor_audit = _read_json(
@@ -2396,6 +2403,14 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if handoff_post_entry_step_classification:
         stage = "compare_handoff_post_entry_step_runtime_audit"
         reason = handoff_post_entry_step_classification
+    handoff_narrower_post_entry_breakpoint_classification = str(
+        compare_handoff_narrower_post_entry_breakpoint_audit.get("classification")
+        or compare_handoff_narrower_post_entry_breakpoint_audit.get("overall_classification")
+        or ""
+    ).strip()
+    if handoff_narrower_post_entry_breakpoint_classification:
+        stage = "compare_handoff_narrower_post_entry_breakpoint_audit"
+        reason = handoff_narrower_post_entry_breakpoint_classification
     compare_lhs_producer_classification = str(
         compare_lhs_producer_audit.get("classification") or ""
     ).strip()
@@ -2461,6 +2476,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if handoff_post_entry_step_classification:
         stage = "compare_handoff_post_entry_step_runtime_audit"
         reason = handoff_post_entry_step_classification
+    if handoff_narrower_post_entry_breakpoint_classification:
+        stage = "compare_handoff_narrower_post_entry_breakpoint_audit"
+        reason = handoff_narrower_post_entry_breakpoint_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -3094,6 +3112,66 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             ),
         }
         if compare_handoff_post_entry_step_runtime_audit
+        else {},
+        "latest_compare_handoff_narrower_post_entry_breakpoint_audit": {
+            "classification": handoff_narrower_post_entry_breakpoint_classification or None,
+            "overall_classification": (
+                compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                    "overall_classification"
+                )
+            ),
+            "artifact": artifact_refs.get(
+                "compare_handoff_narrower_post_entry_breakpoint_audit"
+            ),
+            "source_run": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "source_run"
+            ),
+            "source_artifacts": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "source_artifacts",
+                [],
+            ),
+            "candidate_count": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "candidate_count"
+            ),
+            "fixed_candidates": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "fixed_candidates",
+                [],
+            ),
+            "runtime_scope": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "runtime_scope",
+                {},
+            ),
+            "breakpoint_plan": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "breakpoint_plan",
+                [],
+            ),
+            "diagnostic_summary": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "diagnostic_summary",
+                {},
+            ),
+            "cross_candidate": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "cross_candidate",
+                {},
+            ),
+            "candidates": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "candidates",
+                [],
+            )[:3]
+            if isinstance(
+                compare_handoff_narrower_post_entry_breakpoint_audit.get("candidates"),
+                list,
+            )
+            else [],
+            "breakpoint_probe_allowed": (
+                compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                    "breakpoint_probe_allowed"
+                )
+            ),
+            "next_bounded_action": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "next_bounded_action"
+            ),
+        }
+        if compare_handoff_narrower_post_entry_breakpoint_audit
         else {},
         "latest_compare_lhs_producer_audit": {
             "classification": compare_lhs_producer_classification or None,
@@ -4280,6 +4358,19 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         if reason == "post_entry_branch_observed":
             return "Audit bounded post-entry branch operand statically"
         return "Review bounded post-entry step runtime audit"
+    if stage == "compare_handoff_narrower_post_entry_breakpoint_audit":
+        if reason in {
+            "target_launch_failed",
+            "frida_attach_or_spawn_failed",
+            "breakpoint_install_failed",
+            "entry_breakpoint_not_hit",
+            "successor_breakpoint_not_hit",
+            "instrumentation_gap_but_environment_verified",
+        }:
+            return "Review bounded narrower post-entry breakpoint blocker"
+        if reason == "post_entry_breakpoint_observed":
+            return "Project bounded post-entry breakpoint control-flow evidence"
+        return "Review bounded narrower post-entry breakpoint audit"
     if stage == "compare_real_lhs_provenance_audit" and reason in {
         "writer_path_observed_but_unconnected",
         "compare_lhs_runtime_backed_writer_missing",

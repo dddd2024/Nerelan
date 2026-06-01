@@ -83,6 +83,9 @@ COMPARE_HANDOFF_HOOK_SURFACE_REPAIR_AUDIT_FILE_NAME = (
 COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME = (
     "compare_handoff_post_entry_step_runtime_audit.json"
 )
+COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_FILE_NAME = (
+    "compare_handoff_narrower_post_entry_breakpoint_audit.json"
+)
 COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME = "compare_lhs_producer_audit.json"
 COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME = "compare_lhs_upstream_writer_audit.json"
 COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
@@ -255,6 +258,9 @@ POST_HANDOFF_BRANCH_OUTCOME_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDID
 COMPARE_HOOK_PATH_REACHABILITY_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_HANDOFF_EXIT_CLASSIFIER_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_CANDIDATES = (
+    COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+)
 POST_HANDOFF_COMPARE_PATH_READY_CLASSIFICATIONS = {
     "compare_reached_but_path_unresolved",
     "seh_unwind_to_compare_path",
@@ -342,6 +348,14 @@ def _compare_handoff_post_entry_step_audit_script_path() -> Path:
         Path(__file__).resolve().parents[1]
         / "olly_scripts"
         / "compare_handoff_post_entry_step_audit.py"
+    )
+
+
+def _compare_handoff_narrower_post_entry_breakpoint_audit_script_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[1]
+        / "olly_scripts"
+        / "compare_handoff_narrower_post_entry_breakpoint_audit.py"
     )
 
 
@@ -3501,6 +3515,9 @@ def _artifact_file_name_for_kind(kind: str) -> str:
         ),
         "compare_handoff_post_entry_step_runtime_audit": (
             COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME
+        ),
+        "compare_handoff_narrower_post_entry_breakpoint_audit": (
+            COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_FILE_NAME
         ),
         "compare_lhs_producer_audit": COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
         "compare_lhs_upstream_writer_audit": COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
@@ -12985,6 +13002,353 @@ def run_compare_handoff_post_entry_step_runtime_audit(
     return {"payload": payload, "result_path": str(result_path)}
 
 
+def _normalize_narrower_post_entry_breakpoint_candidate_result(
+    candidate_hex: str,
+    candidate_payload: dict[str, object] | None,
+) -> dict[str, object]:
+    candidate_payload = candidate_payload if isinstance(candidate_payload, dict) else {}
+    classification = str(candidate_payload.get("classification") or "instrumentation_gap_but_environment_verified")
+    event_sequence = candidate_payload.get("event_sequence", [])
+    event_sequence = event_sequence if isinstance(event_sequence, list) else []
+    breakpoints = candidate_payload.get("breakpoints", [])
+    breakpoints = breakpoints if isinstance(breakpoints, list) else []
+    target_launch = candidate_payload.get("target_launch", {})
+    target_launch = target_launch if isinstance(target_launch, dict) else {}
+    return {
+        "candidate_hex": candidate_hex,
+        "target_launch": target_launch,
+        "breakpoints": breakpoints,
+        "event_sequence": event_sequence,
+        "handoff_helper_entry_observed": bool(
+            candidate_payload.get("handoff_helper_entry_observed")
+        ),
+        "successor_surface_observed": bool(
+            candidate_payload.get("successor_surface_observed")
+        ),
+        "process_exception_observed": bool(
+            candidate_payload.get("process_exception_observed")
+        ),
+        "compare_successor_observed": bool(
+            candidate_payload.get("compare_successor_observed")
+        ),
+        "actual_compare_observed": bool(candidate_payload.get("actual_compare_observed")),
+        "classification": classification,
+        "error": str(candidate_payload.get("error") or ""),
+    }
+
+
+def _narrower_post_entry_breakpoint_diagnostic_summary(
+    candidates: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    blocker_counts: dict[str, int] = {}
+    breakpoint_hit_counts: dict[str, int] = {}
+    install_attempted_count = 0
+    install_ok_count = 0
+    launch_attempted_count = 0
+    launch_ok_count = 0
+    for candidate in candidates:
+        classification = str(candidate.get("classification") or "")
+        if classification:
+            blocker_counts[classification] = blocker_counts.get(classification, 0) + 1
+        target_launch = candidate.get("target_launch", {})
+        if isinstance(target_launch, dict):
+            launch_attempted_count += int(bool(target_launch.get("attempted")))
+            launch_ok_count += int(bool(target_launch.get("ok")))
+        for breakpoint in candidate.get("breakpoints", []):
+            if not isinstance(breakpoint, dict):
+                continue
+            name = str(breakpoint.get("name") or "")
+            install_attempted_count += int(bool(breakpoint.get("install_attempted")))
+            install_ok_count += int(bool(breakpoint.get("install_ok")))
+            if bool(breakpoint.get("hit")):
+                breakpoint_hit_counts[name] = breakpoint_hit_counts.get(name, 0) + 1
+    return {
+        "blocker_counts": blocker_counts,
+        "target_launch_attempted_count": launch_attempted_count,
+        "target_launch_ok_count": launch_ok_count,
+        "breakpoint_install_attempted_count": install_attempted_count,
+        "breakpoint_install_ok_count": install_ok_count,
+        "breakpoint_hit_counts": breakpoint_hit_counts,
+    }
+
+
+def _choose_narrower_post_entry_breakpoint_classification(
+    candidates: Sequence[dict[str, object]],
+) -> str:
+    for preferred in (
+        "post_entry_breakpoint_observed",
+        "successor_breakpoint_not_hit",
+        "entry_breakpoint_not_hit",
+        "breakpoint_install_failed",
+        "frida_attach_or_spawn_failed",
+        "target_launch_failed",
+        "instrumentation_gap_but_environment_verified",
+    ):
+        if any(str(item.get("classification") or "") == preferred for item in candidates):
+            return preferred
+    return "instrumentation_gap_but_environment_verified"
+
+
+def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
+    *,
+    candidate_results: list[dict[str, object]],
+    source_payload: dict[str, object] | None = None,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+    source_run: str = "sr_arg0_hook_readiness_ordering_20260526_r1",
+) -> dict[str, object]:
+    source_payload = source_payload if isinstance(source_payload, dict) else {}
+    fixed_candidates = list(COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_CANDIDATES)
+    by_candidate = {
+        str(item.get("candidate_hex") or ""): item
+        for item in candidate_results
+        if isinstance(item, dict)
+    }
+    candidates = [
+        _normalize_narrower_post_entry_breakpoint_candidate_result(
+            candidate_hex,
+            by_candidate.get(candidate_hex),
+        )
+        for candidate_hex in fixed_candidates
+    ]
+    classification = _choose_narrower_post_entry_breakpoint_classification(candidates)
+    diagnostic_summary = _narrower_post_entry_breakpoint_diagnostic_summary(candidates)
+    breakpoint_plan = []
+    for item in candidate_results:
+        if isinstance(item, dict) and isinstance(item.get("breakpoint_plan"), list):
+            breakpoint_plan = list(item["breakpoint_plan"])
+            break
+    first_divergence_after = ""
+    signatures = [
+        tuple(str(event.get("name") or "") for event in item.get("event_sequence", [])[:4])
+        for item in candidates
+    ]
+    if signatures and len({signature for signature in signatures}) > 1:
+        first_divergence_after = "event_sequence"
+    elif any(item.get("handoff_helper_entry_observed") for item in candidates):
+        first_divergence_after = "handoff_helper_entry"
+    return {
+        "schema_version": 1,
+        "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "source_run": source_payload.get("source_run") or source_run,
+        "source_artifacts": [
+            "compare_handoff_post_entry_step_runtime_audit",
+            "compare_handoff_hook_surface_repair_audit",
+            "compare_handoff_branch_operand_runtime_audit",
+        ],
+        "classification": classification,
+        "overall_classification": classification,
+        "candidate_count": len(fixed_candidates),
+        "fixed_candidates": fixed_candidates,
+        "runtime_scope": {
+            "mode": "narrower_post_entry_breakpoint",
+            "debugger_backend": "frida",
+            "single_step_required": False,
+            "breakpoint_probe_allowed": False,
+            "material_capture_allowed": False,
+            "crypto_hook_allowed": False,
+        },
+        "breakpoint_plan": breakpoint_plan,
+        "candidates": candidates,
+        "diagnostic_summary": diagnostic_summary,
+        "cross_candidate": {
+            "classification": classification,
+            "first_divergence_after": first_divergence_after,
+            "breakpoint_hit_counts": diagnostic_summary.get("breakpoint_hit_counts", {}),
+            "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
+        },
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "breakpoint_probe_allowed": False,
+        "material_capture_allowed": False,
+        "crypto_hook_allowed": False,
+        "blocked_actions": [
+            "do not expand candidates, beam, topN, budget, timeout, or frontier from this diagnostic",
+            "do not run Base64/RC4 breakpoint probe from post-entry control-flow surfaces",
+            "do not run material capture or crypto hooks from post-entry control-flow surfaces",
+        ],
+        "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
+    }
+
+
+def _narrower_post_entry_breakpoint_timeout_payload(
+    *,
+    candidate_hex: str,
+    hook_points: dict[str, object],
+    returncode: int,
+) -> dict[str, object]:
+    raw_points = hook_points.get("hook_points", {})
+    raw_points = raw_points if isinstance(raw_points, dict) else {}
+    fallbacks = {
+        "predecessor_handoff_call": "0x2338",
+        "handoff_helper_entry": "0x1b50",
+        "process_exception": "0x1913",
+        "actual_compare": "0x258c",
+    }
+    breakpoint_plan = [
+        {
+            "name": name,
+            "module_offset": str(
+                (raw_points.get(name) if isinstance(raw_points.get(name), dict) else {}).get(
+                    "module_offset",
+                    fallback,
+                )
+            ),
+        }
+        for name, fallback in fallbacks.items()
+    ]
+    return {
+        "schema_version": 1,
+        "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+        "sample": "samplereverse",
+        "success": False,
+        "candidate_hex": candidate_hex,
+        "runtime_scope": {
+            "mode": "narrower_post_entry_breakpoint",
+            "debugger_backend": "frida",
+            "single_step_required": False,
+            "breakpoint_probe_allowed": False,
+            "material_capture_allowed": False,
+            "crypto_hook_allowed": False,
+        },
+        "breakpoint_plan": breakpoint_plan,
+        "target_launch": {
+            "attempted": True,
+            "ok": False,
+            "pid": None,
+            "error": f"sidecar timed out before writing candidate artifact; returncode={returncode}",
+        },
+        "breakpoints": [
+            {
+                "name": str(point["name"]),
+                "module_offset": str(point["module_offset"]),
+                "install_attempted": False,
+                "install_ok": False,
+                "hit": False,
+                "hit_order": None,
+                "eip": "",
+                "error": "sidecar timed out before breakpoint installation could be confirmed",
+            }
+            for point in breakpoint_plan
+        ],
+        "event_sequence": [],
+        "handoff_helper_entry_observed": False,
+        "successor_surface_observed": False,
+        "process_exception_observed": False,
+        "compare_successor_observed": False,
+        "actual_compare_observed": False,
+        "classification": "frida_attach_or_spawn_failed",
+        "error": f"sidecar timed out before writing candidate artifact; returncode={returncode}",
+        "breakpoint_probe_allowed": False,
+        "material_capture_allowed": False,
+        "crypto_hook_allowed": False,
+    }
+
+
+def run_compare_handoff_narrower_post_entry_breakpoint_audit(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel | None = None,
+    per_probe_timeout: float = 2.2,
+    source_payload: dict[str, object] | None = None,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+    source_run: str = "sr_arg0_hook_readiness_ordering_20260526_r1",
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_FILE_NAME
+    script_path = _compare_handoff_narrower_post_entry_breakpoint_audit_script_path()
+    entries = list(COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_CANDIDATES)
+    points_path = artifacts_dir / "compare_handoff_narrower_post_entry_breakpoint_points.json"
+    _write_json(
+        points_path,
+        {
+            "hook_points": {
+                "predecessor_handoff_call": {"module_offset": "0x2338"},
+                "handoff_helper_entry": {"module_offset": "0x1b50"},
+                "process_exception": {"module_offset": "0x1913"},
+                "actual_compare": {"module_offset": "0x258c"},
+            },
+        },
+    )
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        audit_out = candidate_dir / COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_FILE_NAME
+        audit_log = candidate_dir / "compare_handoff_narrower_post_entry_breakpoint_audit.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(audit_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+        ]
+        if log:
+            log(f"CompareHandoffNarrowerPostEntryBreakpointAudit scripted hooks {idx}: {candidate_hex}")
+        try:
+            proc = _run_material_hook_runtime_command(
+                command,
+                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+            )
+        except subprocess.TimeoutExpired as exc:
+            proc = subprocess.CompletedProcess(
+                command,
+                returncode=124,
+                stdout=exc.stdout or "",
+                stderr=exc.stderr or "",
+            )
+        audit_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        payload = (
+            _read_json_object(audit_out)
+            if audit_out.exists()
+            else _narrower_post_entry_breakpoint_timeout_payload(
+                candidate_hex=candidate_hex,
+                hook_points={
+                    "hook_points": {
+                        "predecessor_handoff_call": {"module_offset": "0x2338"},
+                        "handoff_helper_entry": {"module_offset": "0x1b50"},
+                        "process_exception": {"module_offset": "0x1913"},
+                        "actual_compare": {"module_offset": "0x258c"},
+                    }
+                },
+                returncode=int(proc.returncode),
+            )
+        )
+        payload["candidate_hex"] = candidate_hex
+        candidate_results.append(payload)
+    payload = build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
+        candidate_results=candidate_results,
+        source_payload=source_payload,
+        sample=sample,
+        profile=profile,
+        run_name=run_name,
+        source_run=source_run,
+    )
+    _write_json(result_path, payload)
+    return {"payload": payload, "result_path": str(result_path)}
+
+
 def run_compare_handoff_exit_classifier_audit(
     *,
     target: Path,
@@ -20243,6 +20607,20 @@ def _prior_compare_handoff_post_entry_step_runtime_audit_has_decision() -> bool:
     return bool(str(payload.get("classification", "")).strip())
 
 
+def _prior_compare_handoff_narrower_post_entry_breakpoint_audit_has_decision() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get(
+        "latest_compare_handoff_narrower_post_entry_breakpoint_audit",
+        {},
+    )
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
+        return True
+    payload, _ = _indexed_artifact_payload(
+        "compare_handoff_narrower_post_entry_breakpoint_audit"
+    )
+    return bool(str(payload.get("classification", "")).strip())
+
+
 def _run_material_hook_runtime_command(
     command: Sequence[str],
     *,
@@ -24662,6 +25040,71 @@ class CompareAwareSearchStrategy(SolverStrategy):
             current_handoff_hook_surface_payload = (
                 current_handoff_hook_surface_payload or current_state_handoff_hook_surface
             )
+            current_handoff_post_entry_payload = _indexed_artifact_payload(
+                "compare_handoff_post_entry_step_runtime_audit"
+            )[0]
+            current_state_handoff_post_entry = current_state.get(
+                "latest_compare_handoff_post_entry_step_runtime_audit",
+                {},
+            )
+            current_state_handoff_post_entry = (
+                current_state_handoff_post_entry
+                if isinstance(current_state_handoff_post_entry, dict)
+                else {}
+            )
+            current_handoff_post_entry_payload = (
+                current_handoff_post_entry_payload or current_state_handoff_post_entry
+            )
+            should_run_early_narrower_post_entry_breakpoint_audit = (
+                not _prior_compare_handoff_narrower_post_entry_breakpoint_audit_has_decision()
+                and str(
+                    current_handoff_post_entry_payload.get("classification")
+                    or current_handoff_post_entry_payload.get("overall_classification")
+                    or ""
+                ).strip()
+                == "step_api_unavailable"
+            )
+            if should_run_early_narrower_post_entry_breakpoint_audit:
+                narrower_run = run_compare_handoff_narrower_post_entry_breakpoint_audit(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "compare_handoff_narrower_post_entry_breakpoint_audit",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    source_payload=current_handoff_post_entry_payload,
+                    run_name=str(kwargs.get("run_name", "")),
+                    source_run=str(
+                        current_handoff_post_entry_payload.get("source_run")
+                        or "sr_arg0_hook_readiness_ordering_20260526_r1"
+                    ),
+                    log=log,
+                )
+                narrower_payload = dict(narrower_run.get("payload", {}))
+                narrower_artifact = _make_search_artifact(
+                    tool_name="CompareHandoffNarrowerPostEntryBreakpointAudit",
+                    output_path=Path(str(narrower_run["result_path"])),
+                    summary=str(
+                        narrower_payload.get(
+                            "classification",
+                            "compare handoff narrower post-entry breakpoint audit complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=narrower_payload,
+                    derived_entries=[],
+                )
+                return StrategyResult(
+                    strategy_name=self.name,
+                    summary=narrower_artifact.summary,
+                    candidates=[],
+                    artifacts=[narrower_artifact],
+                    metadata={
+                        "resolved_anchors": discovered_anchors,
+                        "compare_handoff_narrower_post_entry_breakpoint_audit": narrower_run,
+                        "completed_stage": "compare_handoff_narrower_post_entry_breakpoint_audit",
+                        "early_sidecar": True,
+                    },
+                )
             should_run_early_post_entry_step_audit = (
                 not _prior_compare_handoff_post_entry_step_runtime_audit_has_decision()
                 and str(
