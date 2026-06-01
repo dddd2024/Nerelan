@@ -1577,6 +1577,96 @@ def test_project_state_indexes_compare_handoff_branch_operand_runtime_audit(tmp_
     assert task_packet["task"] == "Repair bounded handoff branch hook surface"
 
 
+def test_project_state_indexes_compare_handoff_hook_surface_repair_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_hook_surface")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_handoff_hook_surface_repair_audit.json",
+        {
+            "artifact_kind": "compare_handoff_hook_surface_repair_audit",
+            "classification": "hook_surface_requires_post_entry_step",
+            "overall_classification": "hook_surface_requires_post_entry_step",
+            "source_run": "sr_hook_surface",
+            "source_artifacts": [
+                "compare_handoff_branch_operand_runtime_audit",
+                "compare_handoff_edge_operand_provenance_audit",
+                "compare_handoff_path_divergence_audit",
+                "compare_handoff_exit_classifier_audit",
+            ],
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "fixed_candidates": [
+                "78d540b49c59077041414141414141",
+                "5a3e7f46ddd474d041414141414141",
+                "78d540b49c59076f41414141414141",
+            ],
+            "hook_surface_repair": {
+                "surface_classification": "static_boundary_explained",
+                "missing_observation": "branch_instruction",
+                "repair_type": "no_code_change_gap_classification",
+            },
+            "hook_surface_coverage": {
+                "predecessor_handoff_call": True,
+                "handoff_helper_entry": True,
+                "process_exception": True,
+                "post_entry_single_step": False,
+            },
+            "cross_candidate": {
+                "root_cause_classification": "hook_surface_requires_post_entry_step",
+                "return_target_trust": "suspicious",
+                "next_bounded_action": "post_entry_step_runtime_audit",
+            },
+            "candidates": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "branch_observation": {"classification": "not_observed"},
+                    "post_entry_outcome": "exception_edge",
+                },
+                {
+                    "candidate_hex": "5a3e7f46ddd474d041414141414141",
+                    "branch_observation": {"classification": "not_observed"},
+                    "post_entry_outcome": "exception_edge",
+                },
+                {
+                    "candidate_hex": "78d540b49c59076f41414141414141",
+                    "branch_observation": {"classification": "instruction_boundary_gap"},
+                    "post_entry_outcome": "instruction_boundary_gap",
+                },
+            ],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "post_entry_step_runtime_audit",
+        },
+    )
+
+    build_project_state(
+        reports_dir=reports_dir,
+        state_dir=state_dir,
+        sample="samplereverse",
+        run_name="sr_hook_surface",
+    )
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert artifact_index["latest_artifacts"]["compare_handoff_hook_surface_repair_audit"].endswith(
+        "compare_handoff_hook_surface_repair_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == (
+        "compare_handoff_hook_surface_repair_audit"
+    )
+    assert current_state["current_bottleneck"]["reason"] == "hook_surface_requires_post_entry_step"
+    latest = current_state["latest_compare_handoff_hook_surface_repair_audit"]
+    assert latest["classification"] == "hook_surface_requires_post_entry_step"
+    assert latest["candidate_count"] == 3
+    assert latest["hook_surface_repair"]["missing_observation"] == "branch_instruction"
+    assert latest["hook_surface_coverage"]["post_entry_single_step"] is False
+    assert latest["cross_candidate"]["return_target_trust"] == "suspicious"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert task_packet["task"] == "Run bounded post-entry step runtime audit"
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

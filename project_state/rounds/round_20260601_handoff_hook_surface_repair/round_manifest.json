@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-01T06:21:08Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_handoff_hook_surface_repair\\codex_execution_report.md",
+      "sha256": "ca47c5dbcb2e0b3ff7ceee090fd7e30142be9f5f1fa3256b5568ae5227f98c9e",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_handoff_hook_surface_repair\\decision_packet.md",
+      "sha256": "6c91b6a3e79aced065941bcec13930855422cb90b3ac9117cc6b98addc08c853",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260601_handoff_hook_surface_repair\\pytest_result.txt",
+      "sha256": "bbdab75b6bc62b651b025eac4e64955d19ca7ea9925329d145f4db6e31343285",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260601_handoff_hook_surface_repair",
+  "schema_version": 1,
+  "source_git_commit": "77ddaa14cc8c",
+  "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+  "state_build_id": "state_20260601_061827_b914ea0b1647",
+  "state_digest": "b914ea0b1647765ae3106b285fdb4bb20b23b35c34bcfe1c5c9c315026b06d51",
+  "workflow_status": "REPORT_AVAILABLE"
+}

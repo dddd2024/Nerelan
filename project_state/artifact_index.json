@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-01T05:32:46Z",
+  "generated_at": "2026-06-01T06:18:26Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -12,6 +12,7 @@
     "compare_handoff_branch_operand_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_branch_operand_runtime_audit\\compare_handoff_branch_operand_runtime_audit.json",
     "compare_handoff_edge_operand_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_edge_operand_provenance_audit\\compare_handoff_edge_operand_provenance_audit.json",
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
+    "compare_handoff_hook_surface_repair_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_probe": null,
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
@@ -147,6 +148,15 @@
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
       "sha256": "d22c67b35e72292dbf90ba201b1a2ebc222f7bcfcb099d6a04c91c227720241d",
       "size_bytes": 168922,
+      "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
+    },
+    "compare_handoff_hook_surface_repair_audit": {
+      "freshness": "current",
+      "kind": "compare_handoff_hook_surface_repair_audit",
+      "modified_at": "2026-06-01T06:18:22Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
+      "sha256": "7dc7006a912e820972af7ac8746df86bb9a8333d192472f979c06f6020db79d2",
+      "size_bytes": 7598,
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_path_divergence_audit": {
@@ -482,6 +492,12 @@
   "missing": [],
   "recent_artifacts": [
     {
+      "kind": "compare_handoff_hook_surface_repair_audit",
+      "modified_at": "2026-06-01T06:18:22Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
+      "size_bytes": 7598
+    },
+    {
       "kind": "compare_handoff_branch_operand_runtime_audit",
       "modified_at": "2026-06-01T05:32:40Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_branch_operand_runtime_audit\\compare_handoff_branch_operand_runtime_audit.json",
@@ -596,12 +612,6 @@
       "modified_at": "2026-05-10T14:45:02Z",
       "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
       "size_bytes": 50953
-    },
-    {
-      "kind": "function_semantic_audit",
-      "modified_at": "2026-05-10T14:45:02Z",
-      "path": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
-      "size_bytes": 7957
     }
   ],
   "reports_dir": "solve_reports",

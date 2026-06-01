@@ -22,6 +22,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_PATH_DIVERGENCE_AUDIT_FILE_NAME,
     COMPARE_HANDOFF_EDGE_OPERAND_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_HANDOFF_BRANCH_OPERAND_RUNTIME_AUDIT_FILE_NAME,
+    COMPARE_HANDOFF_HOOK_SURFACE_REPAIR_AUDIT_FILE_NAME,
     COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME,
     COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
@@ -86,6 +87,7 @@ from reverse_agent.strategies.compare_aware_search import (
     build_compare_handoff_path_divergence_audit_payload,
     build_compare_handoff_edge_operand_provenance_audit_payload,
     build_compare_handoff_branch_operand_runtime_audit_payload,
+    build_compare_handoff_hook_surface_repair_audit_payload,
     build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
@@ -108,6 +110,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_path_divergence_audit,
     run_compare_handoff_edge_operand_provenance_audit,
     run_compare_handoff_branch_operand_runtime_audit,
+    run_compare_handoff_hook_surface_repair_audit,
     run_compare_esi_source_window_audit,
     run_compare_real_lhs_provenance_audit,
     run_compare_pre_compare_handoff_target_probe,
@@ -11140,6 +11143,95 @@ def test_handoff_branch_operand_runtime_audit_classifies_instruction_boundary_ga
         run_name="sr_path",
     )
     assert Path(result["result_path"]).name == COMPARE_HANDOFF_BRANCH_OPERAND_RUNTIME_AUDIT_FILE_NAME
+
+
+def test_handoff_hook_surface_repair_audit_projects_post_entry_step_need(
+    tmp_path: Path,
+) -> None:
+    branch_payload = {
+        "artifact_kind": "compare_handoff_branch_operand_runtime_audit",
+        "source_run": "sr_path",
+        "classification": "instruction_boundary_gap",
+        "overall_classification": "instruction_boundary_gap",
+        "fixed_candidates": [
+            "78d540b49c59077041414141414141",
+            "5a3e7f46ddd474d041414141414141",
+            "78d540b49c59076f41414141414141",
+        ],
+        "runtime_backed_count": 3,
+        "cross_candidate": {
+            "return_context_candidate_dependent": True,
+            "return_context_values": ["0xc5052f", "0x2ae052f", "0xfff4052f"],
+        },
+        "candidates": [
+            {
+                "candidate_hex": "78d540b49c59077041414141414141",
+                "candidate_prefix": "78d540b49c590770",
+                "prior_classification": "exception_edge_after_handoff",
+                "handoff_entry_observed": True,
+                "entry_context": {"return_target_observed": "0xc5052f"},
+                "branch_operand_evidence": {
+                    "observed": False,
+                    "classification": "not_observed",
+                },
+                "exception_edge_evidence": {"observed": True},
+                "post_entry_outcome": "exception_edge",
+            },
+            {
+                "candidate_hex": "5a3e7f46ddd474d041414141414141",
+                "candidate_prefix": "5a3e7f46ddd474d0",
+                "prior_classification": "exception_edge_after_handoff",
+                "handoff_entry_observed": True,
+                "entry_context": {"return_target_observed": "0x2ae052f"},
+                "branch_operand_evidence": {
+                    "observed": False,
+                    "classification": "not_observed",
+                },
+                "exception_edge_evidence": {"observed": True},
+                "post_entry_outcome": "exception_edge",
+            },
+            {
+                "candidate_hex": "78d540b49c59076f41414141414141",
+                "candidate_prefix": "78d540b49c59076f",
+                "prior_classification": "branch_guard_silent_after_handoff",
+                "handoff_entry_observed": True,
+                "entry_context": {"return_target_observed": "0xfff4052f"},
+                "branch_operand_evidence": {
+                    "observed": False,
+                    "classification": "instruction_boundary_gap",
+                    "outcome": "unknown",
+                },
+                "exception_edge_evidence": {"observed": False},
+                "post_entry_outcome": "instruction_boundary_gap",
+            },
+        ],
+    }
+
+    payload = build_compare_handoff_hook_surface_repair_audit_payload(
+        branch_payload=branch_payload,
+        edge_payload={"classification": "candidate_dependent_handoff_exit_edge_unresolved"},
+        path_payload={"classification": "candidate_dependent_handoff_exit_edge_unresolved"},
+        exit_payload={"classification": "candidate_dependent_non_reaching_path"},
+    )
+    assert payload["artifact_kind"] == "compare_handoff_hook_surface_repair_audit"
+    assert payload["classification"] == "hook_surface_requires_post_entry_step"
+    assert payload["runtime_sidecar_executed"] is False
+    assert payload["candidate_generation_changed"] is False
+    assert payload["fixed_candidates"] == branch_payload["fixed_candidates"]
+    assert payload["hook_surface_repair"]["surface_classification"] == "static_boundary_explained"
+    assert payload["hook_surface_repair"]["missing_observation"] == "branch_instruction"
+    assert payload["hook_surface_coverage"]["handoff_helper_entry"] is True
+    assert payload["hook_surface_coverage"]["post_entry_single_step"] is False
+    assert payload["cross_candidate"]["return_target_trust"] == "suspicious"
+    assert payload["next_bounded_action"] == "post_entry_step_runtime_audit"
+    assert payload["breakpoint_probe_allowed"] is False
+
+    result = run_compare_handoff_hook_surface_repair_audit(
+        branch_payload=branch_payload,
+        artifacts_dir=tmp_path / "hook_surface",
+        run_name="sr_path",
+    )
+    assert Path(result["result_path"]).name == COMPARE_HANDOFF_HOOK_SURFACE_REPAIR_AUDIT_FILE_NAME
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

@@ -9,6 +9,7 @@
     "compare_handoff_branch_operand_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_branch_operand_runtime_audit\\compare_handoff_branch_operand_runtime_audit.json",
     "compare_handoff_edge_operand_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_edge_operand_provenance_audit\\compare_handoff_edge_operand_provenance_audit.json",
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
+    "compare_handoff_hook_surface_repair_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
@@ -61,10 +62,10 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "instruction_boundary_gap",
+    "blocker": "",
     "confidence": "medium",
-    "reason": "instruction_boundary_gap",
-    "stage": "compare_handoff_branch_operand_runtime_audit"
+    "reason": "hook_surface_requires_post_entry_step",
+    "stage": "compare_handoff_hook_surface_repair_audit"
   },
   "current_mainline": "L15(prefix8)",
   "current_owner": "web_gpt",
@@ -106,7 +107,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-06-01T05:32:47Z",
+  "generated_at": "2026-06-01T06:18:27Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -827,6 +828,182 @@
     "next_bounded_action": "compare per-candidate path divergence on the bounded handoff surface",
     "overall_classification": "candidate_dependent_non_reaching_path",
     "runtime_backed_count": 3,
+    "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
+  },
+  "latest_compare_handoff_hook_surface_repair_audit": {
+    "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "candidates": [
+      {
+        "branch_observation": {
+          "branch_eip": "",
+          "classification": "not_observed",
+          "condition": "",
+          "eflags": "",
+          "instruction": "",
+          "next_eip": "",
+          "observed": false,
+          "outcome": "unknown"
+        },
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "candidate_prefix": "78d540b49c590770",
+        "exception_edge_observation": {
+          "address": "0xf41913",
+          "candidate_dependent_memory": true,
+          "classification": "candidate_dependent",
+          "memory": "0x5305154b",
+          "module_offset": "0x1913",
+          "observed": true,
+          "type": "access-violation"
+        },
+        "handoff_entry_observed": true,
+        "missing_observations": [
+          "branch_instruction",
+          "instruction_text",
+          "eflags",
+          "branch_condition",
+          "next_eip"
+        ],
+        "post_entry_events": [],
+        "post_entry_outcome": "exception_edge",
+        "prior_classification": "exception_edge_after_handoff",
+        "return_target_observation": {
+          "observed": true,
+          "reason": "return target varies across fixed candidates and appears non-module-like, so the existing hook surface cannot distinguish a true candidate-dependent return from a stack-top/instrumentation read",
+          "trust": "suspicious",
+          "value": "0xc5052f"
+        }
+      },
+      {
+        "branch_observation": {
+          "branch_eip": "",
+          "classification": "not_observed",
+          "condition": "",
+          "eflags": "",
+          "instruction": "",
+          "next_eip": "",
+          "observed": false,
+          "outcome": "unknown"
+        },
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "candidate_prefix": "5a3e7f46ddd474d0",
+        "exception_edge_observation": {
+          "address": "0xf41913",
+          "candidate_dependent_memory": true,
+          "classification": "candidate_dependent",
+          "memory": "0x820004",
+          "module_offset": "0x1913",
+          "observed": true,
+          "type": "access-violation"
+        },
+        "handoff_entry_observed": true,
+        "missing_observations": [
+          "branch_instruction",
+          "instruction_text",
+          "eflags",
+          "branch_condition",
+          "next_eip"
+        ],
+        "post_entry_events": [],
+        "post_entry_outcome": "exception_edge",
+        "prior_classification": "exception_edge_after_handoff",
+        "return_target_observation": {
+          "observed": true,
+          "reason": "return target varies across fixed candidates and appears non-module-like, so the existing hook surface cannot distinguish a true candidate-dependent return from a stack-top/instrumentation read",
+          "trust": "suspicious",
+          "value": "0x2ae052f"
+        }
+      },
+      {
+        "branch_observation": {
+          "branch_eip": "",
+          "classification": "instruction_boundary_gap",
+          "condition": "",
+          "eflags": "",
+          "instruction": "",
+          "next_eip": "",
+          "observed": false,
+          "outcome": "unknown"
+        },
+        "candidate_hex": "78d540b49c59076f41414141414141",
+        "candidate_prefix": "78d540b49c59076f",
+        "exception_edge_observation": {
+          "address": "",
+          "candidate_dependent_memory": false,
+          "classification": "not_observed",
+          "memory": "",
+          "module_offset": "",
+          "observed": false,
+          "type": ""
+        },
+        "handoff_entry_observed": true,
+        "missing_observations": [
+          "branch_instruction",
+          "instruction_text",
+          "eflags",
+          "branch_condition",
+          "next_eip"
+        ],
+        "post_entry_events": [],
+        "post_entry_outcome": "instruction_boundary_gap",
+        "prior_classification": "branch_guard_silent_after_handoff",
+        "return_target_observation": {
+          "observed": true,
+          "reason": "return target varies across fixed candidates and appears non-module-like, so the existing hook surface cannot distinguish a true candidate-dependent return from a stack-top/instrumentation read",
+          "trust": "suspicious",
+          "value": "0xfff4052f"
+        }
+      }
+    ],
+    "classification": "hook_surface_requires_post_entry_step",
+    "cross_candidate": {
+      "branch_guard_explained": false,
+      "branch_operand_gap_count": 1,
+      "evidence_strength": "offline_projected_from_runtime_backed_source",
+      "exception_candidate_count": 2,
+      "next_bounded_action": "post_entry_step_runtime_audit",
+      "return_context_candidate_dependent": true,
+      "return_context_values": [
+        "0xc5052f",
+        "0x2ae052f",
+        "0xfff4052f"
+      ],
+      "return_target_minimal_reason": "candidate-dependent, non-module-looking return targets require post-entry control-flow sampling or stack-frame correction before they can be trusted",
+      "return_target_trust": "suspicious",
+      "root_cause_classification": "hook_surface_requires_post_entry_step"
+    },
+    "hook_surface_coverage": {
+      "actual_compare": false,
+      "compare_successor": false,
+      "handoff_helper_entry": true,
+      "post_entry_single_step": false,
+      "predecessor_handoff_call": true,
+      "process_exception": true
+    },
+    "hook_surface_repair": {
+      "bounded_static_reason": "current runtime-backed artifacts stop at handoff_helper_entry or exception edge summaries and do not contain post-entry single-step branch/flags/next-EIP events",
+      "missing_observation": "branch_instruction",
+      "missing_observations": [
+        "branch_condition",
+        "branch_instruction",
+        "eflags",
+        "instruction_text",
+        "next_eip"
+      ],
+      "repair_applied": true,
+      "repair_type": "no_code_change_gap_classification",
+      "surface_classification": "static_boundary_explained"
+    },
+    "next_bounded_action": "post_entry_step_runtime_audit",
+    "overall_classification": "hook_surface_requires_post_entry_step",
+    "runtime_backed_count": 3,
+    "source_artifacts": [
+      "compare_handoff_branch_operand_runtime_audit",
+      "compare_handoff_edge_operand_provenance_audit",
+      "compare_handoff_path_divergence_audit",
+      "compare_handoff_exit_classifier_audit"
+    ],
     "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
   },
   "latest_compare_handoff_path_divergence_audit": {
@@ -2842,13 +3019,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260601_053247",
+  "round_id": "round_20260601_061827",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "144116ab7b3a",
+  "source_git_commit": "77ddaa14cc8c",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260601_053247_0a1efec62722",
-  "state_digest": "0a1efec627229ad0ce7c502fe51d0b02bfba8ebdaebdc4ea9f2fb11e42a61220",
+  "state_build_id": "state_20260601_061827_b914ea0b1647",
+  "state_digest": "b914ea0b1647765ae3106b285fdb4bb20b23b35c34bcfe1c5c9c315026b06d51",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }
