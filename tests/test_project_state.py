@@ -1818,6 +1818,7 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
         artifacts_dir / "compare_handoff_narrower_post_entry_breakpoint_audit.json",
         {
             "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+            "lifecycle_schema_version": 1,
             "classification": "entry_breakpoint_not_hit",
             "overall_classification": "entry_breakpoint_not_hit",
             "source_run": "sr_narrower_post_entry",
@@ -1854,10 +1855,35 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
                 "breakpoint_install_ok_count": 12,
                 "breakpoint_hit_counts": {},
             },
+            "lifecycle_diagnostics": {
+                "classification": "entry_breakpoint_not_hit",
+                "stage_counts": {
+                    "sidecar_started": 3,
+                    "breakpoint_install_ok": 3,
+                    "observation_wait_finished_or_timeout": 3,
+                },
+                "last_confirmed_stages": {
+                    "78d540b49c59077041414141414141": "observation_wait_finished_or_timeout"
+                },
+                "timeout_stages": {
+                    "78d540b49c59077041414141414141": ""
+                },
+                "candidate_invocation_health": {
+                    "78d540b49c59077041414141414141": {
+                        "subprocess_returncode": 0,
+                        "subprocess_timed_out": False,
+                    }
+                },
+            },
             "cross_candidate": {
                 "classification": "entry_breakpoint_not_hit",
                 "first_divergence_after": "",
                 "breakpoint_hit_counts": {},
+                "lifecycle_stage_counts": {
+                    "sidecar_started": 3,
+                    "breakpoint_install_ok": 3,
+                    "observation_wait_finished_or_timeout": 3,
+                },
                 "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
             },
             "candidates": [
@@ -1880,6 +1906,24 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
                     "handoff_helper_entry_observed": False,
                     "successor_surface_observed": False,
                     "classification": "entry_breakpoint_not_hit",
+                    "lifecycle_schema_version": 1,
+                    "lifecycle": {
+                        "last_confirmed_stage": "observation_wait_finished_or_timeout",
+                        "last_error_stage": "",
+                        "timeout_stage": "",
+                        "stages": [
+                            {"stage": "sidecar_started", "status": "confirmed"},
+                            {"stage": "breakpoint_install_ok", "status": "confirmed"},
+                            {
+                                "stage": "observation_wait_finished_or_timeout",
+                                "status": "confirmed",
+                            },
+                        ],
+                    },
+                    "candidate_invocation_health": {
+                        "subprocess_returncode": 0,
+                        "subprocess_timed_out": False,
+                    },
                 }
             ],
             "candidate_generation_changed": False,
@@ -1918,6 +1962,11 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
     assert len(latest["fixed_candidates"]) == 3
     assert latest["runtime_scope"]["single_step_required"] is False
     assert latest["diagnostic_summary"]["breakpoint_install_ok_count"] == 12
+    assert latest["lifecycle_schema_version"] == 1
+    assert latest["lifecycle_diagnostics"]["stage_counts"]["breakpoint_install_ok"] == 3
+    assert latest["lifecycle_diagnostics"]["candidate_invocation_health"][
+        "78d540b49c59077041414141414141"
+    ]["subprocess_returncode"] == 0
     assert latest["breakpoint_plan"][1]["module_offset"] == "0x1b50"
     assert latest["breakpoint_probe_allowed"] is False
     assert current_state["latest_compare_handoff_post_entry_step_runtime_audit"][

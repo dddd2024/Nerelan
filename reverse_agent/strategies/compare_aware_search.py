@@ -13014,6 +13014,12 @@ def _normalize_narrower_post_entry_breakpoint_candidate_result(
     breakpoints = breakpoints if isinstance(breakpoints, list) else []
     target_launch = candidate_payload.get("target_launch", {})
     target_launch = target_launch if isinstance(target_launch, dict) else {}
+    lifecycle = candidate_payload.get("lifecycle", {})
+    lifecycle = lifecycle if isinstance(lifecycle, dict) else {}
+    candidate_invocation_health = candidate_payload.get("candidate_invocation_health", {})
+    candidate_invocation_health = (
+        candidate_invocation_health if isinstance(candidate_invocation_health, dict) else {}
+    )
     return {
         "candidate_hex": candidate_hex,
         "target_launch": target_launch,
@@ -13034,6 +13040,9 @@ def _normalize_narrower_post_entry_breakpoint_candidate_result(
         "actual_compare_observed": bool(candidate_payload.get("actual_compare_observed")),
         "classification": classification,
         "error": str(candidate_payload.get("error") or ""),
+        "lifecycle_schema_version": int(candidate_payload.get("lifecycle_schema_version") or 1),
+        "lifecycle": lifecycle,
+        "candidate_invocation_health": candidate_invocation_health,
     }
 
 
@@ -13072,6 +13081,38 @@ def _narrower_post_entry_breakpoint_diagnostic_summary(
     }
 
 
+def _narrower_lifecycle_diagnostics(
+    candidates: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    stage_counts: dict[str, int] = {}
+    candidate_invocation_health: dict[str, object] = {}
+    last_confirmed_stages: dict[str, str] = {}
+    timeout_stages: dict[str, str] = {}
+    for candidate in candidates:
+        candidate_hex = str(candidate.get("candidate_hex") or "")
+        lifecycle = candidate.get("lifecycle", {})
+        lifecycle = lifecycle if isinstance(lifecycle, dict) else {}
+        health = candidate.get("candidate_invocation_health", {})
+        health = health if isinstance(health, dict) else {}
+        if candidate_hex:
+            candidate_invocation_health[candidate_hex] = health
+            last_confirmed_stages[candidate_hex] = str(lifecycle.get("last_confirmed_stage") or "")
+            timeout_stages[candidate_hex] = str(lifecycle.get("timeout_stage") or "")
+        for stage in lifecycle.get("stages", []):
+            if not isinstance(stage, dict):
+                continue
+            stage_name = str(stage.get("stage") or "")
+            if stage_name:
+                stage_counts[stage_name] = stage_counts.get(stage_name, 0) + 1
+    return {
+        "classification": _choose_narrower_post_entry_breakpoint_classification(candidates),
+        "stage_counts": stage_counts,
+        "last_confirmed_stages": last_confirmed_stages,
+        "timeout_stages": timeout_stages,
+        "candidate_invocation_health": candidate_invocation_health,
+    }
+
+
 def _choose_narrower_post_entry_breakpoint_classification(
     candidates: Sequence[dict[str, object]],
 ) -> str:
@@ -13079,7 +13120,24 @@ def _choose_narrower_post_entry_breakpoint_classification(
         "post_entry_breakpoint_observed",
         "successor_breakpoint_not_hit",
         "entry_breakpoint_not_hit",
+        "ui_trigger_timeout",
+        "ui_trigger_failed",
+        "ui_connect_timeout",
+        "ui_connect_failed",
+        "frida_resume_failed",
+        "breakpoint_install_timeout",
         "breakpoint_install_failed",
+        "script_load_timeout",
+        "script_create_or_load_failed",
+        "frida_attach_timeout",
+        "frida_attach_failed",
+        "frida_spawn_timeout",
+        "frida_spawn_failed",
+        "debugger_dependency_missing",
+        "target_missing_or_unlaunchable",
+        "candidate_artifact_write_failed",
+        "subprocess_timeout_after_lifecycle_checkpoint",
+        "subprocess_timeout_before_lifecycle_checkpoint",
         "frida_attach_or_spawn_failed",
         "target_launch_failed",
         "instrumentation_gap_but_environment_verified",
@@ -13114,6 +13172,7 @@ def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
     ]
     classification = _choose_narrower_post_entry_breakpoint_classification(candidates)
     diagnostic_summary = _narrower_post_entry_breakpoint_diagnostic_summary(candidates)
+    lifecycle_diagnostics = _narrower_lifecycle_diagnostics(candidates)
     breakpoint_plan = []
     for item in candidate_results:
         if isinstance(item, dict) and isinstance(item.get("breakpoint_plan"), list):
@@ -13131,6 +13190,7 @@ def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
     return {
         "schema_version": 1,
         "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+        "lifecycle_schema_version": 1,
         "sample": sample,
         "profile": profile,
         "run_name": run_name,
@@ -13155,10 +13215,12 @@ def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
         "breakpoint_plan": breakpoint_plan,
         "candidates": candidates,
         "diagnostic_summary": diagnostic_summary,
+        "lifecycle_diagnostics": lifecycle_diagnostics,
         "cross_candidate": {
             "classification": classification,
             "first_divergence_after": first_divergence_after,
             "breakpoint_hit_counts": diagnostic_summary.get("breakpoint_hit_counts", {}),
+            "lifecycle_stage_counts": lifecycle_diagnostics.get("stage_counts", {}),
             "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
         },
         "candidate_generation_changed": False,
@@ -13182,7 +13244,14 @@ def _narrower_post_entry_breakpoint_timeout_payload(
     candidate_hex: str,
     hook_points: dict[str, object],
     returncode: int,
+    command: Sequence[str] | None = None,
+    stdout: str | bytes = "",
+    stderr: str | bytes = "",
+    partial_artifact_path: Path | None = None,
+    partial_payload: dict[str, object] | None = None,
+    timed_out: bool = True,
 ) -> dict[str, object]:
+    partial_payload = partial_payload if isinstance(partial_payload, dict) else {}
     raw_points = hook_points.get("hook_points", {})
     raw_points = raw_points if isinstance(raw_points, dict) else {}
     fallbacks = {
@@ -13203,9 +13272,58 @@ def _narrower_post_entry_breakpoint_timeout_payload(
         }
         for name, fallback in fallbacks.items()
     ]
+    lifecycle = partial_payload.get("lifecycle", {})
+    lifecycle = lifecycle if isinstance(lifecycle, dict) else {}
+    classification = _classify_narrower_timeout_from_lifecycle(lifecycle, bool(partial_payload))
+    if lifecycle:
+        lifecycle = dict(lifecycle)
+        lifecycle["timeout_stage"] = _timeout_stage_from_lifecycle(lifecycle)
+    confirmed_stages = {
+        str(stage.get("stage") or "")
+        for stage in lifecycle.get("stages", [])
+        if isinstance(stage, dict) and str(stage.get("status") or "") == "confirmed"
+    }
+    target_launch_ok = any(
+        stage
+        in {
+            "frida_spawn_ok",
+            "frida_attach_attempted",
+            "frida_attach_ok",
+            "script_create_attempted",
+            "script_load_attempted",
+            "script_load_ok",
+            "breakpoint_install_attempted",
+            "breakpoint_install_ok",
+            "frida_resume_attempted",
+            "frida_resume_ok",
+            "ui_connect_attempted",
+            "ui_connect_ok",
+            "ui_trigger_attempted",
+        }
+        for stage in confirmed_stages
+    )
+    breakpoint_install_attempted = "breakpoint_install_attempted" in confirmed_stages
+    breakpoint_install_ok = "breakpoint_install_ok" in confirmed_stages
+    partial_exists = bool(partial_artifact_path and partial_artifact_path.exists())
+    partial_size = (
+        partial_artifact_path.stat().st_size
+        if partial_artifact_path is not None and partial_artifact_path.exists()
+        else 0
+    )
+    health = {
+        "subprocess_command": list(command or []),
+        "subprocess_returncode": returncode,
+        "subprocess_timed_out": timed_out,
+        "subprocess_stdout_tail": _tail_text(stdout),
+        "subprocess_stderr_tail": _tail_text(stderr),
+        "partial_artifact_path": str(partial_artifact_path) if partial_artifact_path else "",
+        "partial_artifact_exists": partial_exists,
+        "partial_artifact_size_bytes": partial_size,
+    }
     return {
         "schema_version": 1,
         "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+        "lifecycle_schema_version": 1,
         "sample": "samplereverse",
         "success": False,
         "candidate_hex": candidate_hex,
@@ -13220,7 +13338,7 @@ def _narrower_post_entry_breakpoint_timeout_payload(
         "breakpoint_plan": breakpoint_plan,
         "target_launch": {
             "attempted": True,
-            "ok": False,
+            "ok": target_launch_ok,
             "pid": None,
             "error": f"sidecar timed out before writing candidate artifact; returncode={returncode}",
         },
@@ -13228,12 +13346,14 @@ def _narrower_post_entry_breakpoint_timeout_payload(
             {
                 "name": str(point["name"]),
                 "module_offset": str(point["module_offset"]),
-                "install_attempted": False,
-                "install_ok": False,
+                "install_attempted": breakpoint_install_attempted,
+                "install_ok": breakpoint_install_ok,
                 "hit": False,
                 "hit_order": None,
                 "eip": "",
-                "error": "sidecar timed out before breakpoint installation could be confirmed",
+                "error": ""
+                if breakpoint_install_ok
+                else "sidecar timed out before breakpoint installation could be confirmed",
             }
             for point in breakpoint_plan
         ],
@@ -13243,12 +13363,63 @@ def _narrower_post_entry_breakpoint_timeout_payload(
         "process_exception_observed": False,
         "compare_successor_observed": False,
         "actual_compare_observed": False,
-        "classification": "frida_attach_or_spawn_failed",
+        "classification": classification,
         "error": f"sidecar timed out before writing candidate artifact; returncode={returncode}",
+        "lifecycle": lifecycle,
+        "candidate_invocation_health": health,
         "breakpoint_probe_allowed": False,
         "material_capture_allowed": False,
         "crypto_hook_allowed": False,
     }
+
+
+def _tail_text(value: str | bytes, limit: int = 2000) -> str:
+    if isinstance(value, bytes):
+        text = value.decode("utf-8", errors="replace")
+    else:
+        text = str(value or "")
+    return text[-limit:]
+
+
+def _timeout_stage_from_lifecycle(lifecycle: dict[str, object]) -> str:
+    last_confirmed = str(lifecycle.get("last_confirmed_stage") or "")
+    if not last_confirmed:
+        return "before_lifecycle_checkpoint"
+    return {
+        "dependency_import_attempted": "dependency_import",
+        "frida_spawn_attempted": "frida_spawn",
+        "frida_attach_attempted": "frida_attach",
+        "script_create_attempted": "script_create",
+        "script_load_attempted": "script_load",
+        "breakpoint_install_attempted": "breakpoint_install",
+        "frida_resume_attempted": "frida_resume",
+        "ui_connect_attempted": "ui_connect",
+        "ui_trigger_attempted": "ui_trigger",
+        "observation_wait_started": "observation_wait",
+        "final_artifact_write_attempted": "final_artifact_write",
+    }.get(last_confirmed, f"after_{last_confirmed}")
+
+
+def _classify_narrower_timeout_from_lifecycle(
+    lifecycle: dict[str, object],
+    partial_artifact_exists: bool,
+) -> str:
+    if not partial_artifact_exists or not lifecycle:
+        return "subprocess_timeout_before_lifecycle_checkpoint"
+    last_confirmed = str(lifecycle.get("last_confirmed_stage") or "")
+    return {
+        "dependency_import_attempted": "debugger_dependency_missing",
+        "frida_spawn_attempted": "frida_spawn_timeout",
+        "frida_attach_attempted": "frida_attach_timeout",
+        "script_create_attempted": "script_load_timeout",
+        "script_load_attempted": "script_load_timeout",
+        "breakpoint_install_attempted": "breakpoint_install_timeout",
+        "frida_resume_attempted": "frida_resume_failed",
+        "ui_connect_attempted": "ui_connect_timeout",
+        "ui_trigger_attempted": "ui_trigger_timeout",
+        "observation_wait_started": "entry_breakpoint_not_hit",
+        "final_artifact_write_attempted": "candidate_artifact_write_failed",
+    }.get(last_confirmed, "subprocess_timeout_after_lifecycle_checkpoint")
 
 
 def run_compare_handoff_narrower_post_entry_breakpoint_audit(
@@ -13303,12 +13474,14 @@ def run_compare_handoff_narrower_post_entry_breakpoint_audit(
         ]
         if log:
             log(f"CompareHandoffNarrowerPostEntryBreakpointAudit scripted hooks {idx}: {candidate_hex}")
+        timed_out = False
         try:
             proc = _run_material_hook_runtime_command(
                 command,
                 timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
             )
         except subprocess.TimeoutExpired as exc:
+            timed_out = True
             proc = subprocess.CompletedProcess(
                 command,
                 returncode=124,
@@ -13319,10 +13492,22 @@ def run_compare_handoff_narrower_post_entry_breakpoint_audit(
             f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
             encoding="utf-8",
         )
-        payload = (
-            _read_json_object(audit_out)
-            if audit_out.exists()
-            else _narrower_post_entry_breakpoint_timeout_payload(
+        partial_payload = _read_json_object(audit_out) if audit_out.exists() else {}
+        invocation_health = {
+            "subprocess_command": list(command),
+            "subprocess_returncode": int(proc.returncode),
+            "subprocess_timed_out": timed_out,
+            "subprocess_stdout_tail": _tail_text(proc.stdout or ""),
+            "subprocess_stderr_tail": _tail_text(proc.stderr or ""),
+            "partial_artifact_path": str(audit_out),
+            "partial_artifact_exists": audit_out.exists(),
+            "partial_artifact_size_bytes": audit_out.stat().st_size if audit_out.exists() else 0,
+            "candidate_log_path": str(audit_log),
+            "candidate_log_exists": audit_log.exists(),
+            "candidate_log_size_bytes": audit_log.stat().st_size if audit_log.exists() else 0,
+        }
+        if timed_out:
+            payload = _narrower_post_entry_breakpoint_timeout_payload(
                 candidate_hex=candidate_hex,
                 hook_points={
                     "hook_points": {
@@ -13333,7 +13518,40 @@ def run_compare_handoff_narrower_post_entry_breakpoint_audit(
                     }
                 },
                 returncode=int(proc.returncode),
+                command=command,
+                stdout=proc.stdout or "",
+                stderr=proc.stderr or "",
+                partial_artifact_path=audit_out,
+                partial_payload=partial_payload,
+                timed_out=True,
             )
+        else:
+            payload = (
+                partial_payload
+                if partial_payload
+                else _narrower_post_entry_breakpoint_timeout_payload(
+                    candidate_hex=candidate_hex,
+                    hook_points={
+                        "hook_points": {
+                            "predecessor_handoff_call": {"module_offset": "0x2338"},
+                            "handoff_helper_entry": {"module_offset": "0x1b50"},
+                            "process_exception": {"module_offset": "0x1913"},
+                            "actual_compare": {"module_offset": "0x258c"},
+                        }
+                    },
+                    returncode=int(proc.returncode),
+                    command=command,
+                    stdout=proc.stdout or "",
+                    stderr=proc.stderr or "",
+                    partial_artifact_path=audit_out,
+                    partial_payload=partial_payload,
+                    timed_out=False,
+                )
+            )
+        payload["candidate_invocation_health"] = invocation_health | (
+            payload.get("candidate_invocation_health", {})
+            if isinstance(payload.get("candidate_invocation_health"), dict)
+            else {}
         )
         payload["candidate_hex"] = candidate_hex
         candidate_results.append(payload)

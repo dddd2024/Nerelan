@@ -66,7 +66,7 @@
   "current_bottleneck": {
     "blocker": "",
     "confidence": "medium",
-    "reason": "frida_attach_or_spawn_failed",
+    "reason": "ui_trigger_timeout",
     "stage": "compare_handoff_narrower_post_entry_breakpoint_audit"
   },
   "current_mainline": "L15(prefix8)",
@@ -109,7 +109,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-06-01T10:49:51Z",
+  "generated_at": "2026-06-01T14:53:42Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -1036,57 +1036,191 @@
         "breakpoints": [
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x2338",
             "name": "predecessor_handoff_call"
           },
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x1b50",
             "name": "handoff_helper_entry"
           },
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x1913",
             "name": "process_exception"
           },
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x258c",
             "name": "actual_compare"
           }
         ],
         "candidate_hex": "78d540b49c59077041414141414141",
-        "classification": "frida_attach_or_spawn_failed",
+        "candidate_invocation_health": {
+          "candidate_log_exists": true,
+          "candidate_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.log",
+          "candidate_log_size_bytes": 24,
+          "partial_artifact_exists": true,
+          "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+          "partial_artifact_size_bytes": 5322,
+          "subprocess_command": [
+            "C:\\Program Files\\Python313\\python.exe",
+            "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
+            "--target",
+            "F:\\reverse-agent\\solve_reports\\samplereverse_patched.exe",
+            "--out",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+            "--points",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_points.json",
+            "--probe-hex",
+            "78d540b49c59077041414141414141",
+            "--per-probe-timeout",
+            "2.2"
+          ],
+          "subprocess_returncode": 124,
+          "subprocess_stderr_tail": "",
+          "subprocess_stdout_tail": "",
+          "subprocess_timed_out": true
+        },
+        "classification": "ui_trigger_timeout",
         "compare_successor_observed": false,
         "error": "sidecar timed out before writing candidate artifact; returncode=124",
         "event_sequence": [],
         "handoff_helper_entry_observed": false,
+        "lifecycle": {
+          "last_confirmed_stage": "ui_trigger_attempted",
+          "last_error": "",
+          "last_error_stage": "",
+          "stages": [
+            {
+              "monotonic": 2674.927748,
+              "stage": "sidecar_started",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2674.985791,
+              "stage": "arguments_parsed",
+              "status": "confirmed"
+            },
+            {
+              "exists": true,
+              "monotonic": 2674.986141,
+              "stage": "target_checked",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2674.986817,
+              "stage": "dependency_import_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2675.224542,
+              "stage": "dependency_import_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2675.224997,
+              "stage": "frida_spawn_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2675.258106,
+              "pid": 17440,
+              "stage": "frida_spawn_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2675.258598,
+              "pid": 17440,
+              "stage": "frida_attach_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.245742,
+              "pid": 17440,
+              "stage": "frida_attach_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.246194,
+              "stage": "script_create_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.247654,
+              "stage": "script_load_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.249147,
+              "stage": "script_load_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.249598,
+              "stage": "breakpoint_install_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.24997,
+              "stage": "breakpoint_install_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.250284,
+              "stage": "frida_resume_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.250938,
+              "stage": "frida_resume_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.251242,
+              "stage": "ui_connect_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.252079,
+              "stage": "ui_connect_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2676.753513,
+              "stage": "ui_trigger_attempted",
+              "status": "confirmed"
+            }
+          ],
+          "timeout_stage": "ui_trigger"
+        },
+        "lifecycle_schema_version": 1,
         "process_exception_observed": false,
         "successor_surface_observed": false,
         "target_launch": {
           "attempted": true,
           "error": "sidecar timed out before writing candidate artifact; returncode=124",
-          "ok": false,
+          "ok": true,
           "pid": null
         }
       },
@@ -1095,57 +1229,191 @@
         "breakpoints": [
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x2338",
             "name": "predecessor_handoff_call"
           },
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x1b50",
             "name": "handoff_helper_entry"
           },
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x1913",
             "name": "process_exception"
           },
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x258c",
             "name": "actual_compare"
           }
         ],
         "candidate_hex": "5a3e7f46ddd474d041414141414141",
-        "classification": "frida_attach_or_spawn_failed",
+        "candidate_invocation_health": {
+          "candidate_log_exists": true,
+          "candidate_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.log",
+          "candidate_log_size_bytes": 24,
+          "partial_artifact_exists": true,
+          "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+          "partial_artifact_size_bytes": 5320,
+          "subprocess_command": [
+            "C:\\Program Files\\Python313\\python.exe",
+            "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
+            "--target",
+            "F:\\reverse-agent\\solve_reports\\samplereverse_patched.exe",
+            "--out",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+            "--points",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_points.json",
+            "--probe-hex",
+            "5a3e7f46ddd474d041414141414141",
+            "--per-probe-timeout",
+            "2.2"
+          ],
+          "subprocess_returncode": 124,
+          "subprocess_stderr_tail": "",
+          "subprocess_stdout_tail": "",
+          "subprocess_timed_out": true
+        },
+        "classification": "ui_trigger_timeout",
         "compare_successor_observed": false,
         "error": "sidecar timed out before writing candidate artifact; returncode=124",
         "event_sequence": [],
         "handoff_helper_entry_observed": false,
+        "lifecycle": {
+          "last_confirmed_stage": "ui_trigger_attempted",
+          "last_error": "",
+          "last_error_stage": "",
+          "stages": [
+            {
+              "monotonic": 2697.526331,
+              "stage": "sidecar_started",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2697.608437,
+              "stage": "arguments_parsed",
+              "status": "confirmed"
+            },
+            {
+              "exists": true,
+              "monotonic": 2697.608769,
+              "stage": "target_checked",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2697.609026,
+              "stage": "dependency_import_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2697.837673,
+              "stage": "dependency_import_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2697.838079,
+              "stage": "frida_spawn_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2697.86901,
+              "pid": 38052,
+              "stage": "frida_spawn_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2697.869481,
+              "pid": 38052,
+              "stage": "frida_attach_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.855283,
+              "pid": 38052,
+              "stage": "frida_attach_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.855871,
+              "stage": "script_create_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.857635,
+              "stage": "script_load_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.859506,
+              "stage": "script_load_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.860027,
+              "stage": "breakpoint_install_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.860431,
+              "stage": "breakpoint_install_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.860782,
+              "stage": "frida_resume_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.861436,
+              "stage": "frida_resume_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.8618,
+              "stage": "ui_connect_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2698.862455,
+              "stage": "ui_connect_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2699.363074,
+              "stage": "ui_trigger_attempted",
+              "status": "confirmed"
+            }
+          ],
+          "timeout_stage": "ui_trigger"
+        },
+        "lifecycle_schema_version": 1,
         "process_exception_observed": false,
         "successor_surface_observed": false,
         "target_launch": {
           "attempted": true,
           "error": "sidecar timed out before writing candidate artifact; returncode=124",
-          "ok": false,
+          "ok": true,
           "pid": null
         }
       },
@@ -1154,85 +1422,355 @@
         "breakpoints": [
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x2338",
             "name": "predecessor_handoff_call"
           },
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x1b50",
             "name": "handoff_helper_entry"
           },
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x1913",
             "name": "process_exception"
           },
           {
             "eip": "",
-            "error": "sidecar timed out before breakpoint installation could be confirmed",
+            "error": "",
             "hit": false,
             "hit_order": null,
-            "install_attempted": false,
-            "install_ok": false,
+            "install_attempted": true,
+            "install_ok": true,
             "module_offset": "0x258c",
             "name": "actual_compare"
           }
         ],
         "candidate_hex": "78d540b49c59076f41414141414141",
-        "classification": "frida_attach_or_spawn_failed",
+        "candidate_invocation_health": {
+          "candidate_log_exists": true,
+          "candidate_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.log",
+          "candidate_log_size_bytes": 24,
+          "partial_artifact_exists": true,
+          "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+          "partial_artifact_size_bytes": 5322,
+          "subprocess_command": [
+            "C:\\Program Files\\Python313\\python.exe",
+            "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
+            "--target",
+            "F:\\reverse-agent\\solve_reports\\samplereverse_patched.exe",
+            "--out",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+            "--points",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_points.json",
+            "--probe-hex",
+            "78d540b49c59076f41414141414141",
+            "--per-probe-timeout",
+            "2.2"
+          ],
+          "subprocess_returncode": 124,
+          "subprocess_stderr_tail": "",
+          "subprocess_stdout_tail": "",
+          "subprocess_timed_out": true
+        },
+        "classification": "ui_trigger_timeout",
         "compare_successor_observed": false,
         "error": "sidecar timed out before writing candidate artifact; returncode=124",
         "event_sequence": [],
         "handoff_helper_entry_observed": false,
+        "lifecycle": {
+          "last_confirmed_stage": "ui_trigger_attempted",
+          "last_error": "",
+          "last_error_stage": "",
+          "stages": [
+            {
+              "monotonic": 2720.187196,
+              "stage": "sidecar_started",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2720.259124,
+              "stage": "arguments_parsed",
+              "status": "confirmed"
+            },
+            {
+              "exists": true,
+              "monotonic": 2720.259468,
+              "stage": "target_checked",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2720.259866,
+              "stage": "dependency_import_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2720.510883,
+              "stage": "dependency_import_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2720.511315,
+              "stage": "frida_spawn_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2720.542054,
+              "pid": 36088,
+              "stage": "frida_spawn_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2720.542561,
+              "pid": 36088,
+              "stage": "frida_attach_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.394032,
+              "pid": 36088,
+              "stage": "frida_attach_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.394502,
+              "stage": "script_create_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.396195,
+              "stage": "script_load_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.397925,
+              "stage": "script_load_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.39828,
+              "stage": "breakpoint_install_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.398672,
+              "stage": "breakpoint_install_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.399006,
+              "stage": "frida_resume_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.399546,
+              "stage": "frida_resume_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.399854,
+              "stage": "ui_connect_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.400344,
+              "stage": "ui_connect_ok",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 2721.900982,
+              "stage": "ui_trigger_attempted",
+              "status": "confirmed"
+            }
+          ],
+          "timeout_stage": "ui_trigger"
+        },
+        "lifecycle_schema_version": 1,
         "process_exception_observed": false,
         "successor_surface_observed": false,
         "target_launch": {
           "attempted": true,
           "error": "sidecar timed out before writing candidate artifact; returncode=124",
-          "ok": false,
+          "ok": true,
           "pid": null
         }
       }
     ],
-    "classification": "frida_attach_or_spawn_failed",
+    "classification": "ui_trigger_timeout",
     "cross_candidate": {
       "breakpoint_hit_counts": {},
-      "classification": "frida_attach_or_spawn_failed",
+      "classification": "ui_trigger_timeout",
       "first_divergence_after": "",
+      "lifecycle_stage_counts": {
+        "arguments_parsed": 3,
+        "breakpoint_install_attempted": 3,
+        "breakpoint_install_ok": 3,
+        "dependency_import_attempted": 3,
+        "dependency_import_ok": 3,
+        "frida_attach_attempted": 3,
+        "frida_attach_ok": 3,
+        "frida_resume_attempted": 3,
+        "frida_resume_ok": 3,
+        "frida_spawn_attempted": 3,
+        "frida_spawn_ok": 3,
+        "script_create_attempted": 3,
+        "script_load_attempted": 3,
+        "script_load_ok": 3,
+        "sidecar_started": 3,
+        "target_checked": 3,
+        "ui_connect_attempted": 3,
+        "ui_connect_ok": 3,
+        "ui_trigger_attempted": 3
+      },
       "next_bounded_action": "review_narrower_post_entry_breakpoint_result"
     },
     "diagnostic_summary": {
       "blocker_counts": {
-        "frida_attach_or_spawn_failed": 3
+        "ui_trigger_timeout": 3
       },
       "breakpoint_hit_counts": {},
-      "breakpoint_install_attempted_count": 0,
-      "breakpoint_install_ok_count": 0,
+      "breakpoint_install_attempted_count": 12,
+      "breakpoint_install_ok_count": 12,
       "target_launch_attempted_count": 3,
-      "target_launch_ok_count": 0
+      "target_launch_ok_count": 3
     },
     "fixed_candidates": [
       "78d540b49c59077041414141414141",
       "5a3e7f46ddd474d041414141414141",
       "78d540b49c59076f41414141414141"
     ],
+    "lifecycle_diagnostics": {
+      "candidate_invocation_health": {
+        "5a3e7f46ddd474d041414141414141": {
+          "candidate_log_exists": true,
+          "candidate_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.log",
+          "candidate_log_size_bytes": 24,
+          "partial_artifact_exists": true,
+          "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+          "partial_artifact_size_bytes": 5320,
+          "subprocess_command": [
+            "C:\\Program Files\\Python313\\python.exe",
+            "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
+            "--target",
+            "F:\\reverse-agent\\solve_reports\\samplereverse_patched.exe",
+            "--out",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+            "--points",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_points.json",
+            "--probe-hex",
+            "5a3e7f46ddd474d041414141414141",
+            "--per-probe-timeout",
+            "2.2"
+          ],
+          "subprocess_returncode": 124,
+          "subprocess_stderr_tail": "",
+          "subprocess_stdout_tail": "",
+          "subprocess_timed_out": true
+        },
+        "78d540b49c59076f41414141414141": {
+          "candidate_log_exists": true,
+          "candidate_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.log",
+          "candidate_log_size_bytes": 24,
+          "partial_artifact_exists": true,
+          "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+          "partial_artifact_size_bytes": 5322,
+          "subprocess_command": [
+            "C:\\Program Files\\Python313\\python.exe",
+            "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
+            "--target",
+            "F:\\reverse-agent\\solve_reports\\samplereverse_patched.exe",
+            "--out",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+            "--points",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_points.json",
+            "--probe-hex",
+            "78d540b49c59076f41414141414141",
+            "--per-probe-timeout",
+            "2.2"
+          ],
+          "subprocess_returncode": 124,
+          "subprocess_stderr_tail": "",
+          "subprocess_stdout_tail": "",
+          "subprocess_timed_out": true
+        },
+        "78d540b49c59077041414141414141": {
+          "candidate_log_exists": true,
+          "candidate_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.log",
+          "candidate_log_size_bytes": 24,
+          "partial_artifact_exists": true,
+          "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+          "partial_artifact_size_bytes": 5322,
+          "subprocess_command": [
+            "C:\\Program Files\\Python313\\python.exe",
+            "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
+            "--target",
+            "F:\\reverse-agent\\solve_reports\\samplereverse_patched.exe",
+            "--out",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
+            "--points",
+            "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_points.json",
+            "--probe-hex",
+            "78d540b49c59077041414141414141",
+            "--per-probe-timeout",
+            "2.2"
+          ],
+          "subprocess_returncode": 124,
+          "subprocess_stderr_tail": "",
+          "subprocess_stdout_tail": "",
+          "subprocess_timed_out": true
+        }
+      },
+      "classification": "ui_trigger_timeout",
+      "last_confirmed_stages": {
+        "5a3e7f46ddd474d041414141414141": "ui_trigger_attempted",
+        "78d540b49c59076f41414141414141": "ui_trigger_attempted",
+        "78d540b49c59077041414141414141": "ui_trigger_attempted"
+      },
+      "stage_counts": {
+        "arguments_parsed": 3,
+        "breakpoint_install_attempted": 3,
+        "breakpoint_install_ok": 3,
+        "dependency_import_attempted": 3,
+        "dependency_import_ok": 3,
+        "frida_attach_attempted": 3,
+        "frida_attach_ok": 3,
+        "frida_resume_attempted": 3,
+        "frida_resume_ok": 3,
+        "frida_spawn_attempted": 3,
+        "frida_spawn_ok": 3,
+        "script_create_attempted": 3,
+        "script_load_attempted": 3,
+        "script_load_ok": 3,
+        "sidecar_started": 3,
+        "target_checked": 3,
+        "ui_connect_attempted": 3,
+        "ui_connect_ok": 3,
+        "ui_trigger_attempted": 3
+      },
+      "timeout_stages": {
+        "5a3e7f46ddd474d041414141414141": "ui_trigger",
+        "78d540b49c59076f41414141414141": "ui_trigger",
+        "78d540b49c59077041414141414141": "ui_trigger"
+      }
+    },
+    "lifecycle_schema_version": 1,
     "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
-    "overall_classification": "frida_attach_or_spawn_failed",
+    "overall_classification": "ui_trigger_timeout",
     "runtime_scope": {
       "breakpoint_probe_allowed": false,
       "crypto_hook_allowed": false,
@@ -3608,13 +4146,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260601_104951",
+  "round_id": "round_20260601_145342",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "b2c24fdc6619",
+  "source_git_commit": "48d4efbca602",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260601_104951_ecca8f86272a",
-  "state_digest": "ecca8f86272aa5a550e93ce3f4b554ba233a8584ab64e21073f80526d6ae3b9e",
+  "state_build_id": "state_20260601_145342_027e5d2b1c2e",
+  "state_digest": "027e5d2b1c2e18cae790013dae0137dd2c2ddd73b3f5b32976e8100ae23ec03a",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

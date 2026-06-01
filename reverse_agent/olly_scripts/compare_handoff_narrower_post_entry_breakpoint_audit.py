@@ -27,6 +27,10 @@ def _write_payload(out_path: Path, payload: dict[str, object]) -> int:
     return 0
 
 
+def _now_monotonic() -> float:
+    return round(time.monotonic(), 6)
+
+
 def _load_points(path: Path) -> dict[str, object]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -75,6 +79,100 @@ def _target_launch(
         "pid": pid,
         "error": error,
     }
+
+
+class LifecycleTracker:
+    def __init__(
+        self,
+        *,
+        out_path: Path,
+        candidate_hex: str,
+        target: Path,
+        hook_points: dict[str, object],
+    ) -> None:
+        self.out_path = out_path
+        self.candidate_hex = candidate_hex
+        self.target = target
+        self.hook_points = hook_points
+        self.stages: list[dict[str, object]] = []
+        self.last_confirmed_stage = ""
+        self.last_error_stage = ""
+        self.last_error = ""
+
+    def confirm(self, stage: str, **fields: object) -> None:
+        self.last_confirmed_stage = stage
+        event: dict[str, object] = {
+            "stage": stage,
+            "status": "confirmed",
+            "monotonic": _now_monotonic(),
+        }
+        event.update(fields)
+        self.stages.append(event)
+        self.write_checkpoint()
+
+    def fail(self, stage: str, error: str, **fields: object) -> None:
+        self.last_error_stage = stage
+        self.last_error = error
+        event: dict[str, object] = {
+            "stage": stage,
+            "status": "failed",
+            "error": error,
+            "monotonic": _now_monotonic(),
+        }
+        event.update(fields)
+        self.stages.append(event)
+        self.write_checkpoint(classification=_classification_for_failed_stage(stage))
+
+    def lifecycle(self, *, timeout_stage: str = "") -> dict[str, object]:
+        return {
+            "last_confirmed_stage": self.last_confirmed_stage,
+            "last_error_stage": self.last_error_stage,
+            "last_error": self.last_error,
+            "timeout_stage": timeout_stage,
+            "stages": list(self.stages),
+        }
+
+    def write_checkpoint(
+        self,
+        *,
+        classification: str = "lifecycle_checkpoint",
+        target_launch: dict[str, object] | None = None,
+        breakpoints: list[dict[str, object]] | None = None,
+        event_sequence: list[dict[str, object]] | None = None,
+        backend_import_ok: bool = False,
+        backend_error: str = "",
+        error: str = "",
+    ) -> None:
+        payload = _blocked_payload(
+            candidate_hex=self.candidate_hex,
+            target=self.target,
+            hook_points=self.hook_points,
+            classification=classification,
+            target_launch=target_launch,
+            breakpoints=breakpoints,
+            event_sequence=event_sequence,
+            backend_import_ok=backend_import_ok,
+            backend_error=backend_error,
+            error=error,
+            lifecycle=self.lifecycle(),
+        )
+        _write_payload(self.out_path, payload)
+
+
+def _classification_for_failed_stage(stage: str) -> str:
+    return {
+        "target_checked": "target_missing_or_unlaunchable",
+        "dependency_import_failed": "debugger_dependency_missing",
+        "frida_spawn_failed": "frida_spawn_failed",
+        "frida_attach_failed": "frida_attach_failed",
+        "script_create_failed": "script_create_or_load_failed",
+        "script_load_failed": "script_create_or_load_failed",
+        "breakpoint_install_failed": "breakpoint_install_failed",
+        "frida_resume_failed": "frida_resume_failed",
+        "ui_connect_failed": "ui_connect_failed",
+        "ui_trigger_failed": "ui_trigger_failed",
+        "final_artifact_write_failed": "candidate_artifact_write_failed",
+    }.get(stage, "instrumentation_gap_but_environment_verified")
 
 
 def _environment(
@@ -163,16 +261,23 @@ def _blocked_payload(
     backend_import_ok: bool = False,
     backend_error: str = "",
     error: str = "",
+    lifecycle: dict[str, object] | None = None,
+    candidate_invocation_health: dict[str, object] | None = None,
 ) -> dict[str, object]:
     event_sequence = event_sequence or []
     breakpoints = breakpoints if isinstance(breakpoints, list) else _empty_breakpoint_records(hook_points)
     hit_names = {str(event.get("name") or "") for event in event_sequence}
+    lifecycle = lifecycle if isinstance(lifecycle, dict) else {}
+    candidate_invocation_health = (
+        candidate_invocation_health if isinstance(candidate_invocation_health, dict) else {}
+    )
     return {
         "schema_version": 1,
         "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
         "sample": "samplereverse",
         "success": False,
         "candidate_hex": candidate_hex,
+        "lifecycle_schema_version": 1,
         "environment_diagnostics": _environment(
             target=target,
             backend_import_ok=backend_import_ok,
@@ -197,6 +302,8 @@ def _blocked_payload(
         "actual_compare_observed": "actual_compare" in hit_names,
         "classification": classification,
         "error": error,
+        "lifecycle": lifecycle,
+        "candidate_invocation_health": candidate_invocation_health,
         "breakpoint_probe_allowed": False,
         "material_capture_allowed": False,
         "crypto_hook_allowed": False,
@@ -290,6 +397,7 @@ def _run_breakpoint_probe(
     candidate_hex: str,
     hook_points: dict[str, object],
     per_probe_timeout: float,
+    lifecycle: LifecycleTracker,
 ) -> dict[str, object]:
     import frida
     from pywinauto import Application
@@ -317,11 +425,79 @@ def _run_breakpoint_probe(
             errors.append(str(message.get("stack") or message))
 
     try:
-        pid = frida.spawn([str(target)])
-        session = frida.attach(pid)
-        script = session.create_script(_script_source(_breakpoint_plan(hook_points)))
+        lifecycle.confirm("frida_spawn_attempted")
+        try:
+            pid = frida.spawn([str(target)])
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            lifecycle.fail("frida_spawn_failed", error)
+            return _blocked_payload(
+                candidate_hex=candidate_hex,
+                target=target,
+                hook_points=hook_points,
+                classification="frida_spawn_failed",
+                target_launch=_target_launch(attempted=True, ok=False, pid=pid, error=error),
+                backend_import_ok=True,
+                error=error,
+                lifecycle=lifecycle.lifecycle(),
+            )
+        lifecycle.confirm("frida_spawn_ok", pid=pid)
+
+        lifecycle.confirm("frida_attach_attempted", pid=pid)
+        try:
+            session = frida.attach(pid)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            lifecycle.fail("frida_attach_failed", error, pid=pid)
+            return _blocked_payload(
+                candidate_hex=candidate_hex,
+                target=target,
+                hook_points=hook_points,
+                classification="frida_attach_failed",
+                target_launch=_target_launch(attempted=True, ok=False, pid=pid, error=error),
+                backend_import_ok=True,
+                error=error,
+                lifecycle=lifecycle.lifecycle(),
+            )
+        lifecycle.confirm("frida_attach_ok", pid=pid)
+
+        lifecycle.confirm("script_create_attempted")
+        try:
+            script = session.create_script(_script_source(_breakpoint_plan(hook_points)))
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            lifecycle.fail("script_create_failed", error, pid=pid)
+            return _blocked_payload(
+                candidate_hex=candidate_hex,
+                target=target,
+                hook_points=hook_points,
+                classification="script_create_or_load_failed",
+                target_launch=_target_launch(attempted=True, ok=True, pid=pid),
+                backend_import_ok=True,
+                error=error,
+                lifecycle=lifecycle.lifecycle(),
+            )
         script.on("message", on_message)
-        script.load()
+
+        lifecycle.confirm("script_load_attempted")
+        try:
+            script.load()
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            lifecycle.fail("script_load_failed", error, pid=pid)
+            return _blocked_payload(
+                candidate_hex=candidate_hex,
+                target=target,
+                hook_points=hook_points,
+                classification="script_create_or_load_failed",
+                target_launch=_target_launch(attempted=True, ok=True, pid=pid),
+                backend_import_ok=True,
+                error=error,
+                lifecycle=lifecycle.lifecycle(),
+            )
+        lifecycle.confirm("script_load_ok")
+
+        lifecycle.confirm("breakpoint_install_attempted")
         deadline = time.monotonic() + max(0.5, min(float(per_probe_timeout), 5.0))
         while time.monotonic() < deadline:
             if any(str(item.get("type")) == "breakpoints_installed" for item in messages):
@@ -331,6 +507,11 @@ def _run_breakpoint_probe(
             time.sleep(0.05)
         breakpoints = _breakpoint_records(hook_points, installed, hits, install_errors)
         if errors or install_errors or any(not bool(item.get("install_ok")) for item in breakpoints):
+            error = errors[-1] if errors else ""
+            lifecycle.fail(
+                "breakpoint_install_failed",
+                error or "breakpoint installation could not be confirmed",
+            )
             return _blocked_payload(
                 candidate_hex=candidate_hex,
                 target=target,
@@ -340,18 +521,77 @@ def _run_breakpoint_probe(
                 breakpoints=breakpoints,
                 event_sequence=hits,
                 backend_import_ok=True,
-                error=errors[-1] if errors else "",
+                error=error,
+                lifecycle=lifecycle.lifecycle(),
             )
+        lifecycle.confirm("breakpoint_install_ok")
 
-        frida.resume(pid)
-        app = Application(backend="uia").connect(process=pid)
+        lifecycle.confirm("frida_resume_attempted")
+        try:
+            frida.resume(pid)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            lifecycle.fail("frida_resume_failed", error)
+            return _blocked_payload(
+                candidate_hex=candidate_hex,
+                target=target,
+                hook_points=hook_points,
+                classification="frida_resume_failed",
+                target_launch=_target_launch(attempted=True, ok=True, pid=pid),
+                breakpoints=breakpoints,
+                event_sequence=hits,
+                backend_import_ok=True,
+                error=error,
+                lifecycle=lifecycle.lifecycle(),
+            )
+        lifecycle.confirm("frida_resume_ok")
+
+        lifecycle.confirm("ui_connect_attempted")
+        try:
+            app = Application(backend="uia").connect(process=pid)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            lifecycle.fail("ui_connect_failed", error)
+            return _blocked_payload(
+                candidate_hex=candidate_hex,
+                target=target,
+                hook_points=hook_points,
+                classification="ui_connect_failed",
+                target_launch=_target_launch(attempted=True, ok=True, pid=pid),
+                breakpoints=breakpoints,
+                event_sequence=hits,
+                backend_import_ok=True,
+                error=error,
+                lifecycle=lifecycle.lifecycle(),
+            )
+        lifecycle.confirm("ui_connect_ok")
         time.sleep(0.5)
-        win = app.top_window()
-        input_edit = win.child_window(auto_id="1001", control_type="Edit")
-        decrypt_btn = win.child_window(auto_id="1000", control_type="Button")
-        input_edit.set_edit_text(_candidate_to_gui_text(bytes.fromhex(candidate_hex).decode("latin1")))
-        _trigger_decrypt(decrypt_btn)
 
+        lifecycle.confirm("ui_trigger_attempted")
+        try:
+            win = app.top_window()
+            input_edit = win.child_window(auto_id="1001", control_type="Edit")
+            decrypt_btn = win.child_window(auto_id="1000", control_type="Button")
+            input_edit.set_edit_text(_candidate_to_gui_text(bytes.fromhex(candidate_hex).decode("latin1")))
+            _trigger_decrypt(decrypt_btn)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            lifecycle.fail("ui_trigger_failed", error)
+            return _blocked_payload(
+                candidate_hex=candidate_hex,
+                target=target,
+                hook_points=hook_points,
+                classification="ui_trigger_failed",
+                target_launch=_target_launch(attempted=True, ok=True, pid=pid),
+                breakpoints=breakpoints,
+                event_sequence=hits,
+                backend_import_ok=True,
+                error=error,
+                lifecycle=lifecycle.lifecycle(),
+            )
+        lifecycle.confirm("ui_trigger_ok")
+
+        lifecycle.confirm("observation_wait_started")
         deadline = time.monotonic() + max(0.3, float(per_probe_timeout))
         while time.monotonic() < deadline:
             if hits and {str(hit.get("name") or "") for hit in hits}.intersection(
@@ -361,6 +601,7 @@ def _run_breakpoint_probe(
             if errors:
                 break
             time.sleep(0.05)
+        lifecycle.confirm("observation_wait_finished_or_timeout", hit_count=len(hits))
         breakpoints = _breakpoint_records(hook_points, installed, hits, install_errors)
         classification = _classify(
             launch_ok=True,
@@ -378,20 +619,24 @@ def _run_breakpoint_probe(
             event_sequence=hits,
             backend_import_ok=True,
             error=errors[-1] if errors else "",
+            lifecycle=lifecycle.lifecycle(),
         )
     except Exception as exc:  # pragma: no cover - depends on local runtime
+        error = f"{type(exc).__name__}: {exc}"
+        lifecycle.fail("runtime_exception", error)
         return _blocked_payload(
             candidate_hex=candidate_hex,
             target=target,
             hook_points=hook_points,
-            classification="frida_attach_or_spawn_failed",
-            target_launch=_target_launch(attempted=True, ok=False, pid=pid, error=f"{type(exc).__name__}: {exc}"),
+            classification="instrumentation_gap_but_environment_verified",
+            target_launch=_target_launch(attempted=True, ok=False, pid=pid, error=error),
             breakpoints=_breakpoint_records(hook_points, installed, hits, install_errors)
             if installed or install_errors
             else _empty_breakpoint_records(hook_points),
             event_sequence=hits,
             backend_import_ok=True,
-            error=f"{type(exc).__name__}: {exc}",
+            error=error,
+            lifecycle=lifecycle.lifecycle(),
         )
     finally:
         _terminate_target(app, pid)
@@ -409,52 +654,77 @@ def main(argv: list[str] | None = None) -> int:
     out_path = Path(args.out)
     target = Path(args.target)
     hook_points = _load_points(Path(args.points))
+    lifecycle = LifecycleTracker(
+        out_path=out_path,
+        candidate_hex=args.probe_hex,
+        target=target,
+        hook_points=hook_points,
+    )
+    lifecycle.confirm("sidecar_started")
+    lifecycle.confirm("arguments_parsed")
 
+    lifecycle.confirm("target_checked", exists=target.exists())
     if not target.exists():
+        error = f"target does not exist: {target}"
+        lifecycle.fail("target_checked", error)
         return _write_payload(
             out_path,
             _blocked_payload(
                 candidate_hex=args.probe_hex,
                 target=target,
                 hook_points=hook_points,
-                classification="target_launch_failed",
+                classification="target_missing_or_unlaunchable",
                 target_launch=_target_launch(
                     attempted=False,
                     ok=False,
-                    error=f"target does not exist: {target}",
+                    error=error,
                 ),
-                error=f"target does not exist: {target}",
+                error=error,
+                lifecycle=lifecycle.lifecycle(),
             ),
         )
 
+    lifecycle.confirm("dependency_import_attempted")
     try:
         import frida  # noqa: F401
         import pywinauto  # noqa: F401
     except Exception as exc:  # pragma: no cover - depends on local runtime
+        error = f"{type(exc).__name__}: {exc}"
+        lifecycle.fail("dependency_import_failed", error)
         return _write_payload(
             out_path,
             _blocked_payload(
                 candidate_hex=args.probe_hex,
                 target=target,
                 hook_points=hook_points,
-                classification="frida_attach_or_spawn_failed",
+                classification="debugger_dependency_missing",
                 target_launch=_target_launch(
                     attempted=False,
                     ok=False,
-                    error=f"debugger dependency unavailable: {type(exc).__name__}: {exc}",
+                    error=f"debugger dependency unavailable: {error}",
                 ),
                 backend_import_ok=False,
-                backend_error=f"{type(exc).__name__}: {exc}",
-                error=f"debugger dependency unavailable: {type(exc).__name__}: {exc}",
+                backend_error=error,
+                error=f"debugger dependency unavailable: {error}",
+                lifecycle=lifecycle.lifecycle(),
             ),
         )
+    lifecycle.confirm("dependency_import_ok")
 
     payload = _run_breakpoint_probe(
         target=target,
         candidate_hex=args.probe_hex,
         hook_points=hook_points,
         per_probe_timeout=float(args.per_probe_timeout),
+        lifecycle=lifecycle,
     )
+    payload["lifecycle"] = lifecycle.lifecycle()
+    payload["lifecycle_schema_version"] = 1
+    lifecycle.confirm("final_artifact_write_attempted")
+    payload["lifecycle"] = lifecycle.lifecycle()
+    _write_payload(out_path, payload)
+    lifecycle.confirm("final_artifact_write_ok")
+    payload["lifecycle"] = lifecycle.lifecycle()
     return _write_payload(out_path, payload)
 
 

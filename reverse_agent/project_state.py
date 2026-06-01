@@ -3149,6 +3149,13 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
                 "diagnostic_summary",
                 {},
             ),
+            "lifecycle_schema_version": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "lifecycle_schema_version"
+            ),
+            "lifecycle_diagnostics": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "lifecycle_diagnostics",
+                {},
+            ),
             "cross_candidate": compare_handoff_narrower_post_entry_breakpoint_audit.get(
                 "cross_candidate",
                 {},

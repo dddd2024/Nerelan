@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-06-01T10:49:51Z",
+  "generated_at": "2026-06-01T14:53:42Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "frida_attach_or_spawn_failed",
+  "reason": "ui_trigger_timeout",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }

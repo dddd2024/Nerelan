@@ -29,7 +29,7 @@
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json"
   },
-  "based_on_state_digest": "ecca8f86272aa5a550e93ce3f4b554ba233a8584ab64e21073f80526d6ae3b9e",
+  "based_on_state_digest": "027e5d2b1c2e18cae790013dae0137dd2c2ddd73b3f5b32976e8100ae23ec03a",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -68,10 +68,10 @@
   "current_bottleneck": {
     "blocker": "",
     "confidence": "medium",
-    "reason": "frida_attach_or_spawn_failed",
+    "reason": "ui_trigger_timeout",
     "stage": "compare_handoff_narrower_post_entry_breakpoint_audit"
   },
-  "derived_task": "Review bounded narrower post-entry breakpoint blocker",
+  "derived_task": "Review bounded narrower post-entry breakpoint audit",
   "do_not_do": [
     "do not return to old sample_solver blind search",
     "do not only increase beam or budget",
@@ -93,7 +93,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-06-01T10:49:51Z",
+  "generated_at": "2026-06-01T14:53:42Z",
   "included": [
     "current state",
     "best candidates",
@@ -103,7 +103,7 @@
   ],
   "model_gate": {
     "context_level": 2,
-    "reason": "frida_attach_or_spawn_failed",
+    "reason": "ui_trigger_timeout",
     "should_call_model": true
   },
   "omitted": [
@@ -123,10 +123,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260601_104951",
+  "round_id": "round_20260601_145342",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260601_104951_ecca8f86272a",
+  "state_build_id": "state_20260601_145342_027e5d2b1c2e",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,
@@ -135,6 +135,6 @@
     "has_runtime_validation": true,
     "has_stall_stage": true
   },
-  "task": "Review bounded narrower post-entry breakpoint blocker",
+  "task": "Review bounded narrower post-entry breakpoint audit",
   "task_source": "derived_from_sample_artifacts"
 }

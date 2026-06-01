@@ -11426,6 +11426,8 @@ def test_handoff_narrower_post_entry_breakpoint_audit_keeps_bounded_scope(
     assert payload["ranking_changed"] is False
     assert payload["search_budget_changed"] is False
     assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
+    assert payload["lifecycle_schema_version"] == 1
+    assert payload["lifecycle_diagnostics"]["classification"] == "successor_breakpoint_not_hit"
     assert payload["candidates"][0]["event_sequence"][1]["name"] == "handoff_helper_entry"
     assert payload["cross_candidate"]["first_divergence_after"] == "event_sequence"
 
@@ -11441,10 +11443,11 @@ def test_handoff_narrower_post_entry_breakpoint_audit_keeps_bounded_scope(
         COMPARE_HANDOFF_NARROWER_POST_ENTRY_BREAKPOINT_AUDIT_FILE_NAME
     )
     assert result_payload["candidate_count"] == 3
-    assert result_payload["classification"] == "target_launch_failed"
+    assert result_payload["classification"] == "target_missing_or_unlaunchable"
     assert result_payload["diagnostic_summary"]["blocker_counts"] == {
-        "target_launch_failed": 3
+        "target_missing_or_unlaunchable": 3
     }
+    assert result_payload["lifecycle_diagnostics"]["stage_counts"]["target_checked"] == 6
     assert result_payload["diagnostic_summary"]["breakpoint_install_ok_count"] == 0
     assert result_payload["breakpoint_probe_allowed"] is False
     assert result_payload["material_capture_allowed"] is False
@@ -11452,6 +11455,76 @@ def test_handoff_narrower_post_entry_breakpoint_audit_keeps_bounded_scope(
     assert result_payload["candidates"][0]["target_launch"]["ok"] is False
     assert result_payload["candidates"][0]["breakpoints"][0]["hit"] is False
     assert result_payload["candidates"][0]["event_sequence"] == []
+    assert result_payload["candidates"][0]["lifecycle"]["last_error_stage"] == "target_checked"
+
+
+def test_handoff_narrower_post_entry_timeout_uses_lifecycle_checkpoint(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+
+    def fake_run(command, *, timeout):  # noqa: ANN001
+        _ = timeout
+        out_path = Path(command[command.index("--out") + 1])
+        candidate_hex = command[command.index("--probe-hex") + 1]
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+                    "lifecycle_schema_version": 1,
+                    "sample": "samplereverse",
+                    "candidate_hex": candidate_hex,
+                    "target_launch": {"attempted": True, "ok": True, "pid": 1234, "error": ""},
+                    "breakpoints": [],
+                    "event_sequence": [],
+                    "classification": "lifecycle_checkpoint",
+                    "lifecycle": {
+                        "last_confirmed_stage": "script_load_attempted",
+                        "last_error_stage": "",
+                        "timeout_stage": "",
+                        "stages": [
+                            {"stage": "sidecar_started", "status": "confirmed"},
+                            {"stage": "script_load_attempted", "status": "confirmed"},
+                        ],
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        raise compare_aware_search.subprocess.TimeoutExpired(
+            command,
+            timeout=timeout,
+            output="sidecar stdout tail",
+            stderr="sidecar stderr tail",
+        )
+
+    monkeypatch.setattr(compare_aware_search, "_run_material_hook_runtime_command", fake_run)
+
+    result = run_compare_handoff_narrower_post_entry_breakpoint_audit(
+        target=target,
+        artifacts_dir=tmp_path / "narrower_post_entry_timeout",
+        per_probe_timeout=0.1,
+        source_payload={"source_run": "sr_path"},
+        run_name="sr_path",
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "script_load_timeout"
+    assert payload["diagnostic_summary"]["blocker_counts"] == {"script_load_timeout": 3}
+    assert payload["lifecycle_diagnostics"]["timeout_stages"][
+        "78d540b49c59077041414141414141"
+    ] == "script_load"
+    first = payload["candidates"][0]
+    assert first["candidate_invocation_health"]["subprocess_timed_out"] is True
+    assert first["candidate_invocation_health"]["partial_artifact_exists"] is True
+    assert first["candidate_invocation_health"]["subprocess_stdout_tail"] == "sidecar stdout tail"
+    assert first["candidate_invocation_health"]["subprocess_stderr_tail"] == "sidecar stderr tail"
+    assert first["lifecycle"]["last_confirmed_stage"] == "script_load_attempted"
+    assert first["lifecycle"]["timeout_stage"] == "script_load"
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

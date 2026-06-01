@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-01T14:54:42Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_frida_spawn_attach_lifecycle_diagnostics\\codex_execution_report.md",
+      "sha256": "674bfd1095730f3aa3b6d9608dd81362348745f2e6d678cdb70b05d988375bb7",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_frida_spawn_attach_lifecycle_diagnostics\\decision_packet.md",
+      "sha256": "f59f76a4363c42a00820a22d4363313b7c4b4051b99c305a2566becfb16311a8",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260601_frida_spawn_attach_lifecycle_diagnostics\\pytest_result.txt",
+      "sha256": "742bb1966f2d1565c72ab6fd4804adc96594b19c443da4aed5fe98f4bfeb2912",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260601_frida_spawn_attach_lifecycle_diagnostics",
+  "schema_version": 1,
+  "source_git_commit": "48d4efbca602",
+  "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+  "state_build_id": "state_20260601_145342_027e5d2b1c2e",
+  "state_digest": "027e5d2b1c2e18cae790013dae0137dd2c2ddd73b3f5b32976e8100ae23ec03a",
+  "workflow_status": "REPORT_AVAILABLE"
+}
