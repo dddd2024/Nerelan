@@ -1493,6 +1493,90 @@ def test_project_state_indexes_compare_handoff_edge_operand_provenance_audit(tmp
     assert task_packet["task"] == "Trace bounded branch operand runtime sidecar or instruction boundary"
 
 
+def test_project_state_indexes_compare_handoff_branch_operand_runtime_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_branch_operand")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_handoff_branch_operand_runtime_audit.json",
+        {
+            "artifact_kind": "compare_handoff_branch_operand_runtime_audit",
+            "classification": "instruction_boundary_gap",
+            "overall_classification": "instruction_boundary_gap",
+            "source_run": "sr_branch_operand",
+            "source_artifacts": [
+                "compare_handoff_edge_operand_provenance_audit",
+                "compare_handoff_path_divergence_audit",
+                "compare_handoff_exit_classifier_audit",
+            ],
+            "candidate_count": 3,
+            "runtime_backed_count": 3,
+            "fixed_candidates": [
+                "78d540b49c59077041414141414141",
+                "5a3e7f46ddd474d041414141414141",
+                "78d540b49c59076f41414141414141",
+            ],
+            "cross_candidate": {
+                "root_cause_classification": "instruction_boundary_gap",
+                "branch_guard_explained": False,
+                "return_context_candidate_dependent": True,
+                "return_target_trust": "suspicious",
+                "next_bounded_action": "hook_surface_repair",
+            },
+            "candidates": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "branch_operand_evidence": {"classification": "not_observed"},
+                    "exception_edge_evidence": {"observed": True},
+                    "post_entry_outcome": "exception_edge",
+                },
+                {
+                    "candidate_hex": "5a3e7f46ddd474d041414141414141",
+                    "branch_operand_evidence": {"classification": "not_observed"},
+                    "exception_edge_evidence": {"observed": True},
+                    "post_entry_outcome": "exception_edge",
+                },
+                {
+                    "candidate_hex": "78d540b49c59076f41414141414141",
+                    "branch_operand_evidence": {"classification": "instruction_boundary_gap"},
+                    "exception_edge_evidence": {"observed": False},
+                    "post_entry_outcome": "instruction_boundary_gap",
+                },
+            ],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "hook_surface_repair",
+        },
+    )
+
+    build_project_state(
+        reports_dir=reports_dir,
+        state_dir=state_dir,
+        sample="samplereverse",
+        run_name="sr_branch_operand",
+    )
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert artifact_index["latest_artifacts"]["compare_handoff_branch_operand_runtime_audit"].endswith(
+        "compare_handoff_branch_operand_runtime_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == (
+        "compare_handoff_branch_operand_runtime_audit"
+    )
+    assert current_state["current_bottleneck"]["reason"] == "instruction_boundary_gap"
+    latest = current_state["latest_compare_handoff_branch_operand_runtime_audit"]
+    assert latest["classification"] == "instruction_boundary_gap"
+    assert latest["candidate_count"] == 3
+    assert latest["cross_candidate"]["return_target_trust"] == "suspicious"
+    assert latest["candidates"][2]["branch_operand_evidence"]["classification"] == (
+        "instruction_boundary_gap"
+    )
+    assert latest["breakpoint_probe_allowed"] is False
+    assert task_packet["task"] == "Repair bounded handoff branch hook surface"
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

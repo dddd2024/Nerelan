@@ -74,6 +74,9 @@ COMPARE_HANDOFF_PATH_DIVERGENCE_AUDIT_FILE_NAME = "compare_handoff_path_divergen
 COMPARE_HANDOFF_EDGE_OPERAND_PROVENANCE_AUDIT_FILE_NAME = (
     "compare_handoff_edge_operand_provenance_audit.json"
 )
+COMPARE_HANDOFF_BRANCH_OPERAND_RUNTIME_AUDIT_FILE_NAME = (
+    "compare_handoff_branch_operand_runtime_audit.json"
+)
 COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME = "compare_lhs_producer_audit.json"
 COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME = "compare_lhs_upstream_writer_audit.json"
 COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
@@ -3474,6 +3477,9 @@ def _artifact_file_name_for_kind(kind: str) -> str:
         "compare_handoff_exit_classifier_audit": COMPARE_HANDOFF_EXIT_CLASSIFIER_AUDIT_FILE_NAME,
         "compare_handoff_edge_operand_provenance_audit": (
             COMPARE_HANDOFF_EDGE_OPERAND_PROVENANCE_AUDIT_FILE_NAME
+        ),
+        "compare_handoff_branch_operand_runtime_audit": (
+            COMPARE_HANDOFF_BRANCH_OPERAND_RUNTIME_AUDIT_FILE_NAME
         ),
         "compare_lhs_producer_audit": COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
         "compare_lhs_upstream_writer_audit": COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
@@ -12020,6 +12026,263 @@ def run_compare_handoff_edge_operand_provenance_audit(
     artifacts_dir.mkdir(parents=True, exist_ok=True)
     result_path = artifacts_dir / COMPARE_HANDOFF_EDGE_OPERAND_PROVENANCE_AUDIT_FILE_NAME
     payload = build_compare_handoff_edge_operand_provenance_audit_payload(
+        source_payload=source_payload,
+        sample=sample,
+        profile=profile,
+        run_name=run_name,
+    )
+    _write_json(result_path, payload)
+    return {"payload": payload, "result_path": str(result_path)}
+
+
+def _branch_operand_entry_context(
+    candidate: dict[str, object],
+    *,
+    return_context_candidate_dependent: bool,
+) -> dict[str, object]:
+    context = candidate.get("handoff_helper_entry_context", {})
+    context = context if isinstance(context, dict) else {}
+    return_target = str(context.get("return_address_module_offset") or "").strip()
+    return_target_trust = "schema_gap"
+    trust_reason = "handoff helper entry return target was not captured"
+    if return_target:
+        return_target_trust = "suspicious" if return_context_candidate_dependent else "trusted"
+        trust_reason = (
+            "candidate-dependent non-module-looking return target from prior hook surface"
+            if return_context_candidate_dependent
+            else "single stable return target from prior hook surface"
+        )
+    return {
+        "eip": "0x1b50",
+        "esp": "",
+        "ebp": "",
+        "stack_top_words": [],
+        "return_target_observed": return_target,
+        "return_target_trust": return_target_trust,
+        "return_target_trust_reason": trust_reason,
+        "return_context_candidate_dependent": return_context_candidate_dependent,
+    }
+
+
+def _branch_operand_evidence(candidate: dict[str, object]) -> dict[str, object]:
+    branch_summary = candidate.get("branch_operand_summary", {})
+    branch_summary = branch_summary if isinstance(branch_summary, dict) else {}
+    prior_classification = str(candidate.get("candidate_classification") or "").strip()
+    prior_branch_classification = str(branch_summary.get("classification") or "").strip()
+    if prior_branch_classification == "schema_gap":
+        classification = "instruction_boundary_gap"
+        minimal_explanation = (
+            "handoff_helper_entry was observed, but the source hook surface did not capture "
+            "the branch instruction, flags, operand, or next basic block"
+        )
+    elif prior_branch_classification == "instrumentation_gap":
+        classification = "instrumentation_gap"
+        minimal_explanation = str(branch_summary.get("minimal_explanation") or "")
+    elif prior_classification == "exception_edge_after_handoff":
+        classification = "not_observed"
+        minimal_explanation = "exception edge occurred before a branch operand observation"
+    else:
+        classification = prior_branch_classification or "not_observed"
+        minimal_explanation = str(branch_summary.get("minimal_explanation") or "")
+    return {
+        "observed": bool(branch_summary.get("observed")),
+        "branch_eip": "",
+        "instruction": "",
+        "eflags": "",
+        "condition": str(branch_summary.get("condition") or ""),
+        "outcome": "unknown",
+        "operand_source": str(branch_summary.get("operand_source") or "unknown"),
+        "classification": classification,
+        "minimal_explanation": minimal_explanation,
+    }
+
+
+def _branch_operand_exception_evidence(candidate: dict[str, object]) -> dict[str, object]:
+    exception_summary = candidate.get("exception_edge_summary", {})
+    exception_summary = exception_summary if isinstance(exception_summary, dict) else {}
+    observed = bool(exception_summary.get("observed"))
+    return {
+        "observed": observed,
+        "module_offset": str(exception_summary.get("module_offset") or ""),
+        "address": str(exception_summary.get("address") or ""),
+        "memory": str(exception_summary.get("memory") or ""),
+        "type": str(exception_summary.get("type") or ""),
+        "candidate_dependent_memory": bool(exception_summary.get("candidate_dependent_memory")),
+        "classification": str(
+            exception_summary.get("classification")
+            or ("candidate_dependent" if observed else "not_observed")
+        ),
+    }
+
+
+def _branch_operand_post_entry_outcome(
+    candidate: dict[str, object],
+    branch_evidence: dict[str, object],
+    exception_evidence: dict[str, object],
+) -> str:
+    post_entry = candidate.get("post_entry_probe_summary", {})
+    post_entry = post_entry if isinstance(post_entry, dict) else {}
+    if bool(exception_evidence.get("observed")):
+        return "exception_edge"
+    if bool(post_entry.get("actual_compare_observed")):
+        return "actual_compare"
+    if bool(post_entry.get("successor_observed")):
+        return "compare_successor"
+    classification = str(branch_evidence.get("classification") or "")
+    if classification in {"instruction_boundary_gap", "instrumentation_gap"}:
+        return classification
+    return "branch_guard_silent"
+
+
+def build_compare_handoff_branch_operand_runtime_audit_payload(
+    *,
+    source_payload: dict[str, object],
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    source_candidates = source_payload.get("candidates", [])
+    source_candidates = [dict(item) for item in source_candidates if isinstance(item, dict)]
+    source_cross = source_payload.get("cross_candidate", {})
+    source_cross = source_cross if isinstance(source_cross, dict) else {}
+    return_context_values = [
+        str(item).strip()
+        for item in source_cross.get("return_context_values", [])
+        if str(item).strip()
+    ]
+    if not return_context_values:
+        return_context_values = [
+            str(
+                (
+                    item.get("handoff_helper_entry_context", {})
+                    if isinstance(item.get("handoff_helper_entry_context"), dict)
+                    else {}
+                ).get("return_address_module_offset")
+                or ""
+            ).strip()
+            for item in source_candidates
+        ]
+        return_context_values = [item for item in return_context_values if item]
+    return_context_candidate_dependent = len(set(return_context_values)) > 1
+    candidate_rows: list[dict[str, object]] = []
+    branch_gap_count = 0
+    exception_count = 0
+    for candidate in source_candidates:
+        entry_context = _branch_operand_entry_context(
+            candidate,
+            return_context_candidate_dependent=return_context_candidate_dependent,
+        )
+        branch_evidence = _branch_operand_evidence(candidate)
+        exception_evidence = _branch_operand_exception_evidence(candidate)
+        if str(branch_evidence.get("classification") or "") in {
+            "instruction_boundary_gap",
+            "instrumentation_gap",
+        }:
+            branch_gap_count += 1
+        if bool(exception_evidence.get("observed")):
+            exception_count += 1
+        candidate_rows.append(
+            {
+                "candidate_hex": candidate.get("candidate_hex", ""),
+                "candidate_prefix": candidate.get("candidate_prefix", ""),
+                "prior_classification": candidate.get("candidate_classification")
+                or candidate.get("prior_classification", ""),
+                "handoff_entry_observed": "handoff_helper_entry"
+                in set(candidate.get("common_prefix_observed", [])),
+                "entry_context": entry_context,
+                "branch_operand_evidence": branch_evidence,
+                "exception_edge_evidence": exception_evidence,
+                "post_entry_outcome": _branch_operand_post_entry_outcome(
+                    candidate,
+                    branch_evidence,
+                    exception_evidence,
+                ),
+            }
+        )
+    root_cause = (
+        "instruction_boundary_gap"
+        if branch_gap_count
+        else "exception_edge_candidate_dependent_for_subset"
+        if exception_count
+        else "instrumentation_gap"
+    )
+    next_bounded_action = (
+        "hook_surface_repair"
+        if root_cause in {"instruction_boundary_gap", "instrumentation_gap"}
+        else "exception-edge confirmation"
+    )
+    return {
+        "schema_version": 1,
+        "artifact_kind": "compare_handoff_branch_operand_runtime_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "source_run": source_payload.get("source_run") or "sr_arg0_hook_readiness_ordering_20260526_r1",
+        "source_artifacts": [
+            "compare_handoff_edge_operand_provenance_audit",
+            *list(source_payload.get("source_artifacts", [])),
+        ],
+        "source_artifact_kind": source_payload.get(
+            "artifact_kind",
+            "compare_handoff_edge_operand_provenance_audit",
+        ),
+        "classification": root_cause,
+        "overall_classification": root_cause,
+        "attempted": True,
+        "offline_projection": True,
+        "runtime_sidecar_executed": False,
+        "instruction_boundary_audit": True,
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "final_selection_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "candidate_count": len(candidate_rows),
+        "runtime_backed_count": int(source_payload.get("runtime_backed_count") or 0),
+        "fixed_candidates": source_payload.get("fixed_candidates", []),
+        "candidates": candidate_rows,
+        "cross_candidate": {
+            "root_cause_classification": root_cause,
+            "branch_guard_explained": root_cause not in {"instruction_boundary_gap", "instrumentation_gap"},
+            "return_context_candidate_dependent": return_context_candidate_dependent,
+            "return_context_values": return_context_values,
+            "return_target_trust": "suspicious"
+            if return_context_candidate_dependent
+            else "trusted"
+            if return_context_values
+            else "schema_gap",
+            "exception_edge_shared_for_subset": bool(
+                source_cross.get("exception_edge_shared_for_subset")
+            ),
+            "exception_edge_candidate_dependent_memory": bool(
+                source_cross.get("exception_edge_candidate_dependent_memory")
+            ),
+            "branch_operand_gap_count": branch_gap_count,
+            "exception_candidate_count": exception_count,
+            "evidence_strength": "offline_projected_from_runtime_backed_source",
+            "next_bounded_action": next_bounded_action,
+        },
+        "breakpoint_probe_allowed": False,
+        "blocked_actions": [
+            "do not expand candidates, beam, topN, budget, timeout, or frontier from this diagnostic",
+            "do not run Base64/RC4 breakpoint probe from branch operand evidence alone",
+            "do not run material capture or crypto hooks from branch operand evidence alone",
+        ],
+        "next_bounded_action": next_bounded_action,
+    }
+
+
+def run_compare_handoff_branch_operand_runtime_audit(
+    *,
+    source_payload: dict[str, object],
+    artifacts_dir: Path,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+) -> dict[str, object]:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_HANDOFF_BRANCH_OPERAND_RUNTIME_AUDIT_FILE_NAME
+    payload = build_compare_handoff_branch_operand_runtime_audit_payload(
         source_payload=source_payload,
         sample=sample,
         profile=profile,

@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-06-01T04:36:26Z",
+  "generated_at": "2026-06-01T05:32:47Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "candidate_dependent_handoff_exit_edge_unresolved",
+  "reason": "instruction_boundary_gap",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }

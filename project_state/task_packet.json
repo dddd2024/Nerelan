@@ -7,6 +7,7 @@
     "bridge_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
     "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
+    "compare_handoff_branch_operand_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_branch_operand_runtime_audit\\compare_handoff_branch_operand_runtime_audit.json",
     "compare_handoff_edge_operand_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_edge_operand_provenance_audit\\compare_handoff_edge_operand_provenance_audit.json",
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
@@ -25,7 +26,7 @@
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json"
   },
-  "based_on_state_digest": "759cb075799e71e94ceb6076765b78a8d67bfc61ccfdb3ea1928836b2bdd460a",
+  "based_on_state_digest": "0a1efec627229ad0ce7c502fe51d0b02bfba8ebdaebdc4ea9f2fb11e42a61220",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -62,12 +63,12 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "candidate_dependent_handoff_exit_edge_unresolved",
+    "blocker": "instruction_boundary_gap",
     "confidence": "medium",
-    "reason": "candidate_dependent_handoff_exit_edge_unresolved",
-    "stage": "compare_handoff_edge_operand_provenance_audit"
+    "reason": "instruction_boundary_gap",
+    "stage": "compare_handoff_branch_operand_runtime_audit"
   },
-  "derived_task": "Trace bounded branch operand runtime sidecar or instruction boundary",
+  "derived_task": "Repair bounded handoff branch hook surface",
   "do_not_do": [
     "do not return to old sample_solver blind search",
     "do not only increase beam or budget",
@@ -89,7 +90,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-06-01T04:36:26Z",
+  "generated_at": "2026-06-01T05:32:47Z",
   "included": [
     "current state",
     "best candidates",
@@ -99,7 +100,7 @@
   ],
   "model_gate": {
     "context_level": 2,
-    "reason": "candidate_dependent_handoff_exit_edge_unresolved",
+    "reason": "instruction_boundary_gap",
     "should_call_model": true
   },
   "omitted": [
@@ -119,10 +120,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260601_043626",
+  "round_id": "round_20260601_053247",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260601_043626_759cb075799e",
+  "state_build_id": "state_20260601_053247_0a1efec62722",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,
@@ -131,6 +132,6 @@
     "has_runtime_validation": true,
     "has_stall_stage": true
   },
-  "task": "Trace bounded branch operand runtime sidecar or instruction boundary",
+  "task": "Repair bounded handoff branch hook surface",
   "task_source": "derived_from_sample_artifacts"
 }
