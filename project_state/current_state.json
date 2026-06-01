@@ -66,7 +66,7 @@
   "current_bottleneck": {
     "blocker": "",
     "confidence": "medium",
-    "reason": "ui_trigger_timeout",
+    "reason": "window_discovery_timeout",
     "stage": "compare_handoff_narrower_post_entry_breakpoint_audit"
   },
   "current_mainline": "L15(prefix8)",
@@ -109,7 +109,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-06-01T14:53:42Z",
+  "generated_at": "2026-06-01T15:18:20Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -1082,7 +1082,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 5322,
+          "partial_artifact_size_bytes": 6364,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1102,7 +1102,7 @@
           "subprocess_stdout_tail": "",
           "subprocess_timed_out": true
         },
-        "classification": "ui_trigger_timeout",
+        "classification": "window_discovery_timeout",
         "compare_successor_observed": false,
         "error": "sidecar timed out before writing candidate artifact; returncode=124",
         "event_sequence": [],
@@ -1113,101 +1113,101 @@
           "last_error_stage": "",
           "stages": [
             {
-              "monotonic": 2674.927748,
+              "monotonic": 4151.932947,
               "stage": "sidecar_started",
               "status": "confirmed"
             },
             {
-              "monotonic": 2674.985791,
+              "monotonic": 4151.995499,
               "stage": "arguments_parsed",
               "status": "confirmed"
             },
             {
               "exists": true,
-              "monotonic": 2674.986141,
+              "monotonic": 4151.99584,
               "stage": "target_checked",
               "status": "confirmed"
             },
             {
-              "monotonic": 2674.986817,
+              "monotonic": 4151.996117,
               "stage": "dependency_import_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2675.224542,
+              "monotonic": 4152.361224,
               "stage": "dependency_import_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2675.224997,
+              "monotonic": 4152.36165,
               "stage": "frida_spawn_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2675.258106,
-              "pid": 17440,
+              "monotonic": 4152.421276,
+              "pid": 37684,
               "stage": "frida_spawn_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2675.258598,
-              "pid": 17440,
+              "monotonic": 4152.421734,
+              "pid": 37684,
               "stage": "frida_attach_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.245742,
-              "pid": 17440,
+              "monotonic": 4153.972612,
+              "pid": 37684,
               "stage": "frida_attach_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.246194,
+              "monotonic": 4153.973125,
               "stage": "script_create_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.247654,
+              "monotonic": 4153.975403,
               "stage": "script_load_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.249147,
+              "monotonic": 4153.977281,
               "stage": "script_load_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.249598,
+              "monotonic": 4153.977645,
               "stage": "breakpoint_install_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.24997,
+              "monotonic": 4153.97799,
               "stage": "breakpoint_install_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.250284,
+              "monotonic": 4153.978358,
               "stage": "frida_resume_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.250938,
+              "monotonic": 4153.978896,
               "stage": "frida_resume_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.251242,
+              "monotonic": 4153.979373,
               "stage": "ui_connect_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.252079,
+              "monotonic": 4153.979935,
               "stage": "ui_connect_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2676.753513,
+              "monotonic": 4154.480862,
               "stage": "ui_trigger_attempted",
               "status": "confirmed"
             }
@@ -1222,7 +1222,47 @@
           "error": "sidecar timed out before writing candidate artifact; returncode=124",
           "ok": true,
           "pid": null
-        }
+        },
+        "ui_trigger": {
+          "button_control": {
+            "enabled": false,
+            "lookup_attempted": false,
+            "lookup_ok": false,
+            "visible": false
+          },
+          "classification": "window_discovery_timeout",
+          "error": "",
+          "events": [
+            {
+              "monotonic": 4154.48186,
+              "stage": "ui_window_discovery_attempted",
+              "status": "confirmed"
+            }
+          ],
+          "input_control": {
+            "lookup_attempted": false,
+            "lookup_ok": false,
+            "set_text_attempted": false,
+            "set_text_ok": false,
+            "value_confirm_attempted": false,
+            "value_confirmed": false
+          },
+          "last_ui_stage": "ui_window_discovery_attempted",
+          "post_trigger_observation": {
+            "entry_breakpoint_hit": false,
+            "observed_events": [],
+            "successor_breakpoint_hit": false
+          },
+          "timeout_stage": "window_discovery",
+          "trigger_methods": [],
+          "window": {
+            "class_name": "",
+            "discovered": false,
+            "handle": "",
+            "title": ""
+          }
+        },
+        "ui_trigger_schema_version": 1
       },
       {
         "actual_compare_observed": false,
@@ -1275,7 +1315,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 5320,
+          "partial_artifact_size_bytes": 6366,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1295,7 +1335,7 @@
           "subprocess_stdout_tail": "",
           "subprocess_timed_out": true
         },
-        "classification": "ui_trigger_timeout",
+        "classification": "window_discovery_timeout",
         "compare_successor_observed": false,
         "error": "sidecar timed out before writing candidate artifact; returncode=124",
         "event_sequence": [],
@@ -1306,101 +1346,101 @@
           "last_error_stage": "",
           "stages": [
             {
-              "monotonic": 2697.526331,
+              "monotonic": 4174.621466,
               "stage": "sidecar_started",
               "status": "confirmed"
             },
             {
-              "monotonic": 2697.608437,
+              "monotonic": 4174.687649,
               "stage": "arguments_parsed",
               "status": "confirmed"
             },
             {
               "exists": true,
-              "monotonic": 2697.608769,
+              "monotonic": 4174.687988,
               "stage": "target_checked",
               "status": "confirmed"
             },
             {
-              "monotonic": 2697.609026,
+              "monotonic": 4174.688281,
               "stage": "dependency_import_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2697.837673,
+              "monotonic": 4174.953969,
               "stage": "dependency_import_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2697.838079,
+              "monotonic": 4174.95444,
               "stage": "frida_spawn_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2697.86901,
-              "pid": 38052,
+              "monotonic": 4174.985836,
+              "pid": 36996,
               "stage": "frida_spawn_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2697.869481,
-              "pid": 38052,
+              "monotonic": 4174.986386,
+              "pid": 36996,
               "stage": "frida_attach_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.855283,
-              "pid": 38052,
+              "monotonic": 4175.963358,
+              "pid": 36996,
               "stage": "frida_attach_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.855871,
+              "monotonic": 4175.963826,
               "stage": "script_create_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.857635,
+              "monotonic": 4175.965232,
               "stage": "script_load_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.859506,
+              "monotonic": 4175.96673,
               "stage": "script_load_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.860027,
+              "monotonic": 4175.967121,
               "stage": "breakpoint_install_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.860431,
+              "monotonic": 4175.967428,
               "stage": "breakpoint_install_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.860782,
+              "monotonic": 4175.967758,
               "stage": "frida_resume_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.861436,
+              "monotonic": 4175.968339,
               "stage": "frida_resume_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.8618,
+              "monotonic": 4175.968715,
               "stage": "ui_connect_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2698.862455,
+              "monotonic": 4175.969299,
               "stage": "ui_connect_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2699.363074,
+              "monotonic": 4176.470217,
               "stage": "ui_trigger_attempted",
               "status": "confirmed"
             }
@@ -1415,7 +1455,47 @@
           "error": "sidecar timed out before writing candidate artifact; returncode=124",
           "ok": true,
           "pid": null
-        }
+        },
+        "ui_trigger": {
+          "button_control": {
+            "enabled": false,
+            "lookup_attempted": false,
+            "lookup_ok": false,
+            "visible": false
+          },
+          "classification": "window_discovery_timeout",
+          "error": "",
+          "events": [
+            {
+              "monotonic": 4176.471252,
+              "stage": "ui_window_discovery_attempted",
+              "status": "confirmed"
+            }
+          ],
+          "input_control": {
+            "lookup_attempted": false,
+            "lookup_ok": false,
+            "set_text_attempted": false,
+            "set_text_ok": false,
+            "value_confirm_attempted": false,
+            "value_confirmed": false
+          },
+          "last_ui_stage": "ui_window_discovery_attempted",
+          "post_trigger_observation": {
+            "entry_breakpoint_hit": false,
+            "observed_events": [],
+            "successor_breakpoint_hit": false
+          },
+          "timeout_stage": "window_discovery",
+          "trigger_methods": [],
+          "window": {
+            "class_name": "",
+            "discovered": false,
+            "handle": "",
+            "title": ""
+          }
+        },
+        "ui_trigger_schema_version": 1
       },
       {
         "actual_compare_observed": false,
@@ -1468,7 +1548,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 5322,
+          "partial_artifact_size_bytes": 6366,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1488,7 +1568,7 @@
           "subprocess_stdout_tail": "",
           "subprocess_timed_out": true
         },
-        "classification": "ui_trigger_timeout",
+        "classification": "window_discovery_timeout",
         "compare_successor_observed": false,
         "error": "sidecar timed out before writing candidate artifact; returncode=124",
         "event_sequence": [],
@@ -1499,101 +1579,101 @@
           "last_error_stage": "",
           "stages": [
             {
-              "monotonic": 2720.187196,
+              "monotonic": 4197.392154,
               "stage": "sidecar_started",
               "status": "confirmed"
             },
             {
-              "monotonic": 2720.259124,
+              "monotonic": 4197.442013,
               "stage": "arguments_parsed",
               "status": "confirmed"
             },
             {
               "exists": true,
-              "monotonic": 2720.259468,
+              "monotonic": 4197.442553,
               "stage": "target_checked",
               "status": "confirmed"
             },
             {
-              "monotonic": 2720.259866,
+              "monotonic": 4197.443232,
               "stage": "dependency_import_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2720.510883,
+              "monotonic": 4197.722686,
               "stage": "dependency_import_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2720.511315,
+              "monotonic": 4197.723152,
               "stage": "frida_spawn_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2720.542054,
-              "pid": 36088,
+              "monotonic": 4197.750856,
+              "pid": 39416,
               "stage": "frida_spawn_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2720.542561,
-              "pid": 36088,
+              "monotonic": 4197.751323,
+              "pid": 39416,
               "stage": "frida_attach_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.394032,
-              "pid": 36088,
+              "monotonic": 4198.756349,
+              "pid": 39416,
               "stage": "frida_attach_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.394502,
+              "monotonic": 4198.756981,
               "stage": "script_create_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.396195,
+              "monotonic": 4198.758831,
               "stage": "script_load_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.397925,
+              "monotonic": 4198.760692,
               "stage": "script_load_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.39828,
+              "monotonic": 4198.761188,
               "stage": "breakpoint_install_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.398672,
+              "monotonic": 4198.761572,
               "stage": "breakpoint_install_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.399006,
+              "monotonic": 4198.761891,
               "stage": "frida_resume_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.399546,
+              "monotonic": 4198.762512,
               "stage": "frida_resume_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.399854,
+              "monotonic": 4198.762897,
               "stage": "ui_connect_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.400344,
+              "monotonic": 4198.7634,
               "stage": "ui_connect_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 2721.900982,
+              "monotonic": 4199.264163,
               "stage": "ui_trigger_attempted",
               "status": "confirmed"
             }
@@ -1608,13 +1688,53 @@
           "error": "sidecar timed out before writing candidate artifact; returncode=124",
           "ok": true,
           "pid": null
-        }
+        },
+        "ui_trigger": {
+          "button_control": {
+            "enabled": false,
+            "lookup_attempted": false,
+            "lookup_ok": false,
+            "visible": false
+          },
+          "classification": "window_discovery_timeout",
+          "error": "",
+          "events": [
+            {
+              "monotonic": 4199.264652,
+              "stage": "ui_window_discovery_attempted",
+              "status": "confirmed"
+            }
+          ],
+          "input_control": {
+            "lookup_attempted": false,
+            "lookup_ok": false,
+            "set_text_attempted": false,
+            "set_text_ok": false,
+            "value_confirm_attempted": false,
+            "value_confirmed": false
+          },
+          "last_ui_stage": "ui_window_discovery_attempted",
+          "post_trigger_observation": {
+            "entry_breakpoint_hit": false,
+            "observed_events": [],
+            "successor_breakpoint_hit": false
+          },
+          "timeout_stage": "window_discovery",
+          "trigger_methods": [],
+          "window": {
+            "class_name": "",
+            "discovered": false,
+            "handle": "",
+            "title": ""
+          }
+        },
+        "ui_trigger_schema_version": 1
       }
     ],
-    "classification": "ui_trigger_timeout",
+    "classification": "window_discovery_timeout",
     "cross_candidate": {
       "breakpoint_hit_counts": {},
-      "classification": "ui_trigger_timeout",
+      "classification": "window_discovery_timeout",
       "first_divergence_after": "",
       "lifecycle_stage_counts": {
         "arguments_parsed": 3,
@@ -1637,11 +1757,14 @@
         "ui_connect_ok": 3,
         "ui_trigger_attempted": 3
       },
-      "next_bounded_action": "review_narrower_post_entry_breakpoint_result"
+      "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
+      "ui_trigger_classification_counts": {
+        "window_discovery_timeout": 3
+      }
     },
     "diagnostic_summary": {
       "blocker_counts": {
-        "ui_trigger_timeout": 3
+        "window_discovery_timeout": 3
       },
       "breakpoint_hit_counts": {},
       "breakpoint_install_attempted_count": 12,
@@ -1662,7 +1785,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 5320,
+          "partial_artifact_size_bytes": 6366,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1688,7 +1811,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 5322,
+          "partial_artifact_size_bytes": 6366,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1714,7 +1837,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 5322,
+          "partial_artifact_size_bytes": 6364,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1735,7 +1858,7 @@
           "subprocess_timed_out": true
         }
       },
-      "classification": "ui_trigger_timeout",
+      "classification": "window_discovery_timeout",
       "last_confirmed_stages": {
         "5a3e7f46ddd474d041414141414141": "ui_trigger_attempted",
         "78d540b49c59076f41414141414141": "ui_trigger_attempted",
@@ -1770,7 +1893,7 @@
     },
     "lifecycle_schema_version": 1,
     "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
-    "overall_classification": "ui_trigger_timeout",
+    "overall_classification": "window_discovery_timeout",
     "runtime_scope": {
       "breakpoint_probe_allowed": false,
       "crypto_hook_allowed": false,
@@ -1784,7 +1907,40 @@
       "compare_handoff_hook_surface_repair_audit",
       "compare_handoff_branch_operand_runtime_audit"
     ],
-    "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
+    "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+    "ui_trigger_diagnostics": {
+      "classification": "window_discovery_timeout",
+      "classification_counts": {
+        "window_discovery_timeout": 3
+      },
+      "control_lookup_counts": {
+        "button_enabled": 0,
+        "button_lookup_attempted": 0,
+        "button_lookup_ok": 0,
+        "button_visible": 0,
+        "input_lookup_attempted": 0,
+        "input_lookup_ok": 0,
+        "input_set_text_attempted": 0,
+        "input_set_text_ok": 0,
+        "input_value_confirmed": 0
+      },
+      "last_ui_stages": {
+        "5a3e7f46ddd474d041414141414141": "ui_window_discovery_attempted",
+        "78d540b49c59076f41414141414141": "ui_window_discovery_attempted",
+        "78d540b49c59077041414141414141": "ui_window_discovery_attempted"
+      },
+      "method_counts": {},
+      "post_trigger_observation": {
+        "entry_breakpoint_hit_count": 0,
+        "successor_breakpoint_hit_count": 0
+      },
+      "timeout_stages": {
+        "5a3e7f46ddd474d041414141414141": "window_discovery",
+        "78d540b49c59076f41414141414141": "window_discovery",
+        "78d540b49c59077041414141414141": "window_discovery"
+      }
+    },
+    "ui_trigger_schema_version": 1
   },
   "latest_compare_handoff_path_divergence_audit": {
     "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
@@ -4146,13 +4302,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260601_145342",
+  "round_id": "round_20260601_151820",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "48d4efbca602",
+  "source_git_commit": "1e15d344de99",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260601_145342_027e5d2b1c2e",
-  "state_digest": "027e5d2b1c2e18cae790013dae0137dd2c2ddd73b3f5b32976e8100ae23ec03a",
+  "state_build_id": "state_20260601_151820_67a9dc2b097f",
+  "state_digest": "67a9dc2b097f537853f89e598e2f25e29ca1f1fb6a8f8ce6f4a7c334c3358290",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

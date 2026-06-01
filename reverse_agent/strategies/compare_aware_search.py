@@ -13020,6 +13020,8 @@ def _normalize_narrower_post_entry_breakpoint_candidate_result(
     candidate_invocation_health = (
         candidate_invocation_health if isinstance(candidate_invocation_health, dict) else {}
     )
+    ui_trigger = candidate_payload.get("ui_trigger", {})
+    ui_trigger = ui_trigger if isinstance(ui_trigger, dict) else {}
     return {
         "candidate_hex": candidate_hex,
         "target_launch": target_launch,
@@ -13042,6 +13044,8 @@ def _normalize_narrower_post_entry_breakpoint_candidate_result(
         "error": str(candidate_payload.get("error") or ""),
         "lifecycle_schema_version": int(candidate_payload.get("lifecycle_schema_version") or 1),
         "lifecycle": lifecycle,
+        "ui_trigger_schema_version": int(candidate_payload.get("ui_trigger_schema_version") or 1),
+        "ui_trigger": ui_trigger,
         "candidate_invocation_health": candidate_invocation_health,
     }
 
@@ -13113,15 +13117,97 @@ def _narrower_lifecycle_diagnostics(
     }
 
 
+def _narrower_ui_trigger_diagnostics(
+    candidates: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    classifications: dict[str, int] = {}
+    last_ui_stages: dict[str, str] = {}
+    timeout_stages: dict[str, str] = {}
+    method_counts: dict[str, int] = {}
+    control_lookup_counts: dict[str, int] = {}
+    post_trigger_observation = {
+        "entry_breakpoint_hit_count": 0,
+        "successor_breakpoint_hit_count": 0,
+    }
+    for candidate in candidates:
+        candidate_hex = str(candidate.get("candidate_hex") or "")
+        ui_trigger = candidate.get("ui_trigger", {})
+        ui_trigger = ui_trigger if isinstance(ui_trigger, dict) else {}
+        classification = str(ui_trigger.get("classification") or "")
+        if classification:
+            classifications[classification] = classifications.get(classification, 0) + 1
+        if candidate_hex:
+            last_ui_stages[candidate_hex] = str(ui_trigger.get("last_ui_stage") or "")
+            timeout_stages[candidate_hex] = str(ui_trigger.get("timeout_stage") or "")
+        input_control = ui_trigger.get("input_control", {})
+        input_control = input_control if isinstance(input_control, dict) else {}
+        button_control = ui_trigger.get("button_control", {})
+        button_control = button_control if isinstance(button_control, dict) else {}
+        for key in ("lookup_attempted", "lookup_ok", "set_text_attempted", "set_text_ok", "value_confirmed"):
+            control_lookup_counts[f"input_{key}"] = control_lookup_counts.get(f"input_{key}", 0) + int(
+                bool(input_control.get(key))
+            )
+        for key in ("lookup_attempted", "lookup_ok", "enabled", "visible"):
+            control_lookup_counts[f"button_{key}"] = control_lookup_counts.get(f"button_{key}", 0) + int(
+                bool(button_control.get(key))
+            )
+        methods = ui_trigger.get("trigger_methods", [])
+        methods = methods if isinstance(methods, list) else []
+        for method in methods:
+            if not isinstance(method, dict):
+                continue
+            name = str(method.get("method") or "unknown")
+            method_counts[name] = method_counts.get(name, 0) + 1
+            if bool(method.get("returned")):
+                method_counts[f"{name}_returned"] = method_counts.get(f"{name}_returned", 0) + 1
+        observation = ui_trigger.get("post_trigger_observation", {})
+        observation = observation if isinstance(observation, dict) else {}
+        post_trigger_observation["entry_breakpoint_hit_count"] += int(
+            bool(observation.get("entry_breakpoint_hit"))
+        )
+        post_trigger_observation["successor_breakpoint_hit_count"] += int(
+            bool(observation.get("successor_breakpoint_hit"))
+        )
+    return {
+        "classification": _choose_narrower_post_entry_breakpoint_classification(candidates),
+        "classification_counts": classifications,
+        "last_ui_stages": last_ui_stages,
+        "timeout_stages": timeout_stages,
+        "method_counts": method_counts,
+        "control_lookup_counts": control_lookup_counts,
+        "post_trigger_observation": post_trigger_observation,
+    }
+
+
 def _choose_narrower_post_entry_breakpoint_classification(
     candidates: Sequence[dict[str, object]],
 ) -> str:
     for preferred in (
         "post_entry_breakpoint_observed",
+        "post_entry_breakpoint_observed_after_ui_trigger",
         "successor_breakpoint_not_hit",
+        "successor_breakpoint_not_hit_after_ui_trigger",
         "entry_breakpoint_not_hit",
+        "entry_breakpoint_not_hit_after_ui_trigger",
+        "button_action_returned_no_entry_hit",
+        "post_trigger_observation_timeout",
+        "button_invoke_timeout",
+        "button_click_timeout",
+        "button_invoke_failed",
+        "button_click_failed",
+        "button_disabled_or_invisible",
+        "button_control_lookup_timeout",
+        "button_control_lookup_failed",
+        "input_value_not_confirmed",
+        "input_set_text_timeout",
+        "input_set_text_failed",
+        "input_control_lookup_timeout",
+        "input_control_lookup_failed",
+        "window_discovery_timeout",
+        "window_discovery_failed",
         "ui_trigger_timeout",
         "ui_trigger_failed",
+        "ui_trigger_instrumentation_gap",
         "ui_connect_timeout",
         "ui_connect_failed",
         "frida_resume_failed",
@@ -13173,6 +13259,7 @@ def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
     classification = _choose_narrower_post_entry_breakpoint_classification(candidates)
     diagnostic_summary = _narrower_post_entry_breakpoint_diagnostic_summary(candidates)
     lifecycle_diagnostics = _narrower_lifecycle_diagnostics(candidates)
+    ui_trigger_diagnostics = _narrower_ui_trigger_diagnostics(candidates)
     breakpoint_plan = []
     for item in candidate_results:
         if isinstance(item, dict) and isinstance(item.get("breakpoint_plan"), list):
@@ -13191,6 +13278,7 @@ def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
         "schema_version": 1,
         "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
         "lifecycle_schema_version": 1,
+        "ui_trigger_schema_version": 1,
         "sample": sample,
         "profile": profile,
         "run_name": run_name,
@@ -13216,11 +13304,16 @@ def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
         "candidates": candidates,
         "diagnostic_summary": diagnostic_summary,
         "lifecycle_diagnostics": lifecycle_diagnostics,
+        "ui_trigger_diagnostics": ui_trigger_diagnostics,
         "cross_candidate": {
             "classification": classification,
             "first_divergence_after": first_divergence_after,
             "breakpoint_hit_counts": diagnostic_summary.get("breakpoint_hit_counts", {}),
             "lifecycle_stage_counts": lifecycle_diagnostics.get("stage_counts", {}),
+            "ui_trigger_classification_counts": ui_trigger_diagnostics.get(
+                "classification_counts",
+                {},
+            ),
             "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
         },
         "candidate_generation_changed": False,
@@ -13274,10 +13367,20 @@ def _narrower_post_entry_breakpoint_timeout_payload(
     ]
     lifecycle = partial_payload.get("lifecycle", {})
     lifecycle = lifecycle if isinstance(lifecycle, dict) else {}
-    classification = _classify_narrower_timeout_from_lifecycle(lifecycle, bool(partial_payload))
+    ui_trigger = partial_payload.get("ui_trigger", {})
+    ui_trigger = ui_trigger if isinstance(ui_trigger, dict) else {}
+    classification = _classify_narrower_timeout_from_lifecycle(
+        lifecycle,
+        bool(partial_payload),
+        ui_trigger,
+    )
     if lifecycle:
         lifecycle = dict(lifecycle)
         lifecycle["timeout_stage"] = _timeout_stage_from_lifecycle(lifecycle)
+    if ui_trigger:
+        ui_trigger = dict(ui_trigger)
+        ui_trigger["timeout_stage"] = _timeout_stage_from_ui_trigger(ui_trigger)
+        ui_trigger["classification"] = classification
     confirmed_stages = {
         str(stage.get("stage") or "")
         for stage in lifecycle.get("stages", [])
@@ -13366,6 +13469,8 @@ def _narrower_post_entry_breakpoint_timeout_payload(
         "classification": classification,
         "error": f"sidecar timed out before writing candidate artifact; returncode={returncode}",
         "lifecycle": lifecycle,
+        "ui_trigger_schema_version": 1,
+        "ui_trigger": ui_trigger,
         "candidate_invocation_health": health,
         "breakpoint_probe_allowed": False,
         "material_capture_allowed": False,
@@ -13400,12 +13505,61 @@ def _timeout_stage_from_lifecycle(lifecycle: dict[str, object]) -> str:
     }.get(last_confirmed, f"after_{last_confirmed}")
 
 
+def _timeout_stage_from_ui_trigger(ui_trigger: dict[str, object]) -> str:
+    last_ui_stage = str(ui_trigger.get("last_ui_stage") or "")
+    return {
+        "ui_window_discovery_attempted": "window_discovery",
+        "ui_input_lookup_attempted": "input_control_lookup",
+        "ui_input_set_text_attempted": "input_set_text",
+        "ui_input_value_confirm_attempted": "input_value_confirm",
+        "ui_button_lookup_attempted": "button_control_lookup",
+        "ui_button_invoke_attempted": "button_invoke",
+        "ui_button_click_attempted": "button_click",
+        "post_trigger_observation_wait_started": "post_trigger_observation",
+    }.get(last_ui_stage, "")
+
+
+def _classify_narrower_timeout_from_ui_trigger(ui_trigger: dict[str, object]) -> str:
+    last_ui_stage = str(ui_trigger.get("last_ui_stage") or "")
+    if not last_ui_stage:
+        return ""
+    return {
+        "ui_window_discovery_attempted": "window_discovery_timeout",
+        "ui_window_discovery_failed": "window_discovery_failed",
+        "ui_input_lookup_attempted": "input_control_lookup_timeout",
+        "ui_input_lookup_failed": "input_control_lookup_failed",
+        "ui_input_set_text_attempted": "input_set_text_timeout",
+        "ui_input_set_text_failed": "input_set_text_failed",
+        "ui_input_value_confirm_attempted": "input_value_not_confirmed",
+        "ui_input_value_confirm_failed": "input_value_not_confirmed",
+        "ui_button_lookup_attempted": "button_control_lookup_timeout",
+        "ui_button_lookup_failed": "button_control_lookup_failed",
+        "ui_button_state_checked": "button_disabled_or_invisible",
+        "ui_button_trigger_method_selected": "button_invoke_timeout",
+        "ui_button_invoke_attempted": "button_invoke_timeout",
+        "ui_button_invoke_failed": "button_invoke_failed",
+        "ui_button_click_attempted": "button_click_timeout",
+        "ui_button_click_failed": "button_click_failed",
+        "ui_trigger_returned": "button_action_returned_no_entry_hit",
+        "post_trigger_observation_wait_started": "post_trigger_observation_timeout",
+        "entry_breakpoint_not_hit_after_ui_trigger": "entry_breakpoint_not_hit_after_ui_trigger",
+        "successor_breakpoint_not_hit_after_ui_trigger": "successor_breakpoint_not_hit_after_ui_trigger",
+        "post_entry_breakpoint_observed_after_ui_trigger": "post_entry_breakpoint_observed_after_ui_trigger",
+    }.get(last_ui_stage, "ui_trigger_instrumentation_gap")
+
+
 def _classify_narrower_timeout_from_lifecycle(
     lifecycle: dict[str, object],
     partial_artifact_exists: bool,
+    ui_trigger: dict[str, object] | None = None,
 ) -> str:
     if not partial_artifact_exists or not lifecycle:
         return "subprocess_timeout_before_lifecycle_checkpoint"
+    ui_classification = _classify_narrower_timeout_from_ui_trigger(
+        ui_trigger if isinstance(ui_trigger, dict) else {}
+    )
+    if ui_classification:
+        return ui_classification
     last_confirmed = str(lifecycle.get("last_confirmed_stage") or "")
     return {
         "dependency_import_attempted": "debugger_dependency_missing",

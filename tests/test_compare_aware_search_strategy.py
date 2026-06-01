@@ -11399,6 +11399,19 @@ def test_handoff_narrower_post_entry_breakpoint_audit_keeps_bounded_scope(
             "compare_successor_observed": False,
             "actual_compare_observed": False,
             "classification": "successor_breakpoint_not_hit",
+            "ui_trigger_schema_version": 1,
+            "ui_trigger": {
+                "classification": "successor_breakpoint_not_hit_after_ui_trigger",
+                "last_ui_stage": "successor_breakpoint_not_hit_after_ui_trigger",
+                "timeout_stage": "",
+                "input_control": {"lookup_ok": True, "set_text_ok": True, "value_confirmed": True},
+                "button_control": {"lookup_ok": True, "enabled": True, "visible": True},
+                "trigger_methods": [{"method": "invoke", "attempted": True, "returned": True}],
+                "post_trigger_observation": {
+                    "entry_breakpoint_hit": True,
+                    "successor_breakpoint_hit": False,
+                },
+            },
         }
     ]
 
@@ -11427,8 +11440,13 @@ def test_handoff_narrower_post_entry_breakpoint_audit_keeps_bounded_scope(
     assert payload["search_budget_changed"] is False
     assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
     assert payload["lifecycle_schema_version"] == 1
+    assert payload["ui_trigger_schema_version"] == 1
     assert payload["lifecycle_diagnostics"]["classification"] == "successor_breakpoint_not_hit"
+    assert payload["ui_trigger_diagnostics"]["method_counts"]["invoke_returned"] == 1
     assert payload["candidates"][0]["event_sequence"][1]["name"] == "handoff_helper_entry"
+    assert payload["candidates"][0]["ui_trigger"]["last_ui_stage"] == (
+        "successor_breakpoint_not_hit_after_ui_trigger"
+    )
     assert payload["cross_candidate"]["first_divergence_after"] == "event_sequence"
 
     result = run_compare_handoff_narrower_post_entry_breakpoint_audit(
@@ -11483,13 +11501,36 @@ def test_handoff_narrower_post_entry_timeout_uses_lifecycle_checkpoint(
                     "event_sequence": [],
                     "classification": "lifecycle_checkpoint",
                     "lifecycle": {
-                        "last_confirmed_stage": "script_load_attempted",
+                        "last_confirmed_stage": "ui_trigger_attempted",
                         "last_error_stage": "",
                         "timeout_stage": "",
                         "stages": [
                             {"stage": "sidecar_started", "status": "confirmed"},
-                            {"stage": "script_load_attempted", "status": "confirmed"},
+                            {"stage": "ui_trigger_attempted", "status": "confirmed"},
                         ],
+                    },
+                    "ui_trigger_schema_version": 1,
+                    "ui_trigger": {
+                        "last_ui_stage": "ui_button_invoke_attempted",
+                        "timeout_stage": "",
+                        "classification": "lifecycle_checkpoint",
+                        "window": {"discovered": True, "title": "sample", "class_name": "", "handle": "1"},
+                        "input_control": {
+                            "lookup_attempted": True,
+                            "lookup_ok": True,
+                            "set_text_attempted": True,
+                            "set_text_ok": True,
+                            "value_confirm_attempted": True,
+                            "value_confirmed": True,
+                        },
+                        "button_control": {
+                            "lookup_attempted": True,
+                            "lookup_ok": True,
+                            "enabled": True,
+                            "visible": True,
+                        },
+                        "trigger_methods": [{"method": "invoke", "attempted": True, "returned": False}],
+                        "post_trigger_observation": {},
                     },
                 }
             ),
@@ -11513,18 +11554,23 @@ def test_handoff_narrower_post_entry_timeout_uses_lifecycle_checkpoint(
     )
 
     payload = result["payload"]
-    assert payload["classification"] == "script_load_timeout"
-    assert payload["diagnostic_summary"]["blocker_counts"] == {"script_load_timeout": 3}
+    assert payload["classification"] == "button_invoke_timeout"
+    assert payload["diagnostic_summary"]["blocker_counts"] == {"button_invoke_timeout": 3}
     assert payload["lifecycle_diagnostics"]["timeout_stages"][
         "78d540b49c59077041414141414141"
-    ] == "script_load"
+    ] == "ui_trigger"
+    assert payload["ui_trigger_diagnostics"]["timeout_stages"][
+        "78d540b49c59077041414141414141"
+    ] == "button_invoke"
     first = payload["candidates"][0]
     assert first["candidate_invocation_health"]["subprocess_timed_out"] is True
     assert first["candidate_invocation_health"]["partial_artifact_exists"] is True
     assert first["candidate_invocation_health"]["subprocess_stdout_tail"] == "sidecar stdout tail"
     assert first["candidate_invocation_health"]["subprocess_stderr_tail"] == "sidecar stderr tail"
-    assert first["lifecycle"]["last_confirmed_stage"] == "script_load_attempted"
-    assert first["lifecycle"]["timeout_stage"] == "script_load"
+    assert first["lifecycle"]["last_confirmed_stage"] == "ui_trigger_attempted"
+    assert first["lifecycle"]["timeout_stage"] == "ui_trigger"
+    assert first["ui_trigger"]["last_ui_stage"] == "ui_button_invoke_attempted"
+    assert first["ui_trigger"]["classification"] == "button_invoke_timeout"
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

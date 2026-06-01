@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-01T14:53:42Z",
+  "generated_at": "2026-06-01T15:18:20Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -164,10 +164,10 @@
     "compare_handoff_narrower_post_entry_breakpoint_audit": {
       "freshness": "current",
       "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
-      "modified_at": "2026-06-01T14:53:33Z",
+      "modified_at": "2026-06-01T15:18:10Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-      "sha256": "2e06f2e5db861b150a16cf21963a40941efa2acf032f1e8ae5851fe200fd9e7c",
-      "size_bytes": 30776,
+      "sha256": "0221eb2a46cea71964bdd97c183678c98f4d6016ffd32a05e5705366a7476e22",
+      "size_bytes": 35711,
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_path_divergence_audit": {
@@ -513,27 +513,27 @@
   "recent_artifacts": [
     {
       "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
-      "modified_at": "2026-06-01T14:53:33Z",
+      "modified_at": "2026-06-01T15:18:10Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-      "size_bytes": 30776
+      "size_bytes": 35711
     },
     {
       "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
-      "modified_at": "2026-06-01T14:53:12Z",
+      "modified_at": "2026-06-01T15:17:50Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-      "size_bytes": 5322
+      "size_bytes": 6366
     },
     {
       "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
-      "modified_at": "2026-06-01T14:52:50Z",
+      "modified_at": "2026-06-01T15:17:27Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-      "size_bytes": 5320
+      "size_bytes": 6366
     },
     {
       "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
-      "modified_at": "2026-06-01T14:52:27Z",
+      "modified_at": "2026-06-01T15:17:05Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-      "size_bytes": 5322
+      "size_bytes": 6364
     },
     {
       "kind": "compare_handoff_post_entry_step_runtime_audit",

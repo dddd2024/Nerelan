@@ -1819,6 +1819,7 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
         {
             "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
             "lifecycle_schema_version": 1,
+            "ui_trigger_schema_version": 1,
             "classification": "entry_breakpoint_not_hit",
             "overall_classification": "entry_breakpoint_not_hit",
             "source_run": "sr_narrower_post_entry",
@@ -1875,6 +1876,22 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
                     }
                 },
             },
+            "ui_trigger_diagnostics": {
+                "classification": "entry_breakpoint_not_hit_after_ui_trigger",
+                "classification_counts": {"entry_breakpoint_not_hit_after_ui_trigger": 1},
+                "last_ui_stages": {
+                    "78d540b49c59077041414141414141": "entry_breakpoint_not_hit_after_ui_trigger"
+                },
+                "timeout_stages": {
+                    "78d540b49c59077041414141414141": ""
+                },
+                "method_counts": {"invoke": 1, "invoke_returned": 1},
+                "control_lookup_counts": {"input_lookup_ok": 1, "button_lookup_ok": 1},
+                "post_trigger_observation": {
+                    "entry_breakpoint_hit_count": 0,
+                    "successor_breakpoint_hit_count": 0,
+                },
+            },
             "cross_candidate": {
                 "classification": "entry_breakpoint_not_hit",
                 "first_divergence_after": "",
@@ -1907,6 +1924,7 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
                     "successor_surface_observed": False,
                     "classification": "entry_breakpoint_not_hit",
                     "lifecycle_schema_version": 1,
+                    "ui_trigger_schema_version": 1,
                     "lifecycle": {
                         "last_confirmed_stage": "observation_wait_finished_or_timeout",
                         "last_error_stage": "",
@@ -1919,6 +1937,20 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
                                 "status": "confirmed",
                             },
                         ],
+                    },
+                    "ui_trigger": {
+                        "classification": "entry_breakpoint_not_hit_after_ui_trigger",
+                        "last_ui_stage": "entry_breakpoint_not_hit_after_ui_trigger",
+                        "timeout_stage": "",
+                        "input_control": {"lookup_ok": True, "set_text_ok": True},
+                        "button_control": {"lookup_ok": True, "enabled": True, "visible": True},
+                        "trigger_methods": [
+                            {"method": "invoke", "attempted": True, "returned": True}
+                        ],
+                        "post_trigger_observation": {
+                            "entry_breakpoint_hit": False,
+                            "successor_breakpoint_hit": False,
+                        },
                     },
                     "candidate_invocation_health": {
                         "subprocess_returncode": 0,
@@ -1963,7 +1995,12 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
     assert latest["runtime_scope"]["single_step_required"] is False
     assert latest["diagnostic_summary"]["breakpoint_install_ok_count"] == 12
     assert latest["lifecycle_schema_version"] == 1
+    assert latest["ui_trigger_schema_version"] == 1
     assert latest["lifecycle_diagnostics"]["stage_counts"]["breakpoint_install_ok"] == 3
+    assert latest["ui_trigger_diagnostics"]["classification"] == (
+        "entry_breakpoint_not_hit_after_ui_trigger"
+    )
+    assert latest["candidates"][0]["ui_trigger"]["trigger_methods"][0]["method"] == "invoke"
     assert latest["lifecycle_diagnostics"]["candidate_invocation_health"][
         "78d540b49c59077041414141414141"
     ]["subprocess_returncode"] == 0

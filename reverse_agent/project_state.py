@@ -2408,6 +2408,25 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
         or compare_handoff_narrower_post_entry_breakpoint_audit.get("overall_classification")
         or ""
     ).strip()
+    handoff_narrower_ui_trigger_diagnostics = (
+        compare_handoff_narrower_post_entry_breakpoint_audit.get("ui_trigger_diagnostics")
+    )
+    handoff_narrower_ui_trigger_diagnostics = (
+        handoff_narrower_ui_trigger_diagnostics
+        if isinstance(handoff_narrower_ui_trigger_diagnostics, dict)
+        else {}
+    )
+    handoff_narrower_ui_classification = str(
+        handoff_narrower_ui_trigger_diagnostics.get("classification") or ""
+    ).strip()
+    if (
+        handoff_narrower_post_entry_breakpoint_classification == "ui_trigger_timeout"
+        and handoff_narrower_ui_classification
+        and handoff_narrower_ui_classification != "ui_trigger_timeout"
+    ):
+        handoff_narrower_post_entry_breakpoint_classification = (
+            handoff_narrower_ui_classification
+        )
     if handoff_narrower_post_entry_breakpoint_classification:
         stage = "compare_handoff_narrower_post_entry_breakpoint_audit"
         reason = handoff_narrower_post_entry_breakpoint_classification
@@ -3154,6 +3173,13 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             ),
             "lifecycle_diagnostics": compare_handoff_narrower_post_entry_breakpoint_audit.get(
                 "lifecycle_diagnostics",
+                {},
+            ),
+            "ui_trigger_schema_version": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "ui_trigger_schema_version"
+            ),
+            "ui_trigger_diagnostics": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "ui_trigger_diagnostics",
                 {},
             ),
             "cross_candidate": compare_handoff_narrower_post_entry_breakpoint_audit.get(
