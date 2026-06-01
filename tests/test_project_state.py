@@ -1667,6 +1667,84 @@ def test_project_state_indexes_compare_handoff_hook_surface_repair_audit(tmp_pat
     assert task_packet["task"] == "Run bounded post-entry step runtime audit"
 
 
+def test_project_state_indexes_compare_handoff_post_entry_step_runtime_audit(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_post_entry")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    _write_json(
+        artifacts_dir / "compare_handoff_post_entry_step_runtime_audit.json",
+        {
+            "artifact_kind": "compare_handoff_post_entry_step_runtime_audit",
+            "classification": "runtime_unavailable",
+            "overall_classification": "runtime_unavailable",
+            "source_run": "sr_post_entry",
+            "source_artifacts": [
+                "compare_handoff_hook_surface_repair_audit",
+                "compare_handoff_branch_operand_runtime_audit",
+                "compare_handoff_edge_operand_provenance_audit",
+            ],
+            "candidate_count": 3,
+            "runtime_sidecar_executed": False,
+            "fixed_candidates": [
+                "78d540b49c59077041414141414141",
+                "5a3e7f46ddd474d041414141414141",
+                "78d540b49c59076f41414141414141",
+            ],
+            "runtime_scope": {
+                "sidecar": "compare_handoff_post_entry_step_audit.py",
+                "max_steps_per_candidate": 32,
+                "material_capture_allowed": False,
+                "crypto_hook_allowed": False,
+                "breakpoint_probe_allowed": False,
+            },
+            "cross_candidate": {
+                "first_divergence_point": "",
+                "branch_guard_explained": False,
+                "return_target_trust": "suspicious",
+                "root_cause_classification": "runtime_unavailable",
+                "next_bounded_action": "narrower_post_entry_breakpoint",
+            },
+            "candidates": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "post_entry_events": [],
+                    "branch_observation": {"classification": "runtime_unavailable"},
+                    "return_target_observation": {"trust": "instrumentation_gap"},
+                    "post_entry_outcome": "runtime_unavailable",
+                }
+            ],
+            "breakpoint_probe_allowed": False,
+            "next_bounded_action": "narrower_post_entry_breakpoint",
+        },
+    )
+
+    build_project_state(
+        reports_dir=reports_dir,
+        state_dir=state_dir,
+        sample="samplereverse",
+        run_name="sr_post_entry",
+    )
+
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert artifact_index["latest_artifacts"]["compare_handoff_post_entry_step_runtime_audit"].endswith(
+        "compare_handoff_post_entry_step_runtime_audit.json"
+    )
+    assert current_state["current_bottleneck"]["stage"] == (
+        "compare_handoff_post_entry_step_runtime_audit"
+    )
+    assert current_state["current_bottleneck"]["reason"] == "runtime_unavailable"
+    latest = current_state["latest_compare_handoff_post_entry_step_runtime_audit"]
+    assert latest["classification"] == "runtime_unavailable"
+    assert latest["candidate_count"] == 3
+    assert latest["runtime_scope"]["max_steps_per_candidate"] == 32
+    assert latest["cross_candidate"]["next_bounded_action"] == "narrower_post_entry_breakpoint"
+    assert latest["breakpoint_probe_allowed"] is False
+    assert task_packet["task"] == "Repair bounded post-entry step instrumentation"
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

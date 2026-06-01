@@ -1,9 +1,9 @@
 {
   "context_level": 2,
-  "generated_at": "2026-06-01T06:18:27Z",
+  "generated_at": "2026-06-01T09:49:22Z",
   "missing_evidence": [],
   "next_local_action": "",
-  "reason": "hook_surface_requires_post_entry_step",
+  "reason": "runtime_unavailable",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": true
 }

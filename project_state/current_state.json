@@ -11,6 +11,7 @@
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
     "compare_handoff_hook_surface_repair_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
+    "compare_handoff_post_entry_step_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
     "compare_probe": "solve_reports\\tool_artifacts\\samplereverse_compare_probe_real\\samplereverse_compare_probe.json",
@@ -62,10 +63,10 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "",
+    "blocker": "runtime_unavailable",
     "confidence": "medium",
-    "reason": "hook_surface_requires_post_entry_step",
-    "stage": "compare_handoff_hook_surface_repair_audit"
+    "reason": "runtime_unavailable",
+    "stage": "compare_handoff_post_entry_step_runtime_audit"
   },
   "current_mainline": "L15(prefix8)",
   "current_owner": "web_gpt",
@@ -107,7 +108,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-06-01T06:18:27Z",
+  "generated_at": "2026-06-01T09:49:22Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -1202,6 +1203,148 @@
     "overall_classification": "candidate_dependent_non_reaching_path",
     "runtime_backed_count": 3,
     "source_artifact": "compare_handoff_exit_classifier_audit",
+    "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
+  },
+  "latest_compare_handoff_post_entry_step_runtime_audit": {
+    "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "candidates": [
+      {
+        "actual_compare_observed": false,
+        "blocked_reason": "instrumentation_gap",
+        "branch_observation": {
+          "branch_eip": "",
+          "classification": "instrumentation_gap",
+          "condition": "",
+          "eflags": "",
+          "instruction": "",
+          "next_eip": "",
+          "observed": false,
+          "outcome": "unknown"
+        },
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "candidate_prefix": "78d540b49c590770",
+        "compare_successor_observed": false,
+        "entry_context": {
+          "ebp": "",
+          "eip": "",
+          "esp": "",
+          "handoff_helper_entry_observed": false,
+          "predecessor_handoff_call_observed": false,
+          "return_target_candidate": "",
+          "stack_top_words": []
+        },
+        "error": "post-entry single-step runtime hook is available as a bounded sidecar contract, but no local Olly/Frida stepping implementation captured branch instruction, EFLAGS, or next EIP in this environment",
+        "post_entry_events": [],
+        "post_entry_outcome": "instrumentation_gap",
+        "process_exception_observed": false,
+        "return_target_observation": {
+          "observed": false,
+          "reason": "post-entry single-step runtime hook is available as a bounded sidecar contract, but no local Olly/Frida stepping implementation captured branch instruction, EFLAGS, or next EIP in this environment",
+          "trust": "instrumentation_gap",
+          "value": ""
+        },
+        "runtime_sidecar_executed": false
+      },
+      {
+        "actual_compare_observed": false,
+        "blocked_reason": "instrumentation_gap",
+        "branch_observation": {
+          "branch_eip": "",
+          "classification": "instrumentation_gap",
+          "condition": "",
+          "eflags": "",
+          "instruction": "",
+          "next_eip": "",
+          "observed": false,
+          "outcome": "unknown"
+        },
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "candidate_prefix": "5a3e7f46ddd474d0",
+        "compare_successor_observed": false,
+        "entry_context": {
+          "ebp": "",
+          "eip": "",
+          "esp": "",
+          "handoff_helper_entry_observed": false,
+          "predecessor_handoff_call_observed": false,
+          "return_target_candidate": "",
+          "stack_top_words": []
+        },
+        "error": "post-entry single-step runtime hook is available as a bounded sidecar contract, but no local Olly/Frida stepping implementation captured branch instruction, EFLAGS, or next EIP in this environment",
+        "post_entry_events": [],
+        "post_entry_outcome": "instrumentation_gap",
+        "process_exception_observed": false,
+        "return_target_observation": {
+          "observed": false,
+          "reason": "post-entry single-step runtime hook is available as a bounded sidecar contract, but no local Olly/Frida stepping implementation captured branch instruction, EFLAGS, or next EIP in this environment",
+          "trust": "instrumentation_gap",
+          "value": ""
+        },
+        "runtime_sidecar_executed": false
+      },
+      {
+        "actual_compare_observed": false,
+        "blocked_reason": "instrumentation_gap",
+        "branch_observation": {
+          "branch_eip": "",
+          "classification": "instrumentation_gap",
+          "condition": "",
+          "eflags": "",
+          "instruction": "",
+          "next_eip": "",
+          "observed": false,
+          "outcome": "unknown"
+        },
+        "candidate_hex": "78d540b49c59076f41414141414141",
+        "candidate_prefix": "78d540b49c59076f",
+        "compare_successor_observed": false,
+        "entry_context": {
+          "ebp": "",
+          "eip": "",
+          "esp": "",
+          "handoff_helper_entry_observed": false,
+          "predecessor_handoff_call_observed": false,
+          "return_target_candidate": "",
+          "stack_top_words": []
+        },
+        "error": "post-entry single-step runtime hook is available as a bounded sidecar contract, but no local Olly/Frida stepping implementation captured branch instruction, EFLAGS, or next EIP in this environment",
+        "post_entry_events": [],
+        "post_entry_outcome": "instrumentation_gap",
+        "process_exception_observed": false,
+        "return_target_observation": {
+          "observed": false,
+          "reason": "post-entry single-step runtime hook is available as a bounded sidecar contract, but no local Olly/Frida stepping implementation captured branch instruction, EFLAGS, or next EIP in this environment",
+          "trust": "instrumentation_gap",
+          "value": ""
+        },
+        "runtime_sidecar_executed": false
+      }
+    ],
+    "classification": "runtime_unavailable",
+    "cross_candidate": {
+      "branch_guard_explained": false,
+      "first_divergence_point": "",
+      "next_bounded_action": "narrower_post_entry_breakpoint",
+      "return_target_trust": "suspicious",
+      "root_cause_classification": "runtime_unavailable"
+    },
+    "next_bounded_action": "narrower_post_entry_breakpoint",
+    "overall_classification": "runtime_unavailable",
+    "runtime_scope": {
+      "breakpoint_probe_allowed": false,
+      "crypto_hook_allowed": false,
+      "material_capture_allowed": false,
+      "max_steps_per_candidate": 32,
+      "sidecar": "compare_handoff_post_entry_step_audit.py"
+    },
+    "runtime_sidecar_executed": false,
+    "source_artifacts": [
+      "compare_handoff_hook_surface_repair_audit",
+      "compare_handoff_branch_operand_runtime_audit",
+      "compare_handoff_edge_operand_provenance_audit"
+    ],
     "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
   },
   "latest_compare_handoff_probe": {},
@@ -3019,13 +3162,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260601_061827",
+  "round_id": "round_20260601_094922",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "77ddaa14cc8c",
+  "source_git_commit": "7a07ba00c797",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260601_061827_b914ea0b1647",
-  "state_digest": "b914ea0b1647765ae3106b285fdb4bb20b23b35c34bcfe1c5c9c315026b06d51",
+  "state_build_id": "state_20260601_094922_a9e79b27f71f",
+  "state_digest": "a9e79b27f71f1cbd4466a311e25b8efb41500ec3da6ca428994e534594d910fc",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

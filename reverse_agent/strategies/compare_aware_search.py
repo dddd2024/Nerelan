@@ -80,6 +80,9 @@ COMPARE_HANDOFF_BRANCH_OPERAND_RUNTIME_AUDIT_FILE_NAME = (
 COMPARE_HANDOFF_HOOK_SURFACE_REPAIR_AUDIT_FILE_NAME = (
     "compare_handoff_hook_surface_repair_audit.json"
 )
+COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME = (
+    "compare_handoff_post_entry_step_runtime_audit.json"
+)
 COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME = "compare_lhs_producer_audit.json"
 COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME = "compare_lhs_upstream_writer_audit.json"
 COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME = (
@@ -251,6 +254,7 @@ COMPARE_LHS_SLOT_WRITER_PREDECESSOR_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDI
 POST_HANDOFF_BRANCH_OUTCOME_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_HOOK_PATH_REACHABILITY_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 COMPARE_HANDOFF_EXIT_CLASSIFIER_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
+COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_CANDIDATES = COMPARE_LHS_PRODUCER_AUDIT_CANDIDATES
 POST_HANDOFF_COMPARE_PATH_READY_CLASSIFICATIONS = {
     "compare_reached_but_path_unresolved",
     "seh_unwind_to_compare_path",
@@ -331,6 +335,14 @@ def _compare_hook_path_reachability_audit_script_path() -> Path:
 
 def _compare_handoff_exit_classifier_audit_script_path() -> Path:
     return Path(__file__).resolve().parents[1] / "olly_scripts" / "compare_handoff_exit_classifier_audit.py"
+
+
+def _compare_handoff_post_entry_step_audit_script_path() -> Path:
+    return (
+        Path(__file__).resolve().parents[1]
+        / "olly_scripts"
+        / "compare_handoff_post_entry_step_audit.py"
+    )
 
 
 def _compare_lhs_producer_audit_script_path() -> Path:
@@ -3486,6 +3498,9 @@ def _artifact_file_name_for_kind(kind: str) -> str:
         ),
         "compare_handoff_hook_surface_repair_audit": (
             COMPARE_HANDOFF_HOOK_SURFACE_REPAIR_AUDIT_FILE_NAME
+        ),
+        "compare_handoff_post_entry_step_runtime_audit": (
+            COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME
         ),
         "compare_lhs_producer_audit": COMPARE_LHS_PRODUCER_AUDIT_FILE_NAME,
         "compare_lhs_upstream_writer_audit": COMPARE_LHS_UPSTREAM_WRITER_AUDIT_FILE_NAME,
@@ -12569,6 +12584,287 @@ def run_compare_handoff_hook_surface_repair_audit(
     return {"payload": payload, "result_path": str(result_path)}
 
 
+def _post_entry_empty_branch_observation(classification: str = "not_observed") -> dict[str, object]:
+    return {
+        "observed": False,
+        "branch_eip": "",
+        "instruction": "",
+        "eflags": "",
+        "condition": "",
+        "outcome": "unknown",
+        "next_eip": "",
+        "classification": classification,
+    }
+
+
+def _normalize_post_entry_candidate_result(
+    candidate_hex: str,
+    candidate_payload: dict[str, object] | None,
+) -> dict[str, object]:
+    candidate_payload = candidate_payload if isinstance(candidate_payload, dict) else {}
+    entry_context = candidate_payload.get("entry_context", {})
+    entry_context = entry_context if isinstance(entry_context, dict) else {}
+    post_entry_events = candidate_payload.get("post_entry_events", [])
+    post_entry_events = post_entry_events if isinstance(post_entry_events, list) else []
+    branch_observation = candidate_payload.get("branch_observation", {})
+    branch_observation = branch_observation if isinstance(branch_observation, dict) else {}
+    branch_classification = str(
+        branch_observation.get("classification")
+        or candidate_payload.get("blocked_reason")
+        or "not_observed"
+    ).strip()
+    return_target_observation = candidate_payload.get("return_target_observation", {})
+    return_target_observation = (
+        return_target_observation if isinstance(return_target_observation, dict) else {}
+    )
+    return {
+        "candidate_hex": candidate_hex,
+        "candidate_prefix": candidate_hex[:16],
+        "entry_context": {
+            "predecessor_handoff_call_observed": bool(
+                entry_context.get("predecessor_handoff_call_observed")
+            ),
+            "handoff_helper_entry_observed": bool(
+                entry_context.get("handoff_helper_entry_observed")
+            ),
+            "eip": str(entry_context.get("eip") or ""),
+            "esp": str(entry_context.get("esp") or ""),
+            "ebp": str(entry_context.get("ebp") or ""),
+            "stack_top_words": list(entry_context.get("stack_top_words", []))
+            if isinstance(entry_context.get("stack_top_words"), list)
+            else [],
+            "return_target_candidate": str(entry_context.get("return_target_candidate") or ""),
+        },
+        "post_entry_events": [dict(item) for item in post_entry_events if isinstance(item, dict)],
+        "branch_observation": {
+            **_post_entry_empty_branch_observation(branch_classification or "not_observed"),
+            **{
+                "observed": bool(branch_observation.get("observed")),
+                "branch_eip": str(branch_observation.get("branch_eip") or ""),
+                "instruction": str(branch_observation.get("instruction") or ""),
+                "eflags": str(branch_observation.get("eflags") or ""),
+                "condition": str(branch_observation.get("condition") or ""),
+                "outcome": str(branch_observation.get("outcome") or "unknown"),
+                "next_eip": str(branch_observation.get("next_eip") or ""),
+                "classification": branch_classification or "not_observed",
+            },
+        },
+        "return_target_observation": {
+            "observed": bool(return_target_observation.get("observed")),
+            "value": str(return_target_observation.get("value") or ""),
+            "trust": str(return_target_observation.get("trust") or "instrumentation_gap"),
+            "reason": str(return_target_observation.get("reason") or ""),
+        },
+        "process_exception_observed": bool(candidate_payload.get("process_exception_observed")),
+        "compare_successor_observed": bool(candidate_payload.get("compare_successor_observed")),
+        "actual_compare_observed": bool(candidate_payload.get("actual_compare_observed")),
+        "runtime_sidecar_executed": bool(candidate_payload.get("runtime_sidecar_executed")),
+        "post_entry_outcome": str(
+            candidate_payload.get("post_entry_outcome")
+            or branch_classification
+            or "hook_surface_unresolved"
+        ),
+        "blocked_reason": str(candidate_payload.get("blocked_reason") or ""),
+        "error": str(candidate_payload.get("error") or ""),
+    }
+
+
+def build_compare_handoff_post_entry_step_runtime_audit_payload(
+    *,
+    candidate_results: list[dict[str, object]],
+    source_payload: dict[str, object] | None = None,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+    source_run: str = "sr_arg0_hook_readiness_ordering_20260526_r1",
+    max_steps_per_candidate: int = 32,
+) -> dict[str, object]:
+    source_payload = source_payload if isinstance(source_payload, dict) else {}
+    fixed_candidates = list(COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_CANDIDATES)
+    by_candidate = {
+        str(item.get("candidate_hex") or ""): item
+        for item in candidate_results
+        if isinstance(item, dict)
+    }
+    candidates = [
+        _normalize_post_entry_candidate_result(candidate_hex, by_candidate.get(candidate_hex))
+        for candidate_hex in fixed_candidates
+    ]
+    branch_observed_count = sum(
+        1 for item in candidates if bool(item.get("branch_observation", {}).get("observed"))
+    )
+    exception_count = sum(1 for item in candidates if bool(item.get("process_exception_observed")))
+    actual_compare_count = sum(1 for item in candidates if bool(item.get("actual_compare_observed")))
+    runtime_executed = any(bool(item.get("runtime_sidecar_executed")) for item in candidates)
+    first_divergence_point = ""
+    event_signatures = [
+        tuple(str(event.get("module_offset") or event.get("eip") or "") for event in item["post_entry_events"][:3])
+        for item in candidates
+    ]
+    if event_signatures and len({signature for signature in event_signatures}) > 1:
+        first_divergence_point = "post_entry_events"
+    elif branch_observed_count:
+        first_divergence_point = "branch_observation"
+    elif exception_count:
+        first_divergence_point = "process_exception"
+    root_cause = (
+        "post_entry_branch_observed"
+        if branch_observed_count
+        else "exception_edge_before_branch"
+        if exception_count
+        else "compare_successor_reached"
+        if actual_compare_count
+        else "instrumentation_gap"
+        if runtime_executed
+        else "runtime_unavailable"
+    )
+    next_bounded_action = (
+        "manual_static_instruction_boundary_audit"
+        if root_cause == "post_entry_branch_observed"
+        else "exception_edge_confirmation"
+        if root_cause == "exception_edge_before_branch"
+        else "compare_successor_reanchor"
+        if root_cause == "compare_successor_reached"
+        else "narrower_post_entry_breakpoint"
+    )
+    return {
+        "schema_version": 1,
+        "artifact_kind": "compare_handoff_post_entry_step_runtime_audit",
+        "sample": sample,
+        "profile": profile,
+        "run_name": run_name,
+        "source_run": source_payload.get("source_run") or source_run,
+        "source_artifacts": [
+            "compare_handoff_hook_surface_repair_audit",
+            "compare_handoff_branch_operand_runtime_audit",
+            "compare_handoff_edge_operand_provenance_audit",
+        ],
+        "classification": root_cause,
+        "overall_classification": root_cause,
+        "attempted": True,
+        "runtime_sidecar_executed": runtime_executed,
+        "candidate_count": len(fixed_candidates),
+        "fixed_candidates": fixed_candidates,
+        "runtime_scope": {
+            "sidecar": "compare_handoff_post_entry_step_audit.py",
+            "max_steps_per_candidate": max(1, min(int(max_steps_per_candidate), 32)),
+            "material_capture_allowed": False,
+            "crypto_hook_allowed": False,
+            "breakpoint_probe_allowed": False,
+        },
+        "candidates": candidates,
+        "cross_candidate": {
+            "first_divergence_point": first_divergence_point,
+            "branch_guard_explained": branch_observed_count > 0 or exception_count > 0,
+            "return_target_trust": "suspicious",
+            "root_cause_classification": root_cause,
+            "next_bounded_action": next_bounded_action,
+        },
+        "candidate_generation_changed": False,
+        "ranking_changed": False,
+        "search_budget_changed": False,
+        "beam_budget_topn_timeout_frontier_limit_expanded": False,
+        "breakpoint_probe_allowed": False,
+        "blocked_actions": [
+            "do not expand candidates, beam, topN, budget, timeout, or frontier from this diagnostic",
+            "do not run Base64/RC4 breakpoint probe from post-entry control-flow surface alone",
+            "do not run material capture or crypto hooks from post-entry control-flow surface alone",
+        ],
+        "next_bounded_action": next_bounded_action,
+    }
+
+
+def run_compare_handoff_post_entry_step_runtime_audit(
+    *,
+    target: Path,
+    artifacts_dir: Path,
+    transform_model: SamplereverseTransformModel | None = None,
+    per_probe_timeout: float = 2.2,
+    source_payload: dict[str, object] | None = None,
+    sample: str = "samplereverse",
+    profile: str = "samplereverse",
+    run_name: str = "",
+    source_run: str = "sr_arg0_hook_readiness_ordering_20260526_r1",
+    max_steps_per_candidate: int = 32,
+    log=None,
+) -> dict[str, object]:
+    _ = transform_model
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    result_path = artifacts_dir / COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME
+    script_path = _compare_handoff_post_entry_step_audit_script_path()
+    entries = list(COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_CANDIDATES)
+    max_steps = max(1, min(int(max_steps_per_candidate), 32))
+    points_path = artifacts_dir / "compare_handoff_post_entry_step_points.json"
+    _write_json(
+        points_path,
+        {
+            "hook_points": {
+                "predecessor_handoff_call": {"module_offset": "0x2338"},
+                "handoff_helper_entry": {"module_offset": "0x1b50"},
+                "process_exception": {"module_offset": "0x1913"},
+                "actual_compare": {"module_offset": "0x258c"},
+            },
+            "max_steps_per_candidate": max_steps,
+        },
+    )
+    candidate_results: list[dict[str, object]] = []
+    for idx, candidate_hex in enumerate(entries, 1):
+        candidate_dir = artifacts_dir / f"candidate_{idx}"
+        candidate_dir.mkdir(parents=True, exist_ok=True)
+        audit_out = candidate_dir / COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME
+        audit_log = candidate_dir / "compare_handoff_post_entry_step_runtime_audit.log"
+        command = [
+            sys.executable,
+            str(script_path),
+            "--target",
+            str(target),
+            "--out",
+            str(audit_out),
+            "--points",
+            str(points_path),
+            "--probe-hex",
+            candidate_hex,
+            "--expected-eax-preview",
+            "",
+            "--per-probe-timeout",
+            str(per_probe_timeout),
+            "--max-steps",
+            str(max_steps),
+        ]
+        if log:
+            log(f"CompareHandoffPostEntryStepRuntimeAudit scripted hooks {idx}: {candidate_hex}")
+        try:
+            proc = _run_material_hook_runtime_command(
+                command,
+                timeout=max(1.0, min(float(per_probe_timeout) + 20.0, 30.0)),
+            )
+        except subprocess.TimeoutExpired as exc:
+            proc = subprocess.CompletedProcess(
+                command,
+                returncode=124,
+                stdout=exc.stdout or "",
+                stderr=exc.stderr or "",
+            )
+        audit_log.write_text(
+            f"[stdout]\n{proc.stdout or ''}\n\n[stderr]\n{proc.stderr or ''}",
+            encoding="utf-8",
+        )
+        payload = _read_json_object(audit_out) if audit_out.exists() else {}
+        payload["candidate_hex"] = candidate_hex
+        candidate_results.append(payload)
+    payload = build_compare_handoff_post_entry_step_runtime_audit_payload(
+        candidate_results=candidate_results,
+        source_payload=source_payload,
+        sample=sample,
+        profile=profile,
+        run_name=run_name,
+        source_run=source_run,
+        max_steps_per_candidate=max_steps,
+    )
+    _write_json(result_path, payload)
+    return {"payload": payload, "result_path": str(result_path)}
+
+
 def run_compare_handoff_exit_classifier_audit(
     *,
     target: Path,
@@ -19818,6 +20114,15 @@ def _prior_compare_handoff_hook_surface_repair_audit_has_decision() -> bool:
     return bool(str(payload.get("classification", "")).strip())
 
 
+def _prior_compare_handoff_post_entry_step_runtime_audit_has_decision() -> bool:
+    current_state = _project_state_json("current_state.json")
+    latest = current_state.get("latest_compare_handoff_post_entry_step_runtime_audit", {})
+    if isinstance(latest, dict) and str(latest.get("classification", "")).strip():
+        return True
+    payload, _ = _indexed_artifact_payload("compare_handoff_post_entry_step_runtime_audit")
+    return bool(str(payload.get("classification", "")).strip())
+
+
 def _run_material_hook_runtime_command(
     command: Sequence[str],
     *,
@@ -24222,6 +24527,71 @@ class CompareAwareSearchStrategy(SolverStrategy):
                 current_state_handoff_branch if isinstance(current_state_handoff_branch, dict) else {}
             )
             current_handoff_branch_payload = current_handoff_branch_payload or current_state_handoff_branch
+            current_handoff_hook_surface_payload = _indexed_artifact_payload(
+                "compare_handoff_hook_surface_repair_audit"
+            )[0]
+            current_state_handoff_hook_surface = current_state.get(
+                "latest_compare_handoff_hook_surface_repair_audit",
+                {},
+            )
+            current_state_handoff_hook_surface = (
+                current_state_handoff_hook_surface
+                if isinstance(current_state_handoff_hook_surface, dict)
+                else {}
+            )
+            current_handoff_hook_surface_payload = (
+                current_handoff_hook_surface_payload or current_state_handoff_hook_surface
+            )
+            should_run_early_post_entry_step_audit = (
+                not _prior_compare_handoff_post_entry_step_runtime_audit_has_decision()
+                and str(
+                    current_handoff_hook_surface_payload.get("classification")
+                    or current_handoff_hook_surface_payload.get("overall_classification")
+                    or ""
+                ).strip()
+                == "hook_surface_requires_post_entry_step"
+            )
+            if should_run_early_post_entry_step_audit:
+                post_entry_run = run_compare_handoff_post_entry_step_runtime_audit(
+                    target=file_path,
+                    artifacts_dir=artifacts_dir / "compare_handoff_post_entry_step_runtime_audit",
+                    transform_model=transform_model,
+                    per_probe_timeout=per_probe_timeout,
+                    source_payload=current_handoff_hook_surface_payload,
+                    run_name=str(kwargs.get("run_name", "")),
+                    source_run=str(
+                        current_handoff_hook_surface_payload.get("source_run")
+                        or "sr_arg0_hook_readiness_ordering_20260526_r1"
+                    ),
+                    log=log,
+                )
+                post_entry_payload = dict(post_entry_run.get("payload", {}))
+                post_entry_artifact = _make_search_artifact(
+                    tool_name="CompareHandoffPostEntryStepRuntimeAudit",
+                    output_path=Path(str(post_entry_run["result_path"])),
+                    summary=str(
+                        post_entry_payload.get(
+                            "classification",
+                            "compare handoff post-entry step runtime audit complete",
+                        )
+                    ),
+                    strategy_name=self.name,
+                    evidence_kind="RuntimeCompareEvidence",
+                    payload=post_entry_payload,
+                    derived_entries=[],
+                )
+                return StrategyResult(
+                    strategy_name=self.name,
+                    summary=post_entry_artifact.summary,
+                    candidates=[],
+                    artifacts=[post_entry_artifact],
+                    metadata={
+                        "resolved_anchors": discovered_anchors,
+                        "compare_handoff_post_entry_step_runtime_audit": post_entry_run,
+                        "completed_stage": "compare_handoff_post_entry_step_runtime_audit",
+                        "early_sidecar": True,
+                    },
+                )
             should_run_early_hook_surface_repair_audit = (
                 not _prior_compare_handoff_hook_surface_repair_audit_has_decision()
                 and str(

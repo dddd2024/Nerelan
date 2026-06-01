@@ -12,6 +12,7 @@
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
     "compare_handoff_hook_surface_repair_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
+    "compare_handoff_post_entry_step_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
     "compare_probe": "solve_reports\\tool_artifacts\\samplereverse_compare_probe_real\\samplereverse_compare_probe.json",
@@ -27,7 +28,7 @@
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json"
   },
-  "based_on_state_digest": "b914ea0b1647765ae3106b285fdb4bb20b23b35c34bcfe1c5c9c315026b06d51",
+  "based_on_state_digest": "a9e79b27f71f1cbd4466a311e25b8efb41500ec3da6ca428994e534594d910fc",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -64,12 +65,12 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "",
+    "blocker": "runtime_unavailable",
     "confidence": "medium",
-    "reason": "hook_surface_requires_post_entry_step",
-    "stage": "compare_handoff_hook_surface_repair_audit"
+    "reason": "runtime_unavailable",
+    "stage": "compare_handoff_post_entry_step_runtime_audit"
   },
-  "derived_task": "Run bounded post-entry step runtime audit",
+  "derived_task": "Repair bounded post-entry step instrumentation",
   "do_not_do": [
     "do not return to old sample_solver blind search",
     "do not only increase beam or budget",
@@ -91,7 +92,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-06-01T06:18:27Z",
+  "generated_at": "2026-06-01T09:49:22Z",
   "included": [
     "current state",
     "best candidates",
@@ -101,7 +102,7 @@
   ],
   "model_gate": {
     "context_level": 2,
-    "reason": "hook_surface_requires_post_entry_step",
+    "reason": "runtime_unavailable",
     "should_call_model": true
   },
   "omitted": [
@@ -121,10 +122,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260601_061827",
+  "round_id": "round_20260601_094922",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260601_061827_b914ea0b1647",
+  "state_build_id": "state_20260601_094922_a9e79b27f71f",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,
@@ -133,6 +134,6 @@
     "has_runtime_validation": true,
     "has_stall_stage": true
   },
-  "task": "Run bounded post-entry step runtime audit",
+  "task": "Repair bounded post-entry step instrumentation",
   "task_source": "derived_from_sample_artifacts"
 }

@@ -23,6 +23,7 @@ from reverse_agent.strategies.compare_aware_search import (
     COMPARE_HANDOFF_EDGE_OPERAND_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_HANDOFF_BRANCH_OPERAND_RUNTIME_AUDIT_FILE_NAME,
     COMPARE_HANDOFF_HOOK_SURFACE_REPAIR_AUDIT_FILE_NAME,
+    COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME,
     COMPARE_HOOK_PATH_REACHABILITY_AUDIT_FILE_NAME,
     COMPARE_CALLSITE_REANCHOR_AND_LHS_PROVENANCE_AUDIT_FILE_NAME,
     COMPARE_ESI_SOURCE_WINDOW_AUDIT_FILE_NAME,
@@ -88,6 +89,7 @@ from reverse_agent.strategies.compare_aware_search import (
     build_compare_handoff_edge_operand_provenance_audit_payload,
     build_compare_handoff_branch_operand_runtime_audit_payload,
     build_compare_handoff_hook_surface_repair_audit_payload,
+    build_compare_handoff_post_entry_step_runtime_audit_payload,
     build_compare_esi_source_window_audit_payload,
     build_compare_real_lhs_provenance_audit_payload,
     build_post_handoff_branch_outcome_audit_payload,
@@ -111,6 +113,7 @@ from reverse_agent.strategies.compare_aware_search import (
     run_compare_handoff_edge_operand_provenance_audit,
     run_compare_handoff_branch_operand_runtime_audit,
     run_compare_handoff_hook_surface_repair_audit,
+    run_compare_handoff_post_entry_step_runtime_audit,
     run_compare_esi_source_window_audit,
     run_compare_real_lhs_provenance_audit,
     run_compare_pre_compare_handoff_target_probe,
@@ -11232,6 +11235,102 @@ def test_handoff_hook_surface_repair_audit_projects_post_entry_step_need(
         run_name="sr_path",
     )
     assert Path(result["result_path"]).name == COMPARE_HANDOFF_HOOK_SURFACE_REPAIR_AUDIT_FILE_NAME
+
+
+def test_handoff_post_entry_step_runtime_audit_keeps_control_flow_scope(
+    tmp_path: Path,
+) -> None:
+    candidate_results = [
+        {
+            "candidate_hex": "78d540b49c59077041414141414141",
+            "runtime_sidecar_executed": True,
+            "entry_context": {
+                "predecessor_handoff_call_observed": True,
+                "handoff_helper_entry_observed": True,
+                "eip": "0x1b50",
+                "esp": "0x1000",
+                "ebp": "0x2000",
+                "stack_top_words": ["0x401000"],
+                "return_target_candidate": "0x401000",
+            },
+            "post_entry_events": [
+                {
+                    "step_index": 0,
+                    "eip": "0x1b50",
+                    "module_offset": "0x1b50",
+                    "instruction": "cmp eax, ecx",
+                    "eflags": "0x202",
+                    "is_branch": False,
+                    "branch_condition": "",
+                    "outcome": "unknown",
+                    "next_eip": "0x1b52",
+                },
+                {
+                    "step_index": 1,
+                    "eip": "0x1b52",
+                    "module_offset": "0x1b52",
+                    "instruction": "jne 0x1b60",
+                    "eflags": "0x246",
+                    "is_branch": True,
+                    "branch_condition": "jne",
+                    "outcome": "taken",
+                    "next_eip": "0x1b60",
+                },
+            ],
+            "branch_observation": {
+                "observed": True,
+                "branch_eip": "0x1b52",
+                "instruction": "jne 0x1b60",
+                "eflags": "0x246",
+                "condition": "jne",
+                "outcome": "taken",
+                "next_eip": "0x1b60",
+                "classification": "branch_observed",
+            },
+            "return_target_observation": {
+                "observed": True,
+                "value": "0x401000",
+                "trust": "corrected",
+                "reason": "post-entry stack frame sampled",
+            },
+            "post_entry_outcome": "branch_observed",
+        }
+    ]
+
+    payload = build_compare_handoff_post_entry_step_runtime_audit_payload(
+        candidate_results=candidate_results,
+        source_payload={
+            "source_run": "sr_path",
+            "classification": "hook_surface_requires_post_entry_step",
+        },
+        max_steps_per_candidate=64,
+    )
+
+    assert payload["artifact_kind"] == "compare_handoff_post_entry_step_runtime_audit"
+    assert payload["classification"] == "post_entry_branch_observed"
+    assert payload["runtime_scope"]["max_steps_per_candidate"] == 32
+    assert payload["runtime_scope"]["material_capture_allowed"] is False
+    assert payload["runtime_scope"]["crypto_hook_allowed"] is False
+    assert payload["breakpoint_probe_allowed"] is False
+    assert payload["candidate_generation_changed"] is False
+    assert payload["ranking_changed"] is False
+    assert payload["search_budget_changed"] is False
+    assert payload["candidates"][0]["post_entry_events"][1]["eflags"] == "0x246"
+    assert payload["candidates"][0]["branch_observation"]["next_eip"] == "0x1b60"
+    assert payload["cross_candidate"]["branch_guard_explained"] is True
+
+    result = run_compare_handoff_post_entry_step_runtime_audit(
+        target=tmp_path / "missing.exe",
+        artifacts_dir=tmp_path / "post_entry",
+        per_probe_timeout=0.1,
+        source_payload={"source_run": "sr_path"},
+        run_name="sr_path",
+    )
+    result_payload = result["payload"]
+    assert Path(result["result_path"]).name == COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME
+    assert result_payload["candidate_count"] == 3
+    assert result_payload["breakpoint_probe_allowed"] is False
+    assert result_payload["candidates"][0]["post_entry_events"] == []
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

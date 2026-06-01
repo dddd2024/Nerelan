@@ -44,6 +44,7 @@ IMPORTANT_ARTIFACTS = {
     "compare_handoff_edge_operand_provenance_audit": "compare_handoff_edge_operand_provenance_audit.json",
     "compare_handoff_branch_operand_runtime_audit": "compare_handoff_branch_operand_runtime_audit.json",
     "compare_handoff_hook_surface_repair_audit": "compare_handoff_hook_surface_repair_audit.json",
+    "compare_handoff_post_entry_step_runtime_audit": "compare_handoff_post_entry_step_runtime_audit.json",
     "compare_lhs_producer_audit": "compare_lhs_producer_audit.json",
     "compare_lhs_upstream_writer_audit": "compare_lhs_upstream_writer_audit.json",
     "compare_callsite_reanchor_and_lhs_provenance_audit": (
@@ -96,6 +97,7 @@ RUNTIME_VALIDATION_KEYS = {
     "compare_handoff_edge_operand_provenance_audit",
     "compare_handoff_branch_operand_runtime_audit",
     "compare_handoff_hook_surface_repair_audit",
+    "compare_handoff_post_entry_step_runtime_audit",
     "compare_lhs_producer_audit",
     "compare_lhs_upstream_writer_audit",
     "compare_callsite_reanchor_and_lhs_provenance_audit",
@@ -2198,6 +2200,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     compare_handoff_hook_surface_repair_audit = _read_json(
         artifact_refs.get("compare_handoff_hook_surface_repair_audit")
     )
+    compare_handoff_post_entry_step_runtime_audit = _read_json(
+        artifact_refs.get("compare_handoff_post_entry_step_runtime_audit")
+    )
     compare_lhs_producer_audit = _read_json(artifact_refs.get("compare_lhs_producer_audit"))
     compare_lhs_upstream_writer_audit = _read_json(artifact_refs.get("compare_lhs_upstream_writer_audit"))
     compare_callsite_reanchor_audit = _read_json(
@@ -2383,6 +2388,14 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if handoff_hook_surface_repair_classification:
         stage = "compare_handoff_hook_surface_repair_audit"
         reason = handoff_hook_surface_repair_classification
+    handoff_post_entry_step_classification = str(
+        compare_handoff_post_entry_step_runtime_audit.get("classification")
+        or compare_handoff_post_entry_step_runtime_audit.get("overall_classification")
+        or ""
+    ).strip()
+    if handoff_post_entry_step_classification:
+        stage = "compare_handoff_post_entry_step_runtime_audit"
+        reason = handoff_post_entry_step_classification
     compare_lhs_producer_classification = str(
         compare_lhs_producer_audit.get("classification") or ""
     ).strip()
@@ -2445,6 +2458,9 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     if handoff_hook_surface_repair_classification:
         stage = "compare_handoff_hook_surface_repair_audit"
         reason = handoff_hook_surface_repair_classification
+    if handoff_post_entry_step_classification:
+        stage = "compare_handoff_post_entry_step_runtime_audit"
+        reason = handoff_post_entry_step_classification
     if (
         pre_compare_handoff_classification
         and function_semantic_classification in {"runtime_instrumentation_required", "evidence_insufficient"}
@@ -2526,6 +2542,8 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
                 if stage == "compare_handoff_edge_operand_provenance_audit"
                 else handoff_branch_operand_classification
                 if stage == "compare_handoff_branch_operand_runtime_audit"
+                else handoff_post_entry_step_classification
+                if stage == "compare_handoff_post_entry_step_runtime_audit"
                 else ""
             ),
             "confidence": "medium" if stage or reason else "low",
@@ -3015,6 +3033,45 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             ),
         }
         if compare_handoff_hook_surface_repair_audit
+        else {},
+        "latest_compare_handoff_post_entry_step_runtime_audit": {
+            "classification": handoff_post_entry_step_classification or None,
+            "overall_classification": compare_handoff_post_entry_step_runtime_audit.get(
+                "overall_classification"
+            ),
+            "artifact": artifact_refs.get("compare_handoff_post_entry_step_runtime_audit"),
+            "source_run": compare_handoff_post_entry_step_runtime_audit.get("source_run"),
+            "source_artifacts": compare_handoff_post_entry_step_runtime_audit.get(
+                "source_artifacts",
+                [],
+            ),
+            "candidate_count": compare_handoff_post_entry_step_runtime_audit.get(
+                "candidate_count"
+            ),
+            "runtime_sidecar_executed": compare_handoff_post_entry_step_runtime_audit.get(
+                "runtime_sidecar_executed"
+            ),
+            "runtime_scope": compare_handoff_post_entry_step_runtime_audit.get(
+                "runtime_scope",
+                {},
+            ),
+            "cross_candidate": compare_handoff_post_entry_step_runtime_audit.get(
+                "cross_candidate",
+                {},
+            ),
+            "candidates": compare_handoff_post_entry_step_runtime_audit.get("candidates", [])[:3]
+            if isinstance(
+                compare_handoff_post_entry_step_runtime_audit.get("candidates"), list
+            )
+            else [],
+            "breakpoint_probe_allowed": compare_handoff_post_entry_step_runtime_audit.get(
+                "breakpoint_probe_allowed"
+            ),
+            "next_bounded_action": compare_handoff_post_entry_step_runtime_audit.get(
+                "next_bounded_action"
+            ),
+        }
+        if compare_handoff_post_entry_step_runtime_audit
         else {},
         "latest_compare_lhs_producer_audit": {
             "classification": compare_lhs_producer_classification or None,
@@ -4183,6 +4240,14 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
         if reason == "return_target_schema_gap":
             return "Correct bounded handoff return-target schema"
         return "Review bounded handoff hook surface repair audit"
+    if stage == "compare_handoff_post_entry_step_runtime_audit":
+        if reason in {"runtime_unavailable", "instrumentation_gap", "hook_surface_unresolved"}:
+            return "Repair bounded post-entry step instrumentation"
+        if reason == "exception_edge_before_branch":
+            return "Confirm bounded post-entry exception edge"
+        if reason == "post_entry_branch_observed":
+            return "Audit bounded post-entry branch operand statically"
+        return "Review bounded post-entry step runtime audit"
     if stage == "compare_real_lhs_provenance_audit" and reason in {
         "writer_path_observed_but_unconnected",
         "compare_lhs_runtime_backed_writer_missing",
