@@ -1820,8 +1820,9 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
             "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
             "lifecycle_schema_version": 1,
             "ui_trigger_schema_version": 1,
-            "classification": "entry_breakpoint_not_hit",
-            "overall_classification": "entry_breakpoint_not_hit",
+            "window_discovery_schema_version": 1,
+            "classification": "window_discovery_timeout",
+            "overall_classification": "window_discovery_timeout",
             "source_run": "sr_narrower_post_entry",
             "source_artifacts": [
                 "compare_handoff_post_entry_step_runtime_audit",
@@ -1892,8 +1893,31 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
                     "successor_breakpoint_hit_count": 0,
                 },
             },
+            "window_discovery_diagnostics": {
+                "classification": "top_window_call_timeout",
+                "classification_counts": {"top_window_call_timeout": 3},
+                "last_window_stages": {
+                    "78d540b49c59077041414141414141": "top_window_timeout"
+                },
+                "timeout_stages": {
+                    "78d540b49c59077041414141414141": "top_window"
+                },
+                "pid_alive": {"78d540b49c59077041414141414141": True},
+                "top_window_attempted_count": 3,
+                "top_window_returned_count": 0,
+                "window_inventory_attempted_count": 0,
+                "window_inventory_returned_count": 0,
+                "window_inventory_counts": {
+                    "78d540b49c59077041414141414141": {
+                        "window_count": 0,
+                        "visible_window_count": 0,
+                    }
+                },
+                "selected_window_available_count": 0,
+                "candidate_windows": {"78d540b49c59077041414141414141": []},
+            },
             "cross_candidate": {
-                "classification": "entry_breakpoint_not_hit",
+                "classification": "window_discovery_timeout",
                 "first_divergence_after": "",
                 "breakpoint_hit_counts": {},
                 "lifecycle_stage_counts": {
@@ -1925,6 +1949,7 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
                     "classification": "entry_breakpoint_not_hit",
                     "lifecycle_schema_version": 1,
                     "ui_trigger_schema_version": 1,
+                    "window_discovery_schema_version": 1,
                     "lifecycle": {
                         "last_confirmed_stage": "observation_wait_finished_or_timeout",
                         "last_error_stage": "",
@@ -1951,6 +1976,26 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
                             "entry_breakpoint_hit": False,
                             "successor_breakpoint_hit": False,
                         },
+                    },
+                    "window_discovery": {
+                        "classification": "top_window_call_timeout",
+                        "last_window_stage": "top_window_timeout",
+                        "timeout_stage": "top_window",
+                        "process_liveness": {"pid": 1234, "alive": True, "error": ""},
+                        "top_window": {
+                            "attempted": True,
+                            "returned": False,
+                            "duration_ms": 250,
+                            "error": "timeout",
+                        },
+                        "window_inventory": {
+                            "attempted": False,
+                            "returned": False,
+                            "window_count": 0,
+                            "visible_window_count": 0,
+                            "candidate_windows": [],
+                        },
+                        "selected_window": {"available": False},
                     },
                     "candidate_invocation_health": {
                         "subprocess_returncode": 0,
@@ -1987,19 +2032,23 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
     assert current_state["current_bottleneck"]["stage"] == (
         "compare_handoff_narrower_post_entry_breakpoint_audit"
     )
-    assert current_state["current_bottleneck"]["reason"] == "entry_breakpoint_not_hit"
+    assert current_state["current_bottleneck"]["reason"] == "top_window_call_timeout"
     latest = current_state["latest_compare_handoff_narrower_post_entry_breakpoint_audit"]
-    assert latest["classification"] == "entry_breakpoint_not_hit"
+    assert latest["classification"] == "top_window_call_timeout"
     assert latest["candidate_count"] == 3
     assert len(latest["fixed_candidates"]) == 3
     assert latest["runtime_scope"]["single_step_required"] is False
     assert latest["diagnostic_summary"]["breakpoint_install_ok_count"] == 12
     assert latest["lifecycle_schema_version"] == 1
     assert latest["ui_trigger_schema_version"] == 1
+    assert latest["window_discovery_schema_version"] == 1
     assert latest["lifecycle_diagnostics"]["stage_counts"]["breakpoint_install_ok"] == 3
     assert latest["ui_trigger_diagnostics"]["classification"] == (
         "entry_breakpoint_not_hit_after_ui_trigger"
     )
+    assert latest["window_discovery_diagnostics"]["classification"] == "top_window_call_timeout"
+    assert latest["window_discovery_diagnostics"]["top_window_attempted_count"] == 3
+    assert latest["candidates"][0]["window_discovery"]["last_window_stage"] == "top_window_timeout"
     assert latest["candidates"][0]["ui_trigger"]["trigger_methods"][0]["method"] == "invoke"
     assert latest["lifecycle_diagnostics"]["candidate_invocation_health"][
         "78d540b49c59077041414141414141"

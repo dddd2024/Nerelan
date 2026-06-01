@@ -13022,6 +13022,8 @@ def _normalize_narrower_post_entry_breakpoint_candidate_result(
     )
     ui_trigger = candidate_payload.get("ui_trigger", {})
     ui_trigger = ui_trigger if isinstance(ui_trigger, dict) else {}
+    window_discovery = candidate_payload.get("window_discovery", {})
+    window_discovery = window_discovery if isinstance(window_discovery, dict) else {}
     return {
         "candidate_hex": candidate_hex,
         "target_launch": target_launch,
@@ -13046,6 +13048,10 @@ def _normalize_narrower_post_entry_breakpoint_candidate_result(
         "lifecycle": lifecycle,
         "ui_trigger_schema_version": int(candidate_payload.get("ui_trigger_schema_version") or 1),
         "ui_trigger": ui_trigger,
+        "window_discovery_schema_version": int(
+            candidate_payload.get("window_discovery_schema_version") or 1
+        ),
+        "window_discovery": window_discovery,
         "candidate_invocation_health": candidate_invocation_health,
     }
 
@@ -13179,6 +13185,69 @@ def _narrower_ui_trigger_diagnostics(
     }
 
 
+def _narrower_window_discovery_diagnostics(
+    candidates: Sequence[dict[str, object]],
+) -> dict[str, object]:
+    classifications: dict[str, int] = {}
+    last_window_stages: dict[str, str] = {}
+    timeout_stages: dict[str, str] = {}
+    pid_alive: dict[str, object] = {}
+    top_window_attempted = 0
+    top_window_returned = 0
+    inventory_attempted = 0
+    inventory_returned = 0
+    inventory_counts: dict[str, dict[str, int]] = {}
+    selected_window_available_count = 0
+    candidate_windows: dict[str, object] = {}
+    for candidate in candidates:
+        candidate_hex = str(candidate.get("candidate_hex") or "")
+        window = candidate.get("window_discovery", {})
+        window = window if isinstance(window, dict) else {}
+        classification = str(window.get("classification") or "")
+        if classification:
+            classifications[classification] = classifications.get(classification, 0) + 1
+        if candidate_hex:
+            last_window_stages[candidate_hex] = str(window.get("last_window_stage") or "")
+            timeout_stages[candidate_hex] = str(window.get("timeout_stage") or "")
+        liveness = window.get("process_liveness", {})
+        liveness = liveness if isinstance(liveness, dict) else {}
+        if candidate_hex:
+            pid_alive[candidate_hex] = bool(liveness.get("alive"))
+        top_window = window.get("top_window", {})
+        top_window = top_window if isinstance(top_window, dict) else {}
+        top_window_attempted += int(bool(top_window.get("attempted")))
+        top_window_returned += int(bool(top_window.get("returned")))
+        inventory = window.get("window_inventory", {})
+        inventory = inventory if isinstance(inventory, dict) else {}
+        inventory_attempted += int(bool(inventory.get("attempted")))
+        inventory_returned += int(bool(inventory.get("returned")))
+        if candidate_hex:
+            inventory_counts[candidate_hex] = {
+                "window_count": int(inventory.get("window_count") or 0),
+                "visible_window_count": int(inventory.get("visible_window_count") or 0),
+            }
+            candidate_windows[candidate_hex] = list(inventory.get("candidate_windows", []))[:10] if isinstance(
+                inventory.get("candidate_windows"), list
+            ) else []
+        selected_window = window.get("selected_window", {})
+        selected_window = selected_window if isinstance(selected_window, dict) else {}
+        selected_window_available_count += int(bool(selected_window.get("available")))
+    return {
+        "classification": _choose_narrower_post_entry_breakpoint_classification(candidates),
+        "classification_counts": classifications,
+        "last_window_stages": last_window_stages,
+        "timeout_stages": timeout_stages,
+        "pid_alive": pid_alive,
+        "top_window_attempted_count": top_window_attempted,
+        "top_window_returned_count": top_window_returned,
+        "window_inventory_attempted_count": inventory_attempted,
+        "window_inventory_returned_count": inventory_returned,
+        "window_inventory_counts": inventory_counts,
+        "selected_window_available_count": selected_window_available_count,
+        "candidate_windows": candidate_windows,
+    }
+
+
 def _choose_narrower_post_entry_breakpoint_classification(
     candidates: Sequence[dict[str, object]],
 ) -> str:
@@ -13203,6 +13272,16 @@ def _choose_narrower_post_entry_breakpoint_classification(
         "input_set_text_failed",
         "input_control_lookup_timeout",
         "input_control_lookup_failed",
+        "window_discovery_succeeded_input_lookup_next",
+        "window_backend_mismatch",
+        "window_discovery_api_blocked",
+        "top_window_call_timeout",
+        "top_window_call_failed",
+        "process_no_visible_window",
+        "process_window_inventory_empty",
+        "process_alive_no_top_window",
+        "process_exited_before_window_discovery",
+        "window_discovery_instrumentation_gap",
         "window_discovery_timeout",
         "window_discovery_failed",
         "ui_trigger_timeout",
@@ -13260,6 +13339,7 @@ def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
     diagnostic_summary = _narrower_post_entry_breakpoint_diagnostic_summary(candidates)
     lifecycle_diagnostics = _narrower_lifecycle_diagnostics(candidates)
     ui_trigger_diagnostics = _narrower_ui_trigger_diagnostics(candidates)
+    window_discovery_diagnostics = _narrower_window_discovery_diagnostics(candidates)
     breakpoint_plan = []
     for item in candidate_results:
         if isinstance(item, dict) and isinstance(item.get("breakpoint_plan"), list):
@@ -13279,6 +13359,7 @@ def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
         "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
         "lifecycle_schema_version": 1,
         "ui_trigger_schema_version": 1,
+        "window_discovery_schema_version": 1,
         "sample": sample,
         "profile": profile,
         "run_name": run_name,
@@ -13305,12 +13386,17 @@ def build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
         "diagnostic_summary": diagnostic_summary,
         "lifecycle_diagnostics": lifecycle_diagnostics,
         "ui_trigger_diagnostics": ui_trigger_diagnostics,
+        "window_discovery_diagnostics": window_discovery_diagnostics,
         "cross_candidate": {
             "classification": classification,
             "first_divergence_after": first_divergence_after,
             "breakpoint_hit_counts": diagnostic_summary.get("breakpoint_hit_counts", {}),
             "lifecycle_stage_counts": lifecycle_diagnostics.get("stage_counts", {}),
             "ui_trigger_classification_counts": ui_trigger_diagnostics.get(
+                "classification_counts",
+                {},
+            ),
+            "window_discovery_classification_counts": window_discovery_diagnostics.get(
                 "classification_counts",
                 {},
             ),
@@ -13369,10 +13455,13 @@ def _narrower_post_entry_breakpoint_timeout_payload(
     lifecycle = lifecycle if isinstance(lifecycle, dict) else {}
     ui_trigger = partial_payload.get("ui_trigger", {})
     ui_trigger = ui_trigger if isinstance(ui_trigger, dict) else {}
+    window_discovery = partial_payload.get("window_discovery", {})
+    window_discovery = window_discovery if isinstance(window_discovery, dict) else {}
     classification = _classify_narrower_timeout_from_lifecycle(
         lifecycle,
         bool(partial_payload),
         ui_trigger,
+        window_discovery,
     )
     if lifecycle:
         lifecycle = dict(lifecycle)
@@ -13381,6 +13470,10 @@ def _narrower_post_entry_breakpoint_timeout_payload(
         ui_trigger = dict(ui_trigger)
         ui_trigger["timeout_stage"] = _timeout_stage_from_ui_trigger(ui_trigger)
         ui_trigger["classification"] = classification
+    if window_discovery:
+        window_discovery = dict(window_discovery)
+        window_discovery["timeout_stage"] = _timeout_stage_from_window_discovery(window_discovery)
+        window_discovery["classification"] = classification
     confirmed_stages = {
         str(stage.get("stage") or "")
         for stage in lifecycle.get("stages", [])
@@ -13471,6 +13564,8 @@ def _narrower_post_entry_breakpoint_timeout_payload(
         "lifecycle": lifecycle,
         "ui_trigger_schema_version": 1,
         "ui_trigger": ui_trigger,
+        "window_discovery_schema_version": 1,
+        "window_discovery": window_discovery,
         "candidate_invocation_health": health,
         "breakpoint_probe_allowed": False,
         "material_capture_allowed": False,
@@ -13500,6 +13595,15 @@ def _timeout_stage_from_lifecycle(lifecycle: dict[str, object]) -> str:
         "frida_resume_attempted": "frida_resume",
         "ui_connect_attempted": "ui_connect",
         "ui_trigger_attempted": "ui_trigger",
+        "window_discovery_started": "window_discovery",
+        "process_liveness_checked": "window_discovery",
+        "app_connection_rechecked": "window_discovery",
+        "top_window_attempted": "window_discovery",
+        "top_window_returned": "window_discovery",
+        "window_inventory_attempted": "window_discovery",
+        "window_inventory_captured": "window_discovery",
+        "visible_window_filter_applied": "window_discovery",
+        "primary_window_selected": "window_discovery",
         "observation_wait_started": "observation_wait",
         "final_artifact_write_attempted": "final_artifact_write",
     }.get(last_confirmed, f"after_{last_confirmed}")
@@ -13517,6 +13621,66 @@ def _timeout_stage_from_ui_trigger(ui_trigger: dict[str, object]) -> str:
         "ui_button_click_attempted": "button_click",
         "post_trigger_observation_wait_started": "post_trigger_observation",
     }.get(last_ui_stage, "")
+
+
+def _timeout_stage_from_window_discovery(window_discovery: dict[str, object]) -> str:
+    last_window_stage = str(window_discovery.get("last_window_stage") or "")
+    if last_window_stage in {"top_window_attempted", "top_window_timeout"}:
+        return "top_window"
+    if last_window_stage in {"window_inventory_attempted", "window_inventory_timeout"}:
+        return "window_inventory"
+    if last_window_stage:
+        return "window_discovery"
+    return ""
+
+
+def _classify_narrower_timeout_from_window_discovery(
+    window_discovery: dict[str, object],
+) -> str:
+    last_window_stage = str(window_discovery.get("last_window_stage") or "")
+    if not last_window_stage:
+        return ""
+    classification = str(window_discovery.get("classification") or "")
+    if classification and classification != "lifecycle_checkpoint":
+        return classification
+    process_liveness = window_discovery.get("process_liveness", {})
+    process_liveness = process_liveness if isinstance(process_liveness, dict) else {}
+    top_window = window_discovery.get("top_window", {})
+    top_window = top_window if isinstance(top_window, dict) else {}
+    inventory = window_discovery.get("window_inventory", {})
+    inventory = inventory if isinstance(inventory, dict) else {}
+    selected_window = window_discovery.get("selected_window", {})
+    selected_window = selected_window if isinstance(selected_window, dict) else {}
+    if process_liveness.get("alive") is False:
+        return "process_exited_before_window_discovery"
+    if last_window_stage == "top_window_timeout":
+        return "top_window_call_timeout"
+    if last_window_stage == "top_window_failed":
+        return "top_window_call_failed"
+    if last_window_stage in {"window_inventory_timeout", "window_inventory_failed"}:
+        return "window_discovery_api_blocked"
+    if bool(inventory.get("attempted")) and not bool(inventory.get("returned")):
+        return "window_discovery_api_blocked"
+    if bool(top_window.get("attempted")) and not bool(top_window.get("returned")):
+        return "top_window_call_timeout" if str(top_window.get("error") or "") == "timeout" else "top_window_call_failed"
+    if last_window_stage == "window_inventory_captured":
+        if int(inventory.get("window_count") or 0) <= 0:
+            return "process_window_inventory_empty"
+        if int(inventory.get("visible_window_count") or 0) <= 0:
+            return "process_no_visible_window"
+    if last_window_stage == "primary_window_unavailable":
+        if bool(top_window.get("attempted")) and not bool(top_window.get("returned")):
+            return "process_alive_no_top_window"
+        return "process_no_visible_window"
+    if last_window_stage in {"primary_window_selected", "window_discovery_finished"} and bool(
+        selected_window.get("available")
+    ):
+        return "window_discovery_succeeded_input_lookup_next"
+    if last_window_stage == "top_window_attempted":
+        return "top_window_call_timeout"
+    if last_window_stage == "window_inventory_attempted":
+        return "window_discovery_api_blocked"
+    return "window_discovery_instrumentation_gap"
 
 
 def _classify_narrower_timeout_from_ui_trigger(ui_trigger: dict[str, object]) -> str:
@@ -13552,14 +13716,22 @@ def _classify_narrower_timeout_from_lifecycle(
     lifecycle: dict[str, object],
     partial_artifact_exists: bool,
     ui_trigger: dict[str, object] | None = None,
+    window_discovery: dict[str, object] | None = None,
 ) -> str:
     if not partial_artifact_exists or not lifecycle:
-        return "subprocess_timeout_before_lifecycle_checkpoint"
+        return "window_discovery_instrumentation_gap"
+    window_classification = _classify_narrower_timeout_from_window_discovery(
+        window_discovery if isinstance(window_discovery, dict) else {}
+    )
+    if window_classification and window_classification != "window_discovery_succeeded_input_lookup_next":
+        return window_classification
     ui_classification = _classify_narrower_timeout_from_ui_trigger(
         ui_trigger if isinstance(ui_trigger, dict) else {}
     )
     if ui_classification:
         return ui_classification
+    if window_classification:
+        return window_classification
     last_confirmed = str(lifecycle.get("last_confirmed_stage") or "")
     return {
         "dependency_import_attempted": "debugger_dependency_missing",

@@ -4,6 +4,7 @@ import argparse
 import json
 import platform
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -99,6 +100,7 @@ class LifecycleTracker:
         self.last_error_stage = ""
         self.last_error = ""
         self.ui_trigger: dict[str, object] = _empty_ui_trigger_diagnostics()
+        self.window_discovery: dict[str, object] = _empty_window_discovery_diagnostics()
 
     def confirm(self, stage: str, **fields: object) -> None:
         self.last_confirmed_stage = stage
@@ -158,6 +160,40 @@ class LifecycleTracker:
         current.update(values)
         self.ui_trigger[section] = current
 
+    def window_checkpoint(self, stage: str, **fields: object) -> None:
+        self.window_discovery["last_window_stage"] = stage
+        event: dict[str, object] = {
+            "stage": stage,
+            "status": "confirmed",
+            "monotonic": _now_monotonic(),
+        }
+        event.update(fields)
+        events = self.window_discovery.setdefault("events", [])
+        if isinstance(events, list):
+            events.append(event)
+        self.write_checkpoint(classification=_classification_from_window_discovery(self.window_discovery))
+
+    def window_fail(self, stage: str, error: str, **fields: object) -> None:
+        self.window_discovery["last_window_stage"] = stage
+        self.window_discovery["error"] = error
+        event: dict[str, object] = {
+            "stage": stage,
+            "status": "failed",
+            "error": error,
+            "monotonic": _now_monotonic(),
+        }
+        event.update(fields)
+        events = self.window_discovery.setdefault("events", [])
+        if isinstance(events, list):
+            events.append(event)
+        self.write_checkpoint(classification=_classification_from_window_discovery(self.window_discovery))
+
+    def update_window(self, section: str, values: dict[str, object]) -> None:
+        current = self.window_discovery.get(section, {})
+        current = dict(current) if isinstance(current, dict) else {}
+        current.update(values)
+        self.window_discovery[section] = current
+
     def lifecycle(self, *, timeout_stage: str = "") -> dict[str, object]:
         return {
             "last_confirmed_stage": self.last_confirmed_stage,
@@ -191,6 +227,7 @@ class LifecycleTracker:
             error=error,
             lifecycle=self.lifecycle(),
             ui_trigger=self.ui_trigger,
+            window_discovery=self.window_discovery,
         )
         _write_payload(self.out_path, payload)
 
@@ -252,6 +289,96 @@ def _empty_ui_trigger_diagnostics() -> dict[str, object]:
         },
         "events": [],
     }
+
+
+def _empty_window_discovery_diagnostics() -> dict[str, object]:
+    return {
+        "classification": "",
+        "last_window_stage": "",
+        "timeout_stage": "",
+        "error": "",
+        "process_liveness": {
+            "pid": None,
+            "alive": False,
+            "error": "",
+        },
+        "app_connection": {
+            "attempted": False,
+            "ok": False,
+            "error": "",
+        },
+        "top_window": {
+            "attempted": False,
+            "returned": False,
+            "duration_ms": 0,
+            "error": "",
+            "title": "",
+            "class_name": "",
+            "handle": "",
+        },
+        "window_inventory": {
+            "attempted": False,
+            "returned": False,
+            "duration_ms": 0,
+            "error": "",
+            "window_count": 0,
+            "visible_window_count": 0,
+            "candidate_windows": [],
+        },
+        "selected_window": {
+            "available": False,
+            "title": "",
+            "class_name": "",
+            "handle": "",
+        },
+        "events": [],
+    }
+
+
+def _classification_from_window_discovery(window_discovery: dict[str, object]) -> str:
+    classification = str(window_discovery.get("classification") or "")
+    if classification and classification != "lifecycle_checkpoint":
+        return classification
+    stage = str(window_discovery.get("last_window_stage") or "")
+    process_liveness = window_discovery.get("process_liveness", {})
+    process_liveness = process_liveness if isinstance(process_liveness, dict) else {}
+    top_window = window_discovery.get("top_window", {})
+    top_window = top_window if isinstance(top_window, dict) else {}
+    inventory = window_discovery.get("window_inventory", {})
+    inventory = inventory if isinstance(inventory, dict) else {}
+    selected_window = window_discovery.get("selected_window", {})
+    selected_window = selected_window if isinstance(selected_window, dict) else {}
+    if process_liveness.get("alive") is False and stage in {
+        "process_liveness_checked",
+        "window_discovery_finished",
+    }:
+        return "process_exited_before_window_discovery"
+    if stage == "top_window_timeout":
+        return "top_window_call_timeout"
+    if stage == "top_window_failed":
+        return "top_window_call_failed"
+    if stage == "window_inventory_failed":
+        return "window_discovery_api_blocked"
+    if stage == "window_inventory_timeout":
+        return "window_discovery_api_blocked"
+    if bool(inventory.get("attempted")) and not bool(inventory.get("returned")):
+        return "window_discovery_api_blocked"
+    if bool(top_window.get("attempted")) and not bool(top_window.get("returned")):
+        return "top_window_call_timeout" if str(top_window.get("error") or "") == "timeout" else "top_window_call_failed"
+    if stage == "window_inventory_captured":
+        if int(inventory.get("window_count") or 0) <= 0:
+            return "process_window_inventory_empty"
+        if int(inventory.get("visible_window_count") or 0) <= 0:
+            return "process_no_visible_window"
+    if stage == "primary_window_unavailable":
+        if bool(top_window.get("attempted")) and not bool(top_window.get("returned")):
+            return "process_alive_no_top_window"
+        return "process_no_visible_window"
+    if stage == "primary_window_selected" or bool(selected_window.get("available")):
+        return "window_discovery_succeeded_input_lookup_next"
+    if stage:
+        return "window_discovery_instrumentation_gap"
+    return ""
 
 
 def _classification_from_ui_trigger(ui_trigger: dict[str, object]) -> str:
@@ -397,6 +524,7 @@ def _blocked_payload(
     error: str = "",
     lifecycle: dict[str, object] | None = None,
     ui_trigger: dict[str, object] | None = None,
+    window_discovery: dict[str, object] | None = None,
     candidate_invocation_health: dict[str, object] | None = None,
 ) -> dict[str, object]:
     event_sequence = event_sequence or []
@@ -407,6 +535,16 @@ def _blocked_payload(
     ui_trigger = dict(ui_trigger)
     ui_trigger["classification"] = str(
         ui_trigger.get("classification") or _classification_from_ui_trigger(ui_trigger)
+    )
+    window_discovery = (
+        window_discovery
+        if isinstance(window_discovery, dict)
+        else _empty_window_discovery_diagnostics()
+    )
+    window_discovery = dict(window_discovery)
+    window_discovery["classification"] = str(
+        window_discovery.get("classification")
+        or _classification_from_window_discovery(window_discovery)
     )
     candidate_invocation_health = (
         candidate_invocation_health if isinstance(candidate_invocation_health, dict) else {}
@@ -445,6 +583,8 @@ def _blocked_payload(
         "lifecycle": lifecycle,
         "ui_trigger_schema_version": 1,
         "ui_trigger": ui_trigger,
+        "window_discovery_schema_version": 1,
+        "window_discovery": window_discovery,
         "candidate_invocation_health": candidate_invocation_health,
         "breakpoint_probe_allowed": False,
         "material_capture_allowed": False,
@@ -508,6 +648,182 @@ def _control_metadata(control) -> dict[str, object]:  # noqa: ANN001
         "class_name": class_name,
         "handle": handle,
     }
+
+
+def _window_metadata(control) -> dict[str, object]:  # noqa: ANN001
+    metadata = _control_metadata(control)
+    try:
+        rect = control.rectangle()
+        rectangle = {
+            "left": int(getattr(rect, "left", 0)),
+            "top": int(getattr(rect, "top", 0)),
+            "right": int(getattr(rect, "right", 0)),
+            "bottom": int(getattr(rect, "bottom", 0)),
+        }
+    except Exception:
+        rectangle = {}
+    metadata.update(
+        {
+            "visible": _control_bool(control, "is_visible"),
+            "enabled": _control_bool(control, "is_enabled"),
+            "rectangle": rectangle,
+        }
+    )
+    return metadata
+
+
+def _pid_alive(pid: int | None) -> tuple[bool, str]:
+    if pid is None:
+        return False, "pid missing"
+    if platform.system().lower().startswith("win"):
+        try:
+            import ctypes
+
+            synchronize = 0x00100000
+            still_active_timeout_ms = 0
+            wait_timeout = 0x00000102
+            kernel32 = ctypes.windll.kernel32
+            handle = kernel32.OpenProcess(synchronize, False, int(pid))
+            if not handle:
+                return False, "OpenProcess failed"
+            try:
+                status = kernel32.WaitForSingleObject(handle, still_active_timeout_ms)
+                return status == wait_timeout, ""
+            finally:
+                kernel32.CloseHandle(handle)
+        except Exception as exc:
+            return False, f"{type(exc).__name__}: {exc}"
+    try:
+        import os
+
+        os.kill(pid, 0)
+        return True, ""
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+
+
+def _call_with_timeout(func, timeout: float) -> tuple[bool, object, str, int]:  # noqa: ANN001
+    result: dict[str, object] = {"returned": False, "value": None, "error": ""}
+
+    def runner() -> None:
+        try:
+            result["value"] = func()
+            result["returned"] = True
+        except Exception as exc:  # pragma: no cover - depends on local GUI runtime
+            result["error"] = f"{type(exc).__name__}: {exc}"
+            result["returned"] = True
+
+    start = time.monotonic()
+    thread = threading.Thread(target=runner, daemon=True)
+    thread.start()
+    thread.join(max(0.1, float(timeout)))
+    duration_ms = int((time.monotonic() - start) * 1000)
+    if thread.is_alive():
+        return False, None, "timeout", duration_ms
+    return bool(result["returned"]) and not result["error"], result["value"], str(result["error"]), duration_ms
+
+
+def _discover_window(app, pid: int | None, lifecycle: LifecycleTracker):  # noqa: ANN001
+    lifecycle.window_checkpoint("window_discovery_started")
+    alive, liveness_error = _pid_alive(pid)
+    lifecycle.update_window(
+        "process_liveness",
+        {"pid": pid, "alive": alive, "error": liveness_error},
+    )
+    lifecycle.window_checkpoint("process_liveness_checked", pid=pid, alive=alive)
+    if not alive:
+        lifecycle.window_checkpoint("window_discovery_finished")
+        raise RuntimeError("process exited before window discovery")
+
+    lifecycle.update_window("app_connection", {"attempted": True, "ok": bool(app), "error": ""})
+    lifecycle.window_checkpoint("app_connection_rechecked", ok=bool(app))
+
+    lifecycle.update_window("top_window", {"attempted": True})
+    lifecycle.ui_checkpoint("ui_window_discovery_attempted", method="app.top_window")
+    lifecycle.window_checkpoint("top_window_attempted", method="app.top_window")
+    top_ok, top_value, top_error, top_duration = _call_with_timeout(
+        app.top_window,
+        min(0.6, max(0.2, 0.25)),
+    )
+    lifecycle.update_window(
+        "top_window",
+        {
+            "attempted": True,
+            "returned": top_ok,
+            "duration_ms": top_duration,
+            "error": "" if top_ok else top_error,
+            **(_window_metadata(top_value) if top_ok and top_value is not None else {}),
+        },
+    )
+    if top_ok and top_value is not None:
+        metadata = _window_metadata(top_value)
+        lifecycle.update_window(
+            "selected_window",
+            {"available": True, **metadata},
+        )
+        lifecycle.update_ui("window", {"discovered": True, **_control_metadata(top_value)})
+        lifecycle.window_checkpoint("top_window_returned", duration_ms=top_duration)
+        lifecycle.window_checkpoint("primary_window_selected", method="app.top_window")
+        lifecycle.window_checkpoint("window_discovery_finished")
+        lifecycle.ui_checkpoint("ui_window_discovery_ok", method="app.top_window")
+        return top_value
+    if top_error == "timeout":
+        lifecycle.window_checkpoint("top_window_timeout", duration_ms=top_duration)
+    else:
+        lifecycle.window_fail("top_window_failed", top_error or "app.top_window returned no window")
+
+    lifecycle.update_window("window_inventory", {"attempted": True})
+    lifecycle.window_checkpoint("window_inventory_attempted", method="app.windows")
+    inv_ok, inv_value, inv_error, inv_duration = _call_with_timeout(
+        app.windows,
+        min(0.8, max(0.2, 0.35)),
+    )
+    windows = list(inv_value) if inv_ok and isinstance(inv_value, list) else []
+    candidate_windows = [_window_metadata(win) for win in windows[:10]]
+    visible_windows = [item for item in candidate_windows if bool(item.get("visible"))]
+    lifecycle.update_window(
+        "window_inventory",
+        {
+            "attempted": True,
+            "returned": inv_ok,
+            "duration_ms": inv_duration,
+            "error": "" if inv_ok else inv_error,
+            "window_count": len(windows),
+            "visible_window_count": len(visible_windows),
+            "candidate_windows": candidate_windows,
+        },
+    )
+    if not inv_ok:
+        stage = "window_inventory_timeout" if inv_error == "timeout" else "window_inventory_failed"
+        lifecycle.window_fail(stage, inv_error or "window inventory failed", duration_ms=inv_duration)
+        lifecycle.window_checkpoint("window_discovery_finished")
+        raise RuntimeError(inv_error or "window inventory failed")
+    lifecycle.window_checkpoint(
+        "window_inventory_captured",
+        window_count=len(windows),
+        visible_window_count=len(visible_windows),
+    )
+    lifecycle.window_checkpoint("visible_window_filter_applied", visible_window_count=len(visible_windows))
+    if not windows:
+        lifecycle.window_checkpoint("primary_window_unavailable", reason="inventory_empty")
+        lifecycle.window_checkpoint("window_discovery_finished")
+        raise RuntimeError("process window inventory empty")
+    selected = None
+    for win in windows:
+        if _control_bool(win, "is_visible"):
+            selected = win
+            break
+    if selected is None:
+        lifecycle.window_checkpoint("primary_window_unavailable", reason="no_visible_window")
+        lifecycle.window_checkpoint("window_discovery_finished")
+        raise RuntimeError("process has no visible window")
+    metadata = _window_metadata(selected)
+    lifecycle.update_window("selected_window", {"available": True, **metadata})
+    lifecycle.update_ui("window", {"discovered": True, **_control_metadata(selected)})
+    lifecycle.window_checkpoint("primary_window_selected", method="app.windows")
+    lifecycle.window_checkpoint("window_discovery_finished")
+    lifecycle.ui_checkpoint("ui_window_discovery_ok", method="app.windows")
+    return selected
 
 
 def _control_bool(control, method_name: str) -> bool:  # noqa: ANN001
@@ -821,16 +1137,7 @@ def _run_breakpoint_probe(
 
         lifecycle.confirm("ui_trigger_attempted")
         try:
-            lifecycle.ui_checkpoint("ui_window_discovery_attempted")
-            win = app.top_window()
-            lifecycle.update_ui(
-                "window",
-                {
-                    "discovered": True,
-                    **_control_metadata(win),
-                },
-            )
-            lifecycle.ui_checkpoint("ui_window_discovery_ok")
+            win = _discover_window(app, pid, lifecycle)
             lifecycle.ui_checkpoint("ui_control_inventory_captured")
 
             lifecycle.update_ui("input_control", {"lookup_attempted": True})
@@ -906,7 +1213,14 @@ def _run_breakpoint_probe(
         except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"
             lifecycle.fail("ui_trigger_failed", error)
-            ui_classification = _classification_from_ui_trigger(lifecycle.ui_trigger)
+            window_classification = _classification_from_window_discovery(lifecycle.window_discovery)
+            ui_classification = (
+                window_classification
+                if window_classification
+                and window_classification != "window_discovery_succeeded_input_lookup_next"
+                else _classification_from_ui_trigger(lifecycle.ui_trigger)
+            )
+            lifecycle.ui_trigger["classification"] = ui_classification
             return _blocked_payload(
                 candidate_hex=candidate_hex,
                 target=target,
@@ -919,6 +1233,7 @@ def _run_breakpoint_probe(
                 error=error,
                 lifecycle=lifecycle.lifecycle(),
                 ui_trigger=lifecycle.ui_trigger,
+                window_discovery=lifecycle.window_discovery,
             )
         lifecycle.ui_checkpoint("ui_trigger_returned")
         lifecycle.confirm("ui_trigger_ok")
@@ -979,6 +1294,7 @@ def _run_breakpoint_probe(
             error=errors[-1] if errors else "",
             lifecycle=lifecycle.lifecycle(),
             ui_trigger=lifecycle.ui_trigger,
+            window_discovery=lifecycle.window_discovery,
         )
     except Exception as exc:  # pragma: no cover - depends on local runtime
         error = f"{type(exc).__name__}: {exc}"
@@ -996,6 +1312,7 @@ def _run_breakpoint_probe(
             backend_import_ok=True,
             error=error,
             lifecycle=lifecycle.lifecycle(),
+            window_discovery=lifecycle.window_discovery,
         )
     finally:
         _terminate_target(app, pid)

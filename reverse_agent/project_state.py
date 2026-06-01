@@ -2419,6 +2419,29 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
     handoff_narrower_ui_classification = str(
         handoff_narrower_ui_trigger_diagnostics.get("classification") or ""
     ).strip()
+    handoff_narrower_window_discovery_diagnostics = (
+        compare_handoff_narrower_post_entry_breakpoint_audit.get(
+            "window_discovery_diagnostics"
+        )
+    )
+    handoff_narrower_window_discovery_diagnostics = (
+        handoff_narrower_window_discovery_diagnostics
+        if isinstance(handoff_narrower_window_discovery_diagnostics, dict)
+        else {}
+    )
+    handoff_narrower_window_classification = str(
+        handoff_narrower_window_discovery_diagnostics.get("classification") or ""
+    ).strip()
+    if (
+        handoff_narrower_post_entry_breakpoint_classification
+        in {"window_discovery_timeout", "ui_trigger_timeout"}
+        and handoff_narrower_window_classification
+        and handoff_narrower_window_classification
+        not in {"window_discovery_timeout", "ui_trigger_timeout"}
+    ):
+        handoff_narrower_post_entry_breakpoint_classification = (
+            handoff_narrower_window_classification
+        )
     if (
         handoff_narrower_post_entry_breakpoint_classification == "ui_trigger_timeout"
         and handoff_narrower_ui_classification
@@ -3180,6 +3203,13 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
             ),
             "ui_trigger_diagnostics": compare_handoff_narrower_post_entry_breakpoint_audit.get(
                 "ui_trigger_diagnostics",
+                {},
+            ),
+            "window_discovery_schema_version": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "window_discovery_schema_version"
+            ),
+            "window_discovery_diagnostics": compare_handoff_narrower_post_entry_breakpoint_audit.get(
+                "window_discovery_diagnostics",
                 {},
             ),
             "cross_candidate": compare_handoff_narrower_post_entry_breakpoint_audit.get(
@@ -4392,6 +4422,19 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
             return "Audit bounded post-entry branch operand statically"
         return "Review bounded post-entry step runtime audit"
     if stage == "compare_handoff_narrower_post_entry_breakpoint_audit":
+        if reason in {
+            "process_exited_before_window_discovery",
+            "process_alive_no_top_window",
+            "process_window_inventory_empty",
+            "process_no_visible_window",
+            "top_window_call_timeout",
+            "top_window_call_failed",
+            "window_discovery_api_blocked",
+            "window_backend_mismatch",
+            "window_discovery_succeeded_input_lookup_next",
+            "window_discovery_instrumentation_gap",
+        }:
+            return "Review bounded window discovery diagnostics"
         if reason in {
             "target_launch_failed",
             "frida_attach_or_spawn_failed",

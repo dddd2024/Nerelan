@@ -11400,6 +11400,22 @@ def test_handoff_narrower_post_entry_breakpoint_audit_keeps_bounded_scope(
             "actual_compare_observed": False,
             "classification": "successor_breakpoint_not_hit",
             "ui_trigger_schema_version": 1,
+            "window_discovery_schema_version": 1,
+            "window_discovery": {
+                "classification": "window_discovery_succeeded_input_lookup_next",
+                "last_window_stage": "primary_window_selected",
+                "timeout_stage": "",
+                "process_liveness": {"pid": 1234, "alive": True, "error": ""},
+                "top_window": {"attempted": True, "returned": True},
+                "window_inventory": {
+                    "attempted": False,
+                    "returned": False,
+                    "window_count": 0,
+                    "visible_window_count": 0,
+                    "candidate_windows": [],
+                },
+                "selected_window": {"available": True, "title": "sample"},
+            },
             "ui_trigger": {
                 "classification": "successor_breakpoint_not_hit_after_ui_trigger",
                 "last_ui_stage": "successor_breakpoint_not_hit_after_ui_trigger",
@@ -11441,9 +11457,12 @@ def test_handoff_narrower_post_entry_breakpoint_audit_keeps_bounded_scope(
     assert payload["beam_budget_topn_timeout_frontier_limit_expanded"] is False
     assert payload["lifecycle_schema_version"] == 1
     assert payload["ui_trigger_schema_version"] == 1
+    assert payload["window_discovery_schema_version"] == 1
     assert payload["lifecycle_diagnostics"]["classification"] == "successor_breakpoint_not_hit"
     assert payload["ui_trigger_diagnostics"]["method_counts"]["invoke_returned"] == 1
+    assert payload["window_discovery_diagnostics"]["selected_window_available_count"] == 1
     assert payload["candidates"][0]["event_sequence"][1]["name"] == "handoff_helper_entry"
+    assert payload["candidates"][0]["window_discovery"]["selected_window"]["available"] is True
     assert payload["candidates"][0]["ui_trigger"]["last_ui_stage"] == (
         "successor_breakpoint_not_hit_after_ui_trigger"
     )
@@ -11510,6 +11529,22 @@ def test_handoff_narrower_post_entry_timeout_uses_lifecycle_checkpoint(
                         ],
                     },
                     "ui_trigger_schema_version": 1,
+                    "window_discovery_schema_version": 1,
+                    "window_discovery": {
+                        "last_window_stage": "primary_window_selected",
+                        "timeout_stage": "",
+                        "classification": "lifecycle_checkpoint",
+                        "process_liveness": {"pid": 1234, "alive": True, "error": ""},
+                        "top_window": {"attempted": True, "returned": True},
+                        "window_inventory": {
+                            "attempted": False,
+                            "returned": False,
+                            "window_count": 0,
+                            "visible_window_count": 0,
+                            "candidate_windows": [],
+                        },
+                        "selected_window": {"available": True, "title": "sample"},
+                    },
                     "ui_trigger": {
                         "last_ui_stage": "ui_button_invoke_attempted",
                         "timeout_stage": "",
@@ -11571,6 +11606,99 @@ def test_handoff_narrower_post_entry_timeout_uses_lifecycle_checkpoint(
     assert first["lifecycle"]["timeout_stage"] == "ui_trigger"
     assert first["ui_trigger"]["last_ui_stage"] == "ui_button_invoke_attempted"
     assert first["ui_trigger"]["classification"] == "button_invoke_timeout"
+    assert first["window_discovery"]["selected_window"]["available"] is True
+
+
+def test_handoff_narrower_post_entry_timeout_uses_window_discovery_checkpoint(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    target = tmp_path / "samplereverse.exe"
+    target.write_bytes(b"MZ")
+
+    def fake_run(command, *, timeout):  # noqa: ANN001
+        _ = timeout
+        out_path = Path(command[command.index("--out") + 1])
+        candidate_hex = command[command.index("--probe-hex") + 1]
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
+            json.dumps(
+                {
+                    "schema_version": 1,
+                    "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+                    "lifecycle_schema_version": 1,
+                    "sample": "samplereverse",
+                    "candidate_hex": candidate_hex,
+                    "target_launch": {"attempted": True, "ok": True, "pid": 1234, "error": ""},
+                    "breakpoints": [],
+                    "event_sequence": [],
+                    "classification": "lifecycle_checkpoint",
+                    "lifecycle": {
+                        "last_confirmed_stage": "ui_trigger_attempted",
+                        "last_error_stage": "",
+                        "timeout_stage": "",
+                        "stages": [
+                            {"stage": "sidecar_started", "status": "confirmed"},
+                            {"stage": "ui_trigger_attempted", "status": "confirmed"},
+                        ],
+                    },
+                    "ui_trigger_schema_version": 1,
+                    "ui_trigger": {
+                        "last_ui_stage": "ui_window_discovery_attempted",
+                        "timeout_stage": "",
+                        "classification": "lifecycle_checkpoint",
+                    },
+                    "window_discovery_schema_version": 1,
+                    "window_discovery": {
+                        "last_window_stage": "top_window_timeout",
+                        "timeout_stage": "",
+                        "classification": "lifecycle_checkpoint",
+                        "process_liveness": {"pid": 1234, "alive": True, "error": ""},
+                        "top_window": {
+                            "attempted": True,
+                            "returned": False,
+                            "duration_ms": 251,
+                            "error": "timeout",
+                        },
+                        "window_inventory": {
+                            "attempted": False,
+                            "returned": False,
+                            "window_count": 0,
+                            "visible_window_count": 0,
+                            "candidate_windows": [],
+                        },
+                        "selected_window": {"available": False},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        raise compare_aware_search.subprocess.TimeoutExpired(
+            command,
+            timeout=timeout,
+            output="sidecar stdout tail",
+            stderr="sidecar stderr tail",
+        )
+
+    monkeypatch.setattr(compare_aware_search, "_run_material_hook_runtime_command", fake_run)
+
+    result = run_compare_handoff_narrower_post_entry_breakpoint_audit(
+        target=target,
+        artifacts_dir=tmp_path / "narrower_post_entry_window_timeout",
+        per_probe_timeout=0.1,
+        source_payload={"source_run": "sr_path"},
+        run_name="sr_path",
+    )
+
+    payload = result["payload"]
+    assert payload["classification"] == "top_window_call_timeout"
+    assert payload["diagnostic_summary"]["blocker_counts"] == {"top_window_call_timeout": 3}
+    assert payload["window_discovery_diagnostics"]["classification"] == "top_window_call_timeout"
+    assert payload["window_discovery_diagnostics"]["top_window_attempted_count"] == 3
+    assert payload["ui_trigger_diagnostics"]["classification"] == "top_window_call_timeout"
+    first = payload["candidates"][0]
+    assert first["window_discovery"]["timeout_stage"] == "top_window"
+    assert first["window_discovery"]["classification"] == "top_window_call_timeout"
 
 
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(

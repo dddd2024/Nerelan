@@ -66,7 +66,7 @@
   "current_bottleneck": {
     "blocker": "",
     "confidence": "medium",
-    "reason": "window_discovery_timeout",
+    "reason": "window_discovery_api_blocked",
     "stage": "compare_handoff_narrower_post_entry_breakpoint_audit"
   },
   "current_mainline": "L15(prefix8)",
@@ -109,7 +109,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-06-01T15:18:20Z",
+  "generated_at": "2026-06-01T15:41:38Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -1082,7 +1082,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 6364,
+          "partial_artifact_size_bytes": 48259,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1097,131 +1097,1724 @@
             "--per-probe-timeout",
             "2.2"
           ],
-          "subprocess_returncode": 124,
+          "subprocess_returncode": 0,
           "subprocess_stderr_tail": "",
           "subprocess_stdout_tail": "",
-          "subprocess_timed_out": true
+          "subprocess_timed_out": false
         },
-        "classification": "window_discovery_timeout",
+        "classification": "window_discovery_api_blocked",
         "compare_successor_observed": false,
-        "error": "sidecar timed out before writing candidate artifact; returncode=124",
-        "event_sequence": [],
+        "error": "RuntimeError: timeout",
+        "event_sequence": [
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 1,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 2,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 3,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 4,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 5,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 6,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 7,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 8,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 9,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 10,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 11,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 12,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 13,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 14,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 15,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 16,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 17,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 18,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 19,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 20,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 21,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 22,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 23,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 24,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 25,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 26,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 27,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 28,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 29,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 30,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 31,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 32,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 33,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 34,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 35,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 36,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 37,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 38,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 39,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 40,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 41,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 42,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 43,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 44,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 45,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 46,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 47,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 48,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 49,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 50,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 51,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 52,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 53,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 54,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 55,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 56,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 57,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 58,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 59,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 60,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 61,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 62,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 63,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 64,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 65,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 66,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 67,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 68,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 69,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 70,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 71,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 72,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 73,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 74,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 75,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 76,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 77,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 78,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 79,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 80,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 81,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 82,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 83,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 84,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 85,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 86,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 87,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 88,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 89,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 90,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 91,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 92,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 93,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 94,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 95,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 96,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 97,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 98,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 99,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 100,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 101,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 102,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 103,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 104,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 105,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 106,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 107,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 108,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 109,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 110,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 111,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 112,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 113,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 114,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 115,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 116,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 117,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 118,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 119,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 120,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 121,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 122,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 123,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 124,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 125,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 126,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 127,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 128,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 129,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 130,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 131,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 132,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 133,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 134,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 135,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 136,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 137,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 138,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 139,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 140,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 141,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 142,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 143,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 144,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 145,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 146,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 147,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 148,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 149,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 150,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 151,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 152,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 153,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 154,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 155,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 156,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 157,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 158,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 159,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 160,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 161,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 162,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 163,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 164,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 165,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 166,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 167,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 168,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 169,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 170,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 171,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 172,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 173,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 174,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 175,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 176,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 177,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 178,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 179,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 180,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 181,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 182,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 183,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 184,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 185,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 186,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 187,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 188,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 189,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 190,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 191,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 192,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 193,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 194,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 195,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 196,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 197,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          }
+        ],
         "handoff_helper_entry_observed": false,
         "lifecycle": {
-          "last_confirmed_stage": "ui_trigger_attempted",
-          "last_error": "",
-          "last_error_stage": "",
+          "last_confirmed_stage": "final_artifact_write_ok",
+          "last_error": "RuntimeError: timeout",
+          "last_error_stage": "ui_trigger_failed",
           "stages": [
             {
-              "monotonic": 4151.932947,
+              "monotonic": 5600.622273,
               "stage": "sidecar_started",
               "status": "confirmed"
             },
             {
-              "monotonic": 4151.995499,
+              "monotonic": 5600.692198,
               "stage": "arguments_parsed",
               "status": "confirmed"
             },
             {
               "exists": true,
-              "monotonic": 4151.99584,
+              "monotonic": 5600.692683,
               "stage": "target_checked",
               "status": "confirmed"
             },
             {
-              "monotonic": 4151.996117,
+              "monotonic": 5600.693108,
               "stage": "dependency_import_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4152.361224,
+              "monotonic": 5600.932292,
               "stage": "dependency_import_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4152.36165,
+              "monotonic": 5600.932702,
               "stage": "frida_spawn_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4152.421276,
-              "pid": 37684,
+              "monotonic": 5600.964695,
+              "pid": 37900,
               "stage": "frida_spawn_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4152.421734,
-              "pid": 37684,
+              "monotonic": 5600.965397,
+              "pid": 37900,
               "stage": "frida_attach_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.972612,
-              "pid": 37684,
+              "monotonic": 5601.886073,
+              "pid": 37900,
               "stage": "frida_attach_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.973125,
+              "monotonic": 5601.886511,
               "stage": "script_create_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.975403,
+              "monotonic": 5601.888326,
               "stage": "script_load_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.977281,
+              "monotonic": 5601.891091,
               "stage": "script_load_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.977645,
+              "monotonic": 5601.891811,
               "stage": "breakpoint_install_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.97799,
+              "monotonic": 5601.892466,
               "stage": "breakpoint_install_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.978358,
+              "monotonic": 5601.89298,
               "stage": "frida_resume_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.978896,
+              "monotonic": 5601.893792,
               "stage": "frida_resume_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.979373,
+              "monotonic": 5601.894291,
               "stage": "ui_connect_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4153.979935,
+              "monotonic": 5601.894928,
               "stage": "ui_connect_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4154.480862,
+              "monotonic": 5602.396097,
               "stage": "ui_trigger_attempted",
+              "status": "confirmed"
+            },
+            {
+              "error": "RuntimeError: timeout",
+              "monotonic": 5603.02503,
+              "stage": "ui_trigger_failed",
+              "status": "failed"
+            },
+            {
+              "monotonic": 5603.036159,
+              "stage": "final_artifact_write_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 5603.037181,
+              "stage": "final_artifact_write_ok",
               "status": "confirmed"
             }
           ],
-          "timeout_stage": "ui_trigger"
+          "timeout_stage": ""
         },
         "lifecycle_schema_version": 1,
-        "process_exception_observed": false,
-        "successor_surface_observed": false,
+        "process_exception_observed": true,
+        "successor_surface_observed": true,
         "target_launch": {
           "attempted": true,
-          "error": "sidecar timed out before writing candidate artifact; returncode=124",
+          "error": "",
           "ok": true,
-          "pid": null
+          "pid": 37900
         },
         "ui_trigger": {
           "button_control": {
@@ -1230,11 +2823,12 @@
             "lookup_ok": false,
             "visible": false
           },
-          "classification": "window_discovery_timeout",
+          "classification": "window_discovery_api_blocked",
           "error": "",
           "events": [
             {
-              "monotonic": 4154.48186,
+              "method": "app.top_window",
+              "monotonic": 5602.397966,
               "stage": "ui_window_discovery_attempted",
               "status": "confirmed"
             }
@@ -1253,7 +2847,7 @@
             "observed_events": [],
             "successor_breakpoint_hit": false
           },
-          "timeout_stage": "window_discovery",
+          "timeout_stage": "",
           "trigger_methods": [],
           "window": {
             "class_name": "",
@@ -1262,7 +2856,98 @@
             "title": ""
           }
         },
-        "ui_trigger_schema_version": 1
+        "ui_trigger_schema_version": 1,
+        "window_discovery": {
+          "app_connection": {
+            "attempted": true,
+            "error": "",
+            "ok": true
+          },
+          "classification": "window_discovery_api_blocked",
+          "error": "timeout",
+          "events": [
+            {
+              "monotonic": 5602.396733,
+              "stage": "window_discovery_started",
+              "status": "confirmed"
+            },
+            {
+              "alive": true,
+              "monotonic": 5602.397187,
+              "pid": 37900,
+              "stage": "process_liveness_checked",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 5602.397585,
+              "ok": true,
+              "stage": "app_connection_rechecked",
+              "status": "confirmed"
+            },
+            {
+              "method": "app.top_window",
+              "monotonic": 5602.39828,
+              "stage": "top_window_attempted",
+              "status": "confirmed"
+            },
+            {
+              "duration_ms": 262,
+              "monotonic": 5602.661007,
+              "stage": "top_window_timeout",
+              "status": "confirmed"
+            },
+            {
+              "method": "app.windows",
+              "monotonic": 5602.661751,
+              "stage": "window_inventory_attempted",
+              "status": "confirmed"
+            },
+            {
+              "duration_ms": 361,
+              "error": "timeout",
+              "monotonic": 5603.02395,
+              "stage": "window_inventory_timeout",
+              "status": "failed"
+            },
+            {
+              "monotonic": 5603.02452,
+              "stage": "window_discovery_finished",
+              "status": "confirmed"
+            }
+          ],
+          "last_window_stage": "window_discovery_finished",
+          "process_liveness": {
+            "alive": true,
+            "error": "",
+            "pid": 37900
+          },
+          "selected_window": {
+            "available": false,
+            "class_name": "",
+            "handle": "",
+            "title": ""
+          },
+          "timeout_stage": "",
+          "top_window": {
+            "attempted": true,
+            "class_name": "",
+            "duration_ms": 262,
+            "error": "timeout",
+            "handle": "",
+            "returned": false,
+            "title": ""
+          },
+          "window_inventory": {
+            "attempted": true,
+            "candidate_windows": [],
+            "duration_ms": 361,
+            "error": "timeout",
+            "returned": false,
+            "visible_window_count": 0,
+            "window_count": 0
+          }
+        },
+        "window_discovery_schema_version": 1
       },
       {
         "actual_compare_observed": false,
@@ -1315,7 +3000,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 6366,
+          "partial_artifact_size_bytes": 48261,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1330,131 +3015,1724 @@
             "--per-probe-timeout",
             "2.2"
           ],
-          "subprocess_returncode": 124,
+          "subprocess_returncode": 0,
           "subprocess_stderr_tail": "",
           "subprocess_stdout_tail": "",
-          "subprocess_timed_out": true
+          "subprocess_timed_out": false
         },
-        "classification": "window_discovery_timeout",
+        "classification": "window_discovery_api_blocked",
         "compare_successor_observed": false,
-        "error": "sidecar timed out before writing candidate artifact; returncode=124",
-        "event_sequence": [],
+        "error": "RuntimeError: timeout",
+        "event_sequence": [
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 1,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 2,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 3,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 4,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 5,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 6,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 7,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 8,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 9,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 10,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 11,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 12,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 13,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 14,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 15,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 16,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 17,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 18,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 19,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 20,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 21,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 22,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 23,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 24,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 25,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 26,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 27,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 28,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 29,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 30,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 31,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 32,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 33,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 34,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 35,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 36,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 37,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 38,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 39,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 40,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 41,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 42,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 43,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 44,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 45,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 46,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 47,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 48,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 49,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 50,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 51,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 52,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 53,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 54,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 55,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 56,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 57,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 58,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 59,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 60,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 61,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 62,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 63,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 64,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 65,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 66,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 67,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 68,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 69,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 70,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 71,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 72,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 73,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 74,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 75,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 76,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 77,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 78,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 79,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 80,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 81,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 82,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 83,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 84,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 85,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 86,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 87,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 88,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 89,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 90,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 91,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 92,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 93,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 94,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 95,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 96,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 97,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 98,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 99,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 100,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 101,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 102,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 103,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 104,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 105,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 106,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 107,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 108,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 109,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 110,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 111,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 112,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 113,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 114,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 115,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 116,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 117,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 118,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 119,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 120,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 121,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 122,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 123,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 124,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 125,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 126,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 127,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 128,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 129,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 130,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 131,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 132,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 133,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 134,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 135,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 136,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 137,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 138,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 139,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 140,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 141,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 142,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 143,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 144,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 145,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 146,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 147,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 148,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 149,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 150,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 151,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 152,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 153,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 154,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 155,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 156,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 157,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 158,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 159,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 160,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 161,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 162,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 163,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 164,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 165,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 166,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 167,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 168,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 169,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 170,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 171,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 172,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 173,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 174,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 175,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 176,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 177,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 178,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 179,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 180,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 181,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 182,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 183,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 184,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 185,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 186,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 187,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 188,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 189,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 190,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 191,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 192,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 193,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 194,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 195,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 196,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 197,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          }
+        ],
         "handoff_helper_entry_observed": false,
         "lifecycle": {
-          "last_confirmed_stage": "ui_trigger_attempted",
-          "last_error": "",
-          "last_error_stage": "",
+          "last_confirmed_stage": "final_artifact_write_ok",
+          "last_error": "RuntimeError: timeout",
+          "last_error_stage": "ui_trigger_failed",
           "stages": [
             {
-              "monotonic": 4174.621466,
+              "monotonic": 5603.145394,
               "stage": "sidecar_started",
               "status": "confirmed"
             },
             {
-              "monotonic": 4174.687649,
+              "monotonic": 5603.202628,
               "stage": "arguments_parsed",
               "status": "confirmed"
             },
             {
               "exists": true,
-              "monotonic": 4174.687988,
+              "monotonic": 5603.20307,
               "stage": "target_checked",
               "status": "confirmed"
             },
             {
-              "monotonic": 4174.688281,
+              "monotonic": 5603.203436,
               "stage": "dependency_import_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4174.953969,
+              "monotonic": 5603.44597,
               "stage": "dependency_import_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4174.95444,
+              "monotonic": 5603.446681,
               "stage": "frida_spawn_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4174.985836,
-              "pid": 36996,
+              "monotonic": 5603.478345,
+              "pid": 36504,
               "stage": "frida_spawn_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4174.986386,
-              "pid": 36996,
+              "monotonic": 5603.478827,
+              "pid": 36504,
               "stage": "frida_attach_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.963358,
-              "pid": 36996,
+              "monotonic": 5604.307462,
+              "pid": 36504,
               "stage": "frida_attach_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.963826,
+              "monotonic": 5604.307953,
               "stage": "script_create_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.965232,
+              "monotonic": 5604.309457,
               "stage": "script_load_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.96673,
+              "monotonic": 5604.311052,
               "stage": "script_load_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.967121,
+              "monotonic": 5604.311393,
               "stage": "breakpoint_install_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.967428,
+              "monotonic": 5604.311773,
               "stage": "breakpoint_install_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.967758,
+              "monotonic": 5604.312157,
               "stage": "frida_resume_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.968339,
+              "monotonic": 5604.312706,
               "stage": "frida_resume_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.968715,
+              "monotonic": 5604.313043,
               "stage": "ui_connect_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4175.969299,
+              "monotonic": 5604.313556,
               "stage": "ui_connect_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4176.470217,
+              "monotonic": 5604.814618,
               "stage": "ui_trigger_attempted",
+              "status": "confirmed"
+            },
+            {
+              "error": "RuntimeError: timeout",
+              "monotonic": 5605.432181,
+              "stage": "ui_trigger_failed",
+              "status": "failed"
+            },
+            {
+              "monotonic": 5605.445456,
+              "stage": "final_artifact_write_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 5605.447595,
+              "stage": "final_artifact_write_ok",
               "status": "confirmed"
             }
           ],
-          "timeout_stage": "ui_trigger"
+          "timeout_stage": ""
         },
         "lifecycle_schema_version": 1,
-        "process_exception_observed": false,
-        "successor_surface_observed": false,
+        "process_exception_observed": true,
+        "successor_surface_observed": true,
         "target_launch": {
           "attempted": true,
-          "error": "sidecar timed out before writing candidate artifact; returncode=124",
+          "error": "",
           "ok": true,
-          "pid": null
+          "pid": 36504
         },
         "ui_trigger": {
           "button_control": {
@@ -1463,11 +4741,12 @@
             "lookup_ok": false,
             "visible": false
           },
-          "classification": "window_discovery_timeout",
+          "classification": "window_discovery_api_blocked",
           "error": "",
           "events": [
             {
-              "monotonic": 4176.471252,
+              "method": "app.top_window",
+              "monotonic": 5604.816558,
               "stage": "ui_window_discovery_attempted",
               "status": "confirmed"
             }
@@ -1486,7 +4765,7 @@
             "observed_events": [],
             "successor_breakpoint_hit": false
           },
-          "timeout_stage": "window_discovery",
+          "timeout_stage": "",
           "trigger_methods": [],
           "window": {
             "class_name": "",
@@ -1495,7 +4774,98 @@
             "title": ""
           }
         },
-        "ui_trigger_schema_version": 1
+        "ui_trigger_schema_version": 1,
+        "window_discovery": {
+          "app_connection": {
+            "attempted": true,
+            "error": "",
+            "ok": true
+          },
+          "classification": "window_discovery_api_blocked",
+          "error": "timeout",
+          "events": [
+            {
+              "monotonic": 5604.815391,
+              "stage": "window_discovery_started",
+              "status": "confirmed"
+            },
+            {
+              "alive": true,
+              "monotonic": 5604.815876,
+              "pid": 36504,
+              "stage": "process_liveness_checked",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 5604.81625,
+              "ok": true,
+              "stage": "app_connection_rechecked",
+              "status": "confirmed"
+            },
+            {
+              "method": "app.top_window",
+              "monotonic": 5604.816862,
+              "stage": "top_window_attempted",
+              "status": "confirmed"
+            },
+            {
+              "duration_ms": 257,
+              "monotonic": 5605.074862,
+              "stage": "top_window_timeout",
+              "status": "confirmed"
+            },
+            {
+              "method": "app.windows",
+              "monotonic": 5605.075455,
+              "stage": "window_inventory_attempted",
+              "status": "confirmed"
+            },
+            {
+              "duration_ms": 354,
+              "error": "timeout",
+              "monotonic": 5605.430898,
+              "stage": "window_inventory_timeout",
+              "status": "failed"
+            },
+            {
+              "monotonic": 5605.431758,
+              "stage": "window_discovery_finished",
+              "status": "confirmed"
+            }
+          ],
+          "last_window_stage": "window_discovery_finished",
+          "process_liveness": {
+            "alive": true,
+            "error": "",
+            "pid": 36504
+          },
+          "selected_window": {
+            "available": false,
+            "class_name": "",
+            "handle": "",
+            "title": ""
+          },
+          "timeout_stage": "",
+          "top_window": {
+            "attempted": true,
+            "class_name": "",
+            "duration_ms": 257,
+            "error": "timeout",
+            "handle": "",
+            "returned": false,
+            "title": ""
+          },
+          "window_inventory": {
+            "attempted": true,
+            "candidate_windows": [],
+            "duration_ms": 354,
+            "error": "timeout",
+            "returned": false,
+            "visible_window_count": 0,
+            "window_count": 0
+          }
+        },
+        "window_discovery_schema_version": 1
       },
       {
         "actual_compare_observed": false,
@@ -1548,7 +4918,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 6366,
+          "partial_artifact_size_bytes": 48259,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1563,131 +4933,1724 @@
             "--per-probe-timeout",
             "2.2"
           ],
-          "subprocess_returncode": 124,
+          "subprocess_returncode": 0,
           "subprocess_stderr_tail": "",
           "subprocess_stdout_tail": "",
-          "subprocess_timed_out": true
+          "subprocess_timed_out": false
         },
-        "classification": "window_discovery_timeout",
+        "classification": "window_discovery_api_blocked",
         "compare_successor_observed": false,
-        "error": "sidecar timed out before writing candidate artifact; returncode=124",
-        "event_sequence": [],
+        "error": "RuntimeError: timeout",
+        "event_sequence": [
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 1,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 2,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 3,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 4,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 5,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 6,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 7,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 8,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 9,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 10,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 11,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 12,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 13,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 14,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 15,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 16,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 17,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 18,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 19,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 20,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 21,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 22,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 23,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 24,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 25,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 26,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 27,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 28,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 29,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 30,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 31,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 32,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 33,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 34,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 35,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 36,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 37,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 38,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 39,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 40,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 41,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 42,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 43,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 44,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 45,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 46,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 47,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 48,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 49,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 50,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 51,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 52,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 53,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 54,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 55,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 56,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 57,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 58,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 59,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 60,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 61,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 62,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 63,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 64,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 65,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 66,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 67,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 68,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 69,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 70,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 71,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 72,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 73,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 74,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 75,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 76,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 77,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 78,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 79,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 80,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 81,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 82,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 83,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 84,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 85,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 86,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 87,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 88,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 89,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 90,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 91,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 92,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 93,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 94,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 95,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 96,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 97,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 98,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 99,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 100,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 101,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 102,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 103,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 104,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 105,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 106,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 107,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 108,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 109,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 110,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 111,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 112,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 113,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 114,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 115,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 116,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 117,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 118,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 119,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 120,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 121,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 122,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 123,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 124,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 125,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 126,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 127,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 128,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 129,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 130,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 131,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 132,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 133,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 134,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 135,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 136,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 137,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 138,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 139,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 140,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 141,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 142,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 143,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 144,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 145,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 146,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 147,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 148,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 149,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 150,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 151,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 152,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 153,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 154,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 155,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 156,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 157,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 158,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 159,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 160,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 161,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 162,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 163,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 164,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 165,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 166,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 167,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 168,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 169,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 170,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 171,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 172,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 173,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 174,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 175,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 176,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 177,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 178,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 179,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 180,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 181,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 182,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 183,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 184,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 185,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 186,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 187,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 188,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 189,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 190,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 191,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 192,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 193,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 194,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 195,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 196,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          },
+          {
+            "current_module_offset": "0x1913",
+            "eip": "0x8e1913",
+            "hit_order": 197,
+            "module_offset": "0x1913",
+            "name": "process_exception",
+            "type": "hit"
+          }
+        ],
         "handoff_helper_entry_observed": false,
         "lifecycle": {
-          "last_confirmed_stage": "ui_trigger_attempted",
-          "last_error": "",
-          "last_error_stage": "",
+          "last_confirmed_stage": "final_artifact_write_ok",
+          "last_error": "RuntimeError: timeout",
+          "last_error_stage": "ui_trigger_failed",
           "stages": [
             {
-              "monotonic": 4197.392154,
+              "monotonic": 5605.671632,
               "stage": "sidecar_started",
               "status": "confirmed"
             },
             {
-              "monotonic": 4197.442013,
+              "monotonic": 5605.735507,
               "stage": "arguments_parsed",
               "status": "confirmed"
             },
             {
               "exists": true,
-              "monotonic": 4197.442553,
+              "monotonic": 5605.73599,
               "stage": "target_checked",
               "status": "confirmed"
             },
             {
-              "monotonic": 4197.443232,
+              "monotonic": 5605.73645,
               "stage": "dependency_import_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4197.722686,
+              "monotonic": 5605.971167,
               "stage": "dependency_import_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4197.723152,
+              "monotonic": 5605.971545,
               "stage": "frida_spawn_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4197.750856,
-              "pid": 39416,
+              "monotonic": 5606.001129,
+              "pid": 40516,
               "stage": "frida_spawn_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4197.751323,
-              "pid": 39416,
+              "monotonic": 5606.001559,
+              "pid": 40516,
               "stage": "frida_attach_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.756349,
-              "pid": 39416,
+              "monotonic": 5606.832427,
+              "pid": 40516,
               "stage": "frida_attach_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.756981,
+              "monotonic": 5606.832965,
               "stage": "script_create_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.758831,
+              "monotonic": 5606.834574,
               "stage": "script_load_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.760692,
+              "monotonic": 5606.836332,
               "stage": "script_load_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.761188,
+              "monotonic": 5606.836665,
               "stage": "breakpoint_install_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.761572,
+              "monotonic": 5606.836999,
               "stage": "breakpoint_install_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.761891,
+              "monotonic": 5606.837319,
               "stage": "frida_resume_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.762512,
+              "monotonic": 5606.837819,
               "stage": "frida_resume_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.762897,
+              "monotonic": 5606.838187,
               "stage": "ui_connect_attempted",
               "status": "confirmed"
             },
             {
-              "monotonic": 4198.7634,
+              "monotonic": 5606.838732,
               "stage": "ui_connect_ok",
               "status": "confirmed"
             },
             {
-              "monotonic": 4199.264163,
+              "monotonic": 5607.339611,
               "stage": "ui_trigger_attempted",
+              "status": "confirmed"
+            },
+            {
+              "error": "RuntimeError: timeout",
+              "monotonic": 5607.965865,
+              "stage": "ui_trigger_failed",
+              "status": "failed"
+            },
+            {
+              "monotonic": 5607.98044,
+              "stage": "final_artifact_write_attempted",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 5607.981607,
+              "stage": "final_artifact_write_ok",
               "status": "confirmed"
             }
           ],
-          "timeout_stage": "ui_trigger"
+          "timeout_stage": ""
         },
         "lifecycle_schema_version": 1,
-        "process_exception_observed": false,
-        "successor_surface_observed": false,
+        "process_exception_observed": true,
+        "successor_surface_observed": true,
         "target_launch": {
           "attempted": true,
-          "error": "sidecar timed out before writing candidate artifact; returncode=124",
+          "error": "",
           "ok": true,
-          "pid": null
+          "pid": 40516
         },
         "ui_trigger": {
           "button_control": {
@@ -1696,11 +6659,12 @@
             "lookup_ok": false,
             "visible": false
           },
-          "classification": "window_discovery_timeout",
+          "classification": "window_discovery_api_blocked",
           "error": "",
           "events": [
             {
-              "monotonic": 4199.264652,
+              "method": "app.top_window",
+              "monotonic": 5607.341352,
               "stage": "ui_window_discovery_attempted",
               "status": "confirmed"
             }
@@ -1719,7 +6683,7 @@
             "observed_events": [],
             "successor_breakpoint_hit": false
           },
-          "timeout_stage": "window_discovery",
+          "timeout_stage": "",
           "trigger_methods": [],
           "window": {
             "class_name": "",
@@ -1728,13 +6692,104 @@
             "title": ""
           }
         },
-        "ui_trigger_schema_version": 1
+        "ui_trigger_schema_version": 1,
+        "window_discovery": {
+          "app_connection": {
+            "attempted": true,
+            "error": "",
+            "ok": true
+          },
+          "classification": "window_discovery_api_blocked",
+          "error": "timeout",
+          "events": [
+            {
+              "monotonic": 5607.34011,
+              "stage": "window_discovery_started",
+              "status": "confirmed"
+            },
+            {
+              "alive": true,
+              "monotonic": 5607.340511,
+              "pid": 40516,
+              "stage": "process_liveness_checked",
+              "status": "confirmed"
+            },
+            {
+              "monotonic": 5607.340863,
+              "ok": true,
+              "stage": "app_connection_rechecked",
+              "status": "confirmed"
+            },
+            {
+              "method": "app.top_window",
+              "monotonic": 5607.341649,
+              "stage": "top_window_attempted",
+              "status": "confirmed"
+            },
+            {
+              "duration_ms": 264,
+              "monotonic": 5607.605992,
+              "stage": "top_window_timeout",
+              "status": "confirmed"
+            },
+            {
+              "method": "app.windows",
+              "monotonic": 5607.60654,
+              "stage": "window_inventory_attempted",
+              "status": "confirmed"
+            },
+            {
+              "duration_ms": 356,
+              "error": "timeout",
+              "monotonic": 5607.964056,
+              "stage": "window_inventory_timeout",
+              "status": "failed"
+            },
+            {
+              "monotonic": 5607.965063,
+              "stage": "window_discovery_finished",
+              "status": "confirmed"
+            }
+          ],
+          "last_window_stage": "window_discovery_finished",
+          "process_liveness": {
+            "alive": true,
+            "error": "",
+            "pid": 40516
+          },
+          "selected_window": {
+            "available": false,
+            "class_name": "",
+            "handle": "",
+            "title": ""
+          },
+          "timeout_stage": "",
+          "top_window": {
+            "attempted": true,
+            "class_name": "",
+            "duration_ms": 264,
+            "error": "timeout",
+            "handle": "",
+            "returned": false,
+            "title": ""
+          },
+          "window_inventory": {
+            "attempted": true,
+            "candidate_windows": [],
+            "duration_ms": 356,
+            "error": "timeout",
+            "returned": false,
+            "visible_window_count": 0,
+            "window_count": 0
+          }
+        },
+        "window_discovery_schema_version": 1
       }
     ],
-    "classification": "window_discovery_timeout",
+    "classification": "window_discovery_api_blocked",
     "cross_candidate": {
       "breakpoint_hit_counts": {},
-      "classification": "window_discovery_timeout",
+      "classification": "window_discovery_api_blocked",
       "first_divergence_after": "",
       "lifecycle_stage_counts": {
         "arguments_parsed": 3,
@@ -1742,6 +6797,8 @@
         "breakpoint_install_ok": 3,
         "dependency_import_attempted": 3,
         "dependency_import_ok": 3,
+        "final_artifact_write_attempted": 3,
+        "final_artifact_write_ok": 3,
         "frida_attach_attempted": 3,
         "frida_attach_ok": 3,
         "frida_resume_attempted": 3,
@@ -1755,16 +6812,20 @@
         "target_checked": 3,
         "ui_connect_attempted": 3,
         "ui_connect_ok": 3,
-        "ui_trigger_attempted": 3
+        "ui_trigger_attempted": 3,
+        "ui_trigger_failed": 3
       },
       "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
       "ui_trigger_classification_counts": {
-        "window_discovery_timeout": 3
+        "window_discovery_api_blocked": 3
+      },
+      "window_discovery_classification_counts": {
+        "window_discovery_api_blocked": 3
       }
     },
     "diagnostic_summary": {
       "blocker_counts": {
-        "window_discovery_timeout": 3
+        "window_discovery_api_blocked": 3
       },
       "breakpoint_hit_counts": {},
       "breakpoint_install_attempted_count": 12,
@@ -1785,7 +6846,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_2\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 6366,
+          "partial_artifact_size_bytes": 48261,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1800,10 +6861,10 @@
             "--per-probe-timeout",
             "2.2"
           ],
-          "subprocess_returncode": 124,
+          "subprocess_returncode": 0,
           "subprocess_stderr_tail": "",
           "subprocess_stdout_tail": "",
-          "subprocess_timed_out": true
+          "subprocess_timed_out": false
         },
         "78d540b49c59076f41414141414141": {
           "candidate_log_exists": true,
@@ -1811,7 +6872,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_3\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 6366,
+          "partial_artifact_size_bytes": 48259,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1826,10 +6887,10 @@
             "--per-probe-timeout",
             "2.2"
           ],
-          "subprocess_returncode": 124,
+          "subprocess_returncode": 0,
           "subprocess_stderr_tail": "",
           "subprocess_stdout_tail": "",
-          "subprocess_timed_out": true
+          "subprocess_timed_out": false
         },
         "78d540b49c59077041414141414141": {
           "candidate_log_exists": true,
@@ -1837,7 +6898,7 @@
           "candidate_log_size_bytes": 24,
           "partial_artifact_exists": true,
           "partial_artifact_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\candidate_1\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
-          "partial_artifact_size_bytes": 6364,
+          "partial_artifact_size_bytes": 48259,
           "subprocess_command": [
             "C:\\Program Files\\Python313\\python.exe",
             "F:\\reverse-agent\\reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
@@ -1852,17 +6913,17 @@
             "--per-probe-timeout",
             "2.2"
           ],
-          "subprocess_returncode": 124,
+          "subprocess_returncode": 0,
           "subprocess_stderr_tail": "",
           "subprocess_stdout_tail": "",
-          "subprocess_timed_out": true
+          "subprocess_timed_out": false
         }
       },
-      "classification": "window_discovery_timeout",
+      "classification": "window_discovery_api_blocked",
       "last_confirmed_stages": {
-        "5a3e7f46ddd474d041414141414141": "ui_trigger_attempted",
-        "78d540b49c59076f41414141414141": "ui_trigger_attempted",
-        "78d540b49c59077041414141414141": "ui_trigger_attempted"
+        "5a3e7f46ddd474d041414141414141": "final_artifact_write_ok",
+        "78d540b49c59076f41414141414141": "final_artifact_write_ok",
+        "78d540b49c59077041414141414141": "final_artifact_write_ok"
       },
       "stage_counts": {
         "arguments_parsed": 3,
@@ -1870,6 +6931,8 @@
         "breakpoint_install_ok": 3,
         "dependency_import_attempted": 3,
         "dependency_import_ok": 3,
+        "final_artifact_write_attempted": 3,
+        "final_artifact_write_ok": 3,
         "frida_attach_attempted": 3,
         "frida_attach_ok": 3,
         "frida_resume_attempted": 3,
@@ -1883,17 +6946,18 @@
         "target_checked": 3,
         "ui_connect_attempted": 3,
         "ui_connect_ok": 3,
-        "ui_trigger_attempted": 3
+        "ui_trigger_attempted": 3,
+        "ui_trigger_failed": 3
       },
       "timeout_stages": {
-        "5a3e7f46ddd474d041414141414141": "ui_trigger",
-        "78d540b49c59076f41414141414141": "ui_trigger",
-        "78d540b49c59077041414141414141": "ui_trigger"
+        "5a3e7f46ddd474d041414141414141": "",
+        "78d540b49c59076f41414141414141": "",
+        "78d540b49c59077041414141414141": ""
       }
     },
     "lifecycle_schema_version": 1,
     "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
-    "overall_classification": "window_discovery_timeout",
+    "overall_classification": "window_discovery_api_blocked",
     "runtime_scope": {
       "breakpoint_probe_allowed": false,
       "crypto_hook_allowed": false,
@@ -1909,9 +6973,9 @@
     ],
     "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
     "ui_trigger_diagnostics": {
-      "classification": "window_discovery_timeout",
+      "classification": "window_discovery_api_blocked",
       "classification_counts": {
-        "window_discovery_timeout": 3
+        "window_discovery_api_blocked": 3
       },
       "control_lookup_counts": {
         "button_enabled": 0,
@@ -1935,12 +6999,58 @@
         "successor_breakpoint_hit_count": 0
       },
       "timeout_stages": {
-        "5a3e7f46ddd474d041414141414141": "window_discovery",
-        "78d540b49c59076f41414141414141": "window_discovery",
-        "78d540b49c59077041414141414141": "window_discovery"
+        "5a3e7f46ddd474d041414141414141": "",
+        "78d540b49c59076f41414141414141": "",
+        "78d540b49c59077041414141414141": ""
       }
     },
-    "ui_trigger_schema_version": 1
+    "ui_trigger_schema_version": 1,
+    "window_discovery_diagnostics": {
+      "candidate_windows": {
+        "5a3e7f46ddd474d041414141414141": [],
+        "78d540b49c59076f41414141414141": [],
+        "78d540b49c59077041414141414141": []
+      },
+      "classification": "window_discovery_api_blocked",
+      "classification_counts": {
+        "window_discovery_api_blocked": 3
+      },
+      "last_window_stages": {
+        "5a3e7f46ddd474d041414141414141": "window_discovery_finished",
+        "78d540b49c59076f41414141414141": "window_discovery_finished",
+        "78d540b49c59077041414141414141": "window_discovery_finished"
+      },
+      "pid_alive": {
+        "5a3e7f46ddd474d041414141414141": true,
+        "78d540b49c59076f41414141414141": true,
+        "78d540b49c59077041414141414141": true
+      },
+      "selected_window_available_count": 0,
+      "timeout_stages": {
+        "5a3e7f46ddd474d041414141414141": "",
+        "78d540b49c59076f41414141414141": "",
+        "78d540b49c59077041414141414141": ""
+      },
+      "top_window_attempted_count": 3,
+      "top_window_returned_count": 0,
+      "window_inventory_attempted_count": 3,
+      "window_inventory_counts": {
+        "5a3e7f46ddd474d041414141414141": {
+          "visible_window_count": 0,
+          "window_count": 0
+        },
+        "78d540b49c59076f41414141414141": {
+          "visible_window_count": 0,
+          "window_count": 0
+        },
+        "78d540b49c59077041414141414141": {
+          "visible_window_count": 0,
+          "window_count": 0
+        }
+      },
+      "window_inventory_returned_count": 0
+    },
+    "window_discovery_schema_version": 1
   },
   "latest_compare_handoff_path_divergence_audit": {
     "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
@@ -4302,13 +9412,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260601_151820",
+  "round_id": "round_20260601_154138",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "1e15d344de99",
+  "source_git_commit": "ad828fe1f69b",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260601_151820_67a9dc2b097f",
-  "state_digest": "67a9dc2b097f537853f89e598e2f25e29ca1f1fb6a8f8ce6f4a7c334c3358290",
+  "state_build_id": "state_20260601_154138_7dbbabc8dcd6",
+  "state_digest": "7dbbabc8dcd65e5cbd8445677c91db8f8d493602afe1be5031a485da11a640f0",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }
