@@ -3055,6 +3055,28 @@ def build_current_state(*, artifact_index: dict[str, Any], sample: str) -> dict[
                 "runtime_scope",
                 {},
             ),
+            "diagnostic_summary": compare_handoff_post_entry_step_runtime_audit.get(
+                "diagnostic_summary",
+                {},
+            ),
+            "environment_diagnostics": compare_handoff_post_entry_step_runtime_audit.get(
+                "environment_diagnostics",
+                {},
+            ),
+            "breakpoint_installation_diagnostics": (
+                compare_handoff_post_entry_step_runtime_audit.get(
+                    "breakpoint_installation_diagnostics",
+                    {},
+                )
+            ),
+            "single_step_diagnostics": compare_handoff_post_entry_step_runtime_audit.get(
+                "single_step_diagnostics",
+                {},
+            ),
+            "artifact_parse_diagnostics": compare_handoff_post_entry_step_runtime_audit.get(
+                "artifact_parse_diagnostics",
+                {},
+            ),
             "cross_candidate": compare_handoff_post_entry_step_runtime_audit.get(
                 "cross_candidate",
                 {},
@@ -4241,7 +4263,17 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
             return "Correct bounded handoff return-target schema"
         return "Review bounded handoff hook surface repair audit"
     if stage == "compare_handoff_post_entry_step_runtime_audit":
-        if reason in {"runtime_unavailable", "instrumentation_gap", "hook_surface_unresolved"}:
+        if reason in {
+            "runtime_unavailable",
+            "instrumentation_gap",
+            "hook_surface_unresolved",
+            "debugger_backend_missing",
+            "target_process_launch_failed",
+            "breakpoint_install_failed",
+            "entry_breakpoint_not_hit",
+            "step_api_unavailable",
+            "instrumentation_gap_but_environment_verified",
+        }:
             return "Repair bounded post-entry step instrumentation"
         if reason == "exception_edge_before_branch":
             return "Confirm bounded post-entry exception edge"

@@ -63,9 +63,9 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "runtime_unavailable",
+    "blocker": "step_api_unavailable",
     "confidence": "medium",
-    "reason": "runtime_unavailable",
+    "reason": "step_api_unavailable",
     "stage": "compare_handoff_post_entry_step_runtime_audit"
   },
   "current_mainline": "L15(prefix8)",
@@ -108,7 +108,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-06-01T09:49:22Z",
+  "generated_at": "2026-06-01T10:12:27Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -1207,21 +1207,67 @@
   },
   "latest_compare_handoff_post_entry_step_runtime_audit": {
     "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
+    "artifact_parse_diagnostics": {
+      "parse_attempted": false,
+      "parse_error": "",
+      "parse_ok": false,
+      "raw_log_exists": true,
+      "raw_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\candidate_1\\compare_handoff_post_entry_step_runtime_audit.log"
+    },
+    "breakpoint_installation_diagnostics": {
+      "handoff_helper_entry": {
+        "address": "0x1b50",
+        "error": "",
+        "hit": false,
+        "install_attempted": false,
+        "install_ok": false
+      },
+      "predecessor_handoff_call": {
+        "address": "0x2338",
+        "error": "",
+        "hit": false,
+        "install_attempted": false,
+        "install_ok": false
+      }
+    },
     "breakpoint_probe_allowed": false,
     "candidate_count": 3,
     "candidates": [
       {
         "actual_compare_observed": false,
-        "blocked_reason": "instrumentation_gap",
+        "artifact_parse_diagnostics": {
+          "parse_attempted": false,
+          "parse_error": "",
+          "parse_ok": false,
+          "raw_log_exists": true,
+          "raw_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\candidate_1\\compare_handoff_post_entry_step_runtime_audit.log"
+        },
+        "blocked_reason": "step_api_unavailable",
         "branch_observation": {
           "branch_eip": "",
-          "classification": "instrumentation_gap",
+          "classification": "step_api_unavailable",
           "condition": "",
           "eflags": "",
           "instruction": "",
           "next_eip": "",
           "observed": false,
           "outcome": "unknown"
+        },
+        "breakpoint_installation_diagnostics": {
+          "handoff_helper_entry": {
+            "address": "0x1b50",
+            "error": "",
+            "hit": false,
+            "install_attempted": false,
+            "install_ok": false
+          },
+          "predecessor_handoff_call": {
+            "address": "0x2338",
+            "error": "",
+            "hit": false,
+            "install_attempted": false,
+            "install_ok": false
+          }
         },
         "candidate_hex": "78d540b49c59077041414141414141",
         "candidate_prefix": "78d540b49c590770",
@@ -1235,9 +1281,20 @@
           "return_target_candidate": "",
           "stack_top_words": []
         },
+        "environment_diagnostics": {
+          "backend_error": "",
+          "backend_import_ok": true,
+          "debugger_backend": "frida",
+          "platform": "Windows-11-10.0.26200-SP0",
+          "python_executable": "C:\\Program Files\\Python313\\python.exe",
+          "target_executable_exists": true,
+          "target_launch_attempted": false,
+          "target_launch_error": "",
+          "target_launch_ok": false
+        },
         "error": "post-entry single-step runtime hook is available as a bounded sidecar contract, but no local Olly/Frida stepping implementation captured branch instruction, EFLAGS, or next EIP in this environment",
         "post_entry_events": [],
-        "post_entry_outcome": "instrumentation_gap",
+        "post_entry_outcome": "step_api_unavailable",
         "process_exception_observed": false,
         "return_target_observation": {
           "observed": false,
@@ -1245,20 +1302,58 @@
           "trust": "instrumentation_gap",
           "value": ""
         },
-        "runtime_sidecar_executed": false
+        "runtime_scope": {
+          "breakpoint_probe_allowed": false,
+          "crypto_hook_allowed": false,
+          "material_capture_allowed": false,
+          "max_steps_per_candidate": 32,
+          "sidecar": "compare_handoff_post_entry_step_audit.py"
+        },
+        "runtime_sidecar_executed": false,
+        "single_step_diagnostics": {
+          "error": "no local Olly/Frida single-step implementation is wired for this sidecar",
+          "first_step_eip": "",
+          "last_step_eip": "",
+          "step_api_available": false,
+          "step_attempted": false,
+          "step_count": 0
+        }
       },
       {
         "actual_compare_observed": false,
-        "blocked_reason": "instrumentation_gap",
+        "artifact_parse_diagnostics": {
+          "parse_attempted": false,
+          "parse_error": "",
+          "parse_ok": false,
+          "raw_log_exists": true,
+          "raw_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\candidate_2\\compare_handoff_post_entry_step_runtime_audit.log"
+        },
+        "blocked_reason": "step_api_unavailable",
         "branch_observation": {
           "branch_eip": "",
-          "classification": "instrumentation_gap",
+          "classification": "step_api_unavailable",
           "condition": "",
           "eflags": "",
           "instruction": "",
           "next_eip": "",
           "observed": false,
           "outcome": "unknown"
+        },
+        "breakpoint_installation_diagnostics": {
+          "handoff_helper_entry": {
+            "address": "0x1b50",
+            "error": "",
+            "hit": false,
+            "install_attempted": false,
+            "install_ok": false
+          },
+          "predecessor_handoff_call": {
+            "address": "0x2338",
+            "error": "",
+            "hit": false,
+            "install_attempted": false,
+            "install_ok": false
+          }
         },
         "candidate_hex": "5a3e7f46ddd474d041414141414141",
         "candidate_prefix": "5a3e7f46ddd474d0",
@@ -1272,9 +1367,20 @@
           "return_target_candidate": "",
           "stack_top_words": []
         },
+        "environment_diagnostics": {
+          "backend_error": "",
+          "backend_import_ok": true,
+          "debugger_backend": "frida",
+          "platform": "Windows-11-10.0.26200-SP0",
+          "python_executable": "C:\\Program Files\\Python313\\python.exe",
+          "target_executable_exists": true,
+          "target_launch_attempted": false,
+          "target_launch_error": "",
+          "target_launch_ok": false
+        },
         "error": "post-entry single-step runtime hook is available as a bounded sidecar contract, but no local Olly/Frida stepping implementation captured branch instruction, EFLAGS, or next EIP in this environment",
         "post_entry_events": [],
-        "post_entry_outcome": "instrumentation_gap",
+        "post_entry_outcome": "step_api_unavailable",
         "process_exception_observed": false,
         "return_target_observation": {
           "observed": false,
@@ -1282,20 +1388,58 @@
           "trust": "instrumentation_gap",
           "value": ""
         },
-        "runtime_sidecar_executed": false
+        "runtime_scope": {
+          "breakpoint_probe_allowed": false,
+          "crypto_hook_allowed": false,
+          "material_capture_allowed": false,
+          "max_steps_per_candidate": 32,
+          "sidecar": "compare_handoff_post_entry_step_audit.py"
+        },
+        "runtime_sidecar_executed": false,
+        "single_step_diagnostics": {
+          "error": "no local Olly/Frida single-step implementation is wired for this sidecar",
+          "first_step_eip": "",
+          "last_step_eip": "",
+          "step_api_available": false,
+          "step_attempted": false,
+          "step_count": 0
+        }
       },
       {
         "actual_compare_observed": false,
-        "blocked_reason": "instrumentation_gap",
+        "artifact_parse_diagnostics": {
+          "parse_attempted": false,
+          "parse_error": "",
+          "parse_ok": false,
+          "raw_log_exists": true,
+          "raw_log_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\candidate_3\\compare_handoff_post_entry_step_runtime_audit.log"
+        },
+        "blocked_reason": "step_api_unavailable",
         "branch_observation": {
           "branch_eip": "",
-          "classification": "instrumentation_gap",
+          "classification": "step_api_unavailable",
           "condition": "",
           "eflags": "",
           "instruction": "",
           "next_eip": "",
           "observed": false,
           "outcome": "unknown"
+        },
+        "breakpoint_installation_diagnostics": {
+          "handoff_helper_entry": {
+            "address": "0x1b50",
+            "error": "",
+            "hit": false,
+            "install_attempted": false,
+            "install_ok": false
+          },
+          "predecessor_handoff_call": {
+            "address": "0x2338",
+            "error": "",
+            "hit": false,
+            "install_attempted": false,
+            "install_ok": false
+          }
         },
         "candidate_hex": "78d540b49c59076f41414141414141",
         "candidate_prefix": "78d540b49c59076f",
@@ -1309,9 +1453,20 @@
           "return_target_candidate": "",
           "stack_top_words": []
         },
+        "environment_diagnostics": {
+          "backend_error": "",
+          "backend_import_ok": true,
+          "debugger_backend": "frida",
+          "platform": "Windows-11-10.0.26200-SP0",
+          "python_executable": "C:\\Program Files\\Python313\\python.exe",
+          "target_executable_exists": true,
+          "target_launch_attempted": false,
+          "target_launch_error": "",
+          "target_launch_ok": false
+        },
         "error": "post-entry single-step runtime hook is available as a bounded sidecar contract, but no local Olly/Frida stepping implementation captured branch instruction, EFLAGS, or next EIP in this environment",
         "post_entry_events": [],
-        "post_entry_outcome": "instrumentation_gap",
+        "post_entry_outcome": "step_api_unavailable",
         "process_exception_observed": false,
         "return_target_observation": {
           "observed": false,
@@ -1319,19 +1474,61 @@
           "trust": "instrumentation_gap",
           "value": ""
         },
-        "runtime_sidecar_executed": false
+        "runtime_scope": {
+          "breakpoint_probe_allowed": false,
+          "crypto_hook_allowed": false,
+          "material_capture_allowed": false,
+          "max_steps_per_candidate": 32,
+          "sidecar": "compare_handoff_post_entry_step_audit.py"
+        },
+        "runtime_sidecar_executed": false,
+        "single_step_diagnostics": {
+          "error": "no local Olly/Frida single-step implementation is wired for this sidecar",
+          "first_step_eip": "",
+          "last_step_eip": "",
+          "step_api_available": false,
+          "step_attempted": false,
+          "step_count": 0
+        }
       }
     ],
-    "classification": "runtime_unavailable",
+    "classification": "step_api_unavailable",
     "cross_candidate": {
       "branch_guard_explained": false,
       "first_divergence_point": "",
       "next_bounded_action": "narrower_post_entry_breakpoint",
       "return_target_trust": "suspicious",
-      "root_cause_classification": "runtime_unavailable"
+      "root_cause_classification": "step_api_unavailable",
+      "runtime_blocker_counts": {
+        "step_api_unavailable": 3
+      }
+    },
+    "diagnostic_summary": {
+      "artifact_parse_error_count": 0,
+      "blocker_counts": {
+        "step_api_unavailable": 3
+      },
+      "breakpoint_hit_count": 0,
+      "breakpoint_install_attempted_count": 0,
+      "breakpoint_install_ok_count": 0,
+      "debugger_backend_counts": {
+        "frida": 3
+      },
+      "step_api_available_count": 0
+    },
+    "environment_diagnostics": {
+      "backend_error": "",
+      "backend_import_ok": true,
+      "debugger_backend": "frida",
+      "platform": "Windows-11-10.0.26200-SP0",
+      "python_executable": "C:\\Program Files\\Python313\\python.exe",
+      "target_executable_exists": true,
+      "target_launch_attempted": false,
+      "target_launch_error": "",
+      "target_launch_ok": false
     },
     "next_bounded_action": "narrower_post_entry_breakpoint",
-    "overall_classification": "runtime_unavailable",
+    "overall_classification": "step_api_unavailable",
     "runtime_scope": {
       "breakpoint_probe_allowed": false,
       "crypto_hook_allowed": false,
@@ -1340,6 +1537,14 @@
       "sidecar": "compare_handoff_post_entry_step_audit.py"
     },
     "runtime_sidecar_executed": false,
+    "single_step_diagnostics": {
+      "error": "no local Olly/Frida single-step implementation is wired for this sidecar",
+      "first_step_eip": "",
+      "last_step_eip": "",
+      "step_api_available": false,
+      "step_attempted": false,
+      "step_count": 0
+    },
     "source_artifacts": [
       "compare_handoff_hook_surface_repair_audit",
       "compare_handoff_branch_operand_runtime_audit",
@@ -3162,13 +3367,13 @@
   "latest_transform_trace_consistency": {},
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260601_094922",
+  "round_id": "round_20260601_101227",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "7a07ba00c797",
+  "source_git_commit": "c5e24632c151",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260601_094922_a9e79b27f71f",
-  "state_digest": "a9e79b27f71f1cbd4466a311e25b8efb41500ec3da6ca428994e534594d910fc",
+  "state_build_id": "state_20260601_101227_0ec04ab18c9d",
+  "state_digest": "0ec04ab18c9d7aeac6a1e284a67f7448e1b815ec86af1149c249ef5005651e8a",
   "uncertainty": [],
   "workflow_status": "REPORT_AVAILABLE"
 }

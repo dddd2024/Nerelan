@@ -28,7 +28,7 @@
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json"
   },
-  "based_on_state_digest": "a9e79b27f71f1cbd4466a311e25b8efb41500ec3da6ca428994e534594d910fc",
+  "based_on_state_digest": "0ec04ab18c9d7aeac6a1e284a67f7448e1b815ec86af1149c249ef5005651e8a",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -65,9 +65,9 @@
     }
   },
   "current_bottleneck": {
-    "blocker": "runtime_unavailable",
+    "blocker": "step_api_unavailable",
     "confidence": "medium",
-    "reason": "runtime_unavailable",
+    "reason": "step_api_unavailable",
     "stage": "compare_handoff_post_entry_step_runtime_audit"
   },
   "derived_task": "Repair bounded post-entry step instrumentation",
@@ -92,7 +92,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-06-01T09:49:22Z",
+  "generated_at": "2026-06-01T10:12:27Z",
   "included": [
     "current state",
     "best candidates",
@@ -102,7 +102,7 @@
   ],
   "model_gate": {
     "context_level": 2,
-    "reason": "runtime_unavailable",
+    "reason": "step_api_unavailable",
     "should_call_model": true
   },
   "omitted": [
@@ -122,10 +122,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260601_094922",
+  "round_id": "round_20260601_101227",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260601_094922_a9e79b27f71f",
+  "state_build_id": "state_20260601_101227_0ec04ab18c9d",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,

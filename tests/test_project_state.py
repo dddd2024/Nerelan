@@ -1676,8 +1676,8 @@ def test_project_state_indexes_compare_handoff_post_entry_step_runtime_audit(tmp
         artifacts_dir / "compare_handoff_post_entry_step_runtime_audit.json",
         {
             "artifact_kind": "compare_handoff_post_entry_step_runtime_audit",
-            "classification": "runtime_unavailable",
-            "overall_classification": "runtime_unavailable",
+            "classification": "step_api_unavailable",
+            "overall_classification": "step_api_unavailable",
             "source_run": "sr_post_entry",
             "source_artifacts": [
                 "compare_handoff_hook_surface_repair_audit",
@@ -1698,20 +1698,65 @@ def test_project_state_indexes_compare_handoff_post_entry_step_runtime_audit(tmp
                 "crypto_hook_allowed": False,
                 "breakpoint_probe_allowed": False,
             },
+            "diagnostic_summary": {
+                "blocker_counts": {"step_api_unavailable": 3},
+                "debugger_backend_counts": {"frida": 3},
+                "breakpoint_install_attempted_count": 0,
+                "breakpoint_install_ok_count": 0,
+                "breakpoint_hit_count": 0,
+                "step_api_available_count": 0,
+                "artifact_parse_error_count": 0,
+            },
+            "environment_diagnostics": {
+                "debugger_backend": "frida",
+                "backend_import_ok": True,
+                "target_executable_exists": True,
+            },
+            "breakpoint_installation_diagnostics": {
+                "predecessor_handoff_call": {
+                    "address": "0x2338",
+                    "install_attempted": False,
+                    "install_ok": False,
+                    "hit": False,
+                    "error": "",
+                },
+                "handoff_helper_entry": {
+                    "address": "0x1b50",
+                    "install_attempted": False,
+                    "install_ok": False,
+                    "hit": False,
+                    "error": "",
+                },
+            },
+            "single_step_diagnostics": {
+                "step_attempted": False,
+                "step_api_available": False,
+                "step_count": 0,
+                "first_step_eip": "",
+                "last_step_eip": "",
+                "error": "no local stepping implementation",
+            },
+            "artifact_parse_diagnostics": {
+                "raw_log_path": "",
+                "raw_log_exists": False,
+                "parse_attempted": False,
+                "parse_ok": False,
+                "parse_error": "",
+            },
             "cross_candidate": {
                 "first_divergence_point": "",
                 "branch_guard_explained": False,
                 "return_target_trust": "suspicious",
-                "root_cause_classification": "runtime_unavailable",
+                "root_cause_classification": "step_api_unavailable",
                 "next_bounded_action": "narrower_post_entry_breakpoint",
             },
             "candidates": [
                 {
                     "candidate_hex": "78d540b49c59077041414141414141",
                     "post_entry_events": [],
-                    "branch_observation": {"classification": "runtime_unavailable"},
+                    "branch_observation": {"classification": "step_api_unavailable"},
                     "return_target_observation": {"trust": "instrumentation_gap"},
-                    "post_entry_outcome": "runtime_unavailable",
+                    "post_entry_outcome": "step_api_unavailable",
                 }
             ],
             "breakpoint_probe_allowed": False,
@@ -1735,11 +1780,17 @@ def test_project_state_indexes_compare_handoff_post_entry_step_runtime_audit(tmp
     assert current_state["current_bottleneck"]["stage"] == (
         "compare_handoff_post_entry_step_runtime_audit"
     )
-    assert current_state["current_bottleneck"]["reason"] == "runtime_unavailable"
+    assert current_state["current_bottleneck"]["reason"] == "step_api_unavailable"
     latest = current_state["latest_compare_handoff_post_entry_step_runtime_audit"]
-    assert latest["classification"] == "runtime_unavailable"
+    assert latest["classification"] == "step_api_unavailable"
     assert latest["candidate_count"] == 3
     assert latest["runtime_scope"]["max_steps_per_candidate"] == 32
+    assert latest["diagnostic_summary"]["blocker_counts"] == {"step_api_unavailable": 3}
+    assert latest["environment_diagnostics"]["debugger_backend"] == "frida"
+    assert latest["breakpoint_installation_diagnostics"]["handoff_helper_entry"]["address"] == (
+        "0x1b50"
+    )
+    assert latest["single_step_diagnostics"]["step_api_available"] is False
     assert latest["cross_candidate"]["next_bounded_action"] == "narrower_post_entry_breakpoint"
     assert latest["breakpoint_probe_allowed"] is False
     assert task_packet["task"] == "Repair bounded post-entry step instrumentation"

@@ -11330,6 +11330,24 @@ def test_handoff_post_entry_step_runtime_audit_keeps_control_flow_scope(
     assert Path(result["result_path"]).name == COMPARE_HANDOFF_POST_ENTRY_STEP_RUNTIME_AUDIT_FILE_NAME
     assert result_payload["candidate_count"] == 3
     assert result_payload["breakpoint_probe_allowed"] is False
+    assert result_payload["material_capture_allowed"] is False
+    assert result_payload["crypto_hook_allowed"] is False
+    assert result_payload["classification"] == "target_process_launch_failed"
+    assert result_payload["diagnostic_summary"]["blocker_counts"] == {
+        "target_process_launch_failed": 3
+    }
+    assert result_payload["environment_diagnostics"]["target_executable_exists"] is False
+    assert (
+        result_payload["breakpoint_installation_diagnostics"]["predecessor_handoff_call"][
+            "address"
+        ]
+        == "0x2338"
+    )
+    assert (
+        result_payload["breakpoint_installation_diagnostics"]["handoff_helper_entry"]["address"]
+        == "0x1b50"
+    )
+    assert result_payload["single_step_diagnostics"]["step_api_available"] is False
     assert result_payload["candidates"][0]["post_entry_events"] == []
 
 

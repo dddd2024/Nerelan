@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-01T09:49:22Z",
+  "generated_at": "2026-06-01T10:12:27Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -172,10 +172,10 @@
     "compare_handoff_post_entry_step_runtime_audit": {
       "freshness": "current",
       "kind": "compare_handoff_post_entry_step_runtime_audit",
-      "modified_at": "2026-06-01T09:49:07Z",
+      "modified_at": "2026-06-01T10:12:15Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
-      "sha256": "83f18730fa05fd88b4bc82c7e8dad53198ddc7d0f3421c5796ef01366f5d71c6",
-      "size_bytes": 6525,
+      "sha256": "a7be53b5d1c855bcb4b2e9e7fa9c26bc700e5b6f0dc0ffc3ca10989f96bea849",
+      "size_bytes": 14167,
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_probe": {
@@ -503,27 +503,27 @@
   "recent_artifacts": [
     {
       "kind": "compare_handoff_post_entry_step_runtime_audit",
-      "modified_at": "2026-06-01T09:49:07Z",
+      "modified_at": "2026-06-01T10:12:15Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
-      "size_bytes": 6525
+      "size_bytes": 14167
     },
     {
       "kind": "compare_handoff_post_entry_step_runtime_audit",
-      "modified_at": "2026-06-01T09:49:07Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\candidate_3\\compare_handoff_post_entry_step_runtime_audit.json",
-      "size_bytes": 2097
-    },
-    {
-      "kind": "compare_handoff_post_entry_step_runtime_audit",
-      "modified_at": "2026-06-01T09:49:06Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\candidate_1\\compare_handoff_post_entry_step_runtime_audit.json",
-      "size_bytes": 2097
-    },
-    {
-      "kind": "compare_handoff_post_entry_step_runtime_audit",
-      "modified_at": "2026-06-01T09:49:06Z",
+      "modified_at": "2026-06-01T10:12:15Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\candidate_2\\compare_handoff_post_entry_step_runtime_audit.json",
-      "size_bytes": 2097
+      "size_bytes": 3693
+    },
+    {
+      "kind": "compare_handoff_post_entry_step_runtime_audit",
+      "modified_at": "2026-06-01T10:12:15Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\candidate_3\\compare_handoff_post_entry_step_runtime_audit.json",
+      "size_bytes": 3693
+    },
+    {
+      "kind": "compare_handoff_post_entry_step_runtime_audit",
+      "modified_at": "2026-06-01T10:12:14Z",
+      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\candidate_1\\compare_handoff_post_entry_step_runtime_audit.json",
+      "size_bytes": 3693
     },
     {
       "kind": "compare_handoff_hook_surface_repair_audit",

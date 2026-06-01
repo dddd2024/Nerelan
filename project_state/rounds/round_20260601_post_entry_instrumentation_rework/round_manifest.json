@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-01T10:15:00Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_post_entry_instrumentation_rework\\codex_execution_report.md",
+      "sha256": "38fbd0a380a2c554487b4628638e1bdb258a7f655fbf4872b766a90195556dce",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260601_post_entry_instrumentation_rework\\decision_packet.md",
+      "sha256": "a7b3865e5e2317d96267182ebab484c7dc96982243728782610916959416a5b5",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260601_post_entry_instrumentation_rework\\pytest_result.txt",
+      "sha256": "eae44e797352a74342cf5d44123d7e854f1291b23f62a4e89f2fd006b73af4ea",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260601_post_entry_instrumentation_rework",
+  "schema_version": 1,
+  "source_git_commit": "c5e24632c151",
+  "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+  "state_build_id": "state_20260601_101227_0ec04ab18c9d",
+  "state_digest": "0ec04ab18c9d7aeac6a1e284a67f7448e1b815ec86af1149c249ef5005651e8a",
+  "workflow_status": "REPORT_AVAILABLE"
+}

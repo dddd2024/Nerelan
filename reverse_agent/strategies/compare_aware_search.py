@@ -12597,6 +12597,100 @@ def _post_entry_empty_branch_observation(classification: str = "not_observed") -
     }
 
 
+def _post_entry_diagnostic_dict(
+    candidate_payload: dict[str, object],
+    key: str,
+) -> dict[str, object]:
+    value = candidate_payload.get(key, {})
+    return dict(value) if isinstance(value, dict) else {}
+
+
+def _post_entry_runtime_blocker(candidate: dict[str, object]) -> str:
+    for key in ("blocked_reason", "post_entry_outcome"):
+        value = str(candidate.get(key) or "").strip()
+        if value:
+            return value
+    branch = candidate.get("branch_observation", {})
+    branch = branch if isinstance(branch, dict) else {}
+    return str(branch.get("classification") or "").strip()
+
+
+def _choose_post_entry_blocker(candidates: list[dict[str, object]]) -> str:
+    blockers = {_post_entry_runtime_blocker(item) for item in candidates}
+    blockers.discard("")
+    priority = [
+        "debugger_backend_missing",
+        "target_process_launch_failed",
+        "breakpoint_install_failed",
+        "entry_breakpoint_not_hit",
+        "step_api_unavailable",
+        "instrumentation_gap_but_environment_verified",
+        "runtime_unavailable",
+        "instrumentation_gap",
+        "hook_surface_unresolved",
+    ]
+    for item in priority:
+        if item in blockers:
+            return item
+    return sorted(blockers)[0] if blockers else "runtime_unavailable"
+
+
+def _post_entry_next_bounded_action(root_cause: str) -> str:
+    if root_cause == "post_entry_branch_observed":
+        return "manual_static_instruction_boundary_audit"
+    if root_cause == "exception_edge_before_branch":
+        return "exception_edge_confirmation"
+    if root_cause == "compare_successor_reached":
+        return "compare_successor_reanchor"
+    if root_cause in {"debugger_backend_missing", "target_process_launch_failed"}:
+        return "repair_runtime_environment"
+    if root_cause in {"breakpoint_install_failed", "entry_breakpoint_not_hit"}:
+        return "repair_post_entry_breakpoint_surface"
+    if root_cause == "step_api_unavailable":
+        return "narrower_post_entry_breakpoint"
+    return "narrower_post_entry_breakpoint"
+
+
+def _post_entry_diagnostic_summary(candidates: list[dict[str, object]]) -> dict[str, object]:
+    blocker_counts: dict[str, int] = {}
+    backend_counts: dict[str, int] = {}
+    breakpoint_install_attempted = 0
+    breakpoint_install_ok = 0
+    breakpoint_hit = 0
+    step_api_available_count = 0
+    parse_errors = 0
+    for candidate in candidates:
+        blocker = _post_entry_runtime_blocker(candidate) or "unknown"
+        blocker_counts[blocker] = blocker_counts.get(blocker, 0) + 1
+        environment = candidate.get("environment_diagnostics", {})
+        environment = environment if isinstance(environment, dict) else {}
+        backend = str(environment.get("debugger_backend") or "unknown")
+        backend_counts[backend] = backend_counts.get(backend, 0) + 1
+        breakpoint_diagnostics = candidate.get("breakpoint_installation_diagnostics", {})
+        breakpoint_diagnostics = breakpoint_diagnostics if isinstance(breakpoint_diagnostics, dict) else {}
+        for item in breakpoint_diagnostics.values():
+            if not isinstance(item, dict):
+                continue
+            breakpoint_install_attempted += int(bool(item.get("install_attempted")))
+            breakpoint_install_ok += int(bool(item.get("install_ok")))
+            breakpoint_hit += int(bool(item.get("hit")))
+        step = candidate.get("single_step_diagnostics", {})
+        step = step if isinstance(step, dict) else {}
+        step_api_available_count += int(bool(step.get("step_api_available")))
+        artifact_parse = candidate.get("artifact_parse_diagnostics", {})
+        artifact_parse = artifact_parse if isinstance(artifact_parse, dict) else {}
+        parse_errors += int(bool(artifact_parse.get("parse_error")))
+    return {
+        "blocker_counts": blocker_counts,
+        "debugger_backend_counts": backend_counts,
+        "breakpoint_install_attempted_count": breakpoint_install_attempted,
+        "breakpoint_install_ok_count": breakpoint_install_ok,
+        "breakpoint_hit_count": breakpoint_hit,
+        "step_api_available_count": step_api_available_count,
+        "artifact_parse_error_count": parse_errors,
+    }
+
+
 def _normalize_post_entry_candidate_result(
     candidate_hex: str,
     candidate_payload: dict[str, object] | None,
@@ -12617,9 +12711,28 @@ def _normalize_post_entry_candidate_result(
     return_target_observation = (
         return_target_observation if isinstance(return_target_observation, dict) else {}
     )
+    runtime_scope = candidate_payload.get("runtime_scope", {})
+    runtime_scope = runtime_scope if isinstance(runtime_scope, dict) else {}
     return {
         "candidate_hex": candidate_hex,
         "candidate_prefix": candidate_hex[:16],
+        "runtime_scope": dict(runtime_scope),
+        "environment_diagnostics": _post_entry_diagnostic_dict(
+            candidate_payload,
+            "environment_diagnostics",
+        ),
+        "breakpoint_installation_diagnostics": _post_entry_diagnostic_dict(
+            candidate_payload,
+            "breakpoint_installation_diagnostics",
+        ),
+        "single_step_diagnostics": _post_entry_diagnostic_dict(
+            candidate_payload,
+            "single_step_diagnostics",
+        ),
+        "artifact_parse_diagnostics": _post_entry_diagnostic_dict(
+            candidate_payload,
+            "artifact_parse_diagnostics",
+        ),
         "entry_context": {
             "predecessor_handoff_call_observed": bool(
                 entry_context.get("predecessor_handoff_call_observed")
@@ -12696,6 +12809,7 @@ def build_compare_handoff_post_entry_step_runtime_audit_payload(
     exception_count = sum(1 for item in candidates if bool(item.get("process_exception_observed")))
     actual_compare_count = sum(1 for item in candidates if bool(item.get("actual_compare_observed")))
     runtime_executed = any(bool(item.get("runtime_sidecar_executed")) for item in candidates)
+    diagnostic_summary = _post_entry_diagnostic_summary(candidates)
     first_divergence_point = ""
     event_signatures = [
         tuple(str(event.get("module_offset") or event.get("eip") or "") for event in item["post_entry_events"][:3])
@@ -12707,26 +12821,20 @@ def build_compare_handoff_post_entry_step_runtime_audit_payload(
         first_divergence_point = "branch_observation"
     elif exception_count:
         first_divergence_point = "process_exception"
-    root_cause = (
-        "post_entry_branch_observed"
-        if branch_observed_count
-        else "exception_edge_before_branch"
-        if exception_count
-        else "compare_successor_reached"
-        if actual_compare_count
-        else "instrumentation_gap"
-        if runtime_executed
-        else "runtime_unavailable"
-    )
-    next_bounded_action = (
-        "manual_static_instruction_boundary_audit"
-        if root_cause == "post_entry_branch_observed"
-        else "exception_edge_confirmation"
-        if root_cause == "exception_edge_before_branch"
-        else "compare_successor_reanchor"
-        if root_cause == "compare_successor_reached"
-        else "narrower_post_entry_breakpoint"
-    )
+    if branch_observed_count:
+        root_cause = "post_entry_branch_observed"
+    elif exception_count:
+        root_cause = "exception_edge_before_branch"
+    elif actual_compare_count:
+        root_cause = "compare_successor_reached"
+    elif runtime_executed:
+        root_cause = _choose_post_entry_blocker(candidates)
+        if root_cause in {"runtime_unavailable", "instrumentation_gap", "hook_surface_unresolved"}:
+            root_cause = "instrumentation_gap_but_environment_verified"
+    else:
+        root_cause = _choose_post_entry_blocker(candidates)
+    next_bounded_action = _post_entry_next_bounded_action(root_cause)
+    representative = candidates[0] if candidates else {}
     return {
         "schema_version": 1,
         "artifact_kind": "compare_handoff_post_entry_step_runtime_audit",
@@ -12752,19 +12860,31 @@ def build_compare_handoff_post_entry_step_runtime_audit_payload(
             "crypto_hook_allowed": False,
             "breakpoint_probe_allowed": False,
         },
+        "max_steps_per_candidate": max(1, min(int(max_steps_per_candidate), 32)),
+        "material_capture_allowed": False,
+        "crypto_hook_allowed": False,
+        "breakpoint_probe_allowed": False,
         "candidates": candidates,
+        "diagnostic_summary": diagnostic_summary,
+        "environment_diagnostics": representative.get("environment_diagnostics", {}),
+        "breakpoint_installation_diagnostics": representative.get(
+            "breakpoint_installation_diagnostics",
+            {},
+        ),
+        "single_step_diagnostics": representative.get("single_step_diagnostics", {}),
+        "artifact_parse_diagnostics": representative.get("artifact_parse_diagnostics", {}),
         "cross_candidate": {
             "first_divergence_point": first_divergence_point,
             "branch_guard_explained": branch_observed_count > 0 or exception_count > 0,
             "return_target_trust": "suspicious",
             "root_cause_classification": root_cause,
             "next_bounded_action": next_bounded_action,
+            "runtime_blocker_counts": diagnostic_summary.get("blocker_counts", {}),
         },
         "candidate_generation_changed": False,
         "ranking_changed": False,
         "search_budget_changed": False,
         "beam_budget_topn_timeout_frontier_limit_expanded": False,
-        "breakpoint_probe_allowed": False,
         "blocked_actions": [
             "do not expand candidates, beam, topN, budget, timeout, or frontier from this diagnostic",
             "do not run Base64/RC4 breakpoint probe from post-entry control-flow surface alone",
