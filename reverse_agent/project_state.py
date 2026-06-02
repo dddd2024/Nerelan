@@ -4424,12 +4424,18 @@ def _task_from_bottleneck(current_state: dict[str, Any]) -> str:
     if stage == "compare_handoff_narrower_post_entry_breakpoint_audit":
         if reason in {
             "process_exited_before_window_discovery",
+            "window_lifecycle_no_window_created",
             "process_alive_no_top_window",
             "process_window_inventory_empty",
             "process_no_visible_window",
+            "pid_alive_but_no_owned_window",
+            "win32_enum_windows_empty",
+            "window_exists_but_not_visible",
             "top_window_call_timeout",
             "top_window_call_failed",
             "window_discovery_api_blocked",
+            "win32_enum_windows_succeeded_pywinauto_failed",
+            "uia_backend_succeeded_win32_failed",
             "window_backend_mismatch",
             "window_discovery_succeeded_input_lookup_next",
             "window_discovery_instrumentation_gap",

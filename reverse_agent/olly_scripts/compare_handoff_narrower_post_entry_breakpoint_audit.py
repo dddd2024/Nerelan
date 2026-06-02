@@ -6,6 +6,7 @@ import platform
 import sys
 import threading
 import time
+import ctypes
 from pathlib import Path
 
 try:  # Support package imports in tests and direct subprocess execution.
@@ -325,20 +326,102 @@ def _empty_window_discovery_diagnostics() -> dict[str, object]:
             "visible_window_count": 0,
             "candidate_windows": [],
         },
+        "api_attribution": {
+            "pywinauto_win32": _empty_backend_window_probe("pywinauto_win32"),
+            "pywinauto_uia": _empty_backend_window_probe("pywinauto_uia"),
+            "direct_enum_windows": _empty_backend_window_probe("direct_enum_windows"),
+            "direct_enum_child_windows": _empty_backend_window_probe(
+                "direct_enum_child_windows"
+            ),
+            "process_exit_code": "",
+            "final_window_discovery_reason": "",
+        },
         "selected_window": {
             "available": False,
             "title": "",
             "class_name": "",
             "handle": "",
+            "backend": "",
+            "owned_by_pid": False,
         },
         "events": [],
     }
+
+
+def _empty_backend_window_probe(backend: str) -> dict[str, object]:
+    return {
+        "backend": backend,
+        "attempted": False,
+        "returned": False,
+        "duration_ms": 0,
+        "error": "",
+        "window_count": 0,
+        "visible_window_count": 0,
+        "owned_window_count": 0,
+        "candidate_windows": [],
+    }
+
+
+def _window_api_attribution(window_discovery: dict[str, object]) -> dict[str, object]:
+    attribution = window_discovery.get("api_attribution", {})
+    return attribution if isinstance(attribution, dict) else {}
+
+
+def _backend_probe(
+    attribution: dict[str, object],
+    backend: str,
+) -> dict[str, object]:
+    probe = attribution.get(backend, {})
+    return probe if isinstance(probe, dict) else {}
+
+
+def _classify_window_api_attribution(window_discovery: dict[str, object]) -> str:
+    attribution = _window_api_attribution(window_discovery)
+    if not attribution:
+        return ""
+    selected_window = window_discovery.get("selected_window", {})
+    selected_window = selected_window if isinstance(selected_window, dict) else {}
+    if bool(selected_window.get("available")):
+        return "window_discovery_succeeded_input_lookup_next"
+
+    win32 = _backend_probe(attribution, "pywinauto_win32")
+    uia = _backend_probe(attribution, "pywinauto_uia")
+    enum_windows = _backend_probe(attribution, "direct_enum_windows")
+    direct_returned = bool(enum_windows.get("returned"))
+    direct_owned = int(enum_windows.get("owned_window_count") or 0)
+    direct_visible = int(enum_windows.get("visible_window_count") or 0)
+    direct_count = int(enum_windows.get("window_count") or 0)
+    win32_returned = bool(win32.get("returned"))
+    win32_count = int(win32.get("window_count") or 0)
+    uia_returned = bool(uia.get("returned"))
+    uia_count = int(uia.get("window_count") or 0)
+
+    if direct_returned and direct_owned > 0 and direct_visible > 0 and not (
+        win32_returned or uia_returned
+    ):
+        return "win32_enum_windows_succeeded_pywinauto_failed"
+    if uia_returned and uia_count > 0 and not (win32_returned and win32_count > 0):
+        return "uia_backend_succeeded_win32_failed"
+    if (win32_returned and win32_count > 0) != (uia_returned and uia_count > 0):
+        return "window_backend_mismatch"
+    if direct_returned and direct_owned > 0 and direct_visible <= 0:
+        return "window_exists_but_not_visible"
+    if direct_returned and direct_count <= 0:
+        return "win32_enum_windows_empty"
+    if direct_returned and direct_owned <= 0:
+        return "pid_alive_but_no_owned_window"
+    if any(bool(_backend_probe(attribution, key).get("attempted")) for key in attribution):
+        return "window_discovery_instrumentation_gap"
+    return ""
 
 
 def _classification_from_window_discovery(window_discovery: dict[str, object]) -> str:
     classification = str(window_discovery.get("classification") or "")
     if classification and classification != "lifecycle_checkpoint":
         return classification
+    attribution_classification = _classify_window_api_attribution(window_discovery)
+    if attribution_classification:
+        return attribution_classification
     stage = str(window_discovery.get("last_window_stage") or "")
     process_liveness = window_discovery.get("process_liveness", {})
     process_liveness = process_liveness if isinstance(process_liveness, dict) else {}
@@ -352,28 +435,28 @@ def _classification_from_window_discovery(window_discovery: dict[str, object]) -
         "process_liveness_checked",
         "window_discovery_finished",
     }:
-        return "process_exited_before_window_discovery"
+        return "window_lifecycle_no_window_created"
     if stage == "top_window_timeout":
         return "top_window_call_timeout"
     if stage == "top_window_failed":
         return "top_window_call_failed"
     if stage == "window_inventory_failed":
-        return "window_discovery_api_blocked"
+        return "window_discovery_instrumentation_gap"
     if stage == "window_inventory_timeout":
-        return "window_discovery_api_blocked"
+        return "window_discovery_instrumentation_gap"
     if bool(inventory.get("attempted")) and not bool(inventory.get("returned")):
-        return "window_discovery_api_blocked"
+        return "window_discovery_instrumentation_gap"
     if bool(top_window.get("attempted")) and not bool(top_window.get("returned")):
         return "top_window_call_timeout" if str(top_window.get("error") or "") == "timeout" else "top_window_call_failed"
     if stage == "window_inventory_captured":
         if int(inventory.get("window_count") or 0) <= 0:
-            return "process_window_inventory_empty"
+            return "pid_alive_but_no_owned_window"
         if int(inventory.get("visible_window_count") or 0) <= 0:
-            return "process_no_visible_window"
+            return "window_exists_but_not_visible"
     if stage == "primary_window_unavailable":
         if bool(top_window.get("attempted")) and not bool(top_window.get("returned")):
-            return "process_alive_no_top_window"
-        return "process_no_visible_window"
+            return "pid_alive_but_no_owned_window"
+        return "window_exists_but_not_visible"
     if stage == "primary_window_selected" or bool(selected_window.get("available")):
         return "window_discovery_succeeded_input_lookup_next"
     if stage:
@@ -723,7 +806,254 @@ def _call_with_timeout(func, timeout: float) -> tuple[bool, object, str, int]:  
     return bool(result["returned"]) and not result["error"], result["value"], str(result["error"]), duration_ms
 
 
-def _discover_window(app, pid: int | None, lifecycle: LifecycleTracker):  # noqa: ANN001
+def _get_process_exit_code(pid: int | None) -> str:
+    if pid is None or not platform.system().lower().startswith("win"):
+        return ""
+    try:
+        process_query_limited_information = 0x1000
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(process_query_limited_information, False, int(pid))
+        if not handle:
+            return "OpenProcess failed"
+        try:
+            code = ctypes.c_ulong()
+            if not kernel32.GetExitCodeProcess(handle, ctypes.byref(code)):
+                return "GetExitCodeProcess failed"
+            if int(code.value) == 259:
+                return "STILL_ACTIVE"
+            return str(int(code.value))
+        finally:
+            kernel32.CloseHandle(handle)
+    except Exception as exc:
+        return f"{type(exc).__name__}: {exc}"
+
+
+def _probe_from_windows(
+    *,
+    backend: str,
+    attempted: bool,
+    returned: bool,
+    duration_ms: int,
+    error: str,
+    windows: list[object],
+    pid: int | None,
+) -> dict[str, object]:
+    candidate_windows = []
+    for win in windows[:10]:
+        metadata = _window_metadata(win)
+        metadata["backend"] = backend
+        metadata["owned_by_pid"] = bool(pid)
+        candidate_windows.append(metadata)
+    visible_count = sum(1 for item in candidate_windows if bool(item.get("visible")))
+    return {
+        "backend": backend,
+        "attempted": attempted,
+        "returned": returned,
+        "duration_ms": duration_ms,
+        "error": error,
+        "window_count": len(windows),
+        "visible_window_count": visible_count,
+        "owned_window_count": len(windows) if pid is not None else 0,
+        "candidate_windows": candidate_windows,
+    }
+
+
+def _probe_pywinauto_backend(application_cls, pid: int | None, backend: str) -> tuple[dict[str, object], object | None]:  # noqa: ANN001
+    start = time.monotonic()
+    if pid is None:
+        return {**_empty_backend_window_probe(f"pywinauto_{backend}"), "attempted": True, "error": "pid missing"}, None
+    selected = None
+    try:
+        app = application_cls(backend=backend).connect(process=pid)
+    except Exception as exc:
+        duration_ms = int((time.monotonic() - start) * 1000)
+        return {
+            **_empty_backend_window_probe(f"pywinauto_{backend}"),
+            "attempted": True,
+            "duration_ms": duration_ms,
+            "error": f"{type(exc).__name__}: {exc}",
+        }, None
+    top_ok, top_value, top_error, _top_duration = _call_with_timeout(
+        app.top_window,
+        min(0.6, max(0.2, 0.25)),
+    )
+    if top_ok and top_value is not None:
+        selected = top_value
+    inv_ok, inv_value, inv_error, _inv_duration = _call_with_timeout(
+        app.windows,
+        min(0.8, max(0.2, 0.35)),
+    )
+    windows = list(inv_value) if inv_ok and isinstance(inv_value, list) else []
+    if selected is not None and selected not in windows:
+        windows.insert(0, selected)
+    duration_ms = int((time.monotonic() - start) * 1000)
+    returned = bool((top_ok and selected is not None) or inv_ok)
+    error = "" if returned else (inv_error or top_error)
+    return _probe_from_windows(
+        backend=f"pywinauto_{backend}",
+        attempted=True,
+        returned=returned,
+        duration_ms=duration_ms,
+        error=error,
+        windows=windows,
+        pid=pid,
+    ), selected
+
+
+def _direct_window_metadata(hwnd: int, pid: int | None, backend: str) -> dict[str, object]:
+    user32 = ctypes.windll.user32
+    length = int(user32.GetWindowTextLengthW(hwnd))
+    buffer = ctypes.create_unicode_buffer(max(length + 1, 1))
+    if length > 0:
+        user32.GetWindowTextW(hwnd, buffer, len(buffer))
+    class_buffer = ctypes.create_unicode_buffer(256)
+    user32.GetClassNameW(hwnd, class_buffer, len(class_buffer))
+    owner_pid = ctypes.c_ulong()
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner_pid))
+    owned_by_pid = pid is not None and int(owner_pid.value) == int(pid)
+    return {
+        "backend": backend,
+        "handle": str(int(hwnd)),
+        "title": str(buffer.value or ""),
+        "class_name": str(class_buffer.value or ""),
+        "visible": bool(user32.IsWindowVisible(hwnd)),
+        "enabled": bool(user32.IsWindowEnabled(hwnd)),
+        "owned_by_pid": owned_by_pid,
+    }
+
+
+def _probe_direct_enum_windows(pid: int | None) -> dict[str, object]:
+    backend = "direct_enum_windows"
+    start = time.monotonic()
+    if not platform.system().lower().startswith("win"):
+        return {
+            **_empty_backend_window_probe(backend),
+            "attempted": True,
+            "error": "direct EnumWindows unavailable on non-Windows platform",
+        }
+    windows: list[dict[str, object]] = []
+    try:
+        user32 = ctypes.windll.user32
+        enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+        def callback(hwnd, _lparam):  # noqa: ANN001
+            metadata = _direct_window_metadata(int(hwnd), pid, backend)
+            if metadata["owned_by_pid"]:
+                windows.append(metadata)
+            return True
+
+        if not user32.EnumWindows(enum_proc(callback), 0):
+            error = "EnumWindows failed"
+            returned = False
+        else:
+            error = ""
+            returned = True
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        returned = False
+    duration_ms = int((time.monotonic() - start) * 1000)
+    visible_count = sum(1 for item in windows if bool(item.get("visible")))
+    return {
+        "backend": backend,
+        "attempted": True,
+        "returned": returned,
+        "duration_ms": duration_ms,
+        "error": error,
+        "window_count": len(windows),
+        "visible_window_count": visible_count,
+        "owned_window_count": len(windows),
+        "candidate_windows": windows[:10],
+    }
+
+
+def _probe_direct_enum_child_windows(pid: int | None, parent_handles: list[int]) -> dict[str, object]:
+    backend = "direct_enum_child_windows"
+    start = time.monotonic()
+    if not platform.system().lower().startswith("win"):
+        return {
+            **_empty_backend_window_probe(backend),
+            "attempted": True,
+            "error": "direct EnumChildWindows unavailable on non-Windows platform",
+        }
+    windows: list[dict[str, object]] = []
+    try:
+        user32 = ctypes.windll.user32
+        enum_proc = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_void_p, ctypes.c_void_p)
+
+        def callback(hwnd, _lparam):  # noqa: ANN001
+            metadata = _direct_window_metadata(int(hwnd), pid, backend)
+            if metadata["owned_by_pid"]:
+                windows.append(metadata)
+            return True
+
+        for handle in parent_handles[:10]:
+            user32.EnumChildWindows(int(handle), enum_proc(callback), 0)
+        returned = True
+        error = ""
+    except Exception as exc:
+        error = f"{type(exc).__name__}: {exc}"
+        returned = False
+    duration_ms = int((time.monotonic() - start) * 1000)
+    visible_count = sum(1 for item in windows if bool(item.get("visible")))
+    return {
+        "backend": backend,
+        "attempted": True,
+        "returned": returned,
+        "duration_ms": duration_ms,
+        "error": error,
+        "window_count": len(windows),
+        "visible_window_count": visible_count,
+        "owned_window_count": len(windows),
+        "candidate_windows": windows[:10],
+    }
+
+
+def _record_window_api_attribution(
+    lifecycle: LifecycleTracker,
+    application_cls,  # noqa: ANN001
+    pid: int | None,
+) -> object | None:
+    attribution = _window_api_attribution(lifecycle.window_discovery)
+    attribution = dict(attribution) if attribution else {}
+    attribution["process_exit_code"] = _get_process_exit_code(pid)
+
+    win32_probe, win32_selected = _probe_pywinauto_backend(application_cls, pid, "win32")
+    lifecycle.window_checkpoint("pywinauto_win32_window_probe_finished")
+    uia_probe, uia_selected = _probe_pywinauto_backend(application_cls, pid, "uia")
+    lifecycle.window_checkpoint("pywinauto_uia_window_probe_finished")
+    direct_probe = _probe_direct_enum_windows(pid)
+    lifecycle.window_checkpoint("direct_enum_windows_finished")
+    parent_handles = [
+        int(str(item.get("handle") or "0"))
+        for item in direct_probe.get("candidate_windows", [])
+        if isinstance(item, dict) and str(item.get("handle") or "").isdigit()
+    ]
+    child_probe = _probe_direct_enum_child_windows(pid, parent_handles)
+    lifecycle.window_checkpoint("direct_enum_child_windows_finished")
+
+    attribution.update(
+        {
+            "pywinauto_win32": win32_probe,
+            "pywinauto_uia": uia_probe,
+            "direct_enum_windows": direct_probe,
+            "direct_enum_child_windows": child_probe,
+        }
+    )
+    lifecycle.window_discovery["api_attribution"] = attribution
+    selected = uia_selected or win32_selected
+    if selected is not None:
+        metadata = _window_metadata(selected)
+        metadata["backend"] = "pywinauto_uia" if uia_selected is not None else "pywinauto_win32"
+        metadata["owned_by_pid"] = pid is not None
+        lifecycle.update_window("selected_window", {"available": True, **metadata})
+    final_reason = _classification_from_window_discovery(lifecycle.window_discovery)
+    attribution["final_window_discovery_reason"] = final_reason
+    lifecycle.window_discovery["classification"] = final_reason
+    lifecycle.write_checkpoint(classification=final_reason)
+    return selected
+
+
+def _discover_window(app, pid: int | None, lifecycle: LifecycleTracker, application_cls=None):  # noqa: ANN001
     lifecycle.window_checkpoint("window_discovery_started")
     alive, liveness_error = _pid_alive(pid)
     lifecycle.update_window(
@@ -732,11 +1062,26 @@ def _discover_window(app, pid: int | None, lifecycle: LifecycleTracker):  # noqa
     )
     lifecycle.window_checkpoint("process_liveness_checked", pid=pid, alive=alive)
     if not alive:
+        attribution = _window_api_attribution(lifecycle.window_discovery)
+        attribution = dict(attribution) if attribution else {}
+        attribution["process_exit_code"] = _get_process_exit_code(pid)
+        attribution["final_window_discovery_reason"] = "window_lifecycle_no_window_created"
+        lifecycle.window_discovery["api_attribution"] = attribution
+        lifecycle.window_discovery["classification"] = "window_lifecycle_no_window_created"
         lifecycle.window_checkpoint("window_discovery_finished")
         raise RuntimeError("process exited before window discovery")
 
     lifecycle.update_window("app_connection", {"attempted": True, "ok": bool(app), "error": ""})
     lifecycle.window_checkpoint("app_connection_rechecked", ok=bool(app))
+    attributed_selected = None
+    if application_cls is not None:
+        attributed_selected = _record_window_api_attribution(lifecycle, application_cls, pid)
+    if attributed_selected is not None:
+        lifecycle.update_ui("window", {"discovered": True, **_control_metadata(attributed_selected)})
+        lifecycle.window_checkpoint("primary_window_selected", method="window_api_attribution")
+        lifecycle.window_checkpoint("window_discovery_finished")
+        lifecycle.ui_checkpoint("ui_window_discovery_ok", method="window_api_attribution")
+        return attributed_selected
 
     lifecycle.update_window("top_window", {"attempted": True})
     lifecycle.ui_checkpoint("ui_window_discovery_attempted", method="app.top_window")
@@ -757,6 +1102,8 @@ def _discover_window(app, pid: int | None, lifecycle: LifecycleTracker):  # noqa
     )
     if top_ok and top_value is not None:
         metadata = _window_metadata(top_value)
+        metadata["backend"] = "pywinauto_uia"
+        metadata["owned_by_pid"] = pid is not None
         lifecycle.update_window(
             "selected_window",
             {"available": True, **metadata},
@@ -797,6 +1144,9 @@ def _discover_window(app, pid: int | None, lifecycle: LifecycleTracker):  # noqa
         stage = "window_inventory_timeout" if inv_error == "timeout" else "window_inventory_failed"
         lifecycle.window_fail(stage, inv_error or "window inventory failed", duration_ms=inv_duration)
         lifecycle.window_checkpoint("window_discovery_finished")
+        lifecycle.window_discovery["classification"] = _classification_from_window_discovery(
+            lifecycle.window_discovery
+        )
         raise RuntimeError(inv_error or "window inventory failed")
     lifecycle.window_checkpoint(
         "window_inventory_captured",
@@ -807,6 +1157,9 @@ def _discover_window(app, pid: int | None, lifecycle: LifecycleTracker):  # noqa
     if not windows:
         lifecycle.window_checkpoint("primary_window_unavailable", reason="inventory_empty")
         lifecycle.window_checkpoint("window_discovery_finished")
+        lifecycle.window_discovery["classification"] = _classification_from_window_discovery(
+            lifecycle.window_discovery
+        )
         raise RuntimeError("process window inventory empty")
     selected = None
     for win in windows:
@@ -816,8 +1169,13 @@ def _discover_window(app, pid: int | None, lifecycle: LifecycleTracker):  # noqa
     if selected is None:
         lifecycle.window_checkpoint("primary_window_unavailable", reason="no_visible_window")
         lifecycle.window_checkpoint("window_discovery_finished")
+        lifecycle.window_discovery["classification"] = _classification_from_window_discovery(
+            lifecycle.window_discovery
+        )
         raise RuntimeError("process has no visible window")
     metadata = _window_metadata(selected)
+    metadata["backend"] = "pywinauto_uia"
+    metadata["owned_by_pid"] = pid is not None
     lifecycle.update_window("selected_window", {"available": True, **metadata})
     lifecycle.update_ui("window", {"discovered": True, **_control_metadata(selected)})
     lifecycle.window_checkpoint("primary_window_selected", method="app.windows")
@@ -1137,7 +1495,7 @@ def _run_breakpoint_probe(
 
         lifecycle.confirm("ui_trigger_attempted")
         try:
-            win = _discover_window(app, pid, lifecycle)
+            win = _discover_window(app, pid, lifecycle, Application)
             lifecycle.ui_checkpoint("ui_control_inventory_captured")
 
             lifecycle.update_ui("input_control", {"lookup_attempted": True})

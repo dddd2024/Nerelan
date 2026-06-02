@@ -2060,6 +2060,140 @@ def test_project_state_indexes_compare_handoff_narrower_post_entry_breakpoint_au
     ] == "step_api_unavailable"
 
 
+def test_project_state_projects_window_api_attribution_blocker(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="sr_window_api")
+    artifacts_dir = run_dir / "reports" / "tool_artifacts" / "samplereverse"
+    attribution = {
+        "pywinauto_win32": {
+            "attempted": True,
+            "returned": False,
+            "window_count": 0,
+            "visible_window_count": 0,
+            "owned_window_count": 0,
+        },
+        "pywinauto_uia": {
+            "attempted": True,
+            "returned": False,
+            "window_count": 0,
+            "visible_window_count": 0,
+            "owned_window_count": 0,
+        },
+        "direct_enum_windows": {
+            "attempted": True,
+            "returned": True,
+            "window_count": 1,
+            "visible_window_count": 1,
+            "owned_window_count": 1,
+            "candidate_windows": [
+                {
+                    "handle": "101",
+                    "title": "samplereverse",
+                    "class_name": "Window",
+                    "visible": True,
+                    "enabled": True,
+                    "owned_by_pid": True,
+                }
+            ],
+        },
+        "final_window_discovery_reason": "win32_enum_windows_succeeded_pywinauto_failed",
+    }
+    _write_json(
+        artifacts_dir / "compare_handoff_narrower_post_entry_breakpoint_audit.json",
+        {
+            "artifact_kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
+            "lifecycle_schema_version": 1,
+            "ui_trigger_schema_version": 1,
+            "window_discovery_schema_version": 1,
+            "classification": "win32_enum_windows_succeeded_pywinauto_failed",
+            "overall_classification": "win32_enum_windows_succeeded_pywinauto_failed",
+            "source_run": "sr_window_api",
+            "candidate_count": 3,
+            "fixed_candidates": [
+                "78d540b49c59077041414141414141",
+                "5a3e7f46ddd474d041414141414141",
+                "78d540b49c59076f41414141414141",
+            ],
+            "runtime_scope": {
+                "mode": "narrower_post_entry_breakpoint",
+                "debugger_backend": "frida",
+                "single_step_required": False,
+                "breakpoint_probe_allowed": False,
+                "material_capture_allowed": False,
+                "crypto_hook_allowed": False,
+            },
+            "window_discovery_diagnostics": {
+                "classification": "win32_enum_windows_succeeded_pywinauto_failed",
+                "classification_counts": {
+                    "win32_enum_windows_succeeded_pywinauto_failed": 3
+                },
+                "pid_alive": {"78d540b49c59077041414141414141": True},
+                "backend_attempted_counts": {
+                    "pywinauto_win32": 3,
+                    "pywinauto_uia": 3,
+                    "direct_enum_windows": 3,
+                },
+                "backend_returned_counts": {
+                    "pywinauto_win32": 0,
+                    "pywinauto_uia": 0,
+                    "direct_enum_windows": 3,
+                },
+                "window_api_attribution": {
+                    "78d540b49c59077041414141414141": attribution
+                },
+            },
+            "cross_candidate": {
+                "classification": "win32_enum_windows_succeeded_pywinauto_failed",
+                "window_discovery_classification_counts": {
+                    "win32_enum_windows_succeeded_pywinauto_failed": 3
+                },
+                "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
+            },
+            "candidates": [
+                {
+                    "candidate_hex": "78d540b49c59077041414141414141",
+                    "classification": "win32_enum_windows_succeeded_pywinauto_failed",
+                    "window_discovery": {
+                        "classification": "win32_enum_windows_succeeded_pywinauto_failed",
+                        "process_liveness": {"pid": 1234, "alive": True, "error": ""},
+                        "api_attribution": attribution,
+                        "selected_window": {"available": False},
+                    },
+                }
+            ],
+            "breakpoint_probe_allowed": False,
+            "material_capture_allowed": False,
+            "crypto_hook_allowed": False,
+            "next_bounded_action": "review_narrower_post_entry_breakpoint_result",
+        },
+    )
+
+    build_project_state(
+        reports_dir=reports_dir,
+        state_dir=state_dir,
+        sample="samplereverse",
+        run_name="sr_window_api",
+    )
+
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    latest = current_state["latest_compare_handoff_narrower_post_entry_breakpoint_audit"]
+    assert current_state["current_bottleneck"]["stage"] == (
+        "compare_handoff_narrower_post_entry_breakpoint_audit"
+    )
+    assert current_state["current_bottleneck"]["reason"] == (
+        "win32_enum_windows_succeeded_pywinauto_failed"
+    )
+    assert latest["window_discovery_diagnostics"]["backend_returned_counts"][
+        "direct_enum_windows"
+    ] == 3
+    assert latest["candidates"][0]["window_discovery"]["api_attribution"][
+        "final_window_discovery_reason"
+    ] == "win32_enum_windows_succeeded_pywinauto_failed"
+    assert task_packet["task"] == "Review bounded window discovery diagnostics"
+
+
 def test_project_state_indexes_compare_lhs_producer_audit_and_negative_cache(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

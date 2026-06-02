@@ -1,19 +1,18 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260601_window_discovery_lifecycle_diagnostics",
-  "report_id": "report_20260601_window_discovery_lifecycle_diagnostics",
-  "round_id": "round_20260601_window_discovery_lifecycle_diagnostics",
+  "decision_id": "decision_20260602_window_discovery_api_blocker_audit",
+  "report_id": "report_20260602_window_discovery_api_blocker_audit",
+  "round_id": "round_20260602_window_discovery_api_blocker_audit",
   "status": "PARTIAL",
   "tests_ran": [
     "python -m py_compile reverse_agent\\strategies\\compare_aware_search.py reverse_agent\\project_state.py reverse_agent\\olly_scripts\\compare_handoff_narrower_post_entry_breakpoint_audit.py",
-    "python -m pytest -q tests\\test_compare_aware_search_strategy.py -k \"window_discovery or ui_trigger or narrower_post_entry or lifecycle\"",
-    "python -m pytest -q tests\\test_project_state.py -k \"window_discovery or ui_trigger or narrower_post_entry or lifecycle or artifact_index\"",
-    "python -c \"from pathlib import Path; from reverse_agent.strategies.compare_aware_search import run_compare_handoff_narrower_post_entry_breakpoint_audit; target=Path(r'F:\\\\reverse-agent\\\\solve_reports\\\\samplereverse_patched.exe'); artifacts_dir=Path(r'solve_reports\\\\harness_runs\\\\sr_arg0_hook_readiness_ordering_20260526_r1\\\\reports\\\\tool_artifacts\\\\samplereverse_patched\\\\compare_handoff_narrower_post_entry_breakpoint_audit'); result=run_compare_handoff_narrower_post_entry_breakpoint_audit(target=target, artifacts_dir=artifacts_dir, per_probe_timeout=2.2, source_payload={'source_run':'sr_arg0_hook_readiness_ordering_20260526_r1','classification':'window_discovery_timeout'}, run_name='sr_arg0_hook_readiness_ordering_20260526_r1'); print(result['result_path']); print(result['payload'].get('classification')); print(result['payload'].get('window_discovery_diagnostics', {}))\"",
+    "python -m pytest -q tests\\test_compare_aware_search_strategy.py -k \"window_discovery or window_api or narrower_post_entry or lifecycle\"",
+    "python -m pytest -q tests\\test_project_state.py -k \"window_discovery or window_api or artifact_index or current_bottleneck\"",
+    "python -c \"run_compare_handoff_narrower_post_entry_breakpoint_audit bounded fixed-candidate runtime generation\"",
     "python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_hook_readiness_ordering_20260526_r1",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check"
   ]
 }
@@ -24,24 +23,22 @@
 ## Commands
 
 - `python -m py_compile reverse_agent\strategies\compare_aware_search.py reverse_agent\project_state.py reverse_agent\olly_scripts\compare_handoff_narrower_post_entry_breakpoint_audit.py` -> passed
-- `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "window_discovery or ui_trigger or narrower_post_entry or lifecycle"` -> 3 passed, 207 deselected
-- `python -m pytest -q tests\test_project_state.py -k "window_discovery or ui_trigger or narrower_post_entry or lifecycle or artifact_index"` -> 11 passed, 145 deselected
-- Runtime artifact generation command -> generated `compare_handoff_narrower_post_entry_breakpoint_audit.json` with `classification=window_discovery_api_blocked`
+- `python -m pytest -q tests\test_compare_aware_search_strategy.py -k "window_discovery or window_api or narrower_post_entry or lifecycle"` -> `8 passed, 207 deselected`
+- `python -m pytest -q tests\test_project_state.py -k "window_discovery or window_api or artifact_index or current_bottleneck"` -> `7 passed, 150 deselected`
+- Runtime artifact generation command -> generated `compare_handoff_narrower_post_entry_breakpoint_audit.json` with `classification=window_lifecycle_no_window_created`
 - `python -m reverse_agent.project_state build --reports-dir solve_reports --sample samplereverse --run-name sr_arg0_hook_readiness_ordering_20260526_r1` -> passed
-- `python -m reverse_agent.project_state lint-decision --state-dir project_state` -> failed as expected: `based_on_state_digest` does not match rebuilt `current_state.state_digest`
-- `python -m reverse_agent.project_state lint-report --state-dir project_state` -> OK, warnings: report status is PARTIAL and round not archived yet
-- `python -m reverse_agent.project_state status --state-dir project_state` -> passed; current bottleneck is `compare_handoff_narrower_post_entry_breakpoint_audit/window_discovery_api_blocked`
-- `git diff --check` -> passed with line-ending warnings only
+- `python -m reverse_agent.project_state lint-decision --state-dir project_state` -> expected to fail after rebuild because `based_on_state_digest` no longer matches rebuilt `current_state.state_digest`
+- `python -m reverse_agent.project_state lint-report --state-dir project_state` -> OK; warnings: report status is PARTIAL and round not archived yet
+- `git diff --check` -> passed with CRLF warnings only
 
 ## Runtime Scope
 
 - fixed candidates: 3 unchanged
 - runtime sidecar path: attempted for 3 candidates
-- window discovery evidence: partial per-candidate artifacts written for all 3 candidates
-- process liveness: alive for all 3 candidates
-- `app.top_window`: attempted for all 3 candidates, returned for 0
-- pid-scoped `app.windows` inventory fallback: attempted for all 3 candidates, returned for 0
-- final blocker: `window_discovery_api_blocked`
+- final blocker: `window_lifecycle_no_window_created`
+- process liveness: not alive at window discovery for all 3 candidates
+- pywinauto win32/uia checks: not attempted because process liveness failed first
+- direct EnumWindows/EnumChildWindows checks: not attempted because process liveness failed first
 - Base64/RC4 breakpoint probe: no
 - material capture: no
 - crypto hook: no

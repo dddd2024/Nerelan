@@ -11701,6 +11701,124 @@ def test_handoff_narrower_post_entry_timeout_uses_window_discovery_checkpoint(
     assert first["window_discovery"]["classification"] == "top_window_call_timeout"
 
 
+def _window_api_candidate_result(classification: str, attribution: dict[str, object]) -> dict[str, object]:
+    return {
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "target_launch": {"attempted": True, "ok": True, "pid": 1234, "error": ""},
+        "breakpoints": [],
+        "event_sequence": [],
+        "classification": "window_discovery_api_blocked",
+        "ui_trigger_schema_version": 1,
+        "ui_trigger": {
+            "classification": "window_discovery_api_blocked",
+            "last_ui_stage": "ui_window_discovery_attempted",
+            "timeout_stage": "",
+        },
+        "window_discovery_schema_version": 1,
+        "window_discovery": {
+            "classification": classification,
+            "last_window_stage": "window_discovery_finished",
+            "timeout_stage": "",
+            "process_liveness": {"pid": 1234, "alive": True, "error": ""},
+            "top_window": {"attempted": True, "returned": False, "error": "timeout"},
+            "window_inventory": {
+                "attempted": True,
+                "returned": False,
+                "window_count": 0,
+                "visible_window_count": 0,
+                "candidate_windows": [],
+            },
+            "api_attribution": attribution,
+            "selected_window": {"available": False},
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    ("expected", "attribution"),
+    [
+        (
+            "win32_enum_windows_succeeded_pywinauto_failed",
+            {
+                "pywinauto_win32": {"attempted": True, "returned": False, "window_count": 0},
+                "pywinauto_uia": {"attempted": True, "returned": False, "window_count": 0},
+                "direct_enum_windows": {
+                    "attempted": True,
+                    "returned": True,
+                    "window_count": 1,
+                    "visible_window_count": 1,
+                    "owned_window_count": 1,
+                    "candidate_windows": [{"handle": "101", "visible": True, "owned_by_pid": True}],
+                },
+            },
+        ),
+        (
+            "uia_backend_succeeded_win32_failed",
+            {
+                "pywinauto_win32": {"attempted": True, "returned": False, "window_count": 0},
+                "pywinauto_uia": {"attempted": True, "returned": True, "window_count": 1},
+                "direct_enum_windows": {"attempted": True, "returned": True, "window_count": 0},
+            },
+        ),
+        (
+            "pid_alive_but_no_owned_window",
+            {
+                "pywinauto_win32": {"attempted": True, "returned": False, "window_count": 0},
+                "pywinauto_uia": {"attempted": True, "returned": False, "window_count": 0},
+                "direct_enum_windows": {
+                    "attempted": True,
+                    "returned": True,
+                    "window_count": 2,
+                    "visible_window_count": 0,
+                    "owned_window_count": 0,
+                },
+            },
+        ),
+        (
+            "window_exists_but_not_visible",
+            {
+                "pywinauto_win32": {"attempted": True, "returned": False, "window_count": 0},
+                "pywinauto_uia": {"attempted": True, "returned": False, "window_count": 0},
+                "direct_enum_windows": {
+                    "attempted": True,
+                    "returned": True,
+                    "window_count": 1,
+                    "visible_window_count": 0,
+                    "owned_window_count": 1,
+                },
+            },
+        ),
+        (
+            "window_discovery_instrumentation_gap",
+            {
+                "pywinauto_win32": {"attempted": True, "returned": False, "error": "timeout"},
+                "pywinauto_uia": {"attempted": True, "returned": False, "error": "timeout"},
+                "direct_enum_windows": {"attempted": True, "returned": False, "error": "EnumWindows failed"},
+            },
+        ),
+    ],
+)
+def test_handoff_narrower_window_api_attribution_refines_blocker(
+    expected: str,
+    attribution: dict[str, object],
+) -> None:
+    payload = build_compare_handoff_narrower_post_entry_breakpoint_audit_payload(
+        candidate_results=[
+            _window_api_candidate_result("window_discovery_api_blocked", attribution)
+        ],
+        source_payload={"source_run": "sr_path"},
+    )
+
+    assert payload["classification"] == expected
+    first = payload["candidates"][0]
+    assert first["classification"] == expected
+    assert first["window_discovery"]["classification"] == expected
+    assert payload["window_discovery_diagnostics"]["classification"] == expected
+    assert payload["window_discovery_diagnostics"]["backend_attempted_counts"][
+        "direct_enum_windows"
+    ] == 1
+
+
 def test_function_semantic_audit_blocks_without_candidate_dependent_material_hook(
     tmp_path: Path,
     monkeypatch,

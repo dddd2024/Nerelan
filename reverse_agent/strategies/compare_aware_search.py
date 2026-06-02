@@ -13024,6 +13024,30 @@ def _normalize_narrower_post_entry_breakpoint_candidate_result(
     ui_trigger = ui_trigger if isinstance(ui_trigger, dict) else {}
     window_discovery = candidate_payload.get("window_discovery", {})
     window_discovery = window_discovery if isinstance(window_discovery, dict) else {}
+    window_discovery = dict(window_discovery)
+    attribution_classification = _classify_narrower_window_api_attribution(window_discovery)
+    if attribution_classification and str(window_discovery.get("classification") or "") in {
+        "",
+        "lifecycle_checkpoint",
+        "window_discovery_api_blocked",
+        "top_window_call_timeout",
+        "top_window_call_failed",
+        "process_no_visible_window",
+        "process_window_inventory_empty",
+        "process_alive_no_top_window",
+        "window_lifecycle_no_window_created",
+    }:
+        window_discovery["classification"] = attribution_classification
+    if attribution_classification and classification in {
+        "window_discovery_api_blocked",
+        "top_window_call_timeout",
+        "top_window_call_failed",
+        "process_no_visible_window",
+        "process_window_inventory_empty",
+        "process_alive_no_top_window",
+        "window_lifecycle_no_window_created",
+    }:
+        classification = attribution_classification
     return {
         "candidate_hex": candidate_hex,
         "target_launch": target_launch,
@@ -13199,6 +13223,11 @@ def _narrower_window_discovery_diagnostics(
     inventory_counts: dict[str, dict[str, int]] = {}
     selected_window_available_count = 0
     candidate_windows: dict[str, object] = {}
+    window_api_attribution: dict[str, object] = {}
+    backend_attempted_counts: dict[str, int] = {}
+    backend_returned_counts: dict[str, int] = {}
+    backend_window_counts: dict[str, dict[str, int]] = {}
+    final_window_reasons: dict[str, str] = {}
     for candidate in candidates:
         candidate_hex = str(candidate.get("candidate_hex") or "")
         window = candidate.get("window_discovery", {})
@@ -13232,6 +13261,36 @@ def _narrower_window_discovery_diagnostics(
         selected_window = window.get("selected_window", {})
         selected_window = selected_window if isinstance(selected_window, dict) else {}
         selected_window_available_count += int(bool(selected_window.get("available")))
+        attribution = window.get("api_attribution", {})
+        attribution = attribution if isinstance(attribution, dict) else {}
+        if candidate_hex and attribution:
+            window_api_attribution[candidate_hex] = attribution
+            final_window_reasons[candidate_hex] = str(
+                attribution.get("final_window_discovery_reason") or classification
+            )
+        for backend in (
+            "pywinauto_win32",
+            "pywinauto_uia",
+            "direct_enum_windows",
+            "direct_enum_child_windows",
+        ):
+            probe = attribution.get(backend, {})
+            probe = probe if isinstance(probe, dict) else {}
+            backend_attempted_counts[backend] = backend_attempted_counts.get(backend, 0) + int(
+                bool(probe.get("attempted"))
+            )
+            backend_returned_counts[backend] = backend_returned_counts.get(backend, 0) + int(
+                bool(probe.get("returned"))
+            )
+            if candidate_hex:
+                bucket = backend_window_counts.setdefault(candidate_hex, {})
+                bucket[f"{backend}_window_count"] = int(probe.get("window_count") or 0)
+                bucket[f"{backend}_visible_window_count"] = int(
+                    probe.get("visible_window_count") or 0
+                )
+                bucket[f"{backend}_owned_window_count"] = int(
+                    probe.get("owned_window_count") or 0
+                )
     return {
         "classification": _choose_narrower_post_entry_breakpoint_classification(candidates),
         "classification_counts": classifications,
@@ -13245,7 +13304,56 @@ def _narrower_window_discovery_diagnostics(
         "window_inventory_counts": inventory_counts,
         "selected_window_available_count": selected_window_available_count,
         "candidate_windows": candidate_windows,
+        "window_api_attribution": window_api_attribution,
+        "backend_attempted_counts": backend_attempted_counts,
+        "backend_returned_counts": backend_returned_counts,
+        "backend_window_counts": backend_window_counts,
+        "final_window_reasons": final_window_reasons,
     }
+
+
+def _classify_narrower_window_api_attribution(window_discovery: dict[str, object]) -> str:
+    attribution = window_discovery.get("api_attribution", {})
+    attribution = attribution if isinstance(attribution, dict) else {}
+    explicit_reason = str(attribution.get("final_window_discovery_reason") or "")
+    if explicit_reason and explicit_reason != "lifecycle_checkpoint":
+        return explicit_reason
+    selected_window = window_discovery.get("selected_window", {})
+    selected_window = selected_window if isinstance(selected_window, dict) else {}
+    if bool(selected_window.get("available")):
+        return "window_discovery_succeeded_input_lookup_next"
+
+    def probe(name: str) -> dict[str, object]:
+        value = attribution.get(name, {})
+        return value if isinstance(value, dict) else {}
+
+    win32 = probe("pywinauto_win32")
+    uia = probe("pywinauto_uia")
+    direct = probe("direct_enum_windows")
+    direct_returned = bool(direct.get("returned"))
+    direct_count = int(direct.get("window_count") or 0)
+    direct_owned = int(direct.get("owned_window_count") or 0)
+    direct_visible = int(direct.get("visible_window_count") or 0)
+    win32_success = bool(win32.get("returned")) and int(win32.get("window_count") or 0) > 0
+    uia_success = bool(uia.get("returned")) and int(uia.get("window_count") or 0) > 0
+
+    if direct_returned and direct_owned > 0 and direct_visible > 0 and not (
+        win32_success or uia_success
+    ):
+        return "win32_enum_windows_succeeded_pywinauto_failed"
+    if uia_success and not win32_success:
+        return "uia_backend_succeeded_win32_failed"
+    if win32_success != uia_success:
+        return "window_backend_mismatch"
+    if direct_returned and direct_owned > 0 and direct_visible <= 0:
+        return "window_exists_but_not_visible"
+    if direct_returned and direct_count <= 0:
+        return "win32_enum_windows_empty"
+    if direct_returned and direct_owned <= 0:
+        return "pid_alive_but_no_owned_window"
+    if any(bool(probe(name).get("attempted")) for name in attribution):
+        return "window_discovery_instrumentation_gap"
+    return ""
 
 
 def _choose_narrower_post_entry_breakpoint_classification(
@@ -13273,7 +13381,13 @@ def _choose_narrower_post_entry_breakpoint_classification(
         "input_control_lookup_timeout",
         "input_control_lookup_failed",
         "window_discovery_succeeded_input_lookup_next",
+        "window_lifecycle_no_window_created",
+        "win32_enum_windows_succeeded_pywinauto_failed",
+        "uia_backend_succeeded_win32_failed",
         "window_backend_mismatch",
+        "pid_alive_but_no_owned_window",
+        "win32_enum_windows_empty",
+        "window_exists_but_not_visible",
         "window_discovery_api_blocked",
         "top_window_call_timeout",
         "top_window_call_failed",
@@ -13643,6 +13757,9 @@ def _classify_narrower_timeout_from_window_discovery(
     classification = str(window_discovery.get("classification") or "")
     if classification and classification != "lifecycle_checkpoint":
         return classification
+    attribution_classification = _classify_narrower_window_api_attribution(window_discovery)
+    if attribution_classification:
+        return attribution_classification
     process_liveness = window_discovery.get("process_liveness", {})
     process_liveness = process_liveness if isinstance(process_liveness, dict) else {}
     top_window = window_discovery.get("top_window", {})
@@ -13652,26 +13769,26 @@ def _classify_narrower_timeout_from_window_discovery(
     selected_window = window_discovery.get("selected_window", {})
     selected_window = selected_window if isinstance(selected_window, dict) else {}
     if process_liveness.get("alive") is False:
-        return "process_exited_before_window_discovery"
+        return "window_lifecycle_no_window_created"
     if last_window_stage == "top_window_timeout":
         return "top_window_call_timeout"
     if last_window_stage == "top_window_failed":
         return "top_window_call_failed"
     if last_window_stage in {"window_inventory_timeout", "window_inventory_failed"}:
-        return "window_discovery_api_blocked"
+        return "window_discovery_instrumentation_gap"
     if bool(inventory.get("attempted")) and not bool(inventory.get("returned")):
-        return "window_discovery_api_blocked"
+        return "window_discovery_instrumentation_gap"
     if bool(top_window.get("attempted")) and not bool(top_window.get("returned")):
         return "top_window_call_timeout" if str(top_window.get("error") or "") == "timeout" else "top_window_call_failed"
     if last_window_stage == "window_inventory_captured":
         if int(inventory.get("window_count") or 0) <= 0:
-            return "process_window_inventory_empty"
+            return "pid_alive_but_no_owned_window"
         if int(inventory.get("visible_window_count") or 0) <= 0:
-            return "process_no_visible_window"
+            return "window_exists_but_not_visible"
     if last_window_stage == "primary_window_unavailable":
         if bool(top_window.get("attempted")) and not bool(top_window.get("returned")):
-            return "process_alive_no_top_window"
-        return "process_no_visible_window"
+            return "pid_alive_but_no_owned_window"
+        return "window_exists_but_not_visible"
     if last_window_stage in {"primary_window_selected", "window_discovery_finished"} and bool(
         selected_window.get("available")
     ):
@@ -13679,7 +13796,7 @@ def _classify_narrower_timeout_from_window_discovery(
     if last_window_stage == "top_window_attempted":
         return "top_window_call_timeout"
     if last_window_stage == "window_inventory_attempted":
-        return "window_discovery_api_blocked"
+        return "window_discovery_instrumentation_gap"
     return "window_discovery_instrumentation_gap"
 
 
