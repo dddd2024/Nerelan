@@ -137,15 +137,16 @@
   },
   "task": "Review bounded window discovery diagnostics",
   "task_source": "derived_from_sample_artifacts",
-  "local_reverse_next_suggested_task": "Review local_reverse_constraint_recovery_result and refine static constraints for sha_256 and CPP2 unresolved targets",
-  "local_reverse_current_artifact": "project_state\\local_reverse_constraint_recovery_result.json",
+  "local_reverse_next_suggested_task": "Generate targeted static re-extraction decision for CPP2 sub_401005 and sha_256 input-domain evidence",
+  "local_reverse_current_artifact": "project_state\\local_reverse_validated_candidate_handoff.json",
   "local_reverse_current_artifact_keys": [
     "local_reverse_ida_summary",
     "local_reverse_ida_evidence_18019fca52b389fe",
     "local_reverse_ida_evidence_4c69f173f2bd0211",
     "local_reverse_ida_evidence_bcbd9979db015bfd",
     "local_reverse_ida_solver_result",
-    "local_reverse_constraint_recovery_result"
+    "local_reverse_constraint_recovery_result",
+    "local_reverse_validated_candidate_handoff"
   ],
   "local_reverse_task_packet_authority_note": "Advisory only; project_state/decision_packet.md remains the execution authority."
 }

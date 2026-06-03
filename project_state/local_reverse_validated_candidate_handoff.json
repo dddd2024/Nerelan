@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T15:20:00Z",
+  "stage": "local_reverse_validated_candidate_handoff_v1",
+  "status": "PARTIAL",
+  "source_result": "project_state\\local_reverse_constraint_recovery_result.json",
+  "source_run": "round_20260603_local_reverse_validated_handoff_and_test_record_v1",
+  "validated_count": 1,
+  "validated_candidates": [
+    {
+      "sample_id": "bcbd9979db015bfd",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "candidate": "hookapi",
+      "source_relation": "xor_constants_against_literal",
+      "string_target": "realpwd",
+      "transform_formula": "candidate[i] = constants[i] XOR target[i]",
+      "constants_used": [26, 10, 14, 7, 17, 7, 13],
+      "validation_status": "validated",
+      "validation_exit_code": 0,
+      "validation_timeout": false,
+      "validation_stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ncongratulations!\n",
+      "validation_stderr_preview": "",
+      "validation_duration_ms": 110,
+      "validation_probe_name": "candidate_2"
+    }
+  ],
+  "unresolved_targets": [
+    {
+      "sample_id": "18019fca52b389fe",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "blocked_reason": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN",
+      "next_action": "targeted static re-extraction of input length/domain or request problem statement hint",
+      "constraint_status": "blocked"
+    },
+    {
+      "sample_id": "4c69f173f2bd0211",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "blocked_reason": "MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005",
+      "next_action": "recover sub_401005 transform or bounded dictionary before inversion",
+      "constraint_status": "blocked"
+    }
+  ],
+  "artifact_keys": [
+    "local_reverse_ida_summary",
+    "local_reverse_ida_evidence_18019fca52b389fe",
+    "local_reverse_ida_evidence_4c69f173f2bd0211",
+    "local_reverse_ida_evidence_bcbd9979db015bfd",
+    "local_reverse_ida_solver_result",
+    "local_reverse_constraint_recovery_result"
+  ],
+  "freshness": "current"
+}

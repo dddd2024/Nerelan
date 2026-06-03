@@ -564,6 +564,15 @@
       "sha256": "b6c82ba91795cccb26c1583759bb070c7cf3db3e77a37fce2d5d42562802bf20",
       "size_bytes": 6100,
       "modified_at": "2026-06-03T15:09:05Z"
+    },
+    "local_reverse_validated_candidate_handoff": {
+      "kind": "local_reverse_validated_candidate_handoff",
+      "path": "project_state\\local_reverse_validated_candidate_handoff.json",
+      "freshness": "current",
+      "source_run": "round_20260603_local_reverse_validated_handoff_and_test_record_v1",
+      "sha256": "f7d8b5c229a2956fc87667dd9963b514c10a76ad10ee04405ec2a1ea2eab41fc",
+      "size_bytes": 2084,
+      "modified_at": "2026-06-03T15:20:00Z"
     }
   },
   "latest_case_results": [

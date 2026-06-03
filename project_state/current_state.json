@@ -9697,7 +9697,8 @@
       {
         "sample_id": "bcbd9979db015bfd",
         "relative_path": "逆向课程2022春补考01/Cpp1.exe",
-        "validated_candidate": "hookapi",
+        "candidate": "hookapi",
+        "source_artifact": "project_state\\local_reverse_validated_candidate_handoff.json",
         "validation_status": "validated"
       }
     ],
