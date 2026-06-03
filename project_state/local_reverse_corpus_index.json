@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-03T06:08:01Z",
+  "generated_at": "2026-06-03T06:54:18Z",
   "root": "E:\\reverse",
   "root_exists": true,
   "sample_count": 28,
@@ -19,6 +19,7 @@
       "sha256": "fc735338762066a72736efff234cdbdcd728f3916a3b49d1d5442aac3796e83d",
       "mtime": "2019-06-08T07:17:24Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -37,6 +38,7 @@
       "sha256": "256e172657c9837848c885bfa87f05b8aad3ff0bfb5a53cbbde2a7eab75c18ed",
       "mtime": "2026-06-02T05:15:06Z",
       "file_kind": "python",
+      "artifact_role": "solver_script",
       "triage_tags": [
         "strcmp",
         "base64",
@@ -54,6 +56,7 @@
       "sha256": "40cba4189a9639da601b9d9b74fd9937c3d03fc93c90f5df12840e8b7763700f",
       "mtime": "2020-12-12T11:49:14Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "des",
         "packed_or_obfuscated"
@@ -73,6 +76,7 @@
       "sha256": "0e0b520380c5c4977a26d4e21474796c254f9555820cf4e6623c17173fec0f16",
       "mtime": "2019-06-08T09:53:46Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "des",
         "packed_or_obfuscated"
@@ -92,6 +96,7 @@
       "sha256": "add1978d90152094d108de0f502fa2753e24c0d846fec301ecdf141f556deecf",
       "mtime": "2026-05-19T11:11:57Z",
       "file_kind": "python",
+      "artifact_role": "support_file",
       "triage_tags": [
         "xor",
         "rc4"
@@ -108,6 +113,7 @@
       "sha256": "3480917ddedce512f76e97c26df3b3ad12b71b34db472fa8836ba67528bcb09f",
       "mtime": "2022-11-26T04:38:30Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "rc4",
         "packed_or_obfuscated"
@@ -127,6 +133,7 @@
       "sha256": "14c58fcd0d939685e8c6dae49a4ef2aa3e45871e41456d10263c6e13389776f5",
       "mtime": "2022-11-26T04:47:16Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "des",
         "packed_or_obfuscated"
@@ -146,6 +153,7 @@
       "sha256": "6af7c7f131eb4991b04f1dc04fd2341113da1aaa318018c14b9e9b81a37186c3",
       "mtime": "2022-11-26T05:06:26Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -164,6 +172,7 @@
       "sha256": "52be8d5c485f7c7c3340d42791505b9f55cf4ff63191768c0cc62f30cde4ae07",
       "mtime": "2020-12-12T06:49:46Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -182,6 +191,7 @@
       "sha256": "3718a6fa2242133d865f118ab53f4677c60faadf80562307d49498a0825a038b",
       "mtime": "2026-06-02T07:58:26Z",
       "file_kind": "python",
+      "artifact_role": "solver_script",
       "triage_tags": [
         "xor",
         "shift",
@@ -200,6 +210,7 @@
       "sha256": "f2738577f6d38a499eeaf24e6d7c04668f591b89b751f38dda88bdb069d34564",
       "mtime": "2021-08-17T05:27:04Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -218,6 +229,7 @@
       "sha256": "4c69f173f2bd0211fe472e12b3ecc4dcfbae6a20735a750b8f8c0ea5c566223a",
       "mtime": "2022-06-22T03:00:08Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "strcmp",
         "packed_or_obfuscated"
@@ -237,6 +249,7 @@
       "sha256": "cd947414f6aa13cf91a74f2f80e344bda05173c1df7513067c7b0ad3787e8f15",
       "mtime": "2026-05-28T05:26:33Z",
       "file_kind": "python",
+      "artifact_role": "support_file",
       "triage_tags": [
         "shift",
         "strcmp",
@@ -254,6 +267,7 @@
       "sha256": "2ea076a7c115ca348e84930ba2b3ba69af734f59240b17ceef809e6a883e6adc",
       "mtime": "2022-06-22T05:59:02Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -272,6 +286,7 @@
       "sha256": "bcbd9979db015bfd12d7c0c270df46918713433636123c545315a9d527b22a5a",
       "mtime": "2021-06-16T11:43:32Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "strcmp",
         "packed_or_obfuscated"
@@ -291,6 +306,7 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
       "mtime": "2026-05-26T08:48:13Z",
       "file_kind": "source_or_notes",
+      "artifact_role": "notes_or_source",
       "triage_tags": [
         "unknown"
       ],
@@ -306,6 +322,7 @@
       "sha256": "fb1f8cc09738fe92a141d3fbf5af6133b079e1cd20524d6aaf026c68502cf826",
       "mtime": "2022-11-26T06:03:30Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -324,6 +341,7 @@
       "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
       "mtime": "2023-06-18T06:54:32Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -342,6 +360,7 @@
       "sha256": "019fcdc8dbcc773e8f04dc506163a1b722b72bb7a923c0e3ce638167934bedad",
       "mtime": "2023-06-19T05:42:28Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -360,6 +379,7 @@
       "sha256": "4e6d25f020947c0a461c6806305357b660e5293d6910c7facf26a41747eb807d",
       "mtime": "2026-06-02T06:50:33Z",
       "file_kind": "python",
+      "artifact_role": "solver_script",
       "triage_tags": [
         "xor",
         "shift",
@@ -378,6 +398,7 @@
       "sha256": "7b504c54c165100549a0eacb7eb7cad26bc235ec0c4bed5c38c95a827ff81a3c",
       "mtime": "2023-08-31T02:38:44Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -396,6 +417,7 @@
       "sha256": "32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412",
       "mtime": "2023-08-31T02:59:48Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -414,6 +436,7 @@
       "sha256": "ab1b6104f0b3afa77dd2b15b181b6601f97bc615d1e7b2a0491b89987f964e99",
       "mtime": "2023-08-31T05:51:16Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -432,6 +455,7 @@
       "sha256": "18019fca52b389feeb2f690d096d5848ff7ba686eac9173bb17a6fabb819a8ff",
       "mtime": "2024-06-18T07:27:38Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "strcmp",
         "packed_or_obfuscated"
@@ -451,6 +475,7 @@
       "sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
       "mtime": "2026-04-21T07:48:00Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -469,6 +494,7 @@
       "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
       "mtime": "2026-04-21T08:45:10Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -487,6 +513,7 @@
       "sha256": "e5a33e0b6f82114882d2141469a3bef3b793c8672c0372e491c082494dc6362d",
       "mtime": "2026-04-21T08:45:10Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],
@@ -505,6 +532,7 @@
       "sha256": "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
       "mtime": "2025-06-28T02:30:28Z",
       "file_kind": "pe32",
+      "artifact_role": "challenge_binary",
       "triage_tags": [
         "packed_or_obfuscated"
       ],

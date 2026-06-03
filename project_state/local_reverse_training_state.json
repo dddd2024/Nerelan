@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-03T06:08:01Z",
+  "generated_at": "2026-06-03T06:54:18Z",
   "training_profile": "local_reverse_simple_training",
   "root": "E:\\reverse",
   "status": "READY",
@@ -21,34 +21,49 @@
   },
   "recommended_next_samples": [
     {
-      "sample_id": "add1978d90152094",
-      "relative_path": "逆向课程2019秋03/rc4.py",
-      "reason": "python sample, 2255 bytes, static triage tags: xor, rc4",
-      "proposed_solver_family": "xor_array_static_solver"
+      "sample_id": "3480917ddedce512",
+      "relative_path": "逆向课程2019秋03/rc4enc.exe",
+      "reason": "pe32 sample, 196693 bytes, static triage tags: rc4, packed_or_obfuscated",
+      "proposed_solver_family": "crypto_static_triage_plan",
+      "artifact_role": "challenge_binary",
+      "runtime_allowed": "true",
+      "next_action": "run bounded runtime baseline, then extract constants for the indicated solver family"
     },
     {
-      "sample_id": "4e6d25f020947c0a",
-      "relative_path": "逆向课程2023春03/xor_array_solver.py",
-      "reason": "python sample, 5244 bytes, static triage tags: xor, shift, strcmp, des",
-      "proposed_solver_family": "xor_array_static_solver"
+      "sample_id": "0e0b520380c5c497",
+      "relative_path": "逆向课程2019春04/desenc.exe",
+      "reason": "pe32 sample, 200780 bytes, static triage tags: des, packed_or_obfuscated",
+      "proposed_solver_family": "crypto_static_triage_plan",
+      "artifact_role": "challenge_binary",
+      "runtime_allowed": "true",
+      "next_action": "run bounded runtime baseline, then extract constants for the indicated solver family"
     },
     {
-      "sample_id": "cd947414f6aa13cf",
-      "relative_path": "逆向课程2022春02/sha.py",
-      "reason": "python sample, 11437 bytes, static triage tags: shift, strcmp, hash",
-      "proposed_solver_family": "shift_or_affine_static_solver"
+      "sample_id": "bcbd9979db015bfd",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "reason": "pe32 sample, 200782 bytes, static triage tags: strcmp, packed_or_obfuscated",
+      "proposed_solver_family": "string_compare_static_solver",
+      "artifact_role": "challenge_binary",
+      "runtime_allowed": "true",
+      "next_action": "run bounded runtime baseline, then extract constants for the indicated solver family"
     },
     {
-      "sample_id": "3718a6fa2242133d",
-      "relative_path": "逆向课程2021春02/byte_shift_transform_solver.py",
-      "reason": "python sample, 12189 bytes, static triage tags: xor, shift, strcmp, des",
-      "proposed_solver_family": "xor_array_static_solver"
+      "sample_id": "40cba4189a9639da",
+      "relative_path": "DES/desenc.exe",
+      "reason": "pe32 sample, 200784 bytes, static triage tags: des, packed_or_obfuscated",
+      "proposed_solver_family": "crypto_static_triage_plan",
+      "artifact_role": "challenge_binary",
+      "runtime_allowed": "true",
+      "next_action": "run bounded runtime baseline, then extract constants for the indicated solver family"
     },
     {
-      "sample_id": "256e172657c98378",
-      "relative_path": "DES/des_interactive_solver.py",
-      "reason": "python sample, 19094 bytes, static triage tags: strcmp, base64, des",
-      "proposed_solver_family": "string_compare_static_solver"
+      "sample_id": "4c69f173f2bd0211",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "reason": "pe32 sample, 200785 bytes, static triage tags: strcmp, packed_or_obfuscated",
+      "proposed_solver_family": "string_compare_static_solver",
+      "artifact_role": "challenge_binary",
+      "runtime_allowed": "true",
+      "next_action": "run bounded runtime baseline, then extract constants for the indicated solver family"
     }
   ],
   "blocked_reason": "",

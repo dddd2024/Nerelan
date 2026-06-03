@@ -145,6 +145,7 @@ def build_sample_record(
     digest = _sha256_file(path)
     probe = _read_probe(path, max_probe_bytes=max_probe_bytes)
     file_kind = detect_file_kind(path, probe)
+    artifact_role = detect_artifact_role(path=path, file_kind=file_kind)
     triage_tags, confidence, notes = triage_sample(
         path=path,
         data=probe,
@@ -163,6 +164,7 @@ def build_sample_record(
         "sha256": digest,
         "mtime": _mtime_iso(stat.st_mtime),
         "file_kind": file_kind,
+        "artifact_role": artifact_role,
         "triage_tags": triage_tags,
         "triage_confidence": confidence,
         "safe_to_run": False,
@@ -184,6 +186,23 @@ def detect_file_kind(path: Path, data: bytes) -> str:
         return "possible_pe"
     if _looks_text(data):
         return "text"
+    return "unknown"
+
+
+def detect_artifact_role(*, path: Path, file_kind: str) -> str:
+    name = path.name.lower()
+    suffix = path.suffix.lower()
+    solver_markers = ("solver", "interactive_solver", "decrypt", "encrypt", "script")
+    if any(marker in name for marker in solver_markers):
+        return "solver_script"
+    if suffix in {".exe", ".dll"} or file_kind in {"pe32", "pe64", "pe_candidate", "possible_pe"}:
+        return "challenge_binary"
+    if suffix in {".c", ".cc", ".cpp"}:
+        return "source_challenge"
+    if suffix in {".py", ".ps1", ".bat", ".cmd", ".sh", ".js"}:
+        return "support_file"
+    if suffix in {".txt", ".md", ".json", ".xml", ".h", ".hpp"}:
+        return "notes_or_source"
     return "unknown"
 
 
@@ -287,6 +306,9 @@ def recommend_next_samples(samples: list[dict[str, Any]], limit: int = 5) -> lis
             "relative_path": str(sample.get("relative_path", "")),
             "reason": _recommendation_reason(sample, tags),
             "proposed_solver_family": _solver_family(tags),
+            "artifact_role": str(sample.get("artifact_role", "unknown")),
+            "runtime_allowed": "true" if sample.get("artifact_role") == "challenge_binary" else "false",
+            "next_action": _next_action(sample, tags),
         })
         if len(recommendations) >= limit:
             break
@@ -295,8 +317,17 @@ def recommend_next_samples(samples: list[dict[str, Any]], limit: int = 5) -> lis
 
 def _recommendation_key(sample: dict[str, Any]) -> tuple[int, int, str]:
     tags = [tag for tag in sample.get("triage_tags", []) if tag != "unknown"]
-    simple_rank = 0 if any(tag in tags for tag in ("xor", "shift", "strcmp", "array_compare", "base64")) else 1
-    return (simple_rank, int(sample.get("size_bytes") or 0), str(sample.get("relative_path") or ""))
+    role = sample.get("artifact_role", "unknown")
+    if role == "challenge_binary":
+        role_rank = 0
+    elif role == "source_challenge":
+        role_rank = 1
+    elif role == "solver_script":
+        role_rank = 3
+    else:
+        role_rank = 2
+    simple_rank = 0 if any(tag in tags for tag in ("xor", "shift", "strcmp", "array_compare", "base64", "des", "rc4")) else 1
+    return (role_rank, simple_rank, int(sample.get("size_bytes") or 0), str(sample.get("relative_path") or ""))
 
 
 def _recommendation_reason(sample: dict[str, Any], tags: list[str]) -> str:
@@ -319,6 +350,16 @@ def _solver_family(tags: list[str]) -> str:
     if "hash" in tags:
         return "hash_constant_static_solver"
     return "manual_static_triage"
+
+
+def _next_action(sample: dict[str, Any], tags: list[str]) -> str:
+    if sample.get("artifact_role") == "challenge_binary":
+        return "run bounded runtime baseline, then extract constants for the indicated solver family"
+    if sample.get("artifact_role") == "source_challenge":
+        return "inspect source statically before building a solver"
+    if sample.get("artifact_role") == "solver_script":
+        return "use as supporting evidence only; do not prioritize as a challenge target"
+    return f"manual static triage for tags: {', '.join(tags[:3])}"
 
 
 def _build_parser() -> argparse.ArgumentParser:

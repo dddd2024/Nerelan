@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T00:00:00Z",
+  "root": "E:\\reverse",
+  "runtime_allowed": true,
+  "allowance_source": "user_asserted_pretested_no_virus",
+  "allowed_extensions": [
+    ".exe"
+  ],
+  "path_scope": "indexed_files_under_root_only",
+  "network_allowed": false,
+  "copy_binary_into_repo": false,
+  "default_timeout_seconds": 5,
+  "max_timeout_seconds": 15,
+  "stdin_probe_limit": 8
+}
