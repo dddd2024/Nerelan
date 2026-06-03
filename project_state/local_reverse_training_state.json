@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T06:08:01Z",
+  "training_profile": "local_reverse_simple_training",
+  "root": "E:\\reverse",
+  "status": "READY",
+  "sample_count": 28,
+  "triage_summary": {
+    "xor": 3,
+    "shift": 3,
+    "array_compare": 0,
+    "strcmp": 7,
+    "serial_check": 0,
+    "base64": 1,
+    "rc4": 2,
+    "des": 6,
+    "aes": 0,
+    "hash": 1,
+    "packed_or_obfuscated": 22,
+    "unknown": 1
+  },
+  "recommended_next_samples": [
+    {
+      "sample_id": "add1978d90152094",
+      "relative_path": "逆向课程2019秋03/rc4.py",
+      "reason": "python sample, 2255 bytes, static triage tags: xor, rc4",
+      "proposed_solver_family": "xor_array_static_solver"
+    },
+    {
+      "sample_id": "4e6d25f020947c0a",
+      "relative_path": "逆向课程2023春03/xor_array_solver.py",
+      "reason": "python sample, 5244 bytes, static triage tags: xor, shift, strcmp, des",
+      "proposed_solver_family": "xor_array_static_solver"
+    },
+    {
+      "sample_id": "cd947414f6aa13cf",
+      "relative_path": "逆向课程2022春02/sha.py",
+      "reason": "python sample, 11437 bytes, static triage tags: shift, strcmp, hash",
+      "proposed_solver_family": "shift_or_affine_static_solver"
+    },
+    {
+      "sample_id": "3718a6fa2242133d",
+      "relative_path": "逆向课程2021春02/byte_shift_transform_solver.py",
+      "reason": "python sample, 12189 bytes, static triage tags: xor, shift, strcmp, des",
+      "proposed_solver_family": "xor_array_static_solver"
+    },
+    {
+      "sample_id": "256e172657c98378",
+      "relative_path": "DES/des_interactive_solver.py",
+      "reason": "python sample, 19094 bytes, static triage tags: strcmp, base64, des",
+      "proposed_solver_family": "string_compare_static_solver"
+    }
+  ],
+  "blocked_reason": "",
+  "notes": []
+}
