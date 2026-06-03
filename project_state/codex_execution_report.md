@@ -18,10 +18,10 @@
     "python -m py_compile reverse_agent\\local_reverse_ida_guided_solver.py",
     "python -m pytest -q tests\\test_local_reverse_ida_guided_solver.py",
     "python -m reverse_agent.local_reverse_ida_guided_solver --ida-summary project_state\\local_reverse_ida_summary.json --artifact-index project_state\\artifact_index.json --policy project_state\\local_reverse_runtime_policy.json --out project_state\\local_reverse_ida_solver_result.json",
-    "python -m json.tool project_state\\current_state.json > NUL",
-    "python -m json.tool project_state\\artifact_index.json > NUL",
-    "python -m json.tool project_state\\local_reverse_ida_summary.json > NUL",
-    "python -m json.tool project_state\\local_reverse_ida_solver_result.json > NUL",
+    "python -m json.tool project_state\\current_state.json | Out-Null",
+    "python -m json.tool project_state\\artifact_index.json | Out-Null",
+    "python -m json.tool project_state\\local_reverse_ida_summary.json | Out-Null",
+    "python -m json.tool project_state\\local_reverse_ida_solver_result.json | Out-Null",
     "python -m pytest -q tests\\test_local_reverse_string_solver.py tests\\test_local_reverse_ida_summary.py tests\\test_project_state.py tests\\test_local_reverse_ida_guided_solver.py",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
@@ -96,12 +96,12 @@ bcbd9979db015bfd / Cpp1.exe -> rejected, hookapi still prints try again
 python -m py_compile reverse_agent\local_reverse_ida_guided_solver.py -> passed
 python -m pytest -q tests\test_local_reverse_ida_guided_solver.py -> 7 passed
 solver CLI -> status=PARTIAL targets=3 solved=0 validated=0
-python -m json.tool project_state\current_state.json > NUL -> passed
-python -m json.tool project_state\artifact_index.json > NUL -> passed
-python -m json.tool project_state\local_reverse_ida_summary.json > NUL -> passed
-python -m json.tool project_state\local_reverse_ida_solver_result.json > NUL -> passed
+python -m json.tool project_state\current_state.json | Out-Null -> passed
+python -m json.tool project_state\artifact_index.json | Out-Null -> passed
+python -m json.tool project_state\local_reverse_ida_summary.json | Out-Null -> passed
+python -m json.tool project_state\local_reverse_ida_solver_result.json | Out-Null -> passed
 python -m pytest -q tests\test_local_reverse_string_solver.py tests\test_local_reverse_ida_summary.py tests\test_project_state.py tests\test_local_reverse_ida_guided_solver.py -> 176 passed
 python -m reverse_agent.project_state lint-decision --state-dir project_state -> OK
 python -m reverse_agent.project_state lint-report --state-dir project_state -> OK, with report round not archived warning
-git diff --check -> passed with line-ending warnings only
+git diff --check -> passed
 ```

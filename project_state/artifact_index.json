@@ -552,9 +552,9 @@
       "path": "project_state\\local_reverse_ida_solver_result.json",
       "freshness": "current",
       "source_run": "round_20260603_ida_guided_solver_trust_gate_v1",
-      "sha256": "28cda7fa94282e4262d940ee4e5ea2e730a63b4f84c605991d533ddcc3a82bea",
-      "size_bytes": 4386,
-      "modified_at": "2026-06-03T13:43:06Z"
+      "sha256": "1163995abdcff01aa14d7f7525a68d6c777427388a9c546583d1d2bc0e41abe8",
+      "size_bytes": 4381,
+      "modified_at": "2026-06-03T14:05:45Z"
     }
   },
   "latest_case_results": [
