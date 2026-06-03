@@ -9690,6 +9690,17 @@
     "solver_result_round": "round_20260603_ida_summary_guided_solver_v1",
     "solver_result_artifact_key": "local_reverse_ida_solver_result",
     "next_recommended_decision": "local_reverse_static_constraint_refinement_v1",
+    "latest_constraint_recovery": "project_state\\local_reverse_constraint_recovery_result.json",
+    "latest_constraint_recovery_status": "PARTIAL",
+    "latest_constraint_recovery_round": "round_20260603_local_reverse_constraint_recovery_delivery_rework_v1",
+    "latest_validated_candidates": [
+      {
+        "sample_id": "bcbd9979db015bfd",
+        "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+        "validated_candidate": "hookapi",
+        "validation_status": "validated"
+      }
+    ],
     "scope_note": "samplereverse fields are retained as compatibility/background; this local_reverse_training block is the current local_reverse evidence entrypoint."
   }
 }

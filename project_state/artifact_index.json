@@ -555,6 +555,15 @@
       "sha256": "1163995abdcff01aa14d7f7525a68d6c777427388a9c546583d1d2bc0e41abe8",
       "size_bytes": 4381,
       "modified_at": "2026-06-03T14:05:45Z"
+    },
+    "local_reverse_constraint_recovery_result": {
+      "kind": "local_reverse_constraint_recovery_result",
+      "path": "project_state\\local_reverse_constraint_recovery_result.json",
+      "freshness": "current",
+      "source_run": "round_20260603_local_reverse_constraint_recovery_delivery_rework_v1",
+      "sha256": "b6c82ba91795cccb26c1583759bb070c7cf3db3e77a37fce2d5d42562802bf20",
+      "size_bytes": 6100,
+      "modified_at": "2026-06-03T15:09:05Z"
     }
   },
   "latest_case_results": [

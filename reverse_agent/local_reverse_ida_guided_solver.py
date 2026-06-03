@@ -316,7 +316,7 @@ def classify_validation(probe: dict[str, Any]) -> str:
     if probe.get("timeout"):
         return "unverified"
     text = f"{probe.get('stdout_preview', '')}\n{probe.get('stderr_preview', '')}".lower()
-    has_strict_success = any(marker in text for marker in ("correct", "well done", "accepted"))
+    has_strict_success = any(marker in text for marker in ("correct", "well done", "accepted", "congratulations"))
     has_failure = any(marker in text for marker in ("wrong", "fail", "invalid", "try again"))
     if has_strict_success and not has_failure:
         return "validated"

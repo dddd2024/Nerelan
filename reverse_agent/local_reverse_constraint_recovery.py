@@ -258,12 +258,19 @@ def recover_cpp1_constraints(
             "recover WriteFile hook and target string data flow",
         )
 
+    # Trim trailing zeros from constants to allow length-mismatched targets
+    effective_constants = constants
+    while effective_constants and effective_constants[-1] == 0:
+        effective_constants = effective_constants[:-1]
+    if not effective_constants:
+        effective_constants = constants
+
     candidates: list[dict[str, Any]] = []
     seen: set[str] = set()
     for target in preferred_targets:
-        if len(target) != len(constants):
+        if len(target) != len(effective_constants):
             continue
-        candidate = "".join(chr(constant ^ ord(target[idx])) for idx, constant in enumerate(constants))
+        candidate = "".join(chr(constant ^ ord(target[idx])) for idx, constant in enumerate(effective_constants))
         if candidate in seen:
             continue
         seen.add(candidate)
@@ -271,7 +278,7 @@ def recover_cpp1_constraints(
             {
                 "candidate": candidate,
                 "source_relation": "xor_constants_against_literal",
-                "constants_used": constants,
+                "constants_used": effective_constants,
                 "string_target": target,
                 "transform_formula": "candidate[i] = constants[i] XOR target[i]",
                 "why_bounded": "constants and target strings recovered from IDA decompiler evidence",

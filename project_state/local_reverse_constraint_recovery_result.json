@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T15:09:05Z",
+  "stage": "local_reverse_constraint_recovery_sprint_v1",
+  "status": "PARTIAL",
+  "source_solver_result": "project_state\\local_reverse_ida_solver_result.json",
+  "target_count": 3,
+  "candidate_count": 2,
+  "validated_count": 1,
+  "targets": [
+    {
+      "sample_id": "18019fca52b389fe",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "classification": "sha256_hex_compare_with_post_hash_character_adjustment",
+      "constraint_status": "blocked",
+      "recovered_constraints": [
+        {
+          "kind": "min_length",
+          "value": 5
+        },
+        {
+          "kind": "prefix_length",
+          "value": 4
+        },
+        {
+          "kind": "compare_target",
+          "value": "493f877692ea8d507fa98355a054efede85e7c7"
+        },
+        {
+          "kind": "target_before_increment",
+          "value": "382e766581df7c496ef87244f943dedcd74d6b6"
+        },
+        {
+          "kind": "hash_function",
+          "value": "sub_401005"
+        },
+        {
+          "kind": "post_increment_wrap",
+          "value": "hex_wrap"
+        }
+      ],
+      "candidate_generation": {
+        "strategy": "none",
+        "count": 0,
+        "bounded_reason": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN"
+      },
+      "candidates": [],
+      "validation_results": [],
+      "validated_candidate": "",
+      "blocked_reason": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN",
+      "next_action": "targeted static re-extraction of input length/domain or request problem statement hint"
+    },
+    {
+      "sample_id": "4c69f173f2bd0211",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "classification": "bounded_input_range_hash_output_increment_compare",
+      "constraint_status": "blocked",
+      "recovered_constraints": [
+        {
+          "kind": "input_range",
+          "value": "65..122"
+        },
+        {
+          "kind": "min_length",
+          "value": 5
+        },
+        {
+          "kind": "prefix_length",
+          "value": 4
+        },
+        {
+          "kind": "compare_target",
+          "value": "1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:"
+        },
+        {
+          "kind": "target_before_increment",
+          "value": "0e1d17538b3f91497aa913b2c2dfe5fef11cee9"
+        },
+        {
+          "kind": "hash_function",
+          "value": "sub_401005"
+        }
+      ],
+      "candidate_generation": {
+        "strategy": "none",
+        "count": 0,
+        "bounded_reason": "MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005"
+      },
+      "candidates": [],
+      "validation_results": [],
+      "validated_candidate": "",
+      "blocked_reason": "MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005",
+      "next_action": "recover sub_401005 transform or bounded dictionary before inversion"
+    },
+    {
+      "sample_id": "bcbd9979db015bfd",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "classification": "api_assisted_password_write_and_compare",
+      "constraint_status": "recovered",
+      "recovered_constraints": [
+        {
+          "kind": "xor_constants",
+          "value": [
+            26,
+            10,
+            14,
+            7,
+            17,
+            7,
+            13,
+            0
+          ]
+        },
+        {
+          "kind": "hook_detail",
+          "value": "WriteFile patched to sub_40100A before file write"
+        },
+        {
+          "kind": "string_targets",
+          "value": [
+            "pwd.txt",
+            "realpwd"
+          ]
+        }
+      ],
+      "candidate_generation": {
+        "strategy": "xor_constants_against_evidence_strings",
+        "count": 2,
+        "bounded_reason": "targets derived from realpwd/pwd.txt literals in IDA evidence"
+      },
+      "candidates": [
+        {
+          "candidate": "j}j)ey",
+          "source_relation": "xor_constants_against_literal",
+          "constants_used": [
+            26,
+            10,
+            14,
+            7,
+            17,
+            7,
+            13
+          ],
+          "string_target": "pwd.txt",
+          "transform_formula": "candidate[i] = constants[i] XOR target[i]",
+          "why_bounded": "constants and target strings recovered from IDA decompiler evidence",
+          "validation_status": "rejected"
+        },
+        {
+          "candidate": "hookapi",
+          "source_relation": "xor_constants_against_literal",
+          "constants_used": [
+            26,
+            10,
+            14,
+            7,
+            17,
+            7,
+            13
+          ],
+          "string_target": "realpwd",
+          "transform_formula": "candidate[i] = constants[i] XOR target[i]",
+          "why_bounded": "constants and target strings recovered from IDA decompiler evidence",
+          "validation_status": "validated"
+        }
+      ],
+      "validation_results": [
+        {
+          "candidate": "j}j)ey",
+          "probe_name": "candidate_1",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 109,
+          "validation_status": "rejected"
+        },
+        {
+          "candidate": "hookapi",
+          "probe_name": "candidate_2",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ncongratulations!\n",
+          "stderr_preview": "",
+          "duration_ms": 110,
+          "validation_status": "validated"
+        }
+      ],
+      "validated_candidate": "hookapi",
+      "blocked_reason": "",
+      "next_action": "inspect sub_40100A hook data flow and confirm file compare source"
+    }
+  ]
+}
