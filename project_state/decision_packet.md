@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
-  "round_id": "round_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
+  "decision_id": "decision_20260603_local_reverse_compare_site_extraction_doc_cleanup",
+  "round_id": "round_20260603_local_reverse_compare_site_extraction_doc_cleanup",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -15,106 +15,99 @@
 
 # DECISION_PACKET
 
-本轮继续 `local_reverse_simple_training`，但从上一轮的 **bounded runtime solve benchmark** 推进到第一类 solver 能力建设：**bounded string-compare solver family v1**。
+本轮继续 `local_reverse_simple_training`，但不重复上一轮 `string_compare_static_solver_v1` 的候选生成/验证逻辑。
 
-同时，本轮必须清理 README 中已经过期的 `local_reverse_samples\<case_id>\solver.py` / 本地单题 solver 旧流程说明。用户已明确指出该部分以前已经移除，不应再作为当前项目使用方式或下一轮事实来源。
+上一轮已经完成第一版 bounded string-compare solver，但结果为：
 
-当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。旧 `project_state/task_packet.json` 中的 `samplereverse` 字段仍只作为旧状态背景，不能覆盖本 decision。
+```text
+target_count=3
+solved_count=0
+negative_result=NO_CANDIDATE_VALIDATED
+missing_evidence=needs_compare_constant_or_disassembly
+```
 
-本轮只处理上一轮 benchmark 推荐的 3 个 `ready_static_string_compare` challenge binary，不扩展到全量样本，不做无界 brute force。README 清理只限移除/改写过期入口，不扩展为整体文档重写。
+因此本轮主任务是：对这 3 个未解出的 `ready_static_string_compare` 样本做 **bounded compare-site static extraction**，补齐静态 compare 常量、比较点、字符串引用、输入长度约束等证据。
+
+同时，本轮必须执行之前未完成的 README 清理任务：移除或改写已经过期的 `local_reverse_samples\<case_id>\solver.py`、`local_samples add`、`local_samples solve`、本地单题 solver 旧流程说明。该清理任务上轮已经写入计划，但 Codex 实际 report 仍对应旧 decision，未执行 README 清理。
+
+当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。旧 `task_packet.json` 中的 `samplereverse` 字段仍只作为旧状态背景，不能覆盖本 decision。
 
 ---
 
 ## 1. Goal
 
-本轮目标是实现第一个可复用的本地简单题 solver family：`string_compare_static_solver_v1`。
-
-核心目标：
+本轮目标有两个，必须同时完成：
 
 ```text
-1. 只针对上一轮 benchmark 推荐的 3 个 ready_static_string_compare challenge binary。
-2. 对每个目标样本做 bounded static string/constant extraction。
-3. 从静态字符串和 runtime prompt/failure 输出中生成有限候选输入。
-4. 使用上一轮已有 runtime harness 验证候选。
-5. 若验证成功，记录 solved=true、candidate、evidence。
-6. 若验证失败，记录 bounded negative result 和下一步缺失证据。
-7. 输出机器可读的 project_state/local_reverse_string_solver_result.json。
-8. 清理 README.txt 中已经过期的 local_reverse_samples/<case_id>/solver.py、本地导入单题、local_samples add/solve 旧流程说明；不得把已移除流程重新引入。
+1. 能力提升主任务：
+   基于上一轮 string solver 的失败结果，对 3 个目标样本做 bounded compare-site static extraction，
+   输出 compare-site / candidate-source 证据，为下一轮候选生成提供更强依据。
+
+2. 文档清理补任务：
+   清理 README.txt 中已过期的 local_reverse_samples / solver.py / local_samples add / local_samples solve 旧流程，
+   避免后续 GPT/Codex 继续引用已经移除的设计。
 ```
 
-本轮目标不是通吃所有样本，不是构建通用反编译器，也不是做全量密码学 solver。它只建立第一版可审计、可复现、可验证的 string-compare solver family，并清理一处会误导后续协作的过期文档入口。
+本轮不是重新实现 string solver，不是全量 brute force，不是扩展到 22 个样本，也不是重新做 runtime benchmark。
 
 ---
 
 ## 2. Current Evidence
 
-上一轮 runtime benchmark 已完成：
+上一轮 string solver report 显示：
 
 ```text
-project_state/local_reverse_runtime_policy.json
-project_state/local_reverse_solve_benchmark.json
+report_id=report_20260603_local_reverse_string_compare_solver_v1
+status=PARTIAL
+acceptance_recommendation=NEEDS_REVIEW
 ```
 
-上一轮 runtime summary：
+它只处理了 3 个 `ready_static_string_compare` 样本：
 
 ```text
-root=E:\reverse
-status=READY
-challenge_count=22
-executed_count=22
-skipped_count=0
-timeout_count=3
-solved_count=0
+1. 4c69f173f2bd0211 -> 逆向课程2022春02/CPP2.exe
+2. bcbd9979db015bfd -> 逆向课程2022春补考01/Cpp1.exe
+3. 18019fca52b389fe -> 逆向课程2024春01/sha_256.exe
 ```
 
-上一轮 solve readiness distribution：
+结果：
 
 ```text
-needs_disassembly=12
-needs_gui_interaction=3
-ready_crypto_known_family=4
-ready_static_string_compare=3
+4c69f173f2bd0211 -> candidate_count=50, validated_candidate_count=50, solved=false
+bcbd9979db015bfd -> candidate_count=50, validated_candidate_count=50, solved=false
+18019fca52b389fe -> candidate_count=50, validated_candidate_count=50, solved=false
+negative_result=NO_CANDIDATE_VALIDATED
+missing_evidence=needs_compare_constant_or_disassembly
 ```
 
-本轮只处理 benchmark 推荐的 3 个目标：
+所以本轮应推进到：
 
 ```text
-1. sample_id=4c69f173f2bd0211
-   relative_path=逆向课程2022春02/CPP2.exe
-   solve_readiness=ready_static_string_compare
-
-2. sample_id=bcbd9979db015bfd
-   relative_path=逆向课程2022春补考01/Cpp1.exe
-   solve_readiness=ready_static_string_compare
-
-3. sample_id=18019fca52b389fe
-   relative_path=逆向课程2024春01/sha_256.exe
-   solve_readiness=ready_static_string_compare
+bounded compare-site static extraction
 ```
 
-上一轮已知限制：
+而不是继续扩大候选池。
+
+README 当前仍包含过期入口：
 
 ```text
-1. network_allowed=false 只是 policy 声明，未做 OS 级网络隔离。
-2. local_reverse_runtime.py 中 sample result 的 runtime_allowed 字段当前硬编码为 true。
+local_reverse_samples\
+local solver.py
+python -m reverse_agent.local_samples add
+python -m reverse_agent.local_samples solve
+local_reverse_samples\<case_id>\solver.py
 ```
 
-本轮不要把上述两个限制扩大成框架改造，只允许做与 solver 验证直接相关的最小修正：让 runtime_allowed 字段真实反映 policy / sample runtime status，并在 report 中说明 network_allowed 仍是 local trusted sample policy，不是 OS sandbox。
-
-新增文档事实：
-
-```text
-README.txt 仍包含 local_reverse_samples/<case_id>/solver.py、本地导入单题、local_samples add/solve 等旧流程说明。用户确认该部分以前已经移除，因此本轮必须清理这些过期说明，避免 GPT/Codex 后续继续引用。
-```
+这些旧说明必须清理。
 
 Artifact freshness 判断：
 
 ```text
-1. project_state/local_reverse_solve_benchmark.json 是本轮 string solver 的直接输入证据。
-2. project_state/local_reverse_corpus_index.json 提供样本 sha256、relative_path、artifact_role 和 triage_tags。
-3. README.txt 只作为文档清理目标，不作为当前 solver 运行事实来源。
-4. samplereverse latest_artifacts_v2 只能作为旧背景，不得用于本轮 solver evidence。
-5. 不得把 stale/missing samplereverse artifact 当成本轮证据。
+1. project_state/local_reverse_string_solver_result.json 是上一轮 solver 失败证据。
+2. project_state/local_reverse_solve_benchmark.json 是本轮 3 个目标样本来源。
+3. project_state/local_reverse_corpus_index.json 提供 sha256 / relative_path / artifact_role。
+4. README.txt 是本轮文档清理目标，不是 solver 运行事实来源。
+5. samplereverse artifacts 只能作为旧背景，不得用于本轮证据。
 ```
 
 ---
@@ -124,42 +117,40 @@ Artifact freshness 判断：
 严禁：
 
 ```text
-1. 不继续 samplereverse 的窗口发现、compare handoff、Base64/RC4 breakpoint probe。
-2. 不回旧 sample_solver 盲搜。
-3. 不对 22 个样本全量求解。
-4. 不处理本 decision 指定 3 个样本之外的 challenge binary。
-5. 不扩大到 DES/RC4/Base64/hash solver family。
-6. 不做无界 brute force。
-7. 不扩大 beam / topN / frontier search。
-8. 不读取完整 solve_reports/。
-9. 不读取完整 PROJECT_PROGRESS_LOG.txt。
-10. 不提交 E:\reverse 下的二进制样本。
-11. 不把 E:\reverse 样本复制进 Git 仓库。
-12. 不把样本二进制转成 base64 或 hex 提交。
-13. 不修改 .codex-skills/。
-14. 不建设重型 agent 平台。
+1. 不重新实现上一轮 local_reverse_string_solver.py。
+2. 不重复验证同一批 50 candidates，除非 compare-site extraction 产生新候选。
+3. 不扩大到 22 个样本。
+4. 不处理 3 个目标之外的 challenge binary。
+5. 不做无界 brute force。
+6. 不扩大 beam / topN / frontier search。
+7. 不继续 samplereverse 的窗口发现、compare handoff、Base64/RC4 breakpoint probe。
+8. 不回旧 sample_solver 盲搜。
+9. 不读取完整 solve_reports/。
+10. 不读取完整 PROJECT_PROGRESS_LOG.txt。
+11. 不提交 E:\reverse 下的二进制样本。
+12. 不把 E:\reverse 样本复制进 Git 仓库。
+13. 不把样本二进制转成 base64 或 hex 提交。
+14. 不修改 .codex-skills/。
 15. 不引入数据库、Redis、Celery、Kubernetes、Airflow、Temporal、LangGraph。
-16. 不把 heuristic candidate 当成 solved。
-17. 不伪造 runtime 验证结果。
-18. 不提交完整 solve_reports/。
-19. 不重新引入 local_reverse_samples/<case_id>/solver.py 旧流程。
-20. 不把 README 清理扩大成整体架构/skill/registry 改造。
+16. 不建设重型 agent 平台。
+17. 不伪造 solved=true。
+18. 不把 README 清理扩大成整体文档重写。
+19. 不重新引入 local_reverse_samples\<case_id>\solver.py 旧流程。
 ```
 
 允许：
 
 ```text
-1. 读取 project_state/local_reverse_corpus_index.json。
-2. 读取 project_state/local_reverse_solve_benchmark.json。
-3. 有界读取 3 个目标 exe 的 bytes 用于 strings/constant extraction。
-4. 使用 existing static_feature_extractor 提取 ASCII / UTF-16LE 字符串。
-5. 生成有限候选输入，默认每个样本最多 50 个。
-6. 使用 local_reverse_runtime.run_probe 对候选做 bounded runtime validation。
-7. 新增 reverse_agent/local_reverse_string_solver.py。
-8. 新增 tests/test_local_reverse_string_solver.py。
-9. 输出 project_state/local_reverse_string_solver_result.json。
-10. 对 runtime_allowed 字段硬编码问题做最小修复并测试。
-11. 修改 README.txt，删除或改写已经过期的 local_reverse_samples/<case_id>/solver.py、本地导入单题、local_samples add/solve 旧流程说明。
+1. 有界读取 3 个目标 exe 的 bytes。
+2. 提取 ASCII / UTF-16LE strings。
+3. 检查 PE sections、imports、字符串交叉引用的轻量证据。
+4. 使用 capstone 或已有轻量反汇编工具做 bounded disassembly，如果项目已有依赖或可选导入。
+5. 若无 capstone，不强行新增重依赖；可以输出 BLOCKED_BY_MISSING_DISASSEMBLY_BACKEND。
+6. 从 compare-site extraction 结果生成新的有限候选。
+7. 对新候选做 runtime 验证。
+8. 输出 project_state/local_reverse_compare_site_result.json。
+9. 修改 README.txt 清理旧 local_reverse_samples 单题 solver 说明。
+10. 更新测试。
 ```
 
 ---
@@ -177,28 +168,29 @@ project_state/codex_execution_report.md
 project_state/decision_packet.md
 project_state/pytest_result.txt
 project_state/local_reverse_corpus_index.json
-project_state/local_reverse_training_state.json
 project_state/local_reverse_runtime_policy.json
 project_state/local_reverse_solve_benchmark.json
+project_state/local_reverse_string_solver_result.json
+README.txt
 ```
 
 必须检查：
 
 ```text
-reverse_agent/local_reverse_corpus.py
 reverse_agent/local_reverse_runtime.py
+reverse_agent/local_reverse_string_solver.py
 reverse_agent/static_feature_extractor.py
-tests/test_local_reverse_corpus.py
 tests/test_local_reverse_runtime.py
+tests/test_local_reverse_string_solver.py
 README.txt
 ```
 
 允许新增：
 
 ```text
-reverse_agent/local_reverse_string_solver.py
-tests/test_local_reverse_string_solver.py
-project_state/local_reverse_string_solver_result.json
+reverse_agent/local_reverse_compare_site.py
+tests/test_local_reverse_compare_site.py
+project_state/local_reverse_compare_site_result.json
 ```
 
 不要默认读取：
@@ -216,18 +208,18 @@ Codex 必须审计并写入 `project_state/codex_execution_report.md`：
 
 ```text
 1. 当前 decision_packet 是执行权威。
-2. 旧 samplereverse task 只是背景。
-3. 本轮 mainline=reverse_solving，具体方向=local_reverse_string_compare_solver_v1_doc_cleanup。
-4. 只处理 3 个指定 ready_static_string_compare 样本。
+2. 上一轮 string solver 已完成，不重复实现。
+3. 本轮 mainline=reverse_solving，具体方向=local_reverse_compare_site_extraction_doc_cleanup。
+4. 只处理 3 个指定 unsolved ready_static_string_compare 样本。
 5. 未处理 3 个指定样本之外的 challenge binary。
 6. 未运行 E:\reverse 之外的 exe。
 7. 未复制、提交、上传或编码任何样本二进制。
 8. 未修改 .codex-skills/。
 9. 未读取完整 solve_reports/ 或 PROJECT_PROGRESS_LOG.txt。
-10. 每个候选验证都有 timeout。
-11. 每个 solved=true 都必须有 runtime success evidence。
-12. 未 solved 的样本必须有 negative_result / missing_evidence 说明。
-13. README.txt 中过期的 local_reverse_samples/<case_id>/solver.py 和 local_samples add/solve 旧流程已移除或明确标为已废弃，不再作为当前使用方式。
+10. compare-site extraction 是有界的，有 max bytes / max instructions / max candidates 限制。
+11. 如果产生新候选并验证，必须记录 runtime evidence。
+12. 如果仍未 solved，必须输出更具体 missing_evidence。
+13. README.txt 中过期 local_reverse_samples / solver.py / local_samples add/solve 旧流程已清理。
 14. 测试真实运行并写入 project_state/pytest_result.txt。
 ```
 
@@ -236,9 +228,9 @@ Codex 必须审计并写入 `project_state/codex_execution_report.md`：
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
-  "round_id": "round_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
-  "based_on_decision_id": "decision_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
+  "report_id": "report_20260603_local_reverse_compare_site_extraction_doc_cleanup",
+  "round_id": "round_20260603_local_reverse_compare_site_extraction_doc_cleanup",
+  "based_on_decision_id": "decision_20260603_local_reverse_compare_site_extraction_doc_cleanup",
   "status": "SUCCESS_OR_PARTIAL_OR_BLOCKED",
   "acceptance_recommendation": "ACCEPT_OR_NEEDS_REVIEW_OR_REWORK",
   "files_changed": [],
@@ -251,94 +243,86 @@ Codex 必须审计并写入 `project_state/codex_execution_report.md`：
 
 ## 6. Implementation Scope
 
-### 6.1 新增 string solver 模块
+### 6.1 新增 compare-site extraction 模块
 
 新增：
 
 ```text
-reverse_agent/local_reverse_string_solver.py
+reverse_agent/local_reverse_compare_site.py
 ```
 
 建议 CLI：
 
 ```bash
-python -m reverse_agent.local_reverse_string_solver ^
+python -m reverse_agent.local_reverse_compare_site ^
   --corpus-index project_state\local_reverse_corpus_index.json ^
   --benchmark project_state\local_reverse_solve_benchmark.json ^
+  --string-result project_state\local_reverse_string_solver_result.json ^
   --policy project_state\local_reverse_runtime_policy.json ^
-  --out project_state\local_reverse_string_solver_result.json
+  --out project_state\local_reverse_compare_site_result.json
 ```
 
-默认只处理 benchmark 中 `recommended_next_challenges` 的 3 个样本，并且必须校验它们的 `solve_readiness == ready_static_string_compare`。
-
-### 6.2 静态候选提取
-
-对每个目标样本：
-
-```text
-1. 通过 corpus_index 找到 relative_path、sha256。
-2. 验证实际文件仍在 root 下。
-3. 验证 sha256 匹配。
-4. 有界读取 bytes。
-5. 提取 ASCII / UTF-16LE strings。
-6. 过滤 prompt/failure/noise 字符串。
-7. 生成候选输入集合。
-```
-
-候选来源允许：
-
-```text
-1. 可见 flag-like 字符串：flag{...}、ctf{...} 等。
-2. 长度 4~64 的 printable token。
-3. runtime 输出附近疑似 success/secret/check 字符串。
-4. 路径/文件名提示派生的极小候选，例如 CPP2、sha_256，但不得爆破。
-5. UTF-16LE 字符串。
-```
-
-必须过滤：
-
-```text
-wrong
-sorry
-try again
-please input
-input your flag
-press any key
-success/failure prompt itself
-通用库名、路径、PE 节名、编译器残留
-```
-
-默认每个样本最多验证：
-
-```text
-max_candidates_per_sample=50
-```
-
-### 6.3 runtime 验证规则
-
-使用 `reverse_agent.local_reverse_runtime.run_probe` 或等价有界函数验证：
-
-```text
-stdin = candidate + "\n"
-timeout <= policy.max_timeout_seconds
-preview_limit <= 4096
-```
-
-成功判定必须保守：
-
-```text
-1. stdout/stderr 出现 success/correct/right/congratulations/you win 等成功语义；
-2. 且没有 wrong/sorry/fail/invalid/try again 等失败语义；
-3. 或样本输出明确包含 flag/candidate accepted 语义；
-4. 否则不得标记 solved=true。
-```
-
-如果所有候选都失败：
+默认只处理上一轮 string solver 中：
 
 ```text
 solved=false
-status=NO_CANDIDATE_VALIDATED
+negative_result=NO_CANDIDATE_VALIDATED
 missing_evidence=needs_compare_constant_or_disassembly
+```
+
+且属于以下 3 个目标的样本：
+
+```text
+4c69f173f2bd0211
+bcbd9979db015bfd
+18019fca52b389fe
+```
+
+### 6.2 compare-site 静态提取范围
+
+对每个目标样本执行 bounded extraction：
+
+```text
+1. 验证 relative_path 在 E:\reverse root 下。
+2. 验证 sha256 匹配。
+3. 读取文件 bytes，但不得提交 bytes。
+4. 提取 ASCII / UTF-16LE strings。
+5. 识别 success/failure/prompt 字符串。
+6. 识别可能的 target strings / compare constants。
+7. 如果可行，定位 strcmp/strncmp/memcmp/import 或直接字符串比较线索。
+8. 如果无法定位，输出 missing_evidence。
+```
+
+如果项目已有轻量 PE / disassembly 工具，允许使用；如果没有，不要强行引入大型依赖。可以先实现 bytes-level 和 strings-neighborhood 版本。
+
+### 6.3 候选生成与验证
+
+候选只来自 compare-site extraction 新证据，不重复上一轮 50 个泛候选。
+
+每个样本限制：
+
+```text
+max_new_candidates_per_sample=30
+max_runtime_validations_per_sample=30
+timeout <= policy.max_timeout_seconds
+```
+
+成功判定仍然保守：
+
+```text
+1. 出现 correct/success/right/congratulations/you win 等成功语义；
+2. 且不出现 wrong/sorry/fail/invalid/try again 等失败语义；
+3. 否则不得 solved=true。
+```
+
+如果仍未成功，输出更具体的缺失证据，例如：
+
+```text
+compare_site_not_found
+target_constant_not_found
+success_string_found_but_no_xref_backend
+needs_disassembly_backend
+needs_ida_script
 ```
 
 ### 6.4 输出 result artifact
@@ -346,7 +330,7 @@ missing_evidence=needs_compare_constant_or_disassembly
 新增：
 
 ```text
-project_state/local_reverse_string_solver_result.json
+project_state/local_reverse_compare_site_result.json
 ```
 
 建议结构：
@@ -355,7 +339,7 @@ project_state/local_reverse_string_solver_result.json
 {
   "schema_version": 1,
   "generated_at": "ISO-8601",
-  "solver_family": "string_compare_static_solver_v1",
+  "stage": "bounded_compare_site_static_extraction",
   "status": "SUCCESS|PARTIAL|BLOCKED",
   "target_count": 3,
   "solved_count": 0,
@@ -364,54 +348,40 @@ project_state/local_reverse_string_solver_result.json
       "sample_id": "...",
       "relative_path": "...",
       "sha256": "...",
-      "solve_readiness": "ready_static_string_compare",
-      "candidate_count": 0,
+      "previous_negative_result": "NO_CANDIDATE_VALIDATED",
+      "compare_site_status": "found|not_found|blocked",
+      "strings_summary": {
+        "prompt_strings": [],
+        "failure_strings": [],
+        "success_strings": [],
+        "candidate_constant_strings": []
+      },
+      "new_candidate_count": 0,
       "validated_candidate_count": 0,
       "solved": false,
       "solution": null,
-      "candidate_sources": [],
-      "validation_results_preview": [],
-      "negative_result": "NO_CANDIDATE_VALIDATED",
-      "missing_evidence": "needs_compare_constant_or_disassembly",
-      "next_action": "bounded compare-site static extraction"
+      "runtime_evidence": null,
+      "missing_evidence": "compare_site_not_found",
+      "next_action": "bounded IDA/capstone compare-site extraction"
     }
   ]
 }
 ```
 
-如果有 solved=true，必须记录：
-
-```text
-solution
-probe_name
-stdout_success_preview
-validation_duration_ms
-```
-
-但不得记录大体积 runtime output。
-
-### 6.5 最小修复 runtime_allowed 字段
-
-允许修复 `local_reverse_runtime.py` 的 `_sample_result()`：
-
-```text
-1. 不再硬编码 runtime_allowed=true。
-2. runtime_allowed 应反映 policy runtime_allowed 且 runtime_status 是否可执行。
-3. 加测试覆盖 runtime_allowed=false 时 JSON 不显示 true。
-```
-
-不要在本轮实现 OS 级网络隔离；只在 report 中明确 `network_allowed=false` 是 trusted local policy 声明，不是 sandbox enforcement。
-
-### 6.6 README 过期流程清理
+### 6.5 README 清理
 
 修改 `README.txt`：
 
 ```text
-1. 删除或改写 local_reverse_samples\<case_id>\solver.py 作为后续单题 solver 输出位置的说明。
-2. 删除或改写 local_samples add / local_samples solve 的旧本地单题导入流程，如果该流程已被移除或不再是当前方向。
-3. 不再建议用户把本地 solver.py 放入 local_reverse_samples\<case_id>\。
-4. 将当前方向改为：E:\reverse 由 local_reverse_corpus/local_reverse_runtime/local_reverse_string_solver 生成 project_state 证据；临时独立脚本属于用户本地自管，不作为项目 README 的主流程。
-5. 文档清理不得改 .codex-skills/，不得新增 skill，不能把动态样本路径写入 skill。
+1. 删除或改写 local_reverse_samples\ 作为本地 solver.py 推荐目录的说明。
+2. 删除或改写 local_samples add / local_samples solve 的旧流程。
+3. 删除“后续单题 solver.py 应继续保存在 local_reverse_samples\<case_id>\ 下”的说法。
+4. 将当前本地训练方向说明为：
+   - E:\reverse 是用户本地样本根；
+   - project_state/local_reverse_* JSON 是当前事实来源；
+   - local_reverse_corpus / local_reverse_runtime / local_reverse_string_solver / local_reverse_compare_site 是当前能力训练入口；
+   - 独立脚本如果用户自管，不作为项目 README 主流程。
+5. 不改 .codex-skills/。
 ```
 
 ---
@@ -421,6 +391,7 @@ validation_duration_ms
 必须新增或更新：
 
 ```text
+tests/test_local_reverse_compare_site.py
 tests/test_local_reverse_string_solver.py
 tests/test_local_reverse_runtime.py
 ```
@@ -428,32 +399,30 @@ tests/test_local_reverse_runtime.py
 最低测试：
 
 ```text
-1. 只选择 benchmark recommended_next_challenges 中的 ready_static_string_compare 样本。
-2. 非目标样本不进入 solver。
-3. sha256 mismatch 不验证候选。
-4. path escape 不验证候选。
-5. prompt/failure/noise 字符串不会成为优先候选。
-6. 每个样本候选数受 max_candidates_per_sample 限制。
-7. success marker 且无 failure marker 才能 solved=true。
+1. 只选择 string_solver_result 中 3 个 unsolved target。
+2. 已 solved 的样本不进入 compare-site extraction。
+3. 非目标样本不进入 compare-site extraction。
+4. sha256 mismatch 阻止读取/验证。
+5. path escape 阻止读取/验证。
+6. strings_summary 能分类 prompt/failure/success/candidate strings。
+7. 新候选数受 max_new_candidates_per_sample 限制。
 8. wrong/sorry/fail/try again 输出不能 solved=true。
-9. 无候选验证成功时输出 negative_result。
-10. runtime_allowed=false 时 result 不应显示 runtime_allowed=true。
-11. result JSON schema 正确。
-12. README.txt 不再包含 local_reverse_samples\\<case_id>\\solver.py 作为当前推荐流程。
+9. 如果 compare-site 不足，输出 missing_evidence。
+10. README.txt 不再包含 local_reverse_samples\\<case_id>\\solver.py 作为当前推荐流程。
+11. README.txt 不再把 local_samples add/solve 作为当前主流程。
+12. result JSON schema 正确。
 ```
 
 必须运行：
 
 ```bash
-python -m py_compile reverse_agent\local_reverse_runtime.py reverse_agent\local_reverse_string_solver.py
-python -m pytest -q tests\test_local_reverse_runtime.py tests\test_local_reverse_string_solver.py
-python -m reverse_agent.local_reverse_string_solver --corpus-index project_state\local_reverse_corpus_index.json --benchmark project_state\local_reverse_solve_benchmark.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_string_solver_result.json
+python -m py_compile reverse_agent\local_reverse_runtime.py reverse_agent\local_reverse_string_solver.py reverse_agent\local_reverse_compare_site.py
+python -m pytest -q tests\test_local_reverse_runtime.py tests\test_local_reverse_string_solver.py tests\test_local_reverse_compare_site.py
+python -m reverse_agent.local_reverse_compare_site --corpus-index project_state\local_reverse_corpus_index.json --benchmark project_state\local_reverse_solve_benchmark.json --string-result project_state\local_reverse_string_solver_result.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_compare_site_result.json
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
 git diff --check
 ```
-
-如果本轮没有任何样本 solved，只要输出了完整 negative evidence 和下一步 compare-site 缺失证据，也可以是 `PARTIAL / NEEDS_REVIEW`，不得伪报 SUCCESS solved。
 
 ---
 
@@ -465,22 +434,22 @@ git diff --check
 1. 三个指定样本任一文件缺失或 sha256 mismatch。
 2. 样本路径逃逸出 E:\reverse。
 3. runtime policy 不允许执行。
-4. 候选验证超过 per-sample 上限。
-5. 运行超过 timeout。
-6. 需要无界 brute force 才能继续。
-7. 需要复杂反编译器或 GUI 自动化。
-8. 需要复制样本二进制进仓库。
-9. 需要读取完整 solve_reports/ 或 PROJECT_PROGRESS_LOG.txt。
+4. compare-site extraction 需要读取或提交样本二进制。
+5. 需要无界 brute force。
+6. 需要复杂 GUI 自动化。
+7. 需要读取完整 solve_reports/ 或 PROJECT_PROGRESS_LOG.txt。
+8. 需要修改 .codex-skills/。
+9. README 清理需要恢复已经移除的 local_reverse_samples 单题 solver 旧流程。
 10. 测试失败。
-11. README 清理需要恢复已经移除的 local_reverse_samples 单题 solver 旧流程。
 ```
 
 停止时输出：
 
 ```text
-1. 每个目标样本候选数量。
-2. 每个目标样本是否 solved。
-3. 未 solved 的 negative_result。
-4. README 过期入口清理结果。
-5. 下一轮是否需要 compare-site static extraction、IDA script、或更小范围 disassembly helper。
+1. 每个目标样本 compare-site extraction 状态。
+2. 每个目标样本新候选数量。
+3. 每个目标样本是否 solved。
+4. 未 solved 的更具体 missing_evidence。
+5. README 过期入口清理结果。
+6. 下一轮是否需要 IDA script / capstone backend / specific compare xref extraction。
 ```
