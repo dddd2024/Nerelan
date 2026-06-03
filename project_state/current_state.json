@@ -26,7 +26,11 @@
     "run_manifest": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
     "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
-    "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json"
+    "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
+    "local_reverse_ida_summary": "project_state\\local_reverse_ida_summary.json",
+    "local_reverse_ida_evidence_18019fca52b389fe": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\18019fca52b389fe\\sha_256_ida_evidence.json",
+    "local_reverse_ida_evidence_4c69f173f2bd0211": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\4c69f173f2bd0211\\CPP2_ida_evidence.json",
+    "local_reverse_ida_evidence_bcbd9979db015bfd": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\bcbd9979db015bfd\\Cpp1_ida_evidence.json"
   },
   "best_candidates": {
     "exact1": {
@@ -9639,5 +9643,48 @@
   "state_build_id": "state_20260602_053948_4e3984041cd7",
   "state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "uncertainty": [],
-  "workflow_status": "REPORT_AVAILABLE"
+  "workflow_status": "REPORT_AVAILABLE",
+  "local_reverse_training": {
+    "stage": "ida_evidence_ready",
+    "latest_summary": "project_state\\local_reverse_ida_summary.json",
+    "summary_status": "SUCCESS",
+    "target_count": 3,
+    "success_count": 3,
+    "ida_available": true,
+    "hexrays_available_any": true,
+    "source_summary_generated_at": "2026-06-03T11:53:49Z",
+    "source_run": "round_20260603_local_reverse_ida_path_rerun_v1",
+    "state_refresh_round": "round_20260603_local_reverse_ida_state_refresh_v1",
+    "current_ida_evidence": [
+      {
+        "sample_id": "18019fca52b389fe",
+        "relative_path": "逆向课程2024春01/sha_256.exe",
+        "ida_status": "success",
+        "hexrays_available": true,
+        "ida_output_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\18019fca52b389fe\\sha_256_ida_evidence.json",
+        "artifact_key": "local_reverse_ida_evidence_18019fca52b389fe",
+        "next_action": "ida_summary_guided_solver_v1"
+      },
+      {
+        "sample_id": "4c69f173f2bd0211",
+        "relative_path": "逆向课程2022春02/CPP2.exe",
+        "ida_status": "success",
+        "hexrays_available": true,
+        "ida_output_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\4c69f173f2bd0211\\CPP2_ida_evidence.json",
+        "artifact_key": "local_reverse_ida_evidence_4c69f173f2bd0211",
+        "next_action": "ida_summary_guided_solver_v1"
+      },
+      {
+        "sample_id": "bcbd9979db015bfd",
+        "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+        "ida_status": "success",
+        "hexrays_available": true,
+        "ida_output_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\bcbd9979db015bfd\\Cpp1_ida_evidence.json",
+        "artifact_key": "local_reverse_ida_evidence_bcbd9979db015bfd",
+        "next_action": "ida_summary_guided_solver_v1"
+      }
+    ],
+    "next_recommended_decision": "ida_summary_guided_solver_v1",
+    "scope_note": "samplereverse fields are retained as compatibility/background; this local_reverse_training block is the current local_reverse evidence entrypoint."
+  }
 }

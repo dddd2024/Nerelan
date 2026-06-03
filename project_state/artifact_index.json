@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-02T05:39:48Z",
+  "generated_at": "2026-06-03T12:27:27Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -50,7 +50,11 @@
     "smt_validation": null,
     "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
-    "transform_trace_consistency": null
+    "transform_trace_consistency": null,
+    "local_reverse_ida_summary": "project_state\\local_reverse_ida_summary.json",
+    "local_reverse_ida_evidence_18019fca52b389fe": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\18019fca52b389fe\\sha_256_ida_evidence.json",
+    "local_reverse_ida_evidence_4c69f173f2bd0211": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\4c69f173f2bd0211\\CPP2_ida_evidence.json",
+    "local_reverse_ida_evidence_bcbd9979db015bfd": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\bcbd9979db015bfd\\Cpp1_ida_evidence.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -502,6 +506,45 @@
       "sha256": null,
       "size_bytes": null,
       "source_run": ""
+    },
+    "local_reverse_ida_summary": {
+      "kind": "local_reverse_ida_summary",
+      "path": "project_state\\local_reverse_ida_summary.json",
+      "freshness": "current",
+      "source_run": "round_20260603_local_reverse_ida_path_rerun_v1",
+      "sha256": "18c6fda60a4b7047d1258d9ac6fe1ef499d85085cce17c23c45616f7521199ce",
+      "size_bytes": 59024,
+      "modified_at": "2026-06-03T11:53:49Z"
+    },
+    "local_reverse_ida_evidence_18019fca52b389fe": {
+      "kind": "local_reverse_ida_evidence_18019fca52b389fe",
+      "path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\18019fca52b389fe\\sha_256_ida_evidence.json",
+      "freshness": "current",
+      "source_run": "round_20260603_local_reverse_ida_path_rerun_v1",
+      "sha256": "ef9d909041964e3a5d5b2638ad3b0c9b0524c0881120ecd7546daf419e54d107",
+      "size_bytes": 84907,
+      "modified_at": "2026-06-03T11:53:44Z",
+      "sample_id": "18019fca52b389fe"
+    },
+    "local_reverse_ida_evidence_4c69f173f2bd0211": {
+      "kind": "local_reverse_ida_evidence_4c69f173f2bd0211",
+      "path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\4c69f173f2bd0211\\CPP2_ida_evidence.json",
+      "freshness": "current",
+      "source_run": "round_20260603_local_reverse_ida_path_rerun_v1",
+      "sha256": "6afb2b40386fcd466bd0e59b9485ace528aaa81afab6fb3c3dfc0bcf44ef9005",
+      "size_bytes": 85412,
+      "modified_at": "2026-06-03T11:53:46Z",
+      "sample_id": "4c69f173f2bd0211"
+    },
+    "local_reverse_ida_evidence_bcbd9979db015bfd": {
+      "kind": "local_reverse_ida_evidence_bcbd9979db015bfd",
+      "path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\bcbd9979db015bfd\\Cpp1_ida_evidence.json",
+      "freshness": "current",
+      "source_run": "round_20260603_local_reverse_ida_path_rerun_v1",
+      "sha256": "33ebc1dbe2019051e964d68704603500a4575df0a0b94cc8198889acf0bb3539",
+      "size_bytes": 84326,
+      "modified_at": "2026-06-03T11:53:48Z",
+      "sample_id": "bcbd9979db015bfd"
     }
   },
   "latest_case_results": [

@@ -136,5 +136,14 @@
     "has_stall_stage": true
   },
   "task": "Review bounded window discovery diagnostics",
-  "task_source": "derived_from_sample_artifacts"
+  "task_source": "derived_from_sample_artifacts",
+  "local_reverse_next_suggested_task": "Generate ida_summary_guided_solver_v1 decision from current IDA evidence",
+  "local_reverse_current_artifact": "project_state\\local_reverse_ida_summary.json",
+  "local_reverse_current_artifact_keys": [
+    "local_reverse_ida_summary",
+    "local_reverse_ida_evidence_18019fca52b389fe",
+    "local_reverse_ida_evidence_4c69f173f2bd0211",
+    "local_reverse_ida_evidence_bcbd9979db015bfd"
+  ],
+  "local_reverse_task_packet_authority_note": "Advisory only; project_state/decision_packet.md remains the execution authority."
 }

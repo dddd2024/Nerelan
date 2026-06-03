@@ -1,17 +1,16 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260603_local_reverse_ida_path_rerun_v1",
-  "report_id": "report_20260603_local_reverse_ida_path_rerun_v1",
-  "round_id": "round_20260603_local_reverse_ida_path_rerun_v1",
+  "decision_id": "decision_20260603_local_reverse_ida_state_refresh_v1",
+  "report_id": "report_20260603_local_reverse_ida_state_refresh_v1",
+  "round_id": "round_20260603_local_reverse_ida_state_refresh_v1",
   "status": "PASSED",
   "tests_ran": [
-    "python -m py_compile reverse_agent\\tool_runners.py reverse_agent\\local_reverse_ida_summary.py reverse_agent\\ida_scripts\\collect_evidence.py",
-    "python -m pytest -q tests\\test_local_reverse_ida_summary.py tests\\test_tool_runners.py",
-    "python -m pytest -q",
-    "python -m reverse_agent.local_reverse_ida_summary --corpus-index project_state\\local_reverse_corpus_index.json --semantic-result project_state\\local_reverse_semantic_rule_result.json --policy project_state\\local_reverse_runtime_policy.json --ida-path \"E:\\Program Files\\ida_pro\" --timeout-seconds 15 --out project_state\\local_reverse_ida_summary.json",
-    "python -c \"from reverse_agent.tool_runners import _resolve_ida_executable; print(_resolve_ida_executable(r'E:\\Program Files\\ida_pro'))\"",
+    "python -m json.tool project_state\\artifact_index.json > NUL",
+    "python -m json.tool project_state\\current_state.json > NUL",
+    "python -m json.tool project_state\\task_packet.json > NUL",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+    "python -m pytest -q tests\\test_project_state.py tests\\test_local_reverse_ida_summary.py",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "git diff --check"
   ]
@@ -22,28 +21,23 @@
 
 ## Commands
 
-- `python -m py_compile reverse_agent\tool_runners.py reverse_agent\local_reverse_ida_summary.py reverse_agent\ida_scripts\collect_evidence.py` -> passed
-- `python -m pytest -q tests\test_local_reverse_ida_summary.py tests\test_tool_runners.py` -> `17 passed`
-- `python -m pytest -q` -> `704 passed`
-- `python -m reverse_agent.local_reverse_ida_summary --corpus-index project_state\local_reverse_corpus_index.json --semantic-result project_state\local_reverse_semantic_rule_result.json --policy project_state\local_reverse_runtime_policy.json --ida-path "E:\Program Files\ida_pro" --timeout-seconds 15 --out project_state\local_reverse_ida_summary.json` -> `local reverse IDA evidence integration: status=SUCCESS targets=3 ida_available=True`
-- `python -c "from reverse_agent.tool_runners import _resolve_ida_executable; print(_resolve_ida_executable(r'E:\Program Files\ida_pro'))"` -> `E:\Program Files\ida_pro\idat64.exe`
+- `python -m json.tool project_state\artifact_index.json > NUL` -> passed
+- `python -m json.tool project_state\current_state.json > NUL` -> passed
+- `python -m json.tool project_state\task_packet.json > NUL` -> passed
 - `python -m reverse_agent.project_state lint-decision --state-dir project_state` -> OK
-- `python -m reverse_agent.project_state lint-report --state-dir project_state` -> OK with expected not-archived warning
+- `python -m pytest -q tests\test_project_state.py tests\test_local_reverse_ida_summary.py` -> `163 passed`
+- `python -m reverse_agent.project_state lint-report --state-dir project_state` -> OK
 - `git diff --check` -> passed with line-ending warnings only
 
 ## Runtime Scope
 
-- root: `E:\reverse`
-- stage: `local_reverse_ida_evidence_integration`
-- target_count: 3
-- success_count: 3
-- ida_available: true
-- resolved_ida_executable: `E:\Program Files\ida_pro\idat64.exe`
-- hexrays_available_any: true
-- executable path scope: indexed `.exe` files under `E:\reverse`
-- binary copy into repository: no
-- runtime outside `E:\reverse`: no
+- current decision: `decision_20260603_local_reverse_ida_state_refresh_v1`
+- round: `round_20260603_local_reverse_ida_state_refresh_v1`
+- mainline: `engineering_branch`
+- IDA rerun: no
 - solver execution: no
-- `.codex-skills/` changes: no
-- full `solve_reports/` traversal: no
+- full `solve_reports/` read: no
 - full `PROJECT_PROGRESS_LOG.txt` read: no
+- raw IDA JSON files read: exactly the three summary-listed evidence files
+- binary copy/commit/upload/encoding: no
+- `.codex-skills/` changes: no
