@@ -450,11 +450,19 @@ def _run_ida(
 
     output_path = artifacts_dir / f"{file_path.stem}_ida_evidence.json"
     ida_log_path = artifacts_dir / f"{file_path.stem}_ida.log"
+    ida_database_path = artifacts_dir / f"{file_path.stem}_ida_database.i64"
+    for suffix in (".i64", ".id0", ".id1", ".nam", ".til"):
+        sidecar_path = ida_database_path.with_suffix(suffix)
+        try:
+            sidecar_path.unlink(missing_ok=True)
+        except OSError:
+            pass
     artifact.output_path = str(output_path)
     command_args = [
         ida_executable,
         "-A",
         f"-L{ida_log_path}",
+        f"-o{ida_database_path}",
         f"-S{ida_script}",
         str(file_path),
     ]

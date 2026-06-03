@@ -1,72 +1,1148 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-03T11:17:12Z",
+  "generated_at": "2026-06-03T11:53:49Z",
   "stage": "local_reverse_ida_evidence_integration",
-  "status": "BLOCKED",
+  "status": "SUCCESS",
   "target_count": 3,
-  "ida_available": false,
-  "hexrays_available_any": false,
-  "success_count": 0,
+  "ida_available": true,
+  "hexrays_available_any": true,
+  "success_count": 3,
   "targets": [
     {
       "sample_id": "18019fca52b389fe",
       "relative_path": "逆向课程2024春01/sha_256.exe",
       "previous_missing_evidence": "needs_symbolic_execution",
-      "ida_status": "blocked",
-      "blocked_reasons": [
-        "BLOCKED_BY_IDA_UNAVAILABLE"
+      "ida_status": "success",
+      "blocked_reasons": [],
+      "ida_output_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\18019fca52b389fe\\sha_256_ida_evidence.json",
+      "hexrays_available": true,
+      "strings_summary": [
+        "memory check error at 0x%08X = 0x%02X, should be 0x%02X.\n",
+        "Please input your flag:\n",
+        "flag == 0 || flag == 1",
+        "R6018\r\n- unexpected heap error\r\n",
+        "R6017\r\n- unexpected multithread lock error\r\n",
+        "Error",
+        "Wrong!",
+        "{%ld} ",
+        "a_cmp.c",
+        "input.c",
+        "DebugBreak",
+        "GetLastError",
+        "SING error\r\n",
+        "TLOSS error\r\n",
+        "DOMAIN error\r\n",
+        "runtime error ",
+        "Assertion Failed",
+        "Assertion failed!",
+        "Wrong,try again!\n",
+        "_CrtCheckMemory()"
       ],
-      "ida_output_path": "",
-      "hexrays_available": false,
-      "strings_summary": [],
-      "compare_contexts_summary": [],
-      "local_check_contexts_summary": [],
-      "string_xrefs_summary": [],
-      "validation_function_candidates": [],
-      "decompiler_snippets": [],
-      "solver_hints": [],
-      "next_action": "",
-      "error": "未找到 IDA 可执行文件（请在界面配置 ida/idat 路径）。"
+      "compare_contexts_summary": [
+        {
+          "call_ea": "0x401EEF",
+          "caller_func": "_main_0",
+          "callee": "_strncmp",
+          "call_disasm": "call    _strncmp",
+          "nearby": "push    40h ; '@'; MaxCount || push    offset Str2; \"493f877692ea8d507fa98355a054efede85e7c7\"... || lea     eax, [ebp+Str1] || push    eax; Str1",
+          "ref_strings": ""
+        },
+        {
+          "call_ea": "0x40880E",
+          "caller_func": "sub_408750",
+          "callee": "_strncmp",
+          "call_disasm": "call    _strncmp",
+          "nearby": "push    16h; MaxCount || lea     ecx, [ebp+Buffer] || push    ecx; Str2 || push    offset Str1; \"__GLOBAL_HEAP_SELECTED\"",
+          "ref_strings": "__GLOBAL_HEAP_SELECTED"
+        }
+      ],
+      "local_check_contexts_summary": [
+        {
+          "call_ea": "0x401C10",
+          "caller_func": "sub_401B20",
+          "callee": "_sprintf",
+          "call_disasm": "call    _sprintf",
+          "nearby": "push    eax || mov     ecx, [ebp+var_C] || push    ecx || mov     edx, [ebp+var_8] || push    edx || push    offset Format; \"%08x%08x%08x%08x%08x%08x%08x%08x\"",
+          "ref_strings": "%08x%08x%08x%08x%08x%08x%08x%08x",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401C1C",
+          "caller_func": "sub_401B20",
+          "callee": "sub_402E40",
+          "call_disasm": "call    sub_402E40",
+          "nearby": "push    edx || push    offset Format; \"%08x%08x%08x%08x%08x%08x%08x%08x\" || mov     eax, [ebp+Buffer] || push    eax; Buffer || call    _sprintf || add     esp, 28h",
+          "ref_strings": "%08x%08x%08x%08x%08x%08x%08x%08x",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401DDB",
+          "caller_func": "_main_0",
+          "callee": "_printf",
+          "call_disasm": "call    _printf",
+          "nearby": "mov     [ebp+var_457], 1Eh || mov     [ebp+var_456], 1Eh || mov     [ebp+var_455], 1Ah || mov     [ebp+var_454], 0Dh || mov     [ebp+var_453], 1Ah || mov     [ebp+var_452], 2",
+          "ref_strings": "Please input your flag:",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401DEF",
+          "caller_func": "_main_0",
+          "callee": "_scanf",
+          "call_disasm": "call    _scanf",
+          "nearby": "mov     [ebp+var_452], 2 || mov     [ebp+var_451], 4 || push    offset aPleaseInputYou; \"Please input your flag:\\n\" || call    _printf || add     esp, 4 || lea     ecx, [ebp+Source]",
+          "ref_strings": "Please input your flag: | %s",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401E1A",
+          "caller_func": "_main_0",
+          "callee": "_printf",
+          "call_disasm": "call    _printf",
+          "nearby": "lea     edx, [ebp+Source] || push    edx; Str || call    _strlen || add     esp, 4 || mov     [ebp+var_474], eax || cmp     [ebp+var_474], 5",
+          "ref_strings": "Wrong,try again!",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401E27",
+          "caller_func": "_main_0",
+          "callee": "_system",
+          "call_disasm": "call    _system",
+          "nearby": "add     esp, 4 || mov     [ebp+var_474], eax || cmp     [ebp+var_474], 5 || jnb     short loc_401E36 || push    offset aWrongTryAgain; \"Wrong,try again!\\n\" || call    _printf",
+          "ref_strings": "Wrong,try again! | pause",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401EEF",
+          "caller_func": "_main_0",
+          "callee": "_strncmp",
+          "call_disasm": "call    _strncmp",
+          "nearby": "jnz     short loc_401EE2 || mov     edx, [ebp+var_450] || mov     [ebp+edx+Str1], 30h ; '0' || jmp     short loc_401E7D || push    40h ; '@'; MaxCount || push    offset Str2; \"493f877692ea8d507fa98355a054efede85e7c7\"...",
+          "ref_strings": "493f877692ea8d507fa98355a054efede85e7c7bbc9ba9890ea99b7b33e281fc",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401F0F",
+          "caller_func": "_main_0",
+          "callee": "_printf",
+          "call_disasm": "call    _printf",
+          "nearby": "add     esp, 0Ch || test    eax, eax || jnz     short loc_401F0A || push    offset aWellDone; \"Well done!\" || call    _printf || add     esp, 4",
+          "ref_strings": "Well done! | Wrong!",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401F1C",
+          "caller_func": "_main_0",
+          "callee": "_system",
+          "call_disasm": "call    _system",
+          "nearby": "push    offset aWellDone; \"Well done!\" || call    _printf || add     esp, 4 || jmp     short loc_401F17 || push    offset aWrong; \"Wrong!\" || call    _printf",
+          "ref_strings": "Well done! | Wrong! | pause",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x4024E8",
+          "caller_func": "__heap_alloc_dbg",
+          "callee": "__CrtDbgReport",
+          "call_disasm": "call    __CrtDbgReport",
+          "nearby": "call    sub_403520 || test    eax, eax || jnz     short loc_4024F6 || push    offset aCrtcheckmemory || push    0; int || push    14Ch; Value",
+          "ref_strings": "_CrtCheckMemory() | dbgheap.c",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x402551",
+          "caller_func": "__heap_alloc_dbg",
+          "callee": "__CrtDbgReport",
+          "call_disasm": "call    __CrtDbgReport",
+          "nearby": "push    eax || mov     ecx, dword ptr [ebp+arg_8] || push    ecx; char || push    offset aClientHookAllo || push    0; int || push    0; Value",
+          "ref_strings": "Client hook allocation failure at file %hs line %d.",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x402579",
+          "caller_func": "__heap_alloc_dbg",
+          "callee": "__CrtDbgReport",
+          "call_disasm": "call    __CrtDbgReport",
+          "nearby": "jnz     short loc_40253C || jmp     short loc_40258D || push    offset aClientHookAllo_0 || push    offset aS || push    0; int || push    0; Value",
+          "ref_strings": "Client hook allocation failure. | %s",
+          "imm_args": "",
+          "kind": "local_call_context"
+        }
+      ],
+      "string_xrefs_summary": [
+        {
+          "string_ea": "0x4286D8",
+          "xref_ea": "0x4034E4",
+          "caller_func": "_CheckBytes",
+          "string": "memory check error at 0x%08X = 0x%02X, should be 0x%02X.\n",
+          "xref_disasm": "push    offset aMemoryCheckErr",
+          "nearby": "mov     dl, [ecx-1] || push    edx || mov     eax, [ebp+arg_0] || sub     eax, 1 || push    eax; char",
+          "score": "8"
+        },
+        {
+          "string_ea": "0x428204",
+          "xref_ea": "0x401DD6",
+          "caller_func": "_main_0",
+          "string": "Please input your flag:\n",
+          "xref_disasm": "push    offset aPleaseInputYou; \"Please input your flag:\\n\"",
+          "nearby": "mov     [ebp+var_455], 1Ah || mov     [ebp+var_454], 0Dh || mov     [ebp+var_453], 1Ah || mov     [ebp+var_452], 2 || mov     [ebp+var_451], 4",
+          "score": "7"
+        },
+        {
+          "string_ea": "0x428EEC",
+          "xref_ea": "0x40BD83",
+          "caller_func": "__ftbuf",
+          "string": "flag == 0 || flag == 1",
+          "xref_disasm": "push    offset aFlag0Flag1",
+          "nearby": "push    edi; char || cmp     [ebp+arg_0], 0 || jz      short loc_40BDA4 || cmp     [ebp+arg_0], 1 || jz      short loc_40BDA4",
+          "score": "5"
+        },
+        {
+          "string_ea": "0x429098",
+          "xref_ea": "0x42D054",
+          "caller_func": "",
+          "string": "R6018\r\n- unexpected heap error\r\n",
+          "xref_disasm": "dd offset aR6018Unexpecte",
+          "nearby": "",
+          "score": "5"
+        },
+        {
+          "string_ea": "0x4290BC",
+          "xref_ea": "0x42D04C",
+          "caller_func": "",
+          "string": "R6017\r\n- unexpected multithread lock error\r\n",
+          "xref_disasm": "dd offset aR6017Unexpecte",
+          "nearby": "",
+          "score": "5"
+        },
+        {
+          "string_ea": "0x428AE0",
+          "xref_ea": "0x42AA88",
+          "caller_func": "",
+          "string": "Error",
+          "xref_disasm": "dd offset aError",
+          "nearby": "",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428178",
+          "xref_ea": "0x401F0A",
+          "caller_func": "_main_0",
+          "string": "Wrong!",
+          "xref_disasm": "push    offset aWrong; \"Wrong!\"",
+          "nearby": "jnz     short loc_401F0A || push    offset aWellDone; \"Well done!\" || call    _printf || add     esp, 4 || jmp     short loc_401F17",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x42896C",
+          "xref_ea": "0x403F4F",
+          "caller_func": "__CrtMemDumpAllObjectsSince",
+          "string": "{%ld} ",
+          "xref_disasm": "push    offset aLd",
+          "nearby": "test    eax, eax || jnz     short loc_403F19 || mov     ecx, [ebp+var_4] || mov     edx, [ecx+18h] || push    edx; char",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x4292D8",
+          "xref_ea": "0x4110CF",
+          "caller_func": "___crtCompareStringA",
+          "string": "a_cmp.c",
+          "xref_disasm": "push    offset aACmpC",
+          "nearby": "cmp     [ebp+cchCount2], 0 || jz      short loc_4110E4 || push    offset aCchcount10Cchc || push    0; int || push    0B6h; Value",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428ED0",
+          "xref_ea": "0x40A5DE",
+          "caller_func": "__input",
+          "string": "input.c",
+          "xref_disasm": "push    offset aInputC",
+          "nearby": "cmp     [ebp+arg_4], 0 || jnz     short loc_40A5F3 || push    offset aFormatNull || push    0; int || push    109h; Value",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428ED0",
+          "xref_ea": "0x40A60B",
+          "caller_func": "__input",
+          "string": "input.c",
+          "xref_disasm": "push    offset aInputC",
+          "nearby": "cmp     [ebp+File], 0 || jnz     short loc_40A620 || push    offset aStreamNull || push    0; int || push    10Ch; Value",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428F54",
+          "xref_ea": "0x42D094",
+          "caller_func": "",
+          "string": "SING error\r\n",
+          "xref_disasm": "dd offset aSingError",
+          "nearby": "",
+          "score": "4"
+        }
+      ],
+      "validation_function_candidates": [
+        {
+          "function": "sub_403520",
+          "score": "107",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x403590 | 0x4035BB | 0x4035E3 | 0x40360B | 0x403633 | 0x4036DF | 0x40370A | 0x403767"
+        },
+        {
+          "function": "_main_0",
+          "score": "87",
+          "reason": "compare_context | local_check_context | interesting_string_xref",
+          "evidence": "0x401EEF | 0x401DDB | 0x401DEF | 0x401E1A | 0x401E27 | 0x401F0F | 0x401F1C | 0x401DD6"
+        },
+        {
+          "function": "__CrtDbgReport",
+          "score": "81",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x404B31 | 0x404B52 | 0x404B82 | 0x404B92 | 0x404BE5 | 0x404C1D | 0x404CB8 | 0x404C05"
+        },
+        {
+          "function": "__CrtMemDumpAllObjectsSince",
+          "score": "53",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x403F03 | 0x403F5C | 0x403FAB | 0x404016 | 0x404073 | 0x403F4F | 0x403EF6 | 0x404009"
+        },
+        {
+          "function": "__heap_alloc_dbg",
+          "score": "52",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x4024E8 | 0x402551 | 0x402579 | 0x40262C | 0x4024D5 | 0x402567 | 0x40261A | 0x402544"
+        },
+        {
+          "function": "_realloc_help",
+          "score": "52",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x40293E | 0x4029A9 | 0x4029D1 | 0x402A52 | 0x40292B | 0x4029BF | 0x402A40 | 0x40299C"
+        },
+        {
+          "function": "sub_402E60",
+          "score": "44",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x402E8F | 0x402EDF | 0x402FEC | 0x403052 | 0x402E7C | 0x402ECD | 0x403045 | 0x402FDF"
+        },
+        {
+          "function": "_CrtMessageWindow",
+          "score": "40",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x4050BD | 0x4050D5 | 0x4050EE | 0x4050E2 | 0x4050C9 | 0x4050AC | 0x404F2E"
+        },
+        {
+          "function": "__spawnvpe",
+          "score": "24",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x409F94 | 0x40A01A | 0x40A08E | 0x40A00A | 0x409F84"
+        },
+        {
+          "function": "__CrtMemCheckpoint",
+          "score": "22",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x403BB1 | 0x403CAE | 0x403B9F | 0x403CA1"
+        }
+      ],
+      "decompiler_snippets": [
+        {
+          "function": "sub_403520",
+          "entry_ea": "0x403520",
+          "text": "int sub_403520()\n{\n  _DWORD *v1; // eax\n  int v2; // ecx\n  _DWORD *v3; // edx\n  const char *v4; // [esp+10h] [ebp-14h]\n  int v5; // [esp+14h] [ebp-10h]\n  int v6; // [esp+18h] [ebp-Ch]\n  _DWORD *i; // [esp+1Ch] [ebp-8h]\n  int v8; // [esp+20h] [ebp-4h]\n\n  if ( (dword_42AA30 & 1) == 0 )\n    return 1;\n  v6 = sub_405960();\n  if ( v6 == -1 || v6 == -2 )\n  {\n    v8 = 1;\n    for ( i = (_DWORD *)dword_42DC80; i; i = (_DWORD *)*i )\n    {\n      v5 = 1;\n      if ( (unsigned __int16)i[5] == 4 || i[5] == 1 || (v1 = i, (unsigned __int16)i[5] == 2) || i[5] == 3 )\n      {\n        v1 = i;\n        v4 = *(const char **)&off_42AA40[4 * (unsigned __int16)i[5]];\n      }\n      else\n      {\n        v4 = \"DAMAGED\";\n      }\n      LOBYTE(v1) = byte_42AA3C;\n      if ( !CheckBytes(i + 7, v1, 4) )\n      {\n        if ( _CrtDbgReport(0, 0, 0, 0, \"DAMAGE: before %hs block (#%d) at 0x%08X.\\n\", (char)v4) == 1 )\n          _"
+        },
+        {
+          "function": "_main_0",
+          "entry_ea": "0x401CA0",
+          "text": "int __cdecl main_0(int argc, const char **argv, const char **envp)\n{\n  int v4; // eax\n  int i; // [esp+70h] [ebp-450h]\n  char Destination; // [esp+74h] [ebp-44Ch] BYREF\n  int v7; // [esp+75h] [ebp-44Bh]\n  char Source[1021]; // [esp+7Ch] [ebp-444h] BYREF\n  __int16 v9; // [esp+479h] [ebp-47h]\n  char v10; // [esp+47Bh] [ebp-45h]\n  char Str1[68]; // [esp+47Ch] [ebp-44h] BYREF\n\n  memset(Str1, 0, 65);\n  memset(Source, 0, sizeof(Source));\n  v9 = 0;\n  v10 = 0;\n  Destination = 0;\n  v7 = 0;\n  printf(\"Please input your flag:\\n\");\n  scanf(\"%s\", Source);\n  if ( strlen(Source) >= 5 )\n  {\n    strncpy(&Destination, Source, 4u);\n    v4 = strlen(&Destination);\n    sub_401005(Str1, (int)&Destination, v4);\n    for ( i = 0; i < 64; ++i )\n    {\n      if ( ++Str1[i] == 103 )\n        Str1[i] = 97;\n      if ( Str1[i] == 58 )\n        Str1[i] = 48;\n    }\n    if ( !strncmp(Str1, \"493f877692ea8d507fa98355a054efede85"
+        },
+        {
+          "function": "__CrtDbgReport",
+          "entry_ea": "0x404A90",
+          "text": "int __cdecl _CrtDbgReport(unsigned int a1, const char *a2, int Value, int a4, char *Format, char a6)\n{\n  DWORD v7; // eax\n  int v8; // eax\n  char *v9; // [esp+4h] [ebp-302Ch]\n  char Buffer[20]; // [esp+Ch] [ebp-3024h] BYREF\n  DWORD NumberOfBytesWritten; // [esp+20h] [ebp-3010h] BYREF\n  HMODULE hModule; // [esp+24h] [ebp-300Ch]\n  char v13[4093]; // [esp+28h] [ebp-3008h] BYREF\n  __int16 v14; // [esp+1025h] [ebp-200Bh]\n  char v15; // [esp+1027h] [ebp-2009h]\n  CHAR OutputString[4093]; // [esp+1028h] [ebp-2008h] BYREF\n  __int16 v17; // [esp+2025h] [ebp-100Bh]\n  char v18; // [esp+2027h] [ebp-1009h]\n  int v19; // [esp+2028h] [ebp-1008h] BYREF\n  va_list ArgList; // [esp+202Ch] [ebp-1004h]\n  char Destination[4093]; // [esp+2030h] [ebp-1000h] BYREF\n  __int16 v22; // [esp+302Dh] [ebp-3h]\n  char v23; // [esp+302Fh] [ebp-1h]\n\n  memset(v13, 0, sizeof(v13));\n  v14 = 0;\n  v15 = 0;\n  memset(OutputString,"
+        },
+        {
+          "function": "__CrtMemDumpAllObjectsSince",
+          "entry_ea": "0x403E20",
+          "text": "int __cdecl _CrtMemDumpAllObjectsSince(int *a1)\n{\n  int result; // eax\n  int v2; // [esp+Ch] [ebp-8h]\n  int i; // [esp+10h] [ebp-4h]\n\n  v2 = 0;\n  if ( _CrtDbgReport(0, 0, 0, 0, \"%s\", (char)\"Dumping objects ->\\n\") == 1 )\n    __debugbreak();\n  if ( a1 )\n    v2 = *a1;\n  for ( i = dword_42DC80; i && i != v2; i = *(_DWORD *)i )\n  {\n    if ( (unsigned __int16)*(_DWORD *)(i + 20) != 3\n      && (unsigned __int16)*(_DWORD *)(i + 20)\n      && ((unsigned __int16)*(_DWORD *)(i + 20) != 2 || (dword_42AA30 & 0x10) != 0) )\n    {\n      if ( *(_DWORD *)(i + 8) )\n      {\n        if ( _CrtIsValidPointer(*(void **)(i + 8), 1u, 0) )\n        {\n          if ( _CrtDbgReport(0, 0, 0, 0, \"%hs(%d) : \", *(_DWORD *)(i + 8)) == 1 )\n            __debugbreak();\n        }\n        else if ( _CrtDbgReport(0, 0, 0, 0, \"#File Error#(%d) : \", *(_DWORD *)(i + 12)) == 1 )\n        {\n          __debugbreak();\n        }\n      }\n "
+        }
+      ],
+      "solver_hints": [
+        {
+          "kind": "direct_strcmp",
+          "reason": "compare API context recovered"
+        },
+        {
+          "kind": "gui_input",
+          "reason": "input-oriented strings recovered"
+        }
+      ],
+      "next_action": "ida_summary_guided_solver_v1"
     },
     {
       "sample_id": "4c69f173f2bd0211",
       "relative_path": "逆向课程2022春02/CPP2.exe",
       "previous_missing_evidence": "needs_symbolic_execution",
-      "ida_status": "blocked",
-      "blocked_reasons": [
-        "BLOCKED_BY_IDA_UNAVAILABLE"
+      "ida_status": "success",
+      "blocked_reasons": [],
+      "ida_output_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\4c69f173f2bd0211\\CPP2_ida_evidence.json",
+      "hexrays_available": true,
+      "strings_summary": [
+        "memory check error at 0x%08X = 0x%02X, should be 0x%02X.\n",
+        "Please input your flag:\n",
+        "flag == 0 || flag == 1",
+        "R6018\r\n- unexpected heap error\r\n",
+        "R6017\r\n- unexpected multithread lock error\r\n",
+        "Error",
+        "{%ld} ",
+        "a_cmp.c",
+        "input.c",
+        "Correct!\n",
+        "DebugBreak",
+        "GetLastError",
+        "SING error\r\n",
+        "TLOSS error\r\n",
+        "DOMAIN error\r\n",
+        "runtime error ",
+        "Assertion Failed",
+        "Assertion failed!",
+        "Wrong,try again!\n",
+        "_CrtCheckMemory()"
       ],
-      "ida_output_path": "",
-      "hexrays_available": false,
-      "strings_summary": [],
-      "compare_contexts_summary": [],
-      "local_check_contexts_summary": [],
-      "string_xrefs_summary": [],
-      "validation_function_candidates": [],
-      "decompiler_snippets": [],
-      "solver_hints": [],
-      "next_action": "",
-      "error": "未找到 IDA 可执行文件（请在界面配置 ida/idat 路径）。"
+      "compare_contexts_summary": [
+        {
+          "call_ea": "0x401E45",
+          "caller_func": "_main_0",
+          "callee": "_strncmp",
+          "call_disasm": "call    _strncmp",
+          "nearby": "push    40h ; '@'; MaxCount || push    offset Str2; \"1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:\"... || lea     eax, [ebp+Str1] || push    eax; Str1",
+          "ref_strings": ""
+        },
+        {
+          "call_ea": "0x40873E",
+          "caller_func": "sub_408680",
+          "callee": "_strncmp",
+          "call_disasm": "call    _strncmp",
+          "nearby": "push    16h; MaxCount || lea     ecx, [ebp+Buffer] || push    ecx; Str2 || push    offset Str1; \"__GLOBAL_HEAP_SELECTED\"",
+          "ref_strings": "__GLOBAL_HEAP_SELECTED"
+        }
+      ],
+      "local_check_contexts_summary": [
+        {
+          "call_ea": "0x401C10",
+          "caller_func": "sub_401B20",
+          "callee": "_sprintf",
+          "call_disasm": "call    _sprintf",
+          "nearby": "push    eax || mov     ecx, [ebp+var_C] || push    ecx || mov     edx, [ebp+var_8] || push    edx || push    offset Format; \"%08x%08x%08x%08X%08x%08x%08x%08x\"",
+          "ref_strings": "%08x%08x%08x%08X%08x%08x%08x%08x",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401C1C",
+          "caller_func": "sub_401B20",
+          "callee": "sub_402D70",
+          "call_disasm": "call    sub_402D70",
+          "nearby": "push    edx || push    offset Format; \"%08x%08x%08x%08X%08x%08x%08x%08x\" || mov     eax, [ebp+Buffer] || push    eax; Buffer || call    _sprintf || add     esp, 28h",
+          "ref_strings": "%08x%08x%08x%08X%08x%08x%08x%08x",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401CFB",
+          "caller_func": "_main_0",
+          "callee": "_printf",
+          "call_disasm": "call    _printf",
+          "nearby": "lea     edi, [ebp+var_443] || rep stosd || stosw || stosb || mov     [ebp+Destination], 0 || xor     eax, eax",
+          "ref_strings": "Please input your flag:",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401D0F",
+          "caller_func": "_main_0",
+          "callee": "_scanf",
+          "call_disasm": "call    _scanf",
+          "nearby": "xor     eax, eax || mov     [ebp+var_44B], eax || push    offset aPleaseInputYou; \"Please input your flag:\\n\" || call    _printf || add     esp, 4 || lea     ecx, [ebp+Source]",
+          "ref_strings": "Please input your flag: | %s",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401D3A",
+          "caller_func": "_main_0",
+          "callee": "_printf",
+          "call_disasm": "call    _printf",
+          "nearby": "lea     edx, [ebp+Source] || push    edx; Str || call    _strlen || add     esp, 4 || mov     [ebp+var_454], eax || cmp     [ebp+var_454], 5",
+          "ref_strings": "Wrong,try again!",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401D47",
+          "caller_func": "_main_0",
+          "callee": "_system",
+          "call_disasm": "call    _system",
+          "nearby": "add     esp, 4 || mov     [ebp+var_454], eax || cmp     [ebp+var_454], 5 || jnb     short loc_401D56 || push    offset aWrongTryAgain; \"Wrong,try again!\\n\" || call    _printf",
+          "ref_strings": "Wrong,try again! | pause",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401DAA",
+          "caller_func": "_main_0",
+          "callee": "_printf",
+          "call_disasm": "call    _printf",
+          "nearby": "movsx   eax, [ebp+edx+Source] || cmp     eax, 41h ; 'A' || jl      short loc_401DA5 || mov     ecx, [ebp+var_450] || movsx   edx, [ebp+ecx+Source] || cmp     edx, 7Ah ; 'z'",
+          "ref_strings": "The inputs are out of the scope!",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401DB7",
+          "caller_func": "_main_0",
+          "callee": "_system",
+          "call_disasm": "call    _system",
+          "nearby": "mov     ecx, [ebp+var_450] || movsx   edx, [ebp+ecx+Source] || cmp     edx, 7Ah ; 'z' || jle     short loc_401DBF || push    offset aTheInputsAreOu; \"The inputs are out of the scope!\" || call    _printf",
+          "ref_strings": "The inputs are out of the scope! | pause",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401E45",
+          "caller_func": "_main_0",
+          "callee": "_strncmp",
+          "call_disasm": "call    _strncmp",
+          "nearby": "add     ecx, 1 || mov     edx, [ebp+var_450] || mov     [ebp+edx+Str1], cl || jmp     short loc_401E08 || push    40h ; '@'; MaxCount || push    offset Str2; \"1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:\"...",
+          "ref_strings": "1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:1dbd916df13239513g21e4663",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401E56",
+          "caller_func": "_main_0",
+          "callee": "_printf",
+          "call_disasm": "call    _printf",
+          "nearby": "push    offset Str2; \"1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:\"... || lea     eax, [ebp+Str1] || push    eax; Str1 || call    _strncmp || add     esp, 0Ch || test    eax, eax",
+          "ref_strings": "1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:1dbd916df13239513g21e4663 | Correct!",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401E65",
+          "caller_func": "_main_0",
+          "callee": "_printf",
+          "call_disasm": "call    _printf",
+          "nearby": "add     esp, 0Ch || test    eax, eax || jnz     short loc_401E60 || push    offset aCorrect; \"Correct!\\n\" || call    _printf || add     esp, 4",
+          "ref_strings": "Correct! | Wrong,try again!",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401E72",
+          "caller_func": "_main_0",
+          "callee": "_system",
+          "call_disasm": "call    _system",
+          "nearby": "push    offset aCorrect; \"Correct!\\n\" || call    _printf || add     esp, 4 || jmp     short loc_401E6D || push    offset aWrongTryAgain; \"Wrong,try again!\\n\" || call    _printf",
+          "ref_strings": "Correct! | Wrong,try again! | pause",
+          "imm_args": "",
+          "kind": "local_call_context"
+        }
+      ],
+      "string_xrefs_summary": [
+        {
+          "string_ea": "0x4286F4",
+          "xref_ea": "0x403414",
+          "caller_func": "_CheckBytes",
+          "string": "memory check error at 0x%08X = 0x%02X, should be 0x%02X.\n",
+          "xref_disasm": "push    offset aMemoryCheckErr",
+          "nearby": "mov     dl, [ecx-1] || push    edx || mov     eax, [ebp+arg_0] || sub     eax, 1 || push    eax; char",
+          "score": "8"
+        },
+        {
+          "string_ea": "0x428220",
+          "xref_ea": "0x401CF6",
+          "caller_func": "_main_0",
+          "string": "Please input your flag:\n",
+          "xref_disasm": "push    offset aPleaseInputYou; \"Please input your flag:\\n\"",
+          "nearby": "stosw || stosb || mov     [ebp+Destination], 0 || xor     eax, eax || mov     [ebp+var_44B], eax",
+          "score": "7"
+        },
+        {
+          "string_ea": "0x428F0C",
+          "xref_ea": "0x40BCB3",
+          "caller_func": "__ftbuf",
+          "string": "flag == 0 || flag == 1",
+          "xref_disasm": "push    offset aFlag0Flag1",
+          "nearby": "push    edi; char || cmp     [ebp+arg_0], 0 || jz      short loc_40BCD4 || cmp     [ebp+arg_0], 1 || jz      short loc_40BCD4",
+          "score": "5"
+        },
+        {
+          "string_ea": "0x4290B8",
+          "xref_ea": "0x42D054",
+          "caller_func": "",
+          "string": "R6018\r\n- unexpected heap error\r\n",
+          "xref_disasm": "dd offset aR6018Unexpecte",
+          "nearby": "",
+          "score": "5"
+        },
+        {
+          "string_ea": "0x4290DC",
+          "xref_ea": "0x42D04C",
+          "caller_func": "",
+          "string": "R6017\r\n- unexpected multithread lock error\r\n",
+          "xref_disasm": "dd offset aR6017Unexpecte",
+          "nearby": "",
+          "score": "5"
+        },
+        {
+          "string_ea": "0x428B00",
+          "xref_ea": "0x42AA88",
+          "caller_func": "",
+          "string": "Error",
+          "xref_disasm": "dd offset aError",
+          "nearby": "",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428988",
+          "xref_ea": "0x403E7F",
+          "caller_func": "__CrtMemDumpAllObjectsSince",
+          "string": "{%ld} ",
+          "xref_disasm": "push    offset aLd",
+          "nearby": "test    eax, eax || jnz     short loc_403E49 || mov     ecx, [ebp+var_4] || mov     edx, [ecx+18h] || push    edx; char",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x4292F8",
+          "xref_ea": "0x410FFF",
+          "caller_func": "___crtCompareStringA",
+          "string": "a_cmp.c",
+          "xref_disasm": "push    offset aACmpC",
+          "nearby": "cmp     [ebp+cchCount2], 0 || jz      short loc_411014 || push    offset aCchcount10Cchc || push    0; int || push    0B6h; Value",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428EF0",
+          "xref_ea": "0x40A50E",
+          "caller_func": "__input",
+          "string": "input.c",
+          "xref_disasm": "push    offset aInputC",
+          "nearby": "cmp     [ebp+arg_4], 0 || jnz     short loc_40A523 || push    offset aFormatNull || push    0; int || push    109h; Value",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428EF0",
+          "xref_ea": "0x40A53B",
+          "caller_func": "__input",
+          "string": "input.c",
+          "xref_disasm": "push    offset aInputC",
+          "nearby": "cmp     [ebp+File], 0 || jnz     short loc_40A550 || push    offset aStreamNull || push    0; int || push    10Ch; Value",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428178",
+          "xref_ea": "0x401E51",
+          "caller_func": "_main_0",
+          "string": "Correct!\n",
+          "xref_disasm": "push    offset aCorrect; \"Correct!\\n\"",
+          "nearby": "push    eax; Str1 || call    _strncmp || add     esp, 0Ch || test    eax, eax || jnz     short loc_401E60",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428F74",
+          "xref_ea": "0x42D094",
+          "caller_func": "",
+          "string": "SING error\r\n",
+          "xref_disasm": "dd offset aSingError",
+          "nearby": "",
+          "score": "4"
+        }
+      ],
+      "validation_function_candidates": [
+        {
+          "function": "_main_0",
+          "score": "122",
+          "reason": "compare_context | local_check_context | interesting_string_xref",
+          "evidence": "0x401E45 | 0x401CFB | 0x401D0F | 0x401D3A | 0x401D47 | 0x401DAA | 0x401DB7 | 0x401E56"
+        },
+        {
+          "function": "sub_403450",
+          "score": "107",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x4034C0 | 0x4034EB | 0x403513 | 0x40353B | 0x403563 | 0x40360F | 0x40363A | 0x403697"
+        },
+        {
+          "function": "__CrtDbgReport",
+          "score": "81",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x404A61 | 0x404A82 | 0x404AB2 | 0x404AC2 | 0x404B15 | 0x404B4D | 0x404BE8 | 0x404B35"
+        },
+        {
+          "function": "__CrtMemDumpAllObjectsSince",
+          "score": "53",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x403E33 | 0x403E8C | 0x403EDB | 0x403F46 | 0x403FA3 | 0x403E7F | 0x403E26 | 0x403F39"
+        },
+        {
+          "function": "__heap_alloc_dbg",
+          "score": "52",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x402418 | 0x402481 | 0x4024A9 | 0x40255C | 0x402405 | 0x402497 | 0x40254A | 0x402474"
+        },
+        {
+          "function": "_realloc_help",
+          "score": "52",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x40286E | 0x4028D9 | 0x402901 | 0x402982 | 0x40285B | 0x4028EF | 0x402970 | 0x4028CC"
+        },
+        {
+          "function": "sub_402D90",
+          "score": "44",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x402DBF | 0x402E0F | 0x402F1C | 0x402F82 | 0x402DAC | 0x402DFD | 0x402F75 | 0x402F0F"
+        },
+        {
+          "function": "_CrtMessageWindow",
+          "score": "40",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x404FED | 0x405005 | 0x40501E | 0x405012 | 0x404FF9 | 0x404FDC | 0x404E5E"
+        },
+        {
+          "function": "__spawnvpe",
+          "score": "24",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x409EC4 | 0x409F4A | 0x409FBE | 0x409F3A | 0x409EB4"
+        },
+        {
+          "function": "__CrtMemCheckpoint",
+          "score": "22",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x403AE1 | 0x403BDE | 0x403ACF | 0x403BD1"
+        }
+      ],
+      "decompiler_snippets": [
+        {
+          "function": "_main_0",
+          "entry_ea": "0x401CA0",
+          "text": "int __cdecl main_0(int argc, const char **argv, const char **envp)\n{\n  int v4; // eax\n  size_t v5; // [esp+4Ch] [ebp-454h]\n  size_t i; // [esp+50h] [ebp-450h]\n  int j; // [esp+50h] [ebp-450h]\n  char Destination; // [esp+54h] [ebp-44Ch] BYREF\n  int v9; // [esp+55h] [ebp-44Bh]\n  char Source[1021]; // [esp+5Ch] [ebp-444h] BYREF\n  __int16 v11; // [esp+459h] [ebp-47h]\n  char v12; // [esp+45Bh] [ebp-45h]\n  char Str1[68]; // [esp+45Ch] [ebp-44h] BYREF\n\n  memset(Str1, 0, 65);\n  memset(Source, 0, sizeof(Source));\n  v11 = 0;\n  v12 = 0;\n  Destination = 0;\n  v9 = 0;\n  printf(\"Please input your flag:\\n\");\n  scanf(\"%s\", Source);\n  v5 = strlen(Source);\n  if ( v5 >= 5 )\n  {\n    for ( i = 0; i < v5; ++i )\n    {\n      if ( Source[i] < 65 || Source[i] > 122 )\n      {\n        printf(\"The inputs are out of the scope!\");\n        system(\"pause\");\n      }\n    }\n    strncpy(&Destination, Source, 4u);\n    v4 = st"
+        },
+        {
+          "function": "sub_403450",
+          "entry_ea": "0x403450",
+          "text": "int sub_403450()\n{\n  _DWORD *v1; // eax\n  int v2; // ecx\n  _DWORD *v3; // edx\n  const char *v4; // [esp+10h] [ebp-14h]\n  int v5; // [esp+14h] [ebp-10h]\n  int v6; // [esp+18h] [ebp-Ch]\n  _DWORD *i; // [esp+1Ch] [ebp-8h]\n  int v8; // [esp+20h] [ebp-4h]\n\n  if ( (dword_42AA30 & 1) == 0 )\n    return 1;\n  v6 = sub_405890();\n  if ( v6 == -1 || v6 == -2 )\n  {\n    v8 = 1;\n    for ( i = (_DWORD *)dword_42DC80; i; i = (_DWORD *)*i )\n    {\n      v5 = 1;\n      if ( (unsigned __int16)i[5] == 4 || i[5] == 1 || (v1 = i, (unsigned __int16)i[5] == 2) || i[5] == 3 )\n      {\n        v1 = i;\n        v4 = *(const char **)&off_42AA40[4 * (unsigned __int16)i[5]];\n      }\n      else\n      {\n        v4 = \"DAMAGED\";\n      }\n      LOBYTE(v1) = byte_42AA3C;\n      if ( !CheckBytes(i + 7, v1, 4) )\n      {\n        if ( _CrtDbgReport(0, 0, 0, 0, \"DAMAGE: before %hs block (#%d) at 0x%08X.\\n\", (char)v4) == 1 )\n          _"
+        },
+        {
+          "function": "__CrtDbgReport",
+          "entry_ea": "0x4049C0",
+          "text": "int __cdecl _CrtDbgReport(unsigned int a1, const char *a2, int Value, int a4, char *Format, char a6)\n{\n  DWORD v7; // eax\n  int v8; // eax\n  char *v9; // [esp+4h] [ebp-302Ch]\n  char Buffer[20]; // [esp+Ch] [ebp-3024h] BYREF\n  DWORD NumberOfBytesWritten; // [esp+20h] [ebp-3010h] BYREF\n  HMODULE hModule; // [esp+24h] [ebp-300Ch]\n  char v13[4093]; // [esp+28h] [ebp-3008h] BYREF\n  __int16 v14; // [esp+1025h] [ebp-200Bh]\n  char v15; // [esp+1027h] [ebp-2009h]\n  CHAR OutputString[4093]; // [esp+1028h] [ebp-2008h] BYREF\n  __int16 v17; // [esp+2025h] [ebp-100Bh]\n  char v18; // [esp+2027h] [ebp-1009h]\n  int v19; // [esp+2028h] [ebp-1008h] BYREF\n  va_list ArgList; // [esp+202Ch] [ebp-1004h]\n  char Destination[4093]; // [esp+2030h] [ebp-1000h] BYREF\n  __int16 v22; // [esp+302Dh] [ebp-3h]\n  char v23; // [esp+302Fh] [ebp-1h]\n\n  memset(v13, 0, sizeof(v13));\n  v14 = 0;\n  v15 = 0;\n  memset(OutputString,"
+        },
+        {
+          "function": "__CrtMemDumpAllObjectsSince",
+          "entry_ea": "0x403D50",
+          "text": "int __cdecl _CrtMemDumpAllObjectsSince(int *a1)\n{\n  int result; // eax\n  int v2; // [esp+Ch] [ebp-8h]\n  int i; // [esp+10h] [ebp-4h]\n\n  v2 = 0;\n  if ( _CrtDbgReport(0, 0, 0, 0, \"%s\", (char)\"Dumping objects ->\\n\") == 1 )\n    __debugbreak();\n  if ( a1 )\n    v2 = *a1;\n  for ( i = dword_42DC80; i && i != v2; i = *(_DWORD *)i )\n  {\n    if ( (unsigned __int16)*(_DWORD *)(i + 20) != 3\n      && (unsigned __int16)*(_DWORD *)(i + 20)\n      && ((unsigned __int16)*(_DWORD *)(i + 20) != 2 || (dword_42AA30 & 0x10) != 0) )\n    {\n      if ( *(_DWORD *)(i + 8) )\n      {\n        if ( _CrtIsValidPointer(*(void **)(i + 8), 1u, 0) )\n        {\n          if ( _CrtDbgReport(0, 0, 0, 0, \"%hs(%d) : \", *(_DWORD *)(i + 8)) == 1 )\n            __debugbreak();\n        }\n        else if ( _CrtDbgReport(0, 0, 0, 0, \"#File Error#(%d) : \", *(_DWORD *)(i + 12)) == 1 )\n        {\n          __debugbreak();\n        }\n      }\n "
+        }
+      ],
+      "solver_hints": [
+        {
+          "kind": "direct_strcmp",
+          "reason": "compare API context recovered"
+        },
+        {
+          "kind": "gui_input",
+          "reason": "input-oriented strings recovered"
+        }
+      ],
+      "next_action": "ida_summary_guided_solver_v1"
     },
     {
       "sample_id": "bcbd9979db015bfd",
       "relative_path": "逆向课程2022春补考01/Cpp1.exe",
       "previous_missing_evidence": "needs_symbolic_execution",
-      "ida_status": "blocked",
-      "blocked_reasons": [
-        "BLOCKED_BY_IDA_UNAVAILABLE"
+      "ida_status": "success",
+      "blocked_reasons": [],
+      "ida_output_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\bcbd9979db015bfd\\Cpp1_ida_evidence.json",
+      "hexrays_available": true,
+      "strings_summary": [
+        "memory check error at 0x%08X = 0x%02X, should be 0x%02X.\n",
+        "lstrcmpA",
+        "Please input your flag \n",
+        "flag == 0 || flag == 1",
+        "R6018\r\n- unexpected heap error\r\n",
+        "R6017\r\n- unexpected multithread lock error\r\n",
+        "Error",
+        "{%ld} ",
+        "a_cmp.c",
+        "input.c",
+        "DebugBreak",
+        "scan fail\n",
+        "GetLastError",
+        "SING error\r\n",
+        "TLOSS error\r\n",
+        "DOMAIN error\r\n",
+        "runtime error ",
+        "File open fail\n",
+        "Assertion Failed",
+        "Assertion failed!"
       ],
-      "ida_output_path": "",
-      "hexrays_available": false,
-      "strings_summary": [],
-      "compare_contexts_summary": [],
-      "local_check_contexts_summary": [],
-      "string_xrefs_summary": [],
-      "validation_function_candidates": [],
-      "decompiler_snippets": [],
-      "solver_hints": [],
-      "next_action": "",
-      "error": "未找到 IDA 可执行文件（请在界面配置 ida/idat 路径）。"
+      "compare_contexts_summary": [
+        {
+          "call_ea": "0x401444",
+          "caller_func": "_main_0",
+          "callee": "__imp_lstrcmpA",
+          "call_disasm": "call    ds:__imp_lstrcmpA",
+          "nearby": "lea     edx, [ebp+String2] || push    edx; lpString2 || lea     eax, [ebp+Buffer] || push    eax; lpString1",
+          "ref_strings": ""
+        },
+        {
+          "call_ea": "0x40153E",
+          "caller_func": "lstrcmpA",
+          "callee": "__imp_lstrcmpA",
+          "call_disasm": "jmp     ds:__imp_lstrcmpA",
+          "nearby": "",
+          "ref_strings": ""
+        },
+        {
+          "call_ea": "0x408DBE",
+          "caller_func": "sub_408D00",
+          "callee": "_strncmp",
+          "call_disasm": "call    _strncmp",
+          "nearby": "push    16h; MaxCount || lea     ecx, [ebp+Buffer] || push    ecx; Str2 || push    offset Str1; \"__GLOBAL_HEAP_SELECTED\"",
+          "ref_strings": "__GLOBAL_HEAP_SELECTED"
+        }
+      ],
+      "local_check_contexts_summary": [
+        {
+          "call_ea": "0x401056",
+          "caller_func": "sub_401030",
+          "callee": "ds:__imp_GetModuleHandleA",
+          "call_disasm": "call    ds:__imp_GetModuleHandleA",
+          "nearby": "lea     edi, [ebp+var_4C] || mov     ecx, 13h || mov     eax, 0CCCCCCCCh || rep stosd || mov     esi, esp || push    offset ProcName; \"WriteFile\"",
+          "ref_strings": "WriteFile | kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x40105E",
+          "caller_func": "sub_401030",
+          "callee": "__chkesp",
+          "call_disasm": "call    __chkesp",
+          "nearby": "mov     eax, 0CCCCCCCCh || rep stosd || mov     esi, esp || push    offset ProcName; \"WriteFile\" || mov     edi, esp || push    offset ModuleName; \"kernel32.dll\"",
+          "ref_strings": "WriteFile | kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401064",
+          "caller_func": "sub_401030",
+          "callee": "ds:__imp_GetProcAddress",
+          "call_disasm": "call    ds:__imp_GetProcAddress",
+          "nearby": "mov     esi, esp || push    offset ProcName; \"WriteFile\" || mov     edi, esp || push    offset ModuleName; \"kernel32.dll\" || call    ds:__imp_GetModuleHandleA || cmp     edi, esp",
+          "ref_strings": "WriteFile | kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x40106C",
+          "caller_func": "sub_401030",
+          "callee": "__chkesp",
+          "call_disasm": "call    __chkesp",
+          "nearby": "mov     edi, esp || push    offset ModuleName; \"kernel32.dll\" || call    ds:__imp_GetModuleHandleA || cmp     edi, esp || call    __chkesp || push    eax; hModule",
+          "ref_strings": "kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x401149",
+          "caller_func": "sub_401100",
+          "callee": "_printf",
+          "call_disasm": "call    _printf",
+          "nearby": "mov     [ebp+var_19], 7 || mov     [ebp+var_18], 11h || mov     [ebp+var_17], 7 || mov     [ebp+var_16], 0Dh || mov     [ebp+var_15], 0 || mov     [ebp+var_20], 0",
+          "ref_strings": "Please input your flag",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x40115A",
+          "caller_func": "sub_401100",
+          "callee": "_scanf",
+          "call_disasm": "call    _scanf",
+          "nearby": "mov     [ebp+var_20], 0 || call    sub_401005 || push    offset aPleaseInputYou; \"Please input your flag \\n\" || call    _printf || add     esp, 4 || lea     eax, [ebp+var_14]",
+          "ref_strings": "Please input your flag | %s",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x4011A3",
+          "caller_func": "sub_401100",
+          "callee": "ds:__imp_GetModuleHandleA",
+          "call_disasm": "call    ds:__imp_GetModuleHandleA",
+          "nearby": "xor     eax, edx || mov     ecx, [ebp+var_20] || mov     [ebp+ecx+Str], al || jmp     short loc_40116B || mov     esi, esp || push    offset ProcName; \"WriteFile\"",
+          "ref_strings": "WriteFile | kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x4011AB",
+          "caller_func": "sub_401100",
+          "callee": "__chkesp",
+          "call_disasm": "call    __chkesp",
+          "nearby": "mov     [ebp+ecx+Str], al || jmp     short loc_40116B || mov     esi, esp || push    offset ProcName; \"WriteFile\" || mov     edi, esp || push    offset ModuleName; \"kernel32.dll\"",
+          "ref_strings": "WriteFile | kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x4011B1",
+          "caller_func": "sub_401100",
+          "callee": "ds:__imp_GetProcAddress",
+          "call_disasm": "call    ds:__imp_GetProcAddress",
+          "nearby": "mov     esi, esp || push    offset ProcName; \"WriteFile\" || mov     edi, esp || push    offset ModuleName; \"kernel32.dll\" || call    ds:__imp_GetModuleHandleA || cmp     edi, esp",
+          "ref_strings": "WriteFile | kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x4011B9",
+          "caller_func": "sub_401100",
+          "callee": "__chkesp",
+          "call_disasm": "call    __chkesp",
+          "nearby": "mov     edi, esp || push    offset ModuleName; \"kernel32.dll\" || call    ds:__imp_GetModuleHandleA || cmp     edi, esp || call    __chkesp || push    eax; hModule",
+          "ref_strings": "kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x4012A2",
+          "caller_func": "_main_0",
+          "callee": "ds:__imp_GetModuleHandleA",
+          "call_disasm": "call    ds:__imp_GetModuleHandleA",
+          "nearby": "xor     eax, eax || mov     [ebp+var_1E], eax || mov     ecx, ds:dword_4280D8 || mov     [ebp+Buffer], ecx || mov     edx, ds:dword_4280DC || mov     [ebp+var_44], edx",
+          "ref_strings": "realpwd | pwd | kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        },
+        {
+          "call_ea": "0x4012AA",
+          "caller_func": "_main_0",
+          "callee": "__chkesp",
+          "call_disasm": "call    __chkesp",
+          "nearby": "mov     ecx, ds:dword_4280D8 || mov     [ebp+Buffer], ecx || mov     edx, ds:dword_4280DC || mov     [ebp+var_44], edx || mov     esi, esp || push    offset ModuleName; \"kernel32.dll\"",
+          "ref_strings": "realpwd | pwd | kernel32.dll",
+          "imm_args": "",
+          "kind": "local_call_context"
+        }
+      ],
+      "string_xrefs_summary": [
+        {
+          "string_ea": "0x428A30",
+          "xref_ea": "0x406824",
+          "caller_func": "_CheckBytes",
+          "string": "memory check error at 0x%08X = 0x%02X, should be 0x%02X.\n",
+          "xref_disasm": "push    offset aMemoryCheckErr",
+          "nearby": "mov     dl, [ecx-1] || push    edx || mov     eax, [ebp+arg_0] || sub     eax, 1 || push    eax; char",
+          "score": "8"
+        },
+        {
+          "string_ea": "0x42803C",
+          "xref_ea": "0x401144",
+          "caller_func": "sub_401100",
+          "string": "Please input your flag \n",
+          "xref_disasm": "push    offset aPleaseInputYou; \"Please input your flag \\n\"",
+          "nearby": "mov     [ebp+var_17], 7 || mov     [ebp+var_16], 0Dh || mov     [ebp+var_15], 0 || mov     [ebp+var_20], 0 || call    sub_401005",
+          "score": "7"
+        },
+        {
+          "string_ea": "0x42851C",
+          "xref_ea": "0x403ED3",
+          "caller_func": "__ftbuf",
+          "string": "flag == 0 || flag == 1",
+          "xref_disasm": "push    offset aFlag0Flag1",
+          "nearby": "push    edi; char || cmp     [ebp+arg_0], 0 || jz      short loc_403EF4 || cmp     [ebp+arg_0], 1 || jz      short loc_403EF4",
+          "score": "5"
+        },
+        {
+          "string_ea": "0x428F78",
+          "xref_ea": "0x42AE0C",
+          "caller_func": "",
+          "string": "R6018\r\n- unexpected heap error\r\n",
+          "xref_disasm": "dd offset aR6018Unexpecte",
+          "nearby": "",
+          "score": "5"
+        },
+        {
+          "string_ea": "0x428F9C",
+          "xref_ea": "0x42AE04",
+          "caller_func": "",
+          "string": "R6017\r\n- unexpected multithread lock error\r\n",
+          "xref_disasm": "dd offset aR6017Unexpecte",
+          "nearby": "",
+          "score": "5"
+        },
+        {
+          "string_ea": "0x4282E0",
+          "xref_ea": "0x42AA58",
+          "caller_func": "",
+          "string": "Error",
+          "xref_disasm": "dd offset aError",
+          "nearby": "",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428CC4",
+          "xref_ea": "0x40728F",
+          "caller_func": "__CrtMemDumpAllObjectsSince",
+          "string": "{%ld} ",
+          "xref_disasm": "push    offset aLd",
+          "nearby": "test    eax, eax || jnz     short loc_407259 || mov     ecx, [ebp+var_4] || mov     edx, [ecx+18h] || push    edx; char",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x429220",
+          "xref_ea": "0x41149F",
+          "caller_func": "___crtCompareStringA",
+          "string": "a_cmp.c",
+          "xref_disasm": "push    offset aACmpC",
+          "nearby": "cmp     [ebp+cchCount2], 0 || jz      short loc_4114B4 || push    offset aCchcount10Cchc || push    0; int || push    0B6h; Value",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428500",
+          "xref_ea": "0x40272E",
+          "caller_func": "__input",
+          "string": "input.c",
+          "xref_disasm": "push    offset aInputC",
+          "nearby": "cmp     [ebp+arg_4], 0 || jnz     short loc_402743 || push    offset aFormatNull || push    0; int || push    109h; Value",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428500",
+          "xref_ea": "0x40275B",
+          "caller_func": "__input",
+          "string": "input.c",
+          "xref_disasm": "push    offset aInputC",
+          "nearby": "cmp     [ebp+File], 0 || jnz     short loc_402770 || push    offset aStreamNull || push    0; int || push    10Ch; Value",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x42808C",
+          "xref_ea": "0x40141B",
+          "caller_func": "_main_0",
+          "string": "scan fail\n",
+          "xref_disasm": "push    offset aScanFail; \"scan fail\\n\"",
+          "nearby": "mov     eax, [ebp+Stream] || push    eax; Stream || call    _fscanf || add     esp, 0Ch || jmp     short loc_401428",
+          "score": "4"
+        },
+        {
+          "string_ea": "0x428E34",
+          "xref_ea": "0x42AE4C",
+          "caller_func": "",
+          "string": "SING error\r\n",
+          "xref_disasm": "dd offset aSingError",
+          "nearby": "",
+          "score": "4"
+        }
+      ],
+      "validation_function_candidates": [
+        {
+          "function": "__CrtDbgReport",
+          "score": "81",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x402111 | 0x402132 | 0x402162 | 0x402172 | 0x4021C5 | 0x4021FD | 0x402298 | 0x4021E5"
+        },
+        {
+          "function": "_main_0",
+          "score": "73",
+          "reason": "compare_context | local_check_context | interesting_string_xref",
+          "evidence": "0x401444 | 0x4012A2 | 0x4012AA | 0x4013E7 | 0x4013F6 | 0x401420 | 0x401432 | 0x40141B"
+        },
+        {
+          "function": "sub_401100",
+          "score": "56",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x401149 | 0x40115A | 0x4011A3 | 0x4011AB | 0x4011B1 | 0x4011B9 | 0x401144 | 0x40119E"
+        },
+        {
+          "function": "__heap_alloc_dbg",
+          "score": "52",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x405828 | 0x405891 | 0x4058B9 | 0x40596C | 0x405815 | 0x4058A7 | 0x40595A | 0x405884"
+        },
+        {
+          "function": "_realloc_help",
+          "score": "52",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x405C7E | 0x405CE9 | 0x405D11 | 0x405D92 | 0x405C6B | 0x405CFF | 0x405D80 | 0x405CDC"
+        },
+        {
+          "function": "sub_406860",
+          "score": "46",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x4068D0 | 0x4068FB | 0x406911 | 0x406939 | 0x4068E9 | 0x4068BE | 0x406961 | 0x406B6F"
+        },
+        {
+          "function": "sub_4061A0",
+          "score": "44",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x4061CF | 0x40621F | 0x40632C | 0x406392 | 0x4061BC | 0x40620D | 0x406385 | 0x40631F"
+        },
+        {
+          "function": "_CrtMessageWindow",
+          "score": "40",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x40269D | 0x4026B5 | 0x4026CE | 0x4026C2 | 0x4026A9 | 0x40268C | 0x40250E"
+        },
+        {
+          "function": "sub_401030",
+          "score": "30",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x401056 | 0x40105E | 0x401064 | 0x40106C | 0x401051"
+        },
+        {
+          "function": "__input",
+          "score": "26",
+          "reason": "local_check_context | interesting_string_xref",
+          "evidence": "0x402735 | 0x402762 | 0x40272E | 0x40275B"
+        }
+      ],
+      "decompiler_snippets": [
+        {
+          "function": "__CrtDbgReport",
+          "entry_ea": "0x402070",
+          "text": "int __cdecl _CrtDbgReport(unsigned int a1, const char *a2, int Value, int a4, char *Format, char a6)\n{\n  DWORD v7; // eax\n  int v8; // eax\n  char *v9; // [esp+4h] [ebp-302Ch]\n  char Buffer[20]; // [esp+Ch] [ebp-3024h] BYREF\n  DWORD NumberOfBytesWritten; // [esp+20h] [ebp-3010h] BYREF\n  HMODULE hModule; // [esp+24h] [ebp-300Ch]\n  char v13[4093]; // [esp+28h] [ebp-3008h] BYREF\n  __int16 v14; // [esp+1025h] [ebp-200Bh]\n  char v15; // [esp+1027h] [ebp-2009h]\n  CHAR OutputString[4093]; // [esp+1028h] [ebp-2008h] BYREF\n  __int16 v17; // [esp+2025h] [ebp-100Bh]\n  char v18; // [esp+2027h] [ebp-1009h]\n  int v19; // [esp+2028h] [ebp-1008h] BYREF\n  va_list ArgList; // [esp+202Ch] [ebp-1004h]\n  char Destination[4093]; // [esp+2030h] [ebp-1000h] BYREF\n  __int16 v22; // [esp+302Dh] [ebp-3h]\n  char v23; // [esp+302Fh] [ebp-1h]\n\n  memset(v13, 0, sizeof(v13));\n  v14 = 0;\n  v15 = 0;\n  memset(OutputString,"
+        },
+        {
+          "function": "_main_0",
+          "entry_ea": "0x401250",
+          "text": "int __cdecl main_0(int argc, const char **argv, const char **envp)\n{\n  DWORD v3; // eax\n  int Buffer[3]; // [esp+4Ch] [ebp-48h] BYREF\n  int Src; // [esp+58h] [ebp-3Ch] BYREF\n  DWORD flOldProtect; // [esp+5Ch] [ebp-38h] BYREF\n  CHAR String2[16]; // [esp+64h] [ebp-30h] BYREF\n  _BYTE v10[6]; // [esp+74h] [ebp-20h] BYREF\n  LPVOID lpAddress; // [esp+7Ch] [ebp-18h]\n  int v12; // [esp+80h] [ebp-14h]\n  FILE *Stream; // [esp+84h] [ebp-10h]\n  LPVOID ProcAddress; // [esp+88h] [ebp-Ch]\n  HMODULE hModule; // [esp+8Ch] [ebp-8h]\n  HANDLE hFile; // [esp+90h] [ebp-4h]\n\n  Stream = 0;\n  v12 = 0;\n  v10[0] = -23;\n  v10[1] = 0;\n  *(_DWORD *)&v10[2] = 0;\n  strcpy((char *)Buffer, \"realpwd\");\n  hModule = GetModuleHandleA(\"kernel32.dll\");\n  ProcAddress = GetProcAddress(hModule, \"WriteFile\");\n  lpAddress = ProcAddress;\n  if ( VirtualProtect(ProcAddress, 5u, 0x40u, &flOldProtect) )\n  {\n    memcpy(&unk_42DC8C, lpAdd"
+        },
+        {
+          "function": "sub_401100",
+          "entry_ea": "0x401100",
+          "text": "int __thiscall sub_401100(void *this, int a2, int a3, int a4, int a5, int a6)\n{\n  HMODULE ModuleHandleA; // eax\n  size_t v7; // eax\n  int i; // [esp+4Ch] [ebp-20h]\n  char Str[8]; // [esp+50h] [ebp-1Ch] BYREF\n  char v11[16]; // [esp+58h] [ebp-14h] BYREF\n  FARPROC ProcAddress; // [esp+68h] [ebp-4h]\n\n  Str[0] = 26;\n  Str[1] = 10;\n  Str[2] = 14;\n  Str[3] = 7;\n  Str[4] = 17;\n  Str[5] = 7;\n  Str[6] = 13;\n  Str[7] = 0;\n  sub_401005(this);\n  printf(\"Please input your flag \\n\");\n  scanf(\"%s\", v11);\n  for ( i = 0; i < 7; ++i )\n    Str[i] ^= v11[i];\n  ModuleHandleA = GetModuleHandleA(\"kernel32.dll\");\n  ProcAddress = GetProcAddress(ModuleHandleA, \"WriteFile\");\n  v7 = strlen(Str);\n  ((void (__stdcall *)(int, char *, size_t, int, int))ProcAddress)(a2, Str, v7, a5, a6);\n  return 1;\n}\n"
+        },
+        {
+          "function": "__heap_alloc_dbg",
+          "entry_ea": "0x4057F0",
+          "text": "_DWORD *__cdecl _heap_alloc_dbg(size_t Size, int a2, int a3, int a4)\n{\n  char v5; // [esp+0h] [ebp-1Ch]\n  int v6; // [esp+10h] [ebp-Ch]\n  int v7; // [esp+14h] [ebp-8h]\n  _DWORD *v8; // [esp+18h] [ebp-4h]\n\n  v6 = 0;\n  if ( (dword_42AD08 & 4) != 0 && !sub_406860() && _CrtDbgReport(2u, \"dbgheap.c\", 332, 0, \"_CrtCheckMemory()\", v5) == 1 )\n    __debugbreak();\n  v7 = dword_42AD0C;\n  if ( dword_42AD0C == dword_42AD10 )\n    __debugbreak();\n  if ( off_42B220(1, 0, Size, a2, dword_42AD0C, a3, a4) )\n  {\n    if ( (unsigned __int16)a2 != 2 && (dword_42AD08 & 1) == 0 )\n      v6 = 1;\n    if ( Size <= 0xFFFFFFE0 && Size + 36 <= 0xFFFFFFE0 )\n    {\n      if ( (unsigned __int16)a2 != 4\n        && a2 != 1\n        && (unsigned __int16)a2 != 2\n        && a2 != 3\n        && _CrtDbgReport(1u, 0, 0, 0, \"%s\", (char)\"Error: memory allocation: bad memory block type.\\n\") == 1 )\n      {\n        __debugbreak();\n      "
+        }
+      ],
+      "solver_hints": [
+        {
+          "kind": "direct_strcmp",
+          "reason": "compare API context recovered"
+        },
+        {
+          "kind": "gui_input",
+          "reason": "input-oriented strings recovered"
+        }
+      ],
+      "next_action": "ida_summary_guided_solver_v1"
     }
   ]
 }
