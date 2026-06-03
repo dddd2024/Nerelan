@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260603_local_reverse_runtime_solve_benchmark",
-  "round_id": "round_20260603_local_reverse_runtime_solve_benchmark",
+  "decision_id": "decision_20260603_local_reverse_string_compare_solver_v1",
+  "round_id": "round_20260603_local_reverse_string_compare_solver_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -15,87 +15,97 @@
 
 # DECISION_PACKET
 
-本轮继续 `local_reverse_simple_training`，但从上一轮的 **static-only corpus bootstrap** 推进到 **bounded runtime solve benchmark**。
+本轮继续 `local_reverse_simple_training`，但从上一轮的 **bounded runtime solve benchmark** 推进到第一类 solver 能力建设：**bounded string-compare solver family v1**。
 
-用户已经明确确认：
+当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。旧 `project_state/task_packet.json` 中的 `samplereverse` 字段仍只作为旧状态背景，不能覆盖本 decision。
 
-```text
-E:\reverse 内的 .exe 样本都已经手动试过，可以直接运行，不认为有病毒。
-```
-
-因此本轮允许对 `E:\reverse` 内已索引的 `.exe` 样本进行**有界运行**，但仍然必须保留工程安全边界：不复制二进制、不上传样本、不无界执行、不联网、不做全盘扫描、不改 `.codex-skills/`。
-
-当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。旧 `task_packet.json` 中的 `samplereverse` 字段仍只作为旧状态背景，不能覆盖本 decision。
+本轮只处理上一轮 benchmark 推荐的 3 个 `ready_static_string_compare` challenge binary，不扩展到全量样本，不做无界 brute force。
 
 ---
 
 ## 1. Goal
 
-本轮目标是让项目开始真正基于 `E:\reverse` 的全部题目提升解题能力。
+本轮目标是实现第一个可复用的本地简单题 solver family：`string_compare_static_solver_v1`。
 
-具体目标：
+核心目标：
 
 ```text
-1. 在上一轮 corpus index 基础上，区分“题目样本”和“已有 solver/笔记/辅助脚本”。
-2. 对所有题目 .exe 建立 bounded runtime baseline。
-3. 捕获每个 .exe 的运行行为：exit_code、stdout、stderr、timeout、是否等待输入、是否 GUI、是否崩溃。
-4. 结合静态 triage + runtime baseline，生成每个题目的 solve readiness。
-5. 按题型输出可执行的下一步 solver plan，而不是只做泛泛分类。
-6. 为简单题优先建立通用 solver family：strcmp、xor/array、shift、DES、RC4、Base64/hash。
-7. 输出机器可读的 benchmark 状态，供下一轮选择具体题目或批量改进 solver。
+1. 只针对上一轮 benchmark 推荐的 3 个 ready_static_string_compare challenge binary。
+2. 对每个目标样本做 bounded static string/constant extraction。
+3. 从静态字符串和 runtime prompt/failure 输出中生成有限候选输入。
+4. 使用上一轮已有 runtime harness 验证候选。
+5. 若验证成功，记录 solved=true、candidate、evidence。
+6. 若验证失败，记录 bounded negative result 和下一步缺失证据。
+7. 输出机器可读的 project_state/local_reverse_string_solver_result.json。
 ```
 
-本轮不是要求一次性解完全部 flag；本轮要求建立**可复现的全样本解题能力基线**，并把每道题归入可训练队列。
+本轮目标不是通吃所有样本，不是构建通用反编译器，也不是做全量密码学 solver。它只建立第一版可审计、可复现、可验证的 string-compare solver family。
 
 ---
 
 ## 2. Current Evidence
 
-上一轮已经生成：
+上一轮 runtime benchmark 已完成：
 
 ```text
-project_state/local_reverse_corpus_index.json
-project_state/local_reverse_training_state.json
+project_state/local_reverse_runtime_policy.json
+project_state/local_reverse_solve_benchmark.json
 ```
 
-当前训练状态：
+上一轮 runtime summary：
 
 ```text
 root=E:\reverse
 status=READY
-sample_count=28
-recommended_next_samples=5
+challenge_count=22
+executed_count=22
+skipped_count=0
+timeout_count=3
+solved_count=0
 ```
 
-上一轮 triage summary：
+上一轮 solve readiness distribution：
 
 ```text
-xor=3
-shift=3
-strcmp=7
-base64=1
-rc4=2
-des=6
-hash=1
-packed_or_obfuscated=22
-unknown=1
+needs_disassembly=12
+needs_gui_interaction=3
+ready_crypto_known_family=4
+ready_static_string_compare=3
 ```
 
-上一轮限制：
+本轮只处理 benchmark 推荐的 3 个目标：
 
 ```text
-1. 只做 static-only。
-2. 所有 sample safe_to_run=false。
-3. recommended_next_samples 中混入了 solver 脚本，不够适合作为下一题目标。
+1. sample_id=4c69f173f2bd0211
+   relative_path=逆向课程2022春02/CPP2.exe
+   solve_readiness=ready_static_string_compare
+
+2. sample_id=bcbd9979db015bfd
+   relative_path=逆向课程2022春补考01/Cpp1.exe
+   solve_readiness=ready_static_string_compare
+
+3. sample_id=18019fca52b389fe
+   relative_path=逆向课程2024春01/sha_256.exe
+   solve_readiness=ready_static_string_compare
 ```
 
-本轮新增事实：
+上一轮已知限制：
 
 ```text
-用户确认 E:\reverse 内 .exe 已手动运行过，可以作为本地训练样本直接运行。
+1. network_allowed=false 只是 policy 声明，未做 OS 级网络隔离。
+2. local_reverse_runtime.py 中 sample result 的 runtime_allowed 字段当前硬编码为 true。
 ```
 
-该事实只能写入 `project_state/` 动态状态，不得写入 `.codex-skills/`。
+本轮不要把上述两个限制扩大成框架改造，只允许做与 solver 验证直接相关的最小修正：让 runtime_allowed 字段真实反映 policy / sample runtime status，并在 report 中说明 network_allowed 仍是 local trusted sample policy，不是 OS sandbox。
+
+Artifact freshness 判断：
+
+```text
+1. project_state/local_reverse_solve_benchmark.json 是本轮 string solver 的直接输入证据。
+2. project_state/local_reverse_corpus_index.json 提供样本 sha256、relative_path、artifact_role 和 triage_tags。
+3. samplereverse latest_artifacts_v2 只能作为旧背景，不得用于本轮 solver evidence。
+4. 不得把 stale/missing samplereverse artifact 当成本轮证据。
+```
 
 ---
 
@@ -106,35 +116,37 @@ unknown=1
 ```text
 1. 不继续 samplereverse 的窗口发现、compare handoff、Base64/RC4 breakpoint probe。
 2. 不回旧 sample_solver 盲搜。
-3. 不扩大 beam / topN / frontier search。
-4. 不读取完整 solve_reports/。
-5. 不读取完整 PROJECT_PROGRESS_LOG.txt。
-6. 不提交 E:\reverse 下的二进制样本。
-7. 不把 E:\reverse 样本复制进 Git 仓库。
-8. 不把样本二进制转成 base64 或 hex 提交。
-9. 不修改 .codex-skills/。
-10. 不建设重型 agent 平台。
-11. 不引入数据库、Redis、Celery、Kubernetes、Airflow、Temporal、LangGraph。
-12. 不一次性做无限制 brute force。
-13. 不对 E:\reverse 之外的 exe 执行 runtime。
-14. 不伪造运行结果。
-15. 不把 heuristic triage 当成最终 flag。
-16. 不提交完整 solve_reports/。
+3. 不对 22 个样本全量求解。
+4. 不处理本 decision 指定 3 个样本之外的 challenge binary。
+5. 不扩大到 DES/RC4/Base64/hash solver family。
+6. 不做无界 brute force。
+7. 不扩大 beam / topN / frontier search。
+8. 不读取完整 solve_reports/。
+9. 不读取完整 PROJECT_PROGRESS_LOG.txt。
+10. 不提交 E:\reverse 下的二进制样本。
+11. 不把 E:\reverse 样本复制进 Git 仓库。
+12. 不把样本二进制转成 base64 或 hex 提交。
+13. 不修改 .codex-skills/。
+14. 不建设重型 agent 平台。
+15. 不引入数据库、Redis、Celery、Kubernetes、Airflow、Temporal、LangGraph。
+16. 不把 heuristic candidate 当成 solved。
+17. 不伪造 runtime 验证结果。
+18. 不提交完整 solve_reports/。
 ```
 
 允许：
 
 ```text
-1. 对 E:\reverse 内已索引 .exe 做 bounded runtime。
-2. 每个 exe 设置 timeout。
-3. 捕获 stdout/stderr/exit_code。
-4. 对等待输入的 console 程序喂入少量固定 probe input。
-5. 对 GUI 程序只记录 GUI classification，不做复杂自动化。
-6. 根据用户确认，把 E:\reverse 内 exe 标记为 user_runtime_allowed。
-7. 新增 local reverse runtime benchmark 模块。
-8. 新增 project_state/local_reverse_runtime_policy.json。
-9. 新增 project_state/local_reverse_solve_benchmark.json。
-10. 新增 tests。
+1. 读取 project_state/local_reverse_corpus_index.json。
+2. 读取 project_state/local_reverse_solve_benchmark.json。
+3. 有界读取 3 个目标 exe 的 bytes 用于 strings/constant extraction。
+4. 使用 existing static_feature_extractor 提取 ASCII / UTF-16LE 字符串。
+5. 生成有限候选输入，默认每个样本最多 50 个。
+6. 使用 local_reverse_runtime.run_probe 对候选做 bounded runtime validation。
+7. 新增 reverse_agent/local_reverse_string_solver.py。
+8. 新增 tests/test_local_reverse_string_solver.py。
+9. 输出 project_state/local_reverse_string_solver_result.json。
+10. 对 runtime_allowed 字段硬编码问题做最小修复并测试。
 ```
 
 ---
@@ -153,22 +165,26 @@ project_state/decision_packet.md
 project_state/pytest_result.txt
 project_state/local_reverse_corpus_index.json
 project_state/local_reverse_training_state.json
+project_state/local_reverse_runtime_policy.json
+project_state/local_reverse_solve_benchmark.json
 ```
 
 必须检查：
 
 ```text
 reverse_agent/local_reverse_corpus.py
+reverse_agent/local_reverse_runtime.py
+reverse_agent/static_feature_extractor.py
 tests/test_local_reverse_corpus.py
+tests/test_local_reverse_runtime.py
 ```
 
 允许新增：
 
 ```text
-reverse_agent/local_reverse_runtime.py
-tests/test_local_reverse_runtime.py
-project_state/local_reverse_runtime_policy.json
-project_state/local_reverse_solve_benchmark.json
+reverse_agent/local_reverse_string_solver.py
+tests/test_local_reverse_string_solver.py
+project_state/local_reverse_string_solver_result.json
 ```
 
 不要默认读取：
@@ -182,20 +198,22 @@ PROJECT_PROGRESS_LOG.txt
 
 ## 5. Required Audit
 
-Codex 必须审计：
+Codex 必须审计并写入 `project_state/codex_execution_report.md`：
 
 ```text
 1. 当前 decision_packet 是执行权威。
 2. 旧 samplereverse task 只是背景。
-3. 本轮 mainline=reverse_solving，具体方向=local_reverse_runtime_solve_benchmark。
-4. 用户确认 E:\reverse exe 可以运行，但该事实只写入 project_state，不写入 skill。
-5. 没有运行 E:\reverse 之外的 exe。
-6. 没有复制或提交样本二进制。
-7. 没有改 .codex-skills/。
-8. 没有提交完整 solve_reports/。
-9. 所有 runtime 都有 timeout。
-10. 所有 runtime 结果都来自真实执行或明确标记为 skipped/blocked。
-11. 测试真实运行并写入 project_state/pytest_result.txt。
+3. 本轮 mainline=reverse_solving，具体方向=local_reverse_string_compare_solver_v1。
+4. 只处理 3 个指定 ready_static_string_compare 样本。
+5. 未处理 3 个指定样本之外的 challenge binary。
+6. 未运行 E:\reverse 之外的 exe。
+7. 未复制、提交、上传或编码任何样本二进制。
+8. 未修改 .codex-skills/。
+9. 未读取完整 solve_reports/ 或 PROJECT_PROGRESS_LOG.txt。
+10. 每个候选验证都有 timeout。
+11. 每个 solved=true 都必须有 runtime success evidence。
+12. 未 solved 的样本必须有 negative_result / missing_evidence 说明。
+13. 测试真实运行并写入 project_state/pytest_result.txt。
 ```
 
 报告顶部必须包含：
@@ -203,9 +221,9 @@ Codex 必须审计：
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260603_local_reverse_runtime_solve_benchmark",
-  "round_id": "round_20260603_local_reverse_runtime_solve_benchmark",
-  "based_on_decision_id": "decision_20260603_local_reverse_runtime_solve_benchmark",
+  "report_id": "report_20260603_local_reverse_string_compare_solver_v1",
+  "round_id": "round_20260603_local_reverse_string_compare_solver_v1",
+  "based_on_decision_id": "decision_20260603_local_reverse_string_compare_solver_v1",
   "status": "SUCCESS_OR_PARTIAL_OR_BLOCKED",
   "acceptance_recommendation": "ACCEPT_OR_NEEDS_REVIEW_OR_REWORK",
   "files_changed": [],
@@ -218,173 +236,102 @@ Codex 必须审计：
 
 ## 6. Implementation Scope
 
-### 6.1 修正样本角色分类
-
-在 `local_reverse_corpus.py` 或新增模块中增加：
-
-```text
-artifact_role
-```
-
-建议取值：
-
-```text
-challenge_binary
-solver_script
-notes_or_source
-support_file
-unknown
-```
-
-规则：
-
-```text
-1. .exe/.dll 默认 challenge_binary。
-2. 文件名包含 solver、interactive_solver、decrypt、encrypt、script 等，优先 solver_script。
-3. .py 如果是已有解题脚本，不应进入 recommended_next_samples 的优先队列。
-4. .txt/.md/.c/.cpp 可标为 notes_or_source 或 source_challenge。
-```
-
-修正 `recommended_next_samples`：
-
-```text
-1. 优先推荐 challenge_binary。
-2. 其次推荐 source_challenge。
-3. 不优先推荐 solver_script。
-4. 每个推荐项给出 reason、triage_tags、runtime_allowed、next_action。
-```
-
----
-
-### 6.2 新增 runtime policy
+### 6.1 新增 string solver 模块
 
 新增：
 
 ```text
-project_state/local_reverse_runtime_policy.json
+reverse_agent/local_reverse_string_solver.py
 ```
 
-建议结构：
-
-```json
-{
-  "schema_version": 1,
-  "generated_at": "ISO-8601",
-  "root": "E:\\reverse",
-  "runtime_allowed": true,
-  "allowance_source": "user_asserted_pretested_no_virus",
-  "allowed_extensions": [".exe"],
-  "path_scope": "indexed_files_under_root_only",
-  "network_allowed": false,
-  "copy_binary_into_repo": false,
-  "default_timeout_seconds": 5,
-  "max_timeout_seconds": 15,
-  "stdin_probe_limit": 8
-}
-```
-
----
-
-### 6.3 新增 bounded runtime benchmark
-
-新增模块：
-
-```text
-reverse_agent/local_reverse_runtime.py
-```
-
-职责：
-
-```text
-1. 读取 project_state/local_reverse_corpus_index.json。
-2. 只选择 artifact_role=challenge_binary 且 extension=.exe 的样本。
-3. 运行前验证路径仍在 E:\reverse 下。
-4. 运行前验证 sha256 与 index 一致。
-5. 每个样本设置 timeout。
-6. 捕获 stdout/stderr/exit_code/timeout。
-7. 不联网。
-8. 不修改样本。
-9. 不把二进制复制进仓库。
-10. 输出 project_state/local_reverse_solve_benchmark.json。
-```
-
-推荐 CLI：
+建议 CLI：
 
 ```bash
-python -m reverse_agent.local_reverse_runtime ^
+python -m reverse_agent.local_reverse_string_solver ^
   --corpus-index project_state\local_reverse_corpus_index.json ^
+  --benchmark project_state\local_reverse_solve_benchmark.json ^
   --policy project_state\local_reverse_runtime_policy.json ^
-  --out project_state\local_reverse_solve_benchmark.json
+  --out project_state\local_reverse_string_solver_result.json
 ```
 
----
+默认只处理 benchmark 中 `recommended_next_challenges` 的 3 个样本，并且必须校验它们的 `solve_readiness == ready_static_string_compare`。
 
-### 6.4 Runtime probe 策略
+### 6.2 静态候选提取
 
-对每个 exe 允许以下 bounded probe：
+对每个目标样本：
 
 ```text
-1. run_no_input
-2. run_with_empty_line
-3. run_with_test
-4. run_with_123456
-5. run_with_password
-6. run_with_flag_test
-7. run_with_AAAA
-8. run_with_16_A
+1. 通过 corpus_index 找到 relative_path、sha256。
+2. 验证实际文件仍在 root 下。
+3. 验证 sha256 匹配。
+4. 有界读取 bytes。
+5. 提取 ASCII / UTF-16LE strings。
+6. 过滤 prompt/failure/noise 字符串。
+7. 生成候选输入集合。
 ```
 
-每次运行记录：
-
-```json
-{
-  "probe_name": "run_with_test",
-  "stdin": "test\\n",
-  "exit_code": 0,
-  "timeout": false,
-  "stdout_preview": "...",
-  "stderr_preview": "...",
-  "duration_ms": 123,
-  "classification": "asks_for_input|prints_success_failure|silent_exit|timeout|gui_or_no_console|crash"
-}
-```
-
-stdout/stderr preview 必须限制长度，例如 4096 字符。
-
----
-
-### 6.5 Solve readiness 分类
-
-每个题目输出：
+候选来源允许：
 
 ```text
-solve_readiness
+1. 可见 flag-like 字符串：flag{...}、ctf{...} 等。
+2. 长度 4~64 的 printable token。
+3. runtime 输出附近疑似 success/secret/check 字符串。
+4. 路径/文件名提示派生的极小候选，例如 CPP2、sha_256，但不得爆破。
+5. UTF-16LE 字符串。
 ```
 
-取值：
+必须过滤：
 
 ```text
-ready_static_string_compare
-ready_xor_array_static
-ready_shift_static
-ready_crypto_known_family
-needs_disassembly
-needs_gui_interaction
-needs_manual_review
-blocked_runtime_error
-unknown
+wrong
+sorry
+try again
+please input
+input your flag
+press any key
+success/failure prompt itself
+通用库名、路径、PE 节名、编译器残留
 ```
 
-不要直接声称已经 solved，除非真的输出了 flag 或正确输入，并且有 runtime 验证。
+默认每个样本最多验证：
 
----
+```text
+max_candidates_per_sample=50
+```
 
-### 6.6 输出 benchmark 状态
+### 6.3 runtime 验证规则
+
+使用 `reverse_agent.local_reverse_runtime.run_probe` 或等价有界函数验证：
+
+```text
+stdin = candidate + "\n"
+timeout <= policy.max_timeout_seconds
+preview_limit <= 4096
+```
+
+成功判定必须保守：
+
+```text
+1. stdout/stderr 出现 success/correct/right/congratulations/you win 等成功语义；
+2. 且没有 wrong/sorry/fail/invalid/try again 等失败语义；
+3. 或样本输出明确包含 flag/candidate accepted 语义；
+4. 否则不得标记 solved=true。
+```
+
+如果所有候选都失败：
+
+```text
+solved=false
+status=NO_CANDIDATE_VALIDATED
+missing_evidence=needs_compare_constant_or_disassembly
+```
+
+### 6.4 输出 result artifact
 
 新增：
 
 ```text
-project_state/local_reverse_solve_benchmark.json
+project_state/local_reverse_string_solver_result.json
 ```
 
 建议结构：
@@ -393,63 +340,92 @@ project_state/local_reverse_solve_benchmark.json
 {
   "schema_version": 1,
   "generated_at": "ISO-8601",
-  "root": "E:\\reverse",
-  "status": "READY|PARTIAL|BLOCKED",
-  "challenge_count": 0,
-  "executed_count": 0,
-  "skipped_count": 0,
-  "timeout_count": 0,
+  "solver_family": "string_compare_static_solver_v1",
+  "status": "SUCCESS|PARTIAL|BLOCKED",
+  "target_count": 3,
   "solved_count": 0,
-  "samples": [
+  "targets": [
     {
       "sample_id": "...",
       "relative_path": "...",
       "sha256": "...",
-      "artifact_role": "challenge_binary",
-      "triage_tags": ["xor"],
-      "runtime_allowed": true,
-      "runtime_results": [],
-      "solve_readiness": "ready_xor_array_static",
-      "next_action": "extract compare constants and build per-sample solver"
+      "solve_readiness": "ready_static_string_compare",
+      "candidate_count": 0,
+      "validated_candidate_count": 0,
+      "solved": false,
+      "solution": null,
+      "candidate_sources": [],
+      "validation_results_preview": [],
+      "negative_result": "NO_CANDIDATE_VALIDATED",
+      "missing_evidence": "needs_compare_constant_or_disassembly",
+      "next_action": "bounded compare-site static extraction"
     }
   ]
 }
 ```
 
+如果有 solved=true，必须记录：
+
+```text
+solution
+probe_name
+stdout_success_preview
+validation_duration_ms
+```
+
+但不得记录大体积 runtime output。
+
+### 6.5 最小修复 runtime_allowed 字段
+
+允许修复 `local_reverse_runtime.py` 的 `_sample_result()`：
+
+```text
+1. 不再硬编码 runtime_allowed=true。
+2. runtime_allowed 应反映 policy runtime_allowed 且 runtime_status 是否可执行。
+3. 加测试覆盖 runtime_allowed=false 时 JSON 不显示 true。
+```
+
+不要在本轮实现 OS 级网络隔离；只在 report 中明确 `network_allowed=false` 是 trusted local policy 声明，不是 sandbox enforcement。
+
 ---
 
 ## 7. Tests
 
-必须新增：
+必须新增或更新：
 
 ```text
+tests/test_local_reverse_string_solver.py
 tests/test_local_reverse_runtime.py
 ```
 
 最低测试：
 
 ```text
-1. policy 只允许 root 内 indexed exe。
-2. sha256 mismatch 时不执行。
-3. 非 .exe 不执行。
-4. solver_script 不进入 challenge runtime 队列。
-5. timeout 能被记录。
-6. stdout/stderr preview 会截断。
-7. benchmark JSON schema 正确。
-8. missing root 或 missing sample 输出 BLOCKED/PARTIAL，不崩溃。
+1. 只选择 benchmark recommended_next_challenges 中的 ready_static_string_compare 样本。
+2. 非目标样本不进入 solver。
+3. sha256 mismatch 不验证候选。
+4. path escape 不验证候选。
+5. prompt/failure/noise 字符串不会成为优先候选。
+6. 每个样本候选数受 max_candidates_per_sample 限制。
+7. success marker 且无 failure marker 才能 solved=true。
+8. wrong/sorry/fail/try again 输出不能 solved=true。
+9. 无候选验证成功时输出 negative_result。
+10. runtime_allowed=false 时 result 不应显示 runtime_allowed=true。
+11. result JSON schema 正确。
 ```
 
 必须运行：
 
 ```bash
-python -m py_compile reverse_agent\local_reverse_corpus.py reverse_agent\local_reverse_runtime.py
-python -m pytest -q tests\test_local_reverse_corpus.py tests\test_local_reverse_runtime.py
-python -m reverse_agent.local_reverse_corpus --root E:\reverse --out project_state\local_reverse_corpus_index.json --training-state project_state\local_reverse_training_state.json
-python -m reverse_agent.local_reverse_runtime --corpus-index project_state\local_reverse_corpus_index.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_solve_benchmark.json
+python -m py_compile reverse_agent\local_reverse_runtime.py reverse_agent\local_reverse_string_solver.py
+python -m pytest -q tests\test_local_reverse_runtime.py tests\test_local_reverse_string_solver.py
+python -m reverse_agent.local_reverse_string_solver --corpus-index project_state\local_reverse_corpus_index.json --benchmark project_state\local_reverse_solve_benchmark.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_string_solver_result.json
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
 git diff --check
 ```
+
+如果本轮没有任何样本 solved，只要输出了完整 negative evidence 和下一步 compare-site 缺失证据，也可以是 `PARTIAL / NEEDS_REVIEW`，不得伪报 SUCCESS solved。
 
 ---
 
@@ -458,23 +434,23 @@ git diff --check
 出现以下情况必须停止：
 
 ```text
-1. E:\reverse 不存在。
-2. index 中 sha256 与当前文件不匹配。
-3. 样本路径逃逸出 E:\reverse。
-4. 运行 exe 超过 timeout。
-5. 运行需要管理员权限。
-6. 运行产生异常大量输出。
-7. 运行结果需要复杂 GUI 自动化。
-8. 需要复制二进制进仓库。
-9. 需要无界 brute force。
+1. 三个指定样本任一文件缺失或 sha256 mismatch。
+2. 样本路径逃逸出 E:\reverse。
+3. runtime policy 不允许执行。
+4. 候选验证超过 per-sample 上限。
+5. 运行超过 timeout。
+6. 需要无界 brute force 才能继续。
+7. 需要复杂反编译器或 GUI 自动化。
+8. 需要复制样本二进制进仓库。
+9. 需要读取完整 solve_reports/ 或 PROJECT_PROGRESS_LOG.txt。
 10. 测试失败。
 ```
 
 停止时输出：
 
 ```text
-1. 哪些样本完成 runtime baseline。
-2. 哪些样本 skipped/blocked。
-3. 哪些题型最适合下一轮优先实现通用 solver。
-4. 下一轮建议选择的 3 个具体 challenge_binary。
+1. 每个目标样本候选数量。
+2. 每个目标样本是否 solved。
+3. 未 solved 的 negative_result。
+4. 下一轮是否需要 compare-site static extraction、IDA script、或更小范围 disassembly helper。
 ```
