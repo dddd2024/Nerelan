@@ -1,0 +1,2404 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T07:55:32Z",
+  "stage": "bounded_compare_site_static_extraction",
+  "status": "PARTIAL",
+  "target_count": 3,
+  "solved_count": 0,
+  "max_new_candidates_per_sample": 30,
+  "max_runtime_validations_per_sample": 30,
+  "timeout_seconds": 5,
+  "blocked_reasons": [],
+  "targets": [
+    {
+      "sample_id": "18019fca52b389fe",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "sha256": "18019fca52b389feeb2f690d096d5848ff7ba686eac9173bb17a6fabb819a8ff",
+      "previous_negative_result": "NO_CANDIDATE_VALIDATED",
+      "previous_missing_evidence": "needs_compare_constant_or_disassembly",
+      "compare_site_status": "found",
+      "compare_site_evidence": {
+        "found": true,
+        "compare_imports": [],
+        "compare_keyword_strings": [
+          {
+            "value": "Wrong!",
+            "encoding": "ascii",
+            "offset": 164216
+          },
+          {
+            "value": "Wrong,try again!",
+            "encoding": "ascii",
+            "offset": 164328
+          },
+          {
+            "value": "CompareStringA",
+            "encoding": "ascii",
+            "offset": 190044
+          },
+          {
+            "value": "CompareStringW",
+            "encoding": "ascii",
+            "offset": 190062
+          }
+        ],
+        "disassembly_backend": {
+          "capstone": "available",
+          "used": false,
+          "reason": "bytes_and_import_evidence_sufficient_for_bounded_round"
+        }
+      },
+      "strings_summary": {
+        "prompt_strings": [
+          {
+            "value": "Please input your flag:",
+            "encoding": "ascii",
+            "offset": 164356
+          },
+          {
+            "value": "input.c",
+            "encoding": "ascii",
+            "offset": 167632
+          }
+        ],
+        "failure_strings": [
+          {
+            "value": "Wrong!",
+            "encoding": "ascii",
+            "offset": 164216
+          },
+          {
+            "value": "Wrong,try again!",
+            "encoding": "ascii",
+            "offset": 164328
+          },
+          {
+            "value": "Invalid allocation size: %u bytes.",
+            "encoding": "ascii",
+            "offset": 164716
+          },
+          {
+            "value": "Client hook allocation failure.",
+            "encoding": "ascii",
+            "offset": 164752
+          },
+          {
+            "value": "Client hook allocation failure at file %hs line %d.",
+            "encoding": "ascii",
+            "offset": 164788
+          },
+          {
+            "value": "Client hook re-allocation failure.",
+            "encoding": "ascii",
+            "offset": 165200
+          },
+          {
+            "value": "Client hook re-allocation failure at file %hs line %d.",
+            "encoding": "ascii",
+            "offset": 165236
+          },
+          {
+            "value": "Client hook free failure.",
+            "encoding": "ascii",
+            "offset": 165564
+          },
+          {
+            "value": "_heapchk fails with unknown return value!",
+            "encoding": "ascii",
+            "offset": 165780
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADPTR.",
+            "encoding": "ascii",
+            "offset": 165824
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADEND.",
+            "encoding": "ascii",
+            "offset": 165860
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADNODE.",
+            "encoding": "ascii",
+            "offset": 165896
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADBEGIN.",
+            "encoding": "ascii",
+            "offset": 165932
+          },
+          {
+            "value": "Assertion Failed",
+            "encoding": "ascii",
+            "offset": 166604
+          },
+          {
+            "value": "Assertion failed!",
+            "encoding": "ascii",
+            "offset": 166660
+          },
+          {
+            "value": "Assertion failed: ",
+            "encoding": "ascii",
+            "offset": 166680
+          },
+          {
+            "value": "Second Chance Assertion Failed: File %s, Line %d",
+            "encoding": "ascii",
+            "offset": 166744
+          },
+          {
+            "value": "failure, see the Visual C++ documentation on asserts.",
+            "encoding": "ascii",
+            "offset": 167049
+          }
+        ],
+        "success_strings": [
+          {
+            "value": "Well done!",
+            "encoding": "ascii",
+            "offset": 164224
+          }
+        ],
+        "candidate_constant_strings": [
+          {
+            "value": "Rich",
+            "encoding": "ascii",
+            "offset": 184
+          },
+          {
+            "value": "@SVW",
+            "encoding": "ascii",
+            "offset": 4261
+          },
+          {
+            "value": "XSVW",
+            "encoding": "ascii",
+            "offset": 5381
+          },
+          {
+            "value": "pSVW",
+            "encoding": "ascii",
+            "offset": 6949
+          },
+          {
+            "value": "PRSVWh8",
+            "encoding": "ascii",
+            "offset": 8169
+          },
+          {
+            "value": "t!hx",
+            "encoding": "ascii",
+            "offset": 11061
+          },
+          {
+            "value": "t!hD",
+            "encoding": "ascii",
+            "offset": 11428
+          },
+          {
+            "value": "QSVW",
+            "encoding": "ascii",
+            "offset": 11875
+          },
+          {
+            "value": "u+ht",
+            "encoding": "ascii",
+            "offset": 15261
+          },
+          {
+            "value": "J0+H0",
+            "encoding": "ascii",
+            "offset": 15861
+          },
+          {
+            "value": "4SVW",
+            "encoding": "ascii",
+            "offset": 16885
+          },
+          {
+            "value": "Q0Rh",
+            "encoding": "ascii",
+            "offset": 17162
+          },
+          {
+            "value": "0SVW",
+            "encoding": "ascii",
+            "offset": 17221
+          },
+          {
+            "value": "tzVS",
+            "encoding": "ascii",
+            "offset": 17543
+          },
+          {
+            "value": "SVWh",
+            "encoding": "ascii",
+            "offset": 17798
+          },
+          {
+            "value": "jihp",
+            "encoding": "ascii",
+            "offset": 36262
+          },
+          {
+            "value": "}!h0",
+            "encoding": "ascii",
+            "offset": 36592
+          },
+          {
+            "value": "jLhp",
+            "encoding": "ascii",
+            "offset": 40797
+          },
+          {
+            "value": "jMhp",
+            "encoding": "ascii",
+            "offset": 40843
+          },
+          {
+            "value": "jNhp",
+            "encoding": "ascii",
+            "offset": 40885
+          },
+          {
+            "value": "jOhp",
+            "encoding": "ascii",
+            "offset": 40929
+          },
+          {
+            "value": "jPhp",
+            "encoding": "ascii",
+            "offset": 40977
+          },
+          {
+            "value": "jahp",
+            "encoding": "ascii",
+            "offset": 41088
+          },
+          {
+            "value": "uvj:",
+            "encoding": "ascii",
+            "offset": 41560
+          },
+          {
+            "value": "SVWUj",
+            "encoding": "ascii",
+            "offset": 52263
+          },
+          {
+            "value": "VC20XC00U",
+            "encoding": "ascii",
+            "offset": 52500
+          },
+          {
+            "value": "SVWU",
+            "encoding": "ascii",
+            "offset": 52514
+          },
+          {
+            "value": "tEVU",
+            "encoding": "ascii",
+            "offset": 52572
+          },
+          {
+            "value": "j.hT",
+            "encoding": "ascii",
+            "offset": 59604
+          },
+          {
+            "value": "jahl",
+            "encoding": "ascii",
+            "offset": 61884
+          },
+          {
+            "value": "jwhD",
+            "encoding": "ascii",
+            "offset": 72850
+          },
+          {
+            "value": "j0hh",
+            "encoding": "ascii",
+            "offset": 74307
+          },
+          {
+            "value": "8STs",
+            "encoding": "ascii",
+            "offset": 164010
+          },
+          {
+            "value": "493f877692ea8d507fa98355a054efede85e7c7bbc9ba9890ea99b7b33e281fc",
+            "encoding": "ascii",
+            "offset": 164240
+          },
+          {
+            "value": "pause",
+            "encoding": "ascii",
+            "offset": 164320
+          },
+          {
+            "value": "Client",
+            "encoding": "ascii",
+            "offset": 164628
+          },
+          {
+            "value": "Ignore",
+            "encoding": "ascii",
+            "offset": 164636
+          },
+          {
+            "value": "Normal",
+            "encoding": "ascii",
+            "offset": 164648
+          },
+          {
+            "value": "Free",
+            "encoding": "ascii",
+            "offset": 164656
+          },
+          {
+            "value": "dbgheap.c",
+            "encoding": "ascii",
+            "offset": 164844
+          },
+          {
+            "value": "DAMAGED",
+            "encoding": "ascii",
+            "offset": 165772
+          },
+          {
+            "value": "sprintf.c",
+            "encoding": "ascii",
+            "offset": 166476
+          },
+          {
+            "value": "system.c",
+            "encoding": "ascii",
+            "offset": 166528
+          },
+          {
+            "value": "COMSPEC",
+            "encoding": "ascii",
+            "offset": 166564
+          },
+          {
+            "value": "scanf.c",
+            "encoding": "ascii",
+            "offset": 166572
+          },
+          {
+            "value": "printf.c",
+            "encoding": "ascii",
+            "offset": 166580
+          },
+          {
+            "value": "wsprintfA",
+            "encoding": "ascii",
+            "offset": 166796
+          },
+          {
+            "value": "dbgrpt.c",
+            "encoding": "ascii",
+            "offset": 167132
+          },
+          {
+            "value": "__GLOBAL_HEAP_SELECTED",
+            "encoding": "ascii",
+            "offset": 167168
+          },
+          {
+            "value": "_flsbuf.c",
+            "encoding": "ascii",
+            "offset": 167280
+          },
+          {
+            "value": "700WP",
+            "encoding": "ascii",
+            "offset": 167345
+          },
+          {
+            "value": "ppxxxx",
+            "encoding": "ascii",
+            "offset": 167369
+          },
+          {
+            "value": "output.c",
+            "encoding": "ascii",
+            "offset": 167420
+          },
+          {
+            "value": "PATH",
+            "encoding": "ascii",
+            "offset": 167452
+          },
+          {
+            "value": "spawnvpe.c",
+            "encoding": "ascii",
+            "offset": 167536
+          },
+          {
+            "value": "spawnve.c",
+            "encoding": "ascii",
+            "offset": 167604
+          },
+          {
+            "value": "_file.c",
+            "encoding": "ascii",
+            "offset": 167640
+          },
+          {
+            "value": "_sftbuf.c",
+            "encoding": "ascii",
+            "offset": 167648
+          },
+          {
+            "value": "stdenvp.c",
+            "encoding": "ascii",
+            "offset": 167684
+          },
+          {
+            "value": "stdargv.c",
+            "encoding": "ascii",
+            "offset": 167696
+          },
+          {
+            "value": "a_env.c",
+            "encoding": "ascii",
+            "offset": 167708
+          },
+          {
+            "value": "ioinit.c",
+            "encoding": "ascii",
+            "offset": 167716
+          },
+          {
+            "value": "R6028",
+            "encoding": "ascii",
+            "offset": 167796
+          },
+          {
+            "value": "R6027",
+            "encoding": "ascii",
+            "offset": 167836
+          },
+          {
+            "value": "R6026",
+            "encoding": "ascii",
+            "offset": 167892
+          },
+          {
+            "value": "R6025",
+            "encoding": "ascii",
+            "offset": 167948
+          },
+          {
+            "value": "R6024",
+            "encoding": "ascii",
+            "offset": 167988
+          },
+          {
+            "value": "R6019",
+            "encoding": "ascii",
+            "offset": 168044
+          },
+          {
+            "value": "R6018",
+            "encoding": "ascii",
+            "offset": 168088
+          },
+          {
+            "value": "R6017",
+            "encoding": "ascii",
+            "offset": 168124
+          },
+          {
+            "value": "R6016",
+            "encoding": "ascii",
+            "offset": 168172
+          },
+          {
+            "value": "R6009",
+            "encoding": "ascii",
+            "offset": 168252
+          },
+          {
+            "value": "R6008",
+            "encoding": "ascii",
+            "offset": 168296
+          },
+          {
+            "value": "R6002",
+            "encoding": "ascii",
+            "offset": 168340
+          },
+          {
+            "value": "vsprintf.c",
+            "encoding": "ascii",
+            "offset": 168448
+          },
+          {
+            "value": "GetLastActivePopup",
+            "encoding": "ascii",
+            "offset": 168460
+          },
+          {
+            "value": "GetActiveWindow",
+            "encoding": "ascii",
+            "offset": 168480
+          },
+          {
+            "value": "MessageBoxA",
+            "encoding": "ascii",
+            "offset": 168496
+          },
+          {
+            "value": "_getbuf.c",
+            "encoding": "ascii",
+            "offset": 168532
+          },
+          {
+            "value": "dospawn.c",
+            "encoding": "ascii",
+            "offset": 168544
+          },
+          {
+            "value": "cenvarg.c",
+            "encoding": "ascii",
+            "offset": 168556
+          },
+          {
+            "value": "wtombenv.c",
+            "encoding": "ascii",
+            "offset": 168568
+          },
+          {
+            "value": "mbtowc.c",
+            "encoding": "ascii",
+            "offset": 168580
+          },
+          {
+            "value": "_filbuf.c",
+            "encoding": "ascii",
+            "offset": 168628
+          },
+          {
+            "value": "ungetc.c",
+            "encoding": "ascii",
+            "offset": 168640
+          },
+          {
+            "value": "osfinfo.c",
+            "encoding": "ascii",
+            "offset": 168652
+          },
+          {
+            "value": "a_cmp.c",
+            "encoding": "ascii",
+            "offset": 168664
+          },
+          {
+            "value": "setenv.c",
+            "encoding": "ascii",
+            "offset": 168760
+          },
+          {
+            "value": "fclose.c",
+            "encoding": "ascii",
+            "offset": 168772
+          },
+          {
+            "value": "_freebuf.c",
+            "encoding": "ascii",
+            "offset": 168808
+          },
+          {
+            "value": "IsBadWritePtr",
+            "encoding": "ascii",
+            "offset": 189106
+          },
+          {
+            "value": "IsBadReadPtr",
+            "encoding": "ascii",
+            "offset": 189122
+          },
+          {
+            "value": "HeapValidate",
+            "encoding": "ascii",
+            "offset": 189138
+          },
+          {
+            "value": "GetCommandLineA",
+            "encoding": "ascii",
+            "offset": 189154
+          },
+          {
+            "value": "GetVersion",
+            "encoding": "ascii",
+            "offset": 189172
+          },
+          {
+            "value": "ExitProcess",
+            "encoding": "ascii",
+            "offset": 189186
+          },
+          {
+            "value": "GetStdHandle",
+            "encoding": "ascii",
+            "offset": 189214
+          },
+          {
+            "value": "WriteFile",
+            "encoding": "ascii",
+            "offset": 189230
+          },
+          {
+            "value": "InterlockedDecrement",
+            "encoding": "ascii",
+            "offset": 189242
+          },
+          {
+            "value": "GetProcAddress",
+            "encoding": "ascii",
+            "offset": 189288
+          }
+        ]
+      },
+      "new_candidate_count": 30,
+      "validated_candidate_count": 30,
+      "solved": false,
+      "solution": null,
+      "runtime_evidence": null,
+      "missing_evidence": "new_candidates_failed_runtime_validation",
+      "next_action": "inspect compare-site xrefs before generating more candidates",
+      "status": "NO_CANDIDATE_VALIDATED",
+      "blocked_reasons": [],
+      "new_candidate_sources": [
+        {
+          "source": "candidate_constant_strings",
+          "count": 30
+        }
+      ],
+      "validation_results_preview": [
+        {
+          "candidate": "Rich",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_1",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 48
+        },
+        {
+          "candidate": "XSVW",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_2",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 25
+        },
+        {
+          "candidate": "pSVW",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_3",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 21
+        },
+        {
+          "candidate": "PRSVWh8",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_4",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+          "stderr_preview": "",
+          "duration_ms": 25
+        },
+        {
+          "candidate": "t!hx",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_5",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 19
+        },
+        {
+          "candidate": "t!hD",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_6",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 41
+        },
+        {
+          "candidate": "QSVW",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_7",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 89
+        },
+        {
+          "candidate": "u+ht",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_8",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 40
+        },
+        {
+          "candidate": "J0+H0",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_9",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+          "stderr_preview": "",
+          "duration_ms": 30
+        },
+        {
+          "candidate": "Q0Rh",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_10",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 37
+        }
+      ]
+    },
+    {
+      "sample_id": "4c69f173f2bd0211",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "sha256": "4c69f173f2bd0211fe472e12b3ecc4dcfbae6a20735a750b8f8c0ea5c566223a",
+      "previous_negative_result": "NO_CANDIDATE_VALIDATED",
+      "previous_missing_evidence": "needs_compare_constant_or_disassembly",
+      "compare_site_status": "found",
+      "compare_site_evidence": {
+        "found": true,
+        "compare_imports": [],
+        "compare_keyword_strings": [
+          {
+            "value": "Correct!",
+            "encoding": "ascii",
+            "offset": 164216
+          },
+          {
+            "value": "Wrong,try again!",
+            "encoding": "ascii",
+            "offset": 164356
+          },
+          {
+            "value": "CompareStringA",
+            "encoding": "ascii",
+            "offset": 190044
+          },
+          {
+            "value": "CompareStringW",
+            "encoding": "ascii",
+            "offset": 190062
+          }
+        ],
+        "disassembly_backend": {
+          "capstone": "available",
+          "used": false,
+          "reason": "bytes_and_import_evidence_sufficient_for_bounded_round"
+        }
+      },
+      "strings_summary": {
+        "prompt_strings": [
+          {
+            "value": "The inputs are out of the scope!",
+            "encoding": "ascii",
+            "offset": 164308
+          },
+          {
+            "value": "Please input your flag:",
+            "encoding": "ascii",
+            "offset": 164384
+          },
+          {
+            "value": "input.c",
+            "encoding": "ascii",
+            "offset": 167664
+          }
+        ],
+        "failure_strings": [
+          {
+            "value": "Wrong,try again!",
+            "encoding": "ascii",
+            "offset": 164356
+          },
+          {
+            "value": "Invalid allocation size: %u bytes.",
+            "encoding": "ascii",
+            "offset": 164744
+          },
+          {
+            "value": "Client hook allocation failure.",
+            "encoding": "ascii",
+            "offset": 164780
+          },
+          {
+            "value": "Client hook allocation failure at file %hs line %d.",
+            "encoding": "ascii",
+            "offset": 164816
+          },
+          {
+            "value": "Client hook re-allocation failure.",
+            "encoding": "ascii",
+            "offset": 165228
+          },
+          {
+            "value": "Client hook re-allocation failure at file %hs line %d.",
+            "encoding": "ascii",
+            "offset": 165264
+          },
+          {
+            "value": "Client hook free failure.",
+            "encoding": "ascii",
+            "offset": 165592
+          },
+          {
+            "value": "_heapchk fails with unknown return value!",
+            "encoding": "ascii",
+            "offset": 165808
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADPTR.",
+            "encoding": "ascii",
+            "offset": 165852
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADEND.",
+            "encoding": "ascii",
+            "offset": 165888
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADNODE.",
+            "encoding": "ascii",
+            "offset": 165924
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADBEGIN.",
+            "encoding": "ascii",
+            "offset": 165960
+          },
+          {
+            "value": "Assertion Failed",
+            "encoding": "ascii",
+            "offset": 166636
+          },
+          {
+            "value": "Assertion failed!",
+            "encoding": "ascii",
+            "offset": 166692
+          },
+          {
+            "value": "Assertion failed: ",
+            "encoding": "ascii",
+            "offset": 166712
+          },
+          {
+            "value": "Second Chance Assertion Failed: File %s, Line %d",
+            "encoding": "ascii",
+            "offset": 166776
+          },
+          {
+            "value": "failure, see the Visual C++ documentation on asserts.",
+            "encoding": "ascii",
+            "offset": 167081
+          }
+        ],
+        "success_strings": [
+          {
+            "value": "Correct!",
+            "encoding": "ascii",
+            "offset": 164216
+          }
+        ],
+        "candidate_constant_strings": [
+          {
+            "value": "Rich",
+            "encoding": "ascii",
+            "offset": 184
+          },
+          {
+            "value": "@SVW",
+            "encoding": "ascii",
+            "offset": 4261
+          },
+          {
+            "value": "XSVW",
+            "encoding": "ascii",
+            "offset": 5381
+          },
+          {
+            "value": "pSVW",
+            "encoding": "ascii",
+            "offset": 6949
+          },
+          {
+            "value": "PRSVWhT",
+            "encoding": "ascii",
+            "offset": 7961
+          },
+          {
+            "value": "t!hD",
+            "encoding": "ascii",
+            "offset": 11315
+          },
+          {
+            "value": "QSVW",
+            "encoding": "ascii",
+            "offset": 11667
+          },
+          {
+            "value": "J0+H0",
+            "encoding": "ascii",
+            "offset": 15653
+          },
+          {
+            "value": "4SVW",
+            "encoding": "ascii",
+            "offset": 16677
+          },
+          {
+            "value": "Q0Rh",
+            "encoding": "ascii",
+            "offset": 16954
+          },
+          {
+            "value": "0SVW",
+            "encoding": "ascii",
+            "offset": 17013
+          },
+          {
+            "value": "tzVS",
+            "encoding": "ascii",
+            "offset": 17335
+          },
+          {
+            "value": "SVWh",
+            "encoding": "ascii",
+            "offset": 17590
+          },
+          {
+            "value": "}!hP",
+            "encoding": "ascii",
+            "offset": 36384
+          },
+          {
+            "value": "uvj:",
+            "encoding": "ascii",
+            "offset": 41352
+          },
+          {
+            "value": "u!hX",
+            "encoding": "ascii",
+            "offset": 42240
+          },
+          {
+            "value": "jmh$",
+            "encoding": "ascii",
+            "offset": 49097
+          },
+          {
+            "value": "SVWUj",
+            "encoding": "ascii",
+            "offset": 52055
+          },
+          {
+            "value": "VC20XC00U",
+            "encoding": "ascii",
+            "offset": 52292
+          },
+          {
+            "value": "SVWU",
+            "encoding": "ascii",
+            "offset": 52306
+          },
+          {
+            "value": "tEVU",
+            "encoding": "ascii",
+            "offset": 52364
+          },
+          {
+            "value": "j.ht",
+            "encoding": "ascii",
+            "offset": 59396
+          },
+          {
+            "value": "jwhd",
+            "encoding": "ascii",
+            "offset": 72642
+          },
+          {
+            "value": "8STs",
+            "encoding": "ascii",
+            "offset": 164010
+          },
+          {
+            "value": "Correct!",
+            "encoding": "ascii",
+            "offset": 164216
+          },
+          {
+            "value": "1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:1dbd916df13239513g21e4663",
+            "encoding": "ascii",
+            "offset": 164228
+          },
+          {
+            "value": "pause",
+            "encoding": "ascii",
+            "offset": 164348
+          },
+          {
+            "value": "Client",
+            "encoding": "ascii",
+            "offset": 164656
+          },
+          {
+            "value": "Ignore",
+            "encoding": "ascii",
+            "offset": 164664
+          },
+          {
+            "value": "Normal",
+            "encoding": "ascii",
+            "offset": 164676
+          },
+          {
+            "value": "Free",
+            "encoding": "ascii",
+            "offset": 164684
+          },
+          {
+            "value": "dbgheap.c",
+            "encoding": "ascii",
+            "offset": 164872
+          },
+          {
+            "value": "DAMAGED",
+            "encoding": "ascii",
+            "offset": 165800
+          },
+          {
+            "value": "sprintf.c",
+            "encoding": "ascii",
+            "offset": 166504
+          },
+          {
+            "value": "system.c",
+            "encoding": "ascii",
+            "offset": 166556
+          },
+          {
+            "value": "COMSPEC",
+            "encoding": "ascii",
+            "offset": 166592
+          },
+          {
+            "value": "scanf.c",
+            "encoding": "ascii",
+            "offset": 166600
+          },
+          {
+            "value": "printf.c",
+            "encoding": "ascii",
+            "offset": 166608
+          },
+          {
+            "value": "wsprintfA",
+            "encoding": "ascii",
+            "offset": 166828
+          },
+          {
+            "value": "dbgrpt.c",
+            "encoding": "ascii",
+            "offset": 167164
+          },
+          {
+            "value": "__GLOBAL_HEAP_SELECTED",
+            "encoding": "ascii",
+            "offset": 167200
+          },
+          {
+            "value": "_flsbuf.c",
+            "encoding": "ascii",
+            "offset": 167312
+          },
+          {
+            "value": "700WP",
+            "encoding": "ascii",
+            "offset": 167377
+          },
+          {
+            "value": "ppxxxx",
+            "encoding": "ascii",
+            "offset": 167401
+          },
+          {
+            "value": "output.c",
+            "encoding": "ascii",
+            "offset": 167452
+          },
+          {
+            "value": "PATH",
+            "encoding": "ascii",
+            "offset": 167484
+          },
+          {
+            "value": "spawnvpe.c",
+            "encoding": "ascii",
+            "offset": 167568
+          },
+          {
+            "value": "spawnve.c",
+            "encoding": "ascii",
+            "offset": 167636
+          },
+          {
+            "value": "_file.c",
+            "encoding": "ascii",
+            "offset": 167672
+          },
+          {
+            "value": "_sftbuf.c",
+            "encoding": "ascii",
+            "offset": 167680
+          },
+          {
+            "value": "stdenvp.c",
+            "encoding": "ascii",
+            "offset": 167716
+          },
+          {
+            "value": "stdargv.c",
+            "encoding": "ascii",
+            "offset": 167728
+          },
+          {
+            "value": "a_env.c",
+            "encoding": "ascii",
+            "offset": 167740
+          },
+          {
+            "value": "ioinit.c",
+            "encoding": "ascii",
+            "offset": 167748
+          },
+          {
+            "value": "R6028",
+            "encoding": "ascii",
+            "offset": 167828
+          },
+          {
+            "value": "R6027",
+            "encoding": "ascii",
+            "offset": 167868
+          },
+          {
+            "value": "R6026",
+            "encoding": "ascii",
+            "offset": 167924
+          },
+          {
+            "value": "R6025",
+            "encoding": "ascii",
+            "offset": 167980
+          },
+          {
+            "value": "R6024",
+            "encoding": "ascii",
+            "offset": 168020
+          },
+          {
+            "value": "R6019",
+            "encoding": "ascii",
+            "offset": 168076
+          },
+          {
+            "value": "R6018",
+            "encoding": "ascii",
+            "offset": 168120
+          },
+          {
+            "value": "R6017",
+            "encoding": "ascii",
+            "offset": 168156
+          },
+          {
+            "value": "R6016",
+            "encoding": "ascii",
+            "offset": 168204
+          },
+          {
+            "value": "R6009",
+            "encoding": "ascii",
+            "offset": 168284
+          },
+          {
+            "value": "R6008",
+            "encoding": "ascii",
+            "offset": 168328
+          },
+          {
+            "value": "R6002",
+            "encoding": "ascii",
+            "offset": 168372
+          },
+          {
+            "value": "vsprintf.c",
+            "encoding": "ascii",
+            "offset": 168480
+          },
+          {
+            "value": "GetLastActivePopup",
+            "encoding": "ascii",
+            "offset": 168492
+          },
+          {
+            "value": "GetActiveWindow",
+            "encoding": "ascii",
+            "offset": 168512
+          },
+          {
+            "value": "MessageBoxA",
+            "encoding": "ascii",
+            "offset": 168528
+          },
+          {
+            "value": "_getbuf.c",
+            "encoding": "ascii",
+            "offset": 168564
+          },
+          {
+            "value": "dospawn.c",
+            "encoding": "ascii",
+            "offset": 168576
+          },
+          {
+            "value": "cenvarg.c",
+            "encoding": "ascii",
+            "offset": 168588
+          },
+          {
+            "value": "wtombenv.c",
+            "encoding": "ascii",
+            "offset": 168600
+          },
+          {
+            "value": "mbtowc.c",
+            "encoding": "ascii",
+            "offset": 168612
+          },
+          {
+            "value": "_filbuf.c",
+            "encoding": "ascii",
+            "offset": 168660
+          },
+          {
+            "value": "ungetc.c",
+            "encoding": "ascii",
+            "offset": 168672
+          },
+          {
+            "value": "osfinfo.c",
+            "encoding": "ascii",
+            "offset": 168684
+          },
+          {
+            "value": "a_cmp.c",
+            "encoding": "ascii",
+            "offset": 168696
+          },
+          {
+            "value": "setenv.c",
+            "encoding": "ascii",
+            "offset": 168792
+          },
+          {
+            "value": "fclose.c",
+            "encoding": "ascii",
+            "offset": 168804
+          },
+          {
+            "value": "_freebuf.c",
+            "encoding": "ascii",
+            "offset": 168840
+          },
+          {
+            "value": "IsBadWritePtr",
+            "encoding": "ascii",
+            "offset": 189106
+          },
+          {
+            "value": "IsBadReadPtr",
+            "encoding": "ascii",
+            "offset": 189122
+          },
+          {
+            "value": "HeapValidate",
+            "encoding": "ascii",
+            "offset": 189138
+          },
+          {
+            "value": "GetCommandLineA",
+            "encoding": "ascii",
+            "offset": 189154
+          },
+          {
+            "value": "GetVersion",
+            "encoding": "ascii",
+            "offset": 189172
+          },
+          {
+            "value": "ExitProcess",
+            "encoding": "ascii",
+            "offset": 189186
+          },
+          {
+            "value": "GetStdHandle",
+            "encoding": "ascii",
+            "offset": 189214
+          },
+          {
+            "value": "WriteFile",
+            "encoding": "ascii",
+            "offset": 189230
+          },
+          {
+            "value": "InterlockedDecrement",
+            "encoding": "ascii",
+            "offset": 189242
+          },
+          {
+            "value": "GetProcAddress",
+            "encoding": "ascii",
+            "offset": 189288
+          },
+          {
+            "value": "InterlockedIncrement",
+            "encoding": "ascii",
+            "offset": 189322
+          },
+          {
+            "value": "GetModuleFileNameA",
+            "encoding": "ascii",
+            "offset": 189346
+          },
+          {
+            "value": "HeapAlloc",
+            "encoding": "ascii",
+            "offset": 189368
+          },
+          {
+            "value": "HeapReAlloc",
+            "encoding": "ascii",
+            "offset": 189380
+          },
+          {
+            "value": "HeapFree",
+            "encoding": "ascii",
+            "offset": 189394
+          },
+          {
+            "value": "VirtualFree",
+            "encoding": "ascii",
+            "offset": 189422
+          },
+          {
+            "value": "VirtualAlloc",
+            "encoding": "ascii",
+            "offset": 189436
+          },
+          {
+            "value": "GetModuleHandleA",
+            "encoding": "ascii",
+            "offset": 189452
+          }
+        ]
+      },
+      "new_candidate_count": 30,
+      "validated_candidate_count": 30,
+      "solved": false,
+      "solution": null,
+      "runtime_evidence": null,
+      "missing_evidence": "new_candidates_failed_runtime_validation",
+      "next_action": "inspect compare-site xrefs before generating more candidates",
+      "status": "NO_CANDIDATE_VALIDATED",
+      "blocked_reasons": [],
+      "new_candidate_sources": [
+        {
+          "source": "candidate_constant_strings",
+          "count": 30
+        }
+      ],
+      "validation_results_preview": [
+        {
+          "candidate": "Rich",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_1",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 31
+        },
+        {
+          "candidate": "XSVW",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_2",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 21
+        },
+        {
+          "candidate": "pSVW",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_3",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 19
+        },
+        {
+          "candidate": "PRSVWhT",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_4",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 20
+        },
+        {
+          "candidate": "t!hD",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_5",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 16
+        },
+        {
+          "candidate": "QSVW",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_6",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 44
+        },
+        {
+          "candidate": "J0+H0",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_7",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPress any key to continue . . . \nPress any key to continue . . . \nPress any key to continue . . . \nPlease input your flag:\nThe inputs are out of the scope!The inputs are out of the scope!The inputs are out of the scope!Wrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 119
+        },
+        {
+          "candidate": "Q0Rh",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_8",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 25
+        },
+        {
+          "candidate": "tzVS",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_9",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 52
+        },
+        {
+          "candidate": "SVWh",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_10",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 53
+        }
+      ]
+    },
+    {
+      "sample_id": "bcbd9979db015bfd",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "sha256": "bcbd9979db015bfd12d7c0c270df46918713433636123c545315a9d527b22a5a",
+      "previous_negative_result": "NO_CANDIDATE_VALIDATED",
+      "previous_missing_evidence": "needs_compare_constant_or_disassembly",
+      "compare_site_status": "found",
+      "compare_site_evidence": {
+        "found": true,
+        "compare_imports": [
+          "lstrcmpA"
+        ],
+        "compare_keyword_strings": [
+          {
+            "value": "try again!",
+            "encoding": "ascii",
+            "offset": 163940
+          },
+          {
+            "value": "File open success",
+            "encoding": "ascii",
+            "offset": 164016
+          },
+          {
+            "value": "lstrcmpA",
+            "encoding": "ascii",
+            "offset": 189202
+          },
+          {
+            "value": "CompareStringA",
+            "encoding": "ascii",
+            "offset": 190174
+          },
+          {
+            "value": "CompareStringW",
+            "encoding": "ascii",
+            "offset": 190192
+          }
+        ],
+        "disassembly_backend": {
+          "capstone": "available",
+          "used": false,
+          "reason": "bytes_and_import_evidence_sufficient_for_bounded_round"
+        }
+      },
+      "strings_summary": {
+        "prompt_strings": [
+          {
+            "value": "Please input your flag ",
+            "encoding": "ascii",
+            "offset": 163900
+          },
+          {
+            "value": "input.c",
+            "encoding": "ascii",
+            "offset": 165120
+          }
+        ],
+        "failure_strings": [
+          {
+            "value": "try again!",
+            "encoding": "ascii",
+            "offset": 163940
+          },
+          {
+            "value": "scan fail",
+            "encoding": "ascii",
+            "offset": 163980
+          },
+          {
+            "value": "File open fail",
+            "encoding": "ascii",
+            "offset": 163996
+          },
+          {
+            "value": "Assertion Failed",
+            "encoding": "ascii",
+            "offset": 164556
+          },
+          {
+            "value": "Assertion failed!",
+            "encoding": "ascii",
+            "offset": 164612
+          },
+          {
+            "value": "Assertion failed: ",
+            "encoding": "ascii",
+            "offset": 164632
+          },
+          {
+            "value": "Second Chance Assertion Failed: File %s, Line %d",
+            "encoding": "ascii",
+            "offset": 164696
+          },
+          {
+            "value": "failure, see the Visual C++ documentation on asserts.",
+            "encoding": "ascii",
+            "offset": 165001
+          },
+          {
+            "value": "Invalid allocation size: %u bytes.",
+            "encoding": "ascii",
+            "offset": 165572
+          },
+          {
+            "value": "Client hook allocation failure.",
+            "encoding": "ascii",
+            "offset": 165608
+          },
+          {
+            "value": "Client hook allocation failure at file %hs line %d.",
+            "encoding": "ascii",
+            "offset": 165644
+          },
+          {
+            "value": "Client hook re-allocation failure.",
+            "encoding": "ascii",
+            "offset": 166056
+          },
+          {
+            "value": "Client hook re-allocation failure at file %hs line %d.",
+            "encoding": "ascii",
+            "offset": 166092
+          },
+          {
+            "value": "Client hook free failure.",
+            "encoding": "ascii",
+            "offset": 166420
+          },
+          {
+            "value": "_heapchk fails with unknown return value!",
+            "encoding": "ascii",
+            "offset": 166636
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADPTR.",
+            "encoding": "ascii",
+            "offset": 166680
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADEND.",
+            "encoding": "ascii",
+            "offset": 166716
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADNODE.",
+            "encoding": "ascii",
+            "offset": 166752
+          },
+          {
+            "value": "_heapchk fails with _HEAPBADBEGIN.",
+            "encoding": "ascii",
+            "offset": 166788
+          }
+        ],
+        "success_strings": [
+          {
+            "value": "congratulations!",
+            "encoding": "ascii",
+            "offset": 163956
+          },
+          {
+            "value": "File open success",
+            "encoding": "ascii",
+            "offset": 164016
+          }
+        ],
+        "candidate_constant_strings": [
+          {
+            "value": "Rich",
+            "encoding": "ascii",
+            "offset": 184
+          },
+          {
+            "value": "LSVW",
+            "encoding": "ascii",
+            "offset": 4149
+          },
+          {
+            "value": "Qj@j",
+            "encoding": "ascii",
+            "offset": 4223
+          },
+          {
+            "value": "Rj@j",
+            "encoding": "ascii",
+            "offset": 4824
+          },
+          {
+            "value": "PRSVWh",
+            "encoding": "ascii",
+            "offset": 6313
+          },
+          {
+            "value": "SVWh4",
+            "encoding": "ascii",
+            "offset": 6726
+          },
+          {
+            "value": "j6hT",
+            "encoding": "ascii",
+            "offset": 7244
+          },
+          {
+            "value": "j7hT",
+            "encoding": "ascii",
+            "offset": 7286
+          },
+          {
+            "value": "QSVW",
+            "encoding": "ascii",
+            "offset": 16067
+          },
+          {
+            "value": "uvj:",
+            "encoding": "ascii",
+            "offset": 21400
+          },
+          {
+            "value": "u!hP",
+            "encoding": "ascii",
+            "offset": 22547
+          },
+          {
+            "value": "u!hT",
+            "encoding": "ascii",
+            "offset": 23988
+          },
+          {
+            "value": "t!hd",
+            "encoding": "ascii",
+            "offset": 24727
+          },
+          {
+            "value": "t!hT",
+            "encoding": "ascii",
+            "offset": 25538
+          },
+          {
+            "value": "t!h4",
+            "encoding": "ascii",
+            "offset": 25658
+          },
+          {
+            "value": "J0+H0",
+            "encoding": "ascii",
+            "offset": 28981
+          },
+          {
+            "value": "4SVW",
+            "encoding": "ascii",
+            "offset": 30005
+          },
+          {
+            "value": "Q0Rh0",
+            "encoding": "ascii",
+            "offset": 30282
+          },
+          {
+            "value": "$SVW",
+            "encoding": "ascii",
+            "offset": 31269
+          },
+          {
+            "value": "SVWUj",
+            "encoding": "ascii",
+            "offset": 37035
+          },
+          {
+            "value": "VC20XC00U",
+            "encoding": "ascii",
+            "offset": 37272
+          },
+          {
+            "value": "SVWU",
+            "encoding": "ascii",
+            "offset": 37286
+          },
+          {
+            "value": "tEVU",
+            "encoding": "ascii",
+            "offset": 37344
+          },
+          {
+            "value": "0SVW",
+            "encoding": "ascii",
+            "offset": 38869
+          },
+          {
+            "value": "tzVS",
+            "encoding": "ascii",
+            "offset": 40935
+          },
+          {
+            "value": "jOh8",
+            "encoding": "ascii",
+            "offset": 41215
+          },
+          {
+            "value": "jihh",
+            "encoding": "ascii",
+            "offset": 42886
+          },
+          {
+            "value": "WriteFile",
+            "encoding": "ascii",
+            "offset": 163884
+          },
+          {
+            "value": "Pause",
+            "encoding": "ascii",
+            "offset": 163932
+          },
+          {
+            "value": "congratulations!",
+            "encoding": "ascii",
+            "offset": 163956
+          },
+          {
+            "value": "pwd.txt",
+            "encoding": "ascii",
+            "offset": 164044
+          },
+          {
+            "value": "realpwd",
+            "encoding": "ascii",
+            "offset": 164056
+          },
+          {
+            "value": "scanf.c",
+            "encoding": "ascii",
+            "offset": 164308
+          },
+          {
+            "value": "printf.c",
+            "encoding": "ascii",
+            "offset": 164332
+          },
+          {
+            "value": "system.c",
+            "encoding": "ascii",
+            "offset": 164368
+          },
+          {
+            "value": "COMSPEC",
+            "encoding": "ascii",
+            "offset": 164404
+          },
+          {
+            "value": "fclose.c",
+            "encoding": "ascii",
+            "offset": 164412
+          },
+          {
+            "value": "fscanf.c",
+            "encoding": "ascii",
+            "offset": 164436
+          },
+          {
+            "value": "fopen.c",
+            "encoding": "ascii",
+            "offset": 164520
+          },
+          {
+            "value": "wsprintfA",
+            "encoding": "ascii",
+            "offset": 164748
+          },
+          {
+            "value": "dbgrpt.c",
+            "encoding": "ascii",
+            "offset": 165084
+          },
+          {
+            "value": "_file.c",
+            "encoding": "ascii",
+            "offset": 165128
+          },
+          {
+            "value": "_sftbuf.c",
+            "encoding": "ascii",
+            "offset": 165136
+          },
+          {
+            "value": "700WP",
+            "encoding": "ascii",
+            "offset": 165213
+          },
+          {
+            "value": "ppxxxx",
+            "encoding": "ascii",
+            "offset": 165237
+          },
+          {
+            "value": "output.c",
+            "encoding": "ascii",
+            "offset": 165288
+          },
+          {
+            "value": "PATH",
+            "encoding": "ascii",
+            "offset": 165320
+          },
+          {
+            "value": "spawnvpe.c",
+            "encoding": "ascii",
+            "offset": 165404
+          },
+          {
+            "value": "spawnve.c",
+            "encoding": "ascii",
+            "offset": 165472
+          },
+          {
+            "value": "Client",
+            "encoding": "ascii",
+            "offset": 165484
+          },
+          {
+            "value": "Ignore",
+            "encoding": "ascii",
+            "offset": 165492
+          },
+          {
+            "value": "Normal",
+            "encoding": "ascii",
+            "offset": 165504
+          },
+          {
+            "value": "Free",
+            "encoding": "ascii",
+            "offset": 165512
+          },
+          {
+            "value": "dbgheap.c",
+            "encoding": "ascii",
+            "offset": 165700
+          },
+          {
+            "value": "DAMAGED",
+            "encoding": "ascii",
+            "offset": 166628
+          },
+          {
+            "value": "_freebuf.c",
+            "encoding": "ascii",
+            "offset": 167316
+          },
+          {
+            "value": "_open.c",
+            "encoding": "ascii",
+            "offset": 167328
+          },
+          {
+            "value": "stream.c",
+            "encoding": "ascii",
+            "offset": 167336
+          },
+          {
+            "value": "stdenvp.c",
+            "encoding": "ascii",
+            "offset": 167348
+          },
+          {
+            "value": "stdargv.c",
+            "encoding": "ascii",
+            "offset": 167360
+          },
+          {
+            "value": "a_env.c",
+            "encoding": "ascii",
+            "offset": 167372
+          },
+          {
+            "value": "ioinit.c",
+            "encoding": "ascii",
+            "offset": 167380
+          },
+          {
+            "value": "__GLOBAL_HEAP_SELECTED",
+            "encoding": "ascii",
+            "offset": 167392
+          },
+          {
+            "value": "R6028",
+            "encoding": "ascii",
+            "offset": 167508
+          },
+          {
+            "value": "R6027",
+            "encoding": "ascii",
+            "offset": 167548
+          },
+          {
+            "value": "R6026",
+            "encoding": "ascii",
+            "offset": 167604
+          },
+          {
+            "value": "R6025",
+            "encoding": "ascii",
+            "offset": 167660
+          },
+          {
+            "value": "R6024",
+            "encoding": "ascii",
+            "offset": 167700
+          },
+          {
+            "value": "R6019",
+            "encoding": "ascii",
+            "offset": 167756
+          },
+          {
+            "value": "R6018",
+            "encoding": "ascii",
+            "offset": 167800
+          },
+          {
+            "value": "R6017",
+            "encoding": "ascii",
+            "offset": 167836
+          },
+          {
+            "value": "R6016",
+            "encoding": "ascii",
+            "offset": 167884
+          },
+          {
+            "value": "R6009",
+            "encoding": "ascii",
+            "offset": 167964
+          },
+          {
+            "value": "R6008",
+            "encoding": "ascii",
+            "offset": 168008
+          },
+          {
+            "value": "R6002",
+            "encoding": "ascii",
+            "offset": 168052
+          },
+          {
+            "value": "sprintf.c",
+            "encoding": "ascii",
+            "offset": 168160
+          },
+          {
+            "value": "vsprintf.c",
+            "encoding": "ascii",
+            "offset": 168188
+          },
+          {
+            "value": "GetLastActivePopup",
+            "encoding": "ascii",
+            "offset": 168200
+          },
+          {
+            "value": "GetActiveWindow",
+            "encoding": "ascii",
+            "offset": 168220
+          },
+          {
+            "value": "MessageBoxA",
+            "encoding": "ascii",
+            "offset": 168236
+          },
+          {
+            "value": "mbtowc.c",
+            "encoding": "ascii",
+            "offset": 168248
+          },
+          {
+            "value": "_filbuf.c",
+            "encoding": "ascii",
+            "offset": 168296
+          },
+          {
+            "value": "ungetc.c",
+            "encoding": "ascii",
+            "offset": 168308
+          },
+          {
+            "value": "_flsbuf.c",
+            "encoding": "ascii",
+            "offset": 168384
+          },
+          {
+            "value": "dospawn.c",
+            "encoding": "ascii",
+            "offset": 168396
+          },
+          {
+            "value": "cenvarg.c",
+            "encoding": "ascii",
+            "offset": 168408
+          },
+          {
+            "value": "wtombenv.c",
+            "encoding": "ascii",
+            "offset": 168420
+          },
+          {
+            "value": "osfinfo.c",
+            "encoding": "ascii",
+            "offset": 168432
+          },
+          {
+            "value": "_getbuf.c",
+            "encoding": "ascii",
+            "offset": 168468
+          },
+          {
+            "value": "a_cmp.c",
+            "encoding": "ascii",
+            "offset": 168480
+          },
+          {
+            "value": "setenv.c",
+            "encoding": "ascii",
+            "offset": 168576
+          },
+          {
+            "value": "chsize.c",
+            "encoding": "ascii",
+            "offset": 168588
+          },
+          {
+            "value": "VirtualProtect",
+            "encoding": "ascii",
+            "offset": 189146
+          },
+          {
+            "value": "GetProcAddress",
+            "encoding": "ascii",
+            "offset": 189164
+          },
+          {
+            "value": "GetModuleHandleA",
+            "encoding": "ascii",
+            "offset": 189182
+          },
+          {
+            "value": "lstrcmpA",
+            "encoding": "ascii",
+            "offset": 189202
+          },
+          {
+            "value": "CloseHandle",
+            "encoding": "ascii",
+            "offset": 189214
+          },
+          {
+            "value": "CreateFileA",
+            "encoding": "ascii",
+            "offset": 189240
+          },
+          {
+            "value": "GetCommandLineA",
+            "encoding": "ascii",
+            "offset": 189268
+          },
+          {
+            "value": "GetVersion",
+            "encoding": "ascii",
+            "offset": 189286
+          }
+        ]
+      },
+      "new_candidate_count": 30,
+      "validated_candidate_count": 30,
+      "solved": false,
+      "solution": null,
+      "runtime_evidence": null,
+      "missing_evidence": "new_candidates_failed_runtime_validation",
+      "next_action": "inspect compare-site xrefs before generating more candidates",
+      "status": "NO_CANDIDATE_VALIDATED",
+      "blocked_reasons": [],
+      "new_candidate_sources": [
+        {
+          "source": "candidate_constant_strings",
+          "count": 30
+        }
+      ],
+      "validation_results_preview": [
+        {
+          "candidate": "Rich",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_1",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 30
+        },
+        {
+          "candidate": "LSVW",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_2",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 22
+        },
+        {
+          "candidate": "Qj@j",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_3",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 20
+        },
+        {
+          "candidate": "Rj@j",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_4",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 23
+        },
+        {
+          "candidate": "PRSVWh",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_5",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 22
+        },
+        {
+          "candidate": "SVWh4",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_6",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 20
+        },
+        {
+          "candidate": "QSVW",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_7",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 19
+        },
+        {
+          "candidate": "uvj:",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_8",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 20
+        },
+        {
+          "candidate": "u!hP",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_9",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 21
+        },
+        {
+          "candidate": "u!hT",
+          "source": "candidate_constant_strings",
+          "probe_name": "compare_site_candidate_10",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 22
+        }
+      ]
+    }
+  ]
+}

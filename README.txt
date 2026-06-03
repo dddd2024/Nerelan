@@ -41,7 +41,8 @@ Reverse Agent（GUI 逆向解题助手）
 - `project_state\`：GPT 与 Codex 的轻量协作接口，应提交到 GitHub。
 - `PROJECT_PROGRESS_LOG.txt`：人工总账，仅在状态包缺失、战略复盘或追溯历史失败方向时读取，不是每轮默认上下文。
 - `solve_reports\`：运行产物目录，默认不应提交到 GitHub。
-- `local_reverse_samples\`：本地临时逆向样本导入目录，用于放置用户自己的 `.exe`、`.dll`、题目附件、压缩包、notes、harness `case.json` 和本地 `solver.py`。该目录被 `.gitignore` 忽略，不上传 GitHub；适合作为临时导入目录，样本经过整理后可迁移到 `sample_corpus/reverse/`。
+- `project_state\local_reverse_*.json`：当前本地逆向训练事实来源，记录 `E:\reverse` 样本索引、运行策略、benchmark、solver 结果和 compare-site 提取结果。
+- `reverse_agent\local_reverse_corpus.py`、`reverse_agent\local_reverse_runtime.py`、`reverse_agent\local_reverse_string_solver.py`、`reverse_agent\local_reverse_compare_site.py`：当前本地训练入口，分别负责语料索引、受限 runtime benchmark、bounded string solver 和 compare-site static extraction。
 - `sample_corpus/reverse/`：可提交、可审计、可复现的精选逆向样本语料库。样本由用户明确允许上传，包含完整的 metadata.json、case.json、notes.md、codex_task.md 等文件。所有样本标记为 `safe_to_run=false`（禁止默认执行）和 `upload_allowed=true`（允许上传）。该目录应提交到 GitHub。
 
 
@@ -72,44 +73,22 @@ Reverse Agent（GUI 逆向解题助手）
 
 Harness 的目标是把 reverse-agent 作为可复现实验系统运行，而不是只依赖一次 GUI 手工尝试。
 
-1) 本地导入单个逆向题目：
+1) 本地训练状态入口：
+
+当前本地训练默认以用户机器上的 `E:\reverse` 为样本根，不把二进制样本复制进仓库。Codex / GPT 每轮应优先读取并更新 `project_state\local_reverse_*.json`，而不是维护单题脚本目录。
+
+常用命令：
 
 ```powershell
-python -m reverse_agent.local_samples add .\crackme.exe --case-id crackme_sha256_001
+python -m reverse_agent.local_reverse_corpus --root E:\reverse --out project_state\local_reverse_corpus_index.json
+python -m reverse_agent.local_reverse_runtime --corpus-index project_state\local_reverse_corpus_index.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_solve_benchmark.json
+python -m reverse_agent.local_reverse_string_solver --corpus-index project_state\local_reverse_corpus_index.json --benchmark project_state\local_reverse_solve_benchmark.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_string_solver_result.json
+python -m reverse_agent.local_reverse_compare_site --corpus-index project_state\local_reverse_corpus_index.json --benchmark project_state\local_reverse_solve_benchmark.json --string-result project_state\local_reverse_string_solver_result.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_compare_site_result.json
 ```
 
-该命令会在被 Git 忽略的 `local_reverse_samples\crackme_sha256_001\` 下自动复制样本并生成：
+独立脚本、notes 或临时分析文件如果由用户自管，应留在用户自己的样本目录或临时工作区；它们不是 README 当前推荐的主流程，也不应默认提交。
 
-```text
-sample.exe
-case.json
-metadata.json
-notes.md
-```
-
-不需要手写 `case.json`。如果省略 `--case-id`，命令会根据文件名和 SHA-256 前缀生成安全稳定的 case id。
-
-2) 生成本地 Codex 解题入口：
-
-```powershell
-python -m reverse_agent.local_samples solve crackme_sha256_001
-```
-
-该命令会生成：
-
-```text
-local_reverse_samples\crackme_sha256_001\codex_task.md
-```
-
-`codex_task.md` 会说明样本路径、SHA-256、静态 harness 命令、后续本地 `solver.py` 输出位置，以及默认不要运行 IDA / OllyDbg / Frida runtime probe。后续单题 `solver.py` 应继续保存在 `local_reverse_samples\<case_id>\` 下，不提交 GitHub。
-
-如果只想在生成任务时顺便运行现有静态 harness，可显式使用：
-
-```powershell
-python -m reverse_agent.local_samples solve crackme_sha256_001 --run-static-harness
-```
-
-3) 高级用法：手写 JSON 任务集，例如：
+2) 高级用法：手写 JSON 任务集，例如：
 
 ```json
 {
@@ -125,34 +104,11 @@ python -m reverse_agent.local_samples solve crackme_sha256_001 --run-static-harn
 }
 ```
 
-手写任务集也可以引用被 Git 忽略的 `local_reverse_samples\`，例如：
-
-```json
-{
-  "cases": [
-    {
-      "case_id": "crackme-sha256-001",
-      "input_value": "local_reverse_samples/crackme_sha256_001/sample.exe",
-      "expected_flag": "",
-      "category": "hash_check",
-      "tags": ["sha256", "static", "crackme"],
-      "notes": "本地 SHA-256 判断类逆向练习样本"
-    }
-  ]
-}
-```
-
-对应运行命令：
-
-```powershell
-python -m reverse_agent.harness --dataset .\local_reverse_samples\crackme_sha256_001\case.json --run-name crackme_sha256_001
-```
-
-4) 运行可复现实验：
+3) 运行可复现实验：
 
 `python -m reverse_agent.harness --dataset .\cases.json --run-name smoke_suite --analysis-mode "Static Analysis"`
 
-5) 常用运行参数：
+4) 常用运行参数：
 
 - `--run-name`：稳定运行名；同名重跑用于 resume。
 - `--reports-dir`：报告根目录，默认 `solve_reports`。
@@ -166,7 +122,7 @@ python -m reverse_agent.harness --dataset .\local_reverse_samples\crackme_sha256
 - `--fail-fast`：遇到失败立即停止。
 - `--no-resume`：禁用断点续跑。
 
-6) 结果目录：
+5) 结果目录：
 
 - `solve_reports\harness_runs\<run_name>\run_manifest.json`：本次运行配置、git commit、dataset digest、config digest、case 列表。
 - `solve_reports\harness_runs\<run_name>\case_results\*.json`：每个样本单独结果。
@@ -174,7 +130,7 @@ python -m reverse_agent.harness --dataset .\local_reverse_samples\crackme_sha256
 - `solve_reports\harness_runs\<run_name>\summary.md`：人工可读汇总。
 - `solve_reports\harness_runs\<run_name>\reports\`：本轮 pipeline 生成的报告和工具 artifact。
 
-7) 断点续跑规则：
+6) 断点续跑规则：
 
 - 对同一个 `--run-name` 再次执行时，默认跳过已有 `case_results\*.json` 的样本。
 - 如果同名 run 的 config digest 不一致，harness 会拒绝继续，避免把不同实验混在同一个 run 下。
