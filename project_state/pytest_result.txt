@@ -1,15 +1,14 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260603_local_reverse_runtime_solve_benchmark",
-  "report_id": "report_20260603_local_reverse_runtime_solve_benchmark",
-  "round_id": "round_20260603_local_reverse_runtime_solve_benchmark",
+  "decision_id": "decision_20260603_local_reverse_string_compare_solver_v1",
+  "report_id": "report_20260603_local_reverse_string_compare_solver_v1",
+  "round_id": "round_20260603_local_reverse_string_compare_solver_v1",
   "status": "PASSED",
   "tests_ran": [
-    "python -m py_compile reverse_agent\\local_reverse_corpus.py reverse_agent\\local_reverse_runtime.py",
-    "python -m pytest -q tests\\test_local_reverse_corpus.py tests\\test_local_reverse_runtime.py",
-    "python -m reverse_agent.local_reverse_corpus --root E:\\reverse --out project_state\\local_reverse_corpus_index.json --training-state project_state\\local_reverse_training_state.json",
-    "python -m reverse_agent.local_reverse_runtime --corpus-index project_state\\local_reverse_corpus_index.json --policy project_state\\local_reverse_runtime_policy.json --out project_state\\local_reverse_solve_benchmark.json",
+    "python -m py_compile reverse_agent\\local_reverse_runtime.py reverse_agent\\local_reverse_string_solver.py",
+    "python -m pytest -q tests\\test_local_reverse_runtime.py tests\\test_local_reverse_string_solver.py",
+    "python -m reverse_agent.local_reverse_string_solver --corpus-index project_state\\local_reverse_corpus_index.json --benchmark project_state\\local_reverse_solve_benchmark.json --policy project_state\\local_reverse_runtime_policy.json --out project_state\\local_reverse_string_solver_result.json",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "git diff --check"
@@ -21,10 +20,9 @@
 
 ## Commands
 
-- `python -m py_compile reverse_agent\local_reverse_corpus.py reverse_agent\local_reverse_runtime.py` -> passed
-- `python -m pytest -q tests\test_local_reverse_corpus.py tests\test_local_reverse_runtime.py` -> `13 passed`
-- `python -m reverse_agent.local_reverse_corpus --root E:\reverse --out project_state\local_reverse_corpus_index.json --training-state project_state\local_reverse_training_state.json` -> `local reverse corpus: status=READY samples=28 root=E:\reverse`
-- `python -m reverse_agent.local_reverse_runtime --corpus-index project_state\local_reverse_corpus_index.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_solve_benchmark.json` -> `local reverse runtime benchmark: status=READY challenges=22 executed=22 skipped=0 timeouts=3`
+- `python -m py_compile reverse_agent\local_reverse_runtime.py reverse_agent\local_reverse_string_solver.py` -> passed
+- `python -m pytest -q tests\test_local_reverse_runtime.py tests\test_local_reverse_string_solver.py` -> `14 passed`
+- `python -m reverse_agent.local_reverse_string_solver --corpus-index project_state\local_reverse_corpus_index.json --benchmark project_state\local_reverse_solve_benchmark.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_string_solver_result.json` -> `local reverse string solver: status=PARTIAL targets=3 solved=0`
 - `python -m reverse_agent.project_state lint-decision --state-dir project_state` -> OK
 - `python -m reverse_agent.project_state lint-report --state-dir project_state` -> OK
 - `git diff --check` -> passed
@@ -32,13 +30,13 @@
 ## Runtime Scope
 
 - root: `E:\reverse`
-- challenge_count: 22
-- executed_count: 22
-- skipped_count: 0
-- timeout_count: 3
+- solver_family: `string_compare_static_solver_v1`
+- target_count: 3
 - solved_count: 0
+- max_candidates_per_sample: 50
+- candidate validations: 150
 - executable path scope: indexed `.exe` files under `E:\reverse`
 - binary copy into repository: no
 - runtime outside `E:\reverse`: no
 - `.codex-skills/` changes: no
-- `solve_reports/` changes: no
+- full `solve_reports/` traversal: no

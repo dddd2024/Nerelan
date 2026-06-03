@@ -153,3 +153,18 @@ def test_missing_root_blocks_without_crashing(tmp_path: Path) -> None:
 
     assert result["status"] == "BLOCKED"
     assert "ROOT_UNAVAILABLE" in result["blocked_reasons"]
+
+
+def test_runtime_allowed_false_is_preserved_in_sample_result(tmp_path: Path) -> None:
+    exe = tmp_path / "demo.py"
+    _write_exe_script(exe, f"#!{sys.executable}\nprint('should not run')\n")
+    policy = _policy(tmp_path)
+    policy["runtime_allowed"] = False
+    index = {"schema_version": 1, "root": str(tmp_path), "samples": [_sample(exe, tmp_path)]}
+
+    result = run_benchmark(corpus_index=index, policy=policy)
+
+    assert result["status"] == "BLOCKED"
+    assert result["samples"][0]["runtime_allowed"] is False
+    assert result["samples"][0]["runtime_status"] == "blocked"
+    assert "RUNTIME_NOT_ALLOWED_BY_POLICY" in result["samples"][0]["blocked_reasons"]

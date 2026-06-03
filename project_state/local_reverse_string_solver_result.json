@@ -1,0 +1,442 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T07:23:40Z",
+  "solver_family": "string_compare_static_solver_v1",
+  "status": "PARTIAL",
+  "target_count": 3,
+  "solved_count": 0,
+  "max_candidates_per_sample": 50,
+  "timeout_seconds": 5,
+  "blocked_reasons": [],
+  "targets": [
+    {
+      "sample_id": "4c69f173f2bd0211",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "sha256": "4c69f173f2bd0211fe472e12b3ecc4dcfbae6a20735a750b8f8c0ea5c566223a",
+      "solve_readiness": "ready_static_string_compare",
+      "candidate_count": 50,
+      "validated_candidate_count": 50,
+      "solved": false,
+      "solution": null,
+      "candidate_sources": [
+        {
+          "source": "static_string",
+          "count": 50
+        }
+      ],
+      "validation_results_preview": [
+        {
+          "candidate": "0SVW",
+          "source": "static_string",
+          "probe_name": "candidate_1",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 27
+        },
+        {
+          "candidate": "4SVW",
+          "source": "static_string",
+          "probe_name": "candidate_2",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 20
+        },
+        {
+          "candidate": "8STs",
+          "source": "static_string",
+          "probe_name": "candidate_3",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 19
+        },
+        {
+          "candidate": "90W0",
+          "source": "static_string",
+          "probe_name": "candidate_4",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 27
+        },
+        {
+          "candidate": "@SVW",
+          "source": "static_string",
+          "probe_name": "candidate_5",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 23
+        },
+        {
+          "candidate": "Bjjj",
+          "source": "static_string",
+          "probe_name": "candidate_6",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 21
+        },
+        {
+          "candidate": "Free",
+          "source": "static_string",
+          "probe_name": "candidate_7",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 25
+        },
+        {
+          "candidate": "j.ht",
+          "source": "static_string",
+          "probe_name": "candidate_8",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 22
+        },
+        {
+          "candidate": "jjjj",
+          "source": "static_string",
+          "probe_name": "candidate_9",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 20
+        },
+        {
+          "candidate": "jmh$",
+          "source": "static_string",
+          "probe_name": "candidate_10",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 21
+        }
+      ],
+      "negative_result": "NO_CANDIDATE_VALIDATED",
+      "missing_evidence": "needs_compare_constant_or_disassembly",
+      "next_action": "bounded compare-site static extraction",
+      "status": "NO_CANDIDATE_VALIDATED",
+      "blocked_reasons": []
+    },
+    {
+      "sample_id": "bcbd9979db015bfd",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "sha256": "bcbd9979db015bfd12d7c0c270df46918713433636123c545315a9d527b22a5a",
+      "solve_readiness": "ready_static_string_compare",
+      "candidate_count": 50,
+      "validated_candidate_count": 50,
+      "solved": false,
+      "solution": null,
+      "candidate_sources": [
+        {
+          "source": "static_string",
+          "count": 50
+        }
+      ],
+      "validation_results_preview": [
+        {
+          "candidate": "$SVW",
+          "source": "static_string",
+          "probe_name": "candidate_1",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 26
+        },
+        {
+          "candidate": "0SVW",
+          "source": "static_string",
+          "probe_name": "candidate_2",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 21
+        },
+        {
+          "candidate": "4SVW",
+          "source": "static_string",
+          "probe_name": "candidate_3",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 30
+        },
+        {
+          "candidate": "Bjjj",
+          "source": "static_string",
+          "probe_name": "candidate_4",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 31
+        },
+        {
+          "candidate": "Free",
+          "source": "static_string",
+          "probe_name": "candidate_5",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 28
+        },
+        {
+          "candidate": "j6hT",
+          "source": "static_string",
+          "probe_name": "candidate_6",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 29
+        },
+        {
+          "candidate": "j7hT",
+          "source": "static_string",
+          "probe_name": "candidate_7",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 18
+        },
+        {
+          "candidate": "jihh",
+          "source": "static_string",
+          "probe_name": "candidate_8",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 20
+        },
+        {
+          "candidate": "jjjj",
+          "source": "static_string",
+          "probe_name": "candidate_9",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 23
+        },
+        {
+          "candidate": "jOh8",
+          "source": "static_string",
+          "probe_name": "candidate_10",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 31
+        }
+      ],
+      "negative_result": "NO_CANDIDATE_VALIDATED",
+      "missing_evidence": "needs_compare_constant_or_disassembly",
+      "next_action": "bounded compare-site static extraction",
+      "status": "NO_CANDIDATE_VALIDATED",
+      "blocked_reasons": []
+    },
+    {
+      "sample_id": "18019fca52b389fe",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "sha256": "18019fca52b389feeb2f690d096d5848ff7ba686eac9173bb17a6fabb819a8ff",
+      "solve_readiness": "ready_static_string_compare",
+      "candidate_count": 50,
+      "validated_candidate_count": 50,
+      "solved": false,
+      "solution": null,
+      "candidate_sources": [
+        {
+          "source": "static_string",
+          "count": 50
+        }
+      ],
+      "validation_results_preview": [
+        {
+          "candidate": "0SVW",
+          "source": "static_string",
+          "probe_name": "candidate_1",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 28
+        },
+        {
+          "candidate": "4SVW",
+          "source": "static_string",
+          "probe_name": "candidate_2",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 23
+        },
+        {
+          "candidate": "8STs",
+          "source": "static_string",
+          "probe_name": "candidate_3",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 24
+        },
+        {
+          "candidate": "@SVW",
+          "source": "static_string",
+          "probe_name": "candidate_4",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 22
+        },
+        {
+          "candidate": "Bjjj",
+          "source": "static_string",
+          "probe_name": "candidate_5",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 22
+        },
+        {
+          "candidate": "Free",
+          "source": "static_string",
+          "probe_name": "candidate_6",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 25
+        },
+        {
+          "candidate": "j.hT",
+          "source": "static_string",
+          "probe_name": "candidate_7",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 24
+        },
+        {
+          "candidate": "j0hh",
+          "source": "static_string",
+          "probe_name": "candidate_8",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 26
+        },
+        {
+          "candidate": "jahl",
+          "source": "static_string",
+          "probe_name": "candidate_9",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 23
+        },
+        {
+          "candidate": "jahp",
+          "source": "static_string",
+          "probe_name": "candidate_10",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "success": false,
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+          "stderr_preview": "",
+          "duration_ms": 29
+        }
+      ],
+      "negative_result": "NO_CANDIDATE_VALIDATED",
+      "missing_evidence": "needs_compare_constant_or_disassembly",
+      "next_action": "bounded compare-site static extraction",
+      "status": "NO_CANDIDATE_VALIDATED",
+      "blocked_reasons": []
+    }
+  ]
+}

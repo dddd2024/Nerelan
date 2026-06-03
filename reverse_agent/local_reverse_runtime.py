@@ -175,7 +175,13 @@ def benchmark_sample(
         blocked_reasons.append("SHA256_MISMATCH")
 
     if blocked_reasons:
-        return _sample_result(sample, "blocked", [], blocked_reasons)
+        return _sample_result(
+            sample,
+            "blocked",
+            [],
+            blocked_reasons,
+            runtime_allowed=False,
+        )
 
     runtime_results = []
     for probe_name, stdin_text in probes:
@@ -191,7 +197,13 @@ def benchmark_sample(
             break
 
     runtime_status = "executed" if runtime_results else "skipped"
-    return _sample_result(sample, runtime_status, runtime_results, blocked_reasons)
+    return _sample_result(
+        sample,
+        runtime_status,
+        runtime_results,
+        blocked_reasons,
+        runtime_allowed=runtime_allowed and runtime_status == "executed",
+    )
 
 
 def run_probe(
@@ -331,6 +343,8 @@ def _sample_result(
     runtime_status: str,
     runtime_results: list[dict[str, Any]],
     blocked_reasons: list[str],
+    *,
+    runtime_allowed: bool,
 ) -> dict[str, Any]:
     readiness = solve_readiness(sample, runtime_results)
     return {
@@ -339,7 +353,7 @@ def _sample_result(
         "sha256": sample.get("sha256", ""),
         "artifact_role": sample.get("artifact_role", "unknown"),
         "triage_tags": sample.get("triage_tags", []),
-        "runtime_allowed": True,
+        "runtime_allowed": runtime_allowed,
         "runtime_status": runtime_status,
         "blocked_reasons": blocked_reasons,
         "runtime_results": runtime_results,
