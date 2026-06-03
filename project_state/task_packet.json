@@ -137,8 +137,8 @@
   },
   "task": "Review bounded window discovery diagnostics",
   "task_source": "derived_from_sample_artifacts",
-  "local_reverse_next_suggested_task": "Decide next action for sha_256 (NO_BOUNDED_HASH_PREIMAGE_DOMAIN confirmed) and CPP2 (sub_401005 pseudocode missing, needs targeted IDA decompilation or problem statement hint)",
-  "local_reverse_current_artifact": "project_state\\local_reverse_targeted_static_reextraction_result.json",
+  "local_reverse_next_suggested_task": "Run constraint recovery with recovered SHA-256 transform for sha_256 and CPP2; sha_256 still needs bounded input domain",
+  "local_reverse_current_artifact": "project_state\\local_reverse_forced_ida_extraction_result.json",
   "local_reverse_current_artifact_keys": [
     "local_reverse_ida_summary",
     "local_reverse_ida_evidence_18019fca52b389fe",
@@ -147,7 +147,8 @@
     "local_reverse_ida_solver_result",
     "local_reverse_constraint_recovery_result",
     "local_reverse_validated_candidate_handoff",
-    "local_reverse_targeted_static_reextraction_result"
+    "local_reverse_targeted_static_reextraction_result",
+    "local_reverse_forced_ida_extraction_result"
   ],
   "local_reverse_task_packet_authority_note": "Advisory only; project_state/decision_packet.md remains the execution authority."
 }

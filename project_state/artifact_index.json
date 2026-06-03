@@ -582,6 +582,15 @@
       "sha256": "aa3cff949e00da91f3a40501b349d11a48281b91efa1378b23213fcc5dc173e2",
       "size_bytes": 12532,
       "modified_at": "2026-06-03T15:40:00Z"
+    },
+    "local_reverse_forced_ida_extraction_result": {
+      "kind": "local_reverse_forced_ida_extraction_result",
+      "path": "project_state\\local_reverse_forced_ida_extraction_result.json",
+      "freshness": "current",
+      "source_run": "round_20260603_local_reverse_forced_ida_extraction_v1",
+      "sha256": "c33dfac33b32bccfd9683dd7fc2b196ce598f97176b711f275159414b9437e11",
+      "size_bytes": 14435,
+      "modified_at": "2026-06-03T16:00:00Z"
     }
   },
   "latest_case_results": [
