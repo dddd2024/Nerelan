@@ -551,10 +551,10 @@
       "kind": "local_reverse_ida_solver_result",
       "path": "project_state\\local_reverse_ida_solver_result.json",
       "freshness": "current",
-      "source_run": "round_20260603_ida_summary_guided_solver_v1",
-      "sha256": "f05e4c03f87f10e61ea67b0ea54fb169d563dca71345229e32d9455f4726e0d1",
+      "source_run": "round_20260603_ida_guided_solver_trust_gate_v1",
+      "sha256": "28cda7fa94282e4262d940ee4e5ea2e730a63b4f84c605991d533ddcc3a82bea",
       "size_bytes": 4386,
-      "modified_at": "2026-06-03T13:21:07Z"
+      "modified_at": "2026-06-03T13:43:06Z"
     }
   },
   "latest_case_results": [

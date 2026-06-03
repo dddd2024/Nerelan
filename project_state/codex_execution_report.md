@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260603_ida_summary_guided_solver_v1",
-  "round_id": "round_20260603_ida_summary_guided_solver_v1",
-  "based_on_decision_id": "decision_20260603_ida_summary_guided_solver_v1",
+  "report_id": "report_20260603_ida_guided_solver_trust_gate_v1",
+  "round_id": "round_20260603_ida_guided_solver_trust_gate_v1",
+  "based_on_decision_id": "decision_20260603_ida_guided_solver_trust_gate_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
@@ -11,8 +11,6 @@
     "tests/test_local_reverse_ida_guided_solver.py",
     "project_state/local_reverse_ida_solver_result.json",
     "project_state/artifact_index.json",
-    "project_state/current_state.json",
-    "project_state/task_packet.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
@@ -22,23 +20,17 @@
     "python -m reverse_agent.local_reverse_ida_guided_solver --ida-summary project_state\\local_reverse_ida_summary.json --artifact-index project_state\\artifact_index.json --policy project_state\\local_reverse_runtime_policy.json --out project_state\\local_reverse_ida_solver_result.json",
     "python -m json.tool project_state\\current_state.json > NUL",
     "python -m json.tool project_state\\artifact_index.json > NUL",
-    "python -m json.tool project_state\\task_packet.json > NUL",
     "python -m json.tool project_state\\local_reverse_ida_summary.json > NUL",
     "python -m json.tool project_state\\local_reverse_ida_solver_result.json > NUL",
-    "python -c \"import json; d=json.load(open('project_state/local_reverse_ida_solver_result.json', encoding='utf-8')); assert d['target_count']==3; assert len(d['targets'])==3; assert all(t.get('classification') for t in d['targets']); assert all(t.get('selected_solver_profile') for t in d['targets'])\"",
     "python -m pytest -q tests\\test_local_reverse_string_solver.py tests\\test_local_reverse_ida_summary.py tests\\test_project_state.py tests\\test_local_reverse_ida_guided_solver.py",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "git diff --check"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_ida_solver_result.json",
-    "project_state/artifact_index.json",
-    "project_state/current_state.json",
-    "project_state/task_packet.json"
+    "project_state/local_reverse_ida_solver_result.json"
   ],
-  "result_status": "PARTIAL",
-  "next_suggested_task": "Refine local_reverse static constraints for sha_256/CPP2 and investigate Cpp1 rejected static candidate"
+  "result_status": "PARTIAL"
 }
 ```
 
@@ -46,39 +38,28 @@
 
 ## Decision Alignment
 
-This execution follows `project_state/decision_packet.md` for `decision_20260603_ida_summary_guided_solver_v1`.
+This execution follows `project_state/decision_packet.md` for `decision_20260603_ida_guided_solver_trust_gate_v1`.
 
-The mainline for this round is `reverse_solving`. `project_state/task_packet.json` remains advisory/background only; the active decision packet was the execution authority. Existing `samplereverse` fields in `current_state.json` were treated as compatibility/background, not current evidence.
+The mainline for this round is `engineering_branch`. The current `samplereverse` task packet fields remain compatibility/background; the active decision packet was the execution authority.
 
-Current evidence entrypoints were:
-
-```text
-project_state/current_state.json -> local_reverse_training.current_ida_evidence
-project_state/artifact_index.json -> local_reverse_ida_summary and local_reverse_ida_evidence_*
-project_state/local_reverse_ida_summary.json
-```
+This round implements the trust gate for `reverse_agent/local_reverse_ida_guided_solver.py`: artifact freshness/provenance and classification evidence gating only. It does not continue local_reverse solving and does not advance the three targets to validated.
 
 ## Implementation
 
-Added `reverse_agent/local_reverse_ida_guided_solver.py`, a thin IDA-summary-guided orchestrator rather than a hard-coded one-sample solver. It reads the registered IDA summary and raw IDA JSON files, classifies each sample, chooses a bounded solver profile, derives only evidence-backed candidates, and writes `project_state/local_reverse_ida_solver_result.json`.
+`local_reverse_ida_guided_solver` now resolves raw IDA evidence through `latest_artifacts_v2` only. A raw evidence artifact must have `freshness=current`, a non-empty path, an existing file, and parseable JSON before it can influence classification or candidate derivation.
 
-Existing `reverse_agent/local_reverse_string_solver.py` was inspected and left unchanged because it solves from binary strings plus runtime probes, not from registered IDA evidence/provenance. `sample_solver.py` was inspected only as a legacy sample-specific path and was not used as the primary solver.
+Legacy `latest_artifacts` is no longer used as a current-evidence fallback for raw IDA JSON. Stale, missing, unknown, pathless, missing-file, or invalid-JSON artifacts cause the affected target to be blocked with an explicit artifact-key reason.
 
-Read raw IDA JSON paths:
+Classification was tightened so `relative_path` and filename are weak hints only. `sha_256` filename alone no longer selects `hash_hex_compare_static`; the hash profile requires 64-byte compare evidence, `%08x/%08X` format evidence, a 64-hex target, and hash/data-flow evidence. `CPP2` no longer selects a transform profile by filename alone. The API/password profile requires pwd-like string evidence, compare/API evidence, and decompiler/data-flow evidence.
 
-```text
-solve_reports\tool_artifacts\local_reverse_ida_evidence_integration_v1\18019fca52b389fe\sha_256_ida_evidence.json
-solve_reports\tool_artifacts\local_reverse_ida_evidence_integration_v1\4c69f173f2bd0211\CPP2_ida_evidence.json
-solve_reports\tool_artifacts\local_reverse_ida_evidence_integration_v1\bcbd9979db015bfd\Cpp1_ida_evidence.json
-```
-
-No full `solve_reports/` scan was performed.
+`solved_count` is now conservative and counts only validated targets. Rejected or blocked candidates do not increase solved or validated counts. Validation still treats output containing both success and failure markers as rejected.
 
 ## Result Summary
 
-Generated `project_state/local_reverse_ida_solver_result.json`:
+The official solver result was regenerated:
 
 ```text
+project_state/local_reverse_ida_solver_result.json
 status=PARTIAL
 target_count=3
 solved_count=0
@@ -86,69 +67,41 @@ validated_count=0
 runtime_validation_attempted_count=1
 ```
 
-Per-sample outcomes:
+The three local_reverse targets remain unvalidated:
 
 ```text
-18019fca52b389fe / sha_256.exe
-classification=sha256_hex_compare_with_post_hash_character_adjustment
-profile=hash_hex_compare_static
-candidate=<none>
-validation_status=unverified
-reason=64-byte hash compare target exists, but current evidence has no bounded preimage domain.
-
-4c69f173f2bd0211 / CPP2.exe
-classification=bounded_input_range_hash_output_increment_compare
-profile=bounded_char_transform_inversion
-candidate=<none>
-validation_status=unverified
-reason=input range and post-transform increment are visible, but upstream hash/transform routine remains uninverted.
-
-bcbd9979db015bfd / Cpp1.exe
-classification=api_assisted_password_write_and_compare
-profile=direct_or_api_password_extraction
-candidate=hookapi
-validation_status=rejected
-reason=static XOR candidate was tested by bounded runtime probe and output contained "try again!".
+18019fca52b389fe / sha_256.exe -> unverified, no bounded preimage domain
+4c69f173f2bd0211 / CPP2.exe -> unverified, upstream hash/transform remains uninverted
+bcbd9979db015bfd / Cpp1.exe -> rejected, hookapi still prints try again
 ```
 
-The `Cpp1` candidate was not promoted to validated. The recorded probe output was:
-
-```text
-Press any key to continue . . .
-Please input your flag
-File open success
-try again!
-```
-
-`project_state/artifact_index.json`, `current_state.json`, and `task_packet.json` were minimally updated so the generated solver result is discoverable by the next compact-state pass.
+`project_state/artifact_index.json` was updated only to keep `local_reverse_ida_solver_result` metadata current for the regenerated official result.
 
 ## Scope Audit
 
 - IDA was not rerun.
 - Ghidra was not run.
 - OllyDbg/x64dbg/Frida/debugger probes were not run.
-- No samples outside the three registered targets were processed.
-- The sample set was not expanded to 22.
+- No samples outside the three registered local_reverse targets were processed.
+- The sample set was not expanded.
 - No sample binary was copied into the repo, committed, uploaded, or encoded.
 - Full `solve_reports/` was not read.
 - Full `PROJECT_PROGRESS_LOG.txt` was not read.
 - `.codex-skills/` was not modified.
-- Runtime validation was limited to one policy-bounded candidate probe for `Cpp1`.
+- Runtime validation was limited to the existing policy-bounded `Cpp1` candidate probe performed by the solver CLI.
 
 ## Validation
 
 ```text
 python -m py_compile reverse_agent\local_reverse_ida_guided_solver.py -> passed
-python -m pytest -q tests\test_local_reverse_ida_guided_solver.py -> 2 passed
+python -m pytest -q tests\test_local_reverse_ida_guided_solver.py -> 7 passed
 solver CLI -> status=PARTIAL targets=3 solved=0 validated=0
 python -m json.tool project_state\current_state.json > NUL -> passed
 python -m json.tool project_state\artifact_index.json > NUL -> passed
-python -m json.tool project_state\task_packet.json > NUL -> passed
 python -m json.tool project_state\local_reverse_ida_summary.json > NUL -> passed
 python -m json.tool project_state\local_reverse_ida_solver_result.json > NUL -> passed
-result schema assertion -> passed
-python -m pytest -q tests\test_local_reverse_string_solver.py tests\test_local_reverse_ida_summary.py tests\test_project_state.py tests\test_local_reverse_ida_guided_solver.py -> 171 passed
+python -m pytest -q tests\test_local_reverse_string_solver.py tests\test_local_reverse_ida_summary.py tests\test_project_state.py tests\test_local_reverse_ida_guided_solver.py -> 176 passed
 python -m reverse_agent.project_state lint-decision --state-dir project_state -> OK
-python -m reverse_agent.project_state lint-report --state-dir project_state -> OK
+python -m reverse_agent.project_state lint-report --state-dir project_state -> OK, with report round not archived warning
 git diff --check -> passed with line-ending warnings only
 ```

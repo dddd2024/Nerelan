@@ -61,11 +61,11 @@ def run_ida_guided_solver(
             runtime_allowed=runtime_allowed,
             probe_runner=probe_runner,
             preview_limit=preview_limit,
-            global_blocked=bool(blocked_reasons),
+            global_blocked_reasons=blocked_reasons,
         )
         targets.append(target)
 
-    solved_count = sum(1 for target in targets if target.get("candidate") and target.get("blocked_reason") == "")
+    solved_count = sum(1 for target in targets if target.get("validation_status") == "validated")
     validated_count = sum(1 for target in targets if target.get("validation_status") == "validated")
     if blocked_reasons or any(target.get("validation_status") == "blocked" for target in targets):
         status = "BLOCKED"
@@ -100,13 +100,14 @@ def solve_target(
     runtime_allowed: bool,
     probe_runner: ProbeRunner,
     preview_limit: int,
-    global_blocked: bool,
+    global_blocked_reasons: list[str],
 ) -> dict[str, Any]:
     sample_id = str(summary_target.get("sample_id", ""))
     relative_path = str(summary_target.get("relative_path", ""))
     artifact_key = f"local_reverse_ida_evidence_{sample_id}"
-    artifact_path = _artifact_path(artifact_index, artifact_key)
-    evidence = _read_json(artifact_path) if artifact_path and artifact_path.exists() else {}
+    artifact_path, artifact_reasons = resolve_current_artifact(artifact_index, artifact_key)
+    evidence, read_reasons = _read_artifact_evidence(artifact_path, artifact_key)
+    resolution_reasons = artifact_reasons + read_reasons
 
     classification, profile, classification_evidence = classify_target(summary_target, evidence)
     candidate, candidate_source, candidate_reason = derive_candidate(profile, evidence)
@@ -115,13 +116,13 @@ def solve_target(
     blocked_reason = ""
     next_action = next_action_for(profile, candidate, validation_status)
 
-    if global_blocked:
+    if global_blocked_reasons:
         validation_status = "blocked"
-        blocked_reason = "global preflight failed"
+        blocked_reason = "; ".join(global_blocked_reasons)
         next_action = "repair project_state local_reverse evidence registration"
-    elif not artifact_path or not artifact_path.exists():
+    elif resolution_reasons:
         validation_status = "blocked"
-        blocked_reason = f"raw IDA JSON missing for {artifact_key}"
+        blocked_reason = "; ".join(resolution_reasons)
         next_action = "repair artifact_index local_reverse evidence path"
     elif not candidate:
         blocked_reason = candidate_reason
@@ -165,15 +166,16 @@ def solve_target(
 
 
 def classify_target(summary_target: dict[str, Any], evidence: dict[str, Any]) -> tuple[str, str, list[str]]:
-    rel = str(summary_target.get("relative_path", "")).lower()
     text = _evidence_text(evidence).lower()
     compare_contexts = evidence.get("compare_contexts", [])
-    local_contexts = evidence.get("local_check_contexts", [])
-    snippets = evidence.get("decompiler_snippets", [])
+    snippets = [str(item.get("text", "")) for item in evidence.get("decompiler_snippets", []) if isinstance(item, dict)]
+    snippet_text = "\n".join(snippets).lower()
 
     has_64_compare = any("40h" in str(ctx) or "0x40" in str(ctx) for ctx in compare_contexts)
-    has_hex_format = "%08x" in text or "%08X" in _evidence_text(evidence)
-    if "sha_256" in rel or (has_64_compare and has_hex_format and "493f8776" in text):
+    has_hex_format = "%08x" in text
+    has_hash_target = bool(re.search(r"[0-9a-f]{64}", text))
+    has_hash_flow = "source" in snippet_text or "sub_401005" in snippet_text or "hash" in text
+    if has_64_compare and has_hex_format and has_hash_target and has_hash_flow:
         return (
             "sha256_hex_compare_with_post_hash_character_adjustment",
             "hash_hex_compare_static",
@@ -186,7 +188,7 @@ def classify_target(summary_target: dict[str, Any], evidence: dict[str, Any]) ->
 
     has_range_check = "source[i] < 65" in text and "source[i] > 122" in text
     has_increment = "++str1" in text or "++Str1" in _evidence_text(evidence)
-    if "cpp2" in rel and has_64_compare and has_range_check and has_increment:
+    if has_64_compare and has_range_check and has_increment:
         return (
             "bounded_input_range_hash_output_increment_compare",
             "bounded_char_transform_inversion",
@@ -197,7 +199,10 @@ def classify_target(summary_target: dict[str, Any], evidence: dict[str, Any]) ->
             ],
         )
 
-    if "realpwd" in text and "writefile" in text and "lstrcmp" in text:
+    has_pwd_string = "realpwd" in text or re.search(r"\bpwd\b", text) is not None
+    has_api_compare = "writefile" in text and "lstrcmp" in text
+    has_data_flow = bool(snippets) and ("str[" in snippet_text or "buffer" in snippet_text)
+    if has_pwd_string and has_api_compare and has_data_flow:
         return (
             "api_assisted_password_write_and_compare",
             "direct_or_api_password_extraction",
@@ -343,26 +348,37 @@ def _preflight(ida_summary: dict[str, Any], artifact_index: dict[str, Any]) -> l
     targets = ida_summary.get("targets", [])
     if not isinstance(targets, list) or len(targets) != 3:
         reasons.append("IDA_SUMMARY_TARGET_COUNT_NOT_3")
-    latest = artifact_index.get("latest_artifacts", {})
-    latest_v2 = artifact_index.get("latest_artifacts_v2", {})
-    required_keys = ["local_reverse_ida_summary"]
-    required_keys.extend(f"local_reverse_ida_evidence_{target.get('sample_id', '')}" for target in targets)
-    for key in required_keys:
-        if key not in latest and key not in latest_v2:
-            reasons.append(f"MISSING_ARTIFACT_KEY:{key}")
+    _, summary_reasons = resolve_current_artifact(artifact_index, "local_reverse_ida_summary")
+    reasons.extend(summary_reasons)
     return sorted(set(reasons))
 
 
-def _artifact_path(artifact_index: dict[str, Any], artifact_key: str) -> Path | None:
-    latest = artifact_index.get("latest_artifacts", {})
-    if isinstance(latest, dict) and latest.get(artifact_key):
-        return Path(str(latest[artifact_key]))
+def resolve_current_artifact(artifact_index: dict[str, Any], artifact_key: str) -> tuple[Path | None, list[str]]:
     latest_v2 = artifact_index.get("latest_artifacts_v2", {})
-    if isinstance(latest_v2, dict):
-        item = latest_v2.get(artifact_key, {})
-        if isinstance(item, dict) and item.get("path"):
-            return Path(str(item["path"]))
-    return None
+    if not isinstance(latest_v2, dict):
+        return None, [f"ARTIFACT_V2_MISSING:{artifact_key}"]
+    item = latest_v2.get(artifact_key)
+    if not isinstance(item, dict):
+        return None, [f"ARTIFACT_V2_MISSING:{artifact_key}"]
+    freshness = str(item.get("freshness") or "unknown")
+    if freshness != "current":
+        return None, [f"ARTIFACT_NOT_CURRENT:{artifact_key}:{freshness}"]
+    raw_path = str(item.get("path") or "")
+    if not raw_path:
+        return None, [f"ARTIFACT_PATH_MISSING:{artifact_key}"]
+    path = Path(raw_path)
+    if not path.exists() or not path.is_file():
+        return path, [f"ARTIFACT_FILE_MISSING:{artifact_key}:{raw_path}"]
+    return path, []
+
+
+def _read_artifact_evidence(path: Path | None, artifact_key: str) -> tuple[dict[str, Any], list[str]]:
+    if path is None:
+        return {}, []
+    try:
+        return _read_json(path), []
+    except json.JSONDecodeError:
+        return {}, [f"ARTIFACT_JSON_INVALID:{artifact_key}:{path}"]
 
 
 def _evidence_text(evidence: dict[str, Any]) -> str:
