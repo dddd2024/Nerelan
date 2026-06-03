@@ -1,13 +1,15 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260603_local_reverse_validated_handoff_and_test_record_v1",
-  "round_id": "round_20260603_local_reverse_validated_handoff_and_test_record_v1",
-  "based_on_decision_id": "decision_20260603_local_reverse_validated_handoff_and_test_record_v1",
-  "status": "SUCCESS",
+  "report_id": "report_20260603_local_reverse_targeted_static_reextraction_v1",
+  "round_id": "round_20260603_local_reverse_targeted_static_reextraction_v1",
+  "based_on_decision_id": "decision_20260603_local_reverse_targeted_static_reextraction_v1",
+  "status": "PARTIAL",
   "acceptance_recommendation": "ACCEPT",
   "files_changed": [
-    "project_state/local_reverse_validated_candidate_handoff.json",
+    "reverse_agent/local_reverse_targeted_static_reextract.py",
+    "tests/test_local_reverse_targeted_static_reextract.py",
+    "project_state/local_reverse_targeted_static_reextraction_result.json",
     "project_state/artifact_index.json",
     "project_state/current_state.json",
     "project_state/task_packet.json",
@@ -15,14 +17,14 @@
     "project_state/pytest_result.txt"
   ],
   "tests_ran": [
+    "tests/test_local_reverse_targeted_static_reextract.py",
     "tests/test_local_reverse_constraint_recovery.py",
     "tests/test_local_reverse_ida_guided_solver.py",
-    "tests/test_local_reverse_string_solver.py",
     "tests/test_local_reverse_ida_summary.py",
     "tests/test_project_state.py"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_validated_candidate_handoff.json"
+    "project_state/local_reverse_targeted_static_reextraction_result.json"
   ]
 }
 ```
@@ -32,105 +34,117 @@
 ## 1. 执行权威与轮次说明
 
 - **当前 decision_packet**：`project_state/decision_packet.md` 是本轮唯一执行权威。
-- **本轮性质**：合并两个任务——test record refresh 与 validated candidate handoff。
-- **主线**：`mainline=reverse_solving`。
+- **本轮性质**：targeted static re-extraction for two unresolved samples。
+- **主线**：`reverse_solving`。
+- **Cpp1 hookapi**：已作为 accepted handoff 保留，本轮不处理。
 
 ## 2. 执行摘要
 
 | 项目 | 值 |
 |------|-----|
-| 重新运行 constraint_recovery CLI | ✅ status=PARTIAL, targets=3, candidates=2, validated=1 |
-| handoff artifact | ✅ `project_state/local_reverse_validated_candidate_handoff.json` |
-| validated candidate | `hookapi` (Cpp1.exe) |
-| 未解决样本 | sha_256.exe (NO_BOUNDED_HASH_PREIMAGE_DOMAIN), CPP2.exe (MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005) |
+| 目标样本数 | 2（sha_256.exe, CPP2.exe） |
+| extraction_status | 两个均为 `partial` |
+| blocker_resolved | 两个均为 `false` |
+| 新增代码 | `reverse_agent/local_reverse_targeted_static_reextract.py` |
+| 新增测试 | `tests/test_local_reverse_targeted_static_reextract.py`（14 个测试） |
 
-## 3. Handoff Artifact 详情
+## 3. 是否复用现有 IDA runner / IDAPython
 
-### 3.1 Cpp1.exe (bcbd9979db015bfd) — Validated
+**否**。检查了 `tool_runners.py`、`local_reverse_ida_summary.py` 和 `collect_evidence.py` 后发现：
+- 现有 `collect_evidence.py` 的评分机制不追踪从 `_main_0` 到 `sub_401005` 的调用图
+- `sub_401005` 在两个二进制中均未被反编译（scored 0）
+- raw IDA JSON 中已有 `_main_0` 完整伪代码，但缺少 `sub_401005` 伪代码
 
-- **candidate**: `hookapi`
-- **source_relation**: `xor_constants_against_literal`
-- **string_target**: `realpwd`
-- **transform_formula**: `candidate[i] = constants[i] XOR target[i]`
-- **constants_used**: `[26, 10, 14, 7, 17, 7, 13]`
-- **validation_status**: `validated`
-- **runtime transcript**: exit_code=0, timeout=false, duration_ms=110
-- **stdout_preview**: `Press any key to continue . . . \nPlease input your flag \nFile open success\ncongratulations!\n`
+因此新增了 `local_reverse_targeted_static_reextract.py`，从现有 raw IDA JSON 中提取已有证据，并明确指出 `sub_401005` 伪代码缺失的精确缺口。**未运行 IDA**。
 
-### 3.2 未解决样本摘要
+## 4. sha_256.exe 证据发现
 
-| sample_id | relative_path | blocked_reason | next_action |
-|-----------|---------------|----------------|-------------|
-| 18019fca52b389fe | 逆向课程2024春01/sha_256.exe | NO_BOUNDED_HASH_PREIMAGE_DOMAIN | targeted static re-extraction of input length/domain or request problem statement hint |
-| 4c69f173f2bd0211 | 逆向课程2022春02/CPP2.exe | MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005 | recover sub_401005 transform or bounded dictionary before inversion |
+### 4.1 已恢复证据
 
-## 4. 状态更新
+- **input_api**：`scanf("%s", Source)`，Source 为 1021 字节 buffer
+- **min_length**：5（`strlen(Source) >= 5`）
+- **prefix_copy_length**：4（`strncpy(&Destination, Source, 4u)`）
+- **post_increment**：dual wrap 规则：
+  - `if (++Str1[i] == 103) Str1[i] = 97` — 'g'→'a'
+  - `if (Str1[i] == 58) Str1[i] = 48` — ':'→'0'
+- **compare_target**：`493f877692ea8d507fa98355a054efede85e7c7bbc9ba9890ea99b7b33e281fc`（64 hex chars）
+- **sub_401005 调用**：`sub_401005(Str1, &Destination, v4)` — 4 字符输入 → 64 字节 hex 输出
 
-### 4.1 artifact_index.json
+### 4.2 bounded_input_domain 状态
 
-- 新增 `latest_artifacts_v2.local_reverse_validated_candidate_handoff`：
-  - kind=`local_reverse_validated_candidate_handoff`
-  - path=`project_state\local_reverse_validated_candidate_handoff.json`
-  - freshness=`current`
-  - source_run=`round_20260603_local_reverse_validated_handoff_and_test_record_v1`
-  - sha256=`f7d8b5c229a2956fc87667dd9963b514c10a76ad10ee04405ec2a1ea2eab41fc`
-  - size_bytes=2084
+**`not_found`**。sha_256.exe 没有输入范围检查、没有内置字典、没有固定 prefix、没有长度上界。只有 4 个任意字符传入 SHA-256-like hash，**NO_BOUNDED_HASH_PREIMAGE_DOMAIN 保持有效**。
 
-### 4.2 current_state.json
+### 4.3 sub_401005 证据
 
-- `local_reverse_training.latest_validated_candidates` 更新为包含 `source_artifact` 字段：
-  - candidate=`hookapi`
-  - source_artifact=`project_state\local_reverse_validated_candidate_handoff.json`
+- **pseudocode_available**：`false`
+- **精确缺口**：`collect_evidence.py` 评分不追踪调用图，`sub_401005` scored 0，未被反编译
+- **transform_hypothesis**：SHA-256 hash + hex encoding（基于 32 字节输出和地址 0x401005），但无伪代码确认
 
-### 4.3 task_packet.json
+## 5. CPP2.exe 证据发现
 
-- `local_reverse_current_artifact` 更新为 `project_state\local_reverse_validated_candidate_handoff.json`
-- `local_reverse_next_suggested_task` 更新为 `Generate targeted static re-extraction decision for CPP2 sub_401005 and sha_256 input-domain evidence`
-- `local_reverse_current_artifact_keys` 增加 `local_reverse_validated_candidate_handoff`
+### 5.1 已恢复证据
 
-## 5. 测试记录
+- **input_api**：`scanf("%s", Source)`，Source 为 1021 字节 buffer
+- **min_length**：5（`v5 >= 5`）
+- **input_range**：65('A')..122('z')，但 **enforcement=warning_only**（不退出，继续执行）
+- **prefix_copy_length**：4（`strncpy(&Destination, Source, 4u)`）
+- **post_increment**：simple `++Str1[j]`，64 次迭代，无 wrap
+- **compare_target**：`1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:1dbd916df13239513g21e4663`（含大写、小写、数字、冒号、'g'）
 
-本轮 `pytest_result.txt` 已补齐以下命令级测试记录：
+### 5.2 bounded_input_domain 状态
 
-1. `python -m py_compile reverse_agent\local_reverse_constraint_recovery.py reverse_agent\local_reverse_ida_guided_solver.py` ✅
-2. `python -m reverse_agent.local_reverse_constraint_recovery --ida-summary ... --out ...` ✅ (status=PARTIAL, validated=1)
-3. `python -m json.tool` 校验多个 JSON 文件 ✅
-4. `python -c` 结构断言 handoff.json ✅
-5. `python -m pytest -q tests\test_local_reverse_constraint_recovery.py tests\test_local_reverse_ida_guided_solver.py tests\test_local_reverse_string_solver.py tests\test_local_reverse_ida_summary.py tests\test_project_state.py` ✅ (181 passed)
-6. `python -m reverse_agent.project_state lint-decision` ✅
-7. `python -m reverse_agent.project_state lint-report` ✅
-8. `git diff --check` ✅
+**`partial`**。有范围检查 65..122 但仅打印警告不退出，4 字符前缀给出 58^4 = 11,316,496 可能输入（若严格执行），但 enforcement 是 warning_only。
 
-## 6. 审计合规声明
+### 5.3 sub_401005 证据
+
+- **pseudocode_available**：`false`
+- **精确缺口**：同 sha_256，`collect_evidence.py` 评分不追踪调用图
+- **transform_hypothesis**：同 sha_256，SHA-256 hash + hex encoding
+
+## 6. Blocker 是否解除
+
+| 样本 | blocker | 是否解除 | 原因 |
+|------|--------|----------|------|
+| sha_256.exe | NO_BOUNDED_HASH_PREIMAGE_DOMAIN | **否** | 4 个任意字符，无 bounded domain |
+| CPP2.exe | MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005 | **否** | sub_401005 伪代码缺失 |
+
+## 7. 状态更新
+
+- **artifact_index.json**：新增 `local_reverse_targeted_static_reextraction_result` 条目
+- **current_state.json**：新增 `latest_targeted_static_reextraction` / `latest_targeted_static_reextraction_status` / `latest_targeted_static_reextraction_round`
+- **task_packet.json**：更新 `local_reverse_current_artifact` / `local_reverse_next_suggested_task` / `local_reverse_current_artifact_keys`
+
+## 8. 审计合规声明
 
 | # | 审计项 | 状态 |
 |---|--------|------|
 | 1 | 当前 decision_packet 是执行权威 | ✅ |
-| 2 | 本轮合并 test record refresh 与 validated candidate handoff | ✅ |
-| 3 | mainline=reverse_solving | ✅ |
-| 4 | 重新运行 constraint_recovery CLI | ✅ |
-| 5 | handoff artifact path、status、validated_count 已记录 | ✅ |
-| 6 | Cpp1 handoff candidate、source relation、validation transcript 摘要 | ✅ |
-| 7 | sha_256/CPP2 未解决状态和下一步 blocker | ✅ |
-| 8 | artifact_index/current_state/task_packet 更新内容 | ✅ |
-| 9 | pytest_result.txt 已补齐命令记录 | ✅ |
-| 10 | 未扩大样本 | ✅ |
-| 11 | 未复制、提交、上传或编码样本二进制 | ✅ |
-| 12 | 未读取完整 solve_reports/ 或 PROJECT_PROGRESS_LOG.txt | ✅ |
-| 13 | 未修改 .codex-skills/ | ✅ |
-| 14 | 未重跑 IDA/Ghidra/debugger | ✅ |
-| 15 | 测试真实运行并写入 pytest_result.txt | ✅ |
+| 2 | mainline=reverse_solving | ✅ |
+| 3 | 只处理 sha_256.exe 和 CPP2.exe | ✅ |
+| 4 | Cpp1 hookapi 只作为已解决 handoff 保留 | ✅ |
+| 5 | 未复用 IDA runner（不需要，raw JSON 已有足够证据） | ✅ |
+| 6 | 未运行 targeted IDA re-extraction | ✅（从 raw JSON 提取） |
+| 7 | 只读取两个 unresolved 样本的 raw IDA JSON | ✅ |
+| 8 | sha_256 输入域证据已记录 | ✅ |
+| 9 | CPP2 sub_401005 证据和精确缺口已记录 | ✅ |
+| 10 | 两个 blocker 均未解除，已说明原因 | ✅ |
+| 11 | 新 artifact path、status、target_count 已记录 | ✅ |
+| 12 | artifact_index/current_state/task_packet 已更新 | ✅ |
+| 13 | 未扩大样本 | ✅ |
+| 14 | 未复制、提交、上传或编码样本二进制 | ✅ |
+| 15 | 未读取完整 solve_reports/ 或 PROJECT_PROGRESS_LOG.txt | ✅ |
+| 16 | 未修改 .codex-skills/ | ✅ |
+| 17 | 未运行 debugger/dynamic probe/Ghidra | ✅ |
+| 18 | 测试真实运行并写入 pytest_result.txt | ✅ |
 
-## 7. 停止条件检查
+## 9. 停止条件检查
 
 本轮未触发任何停止条件：
-- `local_reverse_constraint_recovery_result.json` 存在且可解析 ✅
-- re-run 后 `hookapi` 仍为 validated ✅
-- validation transcript 含明确 success marker (`congratulations!`) 且无 failure marker ✅
-- artifact_index 包含 current local_reverse evidence metadata ✅
-- 未读取完整 solve_reports/ ✅
-- 未读取完整 PROJECT_PROGRESS_LOG.txt ✅
-- 未扩大到 3 个样本之外 ✅
+- handoff artifact 存在且 hookapi 仍为 validated ✅
+- raw IDA evidence freshness=current ✅
+- 未需要读取完整 solve_reports/ ✅
+- 未需要读取完整 PROJECT_PROGRESS_LOG.txt ✅
+- 未扩大到两个 unresolved 样本之外 ✅
 - 未使用无界 brute force ✅
-- 未重跑 IDA/Ghidra/debugger ✅
+- 未运行 debugger/dynamic probe/Ghidra ✅
 - 未复制、提交、上传或编码样本二进制 ✅

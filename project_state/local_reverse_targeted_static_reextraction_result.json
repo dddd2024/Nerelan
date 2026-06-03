@@ -1,0 +1,274 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T15:50:52Z",
+  "stage": "local_reverse_targeted_static_reextraction_v1",
+  "status": "PARTIAL",
+  "target_count": 2,
+  "source_handoff": "project_state\\local_reverse_validated_candidate_handoff.json",
+  "targets": [
+    {
+      "sample_id": "18019fca52b389fe",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "previous_blocker": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN",
+      "extraction_status": "partial",
+      "recovered_evidence": [
+        {
+          "kind": "main_pseudocode",
+          "function": "_main_0",
+          "summary": "scanf %s into Source[1021], strlen>=5 check, strncpy 4 chars, sub_401005 hash, post-increment with dual wrap, strncmp 64 hex chars"
+        },
+        {
+          "kind": "input_api_context",
+          "detail": {
+            "input_api": "scanf",
+            "format_string": "%s",
+            "buffer_size_hint": "1021 bytes (Source[1021])",
+            "notes": [
+              "scanf with %s format reads unbounded string",
+              "Source buffer is 1021 bytes, effectively unbounded for %s scanf"
+            ]
+          }
+        },
+        {
+          "kind": "length_constraints",
+          "detail": {
+            "min_length": 5,
+            "max_length": null,
+            "prefix_copy_length": 4,
+            "notes": [
+              "minimum input length is 5 characters",
+              "only first 4 characters are copied via strncpy for hash input",
+              "no explicit upper bound on input length"
+            ]
+          }
+        },
+        {
+          "kind": "post_increment_logic",
+          "detail": {
+            "loop_iterations": 64,
+            "increment_type": "increment_with_dual_wrap",
+            "wrap_rules": [
+              "if (++Str1[i] == 103) Str1[i] = 97  -- 'g'(103) wraps to 'a'(97)",
+              "if (Str1[i] == 58) Str1[i] = 48  -- ':'(58) wraps to '0'(48)"
+            ],
+            "notes": [
+              "post-increment maps hex digits: 0-9->1-:, :-wrap->0, a-f unchanged, g->a"
+            ]
+          }
+        },
+        {
+          "kind": "sub_401005_gap",
+          "detail": {
+            "pseudocode_available": false,
+            "pseudocode": "",
+            "entry_ea": "0x401005",
+            "function_listed": true,
+            "disasm_available": false,
+            "constants": [],
+            "callgraph": [],
+            "string_refs": [],
+            "transform_hypothesis": "sub_401005 is called as sub_401005(Str1, &Destination, len) where Destination is 4-char prefix from user input. Output is 64-byte hex-like string in Str1. Given the 32-byte (64 hex char) output and the address 0x401005, this is consistent with a SHA-256 hash followed by hex encoding. However, without pseudocode, the exact transform cannot be confirmed.",
+            "missing_evidence": [
+              "sub_401005 pseudocode not available: function was not in validation_function_candidates top-6 (scored 0 due to no compare/string/control_id context)",
+              "exact gap: collect_evidence.py scoring does not follow call graph from _main_0 to sub_401005; needs targeted decompilation of sub_401005"
+            ]
+          }
+        }
+      ],
+      "bounded_input_domain": {
+        "status": "not_found",
+        "constraints": [
+          {
+            "kind": "input_api",
+            "input_api": "scanf",
+            "format_string": "%s",
+            "buffer_size_hint": "1021 bytes (Source[1021])",
+            "notes": [
+              "scanf with %s format reads unbounded string",
+              "Source buffer is 1021 bytes, effectively unbounded for %s scanf"
+            ]
+          },
+          {
+            "kind": "length",
+            "min_length": 5,
+            "max_length": null,
+            "prefix_copy_length": 4,
+            "notes": [
+              "minimum input length is 5 characters",
+              "only first 4 characters are copied via strncpy for hash input",
+              "no explicit upper bound on input length"
+            ]
+          },
+          {
+            "kind": "post_increment",
+            "loop_iterations": 64,
+            "increment_type": "increment_with_dual_wrap",
+            "wrap_rules": [
+              "if (++Str1[i] == 103) Str1[i] = 97  -- 'g'(103) wraps to 'a'(97)",
+              "if (Str1[i] == 58) Str1[i] = 48  -- ':'(58) wraps to '0'(48)"
+            ],
+            "notes": [
+              "post-increment maps hex digits: 0-9->1-:, :-wrap->0, a-f unchanged, g->a"
+            ]
+          },
+          {
+            "kind": "range_check",
+            "has_range_check": false,
+            "min_char": null,
+            "max_char": null,
+            "enforcement": "none",
+            "notes": []
+          }
+        ],
+        "candidate_source": "",
+        "notes": [
+          "sha_256.exe has NO bounded input domain: scanf reads unbounded string, only first 4 characters are passed to sub_401005, but those 4 characters can be any printable ASCII. No dictionary, no fixed prefix, no enumeration hint.",
+          "NO_BOUNDED_HASH_PREIMAGE_DOMAIN remains valid: 4 arbitrary chars yield 2^32 possible inputs, but SHA-256 preimage is computationally infeasible."
+        ]
+      },
+      "sub_401005_evidence": {
+        "pseudocode_available": false,
+        "pseudocode": "",
+        "entry_ea": "0x401005",
+        "function_listed": true,
+        "disasm_available": false,
+        "constants": [],
+        "callgraph": [],
+        "string_refs": [],
+        "transform_hypothesis": "sub_401005 is called as sub_401005(Str1, &Destination, len) where Destination is 4-char prefix from user input. Output is 64-byte hex-like string in Str1. Given the 32-byte (64 hex char) output and the address 0x401005, this is consistent with a SHA-256 hash followed by hex encoding. However, without pseudocode, the exact transform cannot be confirmed.",
+        "missing_evidence": [
+          "sub_401005 pseudocode not available: function was not in validation_function_candidates top-6 (scored 0 due to no compare/string/control_id context)",
+          "exact gap: collect_evidence.py scoring does not follow call graph from _main_0 to sub_401005; needs targeted decompilation of sub_401005"
+        ]
+      },
+      "blocker_resolved": false,
+      "next_action": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN confirmed: 4 arbitrary chars passed to SHA-256-like hash with no bounded enumeration. sub_401005 pseudocode missing (needs targeted IDA decompilation). Request problem statement hint for input domain or length."
+    },
+    {
+      "sample_id": "4c69f173f2bd0211",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "previous_blocker": "MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005",
+      "extraction_status": "partial",
+      "recovered_evidence": [
+        {
+          "kind": "main_pseudocode",
+          "function": "_main_0",
+          "summary": "scanf %s into Source[1021], strlen>=5 check, range 65..122 (warning only), strncpy 4 chars, sub_401005 hash, simple ++Str1 post-increment, strncmp 64 chars"
+        },
+        {
+          "kind": "input_range_check",
+          "detail": {
+            "has_range_check": true,
+            "min_char": 65,
+            "max_char": 122,
+            "enforcement": "warning_only",
+            "notes": [
+              "input characters checked against range 65('A')..122('z')",
+              "range check prints warning but does NOT exit; execution continues"
+            ]
+          }
+        },
+        {
+          "kind": "post_increment_logic",
+          "detail": {
+            "loop_iterations": 64,
+            "increment_type": "simple_increment",
+            "wrap_rules": [],
+            "notes": [
+              "simple ++Str1[j] for 64 iterations, no wrap corrections"
+            ]
+          }
+        },
+        {
+          "kind": "sub_401005_gap",
+          "detail": {
+            "pseudocode_available": false,
+            "pseudocode": "",
+            "entry_ea": "0x401005",
+            "function_listed": true,
+            "disasm_available": false,
+            "constants": [],
+            "callgraph": [],
+            "string_refs": [],
+            "transform_hypothesis": "sub_401005 is called as sub_401005(Str1, &Destination, len) where Destination is 4-char prefix from user input. Output is 64-byte hex-like string in Str1. Given the 32-byte (64 hex char) output and the address 0x401005, this is consistent with a SHA-256 hash followed by hex encoding. However, without pseudocode, the exact transform cannot be confirmed.",
+            "missing_evidence": [
+              "sub_401005 pseudocode not available: function was not in validation_function_candidates top-6 (scored 0 due to no compare/string/control_id context)",
+              "exact gap: collect_evidence.py scoring does not follow call graph from _main_0 to sub_401005; needs targeted decompilation of sub_401005"
+            ],
+            "input_range_check": {
+              "has_range_check": true,
+              "min_char": 65,
+              "max_char": 122,
+              "enforcement": "warning_only",
+              "notes": [
+                "input characters checked against range 65('A')..122('z')",
+                "range check prints warning but does NOT exit; execution continues"
+              ]
+            },
+            "post_increment": {
+              "loop_iterations": 64,
+              "increment_type": "simple_increment",
+              "wrap_rules": [],
+              "notes": [
+                "simple ++Str1[j] for 64 iterations, no wrap corrections"
+              ]
+            }
+          }
+        }
+      ],
+      "bounded_input_domain": {
+        "status": "partial",
+        "constraints": [
+          {
+            "kind": "input_range",
+            "value": "65..122 (A-z), enforcement=warning_only"
+          },
+          {
+            "kind": "min_length",
+            "value": 5
+          },
+          {
+            "kind": "prefix_copy_length",
+            "value": 4
+          }
+        ],
+        "candidate_source": "input range 65..122 with 4-char prefix gives 58^4 = 11,316,496 possible inputs if range were strictly enforced (but enforcement is warning only)"
+      },
+      "sub_401005_evidence": {
+        "pseudocode_available": false,
+        "pseudocode": "",
+        "entry_ea": "0x401005",
+        "function_listed": true,
+        "disasm_available": false,
+        "constants": [],
+        "callgraph": [],
+        "string_refs": [],
+        "transform_hypothesis": "sub_401005 is called as sub_401005(Str1, &Destination, len) where Destination is 4-char prefix from user input. Output is 64-byte hex-like string in Str1. Given the 32-byte (64 hex char) output and the address 0x401005, this is consistent with a SHA-256 hash followed by hex encoding. However, without pseudocode, the exact transform cannot be confirmed.",
+        "missing_evidence": [
+          "sub_401005 pseudocode not available: function was not in validation_function_candidates top-6 (scored 0 due to no compare/string/control_id context)",
+          "exact gap: collect_evidence.py scoring does not follow call graph from _main_0 to sub_401005; needs targeted decompilation of sub_401005"
+        ],
+        "input_range_check": {
+          "has_range_check": true,
+          "min_char": 65,
+          "max_char": 122,
+          "enforcement": "warning_only",
+          "notes": [
+            "input characters checked against range 65('A')..122('z')",
+            "range check prints warning but does NOT exit; execution continues"
+          ]
+        },
+        "post_increment": {
+          "loop_iterations": 64,
+          "increment_type": "simple_increment",
+          "wrap_rules": [],
+          "notes": [
+            "simple ++Str1[j] for 64 iterations, no wrap corrections"
+          ]
+        }
+      },
+      "blocker_resolved": false,
+      "next_action": "MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005 confirmed: sub_401005 pseudocode not available in raw IDA evidence. Exact gap: collect_evidence.py scoring does not follow call graph from _main_0 to sub_401005. Needs targeted IDAPython decompilation of sub_401005 at 0x401005, or a new IDA run with sub_401005 forced into validation_function_candidates."
+    }
+  ]
+}

@@ -9702,6 +9702,9 @@
         "validation_status": "validated"
       }
     ],
+    "latest_targeted_static_reextraction": "project_state\\local_reverse_targeted_static_reextraction_result.json",
+    "latest_targeted_static_reextraction_status": "PARTIAL",
+    "latest_targeted_static_reextraction_round": "round_20260603_local_reverse_targeted_static_reextraction_v1",
     "scope_note": "samplereverse fields are retained as compatibility/background; this local_reverse_training block is the current local_reverse evidence entrypoint."
   }
 }

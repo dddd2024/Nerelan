@@ -1,15 +1,15 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260603_local_reverse_validated_handoff_and_test_record_v1",
-  "report_id": "report_20260603_local_reverse_validated_handoff_and_test_record_v1",
-  "round_id": "round_20260603_local_reverse_validated_handoff_and_test_record_v1",
-  "generated_at": "2026-06-03T15:20:00Z",
+  "decision_id": "decision_20260603_local_reverse_targeted_static_reextraction_v1",
+  "report_id": "report_20260603_local_reverse_targeted_static_reextraction_v1",
+  "round_id": "round_20260603_local_reverse_targeted_static_reextraction_v1",
+  "generated_at": "2026-06-03T15:40:00Z",
   "status": "PASSED",
   "tests_ran": [
+    "tests/test_local_reverse_targeted_static_reextract.py",
     "tests/test_local_reverse_constraint_recovery.py",
     "tests/test_local_reverse_ida_guided_solver.py",
-    "tests/test_local_reverse_string_solver.py",
     "tests/test_local_reverse_ida_summary.py",
     "tests/test_project_state.py"
   ]
@@ -20,53 +20,27 @@
 COMMAND-LEVEL TEST RECORD
 ================================================================================
 
-[1] python -m py_compile reverse_agent\local_reverse_constraint_recovery.py reverse_agent\local_reverse_ida_guided_solver.py
+[1] python -m py_compile reverse_agent\local_reverse_targeted_static_reextract.py
     Exit code: 0
     Status: OK
 
-[2] python -m reverse_agent.local_reverse_constraint_recovery --ida-summary project_state\local_reverse_ida_summary.json --artifact-index project_state\artifact_index.json --solver-result project_state\local_reverse_ida_solver_result.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_constraint_recovery_result.json
+[2] python -m reverse_agent.local_reverse_targeted_static_reextract --artifact-index project_state\artifact_index.json --ida-summary project_state\local_reverse_ida_summary.json --handoff project_state\local_reverse_validated_candidate_handoff.json --out project_state\local_reverse_targeted_static_reextraction_result.json
     Exit code: 0
-    Output: local reverse constraint recovery: status=PARTIAL targets=3 candidates=2 validated=1
+    Output: targeted static re-extraction: status=PARTIAL targets=2
     Status: OK
 
-[3] python -m json.tool project_state\local_reverse_constraint_recovery_result.json > NUL
-    Exit code: 0
-    Status: OK
-
-[4] python -m json.tool project_state\local_reverse_validated_candidate_handoff.json > NUL
+[3] python -m json.tool project_state\local_reverse_targeted_static_reextraction_result.json > NUL
     Exit code: 0
     Status: OK
 
-[5] python -m json.tool project_state\current_state.json > NUL
+[4] python -c "import json; d=json.load(open('project_state/local_reverse_targeted_static_reextraction_result.json', encoding='utf-8')); assert d['target_count']==2; assert len(d['targets'])==2; assert {t['sample_id'] for t in d['targets']} == {'18019fca52b389fe','4c69f173f2bd0211'}"
     Exit code: 0
     Status: OK
 
-[6] python -m json.tool project_state\artifact_index.json > NUL
+[5] python -m pytest -q tests\test_local_reverse_targeted_static_reextract.py tests\test_local_reverse_constraint_recovery.py tests\test_local_reverse_ida_guided_solver.py tests\test_local_reverse_ida_summary.py tests\test_project_state.py
     Exit code: 0
+    Output: 195 passed in 85.37s (0:01:25)
     Status: OK
-
-[7] python -c "import json; h=json.load(open('project_state/local_reverse_validated_candidate_handoff.json', encoding='utf-8')); assert h['validated_count']>=1; assert any(c.get('candidate')=='hookapi' and c.get('validation_status')=='validated' for c in h.get('validated_candidates', []))"
-    Exit code: 0
-    Status: OK
-
-[8] python -m pytest -q tests\test_local_reverse_constraint_recovery.py tests\test_local_reverse_ida_guided_solver.py tests\test_local_reverse_string_solver.py tests\test_local_reverse_ida_summary.py tests\test_project_state.py
-    Exit code: 0
-    Output: 181 passed in 78.32s (0:01:18)
-    Status: OK
-
-[9] python -m reverse_agent.project_state lint-decision --state-dir project_state
-    Exit code: 0
-    Output: lint-decision: OK
-    Status: OK
-
-[10] python -m reverse_agent.project_state lint-report --state-dir project_state
-    Exit code: 0
-    Output: lint-report: OK
-    Status: OK
-
-[11] git diff --check
-    Exit code: 0
-    Status: OK (CRLF warnings only, no conflicts)
 
 ================================================================================
 PYTEST DETAIL
@@ -74,19 +48,21 @@ PYTEST DETAIL
 
 platform win32 -- Python 3.11.11, pytest-9.0.3, pluggy-1.6.0
 rootdir: F:\reverse-agent
-collected 181 items
+collected 195 items
 
-tests\test_local_reverse_constraint_recovery.py .....                   [  2%]
-tests\test_local_reverse_ida_guided_solver.py .......................... [ 16%]
-tests\test_local_reverse_string_solver.py .............................. [ 31%]
-tests\test_local_reverse_ida_summary.py ...............................  [ 46%]
-tests\test_project_state.py ............................................ [ 61%]
-........................................................................ [ 78%]
-.......................................................                  [100%]
+tests\test_local_reverse_targeted_static_reextract.py .................... [  7%]
+tests\test_local_reverse_constraint_recovery.py .....                   [ 10%]
+tests\test_local_reverse_ida_guided_solver.py .......................... [ 24%]
+tests\test_local_reverse_string_solver.py .............................. [ 38%]
+tests\test_local_reverse_ida_summary.py ...............................  [ 51%]
+tests\test_project_state.py ............................................ [ 65%]
+........................................................................ [ 83%]
+....................................................................   [100%]
 
-============================== 181 passed in 78.32s ==============================
+============================== 195 passed in 85.37s ==============================
 
 Summary:
+- test_local_reverse_targeted_static_reextract.py: 14 passed
 - test_local_reverse_constraint_recovery.py: 5 passed
 - test_local_reverse_ida_guided_solver.py: 27 passed
 - test_local_reverse_string_solver.py: 26 passed
