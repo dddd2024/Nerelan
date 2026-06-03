@@ -9654,7 +9654,7 @@
     "hexrays_available_any": true,
     "source_summary_generated_at": "2026-06-03T11:53:49Z",
     "source_run": "round_20260603_local_reverse_ida_path_rerun_v1",
-    "state_refresh_round": "round_20260603_local_reverse_ida_state_refresh_v1",
+    "state_refresh_round": "round_20260603_local_reverse_current_state_rework_v1",
     "current_ida_evidence": [
       {
         "sample_id": "18019fca52b389fe",
