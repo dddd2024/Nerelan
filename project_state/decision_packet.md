@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260603_local_reverse_string_compare_solver_v1",
-  "round_id": "round_20260603_local_reverse_string_compare_solver_v1",
+  "decision_id": "decision_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
+  "round_id": "round_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -17,9 +17,11 @@
 
 本轮继续 `local_reverse_simple_training`，但从上一轮的 **bounded runtime solve benchmark** 推进到第一类 solver 能力建设：**bounded string-compare solver family v1**。
 
+同时，本轮必须清理 README 中已经过期的 `local_reverse_samples\<case_id>\solver.py` / 本地单题 solver 旧流程说明。用户已明确指出该部分以前已经移除，不应再作为当前项目使用方式或下一轮事实来源。
+
 当前 Codex 实际执行权威是本文件 `project_state/decision_packet.md`。旧 `project_state/task_packet.json` 中的 `samplereverse` 字段仍只作为旧状态背景，不能覆盖本 decision。
 
-本轮只处理上一轮 benchmark 推荐的 3 个 `ready_static_string_compare` challenge binary，不扩展到全量样本，不做无界 brute force。
+本轮只处理上一轮 benchmark 推荐的 3 个 `ready_static_string_compare` challenge binary，不扩展到全量样本，不做无界 brute force。README 清理只限移除/改写过期入口，不扩展为整体文档重写。
 
 ---
 
@@ -37,9 +39,10 @@
 5. 若验证成功，记录 solved=true、candidate、evidence。
 6. 若验证失败，记录 bounded negative result 和下一步缺失证据。
 7. 输出机器可读的 project_state/local_reverse_string_solver_result.json。
+8. 清理 README.txt 中已经过期的 local_reverse_samples/<case_id>/solver.py、本地导入单题、local_samples add/solve 旧流程说明；不得把已移除流程重新引入。
 ```
 
-本轮目标不是通吃所有样本，不是构建通用反编译器，也不是做全量密码学 solver。它只建立第一版可审计、可复现、可验证的 string-compare solver family。
+本轮目标不是通吃所有样本，不是构建通用反编译器，也不是做全量密码学 solver。它只建立第一版可审计、可复现、可验证的 string-compare solver family，并清理一处会误导后续协作的过期文档入口。
 
 ---
 
@@ -98,13 +101,20 @@ ready_static_string_compare=3
 
 本轮不要把上述两个限制扩大成框架改造，只允许做与 solver 验证直接相关的最小修正：让 runtime_allowed 字段真实反映 policy / sample runtime status，并在 report 中说明 network_allowed 仍是 local trusted sample policy，不是 OS sandbox。
 
+新增文档事实：
+
+```text
+README.txt 仍包含 local_reverse_samples/<case_id>/solver.py、本地导入单题、local_samples add/solve 等旧流程说明。用户确认该部分以前已经移除，因此本轮必须清理这些过期说明，避免 GPT/Codex 后续继续引用。
+```
+
 Artifact freshness 判断：
 
 ```text
 1. project_state/local_reverse_solve_benchmark.json 是本轮 string solver 的直接输入证据。
 2. project_state/local_reverse_corpus_index.json 提供样本 sha256、relative_path、artifact_role 和 triage_tags。
-3. samplereverse latest_artifacts_v2 只能作为旧背景，不得用于本轮 solver evidence。
-4. 不得把 stale/missing samplereverse artifact 当成本轮证据。
+3. README.txt 只作为文档清理目标，不作为当前 solver 运行事实来源。
+4. samplereverse latest_artifacts_v2 只能作为旧背景，不得用于本轮 solver evidence。
+5. 不得把 stale/missing samplereverse artifact 当成本轮证据。
 ```
 
 ---
@@ -132,6 +142,8 @@ Artifact freshness 判断：
 16. 不把 heuristic candidate 当成 solved。
 17. 不伪造 runtime 验证结果。
 18. 不提交完整 solve_reports/。
+19. 不重新引入 local_reverse_samples/<case_id>/solver.py 旧流程。
+20. 不把 README 清理扩大成整体架构/skill/registry 改造。
 ```
 
 允许：
@@ -147,6 +159,7 @@ Artifact freshness 判断：
 8. 新增 tests/test_local_reverse_string_solver.py。
 9. 输出 project_state/local_reverse_string_solver_result.json。
 10. 对 runtime_allowed 字段硬编码问题做最小修复并测试。
+11. 修改 README.txt，删除或改写已经过期的 local_reverse_samples/<case_id>/solver.py、本地导入单题、local_samples add/solve 旧流程说明。
 ```
 
 ---
@@ -177,6 +190,7 @@ reverse_agent/local_reverse_runtime.py
 reverse_agent/static_feature_extractor.py
 tests/test_local_reverse_corpus.py
 tests/test_local_reverse_runtime.py
+README.txt
 ```
 
 允许新增：
@@ -203,7 +217,7 @@ Codex 必须审计并写入 `project_state/codex_execution_report.md`：
 ```text
 1. 当前 decision_packet 是执行权威。
 2. 旧 samplereverse task 只是背景。
-3. 本轮 mainline=reverse_solving，具体方向=local_reverse_string_compare_solver_v1。
+3. 本轮 mainline=reverse_solving，具体方向=local_reverse_string_compare_solver_v1_doc_cleanup。
 4. 只处理 3 个指定 ready_static_string_compare 样本。
 5. 未处理 3 个指定样本之外的 challenge binary。
 6. 未运行 E:\reverse 之外的 exe。
@@ -213,7 +227,8 @@ Codex 必须审计并写入 `project_state/codex_execution_report.md`：
 10. 每个候选验证都有 timeout。
 11. 每个 solved=true 都必须有 runtime success evidence。
 12. 未 solved 的样本必须有 negative_result / missing_evidence 说明。
-13. 测试真实运行并写入 project_state/pytest_result.txt。
+13. README.txt 中过期的 local_reverse_samples/<case_id>/solver.py 和 local_samples add/solve 旧流程已移除或明确标为已废弃，不再作为当前使用方式。
+14. 测试真实运行并写入 project_state/pytest_result.txt。
 ```
 
 报告顶部必须包含：
@@ -221,9 +236,9 @@ Codex 必须审计并写入 `project_state/codex_execution_report.md`：
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260603_local_reverse_string_compare_solver_v1",
-  "round_id": "round_20260603_local_reverse_string_compare_solver_v1",
-  "based_on_decision_id": "decision_20260603_local_reverse_string_compare_solver_v1",
+  "report_id": "report_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
+  "round_id": "round_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
+  "based_on_decision_id": "decision_20260603_local_reverse_string_compare_solver_v1_doc_cleanup",
   "status": "SUCCESS_OR_PARTIAL_OR_BLOCKED",
   "acceptance_recommendation": "ACCEPT_OR_NEEDS_REVIEW_OR_REWORK",
   "files_changed": [],
@@ -387,6 +402,18 @@ validation_duration_ms
 
 不要在本轮实现 OS 级网络隔离；只在 report 中明确 `network_allowed=false` 是 trusted local policy 声明，不是 sandbox enforcement。
 
+### 6.6 README 过期流程清理
+
+修改 `README.txt`：
+
+```text
+1. 删除或改写 local_reverse_samples\<case_id>\solver.py 作为后续单题 solver 输出位置的说明。
+2. 删除或改写 local_samples add / local_samples solve 的旧本地单题导入流程，如果该流程已被移除或不再是当前方向。
+3. 不再建议用户把本地 solver.py 放入 local_reverse_samples\<case_id>\。
+4. 将当前方向改为：E:\reverse 由 local_reverse_corpus/local_reverse_runtime/local_reverse_string_solver 生成 project_state 证据；临时独立脚本属于用户本地自管，不作为项目 README 的主流程。
+5. 文档清理不得改 .codex-skills/，不得新增 skill，不能把动态样本路径写入 skill。
+```
+
 ---
 
 ## 7. Tests
@@ -412,6 +439,7 @@ tests/test_local_reverse_runtime.py
 9. 无候选验证成功时输出 negative_result。
 10. runtime_allowed=false 时 result 不应显示 runtime_allowed=true。
 11. result JSON schema 正确。
+12. README.txt 不再包含 local_reverse_samples\\<case_id>\\solver.py 作为当前推荐流程。
 ```
 
 必须运行：
@@ -444,6 +472,7 @@ git diff --check
 8. 需要复制样本二进制进仓库。
 9. 需要读取完整 solve_reports/ 或 PROJECT_PROGRESS_LOG.txt。
 10. 测试失败。
+11. README 清理需要恢复已经移除的 local_reverse_samples 单题 solver 旧流程。
 ```
 
 停止时输出：
@@ -452,5 +481,6 @@ git diff --check
 1. 每个目标样本候选数量。
 2. 每个目标样本是否 solved。
 3. 未 solved 的 negative_result。
-4. 下一轮是否需要 compare-site static extraction、IDA script、或更小范围 disassembly helper。
+4. README 过期入口清理结果。
+5. 下一轮是否需要 compare-site static extraction、IDA script、或更小范围 disassembly helper。
 ```
