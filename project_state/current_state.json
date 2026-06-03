@@ -9684,7 +9684,12 @@
         "next_action": "ida_summary_guided_solver_v1"
       }
     ],
-    "next_recommended_decision": "ida_summary_guided_solver_v1",
+    "solver_stage": "ida_summary_guided_solver_v1",
+    "latest_solver_result": "project_state\\local_reverse_ida_solver_result.json",
+    "solver_result_status": "PARTIAL",
+    "solver_result_round": "round_20260603_ida_summary_guided_solver_v1",
+    "solver_result_artifact_key": "local_reverse_ida_solver_result",
+    "next_recommended_decision": "local_reverse_static_constraint_refinement_v1",
     "scope_note": "samplereverse fields are retained as compatibility/background; this local_reverse_training block is the current local_reverse evidence entrypoint."
   }
 }

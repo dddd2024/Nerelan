@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T13:21:07Z",
+  "stage": "ida_summary_guided_solver_v1",
+  "status": "PARTIAL",
+  "source_summary": "project_state\\local_reverse_ida_summary.json",
+  "target_count": 3,
+  "solved_count": 0,
+  "validated_count": 0,
+  "runtime_validation_attempted_count": 1,
+  "blocked_reasons": [],
+  "targets": [
+    {
+      "sample_id": "18019fca52b389fe",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "ida_evidence_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\18019fca52b389fe\\sha_256_ida_evidence.json",
+      "classification": "sha256_hex_compare_with_post_hash_character_adjustment",
+      "classification_evidence": [
+        "IDA compare context shows _strncmp(..., 0x40)",
+        "local call context shows sprintf with eight %08x words",
+        "decompiler shows Source prefix copied into hash routine before 64-byte compare"
+      ],
+      "selected_solver_profile": "hash_hex_compare_static",
+      "candidate": "",
+      "candidate_source": "ida_strncmp_hash_target",
+      "candidate_reason": "hash target 493f877692ea8d507fa98355a054efede85e7c7bbc9ba9890ea99b7b33e281fc has no bounded preimage domain in current evidence",
+      "validation_status": "unverified",
+      "validation_evidence": [],
+      "blocked_reason": "hash target 493f877692ea8d507fa98355a054efede85e7c7bbc9ba9890ea99b7b33e281fc has no bounded preimage domain in current evidence",
+      "next_action": "add bounded input-domain evidence or a symbolic/hash preimage constraint before candidate validation"
+    },
+    {
+      "sample_id": "4c69f173f2bd0211",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "ida_evidence_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\4c69f173f2bd0211\\CPP2_ida_evidence.json",
+      "classification": "bounded_input_range_hash_output_increment_compare",
+      "classification_evidence": [
+        "IDA decompiler shows input byte range 65..122",
+        "IDA decompiler shows post-transform ++Str1 over 64 bytes",
+        "IDA compare context shows 64-byte _strncmp target"
+      ],
+      "selected_solver_profile": "bounded_char_transform_inversion",
+      "candidate": "",
+      "candidate_source": "ida_range_and_transform_target",
+      "candidate_reason": "visible post-transform target 1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:1dbd916df13239513g21e4663 still depends on uninverted upstream hash routine",
+      "validation_status": "unverified",
+      "validation_evidence": [],
+      "blocked_reason": "visible post-transform target 1f2e28649c4g:25:8bb:24c3D3EGF6GFg22dff:1dbd916df13239513g21e4663 still depends on uninverted upstream hash routine",
+      "next_action": "recover or model the upstream hash/transform routine before attempting bounded inversion"
+    },
+    {
+      "sample_id": "bcbd9979db015bfd",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "ida_evidence_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\bcbd9979db015bfd\\Cpp1_ida_evidence.json",
+      "classification": "api_assisted_password_write_and_compare",
+      "classification_evidence": [
+        "main_0 stores direct string realpwd",
+        "sub_401100 XORs a 7-byte constant with user input before WriteFile",
+        "main_0 compares buffered content through lstrcmpA"
+      ],
+      "selected_solver_profile": "direct_or_api_password_extraction",
+      "candidate": "hookapi",
+      "candidate_source": "ida_decompiler_xor_constant_to_direct_string",
+      "candidate_reason": "XOR byte constants against direct string realpwd",
+      "validation_status": "rejected",
+      "validation_evidence": [
+        {
+          "candidate": "hookapi",
+          "probe_name": "candidate_static_1",
+          "exit_code": 0,
+          "timeout": false,
+          "classification": "prints_success_failure",
+          "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+          "stderr_preview": "",
+          "duration_ms": 37
+        }
+      ],
+      "blocked_reason": "candidate rejected by bounded runtime probe",
+      "next_action": "inspect the remaining compare/control-flow relation before trusting the static candidate"
+    }
+  ]
+}
