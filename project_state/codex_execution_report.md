@@ -1,31 +1,32 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260603_local_reverse_bounded_xref_disassembly_v1",
-  "round_id": "round_20260603_local_reverse_bounded_xref_disassembly_v1",
-  "based_on_decision_id": "decision_20260603_local_reverse_bounded_xref_disassembly_v1",
+  "report_id": "report_20260603_local_reverse_semantic_rule_extraction_v1",
+  "round_id": "round_20260603_local_reverse_semantic_rule_extraction_v1",
+  "based_on_decision_id": "decision_20260603_local_reverse_semantic_rule_extraction_v1",
   "status": "PARTIAL",
   "acceptance_recommendation": "NEEDS_REVIEW",
   "files_changed": [
-    "project_state/decision_packet.md",
-    "reverse_agent/local_reverse_xref_disassembly.py",
-    "tests/test_local_reverse_xref_disassembly.py",
-    "project_state/local_reverse_xref_disassembly_result.json",
+    "reverse_agent/local_reverse_semantic_rules.py",
+    "tests/test_local_reverse_semantic_rules.py",
+    "project_state/local_reverse_semantic_rule_result.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
   "tests_ran": [
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "python -m py_compile reverse_agent\\local_reverse_runtime.py reverse_agent\\local_reverse_compare_site.py reverse_agent\\local_reverse_xref_disassembly.py",
-    "python -m pytest -q tests\\test_local_reverse_runtime.py tests\\test_local_reverse_compare_site.py tests\\test_local_reverse_xref_disassembly.py",
-    "python -m reverse_agent.local_reverse_xref_disassembly --corpus-index project_state\\local_reverse_corpus_index.json --benchmark project_state\\local_reverse_solve_benchmark.json --string-result project_state\\local_reverse_string_solver_result.json --compare-site-result project_state\\local_reverse_compare_site_result.json --policy project_state\\local_reverse_runtime_policy.json --out project_state\\local_reverse_xref_disassembly_result.json",
+    "python -m py_compile reverse_agent\\local_reverse_semantic_rules.py",
+    "python -m pytest -q tests\\test_local_reverse_semantic_rules.py",
+    "python -m pytest -q tests\\test_local_reverse_runtime.py tests\\test_local_reverse_compare_site.py tests\\test_local_reverse_xref_disassembly.py tests\\test_local_reverse_semantic_rules.py",
+    "python -m reverse_agent.local_reverse_semantic_rules --corpus-index project_state\\local_reverse_corpus_index.json --xref-result project_state\\local_reverse_xref_disassembly_result.json --policy project_state\\local_reverse_runtime_policy.json --out project_state\\local_reverse_semantic_rule_result.json",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_xref_disassembly_result.json"
+    "project_state/local_reverse_semantic_rule_result.json"
   ],
-  "next_suggested_task": "Use the xref windows as manual address seeds or add a stronger IDA-backed string xref extractor before widening candidates"
+  "next_suggested_task": "Use bounded symbolic execution or IDA decompiler summaries over the extracted semantic windows"
 }
 ```
 
@@ -33,47 +34,51 @@
 
 ## Decision Alignment
 
-This execution follows `project_state/decision_packet.md` for `decision_20260603_local_reverse_bounded_xref_disassembly_v1`.
+This execution follows `project_state/decision_packet.md` for `decision_20260603_local_reverse_semantic_rule_extraction_v1`.
 
-The decision metadata initially had a duplicated `based_on_state_digest`, which made `project_state status` report `STALE_WITHOUT_MATCHING_REPORT`. This round first corrected that metadata to the current state digest and verified `lint-decision` passed. The stale `samplereverse` fields in `project_state/task_packet.json` and `project_state/current_state.json` were treated as background only.
+The stale `samplereverse` fields in `project_state/task_packet.json` and `project_state/current_state.json` were treated as background only. The active decision packet controls this round.
 
 ## Scope
 
-This round only processed the three unsolved `ready_static_string_compare` targets whose previous compare-site result was `new_candidates_failed_runtime_validation`:
+This round only processed the three unsolved local reverse targets from `project_state/local_reverse_xref_disassembly_result.json` whose previous blocker was `new_xref_candidates_failed_runtime_validation`:
 
 ```text
-4c69f173f2bd0211 -> 逆向课程2022春02/CPP2.exe
-bcbd9979db015bfd -> 逆向课程2022春补考01/Cpp1.exe
-18019fca52b389fe -> 逆向课程2024春01/sha_256.exe
+4c69f173f2bd0211
+bcbd9979db015bfd
+18019fca52b389fe
 ```
 
-No other challenge binary entered xref/disassembly extraction. No previous 90 compare-site candidates were re-run without new xref evidence. No `samplereverse` work, Base64/RC4 probe, old `sample_solver`, GUI integration, full `solve_reports/` traversal, or full `PROJECT_PROGRESS_LOG.txt` read was performed.
+No other challenge binary entered semantic extraction or runtime validation. No previous 90 compare-site candidates were re-run. No previous xref-derived candidates were re-run except when a candidate was explicitly regenerated from a semantic rule with `revalidated_reason=semantic_rule_derived`.
+
+No `samplereverse` window discovery, compare handoff, Base64/RC4 probe, old `sample_solver`, GUI integration, full `solve_reports/` traversal, or full `PROJECT_PROGRESS_LOG.txt` read was performed.
 
 No binary sample was copied into the repository, uploaded, committed, relocated, or encoded as hex/base64. `.codex-skills/` was not modified.
 
 ## Implementation
 
-Added `reverse_agent/local_reverse_xref_disassembly.py`, a bounded CLI and library module:
+Added `reverse_agent/local_reverse_semantic_rules.py`, a bounded CLI and library module:
 
 ```text
-python -m reverse_agent.local_reverse_xref_disassembly --corpus-index project_state\local_reverse_corpus_index.json --benchmark project_state\local_reverse_solve_benchmark.json --string-result project_state\local_reverse_string_solver_result.json --compare-site-result project_state\local_reverse_compare_site_result.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_xref_disassembly_result.json
+python -m reverse_agent.local_reverse_semantic_rules --corpus-index project_state\local_reverse_corpus_index.json --xref-result project_state\local_reverse_xref_disassembly_result.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_semantic_rule_result.json
 ```
 
 The module:
 
-- Selects only the three compare-site targets with `solved=false` and `missing_evidence=new_candidates_failed_runtime_validation`.
-- Uses `pefile` to build bounded PE section mapping for raw offset / RVA / VA.
-- Uses `capstone` for bounded xref windows only, capped by `max_bytes_per_xref=512` and `max_instructions_per_xref=64`.
-- Searches executable sections for little-endian VA/RVA/raw references to prompt/failure/success/CompareString strings.
-- Generates candidates only from new xref/disassembly operand evidence and skips candidates already seen in prior validation previews.
-- Uses the existing runtime policy, `run_probe`, and conservative success/failure semantics.
+- Selects only the three in-scope unsolved xref targets with `missing_evidence=new_xref_candidates_failed_runtime_validation`.
+- Extracts conservative semantic rules from existing `disassembly_windows`; it does not expand xrefs or disassembly windows.
+- Recognizes bounded first-pass rule types: `length_check`, `loop_bound`, `stack_buffer`, `byte_load`, `byte_store`, `byte_add_const`, `byte_sub_const`, `byte_xor_const`, `byte_cmp_const`, and `replacement_rule`.
+- Emits each rule with `rule_type`, `confidence`, `source_window`, `source_instructions`, `inferred_constraint`, and `candidate_generation_enabled`.
+- Generates candidates only from semantic rules, with `max_rules_per_sample=20`, `max_candidates_per_sample=20`, and `max_runtime_validations_per_sample=20`.
+- Uses the existing `run_probe` runtime path and `validation_succeeded` success/failure semantics.
+
+Added `tests/test_local_reverse_semantic_rules.py` to cover target selection, synthetic rule extraction, bounds, semantic revalidation reasons, blocked runtime/path/hash preconditions, and success/failure marker conflict handling.
 
 ## Result
 
 Generated:
 
 ```text
-project_state/local_reverse_xref_disassembly_result.json
+project_state/local_reverse_semantic_rule_result.json
 ```
 
 Summary:
@@ -83,46 +88,44 @@ status=PARTIAL
 target_count=3
 solved_count=0
 blocked_reasons=[]
-max_strings_per_sample=12
-max_xrefs_per_string=20
-max_instructions_per_xref=64
-max_bytes_per_xref=512
-max_new_candidates_per_sample=20
+max_rules_per_sample=20
+max_candidates_per_sample=20
 max_runtime_validations_per_sample=20
 ```
 
 Per-target result:
 
 ```text
-18019fca52b389fe -> pe_mapping_status=ok, capstone_status=available_used, xrefs=12, disassembly_windows=11, new_candidate_count=2, validated_candidate_count=2, solved=false, missing_evidence=new_xref_candidates_failed_runtime_validation
-4c69f173f2bd0211 -> pe_mapping_status=ok, capstone_status=available_used, xrefs=13, disassembly_windows=13, new_candidate_count=1, validated_candidate_count=1, solved=false, missing_evidence=new_xref_candidates_failed_runtime_validation
-bcbd9979db015bfd -> pe_mapping_status=ok, capstone_status=available_used, xrefs=10, disassembly_windows=10, new_candidate_count=3, validated_candidate_count=3, solved=false, missing_evidence=new_xref_candidates_failed_runtime_validation
+18019fca52b389fe -> semantic_rule_count=20, generated_candidate_count=20, validated_candidate_count=20, solved=false, missing_evidence=needs_symbolic_execution
+4c69f173f2bd0211 -> semantic_rule_count=20, generated_candidate_count=13, validated_candidate_count=13, solved=false, missing_evidence=needs_symbolic_execution
+bcbd9979db015bfd -> semantic_rule_count=20, generated_candidate_count=12, validated_candidate_count=12, solved=false, missing_evidence=needs_symbolic_execution
 ```
 
-No `solved=true` result was emitted because none of the new xref-derived candidates produced runtime success output without failure semantics.
+No `solved=true` result was emitted because no semantic-rule candidate produced runtime success output without failure semantics.
 
 ## Required Audit
 
-- Current `decision_packet.md` was the execution authority after repairing the digest typo.
-- Previous compare-site result was used as input; this was not a re-run of the previous candidate pool.
-- Mainline is `reverse_solving`; concrete direction is `local_reverse_bounded_xref_disassembly_v1`.
-- Only the three specified unsolved `ready_static_string_compare` challenge binaries were processed.
+- Current `decision_packet.md` was the execution authority.
+- Previous xref/disassembly result was complete but had `solved_count=0`; this round did not rerun xref extraction or ordinary candidate generation.
+- Mainline is `reverse_solving`; concrete direction is `local_reverse_semantic_rule_extraction_v1`.
+- Only the three specified unsolved local reverse targets were processed.
 - No challenge binary outside the specified three entered extraction.
 - No executable outside indexed `E:\reverse` paths was run.
 - No binary sample was copied, committed, uploaded, relocated, or encoded.
 - `.codex-skills/` was not modified.
 - Full `solve_reports/` and full `PROJECT_PROGRESS_LOG.txt` were not read.
-- Xref/disassembly extraction was bounded by max strings, xrefs, instructions, bytes, candidates, and validations.
-- `capstone_used=true` for all three targets through `capstone_status=available_used`.
-- Runtime evidence was recorded for xref-derived candidates, but no candidate satisfied the conservative success rule.
-- All unsolved targets now retain a sharper xref-stage blocker: `new_xref_candidates_failed_runtime_validation`.
+- Semantic extraction was bounded by max rules, candidates, and validations.
+- Runtime evidence was recorded for semantic-rule-derived candidates, but no candidate satisfied the conservative success rule.
+- All unsolved targets now have a sharper next blocker: `needs_symbolic_execution`.
 - Tests were run for this decision and recorded in `project_state/pytest_result.txt`.
 
 ## Validation
 
-- `python -m reverse_agent.project_state lint-decision --state-dir project_state` -> OK
-- `python -m py_compile reverse_agent\local_reverse_runtime.py reverse_agent\local_reverse_compare_site.py reverse_agent\local_reverse_xref_disassembly.py` -> passed
-- `python -m pytest -q tests\test_local_reverse_runtime.py tests\test_local_reverse_compare_site.py tests\test_local_reverse_xref_disassembly.py` -> `23 passed`
-- `python -m reverse_agent.local_reverse_xref_disassembly --corpus-index project_state\local_reverse_corpus_index.json --benchmark project_state\local_reverse_solve_benchmark.json --string-result project_state\local_reverse_string_solver_result.json --compare-site-result project_state\local_reverse_compare_site_result.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_xref_disassembly_result.json` -> `local reverse xref/disassembly extraction: status=PARTIAL targets=3 solved=0`
-- `python -m reverse_agent.project_state lint-report --state-dir project_state` -> OK with expected `PARTIAL` and not-archived warnings
-- `git diff --check` -> passed
+- `python -m reverse_agent.project_state lint-decision --state-dir project_state` -> OK.
+- `python -m py_compile reverse_agent\local_reverse_semantic_rules.py` -> passed.
+- `python -m pytest -q tests\test_local_reverse_semantic_rules.py` -> `7 passed`.
+- `python -m pytest -q tests\test_local_reverse_runtime.py tests\test_local_reverse_compare_site.py tests\test_local_reverse_xref_disassembly.py tests\test_local_reverse_semantic_rules.py` -> `30 passed`.
+- `python -m reverse_agent.local_reverse_semantic_rules --corpus-index project_state\local_reverse_corpus_index.json --xref-result project_state\local_reverse_xref_disassembly_result.json --policy project_state\local_reverse_runtime_policy.json --out project_state\local_reverse_semantic_rule_result.json` -> `local reverse semantic rule extraction: status=PARTIAL targets=3 solved=0`.
+- `python -m reverse_agent.project_state lint-report --state-dir project_state` -> OK with expected `PARTIAL` and not-archived warnings.
+- `python -m reverse_agent.project_state status --state-dir project_state` -> `decision_execution_state=CONSUMED_BY_NON_SUCCESS_REPORT`.
+- `git diff --check` -> passed with line-ending warnings for report files only.

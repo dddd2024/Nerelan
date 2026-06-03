@@ -1,0 +1,3115 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T09:25:08Z",
+  "stage": "bounded_semantic_rule_extraction",
+  "status": "PARTIAL",
+  "target_count": 3,
+  "solved_count": 0,
+  "bounds": {
+    "max_rules_per_sample": 20,
+    "max_candidates_per_sample": 20,
+    "max_runtime_validations_per_sample": 20
+  },
+  "timeout_seconds": 5,
+  "blocked_reasons": [],
+  "targets": [
+    {
+      "sample_id": "18019fca52b389fe",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "sha256": "18019fca52b389feeb2f690d096d5848ff7ba686eac9173bb17a6fabb819a8ff",
+      "previous_missing_evidence": "new_xref_candidates_failed_runtime_validation",
+      "semantic_rule_count": 20,
+      "semantic_rules": [
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e06",
+              "rva": "0x1e06",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 0x474], eax"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1140,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_001"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e0c",
+              "rva": "0x1e0c",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x474], 5"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1140,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_002"
+        },
+        {
+          "rule_type": "length_check",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e0c",
+              "rva": "0x1e0c",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x474], 5"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp - 0x474]",
+            "bound": 5,
+            "branch": null,
+            "branch_target": null
+          },
+          "candidate_generation_enabled": true,
+          "rule_id": "rule_003"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e0c",
+              "rva": "0x1e0c",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x474], 5"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp - 0x474]",
+            "constant": 5,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_004"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e38",
+              "rva": "0x1e38",
+              "mnemonic": "lea",
+              "op_str": "eax, [ebp - 0x444]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1092,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_005"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e3f",
+              "rva": "0x1e3f",
+              "mnemonic": "lea",
+              "op_str": "ecx, [ebp - 0x44c]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1100,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_006"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e4e",
+              "rva": "0x1e4e",
+              "mnemonic": "lea",
+              "op_str": "edx, [ebp - 0x44c]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1100,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_007"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e5e",
+              "rva": "0x1e5e",
+              "mnemonic": "lea",
+              "op_str": "eax, [ebp - 0x44c]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1100,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_008"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e65",
+              "rva": "0x1e65",
+              "mnemonic": "lea",
+              "op_str": "ecx, [ebp - 0x44]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 68,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_009"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e71",
+              "rva": "0x1e71",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 0x450], 0"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1104,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_010"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e7d",
+              "rva": "0x1e7d",
+              "mnemonic": "mov",
+              "op_str": "edx, dword ptr [ebp - 0x450]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1104,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_011"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e86",
+              "rva": "0x1e86",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 0x450], edx"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1104,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_012"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e8c",
+              "rva": "0x1e8c",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x450], 0x40"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1104,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_013"
+        },
+        {
+          "rule_type": "loop_bound",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e8c",
+              "rva": "0x1e8c",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x450], 0x40"
+            },
+            {
+              "address": "0x401e93",
+              "rva": "0x1e93",
+              "mnemonic": "jge",
+              "op_str": "0x401ee4"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp - 0x450]",
+            "bound": 64,
+            "branch": "jge",
+            "branch_target": "0x401ee4"
+          },
+          "candidate_generation_enabled": true,
+          "rule_id": "rule_014"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e8c",
+              "rva": "0x1e8c",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x450], 0x40"
+            },
+            {
+              "address": "0x401e93",
+              "rva": "0x1e93",
+              "mnemonic": "jge",
+              "op_str": "0x401ee4"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp - 0x450]",
+            "constant": 64,
+            "char": "@"
+          },
+          "candidate_generation_enabled": true,
+          "rule_id": "rule_015"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e95",
+              "rva": "0x1e95",
+              "mnemonic": "mov",
+              "op_str": "eax, dword ptr [ebp - 0x450]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1104,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_016"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e9b",
+              "rva": "0x1e9b",
+              "mnemonic": "mov",
+              "op_str": "cl, byte ptr [ebp + eax - 0x44]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 68,
+            "access_size": "byte"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_017"
+        },
+        {
+          "rule_type": "byte_load",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e9b",
+              "rva": "0x1e9b",
+              "mnemonic": "mov",
+              "op_str": "cl, byte ptr [ebp + eax - 0x44]"
+            }
+          ],
+          "inferred_constraint": {
+            "destination": "cl",
+            "source": "byte ptr [ebp + eax - 0x44]",
+            "stack_offset": 68
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_018"
+        },
+        {
+          "rule_type": "byte_add_const",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401e9f",
+              "rva": "0x1e9f",
+              "mnemonic": "add",
+              "op_str": "cl, 1"
+            }
+          ],
+          "inferred_constraint": {
+            "target": "cl",
+            "constant": 1
+          },
+          "candidate_generation_enabled": true,
+          "rule_id": "rule_019"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 7676,
+            "window_raw_end": 8188,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7932,
+              "rva": 7932,
+              "va": 4202236,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401ea2",
+              "rva": "0x1ea2",
+              "mnemonic": "mov",
+              "op_str": "edx, dword ptr [ebp - 0x450]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 1104,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_020"
+        }
+      ],
+      "generated_candidate_count": 20,
+      "generated_candidates": [
+        {
+          "candidate": "@@@@@",
+          "source": "semantic_byte_cmp_const",
+          "rule_id": "rule_015",
+          "rule_type": "byte_cmp_const"
+        },
+        {
+          "candidate": "00000",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "11111",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "22222",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "33333",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "44444",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "55555",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "66666",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "77777",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "88888",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "AAAAA",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "BBBBB",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "CCCCC",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "DDDDD",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "EEEEE",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "FFFFF",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "GGGGG",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "HHHHH",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "IIIII",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "JJJJJ",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_019",
+          "rule_type": "byte_add_const"
+        }
+      ],
+      "validated_candidate_count": 20,
+      "validation_results_preview": [
+        {
+          "candidate": "@@@@@",
+          "source": "semantic_byte_cmp_const",
+          "rule_type": "byte_cmp_const",
+          "rule_id": "rule_015",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_1",
+            "stdin": "@@@@@\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 39,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "00000",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_2",
+            "stdin": "00000\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 22,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "11111",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_3",
+            "stdin": "11111\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 24,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "22222",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_4",
+            "stdin": "22222\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "33333",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_5",
+            "stdin": "33333\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 21,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "44444",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_6",
+            "stdin": "44444\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "55555",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_7",
+            "stdin": "55555\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 24,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "66666",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_8",
+            "stdin": "66666\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 21,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "77777",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_9",
+            "stdin": "77777\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 20,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "88888",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_10",
+            "stdin": "88888\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 21,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "AAAAA",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_11",
+            "stdin": "AAAAA\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 25,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "BBBBB",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_12",
+            "stdin": "BBBBB\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "CCCCC",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_13",
+            "stdin": "CCCCC\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 41,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "DDDDD",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_14",
+            "stdin": "DDDDD\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 24,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "EEEEE",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_15",
+            "stdin": "EEEEE\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 21,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "FFFFF",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_16",
+            "stdin": "FFFFF\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "GGGGG",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_17",
+            "stdin": "GGGGG\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 22,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "HHHHH",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_18",
+            "stdin": "HHHHH\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "IIIII",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_19",
+            "stdin": "IIIII\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "JJJJJ",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_019",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_20",
+            "stdin": "JJJJJ\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong!",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        }
+      ],
+      "solved": false,
+      "solution": null,
+      "runtime_evidence": null,
+      "missing_evidence": "needs_symbolic_execution",
+      "next_action": "use bounded symbolic execution over extracted semantic windows",
+      "status": "NO_CANDIDATE_VALIDATED",
+      "blocked_reasons": []
+    },
+    {
+      "sample_id": "4c69f173f2bd0211",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "sha256": "4c69f173f2bd0211fe472e12b3ecc4dcfbae6a20735a750b8f8c0ea5c566223a",
+      "previous_missing_evidence": "new_xref_candidates_failed_runtime_validation",
+      "semantic_rule_count": 20,
+      "semantic_rules": [
+        {
+          "rule_type": "byte_add_const",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 1,
+            "window_raw_start": 7222,
+            "window_raw_end": 7734,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 7478,
+              "rva": 7478,
+              "va": 4201782,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401c36",
+              "rva": "0x1c36",
+              "mnemonic": "add",
+              "op_str": "al, 0xc7"
+            }
+          ],
+          "inferred_constraint": {
+            "target": "al",
+            "constant": 199
+          },
+          "candidate_generation_enabled": true,
+          "rule_id": "rule_001"
+        },
+        {
+          "rule_type": "loop_bound",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 3,
+            "window_raw_start": 9212,
+            "window_raw_end": 9724,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9468,
+              "rva": 9468,
+              "va": 4203772,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402420",
+              "rva": "0x2420",
+              "mnemonic": "cmp",
+              "op_str": "eax, 1"
+            },
+            {
+              "address": "0x402423",
+              "rva": "0x2423",
+              "mnemonic": "jne",
+              "op_str": "0x402426"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "eax",
+            "bound": 1,
+            "branch": "jne",
+            "branch_target": "0x402426"
+          },
+          "candidate_generation_enabled": true,
+          "rule_id": "rule_002"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 3,
+            "window_raw_start": 9212,
+            "window_raw_end": 9724,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9468,
+              "rva": 9468,
+              "va": 4203772,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402420",
+              "rva": "0x2420",
+              "mnemonic": "cmp",
+              "op_str": "eax, 1"
+            },
+            {
+              "address": "0x402423",
+              "rva": "0x2423",
+              "mnemonic": "jne",
+              "op_str": "0x402426"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "eax",
+            "constant": 1,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_003"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 3,
+            "window_raw_start": 9212,
+            "window_raw_end": 9724,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9468,
+              "rva": 9468,
+              "va": 4203772,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402432",
+              "rva": "0x2432",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 8], edx"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 8,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_004"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 3,
+            "window_raw_start": 9212,
+            "window_raw_end": 9724,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9468,
+              "rva": 9468,
+              "va": 4203772,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402435",
+              "rva": "0x2435",
+              "mnemonic": "mov",
+              "op_str": "eax, dword ptr [ebp - 8]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 8,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_005"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 3,
+            "window_raw_start": 9212,
+            "window_raw_end": 9724,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9468,
+              "rva": 9468,
+              "va": 4203772,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402449",
+              "rva": "0x2449",
+              "mnemonic": "mov",
+              "op_str": "eax, dword ptr [ebp - 8]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 8,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_006"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 3,
+            "window_raw_start": 9212,
+            "window_raw_end": 9724,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9468,
+              "rva": 9468,
+              "va": 4203772,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402466",
+              "rva": "0x2466",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp + 0x10], 0"
+            },
+            {
+              "address": "0x40246a",
+              "rva": "0x246a",
+              "mnemonic": "je",
+              "op_str": "0x402497"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp + 0x10]",
+            "constant": 0,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_007"
+        },
+        {
+          "rule_type": "loop_bound",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 3,
+            "window_raw_start": 9212,
+            "window_raw_end": 9724,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9468,
+              "rva": 9468,
+              "va": 4203772,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402489",
+              "rva": "0x2489",
+              "mnemonic": "cmp",
+              "op_str": "eax, 1"
+            },
+            {
+              "address": "0x40248c",
+              "rva": "0x248c",
+              "mnemonic": "jne",
+              "op_str": "0x40248f"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "eax",
+            "bound": 1,
+            "branch": "jne",
+            "branch_target": "0x40248f"
+          },
+          "candidate_generation_enabled": true,
+          "rule_id": "rule_008"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 3,
+            "window_raw_start": 9212,
+            "window_raw_end": 9724,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9468,
+              "rva": 9468,
+              "va": 4203772,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402489",
+              "rva": "0x2489",
+              "mnemonic": "cmp",
+              "op_str": "eax, 1"
+            },
+            {
+              "address": "0x40248c",
+              "rva": "0x248c",
+              "mnemonic": "jne",
+              "op_str": "0x40248f"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "eax",
+            "constant": 1,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_009"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 4,
+            "window_raw_start": 9112,
+            "window_raw_end": 9624,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9368,
+              "rva": 9368,
+              "va": 4203672,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x40239b",
+              "rva": "0x239b",
+              "mnemonic": "mov",
+              "op_str": "eax, dword ptr [ebp - 4]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 4,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_010"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 4,
+            "window_raw_start": 9112,
+            "window_raw_end": 9624,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9368,
+              "rva": 9368,
+              "va": 4203672,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4023e9",
+              "rva": "0x23e9",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 0xc], 0"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 12,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_011"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 5,
+            "window_raw_start": 9077,
+            "window_raw_end": 9589,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9333,
+              "rva": 9333,
+              "va": 4203637,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x40238c",
+              "rva": "0x238c",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 4], eax"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 4,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_012"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 5,
+            "window_raw_start": 9077,
+            "window_raw_end": 9589,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9333,
+              "rva": 9333,
+              "va": 4203637,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x40238f",
+              "rva": "0x238f",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 4], 0"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 4,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_013"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 5,
+            "window_raw_start": 9077,
+            "window_raw_end": 9589,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9333,
+              "rva": 9333,
+              "va": 4203637,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x40238f",
+              "rva": "0x238f",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 4], 0"
+            },
+            {
+              "address": "0x402393",
+              "rva": "0x2393",
+              "mnemonic": "jne",
+              "op_str": "0x40239b"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp - 4]",
+            "constant": 0,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_014"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 5,
+            "window_raw_start": 9077,
+            "window_raw_end": 9589,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 9333,
+              "rva": 9333,
+              "va": 4203637,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402395",
+              "rva": "0x2395",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp + 0xc], 0"
+            },
+            {
+              "address": "0x402399",
+              "rva": "0x2399",
+              "mnemonic": "jne",
+              "op_str": "0x4023a0"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp + 0xc]",
+            "constant": 0,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_015"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 6,
+            "window_raw_start": 10224,
+            "window_raw_end": 10736,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 10480,
+              "rva": 10480,
+              "va": 4204784,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4027f9",
+              "rva": "0x27f9",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 0x14], 0"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 20,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_016"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 6,
+            "window_raw_start": 10224,
+            "window_raw_end": 10736,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 10480,
+              "rva": 10480,
+              "va": 4204784,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402800",
+              "rva": "0x2800",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp + 8], 0"
+            },
+            {
+              "address": "0x402804",
+              "rva": "0x2804",
+              "mnemonic": "jne",
+              "op_str": "0x402823"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp + 8]",
+            "constant": 0,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_017"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 6,
+            "window_raw_start": 10224,
+            "window_raw_end": 10736,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 10480,
+              "rva": 10480,
+              "va": 4204784,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402823",
+              "rva": "0x2823",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp + 0x1c], 0"
+            },
+            {
+              "address": "0x402827",
+              "rva": "0x2827",
+              "mnemonic": "je",
+              "op_str": "0x402846"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp + 0x1c]",
+            "constant": 0,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_018"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 6,
+            "window_raw_start": 10224,
+            "window_raw_end": 10736,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 10480,
+              "rva": 10480,
+              "va": 4204784,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402829",
+              "rva": "0x2829",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp + 0xc], 0"
+            },
+            {
+              "address": "0x40282d",
+              "rva": "0x282d",
+              "mnemonic": "jne",
+              "op_str": "0x402846"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp + 0xc]",
+            "constant": 0,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_019"
+        },
+        {
+          "rule_type": "loop_bound",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 6,
+            "window_raw_start": 10224,
+            "window_raw_end": 10736,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 10480,
+              "rva": 10480,
+              "va": 4204784,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x402876",
+              "rva": "0x2876",
+              "mnemonic": "cmp",
+              "op_str": "eax, 1"
+            },
+            {
+              "address": "0x402879",
+              "rva": "0x2879",
+              "mnemonic": "jne",
+              "op_str": "0x40287c"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "eax",
+            "bound": 1,
+            "branch": "jne",
+            "branch_target": "0x40287c"
+          },
+          "candidate_generation_enabled": true,
+          "rule_id": "rule_020"
+        }
+      ],
+      "generated_candidate_count": 13,
+      "generated_candidates": [
+        {
+          "candidate": "iiii",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "jjjj",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "kkkk",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "llll",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "mmmm",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "nnnn",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "oooo",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "pppp",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "qqqq",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "rrrr",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "zzzz",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "{{{{",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "}}}}",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_001",
+          "rule_type": "byte_add_const"
+        }
+      ],
+      "validated_candidate_count": 13,
+      "validation_results_preview": [
+        {
+          "candidate": "iiii",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_1",
+            "stdin": "iiii\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "jjjj",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_2",
+            "stdin": "jjjj\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 20,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "kkkk",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_3",
+            "stdin": "kkkk\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 29,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "llll",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_4",
+            "stdin": "llll\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 32,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "mmmm",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_5",
+            "stdin": "mmmm\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 61,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "nnnn",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_6",
+            "stdin": "nnnn\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 41,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "oooo",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_7",
+            "stdin": "oooo\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 39,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "pppp",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_8",
+            "stdin": "pppp\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "qqqq",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_9",
+            "stdin": "qqqq\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 19,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "rrrr",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_10",
+            "stdin": "rrrr\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 18,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "zzzz",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_11",
+            "stdin": "zzzz\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 20,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "{{{{",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_12",
+            "stdin": "{{{{\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 27,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "}}}}",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_001",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_13",
+            "stdin": "}}}}\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag:\nWrong,try again!\n",
+            "stderr_preview": "",
+            "duration_ms": 28,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        }
+      ],
+      "solved": false,
+      "solution": null,
+      "runtime_evidence": null,
+      "missing_evidence": "needs_symbolic_execution",
+      "next_action": "use bounded symbolic execution over extracted semantic windows",
+      "status": "NO_CANDIDATE_VALIDATED",
+      "blocked_reasons": []
+    },
+    {
+      "sample_id": "bcbd9979db015bfd",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "sha256": "bcbd9979db015bfd12d7c0c270df46918713433636123c545315a9d527b22a5a",
+      "previous_missing_evidence": "new_xref_candidates_failed_runtime_validation",
+      "semantic_rule_count": 20,
+      "semantic_rules": [
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401387",
+              "rva": "0x1387",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 4], eax"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 4,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_001"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x40138e",
+              "rva": "0x138e",
+              "mnemonic": "lea",
+              "op_str": "eax, [ebp - 0x40]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 64,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_002"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401392",
+              "rva": "0x1392",
+              "mnemonic": "lea",
+              "op_str": "ecx, [ebp - 0x48]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 72,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_003"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x40139f",
+              "rva": "0x139f",
+              "mnemonic": "lea",
+              "op_str": "edx, [ebp - 0x48]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 72,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_004"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4013a3",
+              "rva": "0x13a3",
+              "mnemonic": "mov",
+              "op_str": "eax, dword ptr [ebp - 4]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 4,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_005"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4013b6",
+              "rva": "0x13b6",
+              "mnemonic": "mov",
+              "op_str": "ecx, dword ptr [ebp - 4]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 4,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_006"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4013d9",
+              "rva": "0x13d9",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 0x10], eax"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 16,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_007"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4013dc",
+              "rva": "0x13dc",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x10], 0"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 16,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_008"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4013dc",
+              "rva": "0x13dc",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x10], 0"
+            },
+            {
+              "address": "0x4013e0",
+              "rva": "0x13e0",
+              "mnemonic": "je",
+              "op_str": "0x4013f1"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp - 0x10]",
+            "constant": 0,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_009"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4013fe",
+              "rva": "0x13fe",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x10], 0"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 16,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_010"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4013fe",
+              "rva": "0x13fe",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x10], 0"
+            },
+            {
+              "address": "0x401402",
+              "rva": "0x1402",
+              "mnemonic": "je",
+              "op_str": "0x40141b"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp - 0x10]",
+            "constant": 0,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_011"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401404",
+              "rva": "0x1404",
+              "mnemonic": "lea",
+              "op_str": "edx, [ebp - 0x30]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 48,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_012"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x40140d",
+              "rva": "0x140d",
+              "mnemonic": "mov",
+              "op_str": "eax, dword ptr [ebp - 0x10]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 16,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_013"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401428",
+              "rva": "0x1428",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x10], 0"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 16,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_014"
+        },
+        {
+          "rule_type": "byte_cmp_const",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 0,
+            "window_raw_start": 4955,
+            "window_raw_end": 5467,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5211,
+              "rva": 5211,
+              "va": 4199515,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401428",
+              "rva": "0x1428",
+              "mnemonic": "cmp",
+              "op_str": "dword ptr [ebp - 0x10], 0"
+            }
+          ],
+          "inferred_constraint": {
+            "left": "dword ptr [ebp - 0x10]",
+            "constant": 0,
+            "char": ""
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_015"
+        },
+        {
+          "rule_type": "byte_add_const",
+          "confidence": "medium",
+          "source_window": {
+            "window_index": 1,
+            "window_raw_start": 4835,
+            "window_raw_end": 5347,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5091,
+              "rva": 5091,
+              "va": 4199395,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4012e3",
+              "rva": "0x12e3",
+              "mnemonic": "add",
+              "op_str": "byte ptr [ecx], 0x43"
+            }
+          ],
+          "inferred_constraint": {
+            "target": "byte ptr [ecx]",
+            "constant": 67
+          },
+          "candidate_generation_enabled": true,
+          "rule_id": "rule_016"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 1,
+            "window_raw_start": 4835,
+            "window_raw_end": 5347,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5091,
+              "rva": 5091,
+              "va": 4199395,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x4012f4",
+              "rva": "0x12f4",
+              "mnemonic": "mov",
+              "op_str": "ecx, dword ptr [ebp - 0x18]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 24,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_017"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 1,
+            "window_raw_start": 4835,
+            "window_raw_end": 5347,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5091,
+              "rva": 5091,
+              "va": 4199395,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x40130f",
+              "rva": "0x130f",
+              "mnemonic": "mov",
+              "op_str": "eax, dword ptr [ebp - 0xc]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 12,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_018"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 1,
+            "window_raw_start": 4835,
+            "window_raw_end": 5347,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5091,
+              "rva": 5091,
+              "va": 4199395,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x40131d",
+              "rva": "0x131d",
+              "mnemonic": "mov",
+              "op_str": "dword ptr [ebp - 0x3c], ecx"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 60,
+            "access_size": "word"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_019"
+        },
+        {
+          "rule_type": "stack_buffer",
+          "confidence": "low",
+          "source_window": {
+            "window_index": 1,
+            "window_raw_start": 4835,
+            "window_raw_end": 5347,
+            "xref": {
+              "reference_kind": "va32",
+              "raw_offset": 5091,
+              "rva": 5091,
+              "va": 4199395,
+              "section": ".text"
+            }
+          },
+          "source_instructions": [
+            {
+              "address": "0x401322",
+              "rva": "0x1322",
+              "mnemonic": "lea",
+              "op_str": "edx, [ebp - 0x3c]"
+            }
+          ],
+          "inferred_constraint": {
+            "base": "ebp",
+            "offset": 60,
+            "access_size": "unknown"
+          },
+          "candidate_generation_enabled": false,
+          "rule_id": "rule_020"
+        }
+      ],
+      "generated_candidate_count": 12,
+      "generated_candidates": [
+        {
+          "candidate": "!!!!",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "$$$$",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "++++",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "----",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "0000",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "1111",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "2222",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "3333",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "4444",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "5555",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "6666",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        },
+        {
+          "candidate": "7777",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_id": "rule_016",
+          "rule_type": "byte_add_const"
+        }
+      ],
+      "validated_candidate_count": 12,
+      "validation_results_preview": [
+        {
+          "candidate": "!!!!",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_1",
+            "stdin": "!!!!\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 33,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "$$$$",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_2",
+            "stdin": "$$$$\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 29,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "++++",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_3",
+            "stdin": "++++\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "----",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_4",
+            "stdin": "----\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 25,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "0000",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_5",
+            "stdin": "0000\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 26,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "1111",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_6",
+            "stdin": "1111\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 24,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "2222",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_7",
+            "stdin": "2222\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 38,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "3333",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_8",
+            "stdin": "3333\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 25,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "4444",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_9",
+            "stdin": "4444\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 25,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "5555",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_10",
+            "stdin": "5555\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "6666",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_11",
+            "stdin": "6666\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 25,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        },
+        {
+          "candidate": "7777",
+          "source": "semantic_byte_add_const_inverse",
+          "rule_type": "byte_add_const",
+          "rule_id": "rule_016",
+          "revalidated_reason": null,
+          "probe": {
+            "probe_name": "semantic_rule_candidate_12",
+            "stdin": "7777\n",
+            "exit_code": 0,
+            "timeout": false,
+            "stdout_preview": "Press any key to continue . . . \nPlease input your flag \nFile open success\ntry again!\n",
+            "stderr_preview": "",
+            "duration_ms": 23,
+            "classification": "prints_success_failure"
+          },
+          "succeeded": false
+        }
+      ],
+      "solved": false,
+      "solution": null,
+      "runtime_evidence": null,
+      "missing_evidence": "needs_symbolic_execution",
+      "next_action": "use bounded symbolic execution over extracted semantic windows",
+      "status": "NO_CANDIDATE_VALIDATED",
+      "blocked_reasons": []
+    }
+  ]
+}
