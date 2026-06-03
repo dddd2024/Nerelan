@@ -4,7 +4,7 @@
   "decision_id": "decision_20260603_local_reverse_bounded_xref_disassembly_v1",
   "round_id": "round_20260603_local_reverse_bounded_xref_disassembly_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
-  "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c3e80ca4413678c",
+  "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
   "mainline": "reverse_solving",
   "skill_profiles": [
