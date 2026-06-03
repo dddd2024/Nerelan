@@ -254,6 +254,26 @@ def _populate_artifact_from_json_output(
     return True
 
 
+def run_ida_evidence(
+    file_path: Path,
+    artifacts_dir: Path,
+    log: LogFn,
+    *,
+    ida_executable: str = "",
+    ida_script_path: str = "",
+    timeout_seconds: int = 180,
+) -> ToolRunArtifact:
+    config = ToolAutomationConfig(
+        enabled=True,
+        ida_enabled=True,
+        ida_executable=ida_executable,
+        ida_script_path=ida_script_path,
+        ida_timeout_seconds=timeout_seconds,
+    )
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    return _run_ida(file_path, config, artifacts_dir, log)
+
+
 def run_tool_automation(
     file_path: Path,
     analysis_mode: str,
@@ -269,7 +289,16 @@ def run_tool_automation(
     artifacts_dir.mkdir(parents=True, exist_ok=True)
 
     if config.ida_enabled:
-        artifacts.append(_run_ida(file_path, config, artifacts_dir, log))
+        artifacts.append(
+            run_ida_evidence(
+                file_path=file_path,
+                artifacts_dir=artifacts_dir,
+                log=log,
+                ida_executable=config.ida_executable,
+                ida_script_path=config.ida_script_path,
+                timeout_seconds=config.ida_timeout_seconds,
+            )
+        )
 
     auto_olly_enabled = (
         analysis_mode == "Dynamic Debug"
@@ -476,6 +505,10 @@ def _run_ida(
     compare_contexts = data.get("compare_contexts", [])[:20]
     local_check_contexts = data.get("local_check_contexts", [])[:20]
     control_id_contexts = data.get("control_id_contexts", [])[:20]
+    string_xrefs = data.get("string_xrefs", [])[:20]
+    validation_function_candidates = data.get("validation_function_candidates", [])[:20]
+    decompiler_snippets = data.get("decompiler_snippets", [])[:8]
+    solver_hints = data.get("solver_hints", [])[:12]
     entry = str(data.get("entry", "")).strip()
     artifact.evidence = [
         *([f"IDA入口: {entry}"] if entry else []),
@@ -534,13 +567,63 @@ def _run_ida(
             f"nearby={nearby}" if nearby else "",
         ]
         artifact.evidence.append(" ".join(p for p in parts if p))
+    for ctx in string_xrefs:
+        if not isinstance(ctx, dict):
+            continue
+        string_value = str(ctx.get("string", "")).strip()
+        xref_ea = str(ctx.get("xref_ea", "")).strip()
+        caller = str(ctx.get("caller_func", "")).strip()
+        nearby = str(ctx.get("nearby", "")).strip()
+        parts = [
+            f"IDA字符串引用: xref={xref_ea}" if xref_ea else "IDA字符串引用",
+            f"caller={caller}" if caller else "",
+            f"string={string_value}" if string_value else "",
+            f"nearby={nearby}" if nearby else "",
+        ]
+        artifact.evidence.append(" ".join(p for p in parts if p))
+    for ctx in validation_function_candidates:
+        if not isinstance(ctx, dict):
+            continue
+        func = str(ctx.get("function", "")).strip()
+        reason = str(ctx.get("reason", "")).strip()
+        score = str(ctx.get("score", "")).strip()
+        parts = [
+            f"IDA校验函数候选: function={func}" if func else "IDA校验函数候选",
+            f"score={score}" if score else "",
+            f"reason={reason}" if reason else "",
+        ]
+        artifact.evidence.append(" ".join(p for p in parts if p))
+    for hint in solver_hints:
+        if isinstance(hint, dict):
+            value = str(hint.get("kind", "") or hint.get("hint", "")).strip()
+            reason = str(hint.get("reason", "")).strip()
+            artifact.evidence.append(
+                " ".join(
+                    part
+                    for part in (
+                        f"IDA求解提示: {value}" if value else "IDA求解提示",
+                        f"reason={reason}" if reason else "",
+                    )
+                    if part
+                )
+            )
+        else:
+            value = str(hint).strip()
+            if value:
+                artifact.evidence.append(f"IDA求解提示: {value}")
+    hexrays_available = bool(data.get("hexrays_available"))
+    if decompiler_snippets:
+        artifact.evidence.append(f"IDA反编译片段: {len(decompiler_snippets)} 条")
     artifact.success = True
     artifact.summary = (
         f"IDA 自动分析完成：字符串 {len(data.get('strings', []))} 条，"
         f"函数 {len(data.get('functions', []))} 个，"
         f"比较上下文 {len(data.get('compare_contexts', []))} 条，"
         f"局部校验上下文 {len(data.get('local_check_contexts', []))} 条，"
-        f"控件ID上下文 {len(data.get('control_id_contexts', []))} 条。"
+        f"控件ID上下文 {len(data.get('control_id_contexts', []))} 条，"
+        f"字符串引用 {len(data.get('string_xrefs', []))} 条，"
+        f"校验函数候选 {len(data.get('validation_function_candidates', []))} 个，"
+        f"Hex-Rays 可用={hexrays_available}。"
     )
     return artifact
 

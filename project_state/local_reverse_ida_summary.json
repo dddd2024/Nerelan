@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-03T11:17:12Z",
+  "stage": "local_reverse_ida_evidence_integration",
+  "status": "BLOCKED",
+  "target_count": 3,
+  "ida_available": false,
+  "hexrays_available_any": false,
+  "success_count": 0,
+  "targets": [
+    {
+      "sample_id": "18019fca52b389fe",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "previous_missing_evidence": "needs_symbolic_execution",
+      "ida_status": "blocked",
+      "blocked_reasons": [
+        "BLOCKED_BY_IDA_UNAVAILABLE"
+      ],
+      "ida_output_path": "",
+      "hexrays_available": false,
+      "strings_summary": [],
+      "compare_contexts_summary": [],
+      "local_check_contexts_summary": [],
+      "string_xrefs_summary": [],
+      "validation_function_candidates": [],
+      "decompiler_snippets": [],
+      "solver_hints": [],
+      "next_action": "",
+      "error": "未找到 IDA 可执行文件（请在界面配置 ida/idat 路径）。"
+    },
+    {
+      "sample_id": "4c69f173f2bd0211",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "previous_missing_evidence": "needs_symbolic_execution",
+      "ida_status": "blocked",
+      "blocked_reasons": [
+        "BLOCKED_BY_IDA_UNAVAILABLE"
+      ],
+      "ida_output_path": "",
+      "hexrays_available": false,
+      "strings_summary": [],
+      "compare_contexts_summary": [],
+      "local_check_contexts_summary": [],
+      "string_xrefs_summary": [],
+      "validation_function_candidates": [],
+      "decompiler_snippets": [],
+      "solver_hints": [],
+      "next_action": "",
+      "error": "未找到 IDA 可执行文件（请在界面配置 ida/idat 路径）。"
+    },
+    {
+      "sample_id": "bcbd9979db015bfd",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "previous_missing_evidence": "needs_symbolic_execution",
+      "ida_status": "blocked",
+      "blocked_reasons": [
+        "BLOCKED_BY_IDA_UNAVAILABLE"
+      ],
+      "ida_output_path": "",
+      "hexrays_available": false,
+      "strings_summary": [],
+      "compare_contexts_summary": [],
+      "local_check_contexts_summary": [],
+      "string_xrefs_summary": [],
+      "validation_function_candidates": [],
+      "decompiler_snippets": [],
+      "solver_hints": [],
+      "next_action": "",
+      "error": "未找到 IDA 可执行文件（请在界面配置 ida/idat 路径）。"
+    }
+  ]
+}

@@ -116,6 +116,20 @@ def _safe_strlit(ea: int) -> str:
     return ""
 
 
+def _nearby_before(ea: int, func_ea: int, limit: int = 5) -> list[str]:
+    nearby: list[str] = []
+    cur = ea
+    for _ in range(limit):
+        cur = idc.prev_head(cur, func_ea)
+        if cur == idc.BADADDR or cur < func_ea:
+            break
+        line = _safe_disasm(cur)
+        if line:
+            nearby.append(line)
+    nearby.reverse()
+    return nearby
+
+
 def _collect_compare_contexts(limit: int = 60) -> list[dict[str, str]]:
     compare_names = ("strcmp", "memcmp", "lstrcmp", "strncmp")
     imports: list[tuple[int, str]] = []
@@ -169,6 +183,51 @@ def _collect_compare_contexts(limit: int = 60) -> list[dict[str, str]]:
             if len(contexts) >= limit:
                 return contexts
     contexts.sort(key=lambda item: (-_text_score(item.get("ref_strings", "")), item["call_ea"]))
+    return contexts[:limit]
+
+
+def _collect_string_xrefs(limit: int = 80) -> list[dict[str, str]]:
+    contexts: list[dict[str, str]] = []
+    seen: set[tuple[int, int]] = set()
+    st = idautils.Strings()
+    st.setup(minlen=4)
+    scored_strings: list[tuple[int, int, str]] = []
+    for item in st:
+        value = str(item)
+        if not value or _text_score(value) <= 0:
+            continue
+        try:
+            ea = int(item.ea)
+        except Exception:
+            continue
+        scored_strings.append((_text_score(value), ea, value))
+        if len(scored_strings) >= 5000:
+            break
+    scored_strings.sort(key=lambda item: (-item[0], len(item[2]), item[2]))
+
+    for _, string_ea, value in scored_strings:
+        for xref in idautils.XrefsTo(string_ea, 0):
+            xref_ea = int(xref.frm)
+            key = (string_ea, xref_ea)
+            if key in seen:
+                continue
+            seen.add(key)
+            func_ea = idc.get_func_attr(xref_ea, idc.FUNCATTR_START)
+            nearby = _nearby_before(xref_ea, func_ea, limit=5) if func_ea != idc.BADADDR else []
+            contexts.append(
+                {
+                    "string_ea": _format_ea(string_ea),
+                    "xref_ea": _format_ea(xref_ea),
+                    "caller_func": ida_funcs.get_func_name(func_ea) if func_ea != idc.BADADDR else "",
+                    "string": value,
+                    "xref_disasm": _safe_disasm(xref_ea),
+                    "nearby": " || ".join(nearby),
+                    "score": str(_text_score(value)),
+                }
+            )
+            if len(contexts) >= limit:
+                return contexts
+    contexts.sort(key=lambda item: (-int(item.get("score", "0") or "0"), item["xref_ea"]))
     return contexts[:limit]
 
 
@@ -242,6 +301,127 @@ def _collect_local_check_contexts(limit: int = 60) -> list[dict[str, str]]:
     return contexts[:limit]
 
 
+def _collect_validation_function_candidates(
+    compare_contexts: list[dict[str, str]],
+    local_check_contexts: list[dict[str, str]],
+    control_id_contexts: list[dict[str, str]],
+    string_xrefs: list[dict[str, str]],
+    limit: int = 20,
+) -> list[dict[str, str]]:
+    by_func: dict[str, dict[str, object]] = {}
+
+    def add(func: str, points: int, reason: str, evidence: str = "") -> None:
+        if not func:
+            return
+        item = by_func.setdefault(func, {"function": func, "score": 0, "reasons": [], "evidence": []})
+        item["score"] = int(item["score"]) + points
+        reasons = item["reasons"]
+        if isinstance(reasons, list) and reason not in reasons:
+            reasons.append(reason)
+        evidence_items = item["evidence"]
+        if evidence and isinstance(evidence_items, list) and evidence not in evidence_items:
+            evidence_items.append(evidence)
+
+    for ctx in compare_contexts:
+        add(ctx.get("caller_func", ""), 8, "compare_context", ctx.get("call_ea", ""))
+    for ctx in local_check_contexts:
+        score = 5 + min(5, _text_score(ctx.get("ref_strings", "")))
+        add(ctx.get("caller_func", ""), score, "local_check_context", ctx.get("call_ea", ""))
+    for ctx in control_id_contexts:
+        add(ctx.get("caller_func", ""), 3, "control_id_context", ctx.get("ea", ""))
+    for ctx in string_xrefs:
+        score = min(6, _text_score(ctx.get("string", "")))
+        add(ctx.get("caller_func", ""), score, "interesting_string_xref", ctx.get("xref_ea", ""))
+
+    candidates: list[dict[str, str]] = []
+    for item in by_func.values():
+        reasons = item.get("reasons", [])
+        evidence = item.get("evidence", [])
+        candidates.append(
+            {
+                "function": str(item.get("function", "")),
+                "score": str(item.get("score", 0)),
+                "reason": " | ".join(str(reason) for reason in reasons[:6]) if isinstance(reasons, list) else "",
+                "evidence": " | ".join(str(ea) for ea in evidence[:8]) if isinstance(evidence, list) else "",
+            }
+        )
+    candidates.sort(key=lambda item: (-int(item.get("score", "0") or "0"), item["function"]))
+    return candidates[:limit]
+
+
+def _collect_decompiler_snippets(
+    validation_function_candidates: list[dict[str, str]],
+    limit: int = 6,
+    chars_per_snippet: int = 1400,
+) -> tuple[bool, list[dict[str, str]]]:
+    try:
+        import ida_hexrays  # type: ignore
+    except Exception:
+        return False, []
+    try:
+        if not ida_hexrays.init_hexrays_plugin():
+            return False, []
+    except Exception:
+        return False, []
+
+    snippets: list[dict[str, str]] = []
+    for candidate in validation_function_candidates:
+        func_name = candidate.get("function", "")
+        if not func_name:
+            continue
+        ea = idc.get_name_ea_simple(func_name)
+        if ea == idc.BADADDR:
+            continue
+        func = ida_funcs.get_func(ea)
+        if not func:
+            continue
+        try:
+            cfunc = ida_hexrays.decompile(func.start_ea)
+        except Exception:
+            continue
+        if not cfunc:
+            continue
+        text = str(cfunc)
+        snippets.append(
+            {
+                "function": func_name,
+                "entry_ea": _format_ea(int(func.start_ea)),
+                "text": text[:chars_per_snippet],
+            }
+        )
+        if len(snippets) >= limit:
+            break
+    return True, snippets
+
+
+def _infer_solver_hints(
+    compare_contexts: list[dict[str, str]],
+    local_check_contexts: list[dict[str, str]],
+    string_xrefs: list[dict[str, str]],
+    validation_function_candidates: list[dict[str, str]],
+) -> list[dict[str, str]]:
+    text = " ".join(
+        [
+            *(str(ctx.get("callee", "")) for ctx in compare_contexts),
+            *(str(ctx.get("ref_strings", "")) for ctx in compare_contexts),
+            *(str(ctx.get("ref_strings", "")) for ctx in local_check_contexts),
+            *(str(ctx.get("string", "")) for ctx in string_xrefs),
+        ]
+    ).lower()
+    hints: list[dict[str, str]] = []
+    if any(name in text for name in ("strcmp", "strncmp", "lstrcmp", "memcmp")):
+        hints.append({"kind": "direct_strcmp", "reason": "compare API context recovered"})
+    if any(name in text for name in ("md5", "sha", "hash")):
+        hints.append({"kind": "hash_compare", "reason": "hash-related string or context recovered"})
+    if validation_function_candidates and any(("xor" in text, "decrypt" in text, "encrypt" in text)):
+        hints.append({"kind": "transform_then_compare", "reason": "transform keyword near validation context"})
+    if any(name in text for name in ("input", "password", "flag")):
+        hints.append({"kind": "gui_input", "reason": "input-oriented strings recovered"})
+    if not hints:
+        hints.append({"kind": "unknown", "reason": "no decisive solver pattern in bounded IDA summary"})
+    return hints[:6]
+
+
 def _collect_control_id_contexts(limit: int = 40) -> list[dict[str, str]]:
     target_ids = {"3E8", "3E9", "3EA", "1000", "1001", "1002"}
     contexts: list[dict[str, str]] = []
@@ -296,13 +476,34 @@ def main() -> None:
         entry_ea = idc.get_inf_attr(idc.INF_START_IP)
     except Exception:
         entry_ea = idc.get_inf_attr(idc.INF_START_EA)
+    compare_contexts = _collect_compare_contexts()
+    local_check_contexts = _collect_local_check_contexts()
+    control_id_contexts = _collect_control_id_contexts()
+    string_xrefs = _collect_string_xrefs()
+    validation_function_candidates = _collect_validation_function_candidates(
+        compare_contexts=compare_contexts,
+        local_check_contexts=local_check_contexts,
+        control_id_contexts=control_id_contexts,
+        string_xrefs=string_xrefs,
+    )
+    hexrays_available, decompiler_snippets = _collect_decompiler_snippets(validation_function_candidates)
     payload = {
         "entry": hex(entry_ea),
         "strings": _collect_strings(),
         "functions": _collect_functions(),
-        "compare_contexts": _collect_compare_contexts(),
-        "local_check_contexts": _collect_local_check_contexts(),
-        "control_id_contexts": _collect_control_id_contexts(),
+        "compare_contexts": compare_contexts,
+        "local_check_contexts": local_check_contexts,
+        "control_id_contexts": control_id_contexts,
+        "string_xrefs": string_xrefs,
+        "validation_function_candidates": validation_function_candidates,
+        "hexrays_available": hexrays_available,
+        "decompiler_snippets": decompiler_snippets,
+        "solver_hints": _infer_solver_hints(
+            compare_contexts=compare_contexts,
+            local_check_contexts=local_check_contexts,
+            string_xrefs=string_xrefs,
+            validation_function_candidates=validation_function_candidates,
+        ),
     }
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=2)

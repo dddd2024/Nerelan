@@ -7,6 +7,7 @@ from reverse_agent import tool_runners
 from reverse_agent.tool_runners import (
     ToolAutomationConfig,
     run_compare_probe,
+    run_ida_evidence,
     run_tool_automation,
 )
 
@@ -410,3 +411,56 @@ def test_ida_parses_compare_contexts_into_evidence(tmp_path: Path, monkeypatch) 
     assert "控件ID上下文 1 条" in artifact.summary
     assert any("IDA比较上下文" in line and "lstrcmpA" in line for line in artifact.evidence)
     assert any("IDA控件ID上下文" in line and "push 3E8h" in line for line in artifact.evidence)
+
+
+def test_public_ida_evidence_runner_reuses_ida_automation(tmp_path: Path, monkeypatch) -> None:
+    target = tmp_path / "demo.exe"
+    target.write_bytes(b"MZ")
+    out_json = tmp_path / "artifacts" / "demo_ida_evidence.json"
+    out_json.parent.mkdir(parents=True, exist_ok=True)
+    out_json.write_text(
+        json.dumps(
+            {
+                "entry": "0x401000",
+                "strings": ["flag{"],
+                "functions": ["sub_401000"],
+                "compare_contexts": [],
+                "local_check_contexts": [],
+                "control_id_contexts": [],
+                "string_xrefs": [{"string": "correct", "xref_ea": "0x401020"}],
+                "validation_function_candidates": [{"function": "sub_401000", "score": "8"}],
+                "hexrays_available": False,
+                "decompiler_snippets": [],
+                "solver_hints": [{"kind": "direct_strcmp"}],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(tool_runners, "_resolve_ida_executable", lambda p: r"C:\ida\idat64.exe")
+    monkeypatch.setattr(tool_runners, "_resolve_ida_script", lambda p: r"C:\ida\collect.py")
+
+    def _fake_run(*args, **kwargs):  # noqa: ANN002, ANN003
+        class _Proc:
+            returncode = 0
+            stdout = ""
+            stderr = ""
+
+        return _Proc()
+
+    monkeypatch.setattr(tool_runners.subprocess, "run", _fake_run)
+
+    artifact = run_ida_evidence(
+        file_path=target,
+        artifacts_dir=tmp_path / "artifacts",
+        log=lambda _: None,
+        timeout_seconds=30,
+    )
+
+    assert artifact.tool_name == "IDA"
+    assert artifact.attempted is True
+    assert artifact.success is True
+    assert "字符串引用 1 条" in artifact.summary
+    assert "校验函数候选 1 个" in artifact.summary
+    assert any("IDA字符串引用" in line for line in artifact.evidence)
