@@ -1,9 +1,9 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260604_local_reverse_training_status_overlay_v1",
-  "report_id": "report_20260604_local_reverse_training_status_overlay_v1",
-  "round_id": "round_20260604_local_reverse_training_status_overlay_v1",
+  "decision_id": "decision_20260604_fix_training_status_overlay_audit_v1",
+  "report_id": "report_20260604_fix_training_status_overlay_audit_v1",
+  "round_id": "round_20260604_fix_training_status_overlay_audit_v1",
   "generated_at": "2026-06-04T00:00:00Z",
   "status": "PASSED",
   "tests_ran": [

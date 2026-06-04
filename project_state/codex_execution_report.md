@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260604_local_reverse_training_status_overlay_v1",
-  "round_id": "round_20260604_local_reverse_training_status_overlay_v1",
-  "based_on_decision_id": "decision_20260604_local_reverse_training_status_overlay_v1",
+  "report_id": "report_20260604_fix_training_status_overlay_audit_v1",
+  "round_id": "round_20260604_fix_training_status_overlay_audit_v1",
+  "based_on_decision_id": "decision_20260604_fix_training_status_overlay_audit_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPT",
   "files_changed": [

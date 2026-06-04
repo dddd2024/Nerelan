@@ -70,6 +70,9 @@ def test_build_sample_entry_solved() -> None:
         "sample_id": "cpp1_abc123",
         "relative_path": "Cpp1.exe",
         "sha256": "abc123def456",
+        "size_bytes": 200782,
+        "extension": ".exe",
+        "guessed_file_type": "pe",
         "category": "cpp",
         "tags": ["local", "reverse", "cpp", "pe"],
     }
@@ -78,6 +81,9 @@ def test_build_sample_entry_solved() -> None:
     assert result["training_status"] == TRAINING_STATUS_SOLVED
     assert result["known_candidate"] == "hookapi"
     assert result["blocked_reason"] == ""
+    assert result["size_bytes"] == 200782
+    assert result["extension"] == ".exe"
+    assert result["guessed_file_type"] == "pe"
 
 
 def test_build_sample_entry_blocked() -> None:
@@ -362,16 +368,19 @@ def test_main_cli_build(tmp_path: Path) -> None:
     inv_path = tmp_path / "inventory.json"
     out_path = tmp_path / "status.json"
     queue_path = tmp_path / "queue.json"
+    gh_path = tmp_path / "github_status.json"
     _write_json(inv_path, inventory)
 
     assert main([
         "--inventory", str(inv_path),
         "--out", str(out_path),
         "--queue-out", str(queue_path),
+        "--github-status-out", str(gh_path),
     ]) == 0
 
     assert out_path.exists()
     assert queue_path.exists()
+    assert gh_path.exists()
 
 
 def test_cpp1_not_mislabeled_as_solved_without_validation() -> None:
