@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "main_36c51ec1",
-      "input_value": "逆向课程2025春04/main.exe",
+      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2025春04/main.exe",
       "expected_flag": "",
       "category": "unknown",
       "tags": [

@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "desenc_0e0b5203",
-      "input_value": "逆向课程2019春04/desenc.exe",
+      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2019春04/desenc.exe",
       "expected_flag": "",
       "category": "crypto/cipher",
       "tags": [

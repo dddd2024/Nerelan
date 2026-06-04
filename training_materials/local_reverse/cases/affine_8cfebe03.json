@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "affine_8cfebe03",
-      "input_value": "逆向课程2024春补考03/affine.exe",
+      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2024春补考03/affine.exe",
       "expected_flag": "",
       "category": "unknown",
       "tags": [

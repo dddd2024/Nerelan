@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "rc4enc_3480917d",
-      "input_value": "逆向课程2019秋03/rc4enc.exe",
+      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2019秋03/rc4enc.exe",
       "expected_flag": "",
       "category": "crypto/cipher",
       "tags": [

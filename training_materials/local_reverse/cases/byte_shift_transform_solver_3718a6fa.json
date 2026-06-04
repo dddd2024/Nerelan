@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "byte_shift_transform_solver_3718a6fa",
-      "input_value": "逆向课程2021春02/byte_shift_transform_solver.py",
+      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2021春02/byte_shift_transform_solver.py",
       "expected_flag": "",
       "category": "unknown",
       "tags": [

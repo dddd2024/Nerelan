@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
@@ -13,6 +14,171 @@ DEFAULT_SAMPLES_ROOT = Path("E:/reverse")
 DEFAULT_OUT = Path("project_state/local_reverse_inventory.json")
 DEFAULT_GITHUB_OUT = Path("training_materials/local_reverse/inventory.json")
 DEFAULT_CASES_DIR = Path("training_materials/local_reverse/cases")
+
+LOCAL_REVERSE_ROOT_ENV = "LOCAL_REVERSE_ROOT"
+LOCAL_REVERSE_ROOT_HINT = "LOCAL_REVERSE_ROOT"
+
+# Directories to exclude from scanning
+EXCLUDE_DIRS: set[str] = {
+    ".idea",
+    ".vscode",
+    ".git",
+    "__pycache__",
+    ".pytest_cache",
+    ".venv",
+    "venv",
+    "env",
+    "node_modules",
+}
+
+# Extensions to exclude (IDE configs, caches, logs, temp files)
+EXCLUDE_EXTENSIONS: set[str] = {
+    ".iml",
+    ".xml",
+    ".log",
+    ".tmp",
+    ".cache",
+    ".pyc",
+    ".pyo",
+    ".pyd",
+    ".class",
+    ".o",
+    ".obj",
+    ".ilk",
+    ".pdb",
+    ".idb",
+    ".tlog",
+    ".manifest",
+    ".res",
+    ".rc",
+}
+
+# Extensions considered sample/attachment types by default
+SAMPLE_EXTENSIONS: set[str] = {
+    ".exe",
+    ".dll",
+    ".sys",
+    ".bin",
+    ".dat",
+    ".elf",
+    ".so",
+    ".apk",
+    ".jar",
+    ".class",
+    ".zip",
+    ".7z",
+    ".rar",
+    ".tar",
+    ".gz",
+    ".bz2",
+    ".xz",
+    ".doc",
+    ".docx",
+    ".pdf",
+    ".txt",
+    ".md",
+    ".json",
+    ".py",
+    ".c",
+    ".cpp",
+    ".h",
+    ".hpp",
+    ".cs",
+    ".vb",
+    ".java",
+    ".js",
+    ".html",
+    ".htm",
+    ".php",
+    ".asp",
+    ".aspx",
+    ".jsp",
+    ".sql",
+    ".db",
+    ".sqlite",
+    ".mdb",
+    ".accdb",
+    ".csv",
+    ".tsv",
+    ".xls",
+    ".xlsx",
+    ".ppt",
+    ".pptx",
+    ".bmp",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".tiff",
+    ".ico",
+    ".wav",
+    ".mp3",
+    ".mp4",
+    ".avi",
+    ".mov",
+    ".wmv",
+    ".flv",
+    ".swf",
+    ".fla",
+    ".psd",
+    ".ai",
+    ".eps",
+    ".svg",
+    ".ttf",
+    ".otf",
+    ".woff",
+    ".woff2",
+    ".eot",
+    ".cur",
+    ".ani",
+    ".icl",
+    ".dll",
+    ".ocx",
+    ".ax",
+    ".cpl",
+    ".drv",
+    ".vxd",
+    ".386",
+    ".com",
+    ".bat",
+    ".cmd",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".ps1",
+    ".psm1",
+    ".psd1",
+    ".vbs",
+    ".js",
+    ".jse",
+    ".wsf",
+    ".wsh",
+    ".hta",
+    ".msc",
+    ".cpl",
+    ".appref-ms",
+    ".url",
+    ".lnk",
+    ".scf",
+    ".inf",
+    ".reg",
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".config",
+    ".properties",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".ini",
+    ".inf",
+    ".nfo",
+    ".diz",
+    ".readme",
+    ".nfo",
+    ".diz",
+}
 
 # Categories guessed from filename / extension heuristics
 CATEGORY_PATTERNS: list[tuple[str, str]] = [
@@ -31,8 +197,21 @@ EXTENSION_TYPE_MAP: dict[str, str] = {
     ".exe": "pe",
     ".dll": "pe",
     ".sys": "pe",
+    ".com": "pe",
     ".bin": "raw",
     ".dat": "raw",
+    ".elf": "elf",
+    ".so": "elf",
+    ".apk": "apk",
+    ".jar": "jar",
+    ".class": "java_class",
+    ".zip": "archive",
+    ".7z": "archive",
+    ".rar": "archive",
+    ".tar": "archive",
+    ".gz": "archive",
+    ".bz2": "archive",
+    ".xz": "archive",
     ".txt": "text",
     ".json": "json",
     ".md": "markdown",
@@ -40,6 +219,94 @@ EXTENSION_TYPE_MAP: dict[str, str] = {
     ".c": "c",
     ".cpp": "cpp",
     ".h": "c_header",
+    ".hpp": "cpp_header",
+    ".cs": "csharp",
+    ".vb": "vb",
+    ".java": "java",
+    ".js": "javascript",
+    ".html": "html",
+    ".htm": "html",
+    ".php": "php",
+    ".asp": "asp",
+    ".aspx": "asp",
+    ".jsp": "jsp",
+    ".sql": "sql",
+    ".db": "database",
+    ".sqlite": "database",
+    ".mdb": "database",
+    ".accdb": "database",
+    ".csv": "csv",
+    ".tsv": "tsv",
+    ".xls": "spreadsheet",
+    ".xlsx": "spreadsheet",
+    ".ppt": "presentation",
+    ".pptx": "presentation",
+    ".bmp": "image",
+    ".jpg": "image",
+    ".jpeg": "image",
+    ".png": "image",
+    ".gif": "image",
+    ".tiff": "image",
+    ".ico": "icon",
+    ".wav": "audio",
+    ".mp3": "audio",
+    ".mp4": "video",
+    ".avi": "video",
+    ".mov": "video",
+    ".wmv": "video",
+    ".flv": "video",
+    ".swf": "flash",
+    ".fla": "flash",
+    ".psd": "photoshop",
+    ".ai": "illustrator",
+    ".eps": "eps",
+    ".svg": "svg",
+    ".ttf": "font",
+    ".otf": "font",
+    ".woff": "font",
+    ".woff2": "font",
+    ".eot": "font",
+    ".cur": "cursor",
+    ".ani": "cursor",
+    ".icl": "icon_library",
+    ".ocx": "activex",
+    ".ax": "activex",
+    ".cpl": "control_panel",
+    ".drv": "driver",
+    ".vxd": "driver",
+    ".386": "driver",
+    ".bat": "batch",
+    ".cmd": "batch",
+    ".sh": "shell",
+    ".bash": "shell",
+    ".zsh": "shell",
+    ".fish": "shell",
+    ".ps1": "powershell",
+    ".psm1": "powershell",
+    ".psd1": "powershell",
+    ".vbs": "vbscript",
+    ".jse": "jscript",
+    ".wsf": "wsh",
+    ".wsh": "wsh",
+    ".hta": "hta",
+    ".msc": "mmc",
+    ".appref-ms": "appref",
+    ".url": "url",
+    ".lnk": "shortcut",
+    ".scf": "shell_command",
+    ".inf": "inf",
+    ".reg": "registry",
+    ".ini": "ini",
+    ".cfg": "config",
+    ".conf": "config",
+    ".config": "config",
+    ".properties": "properties",
+    ".yaml": "yaml",
+    ".yml": "yaml",
+    ".toml": "toml",
+    ".nfo": "nfo",
+    ".diz": "diz",
+    ".readme": "readme",
 }
 
 
@@ -97,7 +364,8 @@ def scan_samples(
     inventory = {
         "schema_version": 1,
         "generated_at": _now_iso(),
-        "samples_root": str(samples_root.resolve()),
+        "samples_root_hint": LOCAL_REVERSE_ROOT_HINT,
+        "source_root_label": str(samples_root.resolve()),
         "entries": entries,
     }
 
@@ -108,7 +376,7 @@ def scan_samples(
         github_inventory = {
             "schema_version": 1,
             "generated_at": _now_iso(),
-            "samples_root_hint": "LOCAL_REVERSE_ROOT",
+            "samples_root_hint": LOCAL_REVERSE_ROOT_HINT,
             "entries": github_entries,
         }
         github_out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -163,11 +431,14 @@ def _build_github_entry(entry: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_case_payload(entry: dict[str, Any]) -> dict[str, Any]:
+    # Use LOCAL_REVERSE_ROOT placeholder so harness can resolve locally
+    rel = entry["relative_path"]
+    input_value = f"${{{LOCAL_REVERSE_ROOT_HINT}}}/{rel}"
     return {
         "cases": [
             {
                 "case_id": entry["sample_id"],
-                "input_value": entry["relative_path"],
+                "input_value": input_value,
                 "expected_flag": "",
                 "category": entry["category"],
                 "tags": entry["tags"][:],
@@ -205,11 +476,35 @@ def _build_tags(category: str, guessed: str) -> list[str]:
 def _walk_files(root: Path) -> list[Path]:
     files: list[Path] = []
     if root.is_file():
-        return [root]
+        if _should_include_file(root, root.parent):
+            return [root]
+        return []
     for path in sorted(root.rglob("*")):
-        if path.is_file():
+        if path.is_file() and _should_include_file(path, root):
             files.append(path)
     return files
+
+
+def _should_include_file(path: Path, root: Path) -> bool:
+    # Exclude known IDE / config directories
+    try:
+        rel_parts = path.relative_to(root).parts
+    except ValueError:
+        rel_parts = path.parts
+    for part in rel_parts[:-1]:  # exclude the filename itself
+        if part.lower() in EXCLUDE_DIRS:
+            return False
+
+    # Exclude known non-sample extensions
+    ext = path.suffix.lower()
+    if ext in EXCLUDE_EXTENSIONS:
+        return False
+
+    # Only include files with sample-like extensions (or no extension, which might be raw binary)
+    if ext and ext not in SAMPLE_EXTENSIONS:
+        return False
+
+    return True
 
 
 def _sha256_file(path: Path) -> str:

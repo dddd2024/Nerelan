@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "desenc_40cba418",
-      "input_value": "DES/desenc.exe",
+      "input_value": "${LOCAL_REVERSE_ROOT}/DES/desenc.exe",
       "expected_flag": "",
       "category": "crypto/cipher",
       "tags": [

@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "cpp2_fc735338",
-      "input_value": "Cpp2.exe",
+      "input_value": "${LOCAL_REVERSE_ROOT}/Cpp2.exe",
       "expected_flag": "",
       "category": "cpp",
       "tags": [

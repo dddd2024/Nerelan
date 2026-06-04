@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "des_interactive_solver_256e1726",
-      "input_value": "DES/des_interactive_solver.py",
+      "input_value": "${LOCAL_REVERSE_ROOT}/DES/des_interactive_solver.py",
       "expected_flag": "",
       "category": "crypto/cipher",
       "tags": [

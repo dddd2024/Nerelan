@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "cpp2_32f1713e",
-      "input_value": "逆向课程2023春补考02/Cpp2.exe",
+      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2023春补考02/Cpp2.exe",
       "expected_flag": "",
       "category": "cpp",
       "tags": [

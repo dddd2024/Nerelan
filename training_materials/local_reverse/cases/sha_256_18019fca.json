@@ -2,7 +2,7 @@
   "cases": [
     {
       "case_id": "sha_256_18019fca",
-      "input_value": "逆向课程2024春01/sha_256.exe",
+      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2024春01/sha_256.exe",
       "expected_flag": "",
       "category": "crypto/hash",
       "tags": [
