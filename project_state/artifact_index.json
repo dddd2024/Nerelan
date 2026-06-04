@@ -617,10 +617,20 @@
       "kind": "local_reverse_affine_ida_summary",
       "path": "project_state\\local_reverse_affine_ida_summary.json",
       "freshness": "current",
-      "source_run": "round_20260604_affine_ida_static_export_v1",
-      "sha256": "58c28ef4e671cca93427a9747844a879539077efcdc935b2af9cd327fe5b8f61",
-      "size_bytes": 18156,
-      "modified_at": "2026-06-04T13:26:32Z"
+      "source_run": "round_20260604_affine_ida_static_export_rework_v1",
+      "sha256": "78cc372568c4bb1d9d17de23c5992ff19f343c3f7534a9e746ca37b5ed2841b8",
+      "size_bytes": 18525,
+      "modified_at": "2026-06-04T14:00:00Z"
+    },
+    "local_reverse_ida_evidence_affine_8cfebe03": {
+      "kind": "local_reverse_ida_evidence_affine_8cfebe03",
+      "path": "solve_reports\\tool_artifacts\\local_reverse_affine_ida_static_export_v1\\affine_8cfebe03\\affine_ida_evidence.json",
+      "freshness": "current",
+      "source_run": "round_20260604_affine_ida_static_export_rework_v1",
+      "sha256": "201f82fb217be8e9763323ec4babfee1f5da0c24096c18c6f2d9458a05bd4913",
+      "size_bytes": 82503,
+      "modified_at": "2026-06-04T14:00:00Z",
+      "sample_id": "affine_8cfebe03"
     }
   },
   "latest_case_results": [

@@ -1,13 +1,17 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260604_affine_ida_static_export_v1",
-  "report_id": "report_20260604_affine_ida_static_export_v1",
-  "round_id": "round_20260604_affine_ida_static_export_v1",
-  "generated_at": "2026-06-04T00:00:00Z",
+  "decision_id": "decision_20260604_affine_ida_static_export_rework_v1",
+  "report_id": "report_20260604_affine_ida_static_export_rework_v1",
+  "round_id": "round_20260604_affine_ida_static_export_rework_v1",
+  "generated_at": "2026-06-04T14:00:00Z",
   "status": "PASSED",
   "tests_ran": [
-    "tests/test_project_state.py"
+    "tests/test_project_state.py",
+    "lint-decision",
+    "lint-report",
+    "git diff --check",
+    "git status --short"
   ]
 }
 ```
@@ -18,7 +22,7 @@ COMMAND-LEVEL TEST RECORD
 
 [1] python -m pytest -q tests/test_project_state.py
     Exit code: 0
-    Output: 157 passed in 84.73s
+    Output: 157 passed in 78.44s
     Status: OK
 
 [2] python -m reverse_agent.project_state lint-decision --state-dir project_state
@@ -49,4 +53,5 @@ Summary:
 
 Total: 157 passed
 
-Note: IDA static export was performed using existing tool_runners.py and ida_scripts/collect_evidence.py. No new Python code was added.
+Note: This round is a rework of report_20260604_affine_ida_static_export_v1.
+No IDA re-run, no sample execution, no runtime probe. Pure JSON/Markdown fixes.
