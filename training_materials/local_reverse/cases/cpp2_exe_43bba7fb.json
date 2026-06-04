@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "cpp2_exe_43bba7fb",
+      "input_value": "Cpp2.exe.i64",
+      "expected_flag": "",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "pwd_030127ca",
+      "input_value": "逆向课程2022春补考01/pwd.txt",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "text"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

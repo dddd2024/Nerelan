@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "main_36c51ec1",
+      "input_value": "逆向课程2025春04/main.exe",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "seh_52be8d5c",
+      "input_value": "逆向课程2020秋02/SEH.exe",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

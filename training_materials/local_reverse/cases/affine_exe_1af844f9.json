@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case_id": "affine_exe_1af844f9",
+      "input_value": "逆向课程2024春补考03/affine.exe.til",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

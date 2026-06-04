@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "main_fb1f8cc0",
+      "input_value": "逆向课程2022春补考04/main.exe",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

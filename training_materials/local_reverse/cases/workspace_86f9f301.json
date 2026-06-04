@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case_id": "workspace_86f9f301",
+      "input_value": ".idea/workspace.xml",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

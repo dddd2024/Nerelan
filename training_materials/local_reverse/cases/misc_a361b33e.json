@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case_id": "misc_a361b33e",
+      "input_value": ".idea/misc.xml",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "cpp2_exe_66b7ad60",
+      "input_value": "逆向课程2021春02/Cpp2.exe.id1",
+      "expected_flag": "",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

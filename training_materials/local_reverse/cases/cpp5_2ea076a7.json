@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "case_id": "cpp5_2ea076a7",
+      "input_value": "逆向课程2022春05/CPP5.exe",
+      "expected_flag": "",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

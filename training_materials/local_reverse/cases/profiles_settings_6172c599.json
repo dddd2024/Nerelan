@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case_id": "profiles_settings_6172c599",
+      "input_value": ".idea/inspectionProfiles/profiles_settings.xml",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

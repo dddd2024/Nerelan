@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "byte_shift_transform_solver_3718a6fa",
+      "input_value": "逆向课程2021春02/byte_shift_transform_solver.py",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "python"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

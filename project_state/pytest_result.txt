@@ -1,17 +1,14 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260603_forced_ida_sub401005_extraction_v1",
-  "report_id": "report_20260603_local_reverse_forced_ida_extraction_v1",
-  "round_id": "round_20260603_forced_ida_sub401005_extraction_v1",
-  "generated_at": "2026-06-03T16:00:00Z",
+  "decision_id": "decision_20260604_local_reverse_metadata_inventory_v1",
+  "report_id": "report_20260604_local_reverse_metadata_inventory_v1",
+  "round_id": "round_20260604_local_reverse_metadata_inventory_v1",
+  "generated_at": "2026-06-04T00:00:00Z",
   "status": "PASSED",
   "tests_ran": [
-    "tests/test_local_reverse_forced_ida_extract.py",
-    "tests/test_local_reverse_targeted_static_reextract.py",
-    "tests/test_local_reverse_constraint_recovery.py",
-    "tests/test_local_reverse_ida_guided_solver.py",
-    "tests/test_local_reverse_ida_summary.py",
+    "tests/test_local_reverse_inventory.py",
+    "tests/test_local_samples.py",
     "tests/test_project_state.py"
   ]
 }
@@ -21,22 +18,22 @@
 COMMAND-LEVEL TEST RECORD
 ================================================================================
 
-[1] python -m py_compile reverse_agent\ida_scripts\forced_function_extract.py reverse_agent\local_reverse_forced_ida_extract.py
+[1] python -m py_compile reverse_agent/local_reverse_inventory.py
     Exit code: 0
     Status: OK
 
-[2] python -m reverse_agent.local_reverse_forced_ida_extract --artifact-index project_state\artifact_index.json --handoff project_state\local_reverse_validated_candidate_handoff.json --out project_state\local_reverse_forced_ida_extraction_result.json --policy project_state\local_reverse_runtime_policy.json --ida-timeout 300
+[2] python -m pytest -q tests/test_local_reverse_inventory.py
     Exit code: 0
-    Output: forced IDA extraction: status=SUCCESS targets=2
+    Output: 11 passed in 5.20s
     Status: OK
 
-[3] python -m json.tool project_state\local_reverse_forced_ida_extraction_result.json > NUL
+[3] python -m pytest -q tests/test_local_samples.py tests/test_project_state.py
     Exit code: 0
+    Output: 167 passed in 72.72s
     Status: OK
 
-[4] python -m pytest -q tests\test_local_reverse_forced_ida_extract.py tests\test_local_reverse_targeted_static_reextract.py tests\test_local_reverse_constraint_recovery.py tests\test_local_reverse_ida_guided_solver.py tests\test_local_reverse_ida_summary.py tests\test_project_state.py
+[4] python -m reverse_agent.project_state lint-decision --state-dir project_state
     Exit code: 0
-    Output: 204 passed in 35.24s
     Status: OK
 
 ================================================================================
@@ -45,25 +42,10 @@ PYTEST DETAIL
 
 platform win32 -- Python 3.11.11, pytest-9.0.3, pluggy-1.6.0
 rootdir: F:\reverse-agent
-collected 204 items
-
-tests\test_local_reverse_forced_ida_extract.py ....................      [  7%]
-tests\test_local_reverse_targeted_static_reextract.py .................... [ 14%]
-tests\test_local_reverse_constraint_recovery.py .....                   [ 17%]
-tests\test_local_reverse_ida_guided_solver.py .......................... [ 31%]
-tests\test_local_reverse_string_solver.py .............................. [ 44%]
-tests\test_local_reverse_ida_summary.py ...............................  [ 57%]
-tests\test_project_state.py ............................................ [ 71%]
-........................................................................ [ 88%]
-........................................................                 [100%]
-
-============================== 204 passed in 35.24s ==============================
 
 Summary:
-- test_local_reverse_forced_ida_extract.py: 9 passed
-- test_local_reverse_targeted_static_reextract.py: 14 passed
-- test_local_reverse_constraint_recovery.py: 5 passed
-- test_local_reverse_ida_guided_solver.py: 27 passed
-- test_local_reverse_string_solver.py: 26 passed
-- test_local_reverse_ida_summary.py: 25 passed
+- test_local_reverse_inventory.py: 11 passed
+- test_local_samples.py: 14 passed
 - test_project_state.py: 98 passed
+
+Total: 178 passed

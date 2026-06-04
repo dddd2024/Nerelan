@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "case_id": "rc4enc_3480917d",
+      "input_value": "逆向课程2019秋03/rc4enc.exe",
+      "expected_flag": "",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

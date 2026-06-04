@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case_id": "gitignore_fa570d3e",
+      "input_value": ".idea/.gitignore",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

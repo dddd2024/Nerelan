@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case_id": "reverse_e40a6ebd",
+      "input_value": ".idea/reverse.iml",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

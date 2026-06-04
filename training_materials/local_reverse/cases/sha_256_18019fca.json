@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "case_id": "sha_256_18019fca",
+      "input_value": "逆向课程2024春01/sha_256.exe",
+      "expected_flag": "",
+      "category": "crypto/hash",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_hash",
+        "pe"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

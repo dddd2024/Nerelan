@@ -1,0 +1,15 @@
+{
+  "cases": [
+    {
+      "case_id": "modules_1c75de93",
+      "input_value": ".idea/modules.xml",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

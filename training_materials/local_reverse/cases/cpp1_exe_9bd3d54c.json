@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "cpp1_exe_9bd3d54c",
+      "input_value": "逆向课程2023春补考01/Cpp1.exe.i64",
+      "expected_flag": "",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

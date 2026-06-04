@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "case_id": "rc4_add1978d",
+      "input_value": "逆向课程2019秋03/rc4.py",
+      "expected_flag": "",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "python"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

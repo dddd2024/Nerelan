@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "sha_cd947414",
+      "input_value": "逆向课程2022春02/sha.py",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "python"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

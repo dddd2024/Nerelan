@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "case_id": "desenc_14c58fcd",
+      "input_value": "逆向课程2019秋04/desenc.exe",
+      "expected_flag": "",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

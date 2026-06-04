@@ -1,0 +1,16 @@
+{
+  "cases": [
+    {
+      "case_id": "xor_array_solver_4e6d25f0",
+      "input_value": "逆向课程2023春03/xor_array_solver.py",
+      "expected_flag": "",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "python"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}

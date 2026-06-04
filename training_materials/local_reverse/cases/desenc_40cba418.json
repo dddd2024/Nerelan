@@ -1,0 +1,17 @@
+{
+  "cases": [
+    {
+      "case_id": "desenc_40cba418",
+      "input_value": "DES/desenc.exe",
+      "expected_flag": "",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "notes": "Auto-generated from local reverse inventory."
+    }
+  ]
+}
