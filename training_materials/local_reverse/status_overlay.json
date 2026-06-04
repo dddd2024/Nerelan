@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-04T07:30:40Z",
+  "source_inventory_hint": "LOCAL_REVERSE_ROOT",
+  "sample_count": 1,
+  "status_summary": {
+    "solved": 0,
+    "blocked": 0,
+    "needs_triage": 0,
+    "inventory_only": 1
+  },
+  "samples": [
+    {
+      "sample_id": "todo1",
+      "relative_path": "todo.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    }
+  ]
+}
