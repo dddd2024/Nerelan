@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "relative_path": "逆向课程2024春补考03/affine.exe",
+  "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+  "size_bytes": 196688,
+  "extension": ".exe",
+  "guessed_file_type": "pe",
+  "category": "unknown",
+  "tags": ["local", "reverse", "pe"],
+  "training_status": "inventory_only",
+  "mainline": "tool_integration",
+  "allowed_actions": [
+    "static_triage",
+    "static_strings",
+    "static_file_type",
+    "static_entropy",
+    "static_pe_headers",
+    "static_import_names",
+    "static_constants",
+    "static_tool_export_if_available"
+  ],
+  "forbidden_actions": [
+    "runtime_probe",
+    "debugger",
+    "execute_sample",
+    "bruteforce",
+    "upload_binary",
+    "ida_dynamic_analysis",
+    "ghidra_dynamic_analysis"
+  ],
+  "evidence_to_collect": [
+    {
+      "evidence_type": "file_format",
+      "description": "Confirm PE architecture (32/64-bit), section layout, entry point",
+      "tool": "static_feature_extractor.detect_pe_format",
+      "already_available": true,
+      "notes": "Current inventory shows guessed_file_type=pe; need architecture detail"
+    },
+    {
+      "evidence_type": "ascii_strings",
+      "description": "Extract printable ASCII strings for crypto/compare/IO keywords",
+      "tool": "static_feature_extractor.extract_ascii_strings",
+      "already_available": true,
+      "notes": "Look for shift/affine related constants, compare strings, input prompts"
+    },
+    {
+      "evidence_type": "entropy",
+      "description": "Compute Shannon entropy to detect encrypted/packed regions",
+      "tool": "static_feature_extractor.compute_entropy",
+      "already_available": true,
+      "notes": "Low entropy expected for simple affine transform; high entropy may indicate packing"
+    },
+    {
+      "evidence_type": "keyword_hits",
+      "description": "Scan for crypto/encoding/comparison/IO keywords",
+      "tool": "static_feature_extractor keyword scanning",
+      "already_available": true,
+      "notes": "CRYPTO_KEYWORDS and COMPARE_KEYWORDS lists already defined in static_feature_extractor"
+    },
+    {
+      "evidence_type": "interesting_constants",
+      "description": "Extract small byte arrays and numeric constants",
+      "tool": "static_feature_extractor constant scanning",
+      "already_available": true,
+      "notes": "Look for affine transform constants (a, b) or shift amounts"
+    },
+    {
+      "evidence_type": "ida_static_export",
+      "description": "Check if IDA static export interface can produce function list / compare sites",
+      "tool": "local_reverse_ida_summary.run_local_reverse_ida_summary",
+      "already_available": true,
+      "notes": "IDA runner exists in tool_runners.py; requires ida_executable config. Static-only, no execution."
+    },
+    {
+      "evidence_type": "import_table",
+      "description": "Extract import names if static extractor supports it",
+      "tool": "static_feature_extractor or PE parser",
+      "already_available": false,
+      "notes": "Current static_feature_extractor does not have dedicated import parser; may add or use external"
+    }
+  ],
+  "next_decision_needed": "after evidence exists, choose whether to run IDA/Ghidra static extraction or a solver-specific static triage",
+  "notes": "Sample name 'affine' suggests affine cipher/transform. Priority: find (a,b) constants and compare API."
+}

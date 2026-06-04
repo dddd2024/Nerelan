@@ -1,0 +1,110 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-04T08:30:00Z",
+  "sample_id": "affine_8cfebe03",
+  "checked_capabilities": {
+    "local_reverse_inventory": {
+      "status": "present",
+      "module": "reverse_agent/local_reverse_inventory.py",
+      "capabilities": [
+        "metadata scanning",
+        "sha256 computation",
+        "file type heuristics",
+        "category/tag inference",
+        "GitHub-safe inventory generation"
+      ],
+      "reusable_for_affine": true,
+      "notes": "Already used to generate inventory for affine.exe. No duplication needed."
+    },
+    "local_reverse_corpus": {
+      "status": "present",
+      "module": "reverse_agent/local_reverse_corpus.py",
+      "capabilities": [
+        "corpus index building",
+        "sample metadata aggregation",
+        "harness-compatible case generation"
+      ],
+      "reusable_for_affine": true,
+      "notes": "Already integrated with inventory. No duplication needed."
+    },
+    "static_feature_extractor": {
+      "status": "present",
+      "module": "reverse_agent/static_feature_extractor.py",
+      "capabilities": [
+        "PE format detection (detect_pe_format)",
+        "ASCII string extraction (extract_ascii_strings)",
+        "Shannon entropy computation (compute_entropy)",
+        "Crypto/encoding keyword scanning (CRYPTO_KEYWORDS)",
+        "Comparison keyword scanning (COMPARE_KEYWORDS)",
+        "IO keyword scanning (IO_KEYWORDS)",
+        "Interesting constant extraction"
+      ],
+      "reusable_for_affine": true,
+      "notes": "All functions are pure static analysis, no execution. Ready for affine.exe."
+    },
+    "tool_runners": {
+      "status": "present",
+      "module": "reverse_agent/tool_runners.py",
+      "capabilities": [
+        "IDA executable resolution (_resolve_ida_executable)",
+        "IDA evidence runner (run_ida_evidence)",
+        "Tool artifact structured output (ToolRunArtifact)",
+        "Structured evidence conversion (_structured_evidence_from_json)"
+      ],
+      "reusable_for_affine": true,
+      "notes": "IDA runner available but requires ida_executable path configuration. Static-only mode supported."
+    },
+    "ida_runner_or_script": {
+      "status": "present",
+      "modules": [
+        "reverse_agent/local_reverse_ida_summary.py",
+        "reverse_agent/local_reverse_ida_guided_solver.py"
+      ],
+      "capabilities": [
+        "IDA summary generation (run_local_reverse_ida_summary)",
+        "IDA-guided solver (run_ida_guided_solver)",
+        "Targeted static re-extraction support"
+      ],
+      "reusable_for_affine": true,
+      "notes": "local_reverse_ida_summary.py can run static IDA export. local_reverse_ida_guided_solver.py consumes IDA output. Both reusable."
+    },
+    "ghidra_runner_or_script": {
+      "status": "missing",
+      "capabilities": [],
+      "reusable_for_affine": false,
+      "notes": "No dedicated Ghidra runner found in reverse_agent/. If needed, should be added as thin wrapper, not duplicate IDA logic."
+    },
+    "forced_ida_extraction": {
+      "status": "present",
+      "module": "reverse_agent/local_reverse_forced_ida_extract.py",
+      "capabilities": [
+        "Forced IDA extraction for specific samples"
+      ],
+      "reusable_for_affine": true,
+      "notes": "Exists but targeted at specific samples. Can be adapted if IDA summary is insufficient."
+    },
+    "targeted_static_reextract": {
+      "status": "present",
+      "module": "reverse_agent/local_reverse_targeted_static_reextract.py",
+      "capabilities": [
+        "Targeted static re-extraction for compare sites"
+      ],
+      "reusable_for_affine": true,
+      "notes": "Exists for targeted re-extraction. Reusable if compare site location is known."
+    }
+  },
+  "reuse_decision": "reuse existing interfaces; do not create duplicate runners",
+  "static_only_policy": true,
+  "recommended_next_steps": [
+    "Run static_feature_extractor on affine.exe to get strings, entropy, keywords",
+    "If strings/keywords insufficient, configure and run local_reverse_ida_summary for static IDA export",
+    "If IDA export reveals compare sites, run local_reverse_targeted_static_reextract for detailed context",
+    "Do NOT create new runner modules; reuse existing tool_runners.py and local_reverse_ida_summary.py"
+  ],
+  "avoid_duplication": [
+    "Do not create reverse_agent/local_reverse_affine_extractor.py",
+    "Do not create reverse_agent/local_reverse_affine_ida.py",
+    "Do not duplicate static_feature_extractor logic",
+    "Do not duplicate tool_runners IDA invocation logic"
+  ]
+}
