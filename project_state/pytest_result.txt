@@ -1,9 +1,9 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260604_affine_static_feature_extraction_v1",
-  "report_id": "report_20260604_affine_static_feature_extraction_v1",
-  "round_id": "round_20260604_affine_static_feature_extraction_v1",
+  "decision_id": "decision_20260604_affine_static_feature_index_repair_v1",
+  "report_id": "report_20260604_affine_static_feature_index_repair_v1",
+  "round_id": "round_20260604_affine_static_feature_index_repair_v1",
   "generated_at": "2026-06-04T00:00:00Z",
   "status": "PASSED",
   "tests_ran": [
@@ -36,9 +36,6 @@ COMMAND-LEVEL TEST RECORD
 [5] git status --short
     Exit code: 0
     Status: OK
-    Output:
-    ?? project_state/local_reverse_affine_static_feature_result.json
-    ?? project_state/local_reverse_affine_static_feature_summary.json
 
 ================================================================================
 PYTEST DETAIL
@@ -51,5 +48,3 @@ Summary:
 - test_project_state.py: 157 passed
 
 Total: 157 passed
-
-Note: No new Python code was added this round. The static feature extraction was performed by directly calling the existing reverse_agent/static_feature_extractor.py module.
