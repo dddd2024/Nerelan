@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260604_local_reverse_training_status_overlay_v1",
-  "round_id": "round_20260604_local_reverse_training_status_overlay_v1",
+  "decision_id": "decision_20260604_fix_training_status_overlay_audit_v1",
+  "round_id": "round_20260604_fix_training_status_overlay_audit_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -19,75 +19,46 @@
 
 本轮主线是 **training_dataset**。
 
-上一轮已经完成 `E:\reverse` 的 metadata-only inventory 返工：样本清单不再写入真实本地路径，`source_root_label` 已改为 `LOCAL_REVERSE_ROOT`，cases 使用 `${LOCAL_REVERSE_ROOT}/<relative_path>`。
-
-本轮目标不是解题，而是生成训练集状态层：
+本轮目标是修复上一轮 `local_reverse_training_status_overlay_v1` 的审计阻断点。上一轮已经新增训练集状态 overlay，但审计发现：
 
 ```text
-1. 读取 metadata inventory。
-2. 读取已有 local_reverse 求解/阻塞结果。
-3. 合并出每个样本的 training status。
-4. 标记 solved / validated / blocked / inventory_only / needs_triage。
-5. 生成下一批优先评估队列。
-6. 复用已有 local_reverse_corpus.py 的 triage 能力，不重复造扫描器。
+1. project_state/pytest_result.txt 中 lint-report 失败，不能接受 SUCCESS。
+2. training_materials/local_reverse/status_overlay.json 被测试 fixture 覆盖成 todo1/todo.exe。
+3. local_reverse_evaluation_queue.json 中大量 reason 显示 PE sample (0 bytes)，说明 size_bytes 没有从 inventory 传递到 queue。
+4. codex_execution_report.md 声称 SUCCESS/ACCEPT，但测试记录中存在失败命令。
 ```
 
-必须输出：
+本轮只做最小返工：修复测试隔离、重新生成真实 status_overlay、保留 size_bytes、补齐通过的测试记录和报告。
 
-```text
-project_state/local_reverse_training_status.json
-project_state/local_reverse_evaluation_queue.json
-training_materials/local_reverse/status_overlay.json
-```
-
-本轮不生成 candidate，不运行 solver，不运行 IDA/Ghidra，不运行动态调试。
+本轮不进入 reverse_solving，不运行 solver，不运行 IDA/Ghidra，不运行动态分析，不上传原始样本。
 
 ---
 
 ## 2. Current Evidence
 
-当前已有两个相关基础：
+当前 `project_state/decision_packet.md` 控制本轮执行。`task_packet.task` 中旧 samplereverse 派生任务仍只是背景，不覆盖本轮。
+
+上一轮产物中可接受的部分：
 
 ```text
-1. reverse_agent/local_reverse_inventory.py 负责 metadata-only inventory 和 cases。
-2. reverse_agent/local_reverse_corpus.py 已存在，能做本地语料扫描、静态特征提取、triage 标签和 recommended samples。
+1. project_state/local_reverse_training_status.json 已生成 29 个样本状态。
+2. Cpp1.exe 被标记为 solved，candidate = hookapi。
+3. sha_256.exe 被标记为 blocked，blocked_reason = NO_BOUNDED_HASH_PREIMAGE_DOMAIN。
+4. CPP2.exe 被标记为 blocked，没有误标为 solved。
+5. project_state/local_reverse_evaluation_queue.json 已生成 evaluation queue。
 ```
 
-`local_reverse_corpus.py` 已有 triage 标签：
+仍需返工的问题：
 
 ```text
-xor / shift / array_compare / strcmp / serial_check / base64 / rc4 / des / aes / hash / packed_or_obfuscated / unknown
+1. pytest_result.txt 中 lint-report 为 Exit code 1。
+2. training_materials/local_reverse/status_overlay.json 当前只有 1 个 fixture 样本 todo1/todo.exe，而不是真实 29 个 inventory 样本。
+3. tests/test_local_reverse_training_status.py 的 test_main_cli_build 没有把 --github-status-out 指向 tmp_path，导致测试污染真实仓库产物。
+4. _build_sample_entry() 未保留 size_bytes，导致 _queue_reason() 默认显示 0 bytes。
+5. codex_execution_report.md 顶部 status/acceptance_recommendation 与失败测试记录冲突。
 ```
 
-也已有 `build_training_state()` 和 `recommend_next_samples()`，能够输出训练状态、triage summary 和 recommended next samples。
-
-因此本轮不能再新建第三套 corpus scanner。应整合：
-
-```text
-local_reverse_inventory.py 负责 metadata/cases
-local_reverse_corpus.py 负责 triage/recommendation
-新增或增强的 status overlay 负责 solved/blocked 状态合并
-```
-
-已有三个样本状态必须回填：
-
-```text
-Cpp1.exe：validated / solved，candidate = hookapi
-sha_256.exe：blocked，NO_BOUNDED_HASH_PREIMAGE_DOMAIN
-CPP2.exe：blocked 或 needs_solver，transform known，但 candidate 未验证
-```
-
-这些状态应来自已有 project_state 文件：
-
-```text
-project_state/local_reverse_validated_candidate_handoff.json
-project_state/local_reverse_constraint_recovery_result.json
-project_state/local_reverse_ida_solver_result.json
-```
-
-不能手写到 `.codex-skills/`。
-
-当前任务仍由本 `project_state/decision_packet.md` 控制。`task_packet.task` 中的旧 samplereverse 派生任务只是背景，不覆盖本轮。
+当前 negative_results 中仍禁止提交 full solve_reports、回到 old sample_solver blind search、重复无新增证据的旧 probe/audit 方向。本轮不触碰这些方向。
 
 ---
 
@@ -102,19 +73,21 @@ project_state/local_reverse_ida_solver_result.json
 4. 不生成 candidate。
 5. 不运行 IDA/Ghidra。
 6. 不运行动态调试、runtime probe、Frida、OllyDbg、x64dbg。
-7. 不新建第三套 corpus scanner。
-8. 不把单题结果写入 .codex-skills。
-9. 不修改 samplereverse 主线。
-10. 不提交 solve_reports 全量目录。
+7. 不读取完整 solve_reports。
+8. 不修改 .codex-skills。
+9. 不扩大到 reverse_solving 或 tool_integration 主线。
+10. 不重写 inventory/corpus/training status 三套结构。
+11. 不伪造 pytest_result；失败命令必须真实修复后再记录 PASSED。
 ```
 
 允许：
 
 ```text
-1. 增强 local_reverse_corpus.py 的输出合并能力。
-2. 新增轻量 status overlay 模块。
-3. 新增 focused tests。
-4. 生成 project_state 和 training_materials 下的 metadata/status JSON。
+1. 修改 reverse_agent/local_reverse_training_status.py 中 size_bytes 传递和 queue reason 逻辑。
+2. 修改 tests/test_local_reverse_training_status.py，保证所有测试输出写入 tmp_path。
+3. 重新生成 training_materials/local_reverse/status_overlay.json。
+4. 重新生成 project_state/local_reverse_training_status.json 和 project_state/local_reverse_evaluation_queue.json。
+5. 更新 project_state/codex_execution_report.md 和 project_state/pytest_result.txt。
 ```
 
 ---
@@ -136,12 +109,13 @@ project_state/pytest_result.txt
 必须检查：
 
 ```text
-reverse_agent/local_reverse_inventory.py
-reverse_agent/local_reverse_corpus.py
-tests/test_local_reverse_inventory.py
+reverse_agent/local_reverse_training_status.py
+tests/test_local_reverse_training_status.py
+project_state/local_reverse_training_status.json
+project_state/local_reverse_evaluation_queue.json
+training_materials/local_reverse/status_overlay.json
 project_state/local_reverse_inventory.json
 training_materials/local_reverse/inventory.json
-training_materials/local_reverse/cases/
 project_state/local_reverse_validated_candidate_handoff.json
 project_state/local_reverse_constraint_recovery_result.json
 project_state/local_reverse_ida_solver_result.json
@@ -150,17 +124,18 @@ project_state/local_reverse_ida_solver_result.json
 必要时检查：
 
 ```text
-project_state/local_reverse_ida_summary.json
-project_state/local_reverse_forced_ida_extraction_result.json
+reverse_agent/local_reverse_inventory.py
+reverse_agent/local_reverse_corpus.py
+tests/test_local_reverse_inventory.py
 tests/test_project_state.py
 ```
 
-不要默认读取完整：
+不要默认读取：
 
 ```text
-solve_reports/
-PROJECT_PROGRESS_LOG.txt
-project_state/rounds/
+solve_reports/ 全量
+PROJECT_PROGRESS_LOG.txt 全量
+project_state/rounds/ 全量历史
 ```
 
 ---
@@ -170,115 +145,50 @@ project_state/rounds/
 Codex 报告必须回答：
 
 ```text
-1. 是否复用了 local_reverse_inventory.py。
-2. 是否复用了或整合了 local_reverse_corpus.py，而不是新建第三套 scanner。
-3. 是否读取了已有 validated/blocked 结果。
-4. Cpp1.exe 是否被标记为 solved/validated。
-5. sha_256.exe 是否被标记为 blocked: NO_BOUNDED_HASH_PREIMAGE_DOMAIN。
-6. CPP2.exe 是否被标记为 blocked 或 needs_solver，且不能声称 solved。
-7. 是否生成 local_reverse_training_status.json。
-8. 是否生成 local_reverse_evaluation_queue.json。
-9. evaluation queue 是否优先选择简单、可静态分析、未 solved 的样本。
-10. 是否没有上传原始样本。
-11. 是否没有运行动态分析或 solver。
-12. pytest_result.txt 是否记录真实测试命令。
-13. codex_report_summary.based_on_decision_id 是否等于 decision_20260604_local_reverse_training_status_overlay_v1。
+1. lint-report 是否重新运行并通过。
+2. git diff --check 是否重新运行并通过。
+3. git status --short 是否重新运行并记录。
+4. tests/test_local_reverse_training_status.py 是否不再写 training_materials/local_reverse/status_overlay.json 真实路径。
+5. status_overlay.json 是否对应真实 inventory，而不是 todo1/todo.exe fixture。
+6. status_overlay.json 是否包含 29 个样本，且 status_summary 与 project_state/local_reverse_training_status.json 一致。
+7. local_reverse_evaluation_queue.json 的 reason 是否不再错误显示 0 bytes，除非原始 inventory 的 size_bytes 真为 0。
+8. _build_sample_entry() 是否保留 size_bytes 或等价字段。
+9. Cpp1.exe 是否仍为 solved/validated。
+10. sha_256.exe 是否仍为 blocked: NO_BOUNDED_HASH_PREIMAGE_DOMAIN。
+11. CPP2.exe 是否仍为 blocked 或 needs_solver，不能声称 solved。
+12. 是否没有上传原始样本。
+13. 是否没有运行 solver、IDA/Ghidra 或动态分析。
+14. codex_report_summary.based_on_decision_id 是否等于 decision_20260604_fix_training_status_overlay_audit_v1。
+15. codex_execution_report.md 的 status/acceptance_recommendation 是否与 pytest_result.txt 真实结果一致。
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-推荐新增：
+允许修改：
 
 ```text
 reverse_agent/local_reverse_training_status.py
 tests/test_local_reverse_training_status.py
+project_state/local_reverse_training_status.json
+project_state/local_reverse_evaluation_queue.json
+training_materials/local_reverse/status_overlay.json
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
 ```
 
-也可以选择增强：
+推荐修复方式：
 
 ```text
-reverse_agent/local_reverse_corpus.py
-```
-
-但必须避免复制 `local_reverse_inventory.py` 的扫描逻辑。
-
-推荐 CLI：
-
-```powershell
-python -m reverse_agent.local_reverse_training_status build `
-  --inventory project_state\local_reverse_inventory.json `
-  --github-inventory training_materials\local_reverse\inventory.json `
-  --validated project_state\local_reverse_validated_candidate_handoff.json `
-  --constraint-recovery project_state\local_reverse_constraint_recovery_result.json `
-  --solver-result project_state\local_reverse_ida_solver_result.json `
-  --out project_state\local_reverse_training_status.json `
-  --queue-out project_state\local_reverse_evaluation_queue.json `
-  --github-status-out training_materials\local_reverse\status_overlay.json
-```
-
-`local_reverse_training_status.json` 建议结构：
-
-```json
-{
-  "schema_version": 1,
-  "generated_at": "...",
-  "source_inventory": "project_state/local_reverse_inventory.json",
-  "sample_count": 29,
-  "status_summary": {
-    "solved": 1,
-    "blocked": 2,
-    "needs_triage": 0,
-    "inventory_only": 26
-  },
-  "samples": [
-    {
-      "sample_id": "...",
-      "relative_path": "...",
-      "sha256": "...",
-      "category": "...",
-      "tags": ["local", "reverse"],
-      "training_status": "solved|blocked|needs_triage|inventory_only",
-      "known_candidate": "",
-      "blocked_reason": "",
-      "evidence_sources": [],
-      "next_action": ""
-    }
-  ]
-}
-```
-
-`local_reverse_evaluation_queue.json` 建议结构：
-
-```json
-{
-  "schema_version": 1,
-  "generated_at": "...",
-  "queue_policy": "simple_static_first_unsolved_only",
-  "items": [
-    {
-      "rank": 1,
-      "sample_id": "...",
-      "relative_path": "...",
-      "reason": "PE sample with crypto/cipher tag, unsolved, small size",
-      "proposed_next_mainline": "tool_integration",
-      "allowed_actions": ["static_triage", "IDA evidence extraction if explicitly approved"],
-      "forbidden_actions": ["runtime_probe", "bruteforce", "upload_binary"]
-    }
-  ]
-}
-```
-
-排序建议：
-
-```text
-1. 排除 solved。
-2. 排除明显 solver_script/support_file，除非作为辅助材料。
-3. 优先小型 PE / source_challenge。
-4. 优先 string/xor/shift/array_compare/base64 这类简单静态题。
-5. hash 题放后面，除非已有 bounded domain。
-6. DES/RC4 等 crypto 题作为第二批。
+1. 在 _build_sample_entry() 中加入 size_bytes: entry.get("size_bytes", 0)。
+2. 确认 _queue_reason() 使用 sample["size_bytes"]，不再全部回落到 0。
+3. 修改 test_main_cli_build：显式传入 --github-status-out 到 tmp_path 下的文件。
+4. 检查所有测试中调用 main()/build_training_status() 时，输出路径都在 tmp_path。
+5. 重新运行 CLI，基于真实 project_state/local_reverse_inventory.json 生成 status_overlay.json。
+6. 确认 training_materials/local_reverse/status_overlay.json 不含 todo1/todo.exe。
+7. 修复导致 lint-report 失败的 report/decision/report_id 对齐问题。
+8. 重新记录 pytest_result.txt，所有 required commands 必须 Exit code 0。
 ```
 
 ---
@@ -301,13 +211,13 @@ git status --short
 测试最低覆盖：
 
 ```text
-1. inventory + validated handoff 能合并出 solved Cpp1。
-2. blocked constraint recovery 能合并出 sha_256 blocked。
-3. CPP2 不能被误标为 solved。
-4. inventory_only 样本能进入候选评估队列。
-5. solved 样本不会进入 evaluation queue。
-6. status_overlay 不含真实本地绝对路径。
-7. 没有原始样本内容进入输出 JSON。
+1. test_main_cli_build 不污染真实 training_materials/local_reverse/status_overlay.json。
+2. build_training_status 输出的 github_status 与真实 inventory 数量一致。
+3. queue reason 使用真实 size_bytes。
+4. Cpp1 solved、sha_256 blocked、CPP2 blocked 的状态不回退。
+5. status_overlay 不含真实本地绝对路径。
+6. solved/blocked 样本不进入 evaluation queue。
+7. lint-report 通过。
 ```
 
 ---
@@ -317,22 +227,21 @@ git status --short
 立即停止并报告 `BLOCKED`：
 
 ```text
-1. 无法可靠匹配 inventory sample_id 与已有 validated/blocked 结果。
-2. local_reverse_inventory.py 与 local_reverse_corpus.py 的 sample_id 规则冲突，且不能小范围兼容。
-3. 需要运行 solver 或动态验证才能判断状态。
-4. 需要读取完整 solve_reports 才能完成合并。
-5. 输出会泄露本地绝对路径。
+1. lint-report 仍失败且无法小范围修复。
+2. status_overlay 不能从真实 inventory 重新生成。
+3. 修复测试隔离需要大范围改 CLI 设计。
+4. 需要运行 solver、IDA/Ghidra 或动态分析才能完成本轮。
+5. 输出会泄露 E:\reverse 或其他真实本地绝对路径。
 ```
 
 完成条件：
 
 ```text
-1. 生成 local_reverse_training_status.json。
-2. 生成 local_reverse_evaluation_queue.json。
-3. 生成 training_materials/local_reverse/status_overlay.json。
-4. Cpp1 标为 solved/validated。
-5. sha_256 标为 blocked。
-6. CPP2 不误标 solved。
-7. 下一批 evaluation queue 明确。
-8. 测试和 lint 记录完整。
+1. lint-report 通过。
+2. status_overlay.json 不再是 todo1/todo.exe fixture。
+3. status_overlay.json 与真实 29 个样本状态一致。
+4. evaluation queue 不再错误显示 0 bytes。
+5. pytest_result.txt 记录所有 required commands 且全部 Exit code 0。
+6. codex_execution_report.md 与 pytest_result.txt 对齐本 decision_id。
+7. 未上传任何原始样本。
 ```
