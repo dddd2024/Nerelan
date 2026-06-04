@@ -1,9 +1,9 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260604_affine_static_feature_index_repair_v1",
-  "report_id": "report_20260604_affine_static_feature_index_repair_v1",
-  "round_id": "round_20260604_affine_static_feature_index_repair_v1",
+  "decision_id": "decision_20260604_affine_ida_static_export_v1",
+  "report_id": "report_20260604_affine_ida_static_export_v1",
+  "round_id": "round_20260604_affine_ida_static_export_v1",
   "generated_at": "2026-06-04T00:00:00Z",
   "status": "PASSED",
   "tests_ran": [
@@ -48,3 +48,5 @@ Summary:
 - test_project_state.py: 157 passed
 
 Total: 157 passed
+
+Note: IDA static export was performed using existing tool_runners.py and ida_scripts/collect_evidence.py. No new Python code was added.

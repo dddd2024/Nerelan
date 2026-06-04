@@ -57,7 +57,8 @@
     "local_reverse_ida_evidence_bcbd9979db015bfd": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\bcbd9979db015bfd\\Cpp1_ida_evidence.json",
     "local_reverse_ida_solver_result": "project_state\\local_reverse_ida_solver_result.json",
     "local_reverse_affine_static_feature_result": "project_state\\local_reverse_affine_static_feature_result.json",
-    "local_reverse_affine_static_feature_summary": "project_state\\local_reverse_affine_static_feature_summary.json"
+    "local_reverse_affine_static_feature_summary": "project_state\\local_reverse_affine_static_feature_summary.json",
+    "local_reverse_affine_ida_summary": "project_state\\local_reverse_affine_ida_summary.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -611,6 +612,15 @@
       "sha256": "6166eb3b35e56cde079ec5a38c9109cc495b5adc2d1b9285477f8a5460816784",
       "size_bytes": 2179,
       "modified_at": "2026-06-04T11:15:24Z"
+    },
+    "local_reverse_affine_ida_summary": {
+      "kind": "local_reverse_affine_ida_summary",
+      "path": "project_state\\local_reverse_affine_ida_summary.json",
+      "freshness": "current",
+      "source_run": "round_20260604_affine_ida_static_export_v1",
+      "sha256": "58c28ef4e671cca93427a9747844a879539077efcdc935b2af9cd327fe5b8f61",
+      "size_bytes": 18156,
+      "modified_at": "2026-06-04T13:26:32Z"
     }
   },
   "latest_case_results": [
