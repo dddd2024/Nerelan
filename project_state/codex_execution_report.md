@@ -1,14 +1,14 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260604_affine_queue_static_evidence_plan_v1",
-  "round_id": "round_20260604_affine_queue_static_evidence_plan_v1",
-  "based_on_decision_id": "decision_20260604_affine_queue_static_evidence_plan_v1",
+  "report_id": "report_20260604_affine_static_feature_extraction_v1",
+  "round_id": "round_20260604_affine_static_feature_extraction_v1",
+  "based_on_decision_id": "decision_20260604_affine_static_feature_extraction_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPT",
   "files_changed": [
-    "project_state/local_reverse_affine_static_evidence_plan.json",
-    "project_state/local_reverse_affine_tool_capability_audit.json",
+    "project_state/local_reverse_affine_static_feature_result.json",
+    "project_state/local_reverse_affine_static_feature_summary.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
@@ -16,8 +16,8 @@
     "tests/test_project_state.py"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_affine_static_evidence_plan.json",
-    "project_state/local_reverse_affine_tool_capability_audit.json"
+    "project_state/local_reverse_affine_static_feature_result.json",
+    "project_state/local_reverse_affine_static_feature_summary.json"
   ]
 }
 ```
@@ -27,13 +27,13 @@
 ## 1. 执行权威与轮次说明
 
 - **当前 decision_packet**：`project_state/decision_packet.md` 是本轮唯一执行权威。
-- **本轮性质**：对 evaluation queue rank 1 样本 `affine_8cfebe03` 做有界静态证据提取计划与工具接口复用检查。
+- **本轮性质**：复用已有 `static_feature_extractor.py` 对 `affine_8cfebe03` 做纯静态特征提取。
 - **主线**：`tool_integration`。
-- **本轮 decision_id**：`decision_20260604_affine_queue_static_evidence_plan_v1`。
+- **本轮 decision_id**：`decision_20260604_affine_static_feature_extraction_v1`。
 
 ## 2. 执行摘要
 
-本轮只做静态证据提取计划与工具接口复用检查，不求解 candidate，不运行程序，不做动态调试。
+本轮只做纯静态特征提取，不求解 flag，不运行程序，不运行 IDA/Ghidra。
 
 | 项目 | 值 |
 |------|-----|
@@ -42,75 +42,72 @@
 | sha256 | 8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659 |
 | size_bytes | 196688 |
 | 状态 | inventory_only |
-| 队列排名 | 1 |
+| 分析模式 | static_only |
+| 执行样本 | false |
+| 工具 | static_feature_extractor.py |
 
-## 3. 工具能力审计结果
+## 3. 静态特征提取结果
 
-| 工具/模块 | 状态 | 可复用性 |
-|-----------|------|----------|
-| local_reverse_inventory.py | present | ✅ 已用于生成 inventory |
-| local_reverse_corpus.py | present | ✅ 已集成 |
-| static_feature_extractor.py | present | ✅ 纯静态分析，可直接用于 affine.exe |
-| tool_runners.py | present | ✅ IDA runner 可用，需配置路径 |
-| local_reverse_ida_summary.py | present | ✅ 静态 IDA 导出可用 |
-| local_reverse_ida_guided_solver.py | present | ✅ 可消费 IDA 输出 |
-| local_reverse_forced_ida_extract.py | present | ✅ 可适配 |
-| local_reverse_targeted_static_reextract.py | present | ✅ 可复用 |
-| Ghidra runner | missing | ❌ 未找到，如需应作为薄 wrapper 添加 |
+| 特征 | 结果 |
+|------|------|
+| 文件格式 | PE |
+| 熵 | low（未打包/加密） |
+| ASCII 字符串 | 20 条 |
+| UTF-16 字符串 | 10 条 |
+| 关键词命中 | 11 条 |
+| Crypto 提示 | 0 条 |
+| Compare 提示 | 8 条 |
+| 有趣常量 | 0 条 |
 
-## 4. 静态证据提取计划
+## 4. 关键发现
 
-### 允许的操作
-- static_triage, static_strings, static_file_type, static_entropy
-- static_pe_headers, static_import_names, static_constants
-- static_tool_export_if_available
+1. **输入提示**：`please input a string:` — 样本读取用户输入
+2. **Flag 比较**：`flag == 0 || flag == 1` — 显式 flag 变量比较逻辑
+3. **IO 关键词**：`scanf.c`, `printf.c`, `input.c` — 标准 C 运行时 I/O
+4. **无加密关键词**：不是标准加密算法（AES/RC4/DES/Base64）
+5. **低熵**：样本未打包/加密
+6. **无常量**：静态扫描未发现 hex-like 常量或 base64 候选
 
-### 禁止的操作
-- runtime_probe, debugger, execute_sample, bruteforce, upload_binary
-- ida_dynamic_analysis, ghidra_dynamic_analysis
+## 5. Summary 结论
 
-### 待收集证据
-1. **file_format**：确认 PE 架构（32/64-bit）、节区布局、入口点
-2. **ascii_strings**：提取可打印字符串，查找 shift/affine 相关常量、比较字符串、输入提示
-3. **entropy**：计算 Shannon 熵，检测加密/打包区域
-4. **keyword_hits**：扫描 CRYPTO_KEYWORDS / COMPARE_KEYWORDS / IO_KEYWORDS
-5. **interesting_constants**：提取小字节数组和数值常量（寻找 affine 变换参数 a, b）
-6. **ida_static_export**：检查 IDA 静态导出接口能否生成函数列表/比较点
-7. **import_table**：提取导入表（当前 static_feature_extractor 无专用导入解析器）
+- **likely_category**：`strcmp_or_flag_check`
+- **confidence**：`medium`
+- **recommended_next_action**：`run_ida_static_export`
+- **原因**：静态字符串揭示了输入/比较逻辑，但未发现变换常量。需要 IDA 静态导出定位比较函数并提取 affine/shift 参数。
 
-## 5. 审计合规声明
+## 6. 审计合规声明
 
 | # | 审计项 | 状态 |
 |---|--------|------|
-| 1 | affine_8cfebe03 仍是 evaluation queue rank 1 | ✅ |
+| 1 | affine_8cfebe03 仍为目标样本 | ✅ |
 | 2 | affine_8cfebe03 仍为 inventory_only，未误标 solved | ✅ |
-| 3 | 读取了 inventory/status_overlay 中 affine.exe 的 sha256、size_bytes、relative_path、tags | ✅ |
-| 4 | 检查了已有 local_reverse_inventory/local_reverse_corpus/static_feature_extractor/tool_runners 能力 | ✅ |
-| 5 | 检查了已有 IDA/Ghidra/local_reverse_ida_* 接口，避免重复造轮子 | ✅ |
-| 6 | 生成 local_reverse_affine_static_evidence_plan.json | ✅ |
-| 7 | 生成 local_reverse_affine_tool_capability_audit.json | ✅ |
-| 8 | 只做静态读取计划，不执行样本 | ✅ |
-| 9 | 没有运行 solver、IDA/Ghidra 动态调试、runtime probe 或样本程序 | ✅ |
-| 10 | 没有上传原始样本 | ✅ |
-| 11 | 没有提交 solve_reports 全量目录 | ✅ |
-| 12 | 清理上一轮 report/pytest 文本残留 | ✅ |
-| 13 | pytest_result.txt 记录真实测试命令且全部 Exit code 0 | ✅ |
-| 14 | codex_report_summary.based_on_decision_id 等于 decision_20260604_affine_queue_static_evidence_plan_v1 | ✅ |
+| 3 | 通过 LOCAL_REVERSE_ROOT 定位本地样本 | ✅ |
+| 4 | LOCAL_REVERSE_ROOT 已设置且样本存在，sha256 匹配 | ✅ |
+| 5 | 复用了 static_feature_extractor.py | ✅ |
+| 6 | 没有新建重复静态扫描器 | ✅ |
+| 7 | 只做纯静态读取，没有执行样本 | ✅ |
+| 8 | 没有运行 solver、IDA/Ghidra、debugger 或 runtime probe | ✅ |
+| 9 | 生成 local_reverse_affine_static_feature_result.json | ✅ |
+| 10 | 生成 local_reverse_affine_static_feature_summary.json | ✅ |
+| 11 | 记录字符串、熵、关键词、常量、文件格式等静态证据 | ✅ |
+| 12 | 没有上传原始样本 | ✅ |
+| 13 | 没有提交 solve_reports 全量目录 | ✅ |
+| 14 | pytest_result.txt 记录真实测试命令且全部 Exit code 0 | ✅ |
+| 15 | codex_report_summary.based_on_decision_id 等于 decision_20260604_affine_static_feature_extraction_v1 | ✅ |
 
-## 6. 停止条件检查
+## 7. 停止条件检查
 
 本轮未触发任何停止条件：
-- affine_8cfebe03 仍是 rank 1 且 inventory_only ✅
-- 可从 inventory/status_overlay 可靠定位 affine.exe ✅
-- 未读取完整 solve_reports ✅
-- 未运行 affine.exe 或动态调试 ✅
-- 未上传原始样本 ✅
-- 已有 IDA/Ghidra/tool runner 接口可明确复用，无需新建重复接口 ✅
+- LOCAL_REVERSE_ROOT 已设置，affine.exe 存在且 sha256 匹配 ✅
+- 不需要执行样本获得证据 ✅
+- 不需要运行 IDA/Ghidra 完成本轮 ✅
+- 不需要读取完整 solve_reports ✅
+- 不需要上传原始样本 ✅
+- static_feature_extractor.py 可直接复用 ✅
 - 输出未泄露本地绝对路径 ✅
 
-## 7. 下一步建议
+## 8. 下一步建议
 
-1. 运行 `static_feature_extractor` 对 affine.exe 做纯静态分析（字符串、熵、关键词、常量）。
-2. 如果静态分析结果不足，配置并运行 `local_reverse_ida_summary` 做 IDA 静态导出。
+1. 运行 `local_reverse_ida_summary` 对 affine.exe 做 IDA 静态导出。
+2. 定位比较函数和 affine/shift 变换参数。
 3. 如果 IDA 导出揭示比较点，运行 `local_reverse_targeted_static_reextract` 获取详细上下文。
-4. 不要创建新的 runner 模块，复用现有 `tool_runners.py` 和 `local_reverse_ida_summary.py`。

@@ -1,9 +1,9 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260604_affine_queue_static_evidence_plan_v1",
-  "report_id": "report_20260604_affine_queue_static_evidence_plan_v1",
-  "round_id": "round_20260604_affine_queue_static_evidence_plan_v1",
+  "decision_id": "decision_20260604_affine_static_feature_extraction_v1",
+  "report_id": "report_20260604_affine_static_feature_extraction_v1",
+  "round_id": "round_20260604_affine_static_feature_extraction_v1",
   "generated_at": "2026-06-04T00:00:00Z",
   "status": "PASSED",
   "tests_ran": [
@@ -18,7 +18,7 @@ COMMAND-LEVEL TEST RECORD
 
 [1] python -m pytest -q tests/test_project_state.py
     Exit code: 0
-    Output: 157 passed in 63.08s
+    Output: 157 passed in 84.73s
     Status: OK
 
 [2] python -m reverse_agent.project_state lint-decision --state-dir project_state
@@ -37,8 +37,8 @@ COMMAND-LEVEL TEST RECORD
     Exit code: 0
     Status: OK
     Output:
-    ?? project_state/local_reverse_affine_static_evidence_plan.json
-    ?? project_state/local_reverse_affine_tool_capability_audit.json
+    ?? project_state/local_reverse_affine_static_feature_result.json
+    ?? project_state/local_reverse_affine_static_feature_summary.json
 
 ================================================================================
 PYTEST DETAIL
@@ -51,3 +51,5 @@ Summary:
 - test_project_state.py: 157 passed
 
 Total: 157 passed
+
+Note: No new Python code was added this round. The static feature extraction was performed by directly calling the existing reverse_agent/static_feature_extractor.py module.

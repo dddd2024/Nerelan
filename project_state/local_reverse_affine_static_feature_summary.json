@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "relative_path": "逆向课程2024春补考03/affine.exe",
+  "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+  "size_bytes": 196688,
+  "analysis_mode": "static_only",
+  "executed_sample": false,
+  "tool_used": "reverse_agent/static_feature_extractor.py",
+  "summary": {
+    "likely_category": "strcmp_or_flag_check",
+    "confidence": "medium",
+    "evidence_count": 11,
+    "has_compare_strings": true,
+    "has_input_prompt": true,
+    "has_affine_constants": false,
+    "needs_ida_static_export": true,
+    "key_findings": [
+      {
+        "type": "input_prompt",
+        "description": "String 'please input a string:' found — sample reads user input via scanf/printf"
+      },
+      {
+        "type": "flag_comparison",
+        "description": "String 'flag == 0 || flag == 1' found — explicit flag variable comparison logic"
+      },
+      {
+        "type": "io_keywords",
+        "description": "scanf.c, printf.c, input.c detected — standard C runtime I/O"
+      },
+      {
+        "type": "no_crypto",
+        "description": "No CRYPTO_KEYWORDS hits — not a standard cipher (AES/RC4/DES/Base64)"
+      },
+      {
+        "type": "low_entropy",
+        "description": "Entropy hint = low — sample is not packed or encrypted"
+      },
+      {
+        "type": "no_constants",
+        "description": "No hex-like constants or base64 candidates found in static scan"
+      }
+    ]
+  },
+  "recommended_next_mainline": "tool_integration",
+  "recommended_next_action": "run_ida_static_export",
+  "recommended_next_action_reason": "Static strings reveal input/compare logic but no transform constants. IDA static export needed to locate the compare function and extract affine/shift parameters.",
+  "forbidden_next_actions": [
+    "runtime_probe",
+    "execute_sample",
+    "bruteforce",
+    "upload_binary"
+  ],
+  "notes": "Sample name 'affine' suggests affine cipher/transform, but static scan found no crypto keywords. The flag comparison string suggests a simple check-after-transform pattern. IDA static export should reveal the actual transform function and constants."
+}

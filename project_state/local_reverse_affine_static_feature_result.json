@@ -1,0 +1,158 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "relative_path": "逆向课程2024春补考03/affine.exe",
+  "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+  "size_bytes": 196688,
+  "analysis_mode": "static_only",
+  "executed_sample": false,
+  "tool_used": "reverse_agent/static_feature_extractor.py",
+  "file_format": {
+    "format": "pe",
+    "detected": true
+  },
+  "entropy": {
+    "hint": "low"
+  },
+  "strings": {
+    "ascii_count": 20,
+    "utf16_count": 10,
+    "selected_ascii": [
+      "!This program cannot be run in DOS mode.",
+      "Rich",
+      ".text",
+      "`.rdata",
+      "@.data",
+      ".idata",
+      ".reloc",
+      "h(pB",
+      "Ph$pB",
+      "Qh$pB",
+      "SVWh",
+      "hhpB",
+      "j;h\\pB",
+      "PRSVWh",
+      "_^[ZX",
+      "h(rB",
+      "uGj/",
+      "\\u&j\\",
+      "t^j\\",
+      "uvj:"
+    ],
+    "selected_utf16": [
+      "jjjj",
+      "Bjjjj",
+      "Bjjjj",
+      "Bjjj",
+      "Bjjj",
+      "Bjjjj",
+      "Bjjjj",
+      "Bjjj",
+      "Bjjj",
+      "Bjjjj"
+    ]
+  },
+  "keyword_hits": [
+    {
+      "keyword": "input",
+      "source": "please input a string:",
+      "context": "please input a string:"
+    },
+    {
+      "keyword": "printf",
+      "source": "printf.c",
+      "context": "printf.c"
+    },
+    {
+      "keyword": "scanf",
+      "source": "scanf.c",
+      "context": "scanf.c"
+    },
+    {
+      "keyword": "fail",
+      "source": "Assertion Failed",
+      "context": "Assertion Failed"
+    },
+    {
+      "keyword": "fail",
+      "source": "Assertion failed!",
+      "context": "Assertion failed!"
+    },
+    {
+      "keyword": "fail",
+      "source": "Assertion failed: ",
+      "context": "Assertion failed: "
+    },
+    {
+      "keyword": "fail",
+      "source": "Second Chance Assertion Failed: File %s, Line %d",
+      "context": "nd Chance Assertion Failed: File %s, Line %d"
+    },
+    {
+      "keyword": "printf",
+      "source": "wsprintfA",
+      "context": "wsprintfA"
+    },
+    {
+      "keyword": "fail",
+      "source": "failure, see the Visual C++ documentation on asser...",
+      "context": "failure, see the Visual "
+    },
+    {
+      "keyword": "flag",
+      "source": "flag == 0 || flag == 1",
+      "context": "flag == 0 || flag == 1"
+    },
+    {
+      "keyword": "input",
+      "source": "input.c",
+      "context": "input.c"
+    }
+  ],
+  "crypto_hints": [],
+  "compare_hints": [
+    {
+      "keyword": "input",
+      "source": "please input a string:",
+      "context": "please input a string:"
+    },
+    {
+      "keyword": "fail",
+      "source": "Assertion Failed",
+      "context": "Assertion Failed"
+    },
+    {
+      "keyword": "fail",
+      "source": "Assertion failed!",
+      "context": "Assertion failed!"
+    },
+    {
+      "keyword": "fail",
+      "source": "Assertion failed: ",
+      "context": "Assertion failed: "
+    },
+    {
+      "keyword": "fail",
+      "source": "Second Chance Assertion Failed: File %s, Line %d",
+      "context": "nd Chance Assertion Failed: File %s, Line %d"
+    },
+    {
+      "keyword": "fail",
+      "source": "failure, see the Visual C++ documentation on asser...",
+      "context": "failure, see the Visual "
+    },
+    {
+      "keyword": "flag",
+      "source": "flag == 0 || flag == 1",
+      "context": "flag == 0 || flag == 1"
+    },
+    {
+      "keyword": "input",
+      "source": "input.c",
+      "context": "input.c"
+    }
+  ],
+  "interesting_constants": [],
+  "static_findings": [],
+  "limitations": []
+}
