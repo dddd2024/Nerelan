@@ -259,12 +259,12 @@
   ],
   "solver_hints": [
     {
-      "kind": "direct_strcmp",
-      "reason": "compare API context recovered"
+      "kind": "static_compare_api_context_only",
+      "reason": "IDA found compare API context, but current compare site is CRT/heap-related and business compare is not confirmed"
     },
     {
-      "kind": "gui_input",
-      "reason": "input-oriented strings recovered"
+      "kind": "console_input_flow_candidate",
+      "reason": "_main_0 puts/scanf input flow recovered near 0x401054 and 0x401065"
     }
   ],
   "evidence_artifacts": [

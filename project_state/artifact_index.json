@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-03T12:27:27Z",
+  "generated_at": "2026-06-04T15:35:21Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -58,7 +58,8 @@
     "local_reverse_ida_solver_result": "project_state\\local_reverse_ida_solver_result.json",
     "local_reverse_affine_static_feature_result": "project_state\\local_reverse_affine_static_feature_result.json",
     "local_reverse_affine_static_feature_summary": "project_state\\local_reverse_affine_static_feature_summary.json",
-    "local_reverse_affine_ida_summary": "project_state\\local_reverse_affine_ida_summary.json"
+    "local_reverse_affine_ida_summary": "project_state\\local_reverse_affine_ida_summary.json",
+    "local_reverse_ida_evidence_affine_8cfebe03": "solve_reports\\tool_artifacts\\local_reverse_affine_ida_static_export_v1\\affine_8cfebe03\\affine_ida_evidence.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -617,19 +618,19 @@
       "kind": "local_reverse_affine_ida_summary",
       "path": "project_state\\local_reverse_affine_ida_summary.json",
       "freshness": "current",
-      "source_run": "round_20260604_affine_ida_static_export_rework_v1",
-      "sha256": "78cc372568c4bb1d9d17de23c5992ff19f343c3f7534a9e746ca37b5ed2841b8",
-      "size_bytes": 18525,
-      "modified_at": "2026-06-04T14:00:00Z"
+      "source_run": "round_20260604_affine_detailed_evidence_consistency_rework_v1",
+      "sha256": "01e32764bbb32a5c125cff16a1cdc3429db35b47e4498167c7f7b0eb78c7cbae",
+      "size_bytes": 18682,
+      "modified_at": "2026-06-04T15:35:21Z"
     },
     "local_reverse_ida_evidence_affine_8cfebe03": {
       "kind": "local_reverse_ida_evidence_affine_8cfebe03",
       "path": "solve_reports\\tool_artifacts\\local_reverse_affine_ida_static_export_v1\\affine_8cfebe03\\affine_ida_evidence.json",
       "freshness": "current",
-      "source_run": "round_20260604_affine_ida_static_export_rework_v1",
+      "source_run": "round_20260604_affine_detailed_evidence_consistency_rework_v1",
       "sha256": "201f82fb217be8e9763323ec4babfee1f5da0c24096c18c6f2d9458a05bd4913",
       "size_bytes": 82503,
-      "modified_at": "2026-06-04T14:00:00Z",
+      "modified_at": "2026-06-04T13:26:08Z",
       "sample_id": "affine_8cfebe03"
     }
   },
