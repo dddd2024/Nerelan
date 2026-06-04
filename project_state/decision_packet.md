@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260604_affine_static_feature_extraction_v1",
-  "round_id": "round_20260604_affine_static_feature_extraction_v1",
+  "decision_id": "decision_20260604_affine_static_feature_index_repair_v1",
+  "round_id": "round_20260604_affine_static_feature_index_repair_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -17,70 +17,57 @@
 
 ## 1. Goal
 
-本轮主线是 **tool_integration**。
+本轮是上一轮 `decision_20260604_affine_static_feature_extraction_v1` 的状态索引返工。
 
-上一轮已经接受 `affine_8cfebe03` 的静态证据提取计划和工具能力审计。目标样本仍是：
-
-```text
-sample_id: affine_8cfebe03
-relative_path: 逆向课程2024春补考03/affine.exe
-sha256: 8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659
-size_bytes: 196688
-training_status: inventory_only
-```
-
-上一轮产物已经确认允许的静态动作包括 `static_triage`、`static_strings`、`static_file_type`、`static_entropy`、`static_pe_headers`、`static_import_names`、`static_constants`，并明确禁止运行样本、debugger、runtime probe、bruteforce、upload_binary。
-
-本轮目标：**复用已有 `static_feature_extractor.py` 对 affine.exe 做纯静态特征提取**，生成当前样本的静态证据结果。
-
-必须完成：
+上一轮已经生成：
 
 ```text
-1. 读取 project_state/local_reverse_affine_static_evidence_plan.json。
-2. 确认 affine_8cfebe03 仍是目标样本，且仍为 inventory_only。
-3. 解析 LOCAL_REVERSE_ROOT + relative_path 得到本地样本路径。
-4. 复用已有 static_feature_extractor.py，不新建重复静态扫描器。
-5. 只做纯静态读取，不执行 affine.exe。
-6. 采集：
-   - file_format / PE 识别结果
-   - ASCII strings
-   - entropy
-   - keyword hits
-   - interesting constants / byte patterns
-   - 可用的 PE header 或 import 线索
-7. 生成 project_state/local_reverse_affine_static_feature_result.json。
-8. 生成 project_state/local_reverse_affine_static_feature_summary.json。
-9. 必要时把新 artifact 登记到 artifact_index 或要求 project_state build。
-10. 更新 codex_execution_report.md 和 pytest_result.txt。
+project_state/local_reverse_affine_static_feature_result.json
+project_state/local_reverse_affine_static_feature_summary.json
 ```
 
-本轮不要求解出 flag，不生成 candidate，不写 solver，不运行 IDA/Ghidra。IDA/Ghidra 只能作为下一轮可选动作。
+但 `artifact_index.json` 未登记这两个新 artifact，导致它们不能作为 current evidence 使用。
+
+本轮目标：**只修复 artifact/current-state 登记与报告一致性**。
 
 ---
 
 ## 2. Current Evidence
 
-当前 `local_reverse_affine_static_evidence_plan.json` 已存在，确认 `affine.exe` 的 `training_status` 是 `inventory_only`，`mainline` 是 `tool_integration`。
-
-当前工具能力审计显示：
+当前可用证据：
 
 ```text
-static_feature_extractor.py: present
-tool_runners.py: present
-local_reverse_ida_summary.py: present
-local_reverse_ida_guided_solver.py: present
-local_reverse_forced_ida_extract.py: present
-local_reverse_targeted_static_reextract.py: present
-Ghidra runner: missing
+decision_packet.md: decision_20260604_affine_static_feature_extraction_v1
+codex_execution_report.md: report_20260604_affine_static_feature_extraction_v1
+pytest_result.txt: PASSED
+generated artifacts:
+  - project_state/local_reverse_affine_static_feature_result.json
+  - project_state/local_reverse_affine_static_feature_summary.json
 ```
 
-这说明本轮应先复用 `static_feature_extractor.py`，不要直接跳到新建 Ghidra/IDA runner。
+两个 artifact 内容显示：
 
-`static_feature_extractor.py` 的可复用能力包括 PE format detection、ASCII string extraction、Shannon entropy、keyword scanning、interesting constant extraction。
+```text
+sample_id: affine_8cfebe03
+analysis_mode: static_only
+executed_sample: false
+tool_used: reverse_agent/static_feature_extractor.py
+recommended_next_action: run_ida_static_export
+```
 
-上一轮测试和 lint 已通过，`pytest_result.txt` 记录 `test_project_state.py`、`lint-decision`、`lint-report`、`git diff --check`、`git status --short` 全部 Exit code 0。
+问题：
 
-当前 `task_packet.json` 仍保留旧 samplereverse 派生任务，但它只是 advisory；本轮以本 `project_state/decision_packet.md` 为执行权威。
+```text
+artifact_index.json 未登记 local_reverse_affine_static_feature_result
+artifact_index.json 未登记 local_reverse_affine_static_feature_summary
+generated_at 早于本轮 artifact 修改时间
+```
+
+`task_packet.json` 仍可能保留旧 samplereverse 派生任务或其他 advisory 字段；本轮以本 `project_state/decision_packet.md` 为执行权威，不以 `task_packet.task` 为准。
+
+`negative_results.json` 中仍需遵守：不回 old sample_solver blind search、不只扩大 beam/budget、不提交 full solve_reports、不重复已失败方向。本轮不涉及样本求解和 runtime probe，因此不应触发这些负面方向。
+
+已有工具能力已确认：`static_feature_extractor.py`、`tool_runners.py`、`local_reverse_ida_summary.py`、`local_reverse_ida_guided_solver.py`、`local_reverse_forced_ida_extract.py`、`local_reverse_targeted_static_reextract.py` 均已存在。Ghidra runner 缺失，但本轮不需要新增。
 
 ---
 
@@ -89,68 +76,52 @@ Ghidra runner: missing
 严禁：
 
 ```text
-1. 不上传 E:\reverse 原始样本。
-2. 不复制 affine.exe 到仓库。
-3. 不运行 affine.exe。
-4. 不运行 solver。
-5. 不生成 candidate、flag 或最终答案。
-6. 不运行 IDA/Ghidra。
-7. 不运行动态调试、runtime probe、Frida、OllyDbg、x64dbg、emulator。
-8. 不回到 old sample_solver blind search。
-9. 不扩大 beam/budget/bruteforce。
-10. 不提交 solve_reports 全量目录。
-11. 不修改 .codex-skills。
-12. 不新建重复 static extractor、IDA runner 或 Ghidra runner。
-13. 不把 affine 单题结论写入长期 skill。
+1. 不重新运行 affine.exe。
+2. 不运行 solver。
+3. 不运行 IDA/Ghidra。
+4. 不运行 debugger/runtime probe/emulator。
+5. 不上传原始样本。
+6. 不修改 .codex-skills。
+7. 不读取完整 solve_reports。
+8. 不重做静态扫描，除非发现两个 artifact 文件缺失或 JSON 损坏。
+9. 不扩大到其他样本。
+10. 不把 affine 单题结论写入长期 skill。
+11. 不新建重复 static extractor、IDA runner 或 Ghidra runner。
+12. 不把 stale/missing artifact 当作 current evidence。
 ```
 
 允许：
 
 ```text
-1. 读取本地样本文件的 bytes 做纯静态分析。
-2. 使用已有 static_feature_extractor.py。
-3. 生成 project_state 下的小型 JSON 结果。
-4. 如果现有 static_feature_extractor 缺少 CLI，可以新增很薄的 wrapper，但不得复制扫描逻辑。
-5. 更新 report 和 pytest_result。
+1. 读取 project_state 下本轮两个 affine static feature artifact。
+2. 读取 artifact_index/current_state 中与 local_reverse artifact 登记直接相关的字段。
+3. 运行 project_state build 或做最小 artifact_index 兼容登记。
+4. 更新 codex_execution_report.md 和 pytest_result.txt。
 ```
 
 ---
 
 ## 4. Files To Inspect
 
-默认必须读取：
+必须读取：
 
 ```text
 project_state/task_packet.json
 project_state/current_state.json
 project_state/artifact_index.json
 project_state/negative_results.json
-project_state/codex_execution_report.md
 project_state/decision_packet.md
+project_state/codex_execution_report.md
 project_state/pytest_result.txt
+project_state/local_reverse_affine_static_feature_result.json
+project_state/local_reverse_affine_static_feature_summary.json
 ```
 
-必须检查：
+必要时读取：
 
 ```text
-project_state/local_reverse_affine_static_evidence_plan.json
-project_state/local_reverse_affine_tool_capability_audit.json
-project_state/local_reverse_inventory.json
-project_state/local_reverse_evaluation_queue.json
-project_state/local_reverse_training_status.json
-training_materials/local_reverse/status_overlay.json
-reverse_agent/static_feature_extractor.py
+reverse_agent/project_state.py
 tests/test_project_state.py
-```
-
-必要时检查：
-
-```text
-reverse_agent/local_reverse_inventory.py
-reverse_agent/local_reverse_corpus.py
-reverse_agent/tool_runners.py
-tests/test_local_reverse_inventory.py
-tests/test_local_reverse_training_status.py
 ```
 
 不要默认读取：
@@ -168,109 +139,75 @@ project_state/rounds/ 全量历史
 Codex 报告必须回答：
 
 ```text
-1. 是否确认 affine_8cfebe03 仍为目标样本。
-2. 是否确认 affine_8cfebe03 仍为 inventory_only，未误标 solved。
-3. 是否通过 LOCAL_REVERSE_ROOT 定位本地样本。
-4. 如果 LOCAL_REVERSE_ROOT 未设置或样本不存在，是否停止并报告 BLOCKED。
-5. 是否复用了 static_feature_extractor.py。
-6. 是否没有新建重复静态扫描器。
-7. 是否只做纯静态读取，没有执行样本。
-8. 是否没有运行 solver、IDA/Ghidra、debugger 或 runtime probe。
-9. 是否生成 local_reverse_affine_static_feature_result.json。
-10. 是否生成 local_reverse_affine_static_feature_summary.json。
-11. 是否记录字符串、熵、关键词、常量、文件格式等静态证据。
-12. 是否没有上传原始样本。
-13. 是否没有提交 solve_reports 全量目录。
-14. pytest_result.txt 是否记录真实测试命令且全部 Exit code 0。
-15. codex_report_summary.based_on_decision_id 是否等于 decision_20260604_affine_static_feature_extraction_v1。
+1. 是否确认两个 affine static feature artifact 存在且 JSON 可解析。
+2. 是否确认 artifact sample_id 为 affine_8cfebe03。
+3. 是否确认 executed_sample=false。
+4. 是否没有重新运行样本。
+5. 是否没有运行 solver/IDA/Ghidra/debugger/runtime probe。
+6. 是否将两个 artifact 登记进 artifact_index latest_artifacts。
+7. 是否将两个 artifact 登记进 artifact_index latest_artifacts_v2。
+8. latest_artifacts_v2 是否包含 freshness=current。
+9. source_run 是否为本轮 round_id。
+10. sha256/size_bytes/modified_at 是否记录。
+11. 是否更新 codex_execution_report.md。
+12. 是否更新 pytest_result.txt。
+13. 是否没有修改 .codex-skills。
+14. 是否没有提交 solve_reports 全量目录。
+15. codex_report_summary.based_on_decision_id 是否等于 decision_20260604_affine_static_feature_index_repair_v1。
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-允许新增：
-
-```text
-project_state/local_reverse_affine_static_feature_result.json
-project_state/local_reverse_affine_static_feature_summary.json
-```
-
 允许修改：
 
 ```text
+project_state/artifact_index.json
+project_state/current_state.json
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
 
-如果需要薄 wrapper，允许新增：
+优先方式：
 
-```text
-reverse_agent/local_reverse_static_feature_run.py
-tests/test_local_reverse_static_feature_run.py
+```bash
+python -m reverse_agent.project_state build
 ```
 
-但只有在 `static_feature_extractor.py` 没有可直接调用入口时才允许。wrapper 必须只做：
+如果 build 不能自动纳入本轮两个 artifact，允许最小手动登记，但必须保持旧字段兼容：
 
 ```text
-1. 从 inventory/status 中定位 sample。
-2. 拼接 LOCAL_REVERSE_ROOT 和 relative_path。
-3. 调用 static_feature_extractor 现有函数。
-4. 写 JSON。
+latest_artifacts.local_reverse_affine_static_feature_result
+latest_artifacts.local_reverse_affine_static_feature_summary
+latest_artifacts_v2.local_reverse_affine_static_feature_result
+latest_artifacts_v2.local_reverse_affine_static_feature_summary
 ```
 
-不得复制字符串提取、熵计算、PE 识别、关键词扫描逻辑。
+建议 `kind`：
 
-`local_reverse_affine_static_feature_result.json` 建议结构：
+```text
+local_reverse_affine_static_feature_result
+local_reverse_affine_static_feature_summary
+```
+
+`latest_artifacts_v2` 每个条目至少包含：
 
 ```json
 {
-  "schema_version": 1,
-  "sample_id": "affine_8cfebe03",
-  "relative_path": "逆向课程2024春补考03/affine.exe",
-  "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
-  "size_bytes": 196688,
-  "analysis_mode": "static_only",
-  "executed_sample": false,
-  "tool_used": "reverse_agent/static_feature_extractor.py",
-  "file_format": {},
-  "entropy": {},
-  "strings": {
-    "count": 0,
-    "selected": []
-  },
-  "keyword_hits": {},
-  "interesting_constants": [],
-  "static_findings": [],
-  "limitations": []
+  "kind": "local_reverse_affine_static_feature_result",
+  "path": "project_state\\local_reverse_affine_static_feature_result.json",
+  "freshness": "current",
+  "source_run": "round_20260604_affine_static_feature_index_repair_v1",
+  "sha256": "<computed sha256>",
+  "size_bytes": 0,
+  "modified_at": "<file modified timestamp>"
 }
 ```
 
-`local_reverse_affine_static_feature_summary.json` 建议结构：
+summary artifact 使用同样结构，`kind/path` 对应 summary 文件。
 
-```json
-{
-  "schema_version": 1,
-  "sample_id": "affine_8cfebe03",
-  "summary": {
-    "likely_category": "unknown|affine_or_shift|strcmp|crypto|packed_or_obfuscated",
-    "confidence": "low|medium|high",
-    "evidence_count": 0,
-    "has_compare_strings": false,
-    "has_input_prompt": false,
-    "has_affine_constants": false,
-    "needs_ida_static_export": true
-  },
-  "recommended_next_mainline": "tool_integration",
-  "recommended_next_action": "run_ida_static_export|targeted_static_reextract|solver_design",
-  "forbidden_next_actions": [
-    "runtime_probe",
-    "execute_sample",
-    "bruteforce",
-    "upload_binary"
-  ]
-}
-```
+如果更新 `current_state.json`，只允许补充 local_reverse_training 或 artifact_refs 中与本轮两个 artifact 直接相关的最小字段，不得覆盖已有 samplereverse 兼容字段，不得删除旧 local_reverse IDA/solver 证据。
 
 ---
 
@@ -278,7 +215,7 @@ tests/test_local_reverse_static_feature_run.py
 
 必须运行并记录：
 
-```text
+```bash
 python -m pytest -q tests/test_project_state.py
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
@@ -286,14 +223,13 @@ git diff --check
 git status --short
 ```
 
-如果新增 Python wrapper/test，则必须额外运行：
+如果修改了 project_state builder 代码，额外运行：
 
-```text
-python -m py_compile reverse_agent/local_reverse_static_feature_run.py
-python -m pytest -q tests/test_local_reverse_static_feature_run.py
+```bash
+python -m py_compile reverse_agent/project_state.py
 ```
 
-如果只直接调用已有模块并生成 JSON，则无需新增测试文件，但必须在 `pytest_result.txt` 说明没有新增代码。
+以及相关 project_state 测试。
 
 所有 required commands 必须 Exit code 0。若任何命令失败，`codex_execution_report.md` 不得写 `SUCCESS/ACCEPT`。
 
@@ -304,25 +240,23 @@ python -m pytest -q tests/test_local_reverse_static_feature_run.py
 立即停止并报告 `BLOCKED`：
 
 ```text
-1. LOCAL_REVERSE_ROOT 未设置，无法定位 affine.exe。
-2. affine.exe 本地文件不存在。
-3. affine.exe 的 sha256 与 inventory 不一致。
-4. 需要执行样本才能获得证据。
-5. 需要运行 IDA/Ghidra 才能完成本轮。
-6. 需要读取完整 solve_reports 才能完成本轮。
-7. 需要上传原始样本才能完成本轮。
-8. static_feature_extractor.py 不可复用，且新增 wrapper 会变成重复实现。
-9. 输出会泄露 E:\reverse 或其他真实本地绝对路径。
+1. 两个 affine artifact 文件缺失。
+2. 两个 artifact JSON 无法解析。
+3. artifact 内容显示 sample_id 不是 affine_8cfebe03。
+4. artifact 内容显示 executed_sample 不是 false。
+5. project_state build 会覆盖或删除现有关键 state。
+6. 需要运行样本、IDA/Ghidra、solver 或 runtime probe 才能完成登记。
+7. 需要上传原始样本才能完成登记。
 ```
 
 完成条件：
 
 ```text
-1. affine.exe 静态特征结果已生成。
-2. summary 明确下一步是否需要 IDA 静态导出。
-3. 样本未执行。
-4. 未运行 solver、IDA/Ghidra、动态调试。
-5. 未上传原始样本。
-6. report/pytest 记录对齐本 decision_id。
-7. lint-decision、lint-report、git diff --check 通过。
+1. 两个 affine artifact 已进入 artifact_index。
+2. latest_artifacts_v2 标记 freshness=current。
+3. provenance/source_run 指向本轮 round。
+4. report/pytest 与本轮 decision_id 对齐。
+5. required tests 全部 Exit code 0。
+6. 未运行样本、solver、IDA/Ghidra、debugger、runtime probe。
+7. 未上传原始样本。
 ```
