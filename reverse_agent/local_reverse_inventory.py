@@ -365,7 +365,7 @@ def scan_samples(
         "schema_version": 1,
         "generated_at": _now_iso(),
         "samples_root_hint": LOCAL_REVERSE_ROOT_HINT,
-        "source_root_label": str(samples_root.resolve()),
+        "source_root_label": LOCAL_REVERSE_ROOT_HINT,
         "entries": entries,
     }
 

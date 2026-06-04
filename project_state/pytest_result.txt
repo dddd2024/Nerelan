@@ -1,9 +1,9 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260604_fix_local_reverse_inventory_audit_findings_v1",
-  "report_id": "report_20260604_fix_local_reverse_inventory_audit_findings_v1",
-  "round_id": "round_20260604_fix_local_reverse_inventory_audit_findings_v1",
+  "decision_id": "decision_20260604_fix_local_reverse_inventory_remaining_audit_v1",
+  "report_id": "report_20260604_fix_local_reverse_inventory_remaining_audit_v1",
+  "round_id": "round_20260604_fix_local_reverse_inventory_remaining_audit_v1",
   "generated_at": "2026-06-04T00:00:00Z",
   "status": "PASSED",
   "tests_ran": [
@@ -24,17 +24,38 @@ COMMAND-LEVEL TEST RECORD
 
 [2] python -m pytest -q tests/test_local_reverse_inventory.py
     Exit code: 0
-    Output: 17 passed in 1.17s
+    Output: 18 passed in 1.61s
     Status: OK
 
 [3] python -m pytest -q tests/test_local_samples.py tests/test_project_state.py
     Exit code: 0
-    Output: 167 passed in 73.80s
+    Output: 167 passed in 67.78s
     Status: OK
 
-[4] python -m reverse_agent.project_state lint-decision --state-dir project_state
+[4] python -m pytest -q tests/test_local_reverse_inventory.py tests/test_local_samples.py tests/test_project_state.py
+    Exit code: 0
+    Output: 185 passed in 80.04s
+    Status: OK
+
+[5] python -m reverse_agent.project_state lint-decision --state-dir project_state
     Exit code: 0
     Status: OK
+
+[6] python -m reverse_agent.project_state lint-report --state-dir project_state
+    Exit code: 0
+    Status: OK
+
+[7] git diff --check
+    Exit code: 0
+    Status: OK
+
+[8] git status --short
+    Exit code: 0
+    Status: OK
+    Output:
+     M project_state/local_reverse_inventory.json
+     M reverse_agent/local_reverse_inventory.py
+     M tests/test_local_reverse_inventory.py
 
 ================================================================================
 PYTEST DETAIL
@@ -44,8 +65,8 @@ platform win32 -- Python 3.11.11, pytest-9.0.3, pluggy-1.6.0
 rootdir: F:\reverse-agent
 
 Summary:
-- test_local_reverse_inventory.py: 17 passed
+- test_local_reverse_inventory.py: 18 passed
 - test_local_samples.py: 14 passed
 - test_project_state.py: 98 passed
 
-Total: 184 passed
+Total: 185 passed

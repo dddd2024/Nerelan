@@ -1,17 +1,14 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260604_fix_local_reverse_inventory_audit_findings_v1",
-  "round_id": "round_20260604_fix_local_reverse_inventory_audit_findings_v1",
-  "based_on_decision_id": "decision_20260604_fix_local_reverse_inventory_audit_findings_v1",
+  "report_id": "report_20260604_fix_local_reverse_inventory_remaining_audit_v1",
+  "round_id": "round_20260604_fix_local_reverse_inventory_remaining_audit_v1",
+  "based_on_decision_id": "decision_20260604_fix_local_reverse_inventory_remaining_audit_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPT",
   "files_changed": [
     "reverse_agent/local_reverse_inventory.py",
     "tests/test_local_reverse_inventory.py",
-    "training_materials/local_reverse/README.md",
-    "training_materials/local_reverse/inventory.json",
-    "training_materials/local_reverse/cases/*.json",
     "project_state/local_reverse_inventory.json",
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md"
@@ -34,85 +31,84 @@
 ## 1. 执行权威与轮次说明
 
 - **当前 decision_packet**：`project_state/decision_packet.md` 是本轮唯一执行权威。
-- **本轮性质**：修复上一轮 `local_reverse_inventory` 的审计发现。
+- **本轮性质**：修复上一轮 `fix_local_reverse_inventory_audit_findings_v1` 后仍残留的审计阻断点。
 - **主线**：`training_dataset`。
 
 ## 2. 执行摘要
 
 | 项目 | 值 |
 |------|-----|
-| 扫描根目录 | `E:\reverse` |
+| 扫描根目录 | `E:\reverse`（本地，不提交） |
 | 扫描文件数 | 29 |
 | inventory 条目数 | 29 |
 | 生成 cases 数 | 29 |
-| 修复项 | 3 项审计发现全部修复 |
+| 修复项 | 4 项审计发现全部修复 |
 
 ## 3. 审计发现修复详情
 
-### 审计发现 #1：IDE 配置文件混入 inventory
+### 审计发现 #1：project_state inventory 包含真实本地路径
 
-**问题**：上一轮扫描了 `.idea/`、`.vscode/` 等 IDE 配置文件，导致 inventory 包含非样本文件。
-
-**修复**：
-- 新增 `EXCLUDE_DIRS`：`.idea`, `.vscode`, `.git`, `__pycache__`, `.pytest_cache`, `.venv`, `venv`, `env`, `node_modules`
-- 新增 `EXCLUDE_EXTENSIONS`：`.iml`, `.xml`, `.log`, `.tmp`, `.cache`, `.pyc`, `.pyo`, `.pyd`, `.class`, `.o`, `.obj`, `.ilk`, `.pdb`, `.idb`, `.tlog`, `.manifest`, `.res`, `.rc`
-- 新增 `SAMPLE_EXTENSIONS`：包含 100+ 种常见样本/附件扩展名
-- 新增 `_should_include_file()` 过滤函数，在 `_walk_files()` 中应用
-- 过滤后条目从 72 降至 29，仅保留实际样本文件
-
-### 审计发现 #2：cases metadata 的 input_value 硬编码本地路径
-
-**问题**：上一轮 case 的 `input_value` 直接使用了本地绝对路径，导致无法在其他机器上复用。
+**问题**：`project_state/local_reverse_inventory.json` 的 `source_root_label` 字段包含 `E:\reverse`。
 
 **修复**：
-- 新增 `LOCAL_REVERSE_ROOT_HINT = "LOCAL_REVERSE_ROOT"`
-- `_build_case_payload()` 中 `input_value` 改为 `${LOCAL_REVERSE_ROOT}/relative_path` 格式
-- 本地运行时可通过环境变量 `$env:LOCAL_REVERSE_ROOT = "E:\reverse"` 解析
+- `project_state/local_reverse_inventory.json` 的 `source_root_label` 改为 `LOCAL_REVERSE_ROOT`
+- `reverse_agent/local_reverse_inventory.py` 的 `scan_samples()` 中，`source_root_label` 不再写入 `str(samples_root.resolve())`，而是写入 `LOCAL_REVERSE_ROOT_HINT`
 
-### 审计发现 #3：project_state inventory 包含硬编码本地路径
+### 审计发现 #2：生成逻辑会把真实本地路径写入可提交字段
 
-**问题**：上一轮 `project_state/local_reverse_inventory.json` 的 `samples_root` 字段包含硬编码的 `E:\reverse`。
+**问题**：`scan_samples()` 使用 `str(samples_root.resolve())` 作为 `source_root_label`，重新生成时会再次污染 inventory。
 
 **修复**：
-- `samples_root` 改为 `samples_root_hint: "LOCAL_REVERSE_ROOT"`
-- 新增 `source_root_label` 字段记录本地路径（仅用于本地参考，不提交到 GitHub）
-- GitHub inventory 仅包含 `samples_root_hint`，无硬编码路径
+- `scan_samples()` 中 `inventory["source_root_label"]` 统一使用 `LOCAL_REVERSE_ROOT_HINT` 常量
+- 本地运行时可通过环境变量 `$env:LOCAL_REVERSE_ROOT = "E:\reverse"` 解析真实路径
 
-## 4. 新增模块说明
+### 审计发现 #3：pytest_result.txt 缺失必要命令记录
 
-### `reverse_agent/local_reverse_inventory.py`
+**问题**：上一轮 `pytest_result.txt` 没有记录 `lint-report`、`git diff --check`、`git status --short`。
 
-- CLI：`python -m reverse_agent.local_reverse_inventory scan`
-- 参数：
-  - `--samples-root`：样本根目录（默认 `E:/reverse`）
-  - `--out`：本地完整 inventory（默认 `project_state/local_reverse_inventory.json`）
-  - `--github-out`：GitHub-safe inventory（默认 `training_materials/local_reverse/inventory.json`）
-  - `--cases-dir`：harness-compatible case 文件目录（默认 `training_materials/local_reverse/cases`）
-- 功能：
-  - 递归扫描样本目录，自动排除 IDE 配置和构建产物
-  - 计算 SHA-256、文件大小、扩展名
-  - 基于文件名启发式推断 `category` 和 `guessed_file_type`
-  - 生成稳定 `sample_id`
-  - 本地 inventory 使用 `samples_root_hint` + `source_root_label`
-  - GitHub inventory 仅含相对路径和 metadata
-  - 每个样本生成 harness-compatible `cases/*.json`，`input_value` 使用 `${LOCAL_REVERSE_ROOT}` 占位符
+**修复**：
+- 更新 `project_state/pytest_result.txt`，完整记录以下命令：
+  - `python -m py_compile reverse_agent/local_reverse_inventory.py`
+  - `python -m pytest -q tests/test_local_reverse_inventory.py`
+  - `python -m pytest -q tests/test_local_samples.py tests/test_project_state.py`
+  - `python -m pytest -q tests/test_local_reverse_inventory.py tests/test_local_samples.py tests/test_project_state.py`
+  - `python -m reverse_agent.project_state lint-decision --state-dir project_state`
+  - `python -m reverse_agent.project_state lint-report --state-dir project_state`
+  - `git diff --check`
+  - `git status --short`
+
+### 审计发现 #4：codex_execution_report.md 的 tests_ran 与 pytest_result.txt 不一致
+
+**问题**：`codex_execution_report.md` 的 `tests_ran` 和元数据未与当前 `decision_id` 对齐。
+
+**修复**：
+- 更新 `codex_report_summary` 中的 `report_id`、`round_id`、`based_on_decision_id` 为当前轮次
+- `tests_ran` 与 `pytest_result.txt` 完全一致
+
+## 4. 新增测试说明
+
+### `tests/test_local_reverse_inventory.py`
+
+新增 `test_inventory_no_real_local_path`：
+- 扫描临时样本目录并生成 inventory JSON
+- 断言 `source_root_label` 等于 `LOCAL_REVERSE_ROOT_HINT`
+- 使用正则表达式断言 JSON 序列化结果中不含 Windows 盘符模式（如 `E:\\`）或类 Unix 绝对路径模式
+- 确保真实本地绝对路径不会泄漏到可提交的 inventory 中
 
 ## 5. 审计合规声明
 
 | # | 审计项 | 状态 |
 |---|--------|------|
-| 1 | 只生成 metadata，没有提交原始样本 | ✅ |
-| 2 | inventory 包含 sample_id、relative_path、sha256、size_bytes、extension、category、tags | ✅ |
-| 3 | GitHub-safe inventory 避免本地绝对路径 | ✅ |
-| 4 | cases metadata 兼容 `reverse_agent.harness.load_harness_cases` | ✅ |
-| 5 | README 说明原始样本保留在本地 | ✅ |
-| 6 | 没有提交本地样本目录或运行产物目录 | ✅ |
-| 7 | 没有运行动态分析或调试 | ✅ |
-| 8 | `codex_report_summary.based_on_decision_id` 等于 `decision_20260604_fix_local_reverse_inventory_audit_findings_v1` | ✅ |
-| 9 | `pytest_result.txt` 记录真实测试命令 | ✅ |
-| 10 | 审计发现 #1 修复：IDE 配置文件已过滤 | ✅ |
-| 11 | 审计发现 #2 修复：cases 使用 LOCAL_REVERSE_ROOT 占位符 | ✅ |
-| 12 | 审计发现 #3 修复：inventory 使用 root hint 而非硬编码路径 | ✅ |
+| 1 | `project_state/local_reverse_inventory.json` 不再包含 `E:\reverse` 或其他真实本地绝对路径 | ✅ |
+| 2 | `local_reverse_inventory.py` 重新生成时不会把真实本地路径写入可提交字段 | ✅ |
+| 3 | GitHub-safe inventory 仍只包含 `LOCAL_REVERSE_ROOT` hint、relative_path 和 metadata | ✅ |
+| 4 | cases metadata 仍使用 `${LOCAL_REVERSE_ROOT}/<relative_path>` | ✅ |
+| 5 | 没有提交原始样本、本地样本目录或完整运行产物目录 | ✅ |
+| 6 | 没有运行动态分析、调试或 runtime probe | ✅ |
+| 7 | `codex_report_summary.based_on_decision_id` 等于 `decision_20260604_fix_local_reverse_inventory_remaining_audit_v1` | ✅ |
+| 8 | `pytest_result.txt` 记录真实测试命令，并包含 `lint-report`、`git diff --check`、`git status --short` | ✅ |
+| 9 | `codex_execution_report.md` 的 `tests_ran` 与 `pytest_result.txt` 对齐 | ✅ |
+| 10 | 新增测试证明 inventory JSON 中不含 `E:\reverse` | ✅ |
 
 ## 6. 停止条件检查
 
@@ -121,7 +117,8 @@
 - 不需要上传原始样本 ✅
 - metadata 输出成功避免本地绝对路径泄漏到 GitHub inventory ✅
 - cases metadata 可被 harness loader 读取 ✅
-- project_state lint 未失败 ✅
+- project_state lint-decision 未失败 ✅
+- `git diff --check` 仅提示 LF/CRLF 换行符警告，无冲突 ✅
 
 ## 7. 下一步建议
 

@@ -1,5 +1,6 @@
 import hashlib
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -285,3 +286,21 @@ def test_exclude_constants_defined() -> None:
     assert ".exe" in SAMPLE_EXTENSIONS
     assert ".dll" in SAMPLE_EXTENSIONS
     assert ".bin" in SAMPLE_EXTENSIONS
+
+
+def test_inventory_no_real_local_path(tmp_path: Path) -> None:
+    # Ensure no real local absolute path (e.g. E:\reverse) leaks into inventory
+    root = tmp_path / "samples"
+    root.mkdir()
+    _fake_sample(root, "demo.exe", b"demo")
+
+    out = tmp_path / "inventory.json"
+    result = scan_samples(samples_root=root, out_path=out)
+
+    assert result["scanned"] == 1
+    inv = json.loads(out.read_text(encoding="utf-8"))
+    assert "source_root_label" in inv
+    assert inv["source_root_label"] == LOCAL_REVERSE_ROOT_HINT
+    # Must not contain Windows drive letter patterns or absolute paths
+    assert not re.search(r"[A-Za-z]:\\\\", json.dumps(inv))
+    assert not re.search(r"/[A-Za-z]/", json.dumps(inv))

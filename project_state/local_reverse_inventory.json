@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-06-04T05:38:36Z",
   "samples_root_hint": "LOCAL_REVERSE_ROOT",
-  "source_root_label": "E:\\reverse",
+  "source_root_label": "LOCAL_REVERSE_ROOT",
   "entries": [
     {
       "sample_id": "cpp2_fc735338",
