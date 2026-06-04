@@ -1,0 +1,525 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "relative_path": "逆向课程2024春补考03/affine.exe",
+  "analysis_mode": "targeted_static_reextract_main_input_flow",
+  "executed_sample": false,
+  "source_summary": "project_state/local_reverse_affine_ida_summary.json",
+  "source_evidence": "solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_evidence.json",
+  "focus": {
+    "function": "_main_0",
+    "input_prompt_site": "0x401054",
+    "scanf_site": "0x401065"
+  },
+  "input_flow": {
+    "input_api": "scanf",
+    "format_string": "%s",
+    "buffer_candidates": [
+      "[ebp+Str] (local stack buffer)"
+    ],
+    "stack_variables": [],
+    "notes": [
+      "scanf with %s format reads unbounded string",
+      "scanf reads into local stack buffer; buffer size not confirmed from static evidence",
+      "puts prompt precedes scanf: 'please input a string:'"
+    ]
+  },
+  "post_scanf_flow": {
+    "calls_after_scanf": [
+      {
+        "call_ea": "0x4011E6",
+        "caller_func": "_system",
+        "callee": "__CrtDbgReport",
+        "nearby": "movsx   edx, byte ptr [ecx] || test    edx, edx || jnz     short loc_4011F4 || push    offset aCommandT0 || push    0; int || push    3Bh ; ';'; Value",
+        "ref_strings": "*command != _T('\\0') | system.c"
+      },
+      {
+        "call_ea": "0x401704",
+        "caller_func": "__spawnvpe",
+        "callee": "__CrtDbgReport",
+        "nearby": "movsx   edx, byte ptr [ecx] || test    edx, edx || jnz     short loc_401712 || push    offset aFilenameT0 || push    0; int || push    4Dh ; 'M'; Value",
+        "ref_strings": "*filename != _T('\\0') | spawnvpe.c"
+      },
+      {
+        "call_ea": "0x40178A",
+        "caller_func": "__spawnvpe",
+        "callee": "__CrtDbgReport",
+        "nearby": "movsx   eax, byte ptr [edx] || test    eax, eax || jnz     short loc_401798 || push    offset aArgvT0 || push    0; int || push    50h ; 'P'; Value",
+        "ref_strings": "**argv != _T('\\0') | spawnvpe.c"
+      },
+      {
+        "call_ea": "0x4017FE",
+        "caller_func": "__spawnvpe",
+        "callee": "__malloc_dbg",
+        "nearby": "add     esp, 4 || mov     [ebp+var_8], eax || cmp     [ebp+var_8], 0 || jz      short loc_40180F || push    61h ; 'a' || push    offset aSpawnvpeC",
+        "ref_strings": "spawnvpe.c"
+      },
+      {
+        "call_ea": "0x401BC1",
+        "caller_func": "__spawnve",
+        "callee": "_strlen",
+        "nearby": "mov     [ebp+Destination], eax || cmp     [ebp+Destination], 0 || jnz     short loc_401C10 || push    0E6h || push    offset aSpawnveC || push    2",
+        "ref_strings": "spawnve.c"
+      },
+      {
+        "call_ea": "0x401BCD",
+        "caller_func": "__spawnve",
+        "callee": "__malloc_dbg",
+        "nearby": "push    offset aSpawnveC || push    2 || mov     ecx, [ebp+Str] || push    ecx; Str || call    _strlen || add     esp, 4",
+        "ref_strings": "spawnve.c"
+      },
+      {
+        "call_ea": "0x401C87",
+        "caller_func": "__spawnve",
+        "callee": "_strlen",
+        "nearby": "add     esp, 10h || mov     [ebp+var_C], eax || jmp     loc_401D3F || push    117h || push    offset aSpawnveC || push    2",
+        "ref_strings": "spawnve.c"
+      },
+      {
+        "call_ea": "0x401C93",
+        "caller_func": "__spawnve",
+        "callee": "__malloc_dbg",
+        "nearby": "push    offset aSpawnveC || push    2 || mov     edx, [ebp+Str] || push    edx; Str || call    _strlen || add     esp, 4",
+        "ref_strings": "spawnve.c"
+      },
+      {
+        "call_ea": "0x401F81",
+        "caller_func": "__CrtDbgReport",
+        "callee": "ds:__imp_LoadLibraryA",
+        "nearby": "jnz     loc_402000 || push    offset Addend; lpAddend || call    ds:__imp_InterlockedIncrement || test    eax, eax || jle     loc_402000 || cmp     dword_42CCE8, 0",
+        "ref_strings": "user32.dll"
+      },
+      {
+        "call_ea": "0x401FA2",
+        "caller_func": "__CrtDbgReport",
+        "callee": "ds:__imp_GetProcAddress",
+        "nearby": "push    offset LibFileName || call    ds:__imp_LoadLibraryA || mov     [ebp+hModule], eax || cmp     [ebp+hModule], 0 || jz      short loc_401FB6 || push    offset ProcName",
+        "ref_strings": "user32.dll | wsprintfA"
+      },
+      {
+        "call_ea": "0x401FD2",
+        "caller_func": "__CrtDbgReport",
+        "callee": "dword_42CCE8",
+        "nearby": "jmp     loc_40226B || mov     edx, [ebp+Value] || push    edx || mov     eax, [ebp+arg_4] || push    eax || push    offset aSecondChanceAs",
+        "ref_strings": "Second Chance Assertion Failed: File %s, Line %d"
+      },
+      {
+        "call_ea": "0x401FE2",
+        "caller_func": "__CrtDbgReport",
+        "callee": "ds:__imp_OutputDebugStringA",
+        "nearby": "push    eax || push    offset aSecondChanceAs || lea     ecx, [ebp+OutputString] || push    ecx || call    dword_42CCE8 || add     esp, 10h",
+        "ref_strings": "Second Chance Assertion Failed: File %s, Line %d"
+      },
+      {
+        "call_ea": "0x402035",
+        "caller_func": "__CrtDbgReport",
+        "callee": "_strcpy",
+        "nearby": "push    edx; Buffer || call    __vsnprintf || add     esp, 10h || test    eax, eax || jge     short loc_40203D || push    offset aCrtdbgreportSt",
+        "ref_strings": "_CrtDbgReport: String too long or IO Error"
+      },
+      {
+        "call_ea": "0x40206D",
+        "caller_func": "__CrtDbgReport",
+        "callee": "_strcpy",
+        "nearby": "jz      short loc_402055 || mov     [ebp+Source], offset aAssertionFaile || jmp     short loc_40205F || mov     [ebp+Source], offset aAssertionFaile_0 || mov     ecx, [ebp+Source] || push    ecx; Source",
+        "ref_strings": "Assertion failed: | Assertion failed!"
+      },
+      {
+        "call_ea": "0x402108",
+        "caller_func": "__CrtDbgReport",
+        "callee": "_strcpy",
+        "nearby": "push    eax; Buffer || call    __snprintf || add     esp, 18h || test    eax, eax || jge     short loc_402110 || push    offset aCrtdbgreportSt",
+        "ref_strings": "_CrtDbgReport: String too long or IO Error"
+      },
+      {
+        "call_ea": "0x40250D",
+        "caller_func": "_CrtMessageWindow",
+        "callee": "__snprintf",
+        "nearby": "push    eax || mov     ecx, [ebp+arg_0] || mov     edx, off_429A64[ecx*4] || push    edx || push    offset aDebugSProgramS || push    1000h; BufferCount",
+        "ref_strings": "Debug %s!\n\nProgram: %s%s%s%s%s%s%s%s%s%s%s\n\n(Press Retry to debug the application)"
+      },
+      {
+        "call_ea": "0x402525",
+        "caller_func": "_CrtMessageWindow",
+        "callee": "_strcpy",
+        "nearby": "push    eax; Buffer || call    __snprintf || add     esp, 3Ch || test    eax, eax || jge     short loc_40252D || push    offset aCrtdbgreportSt",
+        "ref_strings": "_CrtDbgReport: String too long or IO Error"
+      },
+      {
+        "call_ea": "0x40253E",
+        "caller_func": "_CrtMessageWindow",
+        "callee": "___crtMessageBoxA",
+        "nearby": "lea     ecx, [ebp+Destination] || push    ecx; Destination || call    _strcpy || add     esp, 8 || push    12012h || push    offset aMicrosoftVisua",
+        "ref_strings": "Microsoft Visual C++ Debug Library"
+      },
+      {
+        "call_ea": "0x40276E",
+        "caller_func": "__stbuf",
+        "callee": "__malloc_dbg",
+        "nearby": "jmp     loc_402800 || mov     ecx, [ebp+var_8] || cmp     dword_42CCEC[ecx*4], 0 || jnz     short loc_4027BA || push    5Eh ; '^' || push    offset aSftbufC",
+        "ref_strings": "_sftbuf.c"
+      },
+      {
+        "call_ea": "0x402836",
+        "caller_func": "__ftbuf",
+        "callee": "__CrtDbgReport",
+        "nearby": "jz      short loc_402844 || cmp     [ebp+arg_0], 1 || jz      short loc_402844 || push    offset aFlag0Flag1 || push    0; int || push    0A1h; Value",
+        "ref_strings": "flag == 0 || flag == 1 | _sftbuf.c"
+      },
+      {
+        "call_ea": "0x402A00",
+        "caller_func": "sub_4028D0",
+        "callee": "__CrtDbgReport",
+        "nearby": "movsx   edx, byte ptr [ebp+var_2C] || test    edx, edx || jnz     short loc_402A0E || push    offset aChT0; \"ch != _T('\\\\0')\" || push    0; int || push    18Eh; Value",
+        "ref_strings": "ch != _T('\\0') | output.c"
+      },
+      {
+        "call_ea": "0x402F85",
+        "caller_func": "sub_4028D0",
+        "callee": "__malloc_dbg",
+        "nearby": "cmp     [ebp+var_238], 0A3h || jle     short loc_402FA8 || push    2EAh || push    offset aOutputC; \"output.c\" || push    2 || mov     eax, [ebp+var_238]",
+        "ref_strings": "output.c"
+      },
+      {
+        "call_ea": "0x403840",
+        "caller_func": "___initstdio",
+        "callee": "__calloc_dbg",
+        "nearby": "jge     short loc_40382C || mov     dword_42E600, 14h || push    83h || push    offset aFileC || push    2 || push    4",
+        "ref_strings": "_file.c"
+      },
+      {
+        "call_ea": "0x403875",
+        "caller_func": "___initstdio",
+        "callee": "__calloc_dbg",
+        "nearby": "jnz     short loc_403895 || mov     dword_42E600, 14h || push    86h || push    offset aFileC || push    2 || push    4",
+        "ref_strings": "_file.c"
+      },
+      {
+        "call_ea": "0x403975",
+        "caller_func": "__input",
+        "callee": "__CrtDbgReport",
+        "nearby": "push    edi; char || cmp     [ebp+arg_4], 0 || jnz     short loc_403983 || push    offset aFormatNull || push    0; int || push    109h; Value",
+        "ref_strings": "format != NULL | input.c"
+      },
+      {
+        "call_ea": "0x4039A2",
+        "caller_func": "__input",
+        "callee": "__CrtDbgReport",
+        "nearby": "jnz     short loc_40395C || cmp     [ebp+File], 0 || jnz     short loc_4039B0 || push    offset aStreamNull || push    0; int || push    10Ch; Value",
+        "ref_strings": "stream != NULL | input.c"
+      },
+      {
+        "call_ea": "0x40556D",
+        "caller_func": "__setenvp",
+        "callee": "__malloc_dbg",
+        "nearby": "mov     [ebp+Str], edx || jmp     short loc_405523 || push    6Dh ; 'm' || push    offset aStdenvpC || push    2 || mov     eax, [ebp+var_8]",
+        "ref_strings": "stdenvp.c"
+      },
+      {
+        "call_ea": "0x4055DB",
+        "caller_func": "__setenvp",
+        "callee": "__malloc_dbg",
+        "nearby": "movsx   eax, byte ptr [edx] || cmp     eax, 3Dh ; '=' || jz      short loc_405615 || push    79h ; 'y' || push    offset aStdenvpC || push    2",
+        "ref_strings": "stdenvp.c"
+      },
+      {
+        "call_ea": "0x4056D3",
+        "caller_func": "__setargv",
+        "callee": "__malloc_dbg",
+        "nearby": "add     esp, 14h || push    80h ; '€' || push    offset aStdargvC || push    2 || mov     edx, [ebp+var_C] || mov     eax, [ebp+var_4]",
+        "ref_strings": "stdargv.c"
+      },
+      {
+        "call_ea": "0x405C53",
+        "caller_func": "___crtGetEnvironmentStringsA",
+        "callee": "__malloc_dbg",
+        "nearby": "mov     [ebp+cbMultiByte], eax || cmp     [ebp+cbMultiByte], 0 || jz      short loc_405C64 || push    64h ; 'd' || push    offset aAEnvC || push    2",
+        "ref_strings": "a_env.c"
+      },
+      {
+        "call_ea": "0x405D31",
+        "caller_func": "___crtGetEnvironmentStringsA",
+        "callee": "__malloc_dbg",
+        "nearby": "sub     ecx, [ebp+lpMultiByteStr] || add     ecx, 1 || mov     [ebp+cbMultiByte], ecx || push    8Fh || push    offset aAEnvC || push    2",
+        "ref_strings": "a_env.c"
+      },
+      {
+        "call_ea": "0x405D97",
+        "caller_func": "__ioinit",
+        "callee": "__malloc_dbg",
+        "nearby": "push    ebp || mov     ebp, esp || sub     esp, 6Ch || push    81h || push    offset aIoinitC || push    2",
+        "ref_strings": "ioinit.c"
+      },
+      {
+        "call_ea": "0x405E87",
+        "caller_func": "__ioinit",
+        "callee": "__malloc_dbg",
+        "nearby": "mov     [ebp+var_5C], edx || mov     eax, uNumber || cmp     eax, [ebp+var_64] || jge     loc_405EFD || push    0B6h || push    offset aIoinitC",
+        "ref_strings": "ioinit.c"
+      },
+      {
+        "call_ea": "0x406876",
+        "caller_func": "__NMSG_WRITE",
+        "callee": "_strcpy",
+        "nearby": "push    offset asc_427460 || mov     ecx, [ebp+Str] || push    ecx; Destination || call    _strncpy || add     esp, 0Ch || push    offset aRuntimeErrorPr",
+        "ref_strings": "... | Runtime Error!\n\nProgram:"
+      },
+      {
+        "call_ea": "0x406A58",
+        "caller_func": "__heap_alloc_dbg",
+        "callee": "__CrtDbgReport",
+        "nearby": "call    sub_407A90 || test    eax, eax || jnz     short loc_406A66 || push    offset aCrtcheckmemory || push    0; int || push    14Ch; Value",
+        "ref_strings": "_CrtCheckMemory() | dbgheap.c"
+      },
+      {
+        "call_ea": "0x406AC1",
+        "caller_func": "__heap_alloc_dbg",
+        "callee": "__CrtDbgReport",
+        "nearby": "push    eax || mov     ecx, dword ptr [ebp+arg_8] || push    ecx; char || push    offset aClientHookAllo || push    0; int || push    0; Value",
+        "ref_strings": "Client hook allocation failure at file %hs line %d."
+      },
+      {
+        "call_ea": "0x406AE9",
+        "caller_func": "__heap_alloc_dbg",
+        "callee": "__CrtDbgReport",
+        "nearby": "jnz     short loc_406AAC || jmp     short loc_406AFD || push    offset aClientHookAllo_0 || push    offset Format || push    0; int || push    0; Value",
+        "ref_strings": "Client hook allocation failure. | %s"
+      },
+      {
+        "call_ea": "0x406B9C",
+        "caller_func": "__heap_alloc_dbg",
+        "callee": "__CrtDbgReport",
+        "nearby": "cmp     [ebp+arg_4], 3 || jz      short loc_406BB0 || push    offset aErrorMemoryAll || push    offset Format || push    0; int || push    0; Value",
+        "ref_strings": "Error: memory allocation: bad memory block type. | %s"
+      },
+      {
+        "call_ea": "0x406EAE",
+        "caller_func": "_realloc_help",
+        "callee": "__CrtDbgReport",
+        "nearby": "call    sub_407A90 || test    eax, eax || jnz     short loc_406EBC || push    offset aCrtcheckmemory || push    0; int || push    246h; Value",
+        "ref_strings": "_CrtCheckMemory() | dbgheap.c"
+      },
+      {
+        "call_ea": "0x406F19",
+        "caller_func": "_realloc_help",
+        "callee": "__CrtDbgReport",
+        "nearby": "push    ecx || mov     edx, dword ptr [ebp+arg_C] || push    edx; char || push    offset aClientHookReAl || push    0; int || push    0; Value",
+        "ref_strings": "Client hook re-allocation failure at file %hs line %d."
+      },
+      {
+        "call_ea": "0x406F41",
+        "caller_func": "_realloc_help",
+        "callee": "__CrtDbgReport",
+        "nearby": "jnz     short loc_406F04 || jmp     short loc_406F55 || push    offset aClientHookReAl_0 || push    offset Format || push    0; int || push    0; Value",
+        "ref_strings": "Client hook re-allocation failure. | %s"
+      },
+      {
+        "call_ea": "0x406FC2",
+        "caller_func": "_realloc_help",
+        "callee": "__CrtDbgReport",
+        "nearby": "cmp     edx, 2 || jz      short loc_406FD6 || push    offset aErrorMemoryAll || push    offset Format || push    0; int || push    0; Value",
+        "ref_strings": "Error: memory allocation: bad memory block type. | %s"
+      },
+      {
+        "call_ea": "0x4073FF",
+        "caller_func": "sub_4073D0",
+        "callee": "__CrtDbgReport",
+        "nearby": "call    sub_407A90 || test    eax, eax || jnz     short loc_40740D || push    offset aCrtcheckmemory; \"_CrtCheckMemory()\" || push    0; int || push    402h; Value",
+        "ref_strings": "_CrtCheckMemory() | dbgheap.c"
+      },
+      {
+        "call_ea": "0x40744F",
+        "caller_func": "sub_4073D0",
+        "callee": "__CrtDbgReport",
+        "nearby": "test    eax, eax || jnz     short loc_407468 || push    offset aClientHookFree; \"Client hook free failure.\\n\" || push    offset Format; \"%s\" || push    0; int || push    0; Value",
+        "ref_strings": "Client hook free failure. | %s"
+      },
+      {
+        "call_ea": "0x40755C",
+        "caller_func": "sub_4073D0",
+        "callee": "__CrtDbgReport",
+        "nearby": "and     ecx, 0FFFFh || mov     edx, off_429E50[ecx*4]; \"Free\" || push    edx; char || push    offset aDamageBeforeHs; \"DAMAGE: before %hs block (#%d) at 0x%08\"... || push    0; int || push    0; Value",
+        "ref_strings": "DAMAGE: before %hs block (#%d) at 0x%08X."
+      },
+      {
+        "call_ea": "0x4075C2",
+        "caller_func": "sub_4073D0",
+        "callee": "__CrtDbgReport",
+        "nearby": "and     ecx, 0FFFFh || mov     edx, off_429E50[ecx*4]; \"Free\" || push    edx; char || push    offset aDamageAfterHsB; \"DAMAGE: after %hs block (#%d) at 0x%08X\"... || push    0; int || push    0; Value",
+        "ref_strings": "DAMAGE: after %hs block (#%d) at 0x%08X."
+      },
+      {
+        "call_ea": "0x407811",
+        "caller_func": "__msize_dbg",
+        "callee": "__CrtDbgReport",
+        "nearby": "call    sub_407A90 || test    eax, eax || jnz     short loc_40781F || push    offset aCrtcheckmemory || push    0; int || push    49Dh; Value",
+        "ref_strings": "_CrtCheckMemory() | dbgheap.c"
+      },
+      {
+        "call_ea": "0x407A61",
+        "caller_func": "_CheckBytes",
+        "callee": "__CrtDbgReport",
+        "nearby": "mov     eax, [ebp+arg_0] || sub     eax, 1 || push    eax; char || push    offset aMemoryCheckErr || push    0; int || push    0; Value",
+        "ref_strings": "memory check error at 0x%08X = 0x%02X, should be 0x%02X."
+      },
+      {
+        "call_ea": "0x407B00",
+        "caller_func": "sub_407A90",
+        "callee": "__CrtDbgReport",
+        "nearby": "mov     eax, [ebp+var_18] || jmp     ds:jpt_407AE7[eax*4]; switch jump || push    offset aHeapchkFailsWi; jumptable 00407AE7 case -3 || push    offset Format; \"%s\" || push    0; int || push    0; Value",
+        "ref_strings": "_heapchk fails with _HEAPBADBEGIN. | %s"
+      },
+      {
+        "call_ea": "0x407B2B",
+        "caller_func": "sub_407A90",
+        "callee": "__CrtDbgReport",
+        "nearby": "jnz     short loc_407AEE; jumptable 00407AE7 case -3 || jmp     loc_407BB7 || push    offset aHeapchkFailsWi_0; jumptable 00407AE7 case -4 || push    offset Format; \"%s\" || push    0; int || push    0; Value",
+        "ref_strings": "_heapchk fails with _HEAPBADNODE. | %s"
+      },
+      {
+        "call_ea": "0x407B53",
+        "caller_func": "sub_407A90",
+        "callee": "__CrtDbgReport",
+        "nearby": "jnz     short loc_407B19; jumptable 00407AE7 case -4 || jmp     short loc_407BB7 || push    offset aHeapchkFailsWi_1; jumptable 00407AE7 case -5 || push    offset Format; \"%s\" || push    0; int || push    0; Value",
+        "ref_strings": "_heapchk fails with _HEAPBADEND. | %s"
+      },
+      {
+        "call_ea": "0x407B7B",
+        "caller_func": "sub_407A90",
+        "callee": "__CrtDbgReport",
+        "nearby": "jnz     short loc_407B41; jumptable 00407AE7 case -5 || jmp     short loc_407BB7 || push    offset aHeapchkFailsWi_2; jumptable 00407AE7 case -6 || push    offset Format; \"%s\" || push    0; int || push    0; Value",
+        "ref_strings": "_heapchk fails with _HEAPBADPTR. | %s"
+      },
+      {
+        "call_ea": "0x407BA3",
+        "caller_func": "sub_407A90",
+        "callee": "__CrtDbgReport",
+        "nearby": "jnz     short loc_407B69; jumptable 00407AE7 case -6 || jmp     short loc_407BB7 || push    offset aHeapchkFailsWi_3; jumptable 00407AE7 default case || push    offset Format; \"%s\" || push    0; int || push    0; Value",
+        "ref_strings": "_heapchk fails with unknown return value! | %s"
+      },
+      {
+        "call_ea": "0x407C4F",
+        "caller_func": "sub_407A90",
+        "callee": "_CheckBytes",
+        "nearby": "jmp     short loc_407C40 || mov     dword ptr [ebp+var_14], offset aDamaged; \"DAMAGED\" || push    4 || mov     al, byte_429E4C || push    eax || mov     ecx, [ebp+var_8]",
+        "ref_strings": "DAMAGED"
+      },
+      {
+        "call_ea": "0x407C7A",
+        "caller_func": "sub_407A90",
+        "callee": "__CrtDbgReport",
+        "nearby": "push    ecx || mov     edx, dword ptr [ebp+var_14] || push    edx; char || push    offset aDamageBeforeHs; \"DAMAGE: before %hs block (#%d) at 0x%08\"... || push    0; int || push    0; Value",
+        "ref_strings": "DAMAGE: before %hs block (#%d) at 0x%08X."
+      },
+      {
+        "call_ea": "0x407CD7",
+        "caller_func": "sub_407A90",
+        "callee": "__CrtDbgReport",
+        "nearby": "push    edx || mov     eax, dword ptr [ebp+var_14] || push    eax; char || push    offset aDamageAfterHsB; \"DAMAGE: after %hs block (#%d) at 0x%08X\"... || push    0; int || push    0; Value",
+        "ref_strings": "DAMAGE: after %hs block (#%d) at 0x%08X."
+      },
+      {
+        "call_ea": "0x407D30",
+        "caller_func": "sub_407A90",
+        "callee": "__CrtDbgReport",
+        "nearby": "mov     ecx, [ebp+var_8] || add     ecx, 20h ; ' ' || push    ecx; char || push    offset aDamageOnTopOfF; \"DAMAGE: on top of Free block at 0x%08X.\"... || push    0; int || push    0; Value",
+        "ref_strings": "DAMAGE: on top of Free block at 0x%08X."
+      },
+      {
+        "call_ea": "0x407DAC",
+        "caller_func": "sub_407A90",
+        "callee": "__CrtDbgReport",
+        "nearby": "push    eax || mov     ecx, dword ptr [ebp+var_14] || push    ecx; char || push    offset aHsLocatedAt0x0; \"%hs located at 0x%08X is %u bytes long.\"... || push    0; int || push    0; Value",
+        "ref_strings": "%hs located at 0x%08X is %u bytes long."
+      }
+    ],
+    "reads_from_input_buffer": [
+      {
+        "call_ea": "0x401BCD",
+        "callee": "__malloc_dbg",
+        "evidence": "push    offset aSpawnveC || push    2 || mov     ecx, [ebp+Str] || push    ecx; Str || call    _strlen || add     esp, 4"
+      },
+      {
+        "call_ea": "0x401C93",
+        "callee": "__malloc_dbg",
+        "evidence": "push    offset aSpawnveC || push    2 || mov     edx, [ebp+Str] || push    edx; Str || call    _strlen || add     esp, 4"
+      },
+      {
+        "call_ea": "0x401FE2",
+        "callee": "ds:__imp_OutputDebugStringA",
+        "evidence": "push    eax || push    offset aSecondChanceAs || lea     ecx, [ebp+OutputString] || push    ecx || call    dword_42CCE8 || add     esp, 10h"
+      },
+      {
+        "call_ea": "0x402035",
+        "callee": "_strcpy",
+        "evidence": "push    edx; Buffer || call    __vsnprintf || add     esp, 10h || test    eax, eax || jge     short loc_40203D || push    offset aCrtdbgreportSt"
+      },
+      {
+        "call_ea": "0x402108",
+        "callee": "_strcpy",
+        "evidence": "push    eax; Buffer || call    __snprintf || add     esp, 18h || test    eax, eax || jge     short loc_402110 || push    offset aCrtdbgreportSt"
+      },
+      {
+        "call_ea": "0x40250D",
+        "callee": "__snprintf",
+        "evidence": "push    eax || mov     ecx, [ebp+arg_0] || mov     edx, off_429A64[ecx*4] || push    edx || push    offset aDebugSProgramS || push    1000h; BufferCount"
+      },
+      {
+        "call_ea": "0x402525",
+        "callee": "_strcpy",
+        "evidence": "push    eax; Buffer || call    __snprintf || add     esp, 3Ch || test    eax, eax || jge     short loc_40252D || push    offset aCrtdbgreportSt"
+      },
+      {
+        "call_ea": "0x4039A2",
+        "callee": "__CrtDbgReport",
+        "evidence": "jnz     short loc_40395C || cmp     [ebp+File], 0 || jnz     short loc_4039B0 || push    offset aStreamNull || push    0; int || push    10Ch; Value"
+      },
+      {
+        "call_ea": "0x40556D",
+        "callee": "__malloc_dbg",
+        "evidence": "mov     [ebp+Str], edx || jmp     short loc_405523 || push    6Dh ; 'm' || push    offset aStdenvpC || push    2 || mov     eax, [ebp+var_8]"
+      },
+      {
+        "call_ea": "0x405D31",
+        "callee": "__malloc_dbg",
+        "evidence": "sub     ecx, [ebp+lpMultiByteStr] || add     ecx, 1 || mov     [ebp+cbMultiByte], ecx || push    8Fh || push    offset aAEnvC || push    2"
+      },
+      {
+        "call_ea": "0x406876",
+        "callee": "_strcpy",
+        "evidence": "push    offset asc_427460 || mov     ecx, [ebp+Str] || push    ecx; Destination || call    _strncpy || add     esp, 0Ch || push    offset aRuntimeErrorPr"
+      }
+    ],
+    "writes_to_input_buffer": [],
+    "notes": [
+      "Total 58 calls after scanf; 0 within _main_0"
+    ],
+    "calls_after_scanf_in_main_0": []
+  },
+  "candidate_transform_sites": [],
+  "candidate_compare_sites": [
+    {
+      "call_ea": "0x40620E",
+      "caller_func": "sub_406150",
+      "callee": "_strncmp",
+      "nearby": "push    16h; MaxCount || lea     ecx, [ebp+Buffer] || push    ecx; Str2 || push    offset Str1; \"__GLOBAL_HEAP_SELECTED\"",
+      "ref_strings": "__GLOBAL_HEAP_SELECTED",
+      "reason": "CRT/heap-related compare; NOT business final compare",
+      "confidence": "noise"
+    }
+  ],
+  "noise_or_low_priority_sites": [],
+  "decompiler_status": {
+    "_main_0_pseudocode_available": false,
+    "_main_0_pseudocode_length": 0,
+    "notes": [
+      "_main_0 pseudocode NOT available in raw IDA evidence. collect_evidence.py scoring did not include _main_0 in top-6 decompiler snippets. Input flow extracted from local_check_contexts and string_xrefs only."
+    ]
+  },
+  "confidence": "low",
+  "blockers": [
+    "MISSING_MAIN_0_PSEUDOCODE: _main_0 decompiler snippet not in raw evidence; core affine transform logic cannot be confirmed without targeted IDA decompilation of _main_0"
+  ],
+  "recommended_next_action": "targeted_ida_decompile_specific_function",
+  "recommended_next_focus": "_main_0 full decompilation at 0x401000-0x401100 range"
+}

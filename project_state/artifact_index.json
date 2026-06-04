@@ -632,6 +632,16 @@
       "size_bytes": 82503,
       "modified_at": "2026-06-04T13:26:08Z",
       "sample_id": "affine_8cfebe03"
+    },
+    "local_reverse_affine_main_input_flow_reextract": {
+      "kind": "local_reverse_affine_main_input_flow_reextract",
+      "path": "project_state\\local_reverse_affine_main_input_flow_reextract.json",
+      "freshness": "current",
+      "source_run": "round_20260604_affine_main_input_flow_reextract_v1",
+      "sha256": "f903d1a8efef29ad3f585f0b05be86ed454bde96eb0cdd10b42a44bd5df6fbb0",
+      "size_bytes": 26283,
+      "modified_at": "2026-06-04T15:52:45Z",
+      "sample_id": "affine_8cfebe03"
     }
   },
   "latest_case_results": [
