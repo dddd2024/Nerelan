@@ -1,0 +1,219 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_2f6fcb63",
+  "analysis_mode": "ida_instruction_control_flow_recheck",
+  "mainline": "tool_integration",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "generated_at": "2026-06-05T12:32:49Z",
+  "source_artifacts": {
+    "artifact_index": "project_state/artifact_index.json",
+    "target_bytes": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json",
+    "transform_recheck": "project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json",
+    "static_triage": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json"
+  },
+  "ida_status": {
+    "attempted": true,
+    "available": true,
+    "success": true,
+    "error": ""
+  },
+  "control_flow_analysis": {
+    "main_function_found": true,
+    "main_function": "_main_0",
+    "main_function_address": "0x00401190",
+    "basic_block_count": 1,
+    "division_instruction_count": 12,
+    "transform_loop_evidence_count": 61,
+    "compare_loop_evidence_count": 1352,
+    "target_xref_count": 2,
+    "seh_segment_found": false,
+    "success_branch_found": true,
+    "failure_branch_found": true,
+    "decompiler_available": true,
+    "decompiler_vs_instruction_consistency": {
+      "triage_has_pseudocode": true,
+      "ida_has_pseudocode": true,
+      "both_have_pseudocode": true,
+      "triage_has_strlen_check": true,
+      "triage_has_strncpy": true,
+      "triage_has_transform_loop": true,
+      "triage_has_compare_loop": true,
+      "triage_has_success_condition": true,
+      "triage_has_division": true,
+      "ida_has_strlen_check": true,
+      "ida_has_strncpy": true,
+      "ida_has_transform_loop": true,
+      "ida_has_compare_loop": true,
+      "ida_has_success_condition": true,
+      "ida_has_division": true,
+      "division_instruction_addresses": [
+        "0x00401239",
+        "0x00405743",
+        "0x00409194",
+        "0x0040919F",
+        "0x00409FA4",
+        "0x00409FAC",
+        "0x00409FCC",
+        "0x0040A013",
+        "0x0040A019",
+        "0x0040A03B",
+        "0x0040B9E0",
+        "0x0040BABB"
+      ],
+      "division_is_real_instruction": true,
+      "division_near_main": true,
+      "seh_present": false,
+      "seh_assessment": "No SEH/exception segments found; division by zero would cause unhandled exception (likely dead code or anti-debug trap)",
+      "transform_instructions_found": true,
+      "transform_formula_supported": true,
+      "transform_assessment": "AND/shl/shr instructions with matching constants found; decompiler transform formula supported by instruction-level evidence"
+    }
+  },
+  "raw_ida_output_summary": {
+    "basic_blocks": [
+      {
+        "start": "0x00401190",
+        "end": "0x00401337",
+        "size": 423
+      }
+    ],
+    "division_instructions": [
+      {
+        "address": "0x00401239",
+        "mnemonic": "idiv",
+        "operand": "",
+        "disasm": "idiv    [ebp+var_8]"
+      },
+      {
+        "address": "0x00405743",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     ecx"
+      },
+      {
+        "address": "0x00409194",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     [ebp+arg_8]"
+      },
+      {
+        "address": "0x0040919F",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     [ebp+arg_8]"
+      },
+      {
+        "address": "0x00409FA4",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     ecx"
+      },
+      {
+        "address": "0x00409FAC",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     ecx"
+      },
+      {
+        "address": "0x00409FCC",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     ebx"
+      },
+      {
+        "address": "0x0040A013",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     ecx"
+      },
+      {
+        "address": "0x0040A019",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     ecx"
+      },
+      {
+        "address": "0x0040A03B",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     ebx"
+      },
+      {
+        "address": "0x0040B9E0",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     [ebp+arg_8]"
+      },
+      {
+        "address": "0x0040BABB",
+        "mnemonic": "div",
+        "operand": "",
+        "disasm": "div     [ebp+arg_8]"
+      }
+    ],
+    "transform_loop_evidence_count": 61,
+    "compare_loop_evidence_count": 1352,
+    "target_xref_evidence": {
+      "target_name": "byte_429A30",
+      "target_address": "0x00429A30",
+      "xrefs": [
+        {
+          "from": "0x004010E7",
+          "type": "data"
+        },
+        {
+          "from": "0x004012BE",
+          "type": "data"
+        }
+      ]
+    },
+    "seh_evidence": [],
+    "success_branch_evidence": [
+      {
+        "string": "Congratulations! You are right!\n",
+        "string_address": "0x00427040",
+        "xref_from": "0x004010FC"
+      },
+      {
+        "string": "Congratulations! You are right!\n",
+        "string_address": "0x00427040",
+        "xref_from": "0x004012D3"
+      }
+    ],
+    "failure_branch_evidence": [
+      {
+        "string": "Sorry, you are wrong!\n",
+        "string_address": "0x0042701C",
+        "xref_from": "0x00401118"
+      },
+      {
+        "string": "Sorry, you are wrong!\n",
+        "string_address": "0x0042701C",
+        "xref_from": "0x004012EF"
+      },
+      {
+        "string": "What a pity, you found a wrong way.\n",
+        "string_address": "0x00427068",
+        "xref_from": "0x00401309"
+      },
+      {
+        "string": "Sorry,you are wrong!\n",
+        "string_address": "0x00427094",
+        "xref_from": "0x004011F0"
+      }
+    ]
+  },
+  "status": "BLOCKED",
+  "blocked_reason": "NEEDS_STATIC_CONTROL_FLOW_RECHECK",
+  "control_flow_assessment": {
+    "transform_formula_verdict": "SUPPORTED",
+    "division_verdict": "REAL_INSTRUCTION_NEAR_MAIN",
+    "seh_verdict": "NOT_PRESENT",
+    "length_compare_semantics_verdict": "SUPPORTED"
+  },
+  "candidate": null,
+  "known_candidate": "",
+  "recommended_next_action": "If IDA unavailable, require manual binary inspection or alternative static analysis. If transform instructions not found, decompiler formula may be incorrect; require instruction-level verification. If division not found, v6=v9/v8 is likely dead code or anti-debug trap. Next step: bounded runtime validation only if instruction-level evidence supports transform formula."
+}

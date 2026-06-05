@@ -707,6 +707,16 @@
       "size_bytes": 7524,
       "modified_at": "2026-06-05T12:05:00Z",
       "sample_id": "cpp1_2f6fcb63"
+    },
+    "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck": {
+      "kind": "local_reverse_cpp1_ida_control_flow_recheck",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json",
+      "freshness": "current",
+      "source_run": "round_20260605_cpp1_bounded_ida_control_flow_recheck_v1",
+      "sha256": "994d3b3e6254cd045a9b5a0496205edd22ed0e58afffb141283ecc72a7324462",
+      "size_bytes": 6711,
+      "modified_at": "2026-06-05T13:22:00Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [
