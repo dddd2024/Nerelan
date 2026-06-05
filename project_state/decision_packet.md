@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260605_cpp1_target_byte_provenance_recheck_v1",
-  "round_id": "round_20260605_cpp1_target_byte_provenance_recheck_v1",
+  "decision_id": "decision_20260605_training_status_static_blocked_overlay_rework_v1",
+  "round_id": "round_20260605_training_status_static_blocked_overlay_rework_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
-  "mainline": "reverse_solving",
+  "mainline": "training_dataset",
   "skill_profiles": [
     "reverse-agent-iteration@v2"
   ]
@@ -17,61 +17,59 @@
 
 ## 1. Goal
 
-本轮主线是 **reverse_solving**。
+本轮主线是 **training_dataset**。
 
-目标：对 `cpp1_2f6fcb63` 做有界的 **target byte provenance recheck**，解释为什么当前 `byte_429A30` 目标字节在已确认 transform 下没有完整 printable preimage，并判断阻断点来自以下哪一类：
+目标：修复本地训练集状态覆盖逻辑，使 `project_state/local_reverse_training_status.json` 和 `project_state/local_reverse_evaluation_queue.json` 能正确反映已经完成的 current static-blocked artifacts，尤其是 `cpp1_2f6fcb63` 的最新 `target_provenance_recheck` 结果。
 
-```text
-1. target bytes / target symbol / target length 提取错误；
-2. compare 使用的真实目标常量不是当前 `byte_429A30[0:16]`；
-3. transform/compare 前仍存在未建模的静态写入、初始化或数据重定位；
-4. 目标字节与 transform 均已被静态确认，但题目接受非 printable 输入或需要额外运行时路径证据。
-```
-
-本轮只允许围绕 `cpp1_2f6fcb63` 的 target provenance 做静态/IDA evidence 复核。允许有界运行现有 IDA/IDAPython 静态提取接口或最小扩展现有 `local_reverse_cpp1_target_byte_extract` / `local_reverse_cpp1_ida_control_flow_recheck` 能力，但不得新建重复 IDA runner，不得动态执行样本，不得 runtime validation，不得 brute force candidate。
-
-预期产物：
+当前 `cpp1_2f6fcb63` 已经有 current artifacts 证明：
 
 ```text
-reverse_agent/local_reverse_cpp1_target_provenance_recheck.py
-# 或者对现有 reverse_agent/local_reverse_cpp1_target_byte_extract.py 做最小扩展；二者只能选一条，优先扩展现有能力，避免重复接口。
-
-tests/test_local_reverse_cpp1_target_provenance_recheck.py
-project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json
+provenance_verdict=CONFIRMED_NO_PRINTABLE_PREIMAGE
+current_target_matches_raw_data=true
+alternative_printable_span_count=0
+candidate=null
+known_candidate=""
+runtime_validated=false
+status=BLOCKED
+blocked_reason=CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE
 ```
 
-并将新 artifact 登记进 `project_state/artifact_index.json`：
+但 `local_reverse_training_status.json` 仍把 `cpp1_2f6fcb63` 标为 `inventory_only`，并且 `local_reverse_evaluation_queue.json` 仍把它排在下一轮 triage 第一位。这会导致训练集调度重复处理已经静态阻断的样本。
+
+本轮要做的是 **状态/训练集索引一致性修复**，不是继续求解 `cpp1_2f6fcb63`，也不是打开新样本求解。
+
+预期结果：
 
 ```text
-artifact key: local_reverse_cpp1_2f6fcb63_target_provenance_recheck
-freshness: current
-source_run: round_20260605_cpp1_target_byte_provenance_recheck_v1
-sample_id: cpp1_2f6fcb63
+1. `cpp1_2f6fcb63` 在 training_status 中变为 blocked。
+2. blocked_reason 来自 current target_provenance_recheck artifact。
+3. evidence_sources 包含 source:local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json 和 static_handoff/static_blocked_artifact 类标记。
+4. known_candidate 仍为空。
+5. evaluation_queue 不再包含 `cpp1_2f6fcb63`。
+6. 不修改任何样本求解结果，不标记 solved。
 ```
-
-本轮结束时仍不得写 candidate / known_candidate，不得标记 solved。
 
 ---
 
 ## 2. Current Evidence
 
-当前 `project_state/task_packet.json` 仍是旧 `samplereverse` advisory，不控制本轮。当前执行权威是本 `project_state/decision_packet.md`。
+当前 `task_packet.json` 仍是旧 `samplereverse` advisory，不控制本轮；其 `task` 仍是 `Review bounded window discovery diagnostics`，并明确 `project_state/decision_packet.md` 才是当前执行权威。
 
-当前 `project_state/current_state.json` 的 `state_build_id` 仍是：
+当前 `current_state.json` 仍主要是旧 samplereverse 压缩状态，`state_build_id` 为：
 
 ```text
 state_20260602_053948_4e3984041cd7
 ```
 
-其 digest 为：
+`based_on_state_digest` 为：
 
 ```text
 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
 ```
 
-`current_state` 的 samplereverse 内容不是本轮主线证据。本轮以 `artifact_index.json`、上一轮 `codex_execution_report.md`、`pytest_result.txt` 和 `cpp1_2f6fcb63` current artifacts 为实际依据。
+本轮不以 samplereverse 最新 harness 为主线，不读取 full solve_reports。
 
-当前 `artifact_index.json` 已生成于 `2026-06-05T14:12:01Z`。以下 `cpp1_2f6fcb63` artifacts 均为 `freshness=current`：
+当前 `artifact_index.json` 中，`cpp1_2f6fcb63` 相关 artifacts 均为 current，包括：
 
 ```text
 local_reverse_cpp1_2f6fcb63_static_triage
@@ -80,12 +78,25 @@ local_reverse_cpp1_2f6fcb63_inverse_handoff
 local_reverse_cpp1_2f6fcb63_transform_recheck
 local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck
 local_reverse_cpp1_2f6fcb63_signed_transform_recheck
+local_reverse_cpp1_2f6fcb63_target_provenance_recheck
+```
+
+其中最新 target provenance artifact：
+
+```text
+kind=local_reverse_cpp1_target_provenance_recheck
+path=project_state\local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json
+freshness=current
+source_run=round_20260605_cpp1_target_byte_provenance_recheck_v1
+sample_id=cpp1_2f6fcb63
+modified_at=2026-06-05T14:37:53Z
 ```
 
 上一轮 `codex_execution_report.md`：
 
 ```text
-based_on_decision_id=decision_20260605_cpp1_signed_transform_semantics_recheck_v1
+report_id=report_20260605_cpp1_target_byte_provenance_recheck_v1
+based_on_decision_id=decision_20260605_cpp1_target_byte_provenance_recheck_v1
 status=SUCCESS
 acceptance_recommendation=ACCEPTED
 ```
@@ -94,101 +105,42 @@ acceptance_recommendation=ACCEPTED
 
 ```text
 status=PASSED
-12 commands passed
-lint-decision OK
-lint-report OK
-project_state status OK
-decision_report_id_match=True
-decision_consumed_by_report=True
+Total Commands=12
+Passed=12
+Failed=0
+project_state status: decision_report_id_match=True, decision_consumed_by_report=True
 ```
 
-上一轮 signed transform 结论可作为 current evidence 使用：
+`project_state/local_reverse_training_status.json` 当前是旧输出：
 
 ```text
-analysis_mode=signed_instruction_transform_recheck
-static_only=true
-runtime_validated=false
-model_difference_count=0
-models_equivalent_after_u8_truncation=true
-complete_printable_preimage=false
-status=BLOCKED
-blocked_reason=NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_SIGNED_MODEL
-candidate=null
+generated_at=2026-06-05T06:40:11Z
+sample_count=29
+status_summary.solved=1
+status_summary.blocked=3
+status_summary.inventory_only=25
+```
+
+其中 `cpp1_2f6fcb63` 当前仍错误地显示：
+
+```text
+training_status=inventory_only
 known_candidate=""
+blocked_reason=""
+evidence_sources=[]
+next_action="static triage and manual evaluation required"
 ```
 
-关键 transform evidence：
+`project_state/local_reverse_evaluation_queue.json` 当前也仍把 `cpp1_2f6fcb63` 列为 rank 1，allowed action 为 `static_triage`，这与已经存在的 current static-blocked artifacts 不一致。
+
+已有相关实现能力：
 
 ```text
-0x0040125C movsx eax, Destination[edx]
-0x00401263 and eax, 0F0h
-0x00401268 sar eax, 2
-0x0040126E movsx edx, Destination[ecx]
-0x00401275 and edx, 0Ch
-0x00401278 shl edx, 4
-0x0040127B or eax, edx
-0x00401280 movsx edx, Destination[ecx]
-0x00401287 and edx, 3
-0x0040128A or eax, edx
-0x0040128F mov Destination[ecx], al
-0x004012BE movsx ecx, byte_429A30[eax]
-0x004012C5 cmp edx, ecx
-0x004012C7 jz loc_4012CB
-```
-
-当前 target bytes artifact：
-
-```text
-source_tool=IDA
-target_symbol=byte_429A30
-target_address=0x00429A30
-target_length=16
-target_bytes_hex=d596c4f60745577776e5f64847f74817
-expected_target_length=16
-```
-
-当前 target / transform 组合产生的问题：
-
-```text
-static_candidate_bytes_hex=5d5a1cde131557d7d69dde2417df2453
-static_candidate_text=null
-printable_ascii=false
-NO_PRINTABLE_PREIMAGE_UNDER_CURRENT_STATIC_TRANSFORM
-```
-
-已知 printable preimage 缺失位置来自 `transform_recheck`：
-
-```text
-index 0  target d5 => printable preimage ']'
-index 1  target 96 => printable preimage 'Z'
-index 2  target c4 => no printable preimage
-index 3  target f6 => no printable preimage
-index 4  target 07 => no printable preimage
-index 5  target 45 => no printable preimage
-index 6  target 57 => printable preimage 'W'
-index 7  target 77 => no printable preimage
-index 8  target 76 => no printable preimage
-index 9  target e5 => no printable preimage
-index 10 target f6 => no printable preimage
-index 11 target 48 => printable preimage '$'
-index 12 target 47 => no printable preimage
-index 13 target f7 => no printable preimage
-index 14 target 48 => printable preimage '$'
-index 15 target 17 => printable preimage 'S'
-```
-
-当前 `local_reverse_training_status.json` 对 `cpp1_2f6fcb63` 仍显示 `inventory_only`，与 artifact_index 中已有多轮 current artifacts 不一致。本轮不得顺手重写 training status；仅可在报告里记录该状态文件是低优先级/可能 stale 的训练集摘要，不得把它当作本轮状态权威。
-
-已有相关能力检查：
-
-```text
-1. 已有 IDA 静态输出与 Hex-Rays evidence；不得假设 IDA/Ghidra/debugger 不存在。
-2. 已有 reverse_agent/local_reverse_cpp1_target_byte_extract.py。
-3. 已有 reverse_agent/local_reverse_cpp1_inverse_handoff.py。
-4. 已有 reverse_agent/local_reverse_cpp1_transform_recheck.py。
-5. 已有 reverse_agent/local_reverse_cpp1_ida_control_flow_recheck.py。
-6. 已有 reverse_agent/local_reverse_cpp1_signed_transform_recheck.py。
-7. 本轮应复用或最小扩展上述能力，不得新建重复 IDA runner。
+reverse_agent/local_reverse_training_status.py 已存在。
+它负责合并 inventory、validated_candidate_handoff、constraint_recovery、ida_solver_result、artifact_index。
+它已有严格静态 overlay gate：static_only=True、executed_sample=False、runtime_validated=False、candidate is None、status=BLOCKED、blocked_reason non-empty。
+它当前只通过 `_STATIC_HANDOFF_SUFFIXES` / `_STATIC_ANALYSIS_SUFFIXES` 识别少数 artifact key 前缀，没有覆盖 `local_reverse_cpp1_2f6fcb63_target_provenance_recheck` 这类 current blocked static artifact。
+tests/test_local_reverse_training_status.py 已存在，并已有 static overlay gate 测试。
 ```
 
 当前 negative_results 仍禁止：
@@ -202,7 +154,7 @@ index 15 target 17 => printable preimage 'S'
 6. run Base64/RC4 breakpoint probe before real lhs producer identification
 ```
 
-本轮不触碰 samplereverse runtime probe、guided pool、old solver、full solve_reports 或 candidate search。
+本轮不会触碰这些方向。
 
 ---
 
@@ -211,36 +163,34 @@ index 15 target 17 => printable preimage 'S'
 严禁：
 
 ```text
-1. 不动态执行样本。
-2. 不做 runtime validation。
-3. 不使用 debugger/runtime probe/hook/emulator。
-4. 不运行 old blind solver / brute force。
-5. 不扩大 beam、topN、budget、timeout。
-6. 不写 candidate。
-7. 不写 known_candidate。
-8. 不标记 solved。
-9. 不修改 local_reverse_training_status.json 为 solved。
-10. 不把 non-printable static inverse 当 flag。
-11. 不提交原始样本、IDA .i64、IDA log、IDB sidecar、raw temp、full solve_reports 或本地临时目录。
-12. 不修改 .codex-skills。
-13. 不扩大到其他样本。
-14. 不把 task_packet.task 当执行权威。
-15. 不把一次 cpp1 结论写入长期 skill。
-16. 不复制/新建第二套 IDA runner；成熟工具接口和现有脚本优先。
-17. 不用 `local_reverse_training_status.json` 的 inventory_only 覆盖 artifact_index 的 current evidence。
+1. 不继续求解 `cpp1_2f6fcb63`。
+2. 不打开新样本求解。
+3. 不运行 IDA/Ghidra/debugger/runtime probe/hook/emulator。
+4. 不动态执行任何样本。
+5. 不做 runtime validation。
+6. 不运行 brute force / old sample_solver / guided pool。
+7. 不扩大 beam、topN、budget、timeout。
+8. 不写 candidate。
+9. 不写 known_candidate。
+10. 不标记任何样本 solved，除非已有 validated_candidate_handoff 中存在 validation_status=validated。
+11. 不把 static blocked artifact 当 solved。
+12. 不提交原始样本、IDA sidecar、raw temp、full solve_reports 或本地绝对路径。
+13. 不修改 `.codex-skills`。
+14. 不读取完整 solve_reports 或 PROJECT_PROGRESS_LOG。
+15. 不把 task_packet.task 当执行权威。
+16. 不为单一样本写死训练集逻辑；必须形成可复用 overlay 规则。
 ```
 
 允许：
 
 ```text
-1. 读取 current `cpp1_2f6fcb63` artifacts。
-2. 读取现有 cpp1 静态分析脚本和测试。
-3. 有界运行现有 IDA/IDAPython 静态提取入口，前提是只针对 `cpp1_2f6fcb63`，且输出轻量 JSON artifact。
-4. 最小扩展 `local_reverse_cpp1_target_byte_extract.py` 或 `local_reverse_cpp1_ida_control_flow_recheck.py`，补充 target symbol/raw data/xref/section/provenance 字段。
-5. 如确需新增 `local_reverse_cpp1_target_provenance_recheck.py`，必须解释为什么不能直接扩展现有脚本，并保证不重复 IDA runner。
-6. 枚举 `byte_429A30` 附近小窗口候选 target spans，例如 ±0x40 bytes 内的 16/18-byte slices，并只做 static printable-preimage feasibility analysis，不输出 candidate。
-7. 记录 compare xref、data xref、section、raw bytes window、symbol span、target length、signed compare interpretation 和 provenance verdict。
-8. 生成 target_provenance_recheck JSON 并登记 artifact_index。
+1. 修改 `reverse_agent/local_reverse_training_status.py`。
+2. 修改 `tests/test_local_reverse_training_status.py`。
+3. 重新生成 `project_state/local_reverse_training_status.json`。
+4. 重新生成 `project_state/local_reverse_evaluation_queue.json`。
+5. 如果现有 CLI 需要，同步生成/更新 `training_materials/local_reverse/status_overlay.json`。
+6. 更新 `project_state/codex_execution_report.md` 和 `project_state/pytest_result.txt`。
+7. 只读取 current artifact_index 和 current static-blocked artifact JSON 的轻量内容。
 ```
 
 ---
@@ -257,29 +207,22 @@ project_state/negative_results.json
 project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
-project_state/local_reverse_cpp1_2f6fcb63_static_triage.json
-project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json
-project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json
-project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json
-project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json
-project_state/local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json
-reverse_agent/local_reverse_cpp1_target_byte_extract.py
-reverse_agent/local_reverse_cpp1_inverse_handoff.py
-reverse_agent/local_reverse_cpp1_transform_recheck.py
-reverse_agent/local_reverse_cpp1_ida_control_flow_recheck.py
-reverse_agent/local_reverse_cpp1_signed_transform_recheck.py
-tests/test_local_reverse_cpp1_target_byte_extract.py
-tests/test_local_reverse_cpp1_transform_recheck.py
-tests/test_local_reverse_cpp1_ida_control_flow_recheck.py
-tests/test_local_reverse_cpp1_signed_transform_recheck.py
+project_state/local_reverse_training_status.json
+project_state/local_reverse_evaluation_queue.json
+project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json
+reverse_agent/local_reverse_training_status.py
+tests/test_local_reverse_training_status.py
 .codex-skills/registry.json
 ```
 
 按需读取：
 
 ```text
-project_state/local_reverse_training_status.json
 project_state/local_reverse_inventory.json
+training_materials/local_reverse/status_overlay.json
+project_state/local_reverse_validated_candidate_handoff.json
+project_state/local_reverse_constraint_recovery_result.json
+project_state/local_reverse_ida_solver_result.json
 ```
 
 不要默认读取：
@@ -299,52 +242,39 @@ Codex 报告必须回答：
 ```text
 1. 是否确认当前 decision_packet 是本轮唯一执行权威。
 2. 是否确认 task_packet.task 只是旧 samplereverse advisory。
-3. 是否确认本轮主线为 reverse_solving。
-4. 是否确认本轮只处理 cpp1_2f6fcb63。
-5. 是否确认 source artifacts 均来自 artifact_index 且 freshness=current。
-6. 是否确认上一轮 signed_transform_recheck 已被 SUCCESS report 消费，且 pytest_result 12 条命令通过。
-7. 是否确认 signed/unsigned transform 在 u8 输出上全域等价。
-8. 是否确认当前 target bytes 与 transform 组合没有完整 printable preimage。
-9. 是否说明本轮是否运行了 IDA；如果运行，必须说明是 bounded static extraction，不是动态执行。
-10. 是否说明使用的是现有 IDA/IDAPython 接口或对现有脚本的最小扩展，未重复造 runner。
-11. 是否输出 `byte_429A30` 的 section、symbol span、raw data window 和 compare/data xrefs。
-12. 是否证明当前 `target_bytes_hex=d596c4f60745577776e5f64847f74817` 与 IDA/raw data 一致，或给出不一致原因。
-13. 是否检查 `byte_429A30` 周围小窗口 16/18-byte candidate spans 的 printable-preimage feasibility。
-14. 是否明确区分：target provenance confirmed / target provenance inconsistent / insufficient evidence。
-15. 是否明确说明 `movsx byte_429A30[eax]` 下 bytes >0x7f 只是 signed compare 值，不自动说明 target 提取错误。
-16. 是否没有写 candidate。
-17. 是否没有写 known_candidate。
-18. 是否没有 runtime_validated=true。
-19. 是否没有标记 solved。
-20. 是否生成 `project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json`。
-21. 是否将 artifact 登记到 `project_state/artifact_index.json`，freshness=current，source_run=round_20260605_cpp1_target_byte_provenance_recheck_v1。
-22. 是否 tests_ran 完整列出 required commands。
-23. 是否 pytest_result.txt 记录每条命令、Exit Code 和输出摘要。
-24. 是否 git status/diff 没有 IDA sidecar、raw temp、原始样本、solve_reports 或无关文件。
+3. 是否确认本轮主线为 training_dataset。
+4. 是否确认本轮没有继续求解 cpp1，也没有打开新样本求解。
+5. 是否确认本轮没有运行 IDA/Ghidra/debugger/runtime probe/hook/emulator。
+6. 是否确认本轮没有动态执行样本、没有 runtime validation。
+7. 是否确认没有写 candidate / known_candidate。
+8. 是否确认没有把任何 static-only artifact 标记为 solved。
+9. 是否确认 `cpp1_2f6fcb63` 的 overlay 来源是 current `local_reverse_cpp1_2f6fcb63_target_provenance_recheck` artifact。
+10. 是否确认该 artifact 满足 strict static blocked gate：static_only=true、executed_sample=false、runtime_validated=false、candidate=null、status=BLOCKED、blocked_reason non-empty。
+11. 是否说明训练状态 overlay 规则是通用规则，不是只为 `cpp1_2f6fcb63` 硬编码。
+12. 是否说明如果存在多个 current blocked static artifacts，同一样本 overlay 的优先级如何确定。
+13. 是否确认 `local_reverse_training_status.json` 中 `cpp1_2f6fcb63.training_status=blocked`。
+14. 是否确认 `cpp1_2f6fcb63.known_candidate=""`。
+15. 是否确认 `cpp1_2f6fcb63.blocked_reason=CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE`。
+16. 是否确认 `local_reverse_evaluation_queue.json` 不再包含 `cpp1_2f6fcb63`。
+17. 是否确认 status_summary 的 blocked/inventory_only 计数已随之更新。
+18. 是否确认 GitHub-safe status overlay 不包含真实本地绝对路径。
+19. 是否 tests_ran 完整列出 required commands。
+20. 是否 pytest_result.txt 记录每条命令、Exit Code 和输出摘要。
+21. 是否 git status/diff 没有原始样本、IDA sidecar、raw temp、solve_reports 或无关文件。
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-优先方案：最小扩展现有 target extraction / control-flow recheck 能力，避免重复 IDA runner。
-
-允许新增：
-
-```text
-reverse_agent/local_reverse_cpp1_target_provenance_recheck.py
-# 仅当无法合理扩展现有脚本时新增。
-
-tests/test_local_reverse_cpp1_target_provenance_recheck.py
-project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json
-```
-
 允许修改：
 
 ```text
-reverse_agent/local_reverse_cpp1_target_byte_extract.py
-reverse_agent/local_reverse_cpp1_ida_control_flow_recheck.py
-project_state/artifact_index.json
+reverse_agent/local_reverse_training_status.py
+tests/test_local_reverse_training_status.py
+project_state/local_reverse_training_status.json
+project_state/local_reverse_evaluation_queue.json
+training_materials/local_reverse/status_overlay.json
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
@@ -352,60 +282,42 @@ project_state/pytest_result.txt
 不得修改，除非测试暴露确定错误且报告中说明：
 
 ```text
-reverse_agent/local_reverse_cpp1_inverse_handoff.py
+project_state/artifact_index.json
+project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json
+project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json
+project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json
+project_state/local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json
+reverse_agent/local_reverse_cpp1_target_byte_extract.py
 reverse_agent/local_reverse_cpp1_transform_recheck.py
 reverse_agent/local_reverse_cpp1_signed_transform_recheck.py
-project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json
-project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json
-project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json
-project_state/local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json
-project_state/local_reverse_training_status.json
 .codex-skills/*
 ```
 
-`project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json` 至少包含：
+实现要求：
 
 ```text
-schema_version
-sample_id=cpp1_2f6fcb63
-analysis_mode=target_byte_provenance_recheck
-mainline=reverse_solving
-executed_sample=false
-static_only=true
-runtime_validated=false
-source_artifacts
-source_artifact_freshness
-ida_used_this_round: true/false
-ida_invocation_scope: none | bounded_static_target_provenance_only
-used_existing_ida_interface: true
-new_ida_runner_created: false
-target_symbol=byte_429A30
-target_address=0x00429A30
-target_length_candidates
-confirmed_target_bytes_hex
-raw_data_window
-section_name
-symbol_span
-compare_xrefs
-data_xrefs
-nearby_candidate_spans
-printable_preimage_feasibility_by_span
-signed_compare_notes
-provenance_verdict: CONFIRMED_NO_PRINTABLE_PREIMAGE | INCONSISTENT_TARGET_BYTES | INSUFFICIENT_TARGET_PROVENANCE | ALTERNATIVE_PRINTABLE_SPAN_FOUND_NEEDS_REVIEW
-candidate=null
-known_candidate=""
-status=BLOCKED
-blocked_reason
-recommended_next_action
+1. 保留现有 solved_map / blocked_map / static overlay 的优先级：validated solved > constraint blocked > current static blocked overlay > inventory_only。
+2. 扩展 `_build_static_handoff_overlay`，使它能识别 current blocked static artifacts，而不是只识别 affine/legacy key prefix。
+3. 识别规则必须依赖 artifact metadata + artifact payload gate，不能只靠 sample_id。
+4. 必须继续跳过 stale/missing artifacts。
+5. 必须继续跳过 executed_sample=true、runtime_validated=true、candidate present、status != BLOCKED、blocked_reason 为空的 artifact。
+6. 如果同一样本有多个 current static blocked artifact，优先使用更具体/更下游的 artifact，例如：target_provenance_recheck > signed_transform_recheck > transform_recheck > inverse_handoff > static triage/decompile evidence。
+7. evidence_sources 至少包含 artifact 文件名和 `static_handoff` 或等价的 `static_blocked_artifact` 标记。
+8. classification 可以由 artifact 的 `analysis_mode`、`provenance_verdict`、`blocked_reason` 等字段组成，但不得把 candidate 或 local path 写入。
+9. evaluation_queue 必须继续只包含 inventory_only/needs_triage 且未 blocked/solved 的样本。
+10. 不得把 `local_reverse_training_status.json` 的旧 inventory_only 覆盖 artifact_index 的 current evidence。
 ```
 
-`nearby_candidate_spans` 必须是 bounded：
+新增/修改测试至少覆盖：
 
 ```text
-1. 只允许检查 `byte_429A30` 周围最多 ±0x40 bytes。
-2. 只允许 16-byte 和 18-byte span feasibility。
-3. 不允许把任何 span 直接输出为 candidate。
-4. 如果发现完整 printable preimage span，只能记录为 `alternative_static_span_needs_review`，不得标记 solved。
+1. current `local_reverse_cpp1_target_provenance_recheck` 风格 artifact 能产生 blocked overlay。
+2. stale 同类 artifact 被跳过。
+3. runtime_validated=true 同类 artifact 被跳过。
+4. candidate present 同类 artifact 被跳过。
+5. 多个同一样本 artifacts 时，target_provenance_recheck 优先级高于 transform_recheck/inverse_handoff。
+6. end-to-end build 后 cpp1_2f6fcb63 从 queue 中移除。
+7. GitHub status overlay 不包含 E:\reverse、D:\reverse、C:\reverse 或其他真实本地绝对路径。
 ```
 
 ---
@@ -415,13 +327,9 @@ recommended_next_action
 必须运行并记录：
 
 ```bash
-python -m py_compile reverse_agent/local_reverse_cpp1_target_provenance_recheck.py
-python -m pytest -q tests/test_local_reverse_cpp1_target_provenance_recheck.py
-python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
-python -m pytest -q tests/test_local_reverse_cpp1_transform_recheck.py
-python -m pytest -q tests/test_local_reverse_cpp1_signed_transform_recheck.py
-python -m pytest -q tests/test_project_state.py
-python -m reverse_agent.local_reverse_cpp1_target_provenance_recheck --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --transform-recheck project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json --signed-transform-recheck project_state/local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json --ida-control-flow project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json --out project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json
+python -m py_compile reverse_agent/local_reverse_training_status.py
+python -m pytest -q tests/test_local_reverse_training_status.py
+python -m reverse_agent.local_reverse_training_status --inventory project_state/local_reverse_inventory.json --validated project_state/local_reverse_validated_candidate_handoff.json --constraint-recovery project_state/local_reverse_constraint_recovery_result.json --solver-result project_state/local_reverse_ida_solver_result.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
@@ -430,7 +338,7 @@ git status --short
 git diff --name-status
 ```
 
-如果 Codex 选择不新增 `reverse_agent/local_reverse_cpp1_target_provenance_recheck.py`，而是扩展现有 `local_reverse_cpp1_target_byte_extract.py`，则必须将第一、第二、第七条命令替换为对应现有模块/测试命令，并在报告中解释替换原因。
+如果现有 CLI 参数名与上述命令不同，Codex 可以按实际 parser 参数调整，但必须在报告中写明替换原因和实际命令。
 
 `pytest_result.txt` 必须包含：
 
@@ -449,24 +357,23 @@ git diff --name-status
 立即停止并报告 `BLOCKED`：
 
 ```text
-1. 当前 required source artifact 缺失或 artifact_index 中 freshness 不是 current。
-2. 发现 decision_packet 与 codex_execution_report round/decision 不匹配，且无法先修复状态。
-3. 现有 IDA 接口不可用，且无法只用 current artifacts 完成 target provenance recheck。
-4. 需要动态执行样本才能判断 target provenance。
-5. 需要 debugger/runtime probe/hook/emulator。
-6. 需要读取 full solve_reports 或 PROJECT_PROGRESS_LOG 才能继续。
-7. 需要提交原始样本、IDA sidecar、raw temp 或 full solve_reports。
-8. 发现 target provenance 与当前 artifact 冲突，但无法给出 bounded 修复方案。
+1. `project_state/artifact_index.json` 缺失，或 target_provenance artifact 不是 freshness=current。
+2. `project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json` 缺失或不满足 strict static blocked gate。
+3. 需要动态执行样本才能更新训练状态。
+4. 需要运行 IDA/Ghidra/debugger/runtime probe/hook/emulator。
+5. 需要读取 full solve_reports 或 PROJECT_PROGRESS_LOG 才能继续。
+6. 需要提交原始样本、IDA sidecar、raw temp 或 full solve_reports。
+7. 实现会把 static-only blocked artifact 标记为 solved。
+8. 实现必须硬编码 `cpp1_2f6fcb63` 才能通过测试，而不能形成通用 overlay 规则。
 ```
 
 成功完成的最低标准：
 
 ```text
-1. 生成 target_provenance_recheck artifact。
-2. 明确给出 provenance_verdict。
-3. 明确说明当前 target bytes 是否被确认。
-4. 明确说明是否存在 nearby printable alternative span。
-5. 保持 candidate=null、known_candidate=""、runtime_validated=false。
-6. artifact_index 登记 current artifact。
-7. tests 和 project_state lint/status 记录完整。
+1. training_status 中 cpp1_2f6fcb63 为 blocked。
+2. cpp1_2f6fcb63 的 blocked_reason 来自 current target_provenance artifact。
+3. cpp1_2f6fcb63 仍无 known_candidate。
+4. evaluation_queue 不再包含 cpp1_2f6fcb63。
+5. tests 和 project_state lint/status 记录完整。
+6. report 明确说明没有推进样本求解，只修复训练集状态覆盖。
 ```
