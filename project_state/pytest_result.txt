@@ -1,16 +1,25 @@
 ================================================================================
-PYTEST RESULT - Round: round_20260605_cpp1_inverse_handoff_scope_cleanup_rework_v1
-Decision: decision_20260605_cpp1_inverse_handoff_scope_cleanup_rework_v1
-Report: report_20260605_cpp1_inverse_handoff_scope_cleanup_rework_v1
-Generated: 2026-06-05T10:10:00Z
+PYTEST RESULT - Round: round_20260605_cpp1_cleanup_test_record_rework_v1
+Decision: decision_20260605_cpp1_cleanup_test_record_rework_v1
+Report: report_20260605_cpp1_cleanup_test_record_rework_v1
+Generated: 2026-06-05T10:19:00Z
 Status: PASSED
 Acceptance: ACCEPT
-Tests Ran: 7
-Tests Passed: 7
+Tests Ran: 9
+Tests Passed: 9
 Tests Failed: 0
 ================================================================================
 
-[1] python -m pytest -q tests/test_local_reverse_cpp1_inverse_handoff.py
+[1] python -m py_compile reverse_agent/local_reverse_cpp1_inverse_handoff.py
+--------------------------------------------------------------------------------
+Command: python -m py_compile reverse_agent/local_reverse_cpp1_inverse_handoff.py
+Exit Code: 0
+Output: (none)
+Result: PASSED
+
+================================================================================
+
+[2] python -m pytest -q tests/test_local_reverse_cpp1_inverse_handoff.py
 --------------------------------------------------------------------------------
 Command: python -m pytest -q tests/test_local_reverse_cpp1_inverse_handoff.py
 Exit Code: 0
@@ -21,7 +30,7 @@ Result: PASSED
 
 ================================================================================
 
-[2] python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
+[3] python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
 --------------------------------------------------------------------------------
 Command: python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
 Exit Code: 0
@@ -32,7 +41,7 @@ Result: PASSED
 
 ================================================================================
 
-[3] python -m pytest -q tests/test_project_state.py
+[4] python -m pytest -q tests/test_project_state.py
 --------------------------------------------------------------------------------
 Command: python -m pytest -q tests/test_project_state.py
 Exit Code: 0
@@ -45,34 +54,34 @@ Result: PASSED
 
 ================================================================================
 
-[4] python -m reverse_agent.project_state lint-decision --state-dir project_state
+[5] python -m reverse_agent.project_state lint-decision --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
 Exit Code: 0
 Output:
 lint-decision: OK
-decision_id: decision_20260605_cpp1_inverse_handoff_scope_cleanup_rework_v1
+decision_id: decision_20260605_cpp1_cleanup_test_record_rework_v1
 decision_status: APPROVED
 mainline: engineering_branch
 Result: PASSED
 
 ================================================================================
 
-[5] python -m reverse_agent.project_state lint-report --state-dir project_state
+[6] python -m reverse_agent.project_state lint-report --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-report --state-dir project_state
 Exit Code: 0
 Output:
 lint-report: OK
-report_id: report_20260605_cpp1_inverse_handoff_scope_cleanup_rework_v1
+report_id: report_20260605_cpp1_cleanup_test_record_rework_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPT
-based_on_decision_id: decision_20260605_cpp1_inverse_handoff_scope_cleanup_rework_v1
+based_on_decision_id: decision_20260605_cpp1_cleanup_test_record_rework_v1
 Result: PASSED
 
 ================================================================================
 
-[6] git diff --check
+[7] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
@@ -81,27 +90,28 @@ Result: PASSED
 
 ================================================================================
 
-[7] git status --short
+[8] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
-Output:
-D  project_state/extract_cpp1_2f6fcb63/ida_extract.i64
-D  project_state/extract_cpp1_2f6fcb63/ida_extract.log
-D  project_state/extract_cpp1_2f6fcb63/named_data_extract.json
-D  project_state/triage_cpp1_2f6fcb63/ida_evidence.json
-D  project_state/triage_cpp1_2f6fcb63/ida_triage.i64
-D  project_state/triage_cpp1_2f6fcb63/ida_triage.log
-D  tests/__init__.py
-M  training_materials/local_reverse/status_overlay.json
-Result: PASSED
+Output: (none)
+Result: PASSED (clean working tree)
+
+================================================================================
+
+[9] git diff --name-status
+--------------------------------------------------------------------------------
+Command: git diff --name-status
+Exit Code: 0
+Output: (none)
+Result: PASSED (empty, all changes already committed)
 
 ================================================================================
 
 SUMMARY
 ================================================================================
-Total Tests: 7
-Passed: 7
+Total Tests: 9
+Passed: 9
 Failed: 0
 Exit Code: 0
 
