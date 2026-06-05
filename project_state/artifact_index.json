@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T09:12:27Z",
+  "generated_at": "2026-06-05T13:49:55Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -64,7 +64,8 @@
     "local_reverse_affine_main0_targeted_ida_decompile": "project_state\\local_reverse_affine_main0_targeted_ida_decompile.json",
     "local_reverse_affine_inverse_handoff": "project_state\\local_reverse_affine_inverse_handoff.json",
     "local_reverse_cpp1_2f6fcb63_static_triage": "project_state\\local_reverse_cpp1_2f6fcb63_static_triage.json",
-    "local_reverse_cpp1_2f6fcb63_target_bytes": "project_state\\local_reverse_cpp1_2f6fcb63_target_bytes.json"
+    "local_reverse_cpp1_2f6fcb63_target_bytes": "project_state\\local_reverse_cpp1_2f6fcb63_target_bytes.json",
+    "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -712,10 +713,10 @@
       "kind": "local_reverse_cpp1_ida_control_flow_recheck",
       "path": "project_state\\local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json",
       "freshness": "current",
-      "source_run": "round_20260605_cpp1_bounded_ida_control_flow_recheck_v1",
-      "sha256": "994d3b3e6254cd045a9b5a0496205edd22ed0e58afffb141283ecc72a7324462",
-      "size_bytes": 6711,
-      "modified_at": "2026-06-05T13:22:00Z",
+      "source_run": "round_20260605_cpp1_ida_control_flow_recheck_precision_fix_v1",
+      "sha256": "16df2dddd20e5489d2194e042a65e5fc95cf04e82b99d026cbb45241344b22ba",
+      "size_bytes": 55902,
+      "modified_at": "2026-06-05T13:49:55Z",
       "sample_id": "cpp1_2f6fcb63"
     }
   },
@@ -848,5 +849,8 @@
     }
   ],
   "reports_dir": "solve_reports",
-  "sample": "samplereverse"
+  "sample": "samplereverse",
+  "artifact_refs": {
+    "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json"
+  }
 }

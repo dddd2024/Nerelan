@@ -1,10 +1,10 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260605_cpp1_bounded_ida_control_flow_recheck_v1",
-  "report_id": "report_20260605_cpp1_bounded_ida_control_flow_recheck_v1",
-  "round_id": "round_20260605_cpp1_bounded_ida_control_flow_recheck_v1",
-  "generated_at": "2026-06-05T13:22:00Z",
+  "decision_id": "decision_20260605_cpp1_ida_control_flow_recheck_precision_fix_v1",
+  "report_id": "report_20260605_cpp1_ida_control_flow_recheck_precision_fix_v1",
+  "round_id": "round_20260605_cpp1_ida_control_flow_recheck_precision_fix_v1",
+  "generated_at": "2026-06-05T13:49:55Z",
   "status": "PASSED",
   "tests_ran": [
     "python -m py_compile reverse_agent/local_reverse_cpp1_ida_control_flow_recheck.py",
@@ -14,6 +14,7 @@
     "python -m reverse_agent.local_reverse_cpp1_ida_control_flow_recheck --artifact-index project_state/artifact_index.json --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --transform-recheck project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --out project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
@@ -22,7 +23,7 @@
 ```
 
 ================================================================================
-PYTEST RESULT DETAILS - Round: round_20260605_cpp1_bounded_ida_control_flow_recheck_v1
+PYTEST RESULT DETAILS - Round: round_20260605_cpp1_ida_control_flow_recheck_precision_fix_v1
 ================================================================================
 
 [1] python -m py_compile reverse_agent/local_reverse_cpp1_ida_control_flow_recheck.py
@@ -39,8 +40,8 @@ Result: PASSED
 Command: python -m pytest -q tests/test_local_reverse_cpp1_ida_control_flow_recheck.py
 Exit Code: 0
 Output:
-.......                                                                  [100%]
-7 passed in 5.58s
+.....                                                                    [100%]
+5 passed in 0.08s
 Result: PASSED
 
 ================================================================================
@@ -51,7 +52,7 @@ Command: python -m pytest -q tests/test_local_reverse_cpp1_transform_recheck.py
 Exit Code: 0
 Output:
 .......                                                                  [100%]
-7 passed in 0.38s
+7 passed in 0.09s
 Result: PASSED
 
 ================================================================================
@@ -64,25 +65,26 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 .............                                                            [100%]
-157 passed in 84.25s (0:01:24)
+157 passed in 22.44s
 Result: PASSED
 
 ================================================================================
 
-[5] IDA Control Flow Recheck CLI
+[5] IDA Control Flow Precision Recheck CLI
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.local_reverse_cpp1_ida_control_flow_recheck --artifact-index project_state/artifact_index.json --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --transform-recheck project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --out project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json
 Exit Code: 0
 Output:
 cpp1 IDA control flow recheck: status=BLOCKED sample_id=cpp1_2f6fcb63
-  ida_success=true
+  ida_attempted=True
+  ida_available=True
+  ida_success=True
   main_function=_main_0
-  main_function_address=0x00401190
-  division_instructions=12
-  transform_evidence=61
-  compare_evidence=1352
-  target_xrefs=2
-  seh_present=false
+  basic_blocks=16
+  bounded_division=1
+  bounded_transform_windows=7
+  bounded_compare_windows=11
+  seh_verdict=SEH_NOT_CONFIRMED_BY_STATIC_SCAN
   blocked_reason=NEEDS_STATIC_CONTROL_FLOW_RECHECK
 Result: PASSED
 
@@ -94,7 +96,7 @@ Command: python -m reverse_agent.project_state lint-decision --state-dir project
 Exit Code: 0
 Output:
 lint-decision: OK
-decision_id: decision_20260605_cpp1_bounded_ida_control_flow_recheck_v1
+decision_id: decision_20260605_cpp1_ida_control_flow_recheck_precision_fix_v1
 decision_status: APPROVED
 mainline: tool_integration
 Result: PASSED
@@ -107,56 +109,77 @@ Command: python -m reverse_agent.project_state lint-report --state-dir project_s
 Exit Code: 0
 Output:
 lint-report: OK
-report_id: report_20260605_cpp1_bounded_ida_control_flow_recheck_v1
+report_id: report_20260605_cpp1_ida_control_flow_recheck_precision_fix_v1
 report_status: SUCCESS
-acceptance_recommendation: ACCEPT
-based_on_decision_id: decision_20260605_cpp1_bounded_ida_control_flow_recheck_v1
+acceptance_recommendation: ACCEPTED
+based_on_decision_id: decision_20260605_cpp1_ida_control_flow_recheck_precision_fix_v1
 Result: PASSED
 
 ================================================================================
 
-[8] git diff --check
+[8] python -m reverse_agent.project_state status --state-dir project_state
+--------------------------------------------------------------------------------
+Command: python -m reverse_agent.project_state status --state-dir project_state
+Exit Code: 0
+Output summary:
+decision_report_id_match: True
+decision_consumed_by_report: True
+decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+report_current_state_round_relation: different_but_allowed_sample_state
+Result: PASSED
+
+================================================================================
+
+[9] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
-Output: (none)
+Output:
+warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'reverse_agent/local_reverse_cpp1_ida_control_flow_recheck.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_local_reverse_cpp1_ida_control_flow_recheck.py', LF will be replaced by CRLF the next time Git touches it
 Result: PASSED
 
 ================================================================================
 
-[9] git status --short
+[10] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
-Output:
- M project_state/artifact_index.json
- M project_state/codex_execution_report.md
- M project_state/pytest_result.txt
-?? project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json
-?? reverse_agent/local_reverse_cpp1_ida_control_flow_recheck.py
-?? tests/test_local_reverse_cpp1_ida_control_flow_recheck.py
+Output summary:
+Allowed files only:
+  project_state/artifact_index.json
+  project_state/codex_execution_report.md
+  project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json
+  project_state/pytest_result.txt
+  reverse_agent/local_reverse_cpp1_ida_control_flow_recheck.py
+  tests/test_local_reverse_cpp1_ida_control_flow_recheck.py
 Result: PASSED
 
 ================================================================================
 
-[10] git diff --name-status
+[11] git diff --name-status
 --------------------------------------------------------------------------------
 Command: git diff --name-status
 Exit Code: 0
-Output:
-M	project_state/artifact_index.json
-M	project_state/codex_execution_report.md
-M	project_state/pytest_result.txt
+Output summary:
+M project_state/artifact_index.json
+M project_state/codex_execution_report.md
+M project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json
+M project_state/pytest_result.txt
+M reverse_agent/local_reverse_cpp1_ida_control_flow_recheck.py
+M tests/test_local_reverse_cpp1_ida_control_flow_recheck.py
 Result: PASSED
 
 ================================================================================
 
 SUMMARY
 ================================================================================
-Total Tests: 10
-Passed: 10
+Total Commands: 11
+Passed: 11
 Failed: 0
 Exit Code: 0
 
-All required tests passed.
+All required commands passed.
 ================================================================================
