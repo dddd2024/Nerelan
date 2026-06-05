@@ -6,7 +6,7 @@
   "executed_sample": false,
   "static_only": true,
   "runtime_validated": false,
-  "generated_at": "2026-06-05T04:16:47Z",
+  "generated_at": "2026-06-05T05:11:52Z",
   "cipher_type": "affine_cipher",
   "domain": {
     "alphabet": "lowercase_ascii",
@@ -187,6 +187,7 @@
     }
   ],
   "expected_ciphertext": null,
+  "ciphertext_provenance": null,
   "candidate": null,
   "status": "BLOCKED",
   "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
