@@ -1,54 +1,36 @@
 ================================================================================
-PYTEST RESULT - Round: round_20260605_cpp1_target_bytes_test_record_rework_v1
-Decision: decision_20260605_cpp1_target_bytes_test_record_rework_v1
-Report: report_20260605_cpp1_target_bytes_test_record_rework_v1
-Generated: 2026-06-05T09:10:00Z
+PYTEST RESULT - Round: round_20260605_cpp1_inverse_transform_handoff_v1
+Decision: decision_20260605_cpp1_inverse_transform_handoff_v1
+Report: report_20260605_cpp1_inverse_transform_handoff_v1
+Generated: 2026-06-05T09:43:17Z
 Status: PASSED
 Acceptance: ACCEPT
-Tests Ran: 10
-Tests Passed: 10
+Tests Ran: 8
+Tests Passed: 8
 Tests Failed: 0
 ================================================================================
 
-[1] python -m py_compile reverse_agent/tool_runners.py
+[1] python -m py_compile reverse_agent/local_reverse_cpp1_inverse_handoff.py
 --------------------------------------------------------------------------------
-Command: python -m py_compile reverse_agent/tool_runners.py
+Command: python -m py_compile reverse_agent/local_reverse_cpp1_inverse_handoff.py
 Exit Code: 0
 Output: (none)
 Result: PASSED
 
 ================================================================================
 
-[2] python -m py_compile reverse_agent/ida_scripts/extract_named_data.py
+[2] python -m pytest -q tests/test_local_reverse_cpp1_inverse_handoff.py
 --------------------------------------------------------------------------------
-Command: python -m py_compile reverse_agent/ida_scripts/extract_named_data.py
-Exit Code: 0
-Output: (none)
-Result: PASSED
-
-================================================================================
-
-[3] python -m py_compile reverse_agent/local_reverse_cpp1_target_byte_extract.py
---------------------------------------------------------------------------------
-Command: python -m py_compile reverse_agent/local_reverse_cpp1_target_byte_extract.py
-Exit Code: 0
-Output: (none)
-Result: PASSED
-
-================================================================================
-
-[4] python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
+Command: python -m pytest -q tests/test_local_reverse_cpp1_inverse_handoff.py
 Exit Code: 0
 Output:
-.............................                                            [100%]
-29 passed in 0.95s
+..........                                                               [100%]
+10 passed in 1.85s
 Result: PASSED
 
 ================================================================================
 
-[5] python -m pytest -q tests/test_project_state.py
+[3] python -m pytest -q tests/test_project_state.py
 --------------------------------------------------------------------------------
 Command: python -m pytest -q tests/test_project_state.py
 Exit Code: 0
@@ -56,59 +38,53 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 .............                                                            [100%]
-157 passed in 55.38s (0:00:55)
+157 passed in 79.76s (0:01:19)
 Result: PASSED
 
 ================================================================================
 
-[6] python -m reverse_agent.project_state lint-decision --state-dir project_state
+[4] python -m reverse_agent.project_state lint-decision --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
 Exit Code: 0
 Output:
 lint-decision: OK
-decision_id: decision_20260605_cpp1_target_bytes_test_record_rework_v1
+decision_id: decision_20260605_cpp1_inverse_transform_handoff_v1
 decision_status: APPROVED
-mainline: tool_integration
+mainline: reverse_solving
 Result: PASSED
 
 ================================================================================
 
-[7] python -m reverse_agent.project_state lint-report --state-dir project_state
+[5] python -m reverse_agent.project_state lint-report --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-report --state-dir project_state
 Exit Code: 0
 Output:
 lint-report: OK
-report_id: report_20260605_cpp1_target_bytes_test_record_rework_v1
+report_id: report_20260605_cpp1_inverse_transform_handoff_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPT
-based_on_decision_id: decision_20260605_cpp1_target_bytes_test_record_rework_v1
-decision_report_id_match: True
-round_id: round_20260605_cpp1_target_bytes_test_record_rework_v1
-report_round_id: round_20260605_cpp1_target_bytes_test_record_rework_v1
-decision_round_id: round_20260605_cpp1_target_bytes_test_record_rework_v1
-report_decision_round_id_match: True
+based_on_decision_id: decision_20260605_cpp1_inverse_transform_handoff_v1
 Result: PASSED
 
 ================================================================================
 
-[8] Target Byte Extraction CLI
+[6] Inverse Handoff CLI
 --------------------------------------------------------------------------------
-Command: python -m reverse_agent.local_reverse_cpp1_target_byte_extract --sample-id cpp1_2f6fcb63 --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json
+Command: python -m reverse_agent.local_reverse_cpp1_inverse_handoff --input project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --out project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json
 Exit Code: 0
 Output:
-target byte extraction: status=success sample_id=cpp1_2f6fcb63
-  target_symbol: byte_429A30
-  target_address: 0x00429A30
-  target_length: 16
-  target_bytes_hex: d596c4f60745577776e5f64847f74817...
-  forward_transform_formula: (x & 3) | (16 * (x & 0x0C)) | ((x & 0xF0) >> 2)...
+cpp1 inverse handoff: status=BLOCKED sample_id=cpp1_2f6fcb63
+  target_bytes_hex=d596c4f60745577776e5f64847f74817
+  static_candidate_bytes_hex=5d5a1cde131557d7d69dde2417df2453
+  printable_ascii=False
+  blocked_reason=STATIC_CANDIDATE_NONPRINTABLE
 Result: PASSED
 
 ================================================================================
 
-[9] git diff --check
+[7] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
@@ -117,23 +93,25 @@ Result: PASSED
 
 ================================================================================
 
-[10] git status --short
+[8] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
 Output:
  M project_state/artifact_index.json
  M project_state/codex_execution_report.md
- M project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json
+ M project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json
  M project_state/pytest_result.txt
+?? reverse_agent/local_reverse_cpp1_inverse_handoff.py
+?? tests/test_local_reverse_cpp1_inverse_handoff.py
 Result: PASSED
 
 ================================================================================
 
 SUMMARY
 ================================================================================
-Total Tests: 10
-Passed: 10
+Total Tests: 8
+Passed: 8
 Failed: 0
 Exit Code: 0
 

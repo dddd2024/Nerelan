@@ -687,6 +687,16 @@
       "size_bytes": 2797,
       "modified_at": "2026-06-05T09:12:27Z",
       "sample_id": "cpp1_2f6fcb63"
+    },
+    "local_reverse_cpp1_2f6fcb63_inverse_handoff": {
+      "kind": "local_reverse_cpp1_inverse_handoff",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_inverse_handoff.json",
+      "freshness": "current",
+      "source_run": "round_20260605_cpp1_inverse_transform_handoff_v1",
+      "sha256": "db3bda6f3bf3b39b5515977796b36be6e696e48257d7056f400f69d432f63eb2",
+      "size_bytes": 1780,
+      "modified_at": "2026-06-05T09:43:17Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [

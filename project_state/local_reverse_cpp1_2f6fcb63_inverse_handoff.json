@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_2f6fcb63",
+  "analysis_mode": "static_inverse_transform_handoff",
+  "mainline": "reverse_solving",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "generated_at": "2026-06-05T09:43:17Z",
+  "source_artifact": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json",
+  "target_bytes_hex": "d596c4f60745577776e5f64847f74817",
+  "expected_target_length": 16,
+  "forward_transform": {
+    "formula": "y = (x & 0x03) | ((x & 0x0C) << 4) | ((x & 0xF0) >> 2)",
+    "bit_mapping": [
+      "y0=x0",
+      "y1=x1",
+      "y2=x4",
+      "y3=x5",
+      "y4=x6",
+      "y5=x7",
+      "y6=x2",
+      "y7=x3"
+    ]
+  },
+  "inverse_transform": {
+    "formula": "x = (y & 0x03) | ((y & 0xC0) >> 4) | ((y & 0x3C) << 2)",
+    "bit_mapping": [
+      "x0=y0",
+      "x1=y1",
+      "x2=y6",
+      "x3=y7",
+      "x4=y2",
+      "x5=y3",
+      "x6=y4",
+      "x7=y5"
+    ]
+  },
+  "static_candidate_bytes_hex": "5d5a1cde131557d7d69dde2417df2453",
+  "static_candidate_bytes": [
+    93,
+    90,
+    28,
+    222,
+    19,
+    21,
+    87,
+    215,
+    214,
+    157,
+    222,
+    36,
+    23,
+    223,
+    36,
+    83
+  ],
+  "static_candidate_text": null,
+  "printable_ascii": false,
+  "candidate": null,
+  "known_candidate": "",
+  "status": "BLOCKED",
+  "blocked_reason": "STATIC_CANDIDATE_NONPRINTABLE",
+  "evidence_notes": [
+    "length discrepancy: input must be 18 chars but compare loop checks 16 bytes",
+    "division operation detected in path; potential anti-debug trap or dead code"
+  ],
+  "recommended_next_action": "If candidate is non-printable, require static re-check of transform semantics or allowed dynamic validation; do not mark solved."
+}
