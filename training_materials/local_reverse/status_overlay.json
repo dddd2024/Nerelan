@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-04T08:14:07Z",
+  "generated_at": "2026-06-05T14:53:51Z",
   "source_inventory_hint": "LOCAL_REVERSE_ROOT",
   "sample_count": 29,
   "status_summary": {
     "solved": 1,
-    "blocked": 2,
+    "blocked": 4,
     "needs_triage": 0,
-    "inventory_only": 26
+    "inventory_only": 24
   },
   "samples": [
     {
@@ -23,6 +23,33 @@
       "training_status": "solved",
       "known_candidate": "hookapi",
       "blocked_reason": ""
+    },
+    {
+      "sample_id": "affine_8cfebe03",
+      "relative_path": "逆向课程2024春补考03/affine.exe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "training_status": "blocked",
+      "known_candidate": "",
+      "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT"
+    },
+    {
+      "sample_id": "cpp1_2f6fcb63",
+      "relative_path": "逆向课程2023春01/CPP1.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "blocked",
+      "known_candidate": "",
+      "blocked_reason": "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE"
     },
     {
       "sample_id": "cpp2_4c69f173",
@@ -53,19 +80,6 @@
       "blocked_reason": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN"
     },
     {
-      "sample_id": "affine_8cfebe03",
-      "relative_path": "逆向课程2024春补考03/affine.exe",
-      "category": "unknown",
-      "tags": [
-        "local",
-        "reverse",
-        "pe"
-      ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": ""
-    },
-    {
       "sample_id": "byte_shift_transform_solver_3718a6fa",
       "relative_path": "逆向课程2021春02/byte_shift_transform_solver.py",
       "category": "unknown",
@@ -73,20 +87,6 @@
         "local",
         "reverse",
         "python"
-      ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": ""
-    },
-    {
-      "sample_id": "cpp1_2f6fcb63",
-      "relative_path": "逆向课程2023春01/CPP1.exe",
-      "category": "cpp",
-      "tags": [
-        "local",
-        "reverse",
-        "cpp",
-        "pe"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",

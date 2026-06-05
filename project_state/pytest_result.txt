@@ -1,18 +1,15 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260605_cpp1_target_byte_provenance_recheck_v1",
-  "report_id": "report_20260605_cpp1_target_byte_provenance_recheck_v1",
-  "round_id": "round_20260605_cpp1_target_byte_provenance_recheck_v1",
-  "generated_at": "2026-06-05T14:37:53Z",
+  "decision_id": "decision_20260605_training_status_static_blocked_overlay_rework_v1",
+  "report_id": "report_20260605_training_status_static_blocked_overlay_rework_v1",
+  "round_id": "round_20260605_training_status_static_blocked_overlay_rework_v1",
+  "generated_at": "2026-06-05T14:54:44Z",
   "status": "PASSED",
   "tests_ran": [
-    "python -m py_compile reverse_agent/local_reverse_cpp1_target_byte_extract.py",
-    "python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py",
-    "python -m pytest -q tests/test_local_reverse_cpp1_transform_recheck.py",
-    "python -m pytest -q tests/test_local_reverse_cpp1_signed_transform_recheck.py",
-    "python -m pytest -q tests/test_project_state.py",
-    "python -m reverse_agent.local_reverse_cpp1_target_byte_extract --provenance-recheck --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --transform-recheck project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json --signed-transform-recheck project_state/local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json --ida-control-flow project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json --out project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json",
+    "python -m py_compile reverse_agent/local_reverse_training_status.py",
+    "python -m pytest -q tests/test_local_reverse_training_status.py",
+    "python -m reverse_agent.local_reverse_training_status --inventory project_state/local_reverse_inventory.json --validated project_state/local_reverse_validated_candidate_handoff.json --constraint-recovery project_state/local_reverse_constraint_recovery_result.json --solver-result project_state/local_reverse_ida_solver_result.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state status --state-dir project_state",
@@ -24,122 +21,124 @@
 ```
 
 ================================================================================
-PYTEST RESULT DETAILS - Round: round_20260605_cpp1_target_byte_provenance_recheck_v1
+PYTEST RESULT DETAILS - Round: round_20260605_training_status_static_blocked_overlay_rework_v1
 ================================================================================
 
-[1] python -m py_compile reverse_agent/local_reverse_cpp1_target_byte_extract.py
+[1] python -m py_compile reverse_agent/local_reverse_training_status.py
 --------------------------------------------------------------------------------
-Command: python -m py_compile reverse_agent/local_reverse_cpp1_target_byte_extract.py
+Command: python -m py_compile reverse_agent/local_reverse_training_status.py
 Exit Code: 0
 Output: (none)
 Result: PASSED
 
 ================================================================================
 
-[2] python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
+[2] python -m pytest -q tests/test_local_reverse_training_status.py
 --------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
+Command: python -m pytest -q tests/test_local_reverse_training_status.py
 Exit Code: 0
 Output:
-................................                                         [100%]
-32 passed in 0.42s
+.........................                                                [100%]
+25 passed in 0.52s
 Result: PASSED
 
 ================================================================================
 
-[3] python -m pytest -q tests/test_local_reverse_cpp1_transform_recheck.py
+[3] python -m reverse_agent.local_reverse_training_status --inventory project_state/local_reverse_inventory.json --validated project_state/local_reverse_validated_candidate_handoff.json --constraint-recovery project_state/local_reverse_constraint_recovery_result.json --solver-result project_state/local_reverse_ida_solver_result.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json
 --------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_cpp1_transform_recheck.py
+Command: python -m reverse_agent.local_reverse_training_status --inventory project_state/local_reverse_inventory.json --validated project_state/local_reverse_validated_candidate_handoff.json --constraint-recovery project_state/local_reverse_constraint_recovery_result.json --solver-result project_state/local_reverse_ida_solver_result.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json
 Exit Code: 0
 Output:
-.......                                                                  [100%]
-7 passed in 0.04s
+[training_status] samples=29 solved=1 blocked=4 needs_triage=0 inventory_only=24
+[training_status] status out: project_state\local_reverse_training_status.json
+[training_status] queue out: project_state\local_reverse_evaluation_queue.json
+[training_status] github status: training_materials\local_reverse\status_overlay.json
+[training_status] queue items: 21
 Result: PASSED
 
 ================================================================================
 
-[4] python -m pytest -q tests/test_local_reverse_cpp1_signed_transform_recheck.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_cpp1_signed_transform_recheck.py
-Exit Code: 0
-Output:
-.....                                                                    [100%]
-5 passed in 0.05s
-Result: PASSED
-
-================================================================================
-
-[5] python -m pytest -q tests/test_project_state.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_project_state.py
-Exit Code: 0
-Output:
-........................................................................ [ 45%]
-........................................................................ [ 91%]
-.............                                                            [100%]
-157 passed in 27.00s
-Result: PASSED
-
-================================================================================
-
-[6] Target Provenance Recheck CLI
---------------------------------------------------------------------------------
-Command: python -m reverse_agent.local_reverse_cpp1_target_byte_extract --provenance-recheck --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --transform-recheck project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json --signed-transform-recheck project_state/local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json --ida-control-flow project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json --out project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json
-Exit Code: 0
-Output:
-cpp1 target provenance recheck: status=BLOCKED sample_id=cpp1_2f6fcb63
-  provenance_verdict=CONFIRMED_NO_PRINTABLE_PREIMAGE
-  target_matches_raw_data=True
-  alternative_printable_span_count=0
-  candidate=None
-  known_candidate=''
-  runtime_validated=False
-Result: PASSED
-
-================================================================================
-
-[7] python -m reverse_agent.project_state lint-decision --state-dir project_state
+[4] python -m reverse_agent.project_state lint-decision --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
 Exit Code: 0
-Output summary:
+Output:
 lint-decision: OK
-decision_id: decision_20260605_cpp1_target_byte_provenance_recheck_v1
+decision_id: decision_20260605_training_status_static_blocked_overlay_rework_v1
 decision_status: APPROVED
-mainline: reverse_solving
+mainline: training_dataset
+skill_profiles: ['reverse-agent-iteration@v2']
+based_on_state_build_id: state_20260602_053948_4e3984041cd7
+based_on_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
+current_state_build_id: state_20260602_053948_4e3984041cd7
+current_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
+execution_scope: decision_packet_controls_current_round
+active_decision_packet: project_state/decision_packet.md
 Result: PASSED
 
 ================================================================================
 
-[8] python -m reverse_agent.project_state lint-report --state-dir project_state
+[5] python -m reverse_agent.project_state lint-report --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-report --state-dir project_state
 Exit Code: 0
-Output summary:
+Output:
 lint-report: OK
 warning: report round not archived yet
-report_id: report_20260605_cpp1_target_byte_provenance_recheck_v1
+report_id: report_20260605_training_status_static_blocked_overlay_rework_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260605_cpp1_target_byte_provenance_recheck_v1
+based_on_decision_id: decision_20260605_training_status_static_blocked_overlay_rework_v1
+decision_id: decision_20260605_training_status_static_blocked_overlay_rework_v1
+decision_report_id_match: True
+round_id: round_20260605_training_status_static_blocked_overlay_rework_v1
+report_round_id: round_20260605_training_status_static_blocked_overlay_rework_v1
+decision_round_id: round_20260605_training_status_static_blocked_overlay_rework_v1
+current_state_round_id: round_20260602_053948
+current_state_scope: sample_state
+report_decision_round_id_match: True
+report_current_state_round_relation: different_but_allowed_sample_state
+round_manifest_present: False
+archive_status: not_archived
+round_manifest_path: project_state\rounds\round_20260605_training_status_static_blocked_overlay_rework_v1\round_manifest.json
+round_manifest_files: []
+round_manifest_forbidden_files: []
+round_manifest_required_files_missing: []
+tests_ran_count: 9
+generated_artifacts_count: 0
+pytest_result_present: True
+pytest_result_status: PASSED
+pytest_result_decision_id: decision_20260605_training_status_static_blocked_overlay_rework_v1
+pytest_result_report_id: report_20260605_training_status_static_blocked_overlay_rework_v1
+pytest_result_round_id: round_20260605_training_status_static_blocked_overlay_rework_v1
+pytest_result_matches_report: True
+report_tests_ran_count: 9
+pytest_result_tests_ran_count: 9
+pytest_result_tests_cover_report: True
+pytest_result_missing_report_tests: []
+pytest_result_parse_error: None
 Result: PASSED
 
 ================================================================================
 
-[9] python -m reverse_agent.project_state status --state-dir project_state
+[6] python -m reverse_agent.project_state status --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state status --state-dir project_state
 Exit Code: 0
 Output summary:
 decision_report_id_match: True
+decision_state_digest_match: True
 decision_consumed_by_report: True
 decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
-report_current_state_round_relation: different_but_allowed_sample_state
+decision_ready_for_execution: False
+report_tests_ran_count: 9
+pytest_result_tests_ran_count: 9
+pytest_result_tests_cover_report: True
 Result: PASSED
 
 ================================================================================
 
-[10] git diff --check
+[7] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
@@ -149,45 +148,42 @@ Result: PASSED
 
 ================================================================================
 
-[11] git status --short
+[8] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
-Output summary:
-Allowed files only:
-  project_state/artifact_index.json
-  project_state/codex_execution_report.md
-  project_state/pytest_result.txt
-  project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json
-  reverse_agent/local_reverse_cpp1_target_byte_extract.py
-  tests/test_local_reverse_cpp1_target_byte_extract.py
+Output:
+ M project_state/codex_execution_report.md
+ M project_state/local_reverse_evaluation_queue.json
+ M project_state/local_reverse_training_status.json
+ M project_state/pytest_result.txt
+ M reverse_agent/local_reverse_training_status.py
+ M tests/test_local_reverse_training_status.py
+ M training_materials/local_reverse/status_overlay.json
 Result: PASSED
 
 ================================================================================
 
-[12] git diff --name-status
+[9] git diff --name-status
 --------------------------------------------------------------------------------
 Command: git diff --name-status
 Exit Code: 0
-Output summary:
-Tracked allowed files only:
-M project_state/artifact_index.json
-M project_state/codex_execution_report.md
-M project_state/pytest_result.txt
-M reverse_agent/local_reverse_cpp1_target_byte_extract.py
-M tests/test_local_reverse_cpp1_target_byte_extract.py
-Note: untracked new artifact is reported by git status --short, not by this command.
-Git reported line-ending normalization warnings for modified text files only.
+Output:
+M	project_state/codex_execution_report.md
+M	project_state/local_reverse_evaluation_queue.json
+M	project_state/local_reverse_training_status.json
+M	project_state/pytest_result.txt
+M	reverse_agent/local_reverse_training_status.py
+M	tests/test_local_reverse_training_status.py
+M	training_materials/local_reverse/status_overlay.json
 Result: PASSED
 
 ================================================================================
 
 SUMMARY
 ================================================================================
-Total Commands: 12
-Passed: 12
+Total Commands: 9
+Passed: 9
 Failed: 0
 Exit Code: 0
-
-All required commands passed.
 ================================================================================

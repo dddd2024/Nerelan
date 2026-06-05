@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-05T06:40:11Z",
+  "generated_at": "2026-06-05T14:53:51Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
     "solved": 1,
-    "blocked": 3,
+    "blocked": 4,
     "needs_triage": 0,
-    "inventory_only": 25
+    "inventory_only": 24
   },
   "samples": [
     {
@@ -56,9 +56,36 @@
       "evidence_sources": [
         "source:local_reverse_affine_inverse_handoff.json",
         "static_handoff",
+        "static_blocked_artifact",
         "static_cipher_analysis"
       ],
       "next_action": "Provide expected ciphertext from challenge statement or another allowed evidence source before candidate generation."
+    },
+    {
+      "sample_id": "cpp1_2f6fcb63",
+      "relative_path": "逆向课程2023春01/CPP1.exe",
+      "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+      "size_bytes": 196700,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "blocked",
+      "known_candidate": "",
+      "blocked_reason": "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE",
+      "classification": "target byte provenance recheck confirmed_no_printable_preimage current_target_confirmed_no_complete_printable_preimage",
+      "evidence_sources": [
+        "source:local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json",
+        "static_handoff",
+        "static_blocked_artifact",
+        "provenance:CONFIRMED_NO_PRINTABLE_PREIMAGE"
+      ],
+      "next_action": "Keep cpp1_2f6fcb63 blocked/static-only. Current target bytes are raw-data consistent but do not have a complete printable preimage under the confirmed transform; any non-printable or alternative-span path needs a separate bounded review decision."
     },
     {
       "sample_id": "cpp2_4c69f173",
@@ -122,27 +149,6 @@
         "local",
         "reverse",
         "python"
-      ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
-    },
-    {
-      "sample_id": "cpp1_2f6fcb63",
-      "relative_path": "逆向课程2023春01/CPP1.exe",
-      "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
-      "size_bytes": 196700,
-      "extension": ".exe",
-      "guessed_file_type": "pe",
-      "category": "cpp",
-      "tags": [
-        "local",
-        "reverse",
-        "cpp",
-        "pe"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",

@@ -467,8 +467,10 @@ class TestBuildStaticHandoffOverlay:
 
             v2_key = f"{key_prefix}_sample_{i}"
             v2[v2_key] = {
+                "kind": art_meta.get("kind", key_prefix),
                 "freshness": freshness,
                 "path": str(art_file),
+                "sample_id": art_meta.get("sample_id"),
             }
 
         index_path = tmp_path / "artifact_index.json"
@@ -510,6 +512,29 @@ class TestBuildStaticHandoffOverlay:
         ])
         result = _build_static_handoff_overlay(index_path)
         assert result == {}
+
+    def test_current_target_provenance_recheck_artifact_accepted(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_sample_target_provenance_recheck",
+                "kind": "local_reverse_sample_target_provenance_recheck",
+                "freshness": "current",
+                "artifact": self._make_blocked_artifact(
+                    sample_id="cpp1_target",
+                    blocked_reason="CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE",
+                    provenance_verdict="CONFIRMED_NO_PRINTABLE_PREIMAGE",
+                    cipher_type="",
+                    analysis_mode="target_byte_provenance_recheck",
+                ),
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        entry = result["cpp1_target"]
+        assert entry["training_status"] == TRAINING_STATUS_BLOCKED
+        assert entry["blocked_reason"] == "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE"
+        assert "known_candidate" not in entry
+        assert "static_blocked_artifact" in entry["evidence_sources"]
+        assert "provenance:CONFIRMED_NO_PRINTABLE_PREIMAGE" in entry["evidence_sources"]
 
     # -- 3. Valid blocked artifact -> training_status=blocked --
 
@@ -615,6 +640,42 @@ class TestBuildStaticHandoffOverlay:
         result = _build_static_handoff_overlay(index_path)
         assert "has_candidate" not in result
 
+    def test_target_provenance_priority_over_transform_and_handoff(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_sample_inverse_handoff",
+                "kind": "local_reverse_sample_inverse_handoff",
+                "freshness": "current",
+                "artifact": self._make_blocked_artifact(
+                    sample_id="priority_target",
+                    analysis_mode="inverse_handoff",
+                    blocked_reason="INVERSE_HANDOFF_BLOCKED",
+                ),
+            },
+            {
+                "key_prefix": "local_reverse_sample_transform_recheck",
+                "kind": "local_reverse_sample_transform_recheck",
+                "freshness": "current",
+                "artifact": self._make_blocked_artifact(
+                    sample_id="priority_target",
+                    analysis_mode="transform_recheck",
+                    blocked_reason="TRANSFORM_RECHECK_BLOCKED",
+                ),
+            },
+            {
+                "key_prefix": "local_reverse_sample_target_provenance_recheck",
+                "kind": "local_reverse_sample_target_provenance_recheck",
+                "freshness": "current",
+                "artifact": self._make_blocked_artifact(
+                    sample_id="priority_target",
+                    analysis_mode="target_provenance_recheck",
+                    blocked_reason="TARGET_PROVENANCE_BLOCKED",
+                ),
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        assert result["priority_target"]["blocked_reason"] == "TARGET_PROVENANCE_BLOCKED"
+
     # -- 9. Evidence sources include static_handoff tag --
 
     def test_evidence_sources_include_static_handoff(self, tmp_path: Path) -> None:
@@ -688,3 +749,39 @@ class TestBuildStaticHandoffOverlay:
         # Handoff should win (affine_cipher, not xor_fixed_key)
         assert "affine_cipher" in entry["classification"]
         assert entry["blocked_reason"] == "MISSING_EXPECTED_CIPHERTEXT"
+
+
+def test_real_cpp1_target_provenance_recheck_removes_cpp1_from_queue(tmp_path: Path) -> None:
+    out_path = tmp_path / "status.json"
+    queue_path = tmp_path / "queue.json"
+    gh_path = tmp_path / "github_status.json"
+
+    result = build_training_status(
+        inventory_path=Path("project_state/local_reverse_inventory.json"),
+        validated_path=Path("project_state/local_reverse_validated_candidate_handoff.json"),
+        constraint_path=Path("project_state/local_reverse_constraint_recovery_result.json"),
+        solver_result_path=Path("project_state/local_reverse_ida_solver_result.json"),
+        artifact_index_path=Path("project_state/artifact_index.json"),
+        out_path=out_path,
+        queue_out_path=queue_path,
+        github_status_path=gh_path,
+    )
+
+    assert result["status_summary"]["blocked"] >= 4
+
+    status_data = json.loads(out_path.read_text(encoding="utf-8"))
+    samples_by_id = {s["sample_id"]: s for s in status_data["samples"]}
+    cpp1 = samples_by_id["cpp1_2f6fcb63"]
+    assert cpp1["training_status"] == TRAINING_STATUS_BLOCKED
+    assert cpp1["known_candidate"] == ""
+    assert cpp1["blocked_reason"] == "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE"
+    assert "source:local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json" in cpp1["evidence_sources"]
+    assert "static_blocked_artifact" in cpp1["evidence_sources"]
+
+    queue_data = json.loads(queue_path.read_text(encoding="utf-8"))
+    assert "cpp1_2f6fcb63" not in {item["sample_id"] for item in queue_data["items"]}
+
+    github_text = gh_path.read_text(encoding="utf-8")
+    assert "E:\\reverse" not in github_text
+    assert "D:\\reverse" not in github_text
+    assert "C:\\reverse" not in github_text

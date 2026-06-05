@@ -58,6 +58,18 @@ _STATIC_ANALYSIS_SUFFIXES = (
     "local_reverse_ida_summary",
 )
 
+_STATIC_BLOCKED_ARTIFACT_PRIORITY = (
+    ("target_provenance_recheck", 50),
+    ("signed_transform_recheck", 40),
+    ("transform_recheck", 30),
+    ("inverse_handoff", 20),
+    ("static_triage", 10),
+    ("targeted_static_reextraction_result", 10),
+    ("ida_decompile", 5),
+    ("ida_evidence", 5),
+    ("ida_summary", 5),
+)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
@@ -243,7 +255,7 @@ def _build_blocked_map(constraint_data: dict[str, Any]) -> dict[str, dict[str, A
 def _build_static_handoff_overlay(
     artifact_index_path: Path,
 ) -> dict[str, dict[str, Any]]:
-    """Scan artifact_index for static handoff/reextract/decompile artifacts and build overlay map.
+    """Scan artifact_index for current static-blocked artifacts and build overlay map.
 
     Returns a map: sample_id -> overlay info dict with training_status, blocked_reason,
     classification, evidence_sources, next_action, cipher_type.
@@ -255,27 +267,30 @@ def _build_static_handoff_overlay(
     v2 = artifact_index.get("latest_artifacts_v2", {})
 
     overlay: dict[str, dict[str, Any]] = {}
+    overlay_priority: dict[str, int] = {}
 
     for key, meta in v2.items():
         if meta.get("freshness") != "current":
             continue
 
-        # Check if this is a static handoff artifact
-        is_handoff = any(key.startswith(s) for s in _STATIC_HANDOFF_SUFFIXES)
-        is_analysis = any(key.startswith(s) for s in _STATIC_ANALYSIS_SUFFIXES)
-
-        if not (is_handoff or is_analysis):
+        artifact_path_text = meta.get("path", "")
+        if not artifact_path_text:
             continue
+        artifact_path = Path(artifact_path_text)
+        if not artifact_path.is_absolute() and not artifact_path.exists():
+            index_relative_path = artifact_index_path.parent / artifact_path
+            if index_relative_path.exists():
+                artifact_path = index_relative_path
 
-        artifact_path = Path(meta.get("path", ""))
-        if not artifact_path:
-            continue
-
-        artifact = _load_json(Path(artifact_path), f"artifact:{key}")
+        artifact = _load_json(artifact_path, f"artifact:{key}")
         if not artifact:
             continue
 
-        sample_id = artifact.get("sample_id", "")
+        artifact_priority = _static_blocked_artifact_priority(key, meta, artifact)
+        if artifact_priority is None:
+            continue
+
+        sample_id = artifact.get("sample_id") or meta.get("sample_id", "")
         if not sample_id:
             continue
 
@@ -309,6 +324,7 @@ def _build_static_handoff_overlay(
         # Extract metadata for classification and evidence
         cipher_type = artifact.get("cipher_type", "")
         analysis_mode = artifact.get("analysis_mode", "")
+        provenance_verdict = artifact.get("provenance_verdict", "")
         confidence = artifact.get("confidence", "")
         recommended_next = artifact.get("recommended_next_action", "")
 
@@ -318,6 +334,8 @@ def _build_static_handoff_overlay(
             classification_parts.append(cipher_type)
         if analysis_mode:
             classification_parts.append(analysis_mode.replace("targeted_", "").replace("_", " "))
+        if provenance_verdict:
+            classification_parts.append(provenance_verdict.lower())
         if blocked_reason:
             classification_parts.append(blocked_reason.lower())
         classification = " ".join(classification_parts) if classification_parts else ""
@@ -326,9 +344,11 @@ def _build_static_handoff_overlay(
         training_status = TRAINING_STATUS_BLOCKED
 
         # Build evidence sources
-        evidence_sources = [f"source:{artifact_path.name}", "static_handoff"]
+        evidence_sources = [f"source:{artifact_path.name}", "static_handoff", "static_blocked_artifact"]
         if cipher_type:
             evidence_sources.append("static_cipher_analysis")
+        if provenance_verdict:
+            evidence_sources.append(f"provenance:{provenance_verdict}")
         if confidence:
             evidence_sources.append(f"confidence:{confidence}")
 
@@ -343,21 +363,39 @@ def _build_static_handoff_overlay(
             "next_action": next_action,
         }
 
-        # Merge with existing overlay (handoff takes priority over analysis)
-        if sample_id in overlay:
-            existing = overlay[sample_id]
-            if is_handoff:
-                # Handoff artifacts take priority
-                existing.update(entry)
-            else:
-                # Analysis artifacts only fill gaps
-                for k, v in entry.items():
-                    if k not in existing or not existing.get(k):
-                        existing[k] = v
-        else:
+        existing_priority = overlay_priority.get(sample_id)
+        if existing_priority is None or artifact_priority > existing_priority:
             overlay[sample_id] = entry
+            overlay_priority[sample_id] = artifact_priority
+        elif artifact_priority == existing_priority:
+            existing = overlay[sample_id]
+            for k, v in entry.items():
+                if k not in existing or not existing.get(k):
+                    existing[k] = v
 
     return overlay
+
+
+def _static_blocked_artifact_priority(
+    key: str,
+    meta: dict[str, Any],
+    artifact: dict[str, Any],
+) -> int | None:
+    """Return specificity priority for artifacts eligible for static-blocked overlay."""
+    kind = str(meta.get("kind", ""))
+    analysis_mode = str(artifact.get("analysis_mode", ""))
+    artifact_type = str(artifact.get("artifact_type", ""))
+    haystack = " ".join((key, kind, analysis_mode, artifact_type)).lower()
+
+    for token, priority in _STATIC_BLOCKED_ARTIFACT_PRIORITY:
+        if token in haystack:
+            return priority
+
+    if any(key.startswith(prefix) or kind.startswith(prefix) for prefix in _STATIC_HANDOFF_SUFFIXES):
+        return 20
+    if any(key.startswith(prefix) or kind.startswith(prefix) for prefix in _STATIC_ANALYSIS_SUFFIXES):
+        return 5
+    return None
 
 
 def _build_evidence_sources_map(
