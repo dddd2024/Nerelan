@@ -1,16 +1,12 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260605_cpp1_7b504c54_static_triage_v1",
-  "report_id": "report_20260605_cpp1_7b504c54_static_triage_v1",
-  "round_id": "round_20260605_cpp1_7b504c54_static_triage_v1",
-  "generated_at": "2026-06-05T15:30:00Z",
+  "decision_id": "decision_20260605_cpp1_7b504c54_static_triage_report_rework_v1",
+  "report_id": "report_20260605_cpp1_7b504c54_static_triage_report_rework_v1",
+  "round_id": "round_20260605_cpp1_7b504c54_static_triage_report_rework_v1",
+  "generated_at": "2026-06-05T15:45:00Z",
   "status": "PASSED",
   "tests_ran": [
-    "python -m py_compile reverse_agent/local_reverse_single_sample_static_triage.py",
-    "python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py",
-    "python -m pytest -q tests/test_tool_runners.py",
-    "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_7b504c54 --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_7b504c54_static_triage.json",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state status --state-dir project_state",
@@ -22,105 +18,81 @@
 ```
 
 ================================================================================
-PYTEST RESULT DETAILS - Round: round_20260605_cpp1_7b504c54_static_triage_v1
+PYTEST RESULT DETAILS - Round: round_20260605_cpp1_7b504c54_static_triage_report_rework_v1
 ================================================================================
 
-[1] python -m py_compile reverse_agent/local_reverse_single_sample_static_triage.py
---------------------------------------------------------------------------------
-Command: python -m py_compile reverse_agent/local_reverse_single_sample_static_triage.py
-Exit Code: 0
-Output: (none)
-Result: PASSED
-
-[2] python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py
-Exit Code: 0
-Output: 23 passed in 1.06s
-Result: PASSED
-
-[3] python -m pytest -q tests/test_tool_runners.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_tool_runners.py
-Exit Code: 0
-Output: 11 passed in 1.08s
-Result: PASSED
-
-[4] python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_7b504c54 ...
---------------------------------------------------------------------------------
-Command: python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_7b504c54 --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_7b504c54_static_triage.json
-Exit Code: 0
-Output:
-  static triage: status=success sample_id=cpp1_7b504c54
-    strings: 50
-    functions: 30
-    compare_contexts: 1
-    hypotheses: ['string_compare_password_checker']
-Result: PASSED
-
-[5] python -m reverse_agent.project_state lint-decision --state-dir project_state
+[1] python -m reverse_agent.project_state lint-decision --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
 Exit Code: 0
 Output:
   lint-decision: OK
-  decision_id: decision_20260605_cpp1_7b504c54_static_triage_v1
+  decision_id: decision_20260605_cpp1_7b504c54_static_triage_report_rework_v1
   decision_status: APPROVED
-  mainline: tool_integration
+  mainline: engineering_branch
 Result: PASSED
 
-[6] python -m reverse_agent.project_state lint-report --state-dir project_state
+[2] python -m reverse_agent.project_state lint-report --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-report --state-dir project_state
-Exit Code: 1
+Exit Code: 0
 Output:
-  lint-report: FAILED
-  error: based_on_decision_id does not match current decision_id
-  error: report round_id does not match current decision round_id
-  warning: report round not archived yet
-  (Expected: report from previous round; current decision is new round)
-Result: EXPECTED_MISMATCH (lint-report validates against previous round's report)
+  lint-report: OK
+  report_id: report_20260605_cpp1_7b504c54_static_triage_report_rework_v1
+  report_status: SUCCESS
+  acceptance_recommendation: ACCEPTED
+  based_on_decision_id: decision_20260605_cpp1_7b504c54_static_triage_report_rework_v1
+  decision_id: decision_20260605_cpp1_7b504c54_static_triage_report_rework_v1
+  decision_report_id_match: True
+  round_id: round_20260605_cpp1_7b504c54_static_triage_report_rework_v1
+  report_round_id: round_20260605_cpp1_7b504c54_static_triage_report_rework_v1
+  decision_round_id: round_20260605_cpp1_7b504c54_static_triage_report_rework_v1
+  report_decision_round_id_match: True
+Result: PASSED
 
-[7] python -m reverse_agent.project_state status --state-dir project_state
+[3] python -m reverse_agent.project_state status --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state status --state-dir project_state
 Exit Code: 0
 Output:
   decision_status: APPROVED
-  decision_ready_for_execution: True
-  decision_execution_state: READY_FOR_EXECUTION
+  decision_consumed_by_report: True
+  decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
+  decision_ready_for_execution: False
 Result: PASSED
 
-[8] git diff --check
+[4] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
 Output: (none)
 Result: PASSED
 
-[9] git status --short
+[5] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
 Output:
-  ?? project_state/local_reverse_cpp1_7b504c54_static_triage.json
-  ?? project_state/triage_cpp1_7b504c54/
-Result: PASSED (triage_cpp1_7b504c54/ excluded by .gitignore)
+  M project_state/codex_execution_report.md
+  M project_state/pytest_result.txt
+Result: PASSED (allowed files only)
 
-[10] git diff --name-status
+[6] git diff --name-status
 --------------------------------------------------------------------------------
 Command: git diff --name-status
 Exit Code: 0
-Output: (no staged changes yet)
-Result: PASSED
+Output:
+  M       project_state/codex_execution_report.md
+  M       project_state/pytest_result.txt
+Result: PASSED (allowed tracked files only)
 
 ================================================================================
 SUMMARY
 ================================================================================
-Total Commands: 10
-Passed: 10
+Total Commands: 6
+Passed: 6
 Failed: 0
 lint-decision: OK
-lint-report: EXPECTED_MISMATCH (previous round report)
-generated_artifacts_count: 4
-project_state status: decision_consumed_by_report=False, decision_execution_state=READY_FOR_EXECUTION
+lint-report: OK
+project_state status: decision_consumed_by_report=True, decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
+generated_artifacts_count: 2
