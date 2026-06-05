@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-04T08:14:07Z",
+  "generated_at": "2026-06-05T05:55:16Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
     "solved": 1,
-    "blocked": 2,
+    "blocked": 3,
     "needs_triage": 0,
-    "inventory_only": 26
+    "inventory_only": 25
   },
   "samples": [
     {
@@ -35,6 +35,29 @@
         "source:local_reverse_constraint_recovery_result.json"
       ],
       "next_action": "inspect sub_40100A hook data flow and confirm file compare source"
+    },
+    {
+      "sample_id": "affine_8cfebe03",
+      "relative_path": "逆向课程2024春补考03/affine.exe",
+      "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+      "size_bytes": 196688,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "training_status": "blocked",
+      "known_candidate": "",
+      "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
+      "classification": "affine_cipher affine inverse handoff static only",
+      "evidence_sources": [
+        "source:local_reverse_affine_inverse_handoff.json",
+        "static_cipher_analysis"
+      ],
+      "next_action": "Provide expected ciphertext from challenge statement or another allowed evidence source before candidate generation."
     },
     {
       "sample_id": "cpp2_4c69f173",
@@ -85,26 +108,6 @@
         "source:local_reverse_constraint_recovery_result.json"
       ],
       "next_action": "targeted static re-extraction of input length/domain or request problem statement hint"
-    },
-    {
-      "sample_id": "affine_8cfebe03",
-      "relative_path": "逆向课程2024春补考03/affine.exe",
-      "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
-      "size_bytes": 196688,
-      "extension": ".exe",
-      "guessed_file_type": "pe",
-      "category": "unknown",
-      "tags": [
-        "local",
-        "reverse",
-        "pe"
-      ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
     },
     {
       "sample_id": "byte_shift_transform_solver_3718a6fa",

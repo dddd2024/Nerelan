@@ -11,6 +11,7 @@ from reverse_agent.local_reverse_training_status import (
     _build_evaluation_queue,
     _build_sample_entry,
     _build_solved_map,
+    _build_static_handoff_overlay,
     build_training_status,
     main,
 )
@@ -428,3 +429,199 @@ def test_evaluation_queue_prioritizes_simple_tags() -> None:
     # xor should be first (simple), rc4 second, hash last
     assert ids.index("xor_easy") < ids.index("rc4_mid")
     assert ids.index("rc4_mid") < ids.index("hash_hard")
+
+
+# ---------------------------------------------------------------------------
+# Tests for _build_static_handoff_overlay
+# ---------------------------------------------------------------------------
+
+
+class TestBuildStaticHandoffOverlay:
+    """Tests for the static handoff overlay builder that scans artifact_index.json."""
+
+    def _make_artifact_index(
+        self,
+        tmp_path,
+        artifacts: list[dict],
+    ) -> Path:
+        """Helper: create an artifact_index.json with given artifact entries.
+
+        Each entry in *artifacts* is a dict with keys:
+            key_prefix  – used to form the v2 key (must match a _STATIC_HANDOFF_SUFFIXES
+                          or _STATIC_ANALYSIS_SUFFIXES prefix)
+            freshness   – "current" or anything else
+            artifact    – the JSON payload that will be written to the artifact file
+        """
+        v2: dict[str, dict] = {}
+        for i, art_meta in enumerate(artifacts):
+            key_prefix = art_meta["key_prefix"]
+            freshness = art_meta.get("freshness", "current")
+            artifact_payload = art_meta["artifact"]
+
+            # Create the artifact JSON file
+            art_file = tmp_path / f"artifact_{i}.json"
+            _write_json(art_file, artifact_payload)
+
+            v2_key = f"{key_prefix}_sample_{i}"
+            v2[v2_key] = {
+                "freshness": freshness,
+                "path": str(art_file),
+            }
+
+        index_path = tmp_path / "artifact_index.json"
+        _write_json(index_path, {"latest_artifacts_v2": v2})
+        return index_path
+
+    # -- 1. No artifact_index file -> returns empty dict --
+
+    def test_missing_index_returns_empty(self, tmp_path: Path) -> None:
+        nonexistent = tmp_path / "does_not_exist.json"
+        result = _build_static_handoff_overlay(nonexistent)
+        assert result == {}
+
+    # -- 2. Artifact with freshness != current -> skipped --
+
+    def test_stale_artifact_skipped(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_affine_inverse_handoff",
+                "freshness": "stale",
+                "artifact": {
+                    "sample_id": "skip_me",
+                    "status": "READY",
+                    "candidate": "xor_key",
+                },
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        assert result == {}
+
+    # -- 3. Artifact with status=BLOCKED, blocked_reason=MISSING_EXPECTED_CIPHERTEXT -> training_status=blocked --
+
+    def test_blocked_artifact_with_missing_ciphertext(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_targeted_static_reextraction_result",
+                "freshness": "current",
+                "artifact": {
+                    "sample_id": "blocked_sample_01",
+                    "status": "BLOCKED",
+                    "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
+                    "cipher_type": "xor_fixed_key",
+                    "analysis_mode": "targeted_static",
+                },
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        assert "blocked_sample_01" in result
+        entry = result["blocked_sample_01"]
+        assert entry["training_status"] == TRAINING_STATUS_BLOCKED
+        assert entry["blocked_reason"] == "MISSING_EXPECTED_CIPHERTEXT"
+
+    # -- 4. Artifact with status=READY and candidate -> training_status=solved --
+
+    def test_ready_with_candidate_is_solved(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_affine_inverse_handoff",
+                "freshness": "current",
+                "artifact": {
+                    "sample_id": "solved_sample_01",
+                    "status": "READY",
+                    "candidate": "affine_key_ab",
+                    "cipher_type": "affine",
+                    "analysis_mode": "targeted_inverse",
+                },
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        assert "solved_sample_01" in result
+        entry = result["solved_sample_01"]
+        assert entry["training_status"] == TRAINING_STATUS_SOLVED
+        assert entry["known_candidate"] == "affine_key_ab"
+
+    # -- 5. Handoff artifact takes priority over analysis artifact for same sample_id --
+
+    def test_handoff_priority_over_analysis(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                # Analysis artifact (processed first because it appears first)
+                "key_prefix": "local_reverse_affine_main0_targeted_ida_decompile",
+                "freshness": "current",
+                "artifact": {
+                    "sample_id": "priority_sample",
+                    "status": "READY",
+                    "candidate": "analysis_candidate",
+                    "cipher_type": "xor_fixed_key",
+                    "analysis_mode": "targeted_decompile",
+                },
+            },
+            {
+                # Handoff artifact (should take priority)
+                "key_prefix": "local_reverse_affine_inverse_handoff",
+                "freshness": "current",
+                "artifact": {
+                    "sample_id": "priority_sample",
+                    "status": "READY",
+                    "candidate": "handoff_candidate",
+                    "cipher_type": "affine",
+                    "analysis_mode": "targeted_inverse",
+                },
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        assert "priority_sample" in result
+        entry = result["priority_sample"]
+        # Handoff candidate should win
+        assert entry["known_candidate"] == "handoff_candidate"
+        assert entry["training_status"] == TRAINING_STATUS_SOLVED
+
+    # -- 6. Evidence sources include source filename and cipher_type --
+
+    def test_evidence_sources_include_filename_and_cipher(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_targeted_static_reextraction_result",
+                "freshness": "current",
+                "artifact": {
+                    "sample_id": "evidence_sample",
+                    "status": "READY",
+                    "candidate": "xor_key_42",
+                    "cipher_type": "xor_fixed_key",
+                    "confidence": "high",
+                },
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        entry = result["evidence_sample"]
+        sources = entry["evidence_sources"]
+        # Should contain the artifact filename
+        assert any(s.startswith("source:artifact_") for s in sources)
+        # Should contain cipher_type indicator
+        assert "static_cipher_analysis" in sources
+        # Should contain confidence
+        assert "confidence:high" in sources
+
+    # -- 7. Classification includes cipher_type and analysis_mode --
+
+    def test_classification_includes_cipher_and_mode(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_affine_inverse_handoff",
+                "freshness": "current",
+                "artifact": {
+                    "sample_id": "class_sample",
+                    "status": "READY",
+                    "candidate": "affine_sol",
+                    "cipher_type": "affine",
+                    "analysis_mode": "targeted_inverse",
+                },
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        entry = result["class_sample"]
+        classification = entry["classification"]
+        # cipher_type should appear
+        assert "affine" in classification
+        # analysis_mode (stripped of "targeted_" prefix) should appear
+        assert "inverse" in classification

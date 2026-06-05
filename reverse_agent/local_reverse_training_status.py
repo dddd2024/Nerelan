@@ -33,6 +33,7 @@ DEFAULT_GITHUB_INVENTORY = Path("training_materials/local_reverse/inventory.json
 DEFAULT_VALIDATED = Path("project_state/local_reverse_validated_candidate_handoff.json")
 DEFAULT_CONSTRAINT = Path("project_state/local_reverse_constraint_recovery_result.json")
 DEFAULT_SOLVER = Path("project_state/local_reverse_ida_solver_result.json")
+DEFAULT_ARTIFACT_INDEX = Path("project_state/artifact_index.json")
 DEFAULT_OUT = Path("project_state/local_reverse_training_status.json")
 DEFAULT_QUEUE_OUT = Path("project_state/local_reverse_evaluation_queue.json")
 DEFAULT_GITHUB_STATUS = Path("training_materials/local_reverse/status_overlay.json")
@@ -44,6 +45,19 @@ TRAINING_STATUS_BLOCKED = "blocked"
 TRAINING_STATUS_NEEDS_TRIAGE = "needs_triage"
 TRAINING_STATUS_INVENTORY_ONLY = "inventory_only"
 
+# Artifact key suffixes that indicate a static handoff / reextract / decompile artifact.
+_STATIC_HANDOFF_SUFFIXES = (
+    "local_reverse_affine_inverse_handoff",
+    "local_reverse_targeted_static_reextraction_result",
+)
+
+_STATIC_ANALYSIS_SUFFIXES = (
+    "local_reverse_affine_main0_targeted_ida_decompile",
+    "local_reverse_affine_main_input_flow_reextract",
+    "local_reverse_ida_evidence_",
+    "local_reverse_ida_summary",
+)
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
@@ -54,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
         validated_path=Path(args.validated),
         constraint_path=Path(args.constraint_recovery),
         solver_result_path=Path(args.solver_result),
+        artifact_index_path=Path(args.artifact_index),
         out_path=Path(args.out),
         queue_out_path=Path(args.queue_out),
         github_status_path=Path(args.github_status_out) if args.github_status_out else None,
@@ -79,8 +94,9 @@ def build_training_status(
     validated_path: Path,
     constraint_path: Path,
     solver_result_path: Path,
-    out_path: Path,
-    queue_out_path: Path,
+    artifact_index_path: Path = DEFAULT_ARTIFACT_INDEX,
+    out_path: Path = DEFAULT_OUT,
+    queue_out_path: Path = DEFAULT_QUEUE_OUT,
     github_status_path: Path | None = None,
 ) -> dict[str, Any]:
     inventory = _load_json(inventory_path, "inventory")
@@ -93,6 +109,9 @@ def build_training_status(
     solved_map = _build_solved_map(validated_data)
     blocked_map = _build_blocked_map(constraint_data)
     evidence_sources_map = _build_evidence_sources_map(solver_data, validated_path, constraint_path)
+
+    # Static handoff overlay from artifact_index
+    static_handoff_map = _build_static_handoff_overlay(artifact_index_path)
 
     # Merge with inventory entries
     samples: list[dict[str, Any]] = []
@@ -120,6 +139,11 @@ def build_training_status(
             status = TRAINING_STATUS_BLOCKED
             info = blocked_map[short_id]
             counts["blocked"] += 1
+        elif sample_id in static_handoff_map:
+            overlay = static_handoff_map[sample_id]
+            status = overlay.get("training_status", TRAINING_STATUS_NEEDS_TRIAGE)
+            info = overlay
+            counts[status] = counts.get(status, 0) + 1
         else:
             status = TRAINING_STATUS_INVENTORY_ONLY
             info = {}
@@ -216,6 +240,114 @@ def _build_blocked_map(constraint_data: dict[str, Any]) -> dict[str, dict[str, A
     return result
 
 
+def _build_static_handoff_overlay(
+    artifact_index_path: Path,
+) -> dict[str, dict[str, Any]]:
+    """Scan artifact_index for static handoff/reextract/decompile artifacts and build overlay map.
+
+    Returns a map: sample_id -> overlay info dict with training_status, blocked_reason,
+    classification, evidence_sources, next_action, cipher_type.
+    """
+    if not artifact_index_path.exists():
+        return {}
+
+    artifact_index = _load_json(artifact_index_path, "artifact_index")
+    v2 = artifact_index.get("latest_artifacts_v2", {})
+
+    overlay: dict[str, dict[str, Any]] = {}
+
+    for key, meta in v2.items():
+        if meta.get("freshness") != "current":
+            continue
+
+        # Check if this is a static handoff artifact
+        is_handoff = any(key.startswith(s) for s in _STATIC_HANDOFF_SUFFIXES)
+        is_analysis = any(key.startswith(s) for s in _STATIC_ANALYSIS_SUFFIXES)
+
+        if not (is_handoff or is_analysis):
+            continue
+
+        artifact_path = Path(meta.get("path", ""))
+        if not artifact_path:
+            continue
+
+        artifact = _load_json(Path(artifact_path), f"artifact:{key}")
+        if not artifact:
+            continue
+
+        sample_id = artifact.get("sample_id", "")
+        if not sample_id:
+            continue
+
+        # Determine overlay status from artifact
+        status = artifact.get("status", "")
+        blocked_reason = artifact.get("blocked_reason", "")
+        cipher_type = artifact.get("cipher_type", "")
+        analysis_mode = artifact.get("analysis_mode", "")
+        confidence = artifact.get("confidence", "")
+        candidate = artifact.get("candidate")
+        recommended_next = artifact.get("recommended_next_action", "")
+
+        # Build classification from artifact metadata
+        classification_parts = []
+        if cipher_type:
+            classification_parts.append(cipher_type)
+        if analysis_mode:
+            classification_parts.append(analysis_mode.replace("targeted_", "").replace("_", " "))
+        classification = " ".join(classification_parts) if classification_parts else ""
+
+        # Determine training status
+        if candidate and status == "READY":
+            training_status = TRAINING_STATUS_SOLVED
+        elif blocked_reason:
+            training_status = TRAINING_STATUS_BLOCKED
+        elif status == "BLOCKED":
+            training_status = TRAINING_STATUS_BLOCKED
+        else:
+            training_status = TRAINING_STATUS_NEEDS_TRIAGE
+
+        # Build evidence sources
+        evidence_sources = [f"source:{artifact_path.name}"]
+        if cipher_type:
+            evidence_sources.append("static_cipher_analysis")
+        if confidence:
+            evidence_sources.append(f"confidence:{confidence}")
+
+        # Determine next action
+        if candidate:
+            next_action = f"validate candidate: {candidate}"
+        elif blocked_reason:
+            next_action = recommended_next or f"resolve: {blocked_reason}"
+        else:
+            next_action = recommended_next or "continue static analysis"
+
+        entry: dict[str, Any] = {
+            "training_status": training_status,
+            "blocked_reason": blocked_reason,
+            "classification": classification,
+            "evidence_sources": evidence_sources,
+            "next_action": next_action,
+        }
+        if candidate:
+            entry["known_candidate"] = candidate
+
+        # Merge with existing overlay (handoff takes priority over analysis)
+        if sample_id in overlay:
+            existing = overlay[sample_id]
+            if is_handoff:
+                # Handoff artifacts take priority
+                existing.update(entry)
+            else:
+                # Analysis artifacts only fill gaps
+                for k, v in entry.items():
+                    if k not in existing or not existing.get(k):
+                        existing[k] = v
+        else:
+            overlay[sample_id] = entry
+
+    return overlay
+
+
 def _build_evidence_sources_map(
     solver_data: dict[str, Any],
     validated_path: Path,
@@ -252,12 +384,21 @@ def _build_sample_entry(
     # Prefer entry's own sample_id, fall back to short_id for lookup
     sources = evidence_sources_map.get(sample_id, evidence_sources_map.get(short_id, []))
 
+    # Merge overlay evidence sources if present
+    overlay_sources = info.get("evidence_sources", [])
+    if overlay_sources:
+        merged_sources = list(sources)
+        for s in overlay_sources:
+            if s not in merged_sources:
+                merged_sources.append(s)
+        sources = merged_sources
+
     if status == TRAINING_STATUS_SOLVED:
-        next_action = "inspect sub_40100A hook data flow and confirm file compare source"
+        next_action = info.get("next_action", "inspect sub_40100A hook data flow and confirm file compare source")
     elif status == TRAINING_STATUS_BLOCKED:
         next_action = info.get("next_action", "resolve blocking constraint before proceeding")
     else:
-        next_action = "static triage and manual evaluation required"
+        next_action = info.get("next_action", "static triage and manual evaluation required")
 
     return {
         "sample_id": sample_id,
@@ -429,6 +570,8 @@ def _build_parser() -> argparse.ArgumentParser:
                         help="Path to local_reverse_constraint_recovery_result.json")
     parser.add_argument("--solver-result", default=str(DEFAULT_SOLVER),
                         help="Path to local_reverse_ida_solver_result.json")
+    parser.add_argument("--artifact-index", default=str(DEFAULT_ARTIFACT_INDEX),
+                        help="Path to artifact_index.json for static handoff overlay")
     parser.add_argument("--out", default=str(DEFAULT_OUT),
                         help="Path for local_reverse_training_status.json")
     parser.add_argument("--queue-out", default=str(DEFAULT_QUEUE_OUT),
