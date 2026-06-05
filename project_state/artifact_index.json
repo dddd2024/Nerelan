@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T04:17:15Z",
+  "generated_at": "2026-06-05T04:54:36Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -660,10 +660,10 @@
       "kind": "local_reverse_affine_inverse_handoff",
       "path": "project_state\\local_reverse_affine_inverse_handoff.json",
       "freshness": "current",
-      "source_run": "round_20260605_affine_inverse_handoff_static_only_v1",
-      "sha256": "b53ee38d04e63df30c9cd9b6f2e1189fb5f02dcc5d9c9275acfd09912e2e3f3a",
-      "size_bytes": 5364,
-      "modified_at": "2026-06-05T04:17:15Z",
+      "source_run": "round_20260605_affine_inverse_handoff_test_and_provenance_rework_v1",
+      "sha256": "0bcd121968c0c78b8d7a19aaad249b412e9775113ac7e0bd89eb8b5d194b58c5",
+      "size_bytes": 5397,
+      "modified_at": "2026-06-05T04:54:36Z",
       "sample_id": "affine_8cfebe03"
     }
   },

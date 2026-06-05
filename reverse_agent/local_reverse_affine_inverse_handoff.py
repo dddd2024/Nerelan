@@ -5,7 +5,8 @@ and produces an inverse handoff artifact with transform parameters, modular
 inverse, and per-character mapping rules.
 
 Does NOT run the target binary. Does NOT generate a candidate unless an
-expected ciphertext is explicitly provided in the input artifact.
+expected ciphertext is explicitly provided in the input artifact AND
+accompanied by an auditable provenance/source field.
 """
 
 from __future__ import annotations
@@ -63,6 +64,23 @@ def _build_per_char_mapping(a: int, b: int, inverse_a: int, modulus: int) -> lis
             "inverse": f"p = {inverse_a} * ({c} - {b}) % {modulus} = {p_check} -> '{chr(p_check + 97)}'",
         })
     return mapping
+
+
+# Auditable provenance source whitelist.
+TRUSTED_CIPHERTEXT_SOURCES = frozenset({
+    "challenge_statement",
+    "allowed_static_evidence",
+    "user_provided",
+})
+
+
+def _check_ciphertext_provenance(artifact: dict[str, Any]) -> str | None:
+    """Return the provenance source if auditable, or None."""
+    for key in ("expected_ciphertext_source", "expected_ciphertext_provenance", "expected_ciphertext_origin"):
+        value = artifact.get(key)
+        if isinstance(value, str) and value.strip() in TRUSTED_CIPHERTEXT_SOURCES:
+            return value.strip()
+    return None
 
 
 def run_affine_inverse_handoff(
@@ -147,10 +165,7 @@ def run_affine_inverse_handoff(
 
     # Check for expected ciphertext
     expected_ciphertext = artifact.get("expected_ciphertext")
-    # Also check post_scanf output or other fields
-    if expected_ciphertext is None:
-        output_info = post_scanf.get("output", {})
-        # No ciphertext in static evidence
+    ciphertext_provenance = None
 
     # Determine status
     if expected_ciphertext is None:
@@ -162,11 +177,23 @@ def run_affine_inverse_handoff(
             "allowed evidence source before candidate generation."
         )
     else:
-        status = "READY"
-        blocked_reason = ""
-        # Compute plaintext candidate
-        candidate = _decrypt_affine(expected_ciphertext, inverse_a, b, modulus)
-        next_action = "Validate candidate against challenge requirements."
+        # Provenance gate: require auditable source
+        ciphertext_provenance = _check_ciphertext_provenance(artifact)
+        if ciphertext_provenance is None:
+            status = "BLOCKED"
+            blocked_reason = "UNTRUSTED_EXPECTED_CIPHERTEXT_SOURCE"
+            candidate = None
+            next_action = (
+                "expected_ciphertext is present but has no auditable provenance/source "
+                "field. Add expected_ciphertext_source, expected_ciphertext_provenance, or "
+                "expected_ciphertext_origin with a trusted value "
+                "(challenge_statement, allowed_static_evidence, user_provided)."
+            )
+        else:
+            status = "READY"
+            blocked_reason = ""
+            candidate = _decrypt_affine(expected_ciphertext, inverse_a, b, modulus)
+            next_action = "Validate candidate against challenge requirements."
 
     result: dict[str, Any] = {
         "schema_version": 1,
@@ -200,6 +227,7 @@ def run_affine_inverse_handoff(
         },
         "per_char_mapping": per_char_mapping,
         "expected_ciphertext": expected_ciphertext,
+        "ciphertext_provenance": ciphertext_provenance,
         "candidate": candidate,
         "status": status,
         "blocked_reason": blocked_reason,
