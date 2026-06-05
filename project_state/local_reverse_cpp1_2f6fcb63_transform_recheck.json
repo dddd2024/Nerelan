@@ -1,0 +1,265 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_2f6fcb63",
+  "analysis_mode": "static_transform_semantics_recheck",
+  "mainline": "reverse_solving",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "generated_at": "2026-06-05T11:47:16Z",
+  "source_artifacts": {
+    "target_bytes": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json",
+    "inverse_handoff": "project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json",
+    "static_triage": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json"
+  },
+  "forward_transform": {
+    "formula": "y = (x & 0x03) | ((x & 0x0C) << 4) | ((x & 0xF0) >> 2)",
+    "bit_mapping": [
+      "y0=x0",
+      "y1=x1",
+      "y2=x4",
+      "y3=x5",
+      "y4=x6",
+      "y5=x7",
+      "y6=x2",
+      "y7=y3"
+    ]
+  },
+  "inverse_transform": {
+    "formula": "x = (y & 0x03) | ((y & 0xC0) >> 4) | ((y & 0x3C) << 2)",
+    "bit_mapping": [
+      "x0=y0",
+      "x1=y1",
+      "x2=y6",
+      "x3=y7",
+      "x4=y2",
+      "x5=y3",
+      "x6=y4",
+      "x7=y5"
+    ]
+  },
+  "mapping_analysis": {
+    "forward_unique_outputs": true,
+    "inverse_unique_outputs": true,
+    "roundtrip_forward_inverse": true,
+    "roundtrip_inverse_forward": true,
+    "bijective": true
+  },
+  "static_candidate_bytes_hex": "5d5a1cde131557d7d69dde2417df2453",
+  "static_candidate_bytes": [
+    93,
+    90,
+    28,
+    222,
+    19,
+    21,
+    87,
+    215,
+    214,
+    157,
+    222,
+    36,
+    23,
+    223,
+    36,
+    83
+  ],
+  "static_candidate_printable_ascii": false,
+  "printable_preimage_analysis": {
+    "all_target_bytes_have_printable_preimage": false,
+    "per_byte_analysis": [
+      {
+        "index": 0,
+        "target_byte": 213,
+        "target_byte_hex": "d5",
+        "has_printable_preimage": true,
+        "printable_preimages": [
+          93
+        ],
+        "printable_preimages_hex": [
+          "5d"
+        ],
+        "printable_preimages_text": "]"
+      },
+      {
+        "index": 1,
+        "target_byte": 150,
+        "target_byte_hex": "96",
+        "has_printable_preimage": true,
+        "printable_preimages": [
+          90
+        ],
+        "printable_preimages_hex": [
+          "5a"
+        ],
+        "printable_preimages_text": "Z"
+      },
+      {
+        "index": 2,
+        "target_byte": 196,
+        "target_byte_hex": "c4",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 3,
+        "target_byte": 246,
+        "target_byte_hex": "f6",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 4,
+        "target_byte": 7,
+        "target_byte_hex": "07",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 5,
+        "target_byte": 69,
+        "target_byte_hex": "45",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 6,
+        "target_byte": 87,
+        "target_byte_hex": "57",
+        "has_printable_preimage": true,
+        "printable_preimages": [
+          87
+        ],
+        "printable_preimages_hex": [
+          "57"
+        ],
+        "printable_preimages_text": "W"
+      },
+      {
+        "index": 7,
+        "target_byte": 119,
+        "target_byte_hex": "77",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 8,
+        "target_byte": 118,
+        "target_byte_hex": "76",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 9,
+        "target_byte": 229,
+        "target_byte_hex": "e5",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 10,
+        "target_byte": 246,
+        "target_byte_hex": "f6",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 11,
+        "target_byte": 72,
+        "target_byte_hex": "48",
+        "has_printable_preimage": true,
+        "printable_preimages": [
+          36
+        ],
+        "printable_preimages_hex": [
+          "24"
+        ],
+        "printable_preimages_text": "$"
+      },
+      {
+        "index": 12,
+        "target_byte": 71,
+        "target_byte_hex": "47",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 13,
+        "target_byte": 247,
+        "target_byte_hex": "f7",
+        "has_printable_preimage": false,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 14,
+        "target_byte": 72,
+        "target_byte_hex": "48",
+        "has_printable_preimage": true,
+        "printable_preimages": [
+          36
+        ],
+        "printable_preimages_hex": [
+          "24"
+        ],
+        "printable_preimages_text": "$"
+      },
+      {
+        "index": 15,
+        "target_byte": 23,
+        "target_byte_hex": "17",
+        "has_printable_preimage": true,
+        "printable_preimages": [
+          83
+        ],
+        "printable_preimages_hex": [
+          "53"
+        ],
+        "printable_preimages_text": "S"
+      }
+    ]
+  },
+  "length_compare_semantics": {
+    "main_pseudocode_present": true,
+    "observations": [
+      "input length check: strlen(Str) must equal 18",
+      "copy: strncpy(Destination, Str, 16) copies at most 16 bytes from input",
+      "transform loop iterates over all v4 bytes (18), but Destination only has 16 copied bytes",
+      "compare loop condition: i < v4 (18) AND Destination[i] == byte_429A30[i]",
+      "success condition: i == 16, meaning first 16 bytes must match; bytes 17-18 are not compared against target",
+      "division v9/v8 where v8=0 is a potential anti-debug trap or dead code (would cause divide-by-zero exception)"
+    ],
+    "length_check": {
+      "input_required_length": 18,
+      "strncpy_copy_length": 16,
+      "compare_loop_upper_bound": "v4 (18)",
+      "success_match_count": 16,
+      "implication": "Only first 16 bytes matter for success; bytes 17-18 of input are transformed but not compared against target"
+    }
+  },
+  "current_static_transform_has_no_printable_solution": true,
+  "candidate": null,
+  "known_candidate": "",
+  "status": "BLOCKED",
+  "blocked_reason": "NO_PRINTABLE_PREIMAGE_UNDER_CURRENT_STATIC_TRANSFORM",
+  "recommended_next_action": "bounded IDA instruction-level / control-flow / SEH recheck, not brute force"
+}

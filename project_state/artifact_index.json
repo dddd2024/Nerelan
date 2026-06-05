@@ -697,6 +697,16 @@
       "size_bytes": 1780,
       "modified_at": "2026-06-05T09:43:17Z",
       "sample_id": "cpp1_2f6fcb63"
+    },
+    "local_reverse_cpp1_2f6fcb63_transform_recheck": {
+      "kind": "local_reverse_cpp1_transform_recheck",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_transform_recheck.json",
+      "freshness": "current",
+      "source_run": "round_20260605_cpp1_transform_semantics_recheck_v1",
+      "sha256": "ab46e81165521d00d62325a1a1e24418c6b8af07e4f47734e93b9606cce06c29",
+      "size_bytes": 7524,
+      "modified_at": "2026-06-05T11:47:16Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [
