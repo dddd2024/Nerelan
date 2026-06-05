@@ -26,7 +26,11 @@ def get_output_path():
 
 
 def extract_named_data(name: str) -> dict:
-    """Extract bytes from a named data item."""
+    """Extract bytes from a named data item.
+
+    Honors REVERSE_AGENT_TARGET_LENGTH env var for explicit read length.
+    Falls back to ida_bytes.get_item_size(ea) if env var not set.
+    """
     result = {
         "name": name,
         "address": "",
@@ -39,16 +43,23 @@ def extract_named_data(name: str) -> dict:
     if ea == ida_idaapi.BADADDR:
         return result
 
-    # Determine item size
-    item_size = ida_bytes.get_item_size(ea)
+    # Check for explicit target length from env
+    env_len_str = os.environ.get("REVERSE_AGENT_TARGET_LENGTH", "").strip()
+    if env_len_str:
+        try:
+            item_size = int(env_len_str)
+            if item_size <= 0 or item_size > 256:
+                item_size = 16
+        except ValueError:
+            item_size = ida_bytes.get_item_size(ea)
+    else:
+        item_size = ida_bytes.get_item_size(ea)
+
     if item_size <= 0:
         item_size = 16  # Default guess for byte arrays
 
-    # Try to get actual array size if available
-    flags = ida_bytes.get_full_flags(ea)
-    if ida_bytes.is_byte(flags):
-        # Read up to 64 bytes
-        item_size = min(64, item_size)
+    # Cap at 256 bytes for safety
+    item_size = min(256, item_size)
 
     bytes_data = ida_bytes.get_bytes(ea, item_size) or b""
     if bytes_data:

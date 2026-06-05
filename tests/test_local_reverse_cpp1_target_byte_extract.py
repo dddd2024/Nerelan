@@ -561,7 +561,66 @@ class TestRunTargetByteExtractionIntegration:
             )
 
         assert result["tool_status"] == "blocked"
-        assert result["blocked_reason"] == "TARGET_BYTES_NOT_FOUND"
+        # Zero bytes is also "incomplete" (0 < 16), so INCOMPLETE_TARGET_BYTES is the correct reason
+        assert result["blocked_reason"] == "INCOMPLETE_TARGET_BYTES"
+        assert result["expected_target_length"] == 16
+        assert result["target_length"] == 0
+        assert result["static_only"] is True
+        assert result["executed_sample"] is False
+        assert result["runtime_validated"] is False
+        assert result["candidate"] is None
+        assert result["known_candidate"] == ""
+        assert out_path.exists()
+
+    def test_ida_incomplete_bytes_blocked(self, tmp_path: Path):
+        """When IDA returns fewer bytes than expected (e.g. 1 < 16), returns BLOCKED/INCOMPLETE_TARGET_BYTES."""
+        triage_path, inv_path = self._make_triage_inv(
+            tmp_path, "cpp1_incomplete", "samples/incomplete.exe"
+        )
+        out_path = tmp_path / "out.json"
+
+        fake_root = tmp_path / "fake_root"
+        samples_dir = fake_root / "samples"
+        samples_dir.mkdir(parents=True)
+        (samples_dir / "incomplete.exe").write_bytes(b"MZ")
+
+        ida_mock_result = {
+            "tool_status": "success",
+            "blocked_reason": "",
+            "source_tool": "IDA",
+            "exit_code": 0,
+            "target_symbol": "byte_429A30",
+            "target_address": "0x00429A30",
+            "target_length": 1,
+            "target_bytes_hex": "d5",
+            "target_bytes": [0xD5],
+            "main_function": "_main_0",
+            "main_function_address": "0x401000",
+            "main_pseudocode": "v5 = (Str[i] & 3) | (16 * (Str[i] & 0x0C)) | ((Str[i] & 0xF0) >> 2);",
+            "compare_expression": "Destination[i] == byte_429A30[i]",
+            "loop_context": "for (i = 0; i < 16; ++i)",
+        }
+
+        with patch(
+            "reverse_agent.local_reverse_cpp1_target_byte_extract._find_sample_root",
+            return_value=fake_root,
+        ), patch(
+            "reverse_agent.local_reverse_cpp1_target_byte_extract._run_ida_extraction",
+            return_value=ida_mock_result,
+        ):
+            result = run_target_byte_extraction(
+                sample_id="cpp1_incomplete",
+                triage_path=triage_path,
+                inventory_path=inv_path,
+                out_path=out_path,
+            )
+
+        assert result["tool_status"] == "blocked"
+        assert result["blocked_reason"] == "INCOMPLETE_TARGET_BYTES"
+        assert result["expected_target_length"] == 16
+        assert result["target_length"] == 1
+        assert result["target_bytes_hex"] == "d5"
+        assert result["target_bytes"] == [0xD5]
         assert result["static_only"] is True
         assert result["executed_sample"] is False
         assert result["runtime_validated"] is False

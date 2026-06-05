@@ -88,6 +88,7 @@ def _run_ida_extraction(
     output_dir: Path,
     target_symbol: str = "byte_429A30",
     target_func: str = "_main_0",
+    expected_target_length: int = 16,
 ) -> dict[str, Any]:
     """Run IDA with extract_named_data.py script."""
     ida_exec = _resolve_ida_executable()
@@ -124,6 +125,7 @@ def _run_ida_extraction(
     env["REVERSE_AGENT_NAMED_DATA_OUT"] = str(extract_out)
     env["REVERSE_AGENT_TARGET_SYMBOL"] = target_symbol
     env["REVERSE_AGENT_TARGET_FUNC"] = target_func
+    env["REVERSE_AGENT_TARGET_LENGTH"] = str(expected_target_length)
 
     try:
         result = subprocess.run(
@@ -306,9 +308,13 @@ def run_target_byte_extraction(
         _save_json(out_path, result)
         return result
 
-    # Run IDA extraction
+    # Run IDA extraction with expected target length
+    expected_target_length = 16
     output_dir = out_path.parent / f"extract_{sample_id}"
-    ida_result = _run_ida_extraction(binary_path, output_dir)
+    ida_result = _run_ida_extraction(
+        binary_path, output_dir,
+        expected_target_length=expected_target_length,
+    )
 
     tool_status = ida_result.get("tool_status", "blocked")
     blocked_reason = ida_result.get("blocked_reason", "")
@@ -318,6 +324,10 @@ def run_target_byte_extraction(
             sample_id=sample_id,
             blocked_reason=blocked_reason,
             source_tool=ida_result.get("source_tool", "IDA"),
+            expected_target_length=expected_target_length,
+            actual_target_length=ida_result.get("target_length", 0),
+            actual_target_bytes=ida_result.get("target_bytes", []),
+            actual_target_bytes_hex=ida_result.get("target_bytes_hex", ""),
         )
         _save_json(out_path, result)
         return result
@@ -329,11 +339,18 @@ def run_target_byte_extraction(
 
     # Check if target bytes were actually found
     target_bytes = ida_result.get("target_bytes", [])
-    if not target_bytes:
+    actual_target_length = len(target_bytes)
+
+    # Validate expected length
+    if actual_target_length < expected_target_length:
         result = _blocked_artifact(
             sample_id=sample_id,
-            blocked_reason="TARGET_BYTES_NOT_FOUND",
+            blocked_reason="INCOMPLETE_TARGET_BYTES",
             source_tool=ida_result.get("source_tool", "IDA"),
+            expected_target_length=expected_target_length,
+            actual_target_length=actual_target_length,
+            actual_target_bytes=target_bytes,
+            actual_target_bytes_hex=ida_result.get("target_bytes_hex", ""),
         )
         _save_json(out_path, result)
         return result
@@ -352,10 +369,11 @@ def run_target_byte_extraction(
         "generated_at": _now_iso(),
         "tool_status": "success",
         "blocked_reason": "",
+        "expected_target_length": expected_target_length,
         "source_tool": ida_result.get("source_tool", "IDA"),
         "target_symbol": ida_result.get("target_symbol", "byte_429A30"),
         "target_address": ida_result.get("target_address", ""),
-        "target_length": ida_result.get("target_length", 0),
+        "target_length": actual_target_length,
         "target_bytes_hex": ida_result.get("target_bytes_hex", ""),
         "target_bytes": target_bytes,
         "main_function": ida_result.get("main_function", "_main_0"),
@@ -386,6 +404,10 @@ def _blocked_artifact(
     blocked_reason: str,
     detail: str = "",
     source_tool: str = "",
+    expected_target_length: int = 16,
+    actual_target_length: int = 0,
+    actual_target_bytes: list[int] | None = None,
+    actual_target_bytes_hex: str = "",
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -400,12 +422,13 @@ def _blocked_artifact(
         "tool_status": "blocked",
         "blocked_reason": blocked_reason,
         "blocked_detail": detail,
+        "expected_target_length": expected_target_length,
         "source_tool": source_tool,
         "target_symbol": "byte_429A30",
         "target_address": "",
-        "target_length": 0,
-        "target_bytes_hex": "",
-        "target_bytes": [],
+        "target_length": actual_target_length,
+        "target_bytes_hex": actual_target_bytes_hex,
+        "target_bytes": actual_target_bytes if actual_target_bytes is not None else [],
         "main_function": "_main_0",
         "main_function_address": "",
         "main_pseudocode": "",
