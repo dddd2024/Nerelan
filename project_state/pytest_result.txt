@@ -1,16 +1,25 @@
 ================================================================================
-PYTEST RESULT - Round: round_20260605_cpp1_target_bytes_length_rework_v1
-Decision: decision_20260605_cpp1_target_bytes_length_rework_v1
-Report: report_20260605_cpp1_target_bytes_length_rework_v1
-Generated: 2026-06-05T08:40:00Z
+PYTEST RESULT - Round: round_20260605_cpp1_target_bytes_test_record_rework_v1
+Decision: decision_20260605_cpp1_target_bytes_test_record_rework_v1
+Report: report_20260605_cpp1_target_bytes_test_record_rework_v1
+Generated: 2026-06-05T09:10:00Z
 Status: PASSED
 Acceptance: ACCEPT
-Tests Ran: 9
-Tests Passed: 9
+Tests Ran: 10
+Tests Passed: 10
 Tests Failed: 0
 ================================================================================
 
-[1] python -m py_compile reverse_agent/ida_scripts/extract_named_data.py
+[1] python -m py_compile reverse_agent/tool_runners.py
+--------------------------------------------------------------------------------
+Command: python -m py_compile reverse_agent/tool_runners.py
+Exit Code: 0
+Output: (none)
+Result: PASSED
+
+================================================================================
+
+[2] python -m py_compile reverse_agent/ida_scripts/extract_named_data.py
 --------------------------------------------------------------------------------
 Command: python -m py_compile reverse_agent/ida_scripts/extract_named_data.py
 Exit Code: 0
@@ -19,7 +28,7 @@ Result: PASSED
 
 ================================================================================
 
-[2] python -m py_compile reverse_agent/local_reverse_cpp1_target_byte_extract.py
+[3] python -m py_compile reverse_agent/local_reverse_cpp1_target_byte_extract.py
 --------------------------------------------------------------------------------
 Command: python -m py_compile reverse_agent/local_reverse_cpp1_target_byte_extract.py
 Exit Code: 0
@@ -28,18 +37,18 @@ Result: PASSED
 
 ================================================================================
 
-[3] python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
+[4] python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
 --------------------------------------------------------------------------------
 Command: python -m pytest -q tests/test_local_reverse_cpp1_target_byte_extract.py
 Exit Code: 0
 Output:
 .............................                                            [100%]
-29 passed in 0.97s
+29 passed in 0.95s
 Result: PASSED
 
 ================================================================================
 
-[4] python -m pytest -q tests/test_project_state.py
+[5] python -m pytest -q tests/test_project_state.py
 --------------------------------------------------------------------------------
 Command: python -m pytest -q tests/test_project_state.py
 Exit Code: 0
@@ -47,44 +56,44 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 .............                                                            [100%]
-157 passed in 62.71s (0:01:02)
+157 passed in 55.38s (0:00:55)
 Result: PASSED
 
 ================================================================================
 
-[5] python -m reverse_agent.project_state lint-decision --state-dir project_state
+[6] python -m reverse_agent.project_state lint-decision --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
 Exit Code: 0
 Output:
 lint-decision: OK
-decision_id: decision_20260605_cpp1_target_bytes_length_rework_v1
+decision_id: decision_20260605_cpp1_target_bytes_test_record_rework_v1
 decision_status: APPROVED
 mainline: tool_integration
 Result: PASSED
 
 ================================================================================
 
-[6] python -m reverse_agent.project_state lint-report --state-dir project_state
+[7] python -m reverse_agent.project_state lint-report --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-report --state-dir project_state
 Exit Code: 0
 Output:
 lint-report: OK
-report_id: report_20260605_cpp1_target_bytes_length_rework_v1
+report_id: report_20260605_cpp1_target_bytes_test_record_rework_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPT
-based_on_decision_id: decision_20260605_cpp1_target_bytes_length_rework_v1
+based_on_decision_id: decision_20260605_cpp1_target_bytes_test_record_rework_v1
 decision_report_id_match: True
-round_id: round_20260605_cpp1_target_bytes_length_rework_v1
-report_round_id: round_20260605_cpp1_target_bytes_length_rework_v1
-decision_round_id: round_20260605_cpp1_target_bytes_length_rework_v1
+round_id: round_20260605_cpp1_target_bytes_test_record_rework_v1
+report_round_id: round_20260605_cpp1_target_bytes_test_record_rework_v1
+decision_round_id: round_20260605_cpp1_target_bytes_test_record_rework_v1
 report_decision_round_id_match: True
 Result: PASSED
 
 ================================================================================
 
-[7] Target Byte Extraction CLI
+[8] Target Byte Extraction CLI
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.local_reverse_cpp1_target_byte_extract --sample-id cpp1_2f6fcb63 --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json
 Exit Code: 0
@@ -99,7 +108,7 @@ Result: PASSED
 
 ================================================================================
 
-[8] git diff --check
+[9] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
@@ -108,7 +117,7 @@ Result: PASSED
 
 ================================================================================
 
-[9] git status --short
+[10] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
@@ -117,17 +126,14 @@ Output:
  M project_state/codex_execution_report.md
  M project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json
  M project_state/pytest_result.txt
- M reverse_agent/ida_scripts/extract_named_data.py
- M reverse_agent/local_reverse_cpp1_target_byte_extract.py
- M tests/test_local_reverse_cpp1_target_byte_extract.py
 Result: PASSED
 
 ================================================================================
 
 SUMMARY
 ================================================================================
-Total Tests: 9
-Passed: 9
+Total Tests: 10
+Passed: 10
 Failed: 0
 Exit Code: 0
 

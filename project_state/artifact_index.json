@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T08:41:13Z",
+  "generated_at": "2026-06-05T09:12:27Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -682,10 +682,10 @@
       "kind": "local_reverse_cpp1_target_byte_extract",
       "path": "project_state\\local_reverse_cpp1_2f6fcb63_target_bytes.json",
       "freshness": "current",
-      "source_run": "round_20260605_cpp1_target_bytes_length_rework_v1",
-      "sha256": "6c905eb418b5b513eb90536f4c98e1272ef887141f4c58ec05e9448afb78aa92",
+      "source_run": "round_20260605_cpp1_target_bytes_test_record_rework_v1",
+      "sha256": "a5dcd3181b0f27f991f93d7b2de29add253b9878016797103d30b03bfa23e6a9",
       "size_bytes": 2797,
-      "modified_at": "2026-06-05T08:41:13Z",
+      "modified_at": "2026-06-05T09:12:27Z",
       "sample_id": "cpp1_2f6fcb63"
     }
   },
