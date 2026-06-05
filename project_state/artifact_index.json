@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T13:49:55Z",
+  "generated_at": "2026-06-05T14:12:01Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -65,7 +65,8 @@
     "local_reverse_affine_inverse_handoff": "project_state\\local_reverse_affine_inverse_handoff.json",
     "local_reverse_cpp1_2f6fcb63_static_triage": "project_state\\local_reverse_cpp1_2f6fcb63_static_triage.json",
     "local_reverse_cpp1_2f6fcb63_target_bytes": "project_state\\local_reverse_cpp1_2f6fcb63_target_bytes.json",
-    "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json"
+    "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json",
+    "local_reverse_cpp1_2f6fcb63_signed_transform_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -718,6 +719,16 @@
       "size_bytes": 55902,
       "modified_at": "2026-06-05T13:49:55Z",
       "sample_id": "cpp1_2f6fcb63"
+    },
+    "local_reverse_cpp1_2f6fcb63_signed_transform_recheck": {
+      "kind": "local_reverse_cpp1_signed_transform_recheck",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json",
+      "freshness": "current",
+      "source_run": "round_20260605_cpp1_signed_transform_semantics_recheck_v1",
+      "sha256": "ad9212630d8fbce9b6f02c8d3da00d4aaf942000db7b04b9fd5eee55198d5265",
+      "size_bytes": 91622,
+      "modified_at": "2026-06-05T14:12:01Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [
@@ -851,6 +862,7 @@
   "reports_dir": "solve_reports",
   "sample": "samplereverse",
   "artifact_refs": {
-    "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json"
+    "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json",
+    "local_reverse_cpp1_2f6fcb63_signed_transform_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json"
   }
 }

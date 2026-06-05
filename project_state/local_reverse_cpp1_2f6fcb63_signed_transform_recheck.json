@@ -1,0 +1,3115 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_2f6fcb63",
+  "analysis_mode": "signed_instruction_transform_recheck",
+  "mainline": "reverse_solving",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "generated_at": "2026-06-05T14:12:01Z",
+  "source_artifacts": {
+    "target_bytes": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json",
+    "ida_control_flow": "project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json",
+    "transform_recheck": "project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json"
+  },
+  "source_artifact_freshness": {
+    "expected": "current",
+    "verified_before_execution": true
+  },
+  "ida_instruction_evidence_summary": {
+    "main_function": "_main_0",
+    "main_function_address": "0x00401190",
+    "ida_status": {
+      "attempted": true,
+      "available": true,
+      "success": true,
+      "error": ""
+    },
+    "control_flow_assessment": {
+      "transform_formula_verdict": "PARTIALLY_SUPPORTED",
+      "division_verdict": "BOUNDED_MAIN_INSTRUCTION_FOUND",
+      "seh_verdict": "SEH_NOT_CONFIRMED_BY_STATIC_SCAN",
+      "length_compare_semantics_verdict": "PARTIALLY_SUPPORTED"
+    },
+    "required_instruction_presence": {
+      "movsx_destination": true,
+      "and_0f0": true,
+      "sar_2": true,
+      "and_0c": true,
+      "shl_4": true,
+      "or": true,
+      "and_3": true,
+      "mov_destination_al": true,
+      "movsx_target_byte": true,
+      "cmp": true
+    },
+    "missing_required_instructions": [],
+    "sufficient_for_signed_model": true,
+    "key_instruction_sequence": [
+      {
+        "address": "0x00401263",
+        "mnemonic": "and",
+        "operands": [
+          "eax",
+          "0F0h"
+        ],
+        "disasm": "and     eax, 0F0h",
+        "basic_block": 5
+      },
+      {
+        "address": "0x0040125C",
+        "mnemonic": "movsx",
+        "operands": [
+          "eax",
+          "Destination[edx]"
+        ],
+        "disasm": "movsx   eax, Destination[edx]",
+        "basic_block": 5
+      },
+      {
+        "address": "0x00401268",
+        "mnemonic": "sar",
+        "operands": [
+          "eax",
+          "2"
+        ],
+        "disasm": "sar     eax, 2",
+        "basic_block": 5
+      },
+      {
+        "address": "0x0040126E",
+        "mnemonic": "movsx",
+        "operands": [
+          "edx",
+          "Destination[ecx]"
+        ],
+        "disasm": "movsx   edx, Destination[ecx]",
+        "basic_block": 5
+      },
+      {
+        "address": "0x00401275",
+        "mnemonic": "and",
+        "operands": [
+          "edx",
+          "0Ch"
+        ],
+        "disasm": "and     edx, 0Ch",
+        "basic_block": 5
+      },
+      {
+        "address": "0x00401278",
+        "mnemonic": "shl",
+        "operands": [
+          "edx",
+          "4"
+        ],
+        "disasm": "shl     edx, 4",
+        "basic_block": 5
+      },
+      {
+        "address": "0x0040127B",
+        "mnemonic": "or",
+        "operands": [
+          "eax",
+          "edx"
+        ],
+        "disasm": "or      eax, edx",
+        "basic_block": 5
+      },
+      {
+        "address": "0x00401280",
+        "mnemonic": "movsx",
+        "operands": [
+          "edx",
+          "Destination[ecx]"
+        ],
+        "disasm": "movsx   edx, Destination[ecx]",
+        "basic_block": 5
+      },
+      {
+        "address": "0x00401287",
+        "mnemonic": "and",
+        "operands": [
+          "edx",
+          "3"
+        ],
+        "disasm": "and     edx, 3",
+        "basic_block": 5
+      },
+      {
+        "address": "0x0040128A",
+        "mnemonic": "or",
+        "operands": [
+          "eax",
+          "edx"
+        ],
+        "disasm": "or      eax, edx",
+        "basic_block": 5
+      },
+      {
+        "address": "0x0040128F",
+        "mnemonic": "mov",
+        "operands": [
+          "Destination[ecx]",
+          "al"
+        ],
+        "disasm": "mov     Destination[ecx], al",
+        "basic_block": 5
+      },
+      {
+        "address": "0x004012C5",
+        "mnemonic": "cmp",
+        "operands": [
+          "edx",
+          "ecx"
+        ],
+        "disasm": "cmp     edx, ecx",
+        "basic_block": 9
+      },
+      {
+        "address": "0x004012BE",
+        "mnemonic": "movsx",
+        "operands": [
+          "ecx",
+          "byte_429A30[eax]"
+        ],
+        "disasm": "movsx   ecx, byte_429A30[eax]",
+        "basic_block": 9
+      },
+      {
+        "address": "0x004012C7",
+        "mnemonic": "jz",
+        "operands": [
+          "loc_4012CB"
+        ],
+        "disasm": "jz      short loc_4012CB",
+        "basic_block": 9
+      }
+    ],
+    "compare_xref_related": true,
+    "success_failure_branch_verdict": "INSUFFICIENT"
+  },
+  "unsigned_formula_model": {
+    "formula": "u8((x & 0x03) | ((x & 0x0C) << 4) | ((x & 0xF0) >> 2))",
+    "domain": "0..255"
+  },
+  "signed_instruction_model": {
+    "formula": "u8((sar32((s8(x) & 0xF0), 2)) | ((s8(x) & 0x0C) << 4) | (s8(x) & 0x03))",
+    "instruction_sequence": [
+      "movsx eax, Destination[edx]",
+      "and eax, 0F0h",
+      "sar eax, 2",
+      "movsx edx, Destination[ecx]",
+      "and edx, 0Ch",
+      "shl edx, 4",
+      "or eax, edx",
+      "movsx edx, Destination[ecx]",
+      "and edx, 3",
+      "or eax, edx",
+      "mov Destination[ecx], al"
+    ],
+    "domain": "0..255"
+  },
+  "model_comparison_all_256": {
+    "input_count": 256,
+    "difference_count": 0,
+    "models_equivalent_after_u8_truncation": true,
+    "rows": [
+      {
+        "input": 0,
+        "input_hex": "00",
+        "input_s8": 0,
+        "unsigned_formula_output": 0,
+        "unsigned_formula_output_hex": "00",
+        "signed_instruction_output": 0,
+        "signed_instruction_output_hex": "00",
+        "same": true
+      },
+      {
+        "input": 1,
+        "input_hex": "01",
+        "input_s8": 1,
+        "unsigned_formula_output": 1,
+        "unsigned_formula_output_hex": "01",
+        "signed_instruction_output": 1,
+        "signed_instruction_output_hex": "01",
+        "same": true
+      },
+      {
+        "input": 2,
+        "input_hex": "02",
+        "input_s8": 2,
+        "unsigned_formula_output": 2,
+        "unsigned_formula_output_hex": "02",
+        "signed_instruction_output": 2,
+        "signed_instruction_output_hex": "02",
+        "same": true
+      },
+      {
+        "input": 3,
+        "input_hex": "03",
+        "input_s8": 3,
+        "unsigned_formula_output": 3,
+        "unsigned_formula_output_hex": "03",
+        "signed_instruction_output": 3,
+        "signed_instruction_output_hex": "03",
+        "same": true
+      },
+      {
+        "input": 4,
+        "input_hex": "04",
+        "input_s8": 4,
+        "unsigned_formula_output": 64,
+        "unsigned_formula_output_hex": "40",
+        "signed_instruction_output": 64,
+        "signed_instruction_output_hex": "40",
+        "same": true
+      },
+      {
+        "input": 5,
+        "input_hex": "05",
+        "input_s8": 5,
+        "unsigned_formula_output": 65,
+        "unsigned_formula_output_hex": "41",
+        "signed_instruction_output": 65,
+        "signed_instruction_output_hex": "41",
+        "same": true
+      },
+      {
+        "input": 6,
+        "input_hex": "06",
+        "input_s8": 6,
+        "unsigned_formula_output": 66,
+        "unsigned_formula_output_hex": "42",
+        "signed_instruction_output": 66,
+        "signed_instruction_output_hex": "42",
+        "same": true
+      },
+      {
+        "input": 7,
+        "input_hex": "07",
+        "input_s8": 7,
+        "unsigned_formula_output": 67,
+        "unsigned_formula_output_hex": "43",
+        "signed_instruction_output": 67,
+        "signed_instruction_output_hex": "43",
+        "same": true
+      },
+      {
+        "input": 8,
+        "input_hex": "08",
+        "input_s8": 8,
+        "unsigned_formula_output": 128,
+        "unsigned_formula_output_hex": "80",
+        "signed_instruction_output": 128,
+        "signed_instruction_output_hex": "80",
+        "same": true
+      },
+      {
+        "input": 9,
+        "input_hex": "09",
+        "input_s8": 9,
+        "unsigned_formula_output": 129,
+        "unsigned_formula_output_hex": "81",
+        "signed_instruction_output": 129,
+        "signed_instruction_output_hex": "81",
+        "same": true
+      },
+      {
+        "input": 10,
+        "input_hex": "0a",
+        "input_s8": 10,
+        "unsigned_formula_output": 130,
+        "unsigned_formula_output_hex": "82",
+        "signed_instruction_output": 130,
+        "signed_instruction_output_hex": "82",
+        "same": true
+      },
+      {
+        "input": 11,
+        "input_hex": "0b",
+        "input_s8": 11,
+        "unsigned_formula_output": 131,
+        "unsigned_formula_output_hex": "83",
+        "signed_instruction_output": 131,
+        "signed_instruction_output_hex": "83",
+        "same": true
+      },
+      {
+        "input": 12,
+        "input_hex": "0c",
+        "input_s8": 12,
+        "unsigned_formula_output": 192,
+        "unsigned_formula_output_hex": "c0",
+        "signed_instruction_output": 192,
+        "signed_instruction_output_hex": "c0",
+        "same": true
+      },
+      {
+        "input": 13,
+        "input_hex": "0d",
+        "input_s8": 13,
+        "unsigned_formula_output": 193,
+        "unsigned_formula_output_hex": "c1",
+        "signed_instruction_output": 193,
+        "signed_instruction_output_hex": "c1",
+        "same": true
+      },
+      {
+        "input": 14,
+        "input_hex": "0e",
+        "input_s8": 14,
+        "unsigned_formula_output": 194,
+        "unsigned_formula_output_hex": "c2",
+        "signed_instruction_output": 194,
+        "signed_instruction_output_hex": "c2",
+        "same": true
+      },
+      {
+        "input": 15,
+        "input_hex": "0f",
+        "input_s8": 15,
+        "unsigned_formula_output": 195,
+        "unsigned_formula_output_hex": "c3",
+        "signed_instruction_output": 195,
+        "signed_instruction_output_hex": "c3",
+        "same": true
+      },
+      {
+        "input": 16,
+        "input_hex": "10",
+        "input_s8": 16,
+        "unsigned_formula_output": 4,
+        "unsigned_formula_output_hex": "04",
+        "signed_instruction_output": 4,
+        "signed_instruction_output_hex": "04",
+        "same": true
+      },
+      {
+        "input": 17,
+        "input_hex": "11",
+        "input_s8": 17,
+        "unsigned_formula_output": 5,
+        "unsigned_formula_output_hex": "05",
+        "signed_instruction_output": 5,
+        "signed_instruction_output_hex": "05",
+        "same": true
+      },
+      {
+        "input": 18,
+        "input_hex": "12",
+        "input_s8": 18,
+        "unsigned_formula_output": 6,
+        "unsigned_formula_output_hex": "06",
+        "signed_instruction_output": 6,
+        "signed_instruction_output_hex": "06",
+        "same": true
+      },
+      {
+        "input": 19,
+        "input_hex": "13",
+        "input_s8": 19,
+        "unsigned_formula_output": 7,
+        "unsigned_formula_output_hex": "07",
+        "signed_instruction_output": 7,
+        "signed_instruction_output_hex": "07",
+        "same": true
+      },
+      {
+        "input": 20,
+        "input_hex": "14",
+        "input_s8": 20,
+        "unsigned_formula_output": 68,
+        "unsigned_formula_output_hex": "44",
+        "signed_instruction_output": 68,
+        "signed_instruction_output_hex": "44",
+        "same": true
+      },
+      {
+        "input": 21,
+        "input_hex": "15",
+        "input_s8": 21,
+        "unsigned_formula_output": 69,
+        "unsigned_formula_output_hex": "45",
+        "signed_instruction_output": 69,
+        "signed_instruction_output_hex": "45",
+        "same": true
+      },
+      {
+        "input": 22,
+        "input_hex": "16",
+        "input_s8": 22,
+        "unsigned_formula_output": 70,
+        "unsigned_formula_output_hex": "46",
+        "signed_instruction_output": 70,
+        "signed_instruction_output_hex": "46",
+        "same": true
+      },
+      {
+        "input": 23,
+        "input_hex": "17",
+        "input_s8": 23,
+        "unsigned_formula_output": 71,
+        "unsigned_formula_output_hex": "47",
+        "signed_instruction_output": 71,
+        "signed_instruction_output_hex": "47",
+        "same": true
+      },
+      {
+        "input": 24,
+        "input_hex": "18",
+        "input_s8": 24,
+        "unsigned_formula_output": 132,
+        "unsigned_formula_output_hex": "84",
+        "signed_instruction_output": 132,
+        "signed_instruction_output_hex": "84",
+        "same": true
+      },
+      {
+        "input": 25,
+        "input_hex": "19",
+        "input_s8": 25,
+        "unsigned_formula_output": 133,
+        "unsigned_formula_output_hex": "85",
+        "signed_instruction_output": 133,
+        "signed_instruction_output_hex": "85",
+        "same": true
+      },
+      {
+        "input": 26,
+        "input_hex": "1a",
+        "input_s8": 26,
+        "unsigned_formula_output": 134,
+        "unsigned_formula_output_hex": "86",
+        "signed_instruction_output": 134,
+        "signed_instruction_output_hex": "86",
+        "same": true
+      },
+      {
+        "input": 27,
+        "input_hex": "1b",
+        "input_s8": 27,
+        "unsigned_formula_output": 135,
+        "unsigned_formula_output_hex": "87",
+        "signed_instruction_output": 135,
+        "signed_instruction_output_hex": "87",
+        "same": true
+      },
+      {
+        "input": 28,
+        "input_hex": "1c",
+        "input_s8": 28,
+        "unsigned_formula_output": 196,
+        "unsigned_formula_output_hex": "c4",
+        "signed_instruction_output": 196,
+        "signed_instruction_output_hex": "c4",
+        "same": true
+      },
+      {
+        "input": 29,
+        "input_hex": "1d",
+        "input_s8": 29,
+        "unsigned_formula_output": 197,
+        "unsigned_formula_output_hex": "c5",
+        "signed_instruction_output": 197,
+        "signed_instruction_output_hex": "c5",
+        "same": true
+      },
+      {
+        "input": 30,
+        "input_hex": "1e",
+        "input_s8": 30,
+        "unsigned_formula_output": 198,
+        "unsigned_formula_output_hex": "c6",
+        "signed_instruction_output": 198,
+        "signed_instruction_output_hex": "c6",
+        "same": true
+      },
+      {
+        "input": 31,
+        "input_hex": "1f",
+        "input_s8": 31,
+        "unsigned_formula_output": 199,
+        "unsigned_formula_output_hex": "c7",
+        "signed_instruction_output": 199,
+        "signed_instruction_output_hex": "c7",
+        "same": true
+      },
+      {
+        "input": 32,
+        "input_hex": "20",
+        "input_s8": 32,
+        "unsigned_formula_output": 8,
+        "unsigned_formula_output_hex": "08",
+        "signed_instruction_output": 8,
+        "signed_instruction_output_hex": "08",
+        "same": true
+      },
+      {
+        "input": 33,
+        "input_hex": "21",
+        "input_s8": 33,
+        "unsigned_formula_output": 9,
+        "unsigned_formula_output_hex": "09",
+        "signed_instruction_output": 9,
+        "signed_instruction_output_hex": "09",
+        "same": true
+      },
+      {
+        "input": 34,
+        "input_hex": "22",
+        "input_s8": 34,
+        "unsigned_formula_output": 10,
+        "unsigned_formula_output_hex": "0a",
+        "signed_instruction_output": 10,
+        "signed_instruction_output_hex": "0a",
+        "same": true
+      },
+      {
+        "input": 35,
+        "input_hex": "23",
+        "input_s8": 35,
+        "unsigned_formula_output": 11,
+        "unsigned_formula_output_hex": "0b",
+        "signed_instruction_output": 11,
+        "signed_instruction_output_hex": "0b",
+        "same": true
+      },
+      {
+        "input": 36,
+        "input_hex": "24",
+        "input_s8": 36,
+        "unsigned_formula_output": 72,
+        "unsigned_formula_output_hex": "48",
+        "signed_instruction_output": 72,
+        "signed_instruction_output_hex": "48",
+        "same": true
+      },
+      {
+        "input": 37,
+        "input_hex": "25",
+        "input_s8": 37,
+        "unsigned_formula_output": 73,
+        "unsigned_formula_output_hex": "49",
+        "signed_instruction_output": 73,
+        "signed_instruction_output_hex": "49",
+        "same": true
+      },
+      {
+        "input": 38,
+        "input_hex": "26",
+        "input_s8": 38,
+        "unsigned_formula_output": 74,
+        "unsigned_formula_output_hex": "4a",
+        "signed_instruction_output": 74,
+        "signed_instruction_output_hex": "4a",
+        "same": true
+      },
+      {
+        "input": 39,
+        "input_hex": "27",
+        "input_s8": 39,
+        "unsigned_formula_output": 75,
+        "unsigned_formula_output_hex": "4b",
+        "signed_instruction_output": 75,
+        "signed_instruction_output_hex": "4b",
+        "same": true
+      },
+      {
+        "input": 40,
+        "input_hex": "28",
+        "input_s8": 40,
+        "unsigned_formula_output": 136,
+        "unsigned_formula_output_hex": "88",
+        "signed_instruction_output": 136,
+        "signed_instruction_output_hex": "88",
+        "same": true
+      },
+      {
+        "input": 41,
+        "input_hex": "29",
+        "input_s8": 41,
+        "unsigned_formula_output": 137,
+        "unsigned_formula_output_hex": "89",
+        "signed_instruction_output": 137,
+        "signed_instruction_output_hex": "89",
+        "same": true
+      },
+      {
+        "input": 42,
+        "input_hex": "2a",
+        "input_s8": 42,
+        "unsigned_formula_output": 138,
+        "unsigned_formula_output_hex": "8a",
+        "signed_instruction_output": 138,
+        "signed_instruction_output_hex": "8a",
+        "same": true
+      },
+      {
+        "input": 43,
+        "input_hex": "2b",
+        "input_s8": 43,
+        "unsigned_formula_output": 139,
+        "unsigned_formula_output_hex": "8b",
+        "signed_instruction_output": 139,
+        "signed_instruction_output_hex": "8b",
+        "same": true
+      },
+      {
+        "input": 44,
+        "input_hex": "2c",
+        "input_s8": 44,
+        "unsigned_formula_output": 200,
+        "unsigned_formula_output_hex": "c8",
+        "signed_instruction_output": 200,
+        "signed_instruction_output_hex": "c8",
+        "same": true
+      },
+      {
+        "input": 45,
+        "input_hex": "2d",
+        "input_s8": 45,
+        "unsigned_formula_output": 201,
+        "unsigned_formula_output_hex": "c9",
+        "signed_instruction_output": 201,
+        "signed_instruction_output_hex": "c9",
+        "same": true
+      },
+      {
+        "input": 46,
+        "input_hex": "2e",
+        "input_s8": 46,
+        "unsigned_formula_output": 202,
+        "unsigned_formula_output_hex": "ca",
+        "signed_instruction_output": 202,
+        "signed_instruction_output_hex": "ca",
+        "same": true
+      },
+      {
+        "input": 47,
+        "input_hex": "2f",
+        "input_s8": 47,
+        "unsigned_formula_output": 203,
+        "unsigned_formula_output_hex": "cb",
+        "signed_instruction_output": 203,
+        "signed_instruction_output_hex": "cb",
+        "same": true
+      },
+      {
+        "input": 48,
+        "input_hex": "30",
+        "input_s8": 48,
+        "unsigned_formula_output": 12,
+        "unsigned_formula_output_hex": "0c",
+        "signed_instruction_output": 12,
+        "signed_instruction_output_hex": "0c",
+        "same": true
+      },
+      {
+        "input": 49,
+        "input_hex": "31",
+        "input_s8": 49,
+        "unsigned_formula_output": 13,
+        "unsigned_formula_output_hex": "0d",
+        "signed_instruction_output": 13,
+        "signed_instruction_output_hex": "0d",
+        "same": true
+      },
+      {
+        "input": 50,
+        "input_hex": "32",
+        "input_s8": 50,
+        "unsigned_formula_output": 14,
+        "unsigned_formula_output_hex": "0e",
+        "signed_instruction_output": 14,
+        "signed_instruction_output_hex": "0e",
+        "same": true
+      },
+      {
+        "input": 51,
+        "input_hex": "33",
+        "input_s8": 51,
+        "unsigned_formula_output": 15,
+        "unsigned_formula_output_hex": "0f",
+        "signed_instruction_output": 15,
+        "signed_instruction_output_hex": "0f",
+        "same": true
+      },
+      {
+        "input": 52,
+        "input_hex": "34",
+        "input_s8": 52,
+        "unsigned_formula_output": 76,
+        "unsigned_formula_output_hex": "4c",
+        "signed_instruction_output": 76,
+        "signed_instruction_output_hex": "4c",
+        "same": true
+      },
+      {
+        "input": 53,
+        "input_hex": "35",
+        "input_s8": 53,
+        "unsigned_formula_output": 77,
+        "unsigned_formula_output_hex": "4d",
+        "signed_instruction_output": 77,
+        "signed_instruction_output_hex": "4d",
+        "same": true
+      },
+      {
+        "input": 54,
+        "input_hex": "36",
+        "input_s8": 54,
+        "unsigned_formula_output": 78,
+        "unsigned_formula_output_hex": "4e",
+        "signed_instruction_output": 78,
+        "signed_instruction_output_hex": "4e",
+        "same": true
+      },
+      {
+        "input": 55,
+        "input_hex": "37",
+        "input_s8": 55,
+        "unsigned_formula_output": 79,
+        "unsigned_formula_output_hex": "4f",
+        "signed_instruction_output": 79,
+        "signed_instruction_output_hex": "4f",
+        "same": true
+      },
+      {
+        "input": 56,
+        "input_hex": "38",
+        "input_s8": 56,
+        "unsigned_formula_output": 140,
+        "unsigned_formula_output_hex": "8c",
+        "signed_instruction_output": 140,
+        "signed_instruction_output_hex": "8c",
+        "same": true
+      },
+      {
+        "input": 57,
+        "input_hex": "39",
+        "input_s8": 57,
+        "unsigned_formula_output": 141,
+        "unsigned_formula_output_hex": "8d",
+        "signed_instruction_output": 141,
+        "signed_instruction_output_hex": "8d",
+        "same": true
+      },
+      {
+        "input": 58,
+        "input_hex": "3a",
+        "input_s8": 58,
+        "unsigned_formula_output": 142,
+        "unsigned_formula_output_hex": "8e",
+        "signed_instruction_output": 142,
+        "signed_instruction_output_hex": "8e",
+        "same": true
+      },
+      {
+        "input": 59,
+        "input_hex": "3b",
+        "input_s8": 59,
+        "unsigned_formula_output": 143,
+        "unsigned_formula_output_hex": "8f",
+        "signed_instruction_output": 143,
+        "signed_instruction_output_hex": "8f",
+        "same": true
+      },
+      {
+        "input": 60,
+        "input_hex": "3c",
+        "input_s8": 60,
+        "unsigned_formula_output": 204,
+        "unsigned_formula_output_hex": "cc",
+        "signed_instruction_output": 204,
+        "signed_instruction_output_hex": "cc",
+        "same": true
+      },
+      {
+        "input": 61,
+        "input_hex": "3d",
+        "input_s8": 61,
+        "unsigned_formula_output": 205,
+        "unsigned_formula_output_hex": "cd",
+        "signed_instruction_output": 205,
+        "signed_instruction_output_hex": "cd",
+        "same": true
+      },
+      {
+        "input": 62,
+        "input_hex": "3e",
+        "input_s8": 62,
+        "unsigned_formula_output": 206,
+        "unsigned_formula_output_hex": "ce",
+        "signed_instruction_output": 206,
+        "signed_instruction_output_hex": "ce",
+        "same": true
+      },
+      {
+        "input": 63,
+        "input_hex": "3f",
+        "input_s8": 63,
+        "unsigned_formula_output": 207,
+        "unsigned_formula_output_hex": "cf",
+        "signed_instruction_output": 207,
+        "signed_instruction_output_hex": "cf",
+        "same": true
+      },
+      {
+        "input": 64,
+        "input_hex": "40",
+        "input_s8": 64,
+        "unsigned_formula_output": 16,
+        "unsigned_formula_output_hex": "10",
+        "signed_instruction_output": 16,
+        "signed_instruction_output_hex": "10",
+        "same": true
+      },
+      {
+        "input": 65,
+        "input_hex": "41",
+        "input_s8": 65,
+        "unsigned_formula_output": 17,
+        "unsigned_formula_output_hex": "11",
+        "signed_instruction_output": 17,
+        "signed_instruction_output_hex": "11",
+        "same": true
+      },
+      {
+        "input": 66,
+        "input_hex": "42",
+        "input_s8": 66,
+        "unsigned_formula_output": 18,
+        "unsigned_formula_output_hex": "12",
+        "signed_instruction_output": 18,
+        "signed_instruction_output_hex": "12",
+        "same": true
+      },
+      {
+        "input": 67,
+        "input_hex": "43",
+        "input_s8": 67,
+        "unsigned_formula_output": 19,
+        "unsigned_formula_output_hex": "13",
+        "signed_instruction_output": 19,
+        "signed_instruction_output_hex": "13",
+        "same": true
+      },
+      {
+        "input": 68,
+        "input_hex": "44",
+        "input_s8": 68,
+        "unsigned_formula_output": 80,
+        "unsigned_formula_output_hex": "50",
+        "signed_instruction_output": 80,
+        "signed_instruction_output_hex": "50",
+        "same": true
+      },
+      {
+        "input": 69,
+        "input_hex": "45",
+        "input_s8": 69,
+        "unsigned_formula_output": 81,
+        "unsigned_formula_output_hex": "51",
+        "signed_instruction_output": 81,
+        "signed_instruction_output_hex": "51",
+        "same": true
+      },
+      {
+        "input": 70,
+        "input_hex": "46",
+        "input_s8": 70,
+        "unsigned_formula_output": 82,
+        "unsigned_formula_output_hex": "52",
+        "signed_instruction_output": 82,
+        "signed_instruction_output_hex": "52",
+        "same": true
+      },
+      {
+        "input": 71,
+        "input_hex": "47",
+        "input_s8": 71,
+        "unsigned_formula_output": 83,
+        "unsigned_formula_output_hex": "53",
+        "signed_instruction_output": 83,
+        "signed_instruction_output_hex": "53",
+        "same": true
+      },
+      {
+        "input": 72,
+        "input_hex": "48",
+        "input_s8": 72,
+        "unsigned_formula_output": 144,
+        "unsigned_formula_output_hex": "90",
+        "signed_instruction_output": 144,
+        "signed_instruction_output_hex": "90",
+        "same": true
+      },
+      {
+        "input": 73,
+        "input_hex": "49",
+        "input_s8": 73,
+        "unsigned_formula_output": 145,
+        "unsigned_formula_output_hex": "91",
+        "signed_instruction_output": 145,
+        "signed_instruction_output_hex": "91",
+        "same": true
+      },
+      {
+        "input": 74,
+        "input_hex": "4a",
+        "input_s8": 74,
+        "unsigned_formula_output": 146,
+        "unsigned_formula_output_hex": "92",
+        "signed_instruction_output": 146,
+        "signed_instruction_output_hex": "92",
+        "same": true
+      },
+      {
+        "input": 75,
+        "input_hex": "4b",
+        "input_s8": 75,
+        "unsigned_formula_output": 147,
+        "unsigned_formula_output_hex": "93",
+        "signed_instruction_output": 147,
+        "signed_instruction_output_hex": "93",
+        "same": true
+      },
+      {
+        "input": 76,
+        "input_hex": "4c",
+        "input_s8": 76,
+        "unsigned_formula_output": 208,
+        "unsigned_formula_output_hex": "d0",
+        "signed_instruction_output": 208,
+        "signed_instruction_output_hex": "d0",
+        "same": true
+      },
+      {
+        "input": 77,
+        "input_hex": "4d",
+        "input_s8": 77,
+        "unsigned_formula_output": 209,
+        "unsigned_formula_output_hex": "d1",
+        "signed_instruction_output": 209,
+        "signed_instruction_output_hex": "d1",
+        "same": true
+      },
+      {
+        "input": 78,
+        "input_hex": "4e",
+        "input_s8": 78,
+        "unsigned_formula_output": 210,
+        "unsigned_formula_output_hex": "d2",
+        "signed_instruction_output": 210,
+        "signed_instruction_output_hex": "d2",
+        "same": true
+      },
+      {
+        "input": 79,
+        "input_hex": "4f",
+        "input_s8": 79,
+        "unsigned_formula_output": 211,
+        "unsigned_formula_output_hex": "d3",
+        "signed_instruction_output": 211,
+        "signed_instruction_output_hex": "d3",
+        "same": true
+      },
+      {
+        "input": 80,
+        "input_hex": "50",
+        "input_s8": 80,
+        "unsigned_formula_output": 20,
+        "unsigned_formula_output_hex": "14",
+        "signed_instruction_output": 20,
+        "signed_instruction_output_hex": "14",
+        "same": true
+      },
+      {
+        "input": 81,
+        "input_hex": "51",
+        "input_s8": 81,
+        "unsigned_formula_output": 21,
+        "unsigned_formula_output_hex": "15",
+        "signed_instruction_output": 21,
+        "signed_instruction_output_hex": "15",
+        "same": true
+      },
+      {
+        "input": 82,
+        "input_hex": "52",
+        "input_s8": 82,
+        "unsigned_formula_output": 22,
+        "unsigned_formula_output_hex": "16",
+        "signed_instruction_output": 22,
+        "signed_instruction_output_hex": "16",
+        "same": true
+      },
+      {
+        "input": 83,
+        "input_hex": "53",
+        "input_s8": 83,
+        "unsigned_formula_output": 23,
+        "unsigned_formula_output_hex": "17",
+        "signed_instruction_output": 23,
+        "signed_instruction_output_hex": "17",
+        "same": true
+      },
+      {
+        "input": 84,
+        "input_hex": "54",
+        "input_s8": 84,
+        "unsigned_formula_output": 84,
+        "unsigned_formula_output_hex": "54",
+        "signed_instruction_output": 84,
+        "signed_instruction_output_hex": "54",
+        "same": true
+      },
+      {
+        "input": 85,
+        "input_hex": "55",
+        "input_s8": 85,
+        "unsigned_formula_output": 85,
+        "unsigned_formula_output_hex": "55",
+        "signed_instruction_output": 85,
+        "signed_instruction_output_hex": "55",
+        "same": true
+      },
+      {
+        "input": 86,
+        "input_hex": "56",
+        "input_s8": 86,
+        "unsigned_formula_output": 86,
+        "unsigned_formula_output_hex": "56",
+        "signed_instruction_output": 86,
+        "signed_instruction_output_hex": "56",
+        "same": true
+      },
+      {
+        "input": 87,
+        "input_hex": "57",
+        "input_s8": 87,
+        "unsigned_formula_output": 87,
+        "unsigned_formula_output_hex": "57",
+        "signed_instruction_output": 87,
+        "signed_instruction_output_hex": "57",
+        "same": true
+      },
+      {
+        "input": 88,
+        "input_hex": "58",
+        "input_s8": 88,
+        "unsigned_formula_output": 148,
+        "unsigned_formula_output_hex": "94",
+        "signed_instruction_output": 148,
+        "signed_instruction_output_hex": "94",
+        "same": true
+      },
+      {
+        "input": 89,
+        "input_hex": "59",
+        "input_s8": 89,
+        "unsigned_formula_output": 149,
+        "unsigned_formula_output_hex": "95",
+        "signed_instruction_output": 149,
+        "signed_instruction_output_hex": "95",
+        "same": true
+      },
+      {
+        "input": 90,
+        "input_hex": "5a",
+        "input_s8": 90,
+        "unsigned_formula_output": 150,
+        "unsigned_formula_output_hex": "96",
+        "signed_instruction_output": 150,
+        "signed_instruction_output_hex": "96",
+        "same": true
+      },
+      {
+        "input": 91,
+        "input_hex": "5b",
+        "input_s8": 91,
+        "unsigned_formula_output": 151,
+        "unsigned_formula_output_hex": "97",
+        "signed_instruction_output": 151,
+        "signed_instruction_output_hex": "97",
+        "same": true
+      },
+      {
+        "input": 92,
+        "input_hex": "5c",
+        "input_s8": 92,
+        "unsigned_formula_output": 212,
+        "unsigned_formula_output_hex": "d4",
+        "signed_instruction_output": 212,
+        "signed_instruction_output_hex": "d4",
+        "same": true
+      },
+      {
+        "input": 93,
+        "input_hex": "5d",
+        "input_s8": 93,
+        "unsigned_formula_output": 213,
+        "unsigned_formula_output_hex": "d5",
+        "signed_instruction_output": 213,
+        "signed_instruction_output_hex": "d5",
+        "same": true
+      },
+      {
+        "input": 94,
+        "input_hex": "5e",
+        "input_s8": 94,
+        "unsigned_formula_output": 214,
+        "unsigned_formula_output_hex": "d6",
+        "signed_instruction_output": 214,
+        "signed_instruction_output_hex": "d6",
+        "same": true
+      },
+      {
+        "input": 95,
+        "input_hex": "5f",
+        "input_s8": 95,
+        "unsigned_formula_output": 215,
+        "unsigned_formula_output_hex": "d7",
+        "signed_instruction_output": 215,
+        "signed_instruction_output_hex": "d7",
+        "same": true
+      },
+      {
+        "input": 96,
+        "input_hex": "60",
+        "input_s8": 96,
+        "unsigned_formula_output": 24,
+        "unsigned_formula_output_hex": "18",
+        "signed_instruction_output": 24,
+        "signed_instruction_output_hex": "18",
+        "same": true
+      },
+      {
+        "input": 97,
+        "input_hex": "61",
+        "input_s8": 97,
+        "unsigned_formula_output": 25,
+        "unsigned_formula_output_hex": "19",
+        "signed_instruction_output": 25,
+        "signed_instruction_output_hex": "19",
+        "same": true
+      },
+      {
+        "input": 98,
+        "input_hex": "62",
+        "input_s8": 98,
+        "unsigned_formula_output": 26,
+        "unsigned_formula_output_hex": "1a",
+        "signed_instruction_output": 26,
+        "signed_instruction_output_hex": "1a",
+        "same": true
+      },
+      {
+        "input": 99,
+        "input_hex": "63",
+        "input_s8": 99,
+        "unsigned_formula_output": 27,
+        "unsigned_formula_output_hex": "1b",
+        "signed_instruction_output": 27,
+        "signed_instruction_output_hex": "1b",
+        "same": true
+      },
+      {
+        "input": 100,
+        "input_hex": "64",
+        "input_s8": 100,
+        "unsigned_formula_output": 88,
+        "unsigned_formula_output_hex": "58",
+        "signed_instruction_output": 88,
+        "signed_instruction_output_hex": "58",
+        "same": true
+      },
+      {
+        "input": 101,
+        "input_hex": "65",
+        "input_s8": 101,
+        "unsigned_formula_output": 89,
+        "unsigned_formula_output_hex": "59",
+        "signed_instruction_output": 89,
+        "signed_instruction_output_hex": "59",
+        "same": true
+      },
+      {
+        "input": 102,
+        "input_hex": "66",
+        "input_s8": 102,
+        "unsigned_formula_output": 90,
+        "unsigned_formula_output_hex": "5a",
+        "signed_instruction_output": 90,
+        "signed_instruction_output_hex": "5a",
+        "same": true
+      },
+      {
+        "input": 103,
+        "input_hex": "67",
+        "input_s8": 103,
+        "unsigned_formula_output": 91,
+        "unsigned_formula_output_hex": "5b",
+        "signed_instruction_output": 91,
+        "signed_instruction_output_hex": "5b",
+        "same": true
+      },
+      {
+        "input": 104,
+        "input_hex": "68",
+        "input_s8": 104,
+        "unsigned_formula_output": 152,
+        "unsigned_formula_output_hex": "98",
+        "signed_instruction_output": 152,
+        "signed_instruction_output_hex": "98",
+        "same": true
+      },
+      {
+        "input": 105,
+        "input_hex": "69",
+        "input_s8": 105,
+        "unsigned_formula_output": 153,
+        "unsigned_formula_output_hex": "99",
+        "signed_instruction_output": 153,
+        "signed_instruction_output_hex": "99",
+        "same": true
+      },
+      {
+        "input": 106,
+        "input_hex": "6a",
+        "input_s8": 106,
+        "unsigned_formula_output": 154,
+        "unsigned_formula_output_hex": "9a",
+        "signed_instruction_output": 154,
+        "signed_instruction_output_hex": "9a",
+        "same": true
+      },
+      {
+        "input": 107,
+        "input_hex": "6b",
+        "input_s8": 107,
+        "unsigned_formula_output": 155,
+        "unsigned_formula_output_hex": "9b",
+        "signed_instruction_output": 155,
+        "signed_instruction_output_hex": "9b",
+        "same": true
+      },
+      {
+        "input": 108,
+        "input_hex": "6c",
+        "input_s8": 108,
+        "unsigned_formula_output": 216,
+        "unsigned_formula_output_hex": "d8",
+        "signed_instruction_output": 216,
+        "signed_instruction_output_hex": "d8",
+        "same": true
+      },
+      {
+        "input": 109,
+        "input_hex": "6d",
+        "input_s8": 109,
+        "unsigned_formula_output": 217,
+        "unsigned_formula_output_hex": "d9",
+        "signed_instruction_output": 217,
+        "signed_instruction_output_hex": "d9",
+        "same": true
+      },
+      {
+        "input": 110,
+        "input_hex": "6e",
+        "input_s8": 110,
+        "unsigned_formula_output": 218,
+        "unsigned_formula_output_hex": "da",
+        "signed_instruction_output": 218,
+        "signed_instruction_output_hex": "da",
+        "same": true
+      },
+      {
+        "input": 111,
+        "input_hex": "6f",
+        "input_s8": 111,
+        "unsigned_formula_output": 219,
+        "unsigned_formula_output_hex": "db",
+        "signed_instruction_output": 219,
+        "signed_instruction_output_hex": "db",
+        "same": true
+      },
+      {
+        "input": 112,
+        "input_hex": "70",
+        "input_s8": 112,
+        "unsigned_formula_output": 28,
+        "unsigned_formula_output_hex": "1c",
+        "signed_instruction_output": 28,
+        "signed_instruction_output_hex": "1c",
+        "same": true
+      },
+      {
+        "input": 113,
+        "input_hex": "71",
+        "input_s8": 113,
+        "unsigned_formula_output": 29,
+        "unsigned_formula_output_hex": "1d",
+        "signed_instruction_output": 29,
+        "signed_instruction_output_hex": "1d",
+        "same": true
+      },
+      {
+        "input": 114,
+        "input_hex": "72",
+        "input_s8": 114,
+        "unsigned_formula_output": 30,
+        "unsigned_formula_output_hex": "1e",
+        "signed_instruction_output": 30,
+        "signed_instruction_output_hex": "1e",
+        "same": true
+      },
+      {
+        "input": 115,
+        "input_hex": "73",
+        "input_s8": 115,
+        "unsigned_formula_output": 31,
+        "unsigned_formula_output_hex": "1f",
+        "signed_instruction_output": 31,
+        "signed_instruction_output_hex": "1f",
+        "same": true
+      },
+      {
+        "input": 116,
+        "input_hex": "74",
+        "input_s8": 116,
+        "unsigned_formula_output": 92,
+        "unsigned_formula_output_hex": "5c",
+        "signed_instruction_output": 92,
+        "signed_instruction_output_hex": "5c",
+        "same": true
+      },
+      {
+        "input": 117,
+        "input_hex": "75",
+        "input_s8": 117,
+        "unsigned_formula_output": 93,
+        "unsigned_formula_output_hex": "5d",
+        "signed_instruction_output": 93,
+        "signed_instruction_output_hex": "5d",
+        "same": true
+      },
+      {
+        "input": 118,
+        "input_hex": "76",
+        "input_s8": 118,
+        "unsigned_formula_output": 94,
+        "unsigned_formula_output_hex": "5e",
+        "signed_instruction_output": 94,
+        "signed_instruction_output_hex": "5e",
+        "same": true
+      },
+      {
+        "input": 119,
+        "input_hex": "77",
+        "input_s8": 119,
+        "unsigned_formula_output": 95,
+        "unsigned_formula_output_hex": "5f",
+        "signed_instruction_output": 95,
+        "signed_instruction_output_hex": "5f",
+        "same": true
+      },
+      {
+        "input": 120,
+        "input_hex": "78",
+        "input_s8": 120,
+        "unsigned_formula_output": 156,
+        "unsigned_formula_output_hex": "9c",
+        "signed_instruction_output": 156,
+        "signed_instruction_output_hex": "9c",
+        "same": true
+      },
+      {
+        "input": 121,
+        "input_hex": "79",
+        "input_s8": 121,
+        "unsigned_formula_output": 157,
+        "unsigned_formula_output_hex": "9d",
+        "signed_instruction_output": 157,
+        "signed_instruction_output_hex": "9d",
+        "same": true
+      },
+      {
+        "input": 122,
+        "input_hex": "7a",
+        "input_s8": 122,
+        "unsigned_formula_output": 158,
+        "unsigned_formula_output_hex": "9e",
+        "signed_instruction_output": 158,
+        "signed_instruction_output_hex": "9e",
+        "same": true
+      },
+      {
+        "input": 123,
+        "input_hex": "7b",
+        "input_s8": 123,
+        "unsigned_formula_output": 159,
+        "unsigned_formula_output_hex": "9f",
+        "signed_instruction_output": 159,
+        "signed_instruction_output_hex": "9f",
+        "same": true
+      },
+      {
+        "input": 124,
+        "input_hex": "7c",
+        "input_s8": 124,
+        "unsigned_formula_output": 220,
+        "unsigned_formula_output_hex": "dc",
+        "signed_instruction_output": 220,
+        "signed_instruction_output_hex": "dc",
+        "same": true
+      },
+      {
+        "input": 125,
+        "input_hex": "7d",
+        "input_s8": 125,
+        "unsigned_formula_output": 221,
+        "unsigned_formula_output_hex": "dd",
+        "signed_instruction_output": 221,
+        "signed_instruction_output_hex": "dd",
+        "same": true
+      },
+      {
+        "input": 126,
+        "input_hex": "7e",
+        "input_s8": 126,
+        "unsigned_formula_output": 222,
+        "unsigned_formula_output_hex": "de",
+        "signed_instruction_output": 222,
+        "signed_instruction_output_hex": "de",
+        "same": true
+      },
+      {
+        "input": 127,
+        "input_hex": "7f",
+        "input_s8": 127,
+        "unsigned_formula_output": 223,
+        "unsigned_formula_output_hex": "df",
+        "signed_instruction_output": 223,
+        "signed_instruction_output_hex": "df",
+        "same": true
+      },
+      {
+        "input": 128,
+        "input_hex": "80",
+        "input_s8": -128,
+        "unsigned_formula_output": 32,
+        "unsigned_formula_output_hex": "20",
+        "signed_instruction_output": 32,
+        "signed_instruction_output_hex": "20",
+        "same": true
+      },
+      {
+        "input": 129,
+        "input_hex": "81",
+        "input_s8": -127,
+        "unsigned_formula_output": 33,
+        "unsigned_formula_output_hex": "21",
+        "signed_instruction_output": 33,
+        "signed_instruction_output_hex": "21",
+        "same": true
+      },
+      {
+        "input": 130,
+        "input_hex": "82",
+        "input_s8": -126,
+        "unsigned_formula_output": 34,
+        "unsigned_formula_output_hex": "22",
+        "signed_instruction_output": 34,
+        "signed_instruction_output_hex": "22",
+        "same": true
+      },
+      {
+        "input": 131,
+        "input_hex": "83",
+        "input_s8": -125,
+        "unsigned_formula_output": 35,
+        "unsigned_formula_output_hex": "23",
+        "signed_instruction_output": 35,
+        "signed_instruction_output_hex": "23",
+        "same": true
+      },
+      {
+        "input": 132,
+        "input_hex": "84",
+        "input_s8": -124,
+        "unsigned_formula_output": 96,
+        "unsigned_formula_output_hex": "60",
+        "signed_instruction_output": 96,
+        "signed_instruction_output_hex": "60",
+        "same": true
+      },
+      {
+        "input": 133,
+        "input_hex": "85",
+        "input_s8": -123,
+        "unsigned_formula_output": 97,
+        "unsigned_formula_output_hex": "61",
+        "signed_instruction_output": 97,
+        "signed_instruction_output_hex": "61",
+        "same": true
+      },
+      {
+        "input": 134,
+        "input_hex": "86",
+        "input_s8": -122,
+        "unsigned_formula_output": 98,
+        "unsigned_formula_output_hex": "62",
+        "signed_instruction_output": 98,
+        "signed_instruction_output_hex": "62",
+        "same": true
+      },
+      {
+        "input": 135,
+        "input_hex": "87",
+        "input_s8": -121,
+        "unsigned_formula_output": 99,
+        "unsigned_formula_output_hex": "63",
+        "signed_instruction_output": 99,
+        "signed_instruction_output_hex": "63",
+        "same": true
+      },
+      {
+        "input": 136,
+        "input_hex": "88",
+        "input_s8": -120,
+        "unsigned_formula_output": 160,
+        "unsigned_formula_output_hex": "a0",
+        "signed_instruction_output": 160,
+        "signed_instruction_output_hex": "a0",
+        "same": true
+      },
+      {
+        "input": 137,
+        "input_hex": "89",
+        "input_s8": -119,
+        "unsigned_formula_output": 161,
+        "unsigned_formula_output_hex": "a1",
+        "signed_instruction_output": 161,
+        "signed_instruction_output_hex": "a1",
+        "same": true
+      },
+      {
+        "input": 138,
+        "input_hex": "8a",
+        "input_s8": -118,
+        "unsigned_formula_output": 162,
+        "unsigned_formula_output_hex": "a2",
+        "signed_instruction_output": 162,
+        "signed_instruction_output_hex": "a2",
+        "same": true
+      },
+      {
+        "input": 139,
+        "input_hex": "8b",
+        "input_s8": -117,
+        "unsigned_formula_output": 163,
+        "unsigned_formula_output_hex": "a3",
+        "signed_instruction_output": 163,
+        "signed_instruction_output_hex": "a3",
+        "same": true
+      },
+      {
+        "input": 140,
+        "input_hex": "8c",
+        "input_s8": -116,
+        "unsigned_formula_output": 224,
+        "unsigned_formula_output_hex": "e0",
+        "signed_instruction_output": 224,
+        "signed_instruction_output_hex": "e0",
+        "same": true
+      },
+      {
+        "input": 141,
+        "input_hex": "8d",
+        "input_s8": -115,
+        "unsigned_formula_output": 225,
+        "unsigned_formula_output_hex": "e1",
+        "signed_instruction_output": 225,
+        "signed_instruction_output_hex": "e1",
+        "same": true
+      },
+      {
+        "input": 142,
+        "input_hex": "8e",
+        "input_s8": -114,
+        "unsigned_formula_output": 226,
+        "unsigned_formula_output_hex": "e2",
+        "signed_instruction_output": 226,
+        "signed_instruction_output_hex": "e2",
+        "same": true
+      },
+      {
+        "input": 143,
+        "input_hex": "8f",
+        "input_s8": -113,
+        "unsigned_formula_output": 227,
+        "unsigned_formula_output_hex": "e3",
+        "signed_instruction_output": 227,
+        "signed_instruction_output_hex": "e3",
+        "same": true
+      },
+      {
+        "input": 144,
+        "input_hex": "90",
+        "input_s8": -112,
+        "unsigned_formula_output": 36,
+        "unsigned_formula_output_hex": "24",
+        "signed_instruction_output": 36,
+        "signed_instruction_output_hex": "24",
+        "same": true
+      },
+      {
+        "input": 145,
+        "input_hex": "91",
+        "input_s8": -111,
+        "unsigned_formula_output": 37,
+        "unsigned_formula_output_hex": "25",
+        "signed_instruction_output": 37,
+        "signed_instruction_output_hex": "25",
+        "same": true
+      },
+      {
+        "input": 146,
+        "input_hex": "92",
+        "input_s8": -110,
+        "unsigned_formula_output": 38,
+        "unsigned_formula_output_hex": "26",
+        "signed_instruction_output": 38,
+        "signed_instruction_output_hex": "26",
+        "same": true
+      },
+      {
+        "input": 147,
+        "input_hex": "93",
+        "input_s8": -109,
+        "unsigned_formula_output": 39,
+        "unsigned_formula_output_hex": "27",
+        "signed_instruction_output": 39,
+        "signed_instruction_output_hex": "27",
+        "same": true
+      },
+      {
+        "input": 148,
+        "input_hex": "94",
+        "input_s8": -108,
+        "unsigned_formula_output": 100,
+        "unsigned_formula_output_hex": "64",
+        "signed_instruction_output": 100,
+        "signed_instruction_output_hex": "64",
+        "same": true
+      },
+      {
+        "input": 149,
+        "input_hex": "95",
+        "input_s8": -107,
+        "unsigned_formula_output": 101,
+        "unsigned_formula_output_hex": "65",
+        "signed_instruction_output": 101,
+        "signed_instruction_output_hex": "65",
+        "same": true
+      },
+      {
+        "input": 150,
+        "input_hex": "96",
+        "input_s8": -106,
+        "unsigned_formula_output": 102,
+        "unsigned_formula_output_hex": "66",
+        "signed_instruction_output": 102,
+        "signed_instruction_output_hex": "66",
+        "same": true
+      },
+      {
+        "input": 151,
+        "input_hex": "97",
+        "input_s8": -105,
+        "unsigned_formula_output": 103,
+        "unsigned_formula_output_hex": "67",
+        "signed_instruction_output": 103,
+        "signed_instruction_output_hex": "67",
+        "same": true
+      },
+      {
+        "input": 152,
+        "input_hex": "98",
+        "input_s8": -104,
+        "unsigned_formula_output": 164,
+        "unsigned_formula_output_hex": "a4",
+        "signed_instruction_output": 164,
+        "signed_instruction_output_hex": "a4",
+        "same": true
+      },
+      {
+        "input": 153,
+        "input_hex": "99",
+        "input_s8": -103,
+        "unsigned_formula_output": 165,
+        "unsigned_formula_output_hex": "a5",
+        "signed_instruction_output": 165,
+        "signed_instruction_output_hex": "a5",
+        "same": true
+      },
+      {
+        "input": 154,
+        "input_hex": "9a",
+        "input_s8": -102,
+        "unsigned_formula_output": 166,
+        "unsigned_formula_output_hex": "a6",
+        "signed_instruction_output": 166,
+        "signed_instruction_output_hex": "a6",
+        "same": true
+      },
+      {
+        "input": 155,
+        "input_hex": "9b",
+        "input_s8": -101,
+        "unsigned_formula_output": 167,
+        "unsigned_formula_output_hex": "a7",
+        "signed_instruction_output": 167,
+        "signed_instruction_output_hex": "a7",
+        "same": true
+      },
+      {
+        "input": 156,
+        "input_hex": "9c",
+        "input_s8": -100,
+        "unsigned_formula_output": 228,
+        "unsigned_formula_output_hex": "e4",
+        "signed_instruction_output": 228,
+        "signed_instruction_output_hex": "e4",
+        "same": true
+      },
+      {
+        "input": 157,
+        "input_hex": "9d",
+        "input_s8": -99,
+        "unsigned_formula_output": 229,
+        "unsigned_formula_output_hex": "e5",
+        "signed_instruction_output": 229,
+        "signed_instruction_output_hex": "e5",
+        "same": true
+      },
+      {
+        "input": 158,
+        "input_hex": "9e",
+        "input_s8": -98,
+        "unsigned_formula_output": 230,
+        "unsigned_formula_output_hex": "e6",
+        "signed_instruction_output": 230,
+        "signed_instruction_output_hex": "e6",
+        "same": true
+      },
+      {
+        "input": 159,
+        "input_hex": "9f",
+        "input_s8": -97,
+        "unsigned_formula_output": 231,
+        "unsigned_formula_output_hex": "e7",
+        "signed_instruction_output": 231,
+        "signed_instruction_output_hex": "e7",
+        "same": true
+      },
+      {
+        "input": 160,
+        "input_hex": "a0",
+        "input_s8": -96,
+        "unsigned_formula_output": 40,
+        "unsigned_formula_output_hex": "28",
+        "signed_instruction_output": 40,
+        "signed_instruction_output_hex": "28",
+        "same": true
+      },
+      {
+        "input": 161,
+        "input_hex": "a1",
+        "input_s8": -95,
+        "unsigned_formula_output": 41,
+        "unsigned_formula_output_hex": "29",
+        "signed_instruction_output": 41,
+        "signed_instruction_output_hex": "29",
+        "same": true
+      },
+      {
+        "input": 162,
+        "input_hex": "a2",
+        "input_s8": -94,
+        "unsigned_formula_output": 42,
+        "unsigned_formula_output_hex": "2a",
+        "signed_instruction_output": 42,
+        "signed_instruction_output_hex": "2a",
+        "same": true
+      },
+      {
+        "input": 163,
+        "input_hex": "a3",
+        "input_s8": -93,
+        "unsigned_formula_output": 43,
+        "unsigned_formula_output_hex": "2b",
+        "signed_instruction_output": 43,
+        "signed_instruction_output_hex": "2b",
+        "same": true
+      },
+      {
+        "input": 164,
+        "input_hex": "a4",
+        "input_s8": -92,
+        "unsigned_formula_output": 104,
+        "unsigned_formula_output_hex": "68",
+        "signed_instruction_output": 104,
+        "signed_instruction_output_hex": "68",
+        "same": true
+      },
+      {
+        "input": 165,
+        "input_hex": "a5",
+        "input_s8": -91,
+        "unsigned_formula_output": 105,
+        "unsigned_formula_output_hex": "69",
+        "signed_instruction_output": 105,
+        "signed_instruction_output_hex": "69",
+        "same": true
+      },
+      {
+        "input": 166,
+        "input_hex": "a6",
+        "input_s8": -90,
+        "unsigned_formula_output": 106,
+        "unsigned_formula_output_hex": "6a",
+        "signed_instruction_output": 106,
+        "signed_instruction_output_hex": "6a",
+        "same": true
+      },
+      {
+        "input": 167,
+        "input_hex": "a7",
+        "input_s8": -89,
+        "unsigned_formula_output": 107,
+        "unsigned_formula_output_hex": "6b",
+        "signed_instruction_output": 107,
+        "signed_instruction_output_hex": "6b",
+        "same": true
+      },
+      {
+        "input": 168,
+        "input_hex": "a8",
+        "input_s8": -88,
+        "unsigned_formula_output": 168,
+        "unsigned_formula_output_hex": "a8",
+        "signed_instruction_output": 168,
+        "signed_instruction_output_hex": "a8",
+        "same": true
+      },
+      {
+        "input": 169,
+        "input_hex": "a9",
+        "input_s8": -87,
+        "unsigned_formula_output": 169,
+        "unsigned_formula_output_hex": "a9",
+        "signed_instruction_output": 169,
+        "signed_instruction_output_hex": "a9",
+        "same": true
+      },
+      {
+        "input": 170,
+        "input_hex": "aa",
+        "input_s8": -86,
+        "unsigned_formula_output": 170,
+        "unsigned_formula_output_hex": "aa",
+        "signed_instruction_output": 170,
+        "signed_instruction_output_hex": "aa",
+        "same": true
+      },
+      {
+        "input": 171,
+        "input_hex": "ab",
+        "input_s8": -85,
+        "unsigned_formula_output": 171,
+        "unsigned_formula_output_hex": "ab",
+        "signed_instruction_output": 171,
+        "signed_instruction_output_hex": "ab",
+        "same": true
+      },
+      {
+        "input": 172,
+        "input_hex": "ac",
+        "input_s8": -84,
+        "unsigned_formula_output": 232,
+        "unsigned_formula_output_hex": "e8",
+        "signed_instruction_output": 232,
+        "signed_instruction_output_hex": "e8",
+        "same": true
+      },
+      {
+        "input": 173,
+        "input_hex": "ad",
+        "input_s8": -83,
+        "unsigned_formula_output": 233,
+        "unsigned_formula_output_hex": "e9",
+        "signed_instruction_output": 233,
+        "signed_instruction_output_hex": "e9",
+        "same": true
+      },
+      {
+        "input": 174,
+        "input_hex": "ae",
+        "input_s8": -82,
+        "unsigned_formula_output": 234,
+        "unsigned_formula_output_hex": "ea",
+        "signed_instruction_output": 234,
+        "signed_instruction_output_hex": "ea",
+        "same": true
+      },
+      {
+        "input": 175,
+        "input_hex": "af",
+        "input_s8": -81,
+        "unsigned_formula_output": 235,
+        "unsigned_formula_output_hex": "eb",
+        "signed_instruction_output": 235,
+        "signed_instruction_output_hex": "eb",
+        "same": true
+      },
+      {
+        "input": 176,
+        "input_hex": "b0",
+        "input_s8": -80,
+        "unsigned_formula_output": 44,
+        "unsigned_formula_output_hex": "2c",
+        "signed_instruction_output": 44,
+        "signed_instruction_output_hex": "2c",
+        "same": true
+      },
+      {
+        "input": 177,
+        "input_hex": "b1",
+        "input_s8": -79,
+        "unsigned_formula_output": 45,
+        "unsigned_formula_output_hex": "2d",
+        "signed_instruction_output": 45,
+        "signed_instruction_output_hex": "2d",
+        "same": true
+      },
+      {
+        "input": 178,
+        "input_hex": "b2",
+        "input_s8": -78,
+        "unsigned_formula_output": 46,
+        "unsigned_formula_output_hex": "2e",
+        "signed_instruction_output": 46,
+        "signed_instruction_output_hex": "2e",
+        "same": true
+      },
+      {
+        "input": 179,
+        "input_hex": "b3",
+        "input_s8": -77,
+        "unsigned_formula_output": 47,
+        "unsigned_formula_output_hex": "2f",
+        "signed_instruction_output": 47,
+        "signed_instruction_output_hex": "2f",
+        "same": true
+      },
+      {
+        "input": 180,
+        "input_hex": "b4",
+        "input_s8": -76,
+        "unsigned_formula_output": 108,
+        "unsigned_formula_output_hex": "6c",
+        "signed_instruction_output": 108,
+        "signed_instruction_output_hex": "6c",
+        "same": true
+      },
+      {
+        "input": 181,
+        "input_hex": "b5",
+        "input_s8": -75,
+        "unsigned_formula_output": 109,
+        "unsigned_formula_output_hex": "6d",
+        "signed_instruction_output": 109,
+        "signed_instruction_output_hex": "6d",
+        "same": true
+      },
+      {
+        "input": 182,
+        "input_hex": "b6",
+        "input_s8": -74,
+        "unsigned_formula_output": 110,
+        "unsigned_formula_output_hex": "6e",
+        "signed_instruction_output": 110,
+        "signed_instruction_output_hex": "6e",
+        "same": true
+      },
+      {
+        "input": 183,
+        "input_hex": "b7",
+        "input_s8": -73,
+        "unsigned_formula_output": 111,
+        "unsigned_formula_output_hex": "6f",
+        "signed_instruction_output": 111,
+        "signed_instruction_output_hex": "6f",
+        "same": true
+      },
+      {
+        "input": 184,
+        "input_hex": "b8",
+        "input_s8": -72,
+        "unsigned_formula_output": 172,
+        "unsigned_formula_output_hex": "ac",
+        "signed_instruction_output": 172,
+        "signed_instruction_output_hex": "ac",
+        "same": true
+      },
+      {
+        "input": 185,
+        "input_hex": "b9",
+        "input_s8": -71,
+        "unsigned_formula_output": 173,
+        "unsigned_formula_output_hex": "ad",
+        "signed_instruction_output": 173,
+        "signed_instruction_output_hex": "ad",
+        "same": true
+      },
+      {
+        "input": 186,
+        "input_hex": "ba",
+        "input_s8": -70,
+        "unsigned_formula_output": 174,
+        "unsigned_formula_output_hex": "ae",
+        "signed_instruction_output": 174,
+        "signed_instruction_output_hex": "ae",
+        "same": true
+      },
+      {
+        "input": 187,
+        "input_hex": "bb",
+        "input_s8": -69,
+        "unsigned_formula_output": 175,
+        "unsigned_formula_output_hex": "af",
+        "signed_instruction_output": 175,
+        "signed_instruction_output_hex": "af",
+        "same": true
+      },
+      {
+        "input": 188,
+        "input_hex": "bc",
+        "input_s8": -68,
+        "unsigned_formula_output": 236,
+        "unsigned_formula_output_hex": "ec",
+        "signed_instruction_output": 236,
+        "signed_instruction_output_hex": "ec",
+        "same": true
+      },
+      {
+        "input": 189,
+        "input_hex": "bd",
+        "input_s8": -67,
+        "unsigned_formula_output": 237,
+        "unsigned_formula_output_hex": "ed",
+        "signed_instruction_output": 237,
+        "signed_instruction_output_hex": "ed",
+        "same": true
+      },
+      {
+        "input": 190,
+        "input_hex": "be",
+        "input_s8": -66,
+        "unsigned_formula_output": 238,
+        "unsigned_formula_output_hex": "ee",
+        "signed_instruction_output": 238,
+        "signed_instruction_output_hex": "ee",
+        "same": true
+      },
+      {
+        "input": 191,
+        "input_hex": "bf",
+        "input_s8": -65,
+        "unsigned_formula_output": 239,
+        "unsigned_formula_output_hex": "ef",
+        "signed_instruction_output": 239,
+        "signed_instruction_output_hex": "ef",
+        "same": true
+      },
+      {
+        "input": 192,
+        "input_hex": "c0",
+        "input_s8": -64,
+        "unsigned_formula_output": 48,
+        "unsigned_formula_output_hex": "30",
+        "signed_instruction_output": 48,
+        "signed_instruction_output_hex": "30",
+        "same": true
+      },
+      {
+        "input": 193,
+        "input_hex": "c1",
+        "input_s8": -63,
+        "unsigned_formula_output": 49,
+        "unsigned_formula_output_hex": "31",
+        "signed_instruction_output": 49,
+        "signed_instruction_output_hex": "31",
+        "same": true
+      },
+      {
+        "input": 194,
+        "input_hex": "c2",
+        "input_s8": -62,
+        "unsigned_formula_output": 50,
+        "unsigned_formula_output_hex": "32",
+        "signed_instruction_output": 50,
+        "signed_instruction_output_hex": "32",
+        "same": true
+      },
+      {
+        "input": 195,
+        "input_hex": "c3",
+        "input_s8": -61,
+        "unsigned_formula_output": 51,
+        "unsigned_formula_output_hex": "33",
+        "signed_instruction_output": 51,
+        "signed_instruction_output_hex": "33",
+        "same": true
+      },
+      {
+        "input": 196,
+        "input_hex": "c4",
+        "input_s8": -60,
+        "unsigned_formula_output": 112,
+        "unsigned_formula_output_hex": "70",
+        "signed_instruction_output": 112,
+        "signed_instruction_output_hex": "70",
+        "same": true
+      },
+      {
+        "input": 197,
+        "input_hex": "c5",
+        "input_s8": -59,
+        "unsigned_formula_output": 113,
+        "unsigned_formula_output_hex": "71",
+        "signed_instruction_output": 113,
+        "signed_instruction_output_hex": "71",
+        "same": true
+      },
+      {
+        "input": 198,
+        "input_hex": "c6",
+        "input_s8": -58,
+        "unsigned_formula_output": 114,
+        "unsigned_formula_output_hex": "72",
+        "signed_instruction_output": 114,
+        "signed_instruction_output_hex": "72",
+        "same": true
+      },
+      {
+        "input": 199,
+        "input_hex": "c7",
+        "input_s8": -57,
+        "unsigned_formula_output": 115,
+        "unsigned_formula_output_hex": "73",
+        "signed_instruction_output": 115,
+        "signed_instruction_output_hex": "73",
+        "same": true
+      },
+      {
+        "input": 200,
+        "input_hex": "c8",
+        "input_s8": -56,
+        "unsigned_formula_output": 176,
+        "unsigned_formula_output_hex": "b0",
+        "signed_instruction_output": 176,
+        "signed_instruction_output_hex": "b0",
+        "same": true
+      },
+      {
+        "input": 201,
+        "input_hex": "c9",
+        "input_s8": -55,
+        "unsigned_formula_output": 177,
+        "unsigned_formula_output_hex": "b1",
+        "signed_instruction_output": 177,
+        "signed_instruction_output_hex": "b1",
+        "same": true
+      },
+      {
+        "input": 202,
+        "input_hex": "ca",
+        "input_s8": -54,
+        "unsigned_formula_output": 178,
+        "unsigned_formula_output_hex": "b2",
+        "signed_instruction_output": 178,
+        "signed_instruction_output_hex": "b2",
+        "same": true
+      },
+      {
+        "input": 203,
+        "input_hex": "cb",
+        "input_s8": -53,
+        "unsigned_formula_output": 179,
+        "unsigned_formula_output_hex": "b3",
+        "signed_instruction_output": 179,
+        "signed_instruction_output_hex": "b3",
+        "same": true
+      },
+      {
+        "input": 204,
+        "input_hex": "cc",
+        "input_s8": -52,
+        "unsigned_formula_output": 240,
+        "unsigned_formula_output_hex": "f0",
+        "signed_instruction_output": 240,
+        "signed_instruction_output_hex": "f0",
+        "same": true
+      },
+      {
+        "input": 205,
+        "input_hex": "cd",
+        "input_s8": -51,
+        "unsigned_formula_output": 241,
+        "unsigned_formula_output_hex": "f1",
+        "signed_instruction_output": 241,
+        "signed_instruction_output_hex": "f1",
+        "same": true
+      },
+      {
+        "input": 206,
+        "input_hex": "ce",
+        "input_s8": -50,
+        "unsigned_formula_output": 242,
+        "unsigned_formula_output_hex": "f2",
+        "signed_instruction_output": 242,
+        "signed_instruction_output_hex": "f2",
+        "same": true
+      },
+      {
+        "input": 207,
+        "input_hex": "cf",
+        "input_s8": -49,
+        "unsigned_formula_output": 243,
+        "unsigned_formula_output_hex": "f3",
+        "signed_instruction_output": 243,
+        "signed_instruction_output_hex": "f3",
+        "same": true
+      },
+      {
+        "input": 208,
+        "input_hex": "d0",
+        "input_s8": -48,
+        "unsigned_formula_output": 52,
+        "unsigned_formula_output_hex": "34",
+        "signed_instruction_output": 52,
+        "signed_instruction_output_hex": "34",
+        "same": true
+      },
+      {
+        "input": 209,
+        "input_hex": "d1",
+        "input_s8": -47,
+        "unsigned_formula_output": 53,
+        "unsigned_formula_output_hex": "35",
+        "signed_instruction_output": 53,
+        "signed_instruction_output_hex": "35",
+        "same": true
+      },
+      {
+        "input": 210,
+        "input_hex": "d2",
+        "input_s8": -46,
+        "unsigned_formula_output": 54,
+        "unsigned_formula_output_hex": "36",
+        "signed_instruction_output": 54,
+        "signed_instruction_output_hex": "36",
+        "same": true
+      },
+      {
+        "input": 211,
+        "input_hex": "d3",
+        "input_s8": -45,
+        "unsigned_formula_output": 55,
+        "unsigned_formula_output_hex": "37",
+        "signed_instruction_output": 55,
+        "signed_instruction_output_hex": "37",
+        "same": true
+      },
+      {
+        "input": 212,
+        "input_hex": "d4",
+        "input_s8": -44,
+        "unsigned_formula_output": 116,
+        "unsigned_formula_output_hex": "74",
+        "signed_instruction_output": 116,
+        "signed_instruction_output_hex": "74",
+        "same": true
+      },
+      {
+        "input": 213,
+        "input_hex": "d5",
+        "input_s8": -43,
+        "unsigned_formula_output": 117,
+        "unsigned_formula_output_hex": "75",
+        "signed_instruction_output": 117,
+        "signed_instruction_output_hex": "75",
+        "same": true
+      },
+      {
+        "input": 214,
+        "input_hex": "d6",
+        "input_s8": -42,
+        "unsigned_formula_output": 118,
+        "unsigned_formula_output_hex": "76",
+        "signed_instruction_output": 118,
+        "signed_instruction_output_hex": "76",
+        "same": true
+      },
+      {
+        "input": 215,
+        "input_hex": "d7",
+        "input_s8": -41,
+        "unsigned_formula_output": 119,
+        "unsigned_formula_output_hex": "77",
+        "signed_instruction_output": 119,
+        "signed_instruction_output_hex": "77",
+        "same": true
+      },
+      {
+        "input": 216,
+        "input_hex": "d8",
+        "input_s8": -40,
+        "unsigned_formula_output": 180,
+        "unsigned_formula_output_hex": "b4",
+        "signed_instruction_output": 180,
+        "signed_instruction_output_hex": "b4",
+        "same": true
+      },
+      {
+        "input": 217,
+        "input_hex": "d9",
+        "input_s8": -39,
+        "unsigned_formula_output": 181,
+        "unsigned_formula_output_hex": "b5",
+        "signed_instruction_output": 181,
+        "signed_instruction_output_hex": "b5",
+        "same": true
+      },
+      {
+        "input": 218,
+        "input_hex": "da",
+        "input_s8": -38,
+        "unsigned_formula_output": 182,
+        "unsigned_formula_output_hex": "b6",
+        "signed_instruction_output": 182,
+        "signed_instruction_output_hex": "b6",
+        "same": true
+      },
+      {
+        "input": 219,
+        "input_hex": "db",
+        "input_s8": -37,
+        "unsigned_formula_output": 183,
+        "unsigned_formula_output_hex": "b7",
+        "signed_instruction_output": 183,
+        "signed_instruction_output_hex": "b7",
+        "same": true
+      },
+      {
+        "input": 220,
+        "input_hex": "dc",
+        "input_s8": -36,
+        "unsigned_formula_output": 244,
+        "unsigned_formula_output_hex": "f4",
+        "signed_instruction_output": 244,
+        "signed_instruction_output_hex": "f4",
+        "same": true
+      },
+      {
+        "input": 221,
+        "input_hex": "dd",
+        "input_s8": -35,
+        "unsigned_formula_output": 245,
+        "unsigned_formula_output_hex": "f5",
+        "signed_instruction_output": 245,
+        "signed_instruction_output_hex": "f5",
+        "same": true
+      },
+      {
+        "input": 222,
+        "input_hex": "de",
+        "input_s8": -34,
+        "unsigned_formula_output": 246,
+        "unsigned_formula_output_hex": "f6",
+        "signed_instruction_output": 246,
+        "signed_instruction_output_hex": "f6",
+        "same": true
+      },
+      {
+        "input": 223,
+        "input_hex": "df",
+        "input_s8": -33,
+        "unsigned_formula_output": 247,
+        "unsigned_formula_output_hex": "f7",
+        "signed_instruction_output": 247,
+        "signed_instruction_output_hex": "f7",
+        "same": true
+      },
+      {
+        "input": 224,
+        "input_hex": "e0",
+        "input_s8": -32,
+        "unsigned_formula_output": 56,
+        "unsigned_formula_output_hex": "38",
+        "signed_instruction_output": 56,
+        "signed_instruction_output_hex": "38",
+        "same": true
+      },
+      {
+        "input": 225,
+        "input_hex": "e1",
+        "input_s8": -31,
+        "unsigned_formula_output": 57,
+        "unsigned_formula_output_hex": "39",
+        "signed_instruction_output": 57,
+        "signed_instruction_output_hex": "39",
+        "same": true
+      },
+      {
+        "input": 226,
+        "input_hex": "e2",
+        "input_s8": -30,
+        "unsigned_formula_output": 58,
+        "unsigned_formula_output_hex": "3a",
+        "signed_instruction_output": 58,
+        "signed_instruction_output_hex": "3a",
+        "same": true
+      },
+      {
+        "input": 227,
+        "input_hex": "e3",
+        "input_s8": -29,
+        "unsigned_formula_output": 59,
+        "unsigned_formula_output_hex": "3b",
+        "signed_instruction_output": 59,
+        "signed_instruction_output_hex": "3b",
+        "same": true
+      },
+      {
+        "input": 228,
+        "input_hex": "e4",
+        "input_s8": -28,
+        "unsigned_formula_output": 120,
+        "unsigned_formula_output_hex": "78",
+        "signed_instruction_output": 120,
+        "signed_instruction_output_hex": "78",
+        "same": true
+      },
+      {
+        "input": 229,
+        "input_hex": "e5",
+        "input_s8": -27,
+        "unsigned_formula_output": 121,
+        "unsigned_formula_output_hex": "79",
+        "signed_instruction_output": 121,
+        "signed_instruction_output_hex": "79",
+        "same": true
+      },
+      {
+        "input": 230,
+        "input_hex": "e6",
+        "input_s8": -26,
+        "unsigned_formula_output": 122,
+        "unsigned_formula_output_hex": "7a",
+        "signed_instruction_output": 122,
+        "signed_instruction_output_hex": "7a",
+        "same": true
+      },
+      {
+        "input": 231,
+        "input_hex": "e7",
+        "input_s8": -25,
+        "unsigned_formula_output": 123,
+        "unsigned_formula_output_hex": "7b",
+        "signed_instruction_output": 123,
+        "signed_instruction_output_hex": "7b",
+        "same": true
+      },
+      {
+        "input": 232,
+        "input_hex": "e8",
+        "input_s8": -24,
+        "unsigned_formula_output": 184,
+        "unsigned_formula_output_hex": "b8",
+        "signed_instruction_output": 184,
+        "signed_instruction_output_hex": "b8",
+        "same": true
+      },
+      {
+        "input": 233,
+        "input_hex": "e9",
+        "input_s8": -23,
+        "unsigned_formula_output": 185,
+        "unsigned_formula_output_hex": "b9",
+        "signed_instruction_output": 185,
+        "signed_instruction_output_hex": "b9",
+        "same": true
+      },
+      {
+        "input": 234,
+        "input_hex": "ea",
+        "input_s8": -22,
+        "unsigned_formula_output": 186,
+        "unsigned_formula_output_hex": "ba",
+        "signed_instruction_output": 186,
+        "signed_instruction_output_hex": "ba",
+        "same": true
+      },
+      {
+        "input": 235,
+        "input_hex": "eb",
+        "input_s8": -21,
+        "unsigned_formula_output": 187,
+        "unsigned_formula_output_hex": "bb",
+        "signed_instruction_output": 187,
+        "signed_instruction_output_hex": "bb",
+        "same": true
+      },
+      {
+        "input": 236,
+        "input_hex": "ec",
+        "input_s8": -20,
+        "unsigned_formula_output": 248,
+        "unsigned_formula_output_hex": "f8",
+        "signed_instruction_output": 248,
+        "signed_instruction_output_hex": "f8",
+        "same": true
+      },
+      {
+        "input": 237,
+        "input_hex": "ed",
+        "input_s8": -19,
+        "unsigned_formula_output": 249,
+        "unsigned_formula_output_hex": "f9",
+        "signed_instruction_output": 249,
+        "signed_instruction_output_hex": "f9",
+        "same": true
+      },
+      {
+        "input": 238,
+        "input_hex": "ee",
+        "input_s8": -18,
+        "unsigned_formula_output": 250,
+        "unsigned_formula_output_hex": "fa",
+        "signed_instruction_output": 250,
+        "signed_instruction_output_hex": "fa",
+        "same": true
+      },
+      {
+        "input": 239,
+        "input_hex": "ef",
+        "input_s8": -17,
+        "unsigned_formula_output": 251,
+        "unsigned_formula_output_hex": "fb",
+        "signed_instruction_output": 251,
+        "signed_instruction_output_hex": "fb",
+        "same": true
+      },
+      {
+        "input": 240,
+        "input_hex": "f0",
+        "input_s8": -16,
+        "unsigned_formula_output": 60,
+        "unsigned_formula_output_hex": "3c",
+        "signed_instruction_output": 60,
+        "signed_instruction_output_hex": "3c",
+        "same": true
+      },
+      {
+        "input": 241,
+        "input_hex": "f1",
+        "input_s8": -15,
+        "unsigned_formula_output": 61,
+        "unsigned_formula_output_hex": "3d",
+        "signed_instruction_output": 61,
+        "signed_instruction_output_hex": "3d",
+        "same": true
+      },
+      {
+        "input": 242,
+        "input_hex": "f2",
+        "input_s8": -14,
+        "unsigned_formula_output": 62,
+        "unsigned_formula_output_hex": "3e",
+        "signed_instruction_output": 62,
+        "signed_instruction_output_hex": "3e",
+        "same": true
+      },
+      {
+        "input": 243,
+        "input_hex": "f3",
+        "input_s8": -13,
+        "unsigned_formula_output": 63,
+        "unsigned_formula_output_hex": "3f",
+        "signed_instruction_output": 63,
+        "signed_instruction_output_hex": "3f",
+        "same": true
+      },
+      {
+        "input": 244,
+        "input_hex": "f4",
+        "input_s8": -12,
+        "unsigned_formula_output": 124,
+        "unsigned_formula_output_hex": "7c",
+        "signed_instruction_output": 124,
+        "signed_instruction_output_hex": "7c",
+        "same": true
+      },
+      {
+        "input": 245,
+        "input_hex": "f5",
+        "input_s8": -11,
+        "unsigned_formula_output": 125,
+        "unsigned_formula_output_hex": "7d",
+        "signed_instruction_output": 125,
+        "signed_instruction_output_hex": "7d",
+        "same": true
+      },
+      {
+        "input": 246,
+        "input_hex": "f6",
+        "input_s8": -10,
+        "unsigned_formula_output": 126,
+        "unsigned_formula_output_hex": "7e",
+        "signed_instruction_output": 126,
+        "signed_instruction_output_hex": "7e",
+        "same": true
+      },
+      {
+        "input": 247,
+        "input_hex": "f7",
+        "input_s8": -9,
+        "unsigned_formula_output": 127,
+        "unsigned_formula_output_hex": "7f",
+        "signed_instruction_output": 127,
+        "signed_instruction_output_hex": "7f",
+        "same": true
+      },
+      {
+        "input": 248,
+        "input_hex": "f8",
+        "input_s8": -8,
+        "unsigned_formula_output": 188,
+        "unsigned_formula_output_hex": "bc",
+        "signed_instruction_output": 188,
+        "signed_instruction_output_hex": "bc",
+        "same": true
+      },
+      {
+        "input": 249,
+        "input_hex": "f9",
+        "input_s8": -7,
+        "unsigned_formula_output": 189,
+        "unsigned_formula_output_hex": "bd",
+        "signed_instruction_output": 189,
+        "signed_instruction_output_hex": "bd",
+        "same": true
+      },
+      {
+        "input": 250,
+        "input_hex": "fa",
+        "input_s8": -6,
+        "unsigned_formula_output": 190,
+        "unsigned_formula_output_hex": "be",
+        "signed_instruction_output": 190,
+        "signed_instruction_output_hex": "be",
+        "same": true
+      },
+      {
+        "input": 251,
+        "input_hex": "fb",
+        "input_s8": -5,
+        "unsigned_formula_output": 191,
+        "unsigned_formula_output_hex": "bf",
+        "signed_instruction_output": 191,
+        "signed_instruction_output_hex": "bf",
+        "same": true
+      },
+      {
+        "input": 252,
+        "input_hex": "fc",
+        "input_s8": -4,
+        "unsigned_formula_output": 252,
+        "unsigned_formula_output_hex": "fc",
+        "signed_instruction_output": 252,
+        "signed_instruction_output_hex": "fc",
+        "same": true
+      },
+      {
+        "input": 253,
+        "input_hex": "fd",
+        "input_s8": -3,
+        "unsigned_formula_output": 253,
+        "unsigned_formula_output_hex": "fd",
+        "signed_instruction_output": 253,
+        "signed_instruction_output_hex": "fd",
+        "same": true
+      },
+      {
+        "input": 254,
+        "input_hex": "fe",
+        "input_s8": -2,
+        "unsigned_formula_output": 254,
+        "unsigned_formula_output_hex": "fe",
+        "signed_instruction_output": 254,
+        "signed_instruction_output_hex": "fe",
+        "same": true
+      },
+      {
+        "input": 255,
+        "input_hex": "ff",
+        "input_s8": -1,
+        "unsigned_formula_output": 255,
+        "unsigned_formula_output_hex": "ff",
+        "signed_instruction_output": 255,
+        "signed_instruction_output_hex": "ff",
+        "same": true
+      }
+    ],
+    "differences": []
+  },
+  "sar_vs_shr_difference_summary": {
+    "after_and_0f0_difference_count": 0,
+    "after_and_0f0_difference_inputs": [],
+    "raw_movsx_before_mask_difference_count": 128,
+    "raw_movsx_before_mask_difference_input_range": "0x80..0xff",
+    "raw_movsx_before_mask_sample": [
+      {
+        "input": 128,
+        "input_hex": "80",
+        "input_s8": -128,
+        "sar_raw_32": -32,
+        "shr_raw_32": 1073741792,
+        "sar_raw_low8": 224,
+        "shr_raw_low8": 224,
+        "low8_same": true
+      },
+      {
+        "input": 129,
+        "input_hex": "81",
+        "input_s8": -127,
+        "sar_raw_32": -32,
+        "shr_raw_32": 1073741792,
+        "sar_raw_low8": 224,
+        "shr_raw_low8": 224,
+        "low8_same": true
+      },
+      {
+        "input": 130,
+        "input_hex": "82",
+        "input_s8": -126,
+        "sar_raw_32": -32,
+        "shr_raw_32": 1073741792,
+        "sar_raw_low8": 224,
+        "shr_raw_low8": 224,
+        "low8_same": true
+      },
+      {
+        "input": 131,
+        "input_hex": "83",
+        "input_s8": -125,
+        "sar_raw_32": -32,
+        "shr_raw_32": 1073741792,
+        "sar_raw_low8": 224,
+        "shr_raw_low8": 224,
+        "low8_same": true
+      },
+      {
+        "input": 132,
+        "input_hex": "84",
+        "input_s8": -124,
+        "sar_raw_32": -31,
+        "shr_raw_32": 1073741793,
+        "sar_raw_low8": 225,
+        "shr_raw_low8": 225,
+        "low8_same": true
+      },
+      {
+        "input": 133,
+        "input_hex": "85",
+        "input_s8": -123,
+        "sar_raw_32": -31,
+        "shr_raw_32": 1073741793,
+        "sar_raw_low8": 225,
+        "shr_raw_low8": 225,
+        "low8_same": true
+      },
+      {
+        "input": 134,
+        "input_hex": "86",
+        "input_s8": -122,
+        "sar_raw_32": -31,
+        "shr_raw_32": 1073741793,
+        "sar_raw_low8": 225,
+        "shr_raw_low8": 225,
+        "low8_same": true
+      },
+      {
+        "input": 135,
+        "input_hex": "87",
+        "input_s8": -121,
+        "sar_raw_32": -31,
+        "shr_raw_32": 1073741793,
+        "sar_raw_low8": 225,
+        "shr_raw_low8": 225,
+        "low8_same": true
+      }
+    ],
+    "conclusion": "sar and shr differ for negative movsx values before masking, but the observed instruction masks with 0xF0 before sar; after that mask, final low-byte output matches the unsigned high-level model for all 0..255 inputs."
+  },
+  "movsx_effect_summary": {
+    "destination_movsx_before_masks": true,
+    "target_movsx_before_compare": true,
+    "final_store": "mov Destination[ecx], al",
+    "output_byte_difference_count": 0,
+    "compare_semantics": "movsx is applied to both transformed Destination[i] and byte_429A30[i]; signed 32-bit equality is equivalent to byte equality for equal low bytes.",
+    "conclusion": "movsx affects intermediate 32-bit signs, but the observed masks and final AL truncation mean it does not change the final transform byte versus the old unsigned formula."
+  },
+  "first_16_compare_boundary": {
+    "static_boundary": "first 16 transformed bytes",
+    "success_condition_evidence": "cmp [ebp+var_C], 10h / jnz loc_4012EF",
+    "compare_xref_related": true,
+    "prior_length_observations": [
+      "input length check: strlen(Str) must equal 18",
+      "copy: strncpy(Destination, Str, 16) copies at most 16 bytes from input",
+      "transform loop iterates over all v4 bytes (18), but Destination only has 16 copied bytes",
+      "compare loop condition: i < v4 (18) AND Destination[i] == byte_429A30[i]",
+      "success condition: i == 16, meaning first 16 bytes must match; bytes 17-18 are not compared against target",
+      "division v9/v8 where v8=0 is a potential anti-debug trap or dead code (would cause divide-by-zero exception)"
+    ],
+    "runtime_validation": false,
+    "conclusion": "The first-16-byte compare is a static analysis boundary only, not runtime proof."
+  },
+  "per_byte_printable_preimage_signed_model": {
+    "model": "signed_instruction",
+    "printable_domain": "0x20..0x7e",
+    "target_length": 16,
+    "all_target_bytes_have_printable_preimage": false,
+    "all_target_bytes_have_unique_printable_preimage": false,
+    "per_byte": [
+      {
+        "index": 0,
+        "target_byte": 213,
+        "target_byte_hex": "d5",
+        "preimage_count": 1,
+        "has_printable_preimage": true,
+        "unique_printable_preimage": 93,
+        "printable_preimages": [
+          93
+        ],
+        "printable_preimages_hex": [
+          "5d"
+        ],
+        "printable_preimages_text": "]"
+      },
+      {
+        "index": 1,
+        "target_byte": 150,
+        "target_byte_hex": "96",
+        "preimage_count": 1,
+        "has_printable_preimage": true,
+        "unique_printable_preimage": 90,
+        "printable_preimages": [
+          90
+        ],
+        "printable_preimages_hex": [
+          "5a"
+        ],
+        "printable_preimages_text": "Z"
+      },
+      {
+        "index": 2,
+        "target_byte": 196,
+        "target_byte_hex": "c4",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 3,
+        "target_byte": 246,
+        "target_byte_hex": "f6",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 4,
+        "target_byte": 7,
+        "target_byte_hex": "07",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 5,
+        "target_byte": 69,
+        "target_byte_hex": "45",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 6,
+        "target_byte": 87,
+        "target_byte_hex": "57",
+        "preimage_count": 1,
+        "has_printable_preimage": true,
+        "unique_printable_preimage": 87,
+        "printable_preimages": [
+          87
+        ],
+        "printable_preimages_hex": [
+          "57"
+        ],
+        "printable_preimages_text": "W"
+      },
+      {
+        "index": 7,
+        "target_byte": 119,
+        "target_byte_hex": "77",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 8,
+        "target_byte": 118,
+        "target_byte_hex": "76",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 9,
+        "target_byte": 229,
+        "target_byte_hex": "e5",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 10,
+        "target_byte": 246,
+        "target_byte_hex": "f6",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 11,
+        "target_byte": 72,
+        "target_byte_hex": "48",
+        "preimage_count": 1,
+        "has_printable_preimage": true,
+        "unique_printable_preimage": 36,
+        "printable_preimages": [
+          36
+        ],
+        "printable_preimages_hex": [
+          "24"
+        ],
+        "printable_preimages_text": "$"
+      },
+      {
+        "index": 12,
+        "target_byte": 71,
+        "target_byte_hex": "47",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 13,
+        "target_byte": 247,
+        "target_byte_hex": "f7",
+        "preimage_count": 0,
+        "has_printable_preimage": false,
+        "unique_printable_preimage": null,
+        "printable_preimages": [],
+        "printable_preimages_hex": [],
+        "printable_preimages_text": null
+      },
+      {
+        "index": 14,
+        "target_byte": 72,
+        "target_byte_hex": "48",
+        "preimage_count": 1,
+        "has_printable_preimage": true,
+        "unique_printable_preimage": 36,
+        "printable_preimages": [
+          36
+        ],
+        "printable_preimages_hex": [
+          "24"
+        ],
+        "printable_preimages_text": "$"
+      },
+      {
+        "index": 15,
+        "target_byte": 23,
+        "target_byte_hex": "17",
+        "preimage_count": 1,
+        "has_printable_preimage": true,
+        "unique_printable_preimage": 83,
+        "printable_preimages": [
+          83
+        ],
+        "printable_preimages_hex": [
+          "53"
+        ],
+        "printable_preimages_text": "S"
+      }
+    ],
+    "static_preimage_preview_hex": "",
+    "static_preimage_preview_ascii_if_printable": ""
+  },
+  "static_preimage_status": {
+    "complete_printable_preimage": false,
+    "unique_printable_preimage": false,
+    "authoritative": false,
+    "requires_runtime_validation": true
+  },
+  "candidate": null,
+  "known_candidate": "",
+  "status": "BLOCKED",
+  "blocked_reason": "NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_SIGNED_MODEL",
+  "recommended_next_action": "Continue static refinement of the transform/target evidence; do not brute force or expand budget."
+}
