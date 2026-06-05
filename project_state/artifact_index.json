@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T05:12:20Z",
+  "generated_at": "2026-06-05T07:19:36Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -62,7 +62,8 @@
     "local_reverse_ida_evidence_affine_8cfebe03": "solve_reports\\tool_artifacts\\local_reverse_affine_ida_static_export_v1\\affine_8cfebe03\\affine_ida_evidence.json",
     "local_reverse_affine_main_input_flow_reextract": "project_state\\local_reverse_affine_main_input_flow_reextract.json",
     "local_reverse_affine_main0_targeted_ida_decompile": "project_state\\local_reverse_affine_main0_targeted_ida_decompile.json",
-    "local_reverse_affine_inverse_handoff": "project_state\\local_reverse_affine_inverse_handoff.json"
+    "local_reverse_affine_inverse_handoff": "project_state\\local_reverse_affine_inverse_handoff.json",
+    "local_reverse_cpp1_2f6fcb63_static_triage": "project_state\\local_reverse_cpp1_2f6fcb63_static_triage.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -665,6 +666,16 @@
       "size_bytes": 5397,
       "modified_at": "2026-06-05T05:12:20Z",
       "sample_id": "affine_8cfebe03"
+    },
+    "local_reverse_cpp1_2f6fcb63_static_triage": {
+      "kind": "local_reverse_single_sample_static_triage",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "freshness": "current",
+      "source_run": "round_20260605_cpp1_single_sample_static_triage_v1",
+      "sha256": "ad25e7f11d764b6668468f7c52b48cb8a888139ba2cf9ae37d65a2a372d3ed35",
+      "size_bytes": 21388,
+      "modified_at": "2026-06-05T07:19:36Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [

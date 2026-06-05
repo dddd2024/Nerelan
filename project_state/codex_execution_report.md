@@ -1,34 +1,41 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260605_affine_training_status_lint_report_rework_v1",
-  "round_id": "round_20260605_affine_training_status_lint_report_rework_v1",
-  "based_on_decision_id": "decision_20260605_affine_training_status_lint_report_rework_v1",
+  "report_id": "report_20260605_cpp1_single_sample_static_triage_v1",
+  "round_id": "round_20260605_cpp1_single_sample_static_triage_v1",
+  "based_on_decision_id": "decision_20260605_cpp1_2f6fcb63_static_triage_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPT",
   "files_changed": [
+    "reverse_agent/local_reverse_single_sample_static_triage.py",
+    "tests/test_local_reverse_single_sample_static_triage.py",
+    "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt",
-    "project_state/local_reverse_training_status.json",
-    "project_state/local_reverse_evaluation_queue.json"
+    "project_state/pytest_result.txt"
   ],
   "tests_ran": [
-    "python -m py_compile reverse_agent/local_reverse_training_status.py",
+    "python -m py_compile reverse_agent/local_reverse_single_sample_static_triage.py",
+    "python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py",
     "python -m pytest -q tests/test_local_reverse_training_status.py",
     "python -m pytest -q tests/test_project_state.py",
-    "python -m reverse_agent.local_reverse_training_status --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_2f6fcb63 ...",
     "git diff --check",
     "git status --short"
   ],
+  "generated_artifacts": [
+    "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json"
+  ],
   "test_results": {
     "py_compile": "PASSED (Exit code 0)",
+    "pytest_triage": "PASSED (23 passed)",
     "pytest_training_status": "PASSED (22 passed)",
     "pytest_project_state": "PASSED (157 passed)",
-    "training_status_cli": "PASSED (Exit code 0, samples=29 solved=1 blocked=3 inventory_only=25)",
     "lint_decision": "PASSED",
-    "lint_report": "PASSED (after report update, Exit code 0)",
+    "lint_report": "PASSED (after report update)",
+    "triage_cli": "PASSED (Exit code 0, tool_status=success, compare_contexts=1)",
     "git_diff_check": "PASSED",
     "git_status": "PASSED"
   }
@@ -40,77 +47,73 @@
 ## 1. 执行权威与轮次说明
 
 - **当前 decision_packet**：`project_state/decision_packet.md` 是本轮唯一执行权威。
-- **本轮性质**：training_dataset - lint-report 记录返工。
-- **主线**：`training_dataset`。
-- **本轮 decision_id**：`decision_20260605_affine_training_status_lint_report_rework_v1`。
-- **上一轮状态**：`decision_20260605_affine_training_status_overlay_rework_v1` 审计结论为 `REWORK_REQUIRED`。
+- **本轮性质**：tool_integration - 创建 single-sample static triage adapter 并对 cpp1_2f6fcb63 执行 IDA 静态 triage。
+- **主线**：`tool_integration`。
+- **本轮 decision_id**：`decision_20260605_cpp1_2f6fcb63_static_triage_v1`。
 
-## 2. 返工原因与目标
+## 2. 执行摘要
 
-上一轮核心代码返工已正确，但缺少一个验收缺口：
+| 项目 | 值 |
+|------|-----|
+| 目标样本 | cpp1_2f6fcb63 (CPP1.exe) |
+| 操作 | 创建 single-sample static triage adapter，运行 IDA 静态 triage |
+| IDA 结果 | tool_status=success, compare_contexts=1 |
+| solver_profile_hypotheses | string_compare_password_checker, standard_input_based |
 
-```text
-required command 缺失：
-python -m reverse_agent.project_state lint-report --state-dir project_state
+## 3. 关键发现
 
-该命令没有出现在 codex_report_summary.tests_ran，也没有出现在 pytest_result.txt。
-```
+### 3.1 cpp1_2f6fcb63 Triage 结果
 
-本轮目标：**只修复 lint-report 测试记录缺口，并同步 report / pytest_result。**
+| 字段 | 值 |
+|------|-----|
+| tool_status | success |
+| interesting_strings | 50 |
+| functions | 30 |
+| compare_contexts | 1 |
+| input_apis | scanf |
+| solver_profile_hypotheses | string_compare_password_checker, standard_input_based |
+| recommended_next_action | Compare context found; consider constraint recovery or targeted decompilation. |
 
-## 3. 执行结果
+### 3.2 新模块设计
 
-### 3.1 Required Tests（全部通过）
+`local_reverse_single_sample_static_triage.py`:
+- 从 queue/inventory 定位样本
+- 解析 metadata 和本地路径
+- 调用现有 tool_runners._resolve_ida_executable/_resolve_ida_script
+- 调用 IDA batch mode (idat64.exe -A -S collect_evidence.py)
+- 将输出压缩成 triage summary artifact
+- **不执行样本**、**不生成 candidate**
 
-| # | 命令 | Exit Code | 结果 |
-|---|------|-----------|------|
-| 1 | py_compile training_status.py | 0 | PASSED |
-| 2 | pytest training_status | 0 | PASSED (22 passed) |
-| 3 | pytest project_state | 0 | PASSED (157 passed) |
-| 4 | training_status CLI | 0 | PASSED |
-| 5 | lint-decision | 0 | PASSED |
-| 6 | lint-report | 0 | PASSED (after update) |
-| 7 | git diff --check | 0 | PASSED |
-| 8 | git status --short | 0 | PASSED |
+## 4. 文件变更
 
-### 3.2 关键样本状态验证
+| 文件 | 操作 | 说明 |
+|------|------|------|
+| `reverse_agent/local_reverse_single_sample_static_triage.py` | **新增** | Single-sample static triage adapter |
+| `tests/test_local_reverse_single_sample_static_triage.py` | **新增** | 23 个测试用例 |
+| `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` | **新增** | Triage artifact |
+| `project_state/artifact_index.json` | 修改 | 登记新 artifact |
+| `project_state/codex_execution_report.md` | 修改 | 更新为当前 round |
+| `project_state/pytest_result.txt` | 修改 | 更新为当前 round |
 
-| sample_id | training_status | blocked_reason | known_candidate | in_queue |
-|-----------|-----------------|----------------|-----------------|----------|
-| affine_8cfebe03 | blocked | MISSING_EXPECTED_CIPHERTEXT | "" | False ✅ |
-| cpp1_bcbd9979 | solved | - | hookapi | - ✅ |
-| cpp2_4c69f173 | blocked | MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005 | "" | - ✅ |
-| sha_256_18019fca | blocked | NO_BOUNDED_HASH_PREIMAGE_DOMAIN | "" | - ✅ |
-
-### 3.3 未修改核心代码
-
-本轮只更新了 report 和 pytest_result 的 round/decision ID，未修改：
-- `reverse_agent/local_reverse_training_status.py`
-- `tests/test_local_reverse_training_status.py`
-
-## 4. 审计合规声明
+## 5. 审计合规声明
 
 | # | 审计项 | 状态 |
 |---|--------|------|
 | 1 | 确认当前 decision_packet 是本轮唯一执行权威 | ✅ |
 | 2 | 确认 task_packet.task 只是 advisory | ✅ |
-| 3 | 确认本轮主线为 training_dataset | ✅ |
-| 4 | 确认本轮只是 lint-report 记录返工 | ✅ |
-| 5 | 运行 python -m reverse_agent.project_state lint-report --state-dir project_state | ✅ |
-| 6 | 将 lint-report 写入 codex_report_summary.tests_ran | ✅ |
-| 7 | 将 lint-report 写入 pytest_result.txt | ✅ |
-| 8 | 确认 lint-report Exit Code 0 | ✅ |
-| 9 | 确认 affine_8cfebe03 仍为 training_status=blocked | ✅ |
-| 10 | 确认 affine_8cfebe03 blocked_reason=MISSING_EXPECTED_CIPHERTEXT | ✅ |
-| 11 | 确认 affine_8cfebe03 known_candidate="" | ✅ |
-| 12 | 确认 affine_8cfebe03 不在 local_reverse_evaluation_queue.json | ✅ |
-| 13 | 确认 cpp1_bcbd9979 remains solved | ✅ |
-| 14 | 确认 cpp2_4c69f173 remains blocked | ✅ |
-| 15 | 确认 sha_256_18019fca remains blocked | ✅ |
-| 16 | 没有运行 affine.exe 或任何本地样本 | ✅ |
-| 17 | 没有运行 runtime probe、debugger、emulator | ✅ |
-| 18 | 没有提交 solve_reports、IDA .i64、log、原始样本 | ✅ |
-| 19 | 没有修改 .codex-skills | ✅ |
-| 20 | codex_report_summary.based_on_decision_id 等于 decision_20260605_affine_training_status_lint_report_rework_v1 | ✅ |
-| 21 | codex_report_summary.tests_ran 完整列出 required commands，包括 lint-report | ✅ |
-| 22 | pytest_result.txt 记录每条命令、Exit Code 和输出摘要 | ✅ |
+| 3 | 确认本轮主线为 tool_integration | ✅ |
+| 4 | 检查并复用已有 tool_runners._resolve_ida_executable/_resolve_ida_script | ✅ |
+| 5 | 检查并复用已有 collect_evidence.py | ✅ |
+| 6 | 没有新建重复 IDA runner | ✅ |
+| 7 | 没有运行 cpp1_2f6fcb63 (CPP1.exe) | ✅ |
+| 8 | 没有运行 runtime probe、debugger、emulator | ✅ |
+| 9 | 没有运行 solver blind search | ✅ |
+| 10 | 没有上传原始样本 | ✅ |
+| 11 | 没有修改 .codex-skills | ✅ |
+| 12 | artifact 明确 static_only=True, executed_sample=False, runtime_validated=False | ✅ |
+| 13 | artifact 明确 candidate=None, known_candidate="" | ✅ |
+| 14 | 生成 project_state/local_reverse_cpp1_2f6fcb63_static_triage.json | ✅ |
+| 15 | 登记到 artifact_index.latest_artifacts 和 latest_artifacts_v2 | ✅ |
+| 16 | 新增 23 个测试用例全部通过 | ✅ |
+| 17 | 更新 codex_execution_report.md 和 pytest_result.txt | ✅ |
+| 18 | codex_report_summary.based_on_decision_id 等于 decision_20260605_cpp1_2f6fcb63_static_triage_v1 | ✅ |
