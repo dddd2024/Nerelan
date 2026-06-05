@@ -1,8 +1,8 @@
 ================================================================================
-PYTEST RESULT - Round: round_20260605_cpp1_single_sample_static_triage_v1
-Decision: decision_20260605_cpp1_2f6fcb63_static_triage_v1
-Report: report_20260605_cpp1_single_sample_static_triage_v1
-Generated: 2026-06-05T07:15:00Z
+PYTEST RESULT - Round: round_20260605_cpp1_static_triage_metadata_rework_v1
+Decision: decision_20260605_cpp1_static_triage_metadata_rework_v1
+Report: report_20260605_cpp1_static_triage_metadata_rework_v1
+Generated: 2026-06-05T07:45:00Z
 Status: PASSED
 Acceptance: ACCEPT
 Tests Ran: 9
@@ -10,7 +10,16 @@ Tests Passed: 9
 Tests Failed: 0
 ================================================================================
 
-[1] python -m py_compile reverse_agent/local_reverse_single_sample_static_triage.py
+[1] python -m py_compile reverse_agent/tool_runners.py
+--------------------------------------------------------------------------------
+Command: python -m py_compile reverse_agent/tool_runners.py
+Exit Code: 0
+Output: (none)
+Result: PASSED
+
+================================================================================
+
+[2] python -m py_compile reverse_agent/local_reverse_single_sample_static_triage.py
 --------------------------------------------------------------------------------
 Command: python -m py_compile reverse_agent/local_reverse_single_sample_static_triage.py
 Exit Code: 0
@@ -19,24 +28,13 @@ Result: PASSED
 
 ================================================================================
 
-[2] python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py
+[3] python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py
 --------------------------------------------------------------------------------
 Command: python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py
 Exit Code: 0
 Output:
-.......................                                                 [100%]
-23 passed in 0.94s
-Result: PASSED
-
-================================================================================
-
-[3] python -m pytest -q tests/test_local_reverse_training_status.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_training_status.py
-Exit Code: 0
-Output:
-......................                                                  [100%]
-22 passed in 1.38s
+.......................                                                  [100%]
+23 passed in 1.32s
 Result: PASSED
 
 ================================================================================
@@ -49,7 +47,7 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 .............                                                            [100%]
-157 passed in 45.54s (0:00:45)
+157 passed in 57.92s (0:00:57)
 Result: PASSED
 
 ================================================================================
@@ -60,7 +58,7 @@ Command: python -m reverse_agent.project_state lint-decision --state-dir project
 Exit Code: 0
 Output:
 lint-decision: OK
-decision_id: decision_20260605_cpp1_2f6fcb63_static_triage_v1
+decision_id: decision_20260605_cpp1_static_triage_metadata_rework_v1
 decision_status: APPROVED
 mainline: tool_integration
 Result: PASSED
@@ -73,14 +71,14 @@ Command: python -m reverse_agent.project_state lint-report --state-dir project_s
 Exit Code: 0
 Output:
 lint-report: OK
-report_id: report_20260605_cpp1_single_sample_static_triage_v1
+report_id: report_20260605_cpp1_static_triage_metadata_rework_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPT
-based_on_decision_id: decision_20260605_cpp1_2f6fcb63_static_triage_v1
+based_on_decision_id: decision_20260605_cpp1_static_triage_metadata_rework_v1
 decision_report_id_match: True
-round_id: round_20260605_cpp1_single_sample_static_triage_v1
-report_round_id: round_20260605_cpp1_single_sample_static_triage_v1
-decision_round_id: round_20260605_cpp1_single_sample_static_triage_v1
+round_id: round_20260605_cpp1_static_triage_metadata_rework_v1
+report_round_id: round_20260605_cpp1_static_triage_metadata_rework_v1
+decision_round_id: round_20260605_cpp1_static_triage_metadata_rework_v1
 report_decision_round_id_match: True
 Result: PASSED
 
@@ -88,7 +86,7 @@ Result: PASSED
 
 [7] Single Sample Static Triage CLI
 --------------------------------------------------------------------------------
-Command: python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_2f6fcb63 --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_cpp1_2f6fcb63_static_triage.json
+Command: python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_2f6fcb63 --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_static_triage.json
 Exit Code: 0
 Output:
 static triage: status=success sample_id=cpp1_2f6fcb63
@@ -116,10 +114,8 @@ Exit Code: 0
 Output:
  M project_state/artifact_index.json
  M project_state/codex_execution_report.md
+ M project_state/local_reverse_cpp1_2f6fcb63_static_triage.json
  M project_state/pytest_result.txt
-?? project_state/local_reverse_cpp1_2f6fcb63_static_triage.json
-?? reverse_agent/local_reverse_single_sample_static_triage.py
-?? tests/test_local_reverse_single_sample_static_triage.py
 Result: PASSED
 
 ================================================================================
