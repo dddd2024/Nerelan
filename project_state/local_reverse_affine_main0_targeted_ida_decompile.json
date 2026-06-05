@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "relative_path": "逆向课程2024春补考03/affine.exe",
+  "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+  "size_bytes": 196688,
+  "analysis_mode": "targeted_ida_decompile_main0",
+  "executed_sample": false,
+  "ida_static_only": true,
+  "source_summary": "project_state/local_reverse_affine_ida_summary.json",
+  "source_reextract": "project_state/local_reverse_affine_main_input_flow_reextract.json",
+  "source_evidence": "solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_evidence.json",
+  "forced_evidence": "solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_evidence_forced_main0.json",
+  "target": {
+    "function": "_main_0",
+    "ea": "0x401010",
+    "range": "0x401000-0x401100"
+  },
+  "ida_status": "success",
+  "hexrays_available": true,
+  "pseudocode_available": true,
+  "pseudocode": "int __cdecl main_0(int argc, const char **argv, const char **envp)\n{\n  signed int i; // [esp+4Ch] [ebp-78h]\n  signed int j; // [esp+4Ch] [ebp-78h]\n  signed int v6; // [esp+50h] [ebp-74h]\n  char Str[97]; // [esp+58h] [ebp-6Ch] BYREF\n  __int16 v8; // [esp+B9h] [ebp-Bh]\n  char v9; // [esp+BBh] [ebp-9h]\n  int v10; // [esp+BCh] [ebp-8h]\n  int v11; // [esp+C0h] [ebp-4h]\n\n  v11 = 5;\n  v10 = 5;\n  memset(Str, 0, sizeof(Str));\n  v8 = 0;\n  v9 = 0;\n  puts(\"please input a string:\");\n  scanf(\"%s\", Str);\n  v6 = strlen(Str);\n  for ( i = 0; i < v6; ++i )\n  {\n    if ( Str[i] < 97 || Str[i] > 122 )\n      return -1;\n  }\n  for ( j = 0; j < v6; ++j )\n    Str[j] = (v10 + v11 * (Str[j] - 97)) % 26 + 97;\n  printf(\"%s\", Str);\n  system(\"pause\");\n  return 0;\n}",
+  "bounded_disassembly_context": [],
+  "input_flow_evidence": {
+    "input_api": "scanf",
+    "format_string": "%s",
+    "buffer": "Str[97]",
+    "buffer_size_bytes": 97,
+    "prompt": "please input a string:",
+    "prompt_api": "puts",
+    "notes": [
+      "scanf with %s reads unbounded string into 97-byte local stack buffer",
+      "No explicit length check before scanf; potential buffer overflow if input > 96 chars"
+    ]
+  },
+  "post_scanf_flow_evidence": {
+    "length_computation": "v6 = strlen(Str)",
+    "input_validation_loop": {
+      "description": "for i=0..v6-1: check Str[i] in range 97..122 ('a'-'z')",
+      "range_check": {
+        "min_char": 97,
+        "max_char": 122,
+        "min_char_repr": "'a'",
+        "max_char_repr": "'z'",
+        "enforcement": "hard_exit",
+        "exit_value": -1,
+        "notes": "Strict enforcement: returns -1 immediately if any char outside a-z"
+      }
+    },
+    "transform_loop": {
+      "description": "for j=0..v6-1: apply affine cipher to each character",
+      "transform_formula": "Str[j] = (v10 + v11 * (Str[j] - 97)) % 26 + 97",
+      "affine_parameters": {
+        "a": 5,
+        "b": 5,
+        "a_repr": "v11",
+        "b_repr": "v10",
+        "modulus": 26
+      },
+      "cipher_type": "affine_cipher",
+      "notes": [
+        "Affine cipher: c = (a * p + b) mod 26, where a=5, b=5",
+        "Input chars mapped: p = Str[j] - 97 (0..25 for 'a'-'z')",
+        "Output chars: c + 97 (back to 'a'-'z' range)"
+      ]
+    },
+    "output": {
+      "api": "printf",
+      "format": "%s",
+      "output_content": "transformed string (ciphertext)"
+    },
+    "termination": {
+      "api": "system(\"pause\")",
+      "return_value": 0
+    }
+  },
+  "candidate_transform_sites": [
+    {
+      "location": "_main_0 transform loop",
+      "ea": "0x401010+",
+      "description": "Affine cipher transformation inline in _main_0",
+      "formula": "Str[j] = (5 + 5 * (Str[j] - 97)) % 26 + 97",
+      "type": "affine_cipher",
+      "in_place": true
+    }
+  ],
+  "candidate_compare_sites": [],
+  "success_failure_branch_candidates": [],
+  "notes": [
+    "NO explicit compare/success/failure branch found in _main_0",
+    "Program transforms input and prints result; no validation against target string",
+    "This is a pure transform program (affine cipher encoder), not a password checker",
+    "To reverse: need to find expected output (ciphertext) and compute modular inverse of a=5 mod 26"
+  ],
+  "confidence": "high",
+  "blockers": [],
+  "recommended_next_action": "affine_constraint_recovery",
+  "recommended_next_focus": "Find expected ciphertext output (from problem statement or external source) to compute inverse affine: p = a^-1 * (c - b) mod 26, where a^-1 = 21 (since 5*21=105=1 mod 26)"
+}

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T02:09:24Z",
+  "generated_at": "2026-06-05T03:34:14Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -60,7 +60,8 @@
     "local_reverse_affine_static_feature_summary": "project_state\\local_reverse_affine_static_feature_summary.json",
     "local_reverse_affine_ida_summary": "project_state\\local_reverse_affine_ida_summary.json",
     "local_reverse_ida_evidence_affine_8cfebe03": "solve_reports\\tool_artifacts\\local_reverse_affine_ida_static_export_v1\\affine_8cfebe03\\affine_ida_evidence.json",
-    "local_reverse_affine_main_input_flow_reextract": "project_state\\local_reverse_affine_main_input_flow_reextract.json"
+    "local_reverse_affine_main_input_flow_reextract": "project_state\\local_reverse_affine_main_input_flow_reextract.json",
+    "local_reverse_affine_main0_targeted_ida_decompile": "project_state\\local_reverse_affine_main0_targeted_ida_decompile.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -642,6 +643,16 @@
       "sha256": "f903d1a8efef29ad3f585f0b05be86ed454bde96eb0cdd10b42a44bd5df6fbb0",
       "size_bytes": 25759,
       "modified_at": "2026-06-05T02:09:24Z",
+      "sample_id": "affine_8cfebe03"
+    },
+    "local_reverse_affine_main0_targeted_ida_decompile": {
+      "kind": "local_reverse_affine_main0_targeted_ida_decompile",
+      "path": "project_state\\local_reverse_affine_main0_targeted_ida_decompile.json",
+      "freshness": "current",
+      "source_run": "round_20260605_affine_main0_targeted_ida_decompile_v1",
+      "sha256": "cb8145e7a3dc1b5441fabee71d3aa14d1272e015e8dbf453deab5c37f070a958",
+      "size_bytes": 4533,
+      "modified_at": "2026-06-05T03:34:14Z",
       "sample_id": "affine_8cfebe03"
     }
   },

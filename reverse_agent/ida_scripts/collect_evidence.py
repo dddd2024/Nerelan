@@ -349,6 +349,39 @@ def _collect_validation_function_candidates(
     return candidates[:limit]
 
 
+def _parse_forced_funcs() -> list[str]:
+    """Parse REVERSE_AGENT_IDA_FORCE_FUNCS env var into list of function names."""
+    env = os.environ.get("REVERSE_AGENT_IDA_FORCE_FUNCS", "").strip()
+    if not env:
+        return []
+    return [f.strip() for f in env.split(",") if f.strip()]
+
+
+def _decompile_single_function(func_name: str, chars_per_snippet: int = 1400) -> dict[str, str] | None:
+    """Decompile a single function by name. Returns snippet dict or None."""
+    ea = idc.get_name_ea_simple(func_name)
+    if ea == idc.BADADDR:
+        return None
+    func = ida_funcs.get_func(ea)
+    if not func:
+        return None
+    try:
+        import ida_hexrays  # type: ignore
+        if not ida_hexrays.init_hexrays_plugin():
+            return None
+        cfunc = ida_hexrays.decompile(func.start_ea)
+    except Exception:
+        return None
+    if not cfunc:
+        return None
+    text = str(cfunc)
+    return {
+        "function": func_name,
+        "entry_ea": _format_ea(int(func.start_ea)),
+        "text": text[:chars_per_snippet],
+    }
+
+
 def _collect_decompiler_snippets(
     validation_function_candidates: list[dict[str, str]],
     limit: int = 6,
@@ -392,6 +425,25 @@ def _collect_decompiler_snippets(
         if len(snippets) >= limit:
             break
     return True, snippets
+
+
+def _collect_forced_decompiler_snippets(
+    forced_funcs: list[str],
+    chars_per_snippet: int = 1400,
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    """Decompile forced functions. Returns (snippets, errors)."""
+    snippets: list[dict[str, str]] = []
+    errors: list[dict[str, str]] = []
+    for func_name in forced_funcs:
+        result = _decompile_single_function(func_name, chars_per_snippet)
+        if result:
+            snippets.append(result)
+        else:
+            errors.append({
+                "function": func_name,
+                "error": "decompile_failed_or_not_found",
+            })
+    return snippets, errors
 
 
 def _infer_solver_hints(
@@ -487,6 +539,14 @@ def main() -> None:
         string_xrefs=string_xrefs,
     )
     hexrays_available, decompiler_snippets = _collect_decompiler_snippets(validation_function_candidates)
+
+    # Forced decompile targets (env var override for targeted analysis)
+    forced_funcs = _parse_forced_funcs()
+    forced_snippets: list[dict[str, str]] = []
+    forced_errors: list[dict[str, str]] = []
+    if forced_funcs:
+        forced_snippets, forced_errors = _collect_forced_decompiler_snippets(forced_funcs)
+
     payload = {
         "entry": hex(entry_ea),
         "strings": _collect_strings(),
@@ -498,6 +558,9 @@ def main() -> None:
         "validation_function_candidates": validation_function_candidates,
         "hexrays_available": hexrays_available,
         "decompiler_snippets": decompiler_snippets,
+        "forced_decompiler_snippets": forced_snippets,
+        "forced_targets": forced_funcs,
+        "forced_export_errors": forced_errors,
         "solver_hints": _infer_solver_hints(
             compare_contexts=compare_contexts,
             local_check_contexts=local_check_contexts,
