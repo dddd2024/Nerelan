@@ -16,6 +16,7 @@ from reverse_agent.local_reverse_cpp1_target_byte_extract import (
     _find_sample_root,
     _parse_extraction,
     _resolve_binary_path,
+    run_target_provenance_recheck,
     run_target_byte_extraction,
 )
 
@@ -28,6 +29,31 @@ def _write_json(path: Path, data: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, indent=2, ensure_ascii=False)
+
+
+def _write_minimal_pe_with_target(path: Path, target_bytes: bytes) -> None:
+    data = bytearray(b"\0" * 0x2000)
+    data[0:2] = b"MZ"
+    data[0x3C:0x40] = (0x80).to_bytes(4, "little")
+    data[0x80:0x84] = b"PE\0\0"
+    coff = 0x84
+    data[coff + 2:coff + 4] = (1).to_bytes(2, "little")
+    data[coff + 16:coff + 18] = (0xE0).to_bytes(2, "little")
+    optional = coff + 20
+    data[optional:optional + 2] = (0x10B).to_bytes(2, "little")
+    data[optional + 28:optional + 32] = (0x400000).to_bytes(4, "little")
+    section = optional + 0xE0
+    data[section:section + 8] = b".data\0\0\0"
+    data[section + 8:section + 12] = (0x2000).to_bytes(4, "little")
+    data[section + 12:section + 16] = (0x29000).to_bytes(4, "little")
+    data[section + 16:section + 20] = (0x2000).to_bytes(4, "little")
+    data[section + 20:section + 24] = (0x400).to_bytes(4, "little")
+    target_offset = 0x400 + 0xA30
+    data[target_offset - 0x40:target_offset + 0x40 + 18] = bytes(
+        (i * 7) & 0xFF for i in range(0x40 + 0x40 + 18)
+    )
+    data[target_offset:target_offset + len(target_bytes)] = target_bytes
+    path.write_bytes(data)
 
 
 # ---------------------------------------------------------------------------
@@ -407,6 +433,208 @@ class TestRunTargetByteExtractionIntegration:
         assert result["candidate"] is None
         assert result["known_candidate"] == ""
         assert out_path.exists()
+
+
+class TestTargetProvenanceRecheck(TestRunTargetByteExtractionIntegration):
+    def _write_sources(self, tmp_path: Path) -> dict[str, Path]:
+        target_bytes = bytes.fromhex("d596c4f60745577776e5f64847f74817")
+        binary = tmp_path / "CPP1.exe"
+        _write_minimal_pe_with_target(binary, target_bytes)
+
+        artifact_index_path = tmp_path / "artifact_index.json"
+        target_path = tmp_path / "target_bytes.json"
+        transform_path = tmp_path / "transform.json"
+        signed_path = tmp_path / "signed.json"
+        ida_path = tmp_path / "ida.json"
+        out_path = tmp_path / "target_provenance.json"
+
+        source_entries = {
+            "local_reverse_cpp1_2f6fcb63_target_bytes": str(target_path),
+            "local_reverse_cpp1_2f6fcb63_transform_recheck": str(transform_path),
+            "local_reverse_cpp1_2f6fcb63_signed_transform_recheck": str(signed_path),
+            "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck": str(ida_path),
+        }
+        _write_json(
+            artifact_index_path,
+            {
+                "schema_version": 1,
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    key: {
+                        "path": value,
+                        "freshness": "current",
+                        "source_run": "round_source",
+                        "sample_id": "cpp1_2f6fcb63",
+                    }
+                    for key, value in source_entries.items()
+                },
+                "artifact_refs": {},
+            },
+        )
+        _write_json(
+            target_path,
+            {
+                "schema_version": 1,
+                "sample_id": "cpp1_2f6fcb63",
+                "relative_path": "CPP1.exe",
+                "target_symbol": "byte_429A30",
+                "target_address": "0x00429A30",
+                "target_length": 16,
+                "target_bytes_hex": target_bytes.hex(),
+                "target_bytes": list(target_bytes),
+                "executed_sample": False,
+                "static_only": True,
+                "runtime_validated": False,
+                "candidate": None,
+                "known_candidate": "",
+            },
+        )
+        _write_json(
+            transform_path,
+            {
+                "schema_version": 1,
+                "sample_id": "cpp1_2f6fcb63",
+                "executed_sample": False,
+                "static_only": True,
+                "runtime_validated": False,
+                "candidate": None,
+                "known_candidate": "",
+            },
+        )
+        _write_json(
+            signed_path,
+            {
+                "schema_version": 1,
+                "sample_id": "cpp1_2f6fcb63",
+                "executed_sample": False,
+                "static_only": True,
+                "runtime_validated": False,
+                "model_comparison_all_256": {
+                    "models_equivalent_after_u8_truncation": True,
+                },
+                "static_preimage_status": {
+                    "complete_printable_preimage": False,
+                },
+                "candidate": None,
+                "known_candidate": "",
+            },
+        )
+        _write_json(
+            ida_path,
+            {
+                "schema_version": 1,
+                "sample_id": "cpp1_2f6fcb63",
+                "executed_sample": False,
+                "static_only": True,
+                "runtime_validated": False,
+                "bounded_instruction_evidence": {
+                    "target_xref_context": {
+                        "target_name": "byte_429A30",
+                        "target_address": "0x00429A30",
+                        "xrefs": [
+                            {
+                                "from": "0x004010E7",
+                                "type": "data",
+                                "in_main": False,
+                                "basic_block": None,
+                                "window": [],
+                            },
+                            {
+                                "from": "0x004012BE",
+                                "type": "data",
+                                "in_main": True,
+                                "basic_block": 9,
+                                "window": [
+                                    {"address": "0x004012BE", "mnemonic": "movsx"},
+                                    {"address": "0x004012C5", "mnemonic": "cmp"},
+                                ],
+                            },
+                        ],
+                    }
+                },
+                "candidate": None,
+                "known_candidate": "",
+            },
+        )
+        return {
+            "artifact_index": artifact_index_path,
+            "target": target_path,
+            "transform": transform_path,
+            "signed": signed_path,
+            "ida": ida_path,
+            "out": out_path,
+            "binary": binary,
+        }
+
+    def test_target_provenance_recheck_confirms_raw_target_and_no_candidate(self, tmp_path: Path):
+        paths = self._write_sources(tmp_path)
+
+        with patch(
+            "reverse_agent.local_reverse_cpp1_target_byte_extract._resolve_binary_path",
+            return_value=paths["binary"],
+        ):
+            result = run_target_provenance_recheck(
+                target_bytes_path=paths["target"],
+                transform_recheck_path=paths["transform"],
+                signed_transform_recheck_path=paths["signed"],
+                ida_control_flow_path=paths["ida"],
+                artifact_index_path=paths["artifact_index"],
+                out_path=paths["out"],
+            )
+
+        assert result["analysis_mode"] == "target_byte_provenance_recheck"
+        assert result["mainline"] == "reverse_solving"
+        assert result["executed_sample"] is False
+        assert result["runtime_validated"] is False
+        assert result["candidate"] is None
+        assert result["known_candidate"] == ""
+        assert result["ida_used_this_round"] is False
+        assert result["used_existing_ida_interface"] is True
+        assert result["new_ida_runner_created"] is False
+        assert result["section_name"] == ".data"
+        assert result["current_target_matches_raw_data"] is True
+        assert result["confirmed_target_bytes_hex"] == "d596c4f60745577776e5f64847f74817"
+        assert result["provenance_verdict"] in {
+            "CONFIRMED_NO_PRINTABLE_PREIMAGE",
+            "ALTERNATIVE_PRINTABLE_SPAN_FOUND_NEEDS_REVIEW",
+        }
+        assert result["printable_preimage_feasibility_by_span"]["span_count"] > 0
+        assert result["printable_preimage_feasibility_by_span"]["current_span"]["relative_start"] == 0
+        assert result["printable_preimage_feasibility_by_span"]["current_span"]["length"] == 16
+        assert all(
+            -0x40 <= span["relative_start"] <= 0x40
+            and span["length"] in {16, 18}
+            for span in result["nearby_candidate_spans"]
+        )
+        assert result["signed_compare_notes"]["does_not_imply_target_extraction_error"] is True
+        assert result["compare_xrefs"][0]["from"] == "0x004012BE"
+        assert paths["out"].exists()
+
+        index = json.loads(paths["artifact_index"].read_text(encoding="utf-8"))
+        entry = index["latest_artifacts_v2"]["local_reverse_cpp1_2f6fcb63_target_provenance_recheck"]
+        assert entry["freshness"] == "current"
+        assert entry["source_run"] == "round_20260605_cpp1_target_byte_provenance_recheck_v1"
+        assert entry["sample_id"] == "cpp1_2f6fcb63"
+
+    def test_target_provenance_recheck_blocks_when_source_not_current(self, tmp_path: Path):
+        paths = self._write_sources(tmp_path)
+        index = json.loads(paths["artifact_index"].read_text(encoding="utf-8"))
+        index["latest_artifacts_v2"]["local_reverse_cpp1_2f6fcb63_target_bytes"]["freshness"] = "stale"
+        paths["artifact_index"].write_text(json.dumps(index), encoding="utf-8")
+
+        with patch(
+            "reverse_agent.local_reverse_cpp1_target_byte_extract._resolve_binary_path",
+            return_value=paths["binary"],
+        ), pytest.raises(ValueError, match="not current"):
+            run_target_provenance_recheck(
+                target_bytes_path=paths["target"],
+                transform_recheck_path=paths["transform"],
+                signed_transform_recheck_path=paths["signed"],
+                ida_control_flow_path=paths["ida"],
+                artifact_index_path=paths["artifact_index"],
+                out_path=paths["out"],
+            )
+        assert not paths["out"].exists()
 
     def test_binary_not_found_blocked(self, tmp_path: Path):
         """When binary cannot be resolved, returns BLOCKED/BINARY_NOT_FOUND."""

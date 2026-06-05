@@ -10,6 +10,7 @@ Does NOT execute the sample. Does NOT generate candidates.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
@@ -17,6 +18,13 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+from reverse_agent.local_reverse_cpp1_signed_transform_recheck import printable_preimages_for_target
+
+
+TARGET_PROVENANCE_ARTIFACT_KEY = "local_reverse_cpp1_2f6fcb63_target_provenance_recheck"
+TARGET_PROVENANCE_ARTIFACT_KIND = "local_reverse_cpp1_target_provenance_recheck"
+TARGET_PROVENANCE_SOURCE_RUN = "round_20260605_cpp1_target_byte_provenance_recheck_v1"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -32,6 +40,30 @@ def _save_json(path: Path, payload: dict[str, Any]) -> None:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _parse_int(value: Any) -> int | None:
+    if isinstance(value, int):
+        return value
+    if not isinstance(value, str) or not value.strip():
+        return None
+    text = value.strip()
+    try:
+        return int(text, 16) if text.lower().startswith("0x") else int(text, 10)
+    except ValueError:
+        return None
+
+
+def _hx(value: int | None) -> str:
+    return f"0x{value:08X}" if value is not None else ""
 
 
 def _find_sample_root() -> Path | None:
@@ -63,6 +95,398 @@ def _resolve_binary_path(relative_path: str) -> Path | None:
         return None
     full_path = root / relative_path
     return full_path if full_path.exists() else None
+
+
+def _read_pe_sections(binary_path: Path) -> list[dict[str, Any]]:
+    data = binary_path.read_bytes()
+    if len(data) < 0x40 or data[:2] != b"MZ":
+        return []
+    pe_offset = int.from_bytes(data[0x3C:0x40], "little")
+    if pe_offset <= 0 or pe_offset + 0x18 > len(data) or data[pe_offset:pe_offset + 4] != b"PE\0\0":
+        return []
+    coff = pe_offset + 4
+    section_count = int.from_bytes(data[coff + 2:coff + 4], "little")
+    optional_size = int.from_bytes(data[coff + 16:coff + 18], "little")
+    optional = coff + 20
+    if optional + optional_size > len(data):
+        return []
+    image_base = int.from_bytes(data[optional + 28:optional + 32], "little")
+    section_table = optional + optional_size
+    sections = []
+    for index in range(section_count):
+        off = section_table + index * 40
+        if off + 40 > len(data):
+            break
+        name = data[off:off + 8].split(b"\0", 1)[0].decode("ascii", errors="replace")
+        virtual_size = int.from_bytes(data[off + 8:off + 12], "little")
+        virtual_address = int.from_bytes(data[off + 12:off + 16], "little")
+        raw_size = int.from_bytes(data[off + 16:off + 20], "little")
+        raw_pointer = int.from_bytes(data[off + 20:off + 24], "little")
+        sections.append(
+            {
+                "name": name,
+                "image_base": image_base,
+                "virtual_address": virtual_address,
+                "virtual_start": image_base + virtual_address,
+                "virtual_end": image_base + virtual_address + max(virtual_size, raw_size),
+                "virtual_size": virtual_size,
+                "raw_pointer": raw_pointer,
+                "raw_size": raw_size,
+            }
+        )
+    return sections
+
+
+def _read_pe_window(binary_path: Path, target_address: int, radius: int = 0x40, max_span: int = 18) -> dict[str, Any]:
+    sections = _read_pe_sections(binary_path)
+    section = next(
+        (item for item in sections if item["virtual_start"] <= target_address < item["virtual_end"]),
+        None,
+    )
+    if not section:
+        return {
+            "available": False,
+            "blocked_reason": "TARGET_SECTION_NOT_FOUND",
+            "section_name": "",
+            "symbol_span": {},
+            "raw_data_window": {},
+            "target_file_offset": None,
+            "window_bytes": [],
+            "window_start_va": None,
+        }
+
+    data = binary_path.read_bytes()
+    target_file_offset = section["raw_pointer"] + (target_address - section["virtual_start"])
+    window_start_va = max(section["virtual_start"], target_address - radius)
+    window_end_va = min(section["virtual_end"], target_address + radius + max_span)
+    window_start_offset = section["raw_pointer"] + (window_start_va - section["virtual_start"])
+    window_end_offset = section["raw_pointer"] + (window_end_va - section["virtual_start"])
+    window_start_offset = max(0, min(window_start_offset, len(data)))
+    window_end_offset = max(window_start_offset, min(window_end_offset, len(data)))
+    window_bytes = list(data[window_start_offset:window_end_offset])
+    symbol_start_offset = target_file_offset - window_start_offset
+    symbol_bytes = data[target_file_offset:target_file_offset + 16]
+
+    return {
+        "available": True,
+        "blocked_reason": "",
+        "section_name": section["name"],
+        "target_file_offset": target_file_offset,
+        "window_start_va": window_start_va,
+        "window_bytes": window_bytes,
+        "symbol_span": {
+            "name": "byte_429A30",
+            "address": _hx(target_address),
+            "file_offset": target_file_offset,
+            "length": 16,
+            "section": section["name"],
+            "bytes_hex": symbol_bytes.hex(),
+        },
+        "raw_data_window": {
+            "start_address": _hx(window_start_va),
+            "end_address": _hx(window_start_va + len(window_bytes)),
+            "target_relative_offset": symbol_start_offset,
+            "radius_before": target_address - window_start_va,
+            "bytes_hex": bytes(window_bytes).hex(),
+        },
+    }
+
+
+def _source_artifact_freshness(artifact_index: dict[str, Any], keys: list[str]) -> dict[str, Any]:
+    v2 = artifact_index.get("latest_artifacts_v2", {})
+    freshness: dict[str, Any] = {}
+    for key in keys:
+        meta = v2.get(key, {})
+        freshness[key] = {
+            "path": meta.get("path", ""),
+            "freshness": meta.get("freshness", ""),
+            "source_run": meta.get("source_run", ""),
+            "sample_id": meta.get("sample_id", ""),
+        }
+    return freshness
+
+
+def _assert_current_artifacts(artifact_index: dict[str, Any], keys: list[str]) -> None:
+    freshness = _source_artifact_freshness(artifact_index, keys)
+    bad = [
+        key for key, meta in freshness.items()
+        if meta.get("freshness") != "current" or not meta.get("path")
+    ]
+    if bad:
+        raise ValueError("Required source artifact is not current: " + ", ".join(bad))
+
+
+def _xref_summary(ida_control_flow: dict[str, Any]) -> dict[str, Any]:
+    xref_context = (
+        ida_control_flow.get("bounded_instruction_evidence", {})
+        .get("target_xref_context", {})
+    )
+    xrefs = xref_context.get("xrefs", [])
+    compare_xrefs = []
+    data_xrefs = []
+    for item in xrefs:
+        record = {
+            "from": item.get("from", ""),
+            "type": item.get("type", ""),
+            "in_main": item.get("in_main", False),
+            "basic_block": item.get("basic_block"),
+            "window": item.get("window", []),
+        }
+        if item.get("in_main") or any(
+            str(insn.get("mnemonic", "")).lower() == "cmp"
+            for insn in item.get("window", [])
+        ):
+            compare_xrefs.append(record)
+        if item.get("type") == "data" or not item.get("in_main"):
+            data_xrefs.append(record)
+    return {
+        "target_name": xref_context.get("target_name", "byte_429A30"),
+        "target_address": xref_context.get("target_address", ""),
+        "compare_xrefs": compare_xrefs,
+        "data_xrefs": data_xrefs,
+    }
+
+
+def _span_feasibility(window: dict[str, Any], target_address: int, lengths: tuple[int, ...] = (16, 18)) -> list[dict[str, Any]]:
+    if not window.get("available"):
+        return []
+    window_bytes = window["window_bytes"]
+    window_start_va = int(window["window_start_va"])
+    spans: list[dict[str, Any]] = []
+    for relative_start in range(-0x40, 0x41):
+        start_va = target_address + relative_start
+        start_index = start_va - window_start_va
+        if start_index < 0:
+            continue
+        for length in lengths:
+            if start_index + length > len(window_bytes):
+                continue
+            span_bytes = window_bytes[start_index:start_index + length]
+            feasibility = printable_preimages_for_target(span_bytes, model="signed_instruction")
+            per_byte = feasibility["per_byte"]
+            missing = [
+                item["index"] for item in per_byte
+                if not item["has_printable_preimage"]
+            ]
+            spans.append(
+                {
+                    "start_address": _hx(start_va),
+                    "relative_start": relative_start,
+                    "length": length,
+                    "bytes_hex": bytes(span_bytes).hex(),
+                    "all_target_bytes_have_printable_preimage": feasibility[
+                        "all_target_bytes_have_printable_preimage"
+                    ],
+                    "missing_printable_preimage_indices": missing,
+                    "complete_printable_preimage_span": (
+                        "alternative_static_span_needs_review"
+                        if feasibility["all_target_bytes_have_printable_preimage"]
+                        else ""
+                    ),
+                }
+            )
+    return spans
+
+
+def _update_target_provenance_artifact_index(
+    artifact_index_path: Path,
+    out_path: Path,
+    sample_id: str,
+    generated_at: str,
+) -> None:
+    artifact_index = _load_json(artifact_index_path)
+    normalized_path = str(out_path).replace("/", "\\")
+    artifact_index.setdefault("latest_artifacts", {})[TARGET_PROVENANCE_ARTIFACT_KEY] = normalized_path
+    artifact_index.setdefault("artifact_refs", {})[TARGET_PROVENANCE_ARTIFACT_KEY] = normalized_path
+    artifact_index.setdefault("latest_artifacts_v2", {})[TARGET_PROVENANCE_ARTIFACT_KEY] = {
+        "kind": TARGET_PROVENANCE_ARTIFACT_KIND,
+        "path": normalized_path,
+        "freshness": "current",
+        "source_run": TARGET_PROVENANCE_SOURCE_RUN,
+        "sha256": _sha256_file(out_path),
+        "size_bytes": out_path.stat().st_size,
+        "modified_at": generated_at,
+        "sample_id": sample_id,
+    }
+    artifact_index["generated_at"] = generated_at
+    _save_json(artifact_index_path, artifact_index)
+
+
+def run_target_provenance_recheck(
+    *,
+    target_bytes_path: Path,
+    transform_recheck_path: Path,
+    signed_transform_recheck_path: Path,
+    ida_control_flow_path: Path,
+    artifact_index_path: Path,
+    out_path: Path,
+) -> dict[str, Any]:
+    artifact_index = _load_json(artifact_index_path)
+    source_keys = [
+        "local_reverse_cpp1_2f6fcb63_target_bytes",
+        "local_reverse_cpp1_2f6fcb63_transform_recheck",
+        "local_reverse_cpp1_2f6fcb63_signed_transform_recheck",
+        "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck",
+    ]
+    _assert_current_artifacts(artifact_index, source_keys)
+
+    target_artifact = _load_json(target_bytes_path)
+    transform_recheck = _load_json(transform_recheck_path)
+    signed_transform = _load_json(signed_transform_recheck_path)
+    ida_control_flow = _load_json(ida_control_flow_path)
+    for name, artifact in {
+        "target_bytes": target_artifact,
+        "transform_recheck": transform_recheck,
+        "signed_transform_recheck": signed_transform,
+        "ida_control_flow": ida_control_flow,
+    }.items():
+        if artifact.get("executed_sample") is not False:
+            raise ValueError(f"{name} artifact executed_sample must be false")
+        if artifact.get("runtime_validated") is not False:
+            raise ValueError(f"{name} artifact runtime_validated must be false")
+
+    sample_id = str(target_artifact.get("sample_id", ""))
+    if sample_id != "cpp1_2f6fcb63":
+        raise ValueError(f"Unexpected sample_id for cpp1 target provenance: {sample_id!r}")
+    target_address = _parse_int(target_artifact.get("target_address")) or 0x00429A30
+    target_bytes = target_artifact.get("target_bytes", [])
+    if len(target_bytes) != 16:
+        raise ValueError(f"target_bytes length must be 16, got {len(target_bytes)}")
+
+    binary_path = _resolve_binary_path(str(target_artifact.get("relative_path", "")))
+    window = (
+        _read_pe_window(binary_path, target_address)
+        if binary_path is not None
+        else {
+            "available": False,
+            "blocked_reason": "BINARY_NOT_FOUND",
+            "section_name": "",
+            "symbol_span": {},
+            "raw_data_window": {},
+            "target_file_offset": None,
+            "window_bytes": [],
+            "window_start_va": None,
+        }
+    )
+
+    xrefs = _xref_summary(ida_control_flow)
+    spans = _span_feasibility(window, target_address)
+    current_span = next(
+        (
+            span for span in spans
+            if span["relative_start"] == 0 and span["length"] == 16
+        ),
+        None,
+    )
+    alternative_spans = [
+        span for span in spans
+        if span["all_target_bytes_have_printable_preimage"]
+        and not (span["relative_start"] == 0 and span["length"] == 16)
+    ]
+
+    confirmed_hex = window.get("symbol_span", {}).get("bytes_hex", "")
+    target_hex = str(target_artifact.get("target_bytes_hex", ""))
+    current_target_matches_raw = bool(confirmed_hex) and confirmed_hex[: len(target_hex)] == target_hex
+    signed_preimage_complete = signed_transform.get(
+        "static_preimage_status", {}
+    ).get("complete_printable_preimage") is True
+
+    if not window.get("available"):
+        verdict = "INSUFFICIENT_TARGET_PROVENANCE"
+        blocked_reason = window.get("blocked_reason", "TARGET_RAW_WINDOW_UNAVAILABLE")
+    elif not current_target_matches_raw:
+        verdict = "INCONSISTENT_TARGET_BYTES"
+        blocked_reason = "TARGET_BYTES_DO_NOT_MATCH_RAW_DATA"
+    elif alternative_spans:
+        verdict = "ALTERNATIVE_PRINTABLE_SPAN_FOUND_NEEDS_REVIEW"
+        blocked_reason = "NEARBY_PRINTABLE_SPAN_NEEDS_STATIC_REVIEW"
+    elif signed_preimage_complete or (current_span and current_span["all_target_bytes_have_printable_preimage"]):
+        verdict = "INSUFFICIENT_TARGET_PROVENANCE"
+        blocked_reason = "CURRENT_SPAN_PRINTABLE_FEASIBILITY_CONFLICT"
+    else:
+        verdict = "CONFIRMED_NO_PRINTABLE_PREIMAGE"
+        blocked_reason = "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE"
+
+    generated_at = _now_iso()
+    result: dict[str, Any] = {
+        "schema_version": 1,
+        "sample_id": sample_id,
+        "analysis_mode": "target_byte_provenance_recheck",
+        "mainline": "reverse_solving",
+        "executed_sample": False,
+        "static_only": True,
+        "runtime_validated": False,
+        "generated_at": generated_at,
+        "source_artifacts": {
+            "target_bytes": str(target_bytes_path).replace("\\", "/"),
+            "transform_recheck": str(transform_recheck_path).replace("\\", "/"),
+            "signed_transform_recheck": str(signed_transform_recheck_path).replace("\\", "/"),
+            "ida_control_flow": str(ida_control_flow_path).replace("\\", "/"),
+            "artifact_index": str(artifact_index_path).replace("\\", "/"),
+        },
+        "source_artifact_freshness": _source_artifact_freshness(artifact_index, source_keys),
+        "ida_used_this_round": False,
+        "ida_invocation_scope": "none",
+        "used_existing_ida_interface": True,
+        "new_ida_runner_created": False,
+        "binary_static_parse": {
+            "attempted": binary_path is not None,
+            "binary_found": binary_path is not None,
+            "source": "existing target artifact relative_path plus PE section table",
+        },
+        "target_symbol": target_artifact.get("target_symbol", "byte_429A30"),
+        "target_address": target_artifact.get("target_address", _hx(target_address)),
+        "target_length_candidates": [16, 18],
+        "confirmed_target_bytes_hex": confirmed_hex[: len(target_hex)] if confirmed_hex else "",
+        "artifact_target_bytes_hex": target_hex,
+        "current_target_matches_raw_data": current_target_matches_raw,
+        "raw_data_window": window.get("raw_data_window", {}),
+        "section_name": window.get("section_name", ""),
+        "symbol_span": window.get("symbol_span", {}),
+        "compare_xrefs": xrefs["compare_xrefs"],
+        "data_xrefs": xrefs["data_xrefs"],
+        "nearby_candidate_spans": spans,
+        "printable_preimage_feasibility_by_span": {
+            "span_count": len(spans),
+            "bounded_window": "target_address +/- 0x40",
+            "allowed_lengths": [16, 18],
+            "current_span": current_span,
+            "alternative_printable_span_count": len(alternative_spans),
+            "alternative_printable_spans": alternative_spans,
+        },
+        "signed_compare_notes": {
+            "movsx_target_byte": "movsx byte_429A30[eax] sign-extends target bytes for compare only",
+            "bytes_above_0x7f": sorted({f"{b:02x}" for b in target_bytes if b > 0x7F}),
+            "does_not_imply_target_extraction_error": True,
+            "signed_unsigned_transform_equivalent_after_u8": signed_transform
+            .get("model_comparison_all_256", {})
+            .get("models_equivalent_after_u8_truncation"),
+            "current_target_has_complete_printable_preimage": signed_preimage_complete,
+        },
+        "provenance_verdict": verdict,
+        "candidate": None,
+        "known_candidate": "",
+        "status": "BLOCKED",
+        "blocked_reason": blocked_reason,
+        "recommended_next_action": (
+            "Keep cpp1_2f6fcb63 blocked/static-only. Current target bytes are raw-data "
+            "consistent but do not have a complete printable preimage under the confirmed "
+            "transform; any non-printable or alternative-span path needs a separate bounded "
+            "review decision."
+        ),
+    }
+
+    _save_json(out_path, result)
+    _update_target_provenance_artifact_index(artifact_index_path, out_path, sample_id, generated_at)
+    print(f"cpp1 target provenance recheck: status={result['status']} sample_id={sample_id}")
+    print(f"  provenance_verdict={result['provenance_verdict']}")
+    print(f"  target_matches_raw_data={result['current_target_matches_raw_data']}")
+    print(f"  alternative_printable_span_count={len(alternative_spans)}")
+    print(f"  candidate={result['candidate']}")
+    print(f"  known_candidate={result['known_candidate']!r}")
+    print(f"  runtime_validated={result['runtime_validated']}")
+    return result
+
 
 
 def _resolve_ida_executable() -> str:
@@ -453,13 +877,33 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Extract target compare bytes from cpp1_2f6fcb63 using IDA.",
     )
+    parser.add_argument(
+        "--provenance-recheck",
+        action="store_true",
+        help="Run bounded static target-byte provenance recheck from current artifacts.",
+    )
     parser.add_argument("--sample-id", default="cpp1_2f6fcb63", help="Sample ID")
     parser.add_argument("--triage", default="project_state/local_reverse_cpp1_2f6fcb63_static_triage.json")
     parser.add_argument("--inventory", default="project_state/local_reverse_inventory.json")
     parser.add_argument("--out", default="project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json")
+    parser.add_argument("--target-bytes", type=Path, default=Path("project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json"))
+    parser.add_argument("--transform-recheck", type=Path, default=Path("project_state/local_reverse_cpp1_2f6fcb63_transform_recheck.json"))
+    parser.add_argument("--signed-transform-recheck", type=Path, default=Path("project_state/local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json"))
+    parser.add_argument("--ida-control-flow", type=Path, default=Path("project_state/local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json"))
+    parser.add_argument("--artifact-index", type=Path, default=Path("project_state/artifact_index.json"))
     args = parser.parse_args()
 
     try:
+        if args.provenance_recheck:
+            run_target_provenance_recheck(
+                target_bytes_path=args.target_bytes,
+                transform_recheck_path=args.transform_recheck,
+                signed_transform_recheck_path=args.signed_transform_recheck,
+                ida_control_flow_path=args.ida_control_flow,
+                artifact_index_path=args.artifact_index,
+                out_path=Path(args.out),
+            )
+            return 0
         run_target_byte_extraction(
             sample_id=args.sample_id,
             triage_path=Path(args.triage),
