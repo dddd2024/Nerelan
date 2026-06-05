@@ -1,8 +1,8 @@
 ================================================================================
-PYTEST RESULT - Round: round_20260605_affine_main0_targeted_ida_decompile_v1
-Decision: decision_20260605_affine_main0_targeted_ida_decompile_v1
-Report: report_20260605_affine_main0_targeted_ida_decompile_v1
-Generated: 2026-06-05T03:34:00Z
+PYTEST RESULT - Round: round_20260605_affine_inverse_handoff_static_only_v1
+Decision: decision_20260605_affine_inverse_handoff_static_only_v1
+Report: report_20260605_affine_inverse_handoff_static_only_v1
+Generated: 2026-06-05T04:17:00Z
 Status: PASSED
 Acceptance: ACCEPT
 Tests Ran: 7
@@ -10,9 +10,9 @@ Tests Passed: 7
 Tests Failed: 0
 ================================================================================
 
-[1] python -m py_compile reverse_agent/ida_scripts/collect_evidence.py
+[1] python -m py_compile reverse_agent/local_reverse_affine_inverse_handoff.py
 --------------------------------------------------------------------------------
-Command: python -m py_compile reverse_agent/ida_scripts/collect_evidence.py
+Command: python -m py_compile reverse_agent/local_reverse_affine_inverse_handoff.py
 Exit Code: 0
 Output: (none)
 Result: PASSED
@@ -27,7 +27,7 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 .............                                                            [100%]
-157 passed in 83.85s (0:01:23)
+157 passed in 88.67s (0:01:28)
 Result: PASSED
 
 ================================================================================
@@ -38,9 +38,9 @@ Command: python -m reverse_agent.project_state lint-decision --state-dir project
 Exit Code: 0
 Output:
 lint-decision: OK
-decision_id: decision_20260605_affine_main0_targeted_ida_decompile_v1
+decision_id: decision_20260605_affine_inverse_handoff_static_only_v1
 decision_status: APPROVED
-mainline: tool_integration
+mainline: reverse_solving
 skill_profiles: ['reverse-agent-iteration@v2']
 based_on_state_build_id: state_20260602_053948_4e3984041cd7
 based_on_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
@@ -58,41 +58,30 @@ Command: python -m reverse_agent.project_state lint-report --state-dir project_s
 Exit Code: 0
 Output:
 lint-report: OK
-report_id: report_20260605_affine_main0_targeted_ida_decompile_v1
+report_id: report_20260605_affine_inverse_handoff_static_only_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPT
-based_on_decision_id: decision_20260605_affine_main0_targeted_ida_decompile_v1
-decision_id: decision_20260605_affine_main0_targeted_ida_decompile_v1
+based_on_decision_id: decision_20260605_affine_inverse_handoff_static_only_v1
+decision_id: decision_20260605_affine_inverse_handoff_static_only_v1
 decision_report_id_match: True
-round_id: round_20260605_affine_main0_targeted_ida_decompile_v1
-report_round_id: round_20260605_affine_main0_targeted_ida_decompile_v1
-decision_round_id: round_20260605_affine_main0_targeted_ida_decompile_v1
+round_id: round_20260605_affine_inverse_handoff_static_only_v1
+report_round_id: round_20260605_affine_inverse_handoff_static_only_v1
+decision_round_id: round_20260605_affine_inverse_handoff_static_only_v1
 report_decision_round_id_match: True
 Result: PASSED
 
 ================================================================================
 
-[5] IDA Targeted Static Export - _main_0 forced decompile
+[5] Affine Inverse Handoff CLI
 --------------------------------------------------------------------------------
-Command:
-  $env:REVERSE_AGENT_IDA_FORCE_FUNCS="_main_0"
-  $env:REVERSE_AGENT_IDA_OUT="solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_evidence_forced_main0.json"
-  & 'E:\Program Files\ida_pro\idat64.exe' -A `
-    -L"solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_forced_main0.log" `
-    -o"solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_forced_main0.i64" `
-    -S"reverse_agent/ida_scripts/collect_evidence.py" `
-    "E:\reverse\逆向课程2024春补考03\affine.exe"
-
+Command: python -m reverse_agent.local_reverse_affine_inverse_handoff --input project_state/local_reverse_affine_main0_targeted_ida_decompile.json --out project_state/local_reverse_affine_inverse_handoff.json
 Exit Code: 0
-Output: (IDA batch mode, no stdout)
+Output:
+affine inverse handoff: status=BLOCKED sample_id=affine_8cfebe03
+  forward: a=5 b=5 modulus=26
+  inverse_a=21 gcd=1
+  blocked_reason=MISSING_EXPECTED_CIPHERTEXT
 Result: PASSED
-
-Forced Export Results:
-  forced_targets: ["_main_0"]
-  forced_decompiler_snippets: 1
-  forced_errors: 0
-  hexrays_available: true
-  _main_0 entry_ea: 0x401010
 
 ================================================================================
 
@@ -113,10 +102,8 @@ Output:
  M project_state/artifact_index.json
  M project_state/codex_execution_report.md
  M project_state/pytest_result.txt
- M reverse_agent/ida_scripts/collect_evidence.py
-?? project_state/local_reverse_affine_main0_targeted_ida_decompile.json
-?? solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_evidence_forced_main0.json
-?? solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_forced_main0.log
+?? project_state/local_reverse_affine_inverse_handoff.json
+?? reverse_agent/local_reverse_affine_inverse_handoff.py
 Result: PASSED
 
 ================================================================================
