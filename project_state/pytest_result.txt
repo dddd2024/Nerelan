@@ -1,8 +1,8 @@
 ================================================================================
-PYTEST RESULT - Round: round_20260605_affine_training_status_overlay_rework_v1
-Decision: decision_20260605_affine_training_status_overlay_rework_v1
-Report: report_20260605_affine_training_status_overlay_rework_v1
-Generated: 2026-06-05T06:06:00Z
+PYTEST RESULT - Round: round_20260605_affine_training_status_lint_report_rework_v1
+Decision: decision_20260605_affine_training_status_lint_report_rework_v1
+Report: report_20260605_affine_training_status_lint_report_rework_v1
+Generated: 2026-06-05T06:25:00Z
 Status: PASSED
 Acceptance: ACCEPT
 Tests Ran: 8
@@ -24,24 +24,13 @@ Result: PASSED
 Command: python -m pytest -q tests/test_local_reverse_training_status.py
 Exit Code: 0
 Output:
-......................                                                  [100%]
-22 passed in 1.28s
+......................                                                   [100%]
+22 passed in 1.27s
 Result: PASSED
 
 ================================================================================
 
-[3] python -m pytest -q tests/test_local_reverse_affine_inverse_handoff.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_affine_inverse_handoff.py
-Exit Code: 0
-Output:
-...................................                                      [100%]
-35 passed in 1.09s
-Result: PASSED
-
-================================================================================
-
-[4] python -m pytest -q tests/test_project_state.py
+[3] python -m pytest -q tests/test_project_state.py
 --------------------------------------------------------------------------------
 Command: python -m pytest -q tests/test_project_state.py
 Exit Code: 0
@@ -49,25 +38,12 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 .............                                                            [100%]
-157 passed in 69.51s (0:01:09)
+157 passed in 62.08s (0:01:02)
 Result: PASSED
 
 ================================================================================
 
-[5] python -m reverse_agent.project_state lint-decision --state-dir project_state
---------------------------------------------------------------------------------
-Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
-Exit Code: 0
-Output:
-lint-decision: OK
-decision_id: decision_20260605_affine_training_status_overlay_rework_v1
-decision_status: APPROVED
-mainline: training_dataset
-Result: PASSED
-
-================================================================================
-
-[6] Training Status CLI with Tightened Overlay
+[4] Training Status CLI
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.local_reverse_training_status --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json
 Exit Code: 0
@@ -79,11 +55,38 @@ Output:
 [training_status] queue items: 22
 Result: PASSED
 
-Verification:
-  affine_8cfebe03: blocked, MISSING_EXPECTED_CIPHERTEXT, no candidate
-  affine_8cfebe03 classification: affine_cipher affine inverse handoff static only missing_expected_ciphertext
-  affine_8cfebe03 evidence_sources: [source:..., static_handoff, static_cipher_analysis]
-  affine_8cfebe03 in queue: False
+================================================================================
+
+[5] python -m reverse_agent.project_state lint-decision --state-dir project_state
+--------------------------------------------------------------------------------
+Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
+Exit Code: 0
+Output:
+lint-decision: OK
+decision_id: decision_20260605_affine_training_status_lint_report_rework_v1
+decision_status: APPROVED
+mainline: training_dataset
+Result: PASSED
+
+================================================================================
+
+[6] python -m reverse_agent.project_state lint-report --state-dir project_state
+--------------------------------------------------------------------------------
+Command: python -m reverse_agent.project_state lint-report --state-dir project_state
+Exit Code: 0
+Output:
+lint-report: OK
+report_id: report_20260605_affine_training_status_lint_report_rework_v1
+report_status: SUCCESS
+acceptance_recommendation: ACCEPT
+based_on_decision_id: decision_20260605_affine_training_status_lint_report_rework_v1
+decision_id: decision_20260605_affine_training_status_lint_report_rework_v1
+decision_report_id_match: True
+round_id: round_20260605_affine_training_status_lint_report_rework_v1
+report_round_id: round_20260605_affine_training_status_lint_report_rework_v1
+decision_round_id: round_20260605_affine_training_status_lint_report_rework_v1
+report_decision_round_id_match: True
+Result: PASSED
 
 ================================================================================
 
@@ -105,8 +108,6 @@ Output:
  M project_state/local_reverse_evaluation_queue.json
  M project_state/local_reverse_training_status.json
  M project_state/pytest_result.txt
- M reverse_agent/local_reverse_training_status.py
- M tests/test_local_reverse_training_status.py
 Result: PASSED
 
 ================================================================================
