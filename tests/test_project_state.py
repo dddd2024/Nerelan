@@ -3756,6 +3756,34 @@ def test_lint_report_fails_when_report_summary_missing(tmp_path: Path) -> None:
     assert "codex_report_summary missing" in result["errors"]
 
 
+def test_lint_report_fails_when_generated_artifacts_missing(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    payload = {
+        "schema_version": 1,
+        "report_id": "report_ok",
+        "round_id": str(current_state["round_id"]),
+        "based_on_decision_id": "decision_report",
+        "status": "SUCCESS",
+        "acceptance_recommendation": "ACCEPTED",
+        "files_changed": ["reverse_agent/project_state.py"],
+        "tests_ran": ["python -m pytest -q tests\\test_project_state.py"],
+    }
+    (state_dir / "codex_execution_report.md").write_text(
+        f"""```json codex_report_summary
+{json.dumps(payload, indent=2)}
+```
+
+# CODEX_EXECUTION_REPORT
+""",
+        encoding="utf-8",
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "generated_artifacts missing" in result["errors"]
+
+
 def test_lint_report_fails_when_report_status_template_only(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

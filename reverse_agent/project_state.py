@@ -1648,6 +1648,12 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
     if round_id and decision_round_id and round_id != decision_round_id:
         errors.append("report round_id does not match current decision round_id")
 
+    required_report_summary_list_fields = ("generated_artifacts",)
+    if report_status in {"SUCCESS", "PARTIAL", "BLOCKED", "FAILED"}:
+        for field in required_report_summary_list_fields:
+            if report.get(field) is None:
+                errors.append(f"{field} missing")
+
     for field in ("files_changed", "tests_ran", "generated_artifacts"):
         value = report.get(field)
         if value is not None and not isinstance(value, list):
