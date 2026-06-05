@@ -227,7 +227,7 @@ def run_cpp1_transform_recheck(
             "formula": "y = (x & 0x03) | ((x & 0x0C) << 4) | ((x & 0xF0) >> 2)",
             "bit_mapping": [
                 "y0=x0", "y1=x1", "y2=x4", "y3=x5",
-                "y4=x6", "y5=x7", "y6=x2", "y7=y3",
+                "y4=x6", "y5=x7", "y6=x2", "y7=x3",
             ],
         },
         "inverse_transform": {
