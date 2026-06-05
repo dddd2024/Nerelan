@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260605_affine_main0_targeted_ida_decompile_v1",
-  "round_id": "round_20260605_affine_main0_targeted_ida_decompile_v1",
+  "decision_id": "decision_20260605_affine_inverse_handoff_static_only_v1",
+  "round_id": "round_20260605_affine_inverse_handoff_static_only_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
-  "mainline": "tool_integration",
+  "mainline": "reverse_solving",
   "skill_profiles": [
     "reverse-agent-iteration@v2"
   ]
@@ -17,113 +17,89 @@
 
 ## 1. Goal
 
-本轮主线是 **tool_integration**。
+本轮主线是 **reverse_solving**。
 
-上一轮 `decision_20260605_affine_reextract_test_record_rework_v1` 已被审计为 `ACCEPTED`。当前技术 blocker 是 `project_state/local_reverse_affine_main_input_flow_reextract.json` 中记录的：
-
-```text
-MISSING_MAIN_0_PSEUDOCODE: _main_0 decompiler snippet not in raw evidence; core affine transform logic cannot be confirmed without targeted IDA decompilation of _main_0
-```
-
-本轮目标：**使用现有 IDA/Hex-Rays 工具链，对 `affine_8cfebe03` 的 `_main_0` 做有界 targeted decompilation/export，补齐 `_main_0` 伪代码或 bounded disassembly evidence，并生成可审计 JSON。**
-
-目标样本：
+上一轮 `decision_20260605_affine_main0_targeted_ida_decompile_v1` 审计结论为 `ACCEPTED_WITH_LIMITATIONS`。功能目标已经达成：IDA/Hex-Rays targeted export 成功补齐 `affine_8cfebe03` 的 `_main_0` 伪代码，并确认该程序是 **仿射密码编码器**，不是 password checker。限制项是：
 
 ```text
-sample_id: affine_8cfebe03
-relative_path: 逆向课程2024春补考03/affine.exe
-sha256: 8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659
-size_bytes: 196688
+1. codex_report_summary.tests_ran 漏列 git diff --check 与 git status --short，虽然 pytest_result.txt 已记录。
+2. git status --short 显示 solve_reports 下有 targeted IDA export JSON/log 未跟踪；下一轮提交前必须严格控制范围，不能提交 full solve_reports 或无必要 log/i64。
 ```
 
-本轮只允许 **IDA/Hex-Rays 静态导出**。不得运行样本，不得运行 solver，不得生成 candidate 或 flag，不得 runtime probe，不得 debugger/emulator。
+本轮目标：**基于 `project_state/local_reverse_affine_main0_targeted_ida_decompile.json` 中的 current IDA 静态证据，生成可复用的 affine inverse handoff / constraint artifact。**
 
-必须完成：
+必须明确：当前证据中没有 final compare、没有 success/failure branch、没有目标密文；因此本轮不得生成 flag，不得声称已解出 candidate。应输出一个结构化结果，说明：
 
 ```text
-1. 读取 project_state/task_packet.json、current_state.json、artifact_index.json、negative_results.json、codex_execution_report.md、decision_packet.md、pytest_result.txt。
-2. 确认 task_packet.task 只是 advisory，本 decision_packet 是本轮唯一执行权威。
-3. 确认 artifact_index 中 local_reverse_affine_ida_summary、local_reverse_ida_evidence_affine_8cfebe03、local_reverse_affine_main_input_flow_reextract 均为 freshness=current。
-4. 检查已有 IDA 能力：reverse_agent/tool_runners.py 与 reverse_agent/ida_scripts/collect_evidence.py。
-5. 不新建重复 IDA runner；优先最小扩展 reverse_agent/ida_scripts/collect_evidence.py，使其支持 forced function/eaddr decompile，例如通过 env 或 argv 指定 _main_0 / 0x401000-0x401100。
-6. 使用现有 IDA runner/IDAPython/Hex-Rays 能力，对 affine.exe 的 _main_0 做 targeted static export。
-7. 输出必须结构化记录：
-   - sample_id、relative_path、sha256、executed_sample=false
-   - ida_status、hexrays_available、target_function、target_ea/range
-   - _main_0 pseudocode（如可用）
-   - _main_0 bounded disassembly context（即使 pseudocode 不可用也要提供）
-   - scanf/puts/input buffer evidence
-   - post-scanf reads/writes/calls within _main_0
-   - candidate transform sites
-   - candidate compare/success/failure branch sites
-   - unresolved gaps and confidence
-8. 生成 project_state/local_reverse_affine_main0_targeted_ida_decompile.json。
-9. 更新 artifact_index.json，把新 artifact 登记到 latest_artifacts 和 latest_artifacts_v2，freshness=current，source_run=round_20260605_affine_main0_targeted_ida_decompile_v1。
-10. 更新 codex_execution_report.md 和 pytest_result.txt。
+transform: c = (5 * p + 5) mod 26
+alphabet: lowercase a-z
+inverse_a: 21
+inverse_formula: p = 21 * (c - 5) mod 26
+status: BLOCKED 或 PARTIAL，原因是 MISSING_EXPECTED_CIPHERTEXT
+recommended_next_action: provide expected ciphertext from challenge statement / captured output / allowed evidence source
 ```
+
+本轮只允许静态 JSON 处理和单元测试；不得运行 `affine.exe`，不得 runtime probe，不得 debugger/emulator，不得盲跑 solver，不得发明目标密文。
 
 ---
 
 ## 2. Current Evidence
 
-当前 `task_packet.json` 仍包含旧 samplereverse/local_reverse advisory 信息，不控制本轮。本轮以本 `project_state/decision_packet.md` 为唯一执行权威。
+当前 `task_packet.json` 仍含旧 samplereverse/local_reverse advisory 信息，不控制本轮。本轮以本 `project_state/decision_packet.md` 为唯一执行权威。
 
-上一轮已接受状态：
-
-```text
-codex_execution_report.md:
-  report_id: report_20260605_affine_reextract_test_record_rework_v1
-  based_on_decision_id: decision_20260605_affine_reextract_test_record_rework_v1
-  status: SUCCESS
-  tests_ran: py_compile, pytest, lint-decision, lint-report, bounded command, git diff --check, git status --short
-
-pytest_result.txt:
-  status: PASSED
-  Total Commands: 7
-  Passed: 7
-```
-
-当前 affine 相关 artifact：
+当前 affine targeted artifact：
 
 ```text
-local_reverse_affine_ida_summary:
-  path: project_state/local_reverse_affine_ida_summary.json
-  freshness: current
-  source_run: round_20260604_affine_detailed_evidence_consistency_rework_v1
-
-local_reverse_ida_evidence_affine_8cfebe03:
-  path: solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_evidence.json
-  freshness: current
-  source_run: round_20260604_affine_detailed_evidence_consistency_rework_v1
+project_state/local_reverse_affine_main0_targeted_ida_decompile.json
   sample_id: affine_8cfebe03
-
-local_reverse_affine_main_input_flow_reextract:
-  path: project_state/local_reverse_affine_main_input_flow_reextract.json
-  freshness: current
-  source_run: round_20260605_affine_reextract_scope_rework_v1
-  sample_id: affine_8cfebe03
+  relative_path: 逆向课程2024春补考03/affine.exe
+  sha256: 8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659
+  executed_sample: false
+  ida_static_only: true
+  ida_status: success
+  hexrays_available: true
+  pseudocode_available: true
+  confidence: high
+  recommended_next_action: affine_constraint_recovery
 ```
 
-关键 blocker：
+关键静态事实：
 
 ```text
-_main_0 pseudocode NOT available in raw IDA evidence.
-collect_evidence.py scoring did not include _main_0 in top-6 decompiler snippets.
-Input flow was extracted only from local_check_contexts and string_xrefs.
+input_api: scanf
+format_string: %s
+buffer: Str[97]
+input validation: every char must be 'a'..'z', otherwise return -1
+transform_formula: Str[j] = (v10 + v11 * (Str[j] - 97)) % 26 + 97
+affine_parameters: a=5, b=5, modulus=26
+cipher_type: affine_cipher
+output_api: printf("%s", Str)
+candidate_compare_sites: []
+success_failure_branch_candidates: []
+notes: pure transform program / encoder, not password checker
 ```
 
-已有工具能力：
+`artifact_index.latest_artifacts_v2` 中以下 affine artifact 均应保持 `freshness=current`：
 
 ```text
-reverse_agent/tool_runners.py:
-  - 已有 run_ida_evidence(...) 和 _run_ida(...)。
-  - _run_ida 使用 IDA -A、-L、-o、-S，并通过 REVERSE_AGENT_IDA_OUT 指定 JSON 输出。
-  - 不需要新建重复 IDA runner。
+local_reverse_affine_ida_summary
+local_reverse_ida_evidence_affine_8cfebe03
+local_reverse_affine_main_input_flow_reextract
+local_reverse_affine_main0_targeted_ida_decompile
+```
 
-reverse_agent/ida_scripts/collect_evidence.py:
-  - 已有字符串、函数、compare_contexts、local_check_contexts、string_xrefs、validation_function_candidates、Hex-Rays snippets 导出能力。
-  - 现有 _collect_decompiler_snippets(...) 只对 validation_function_candidates top candidates 做 decompile，limit 默认 6。
-  - 本轮应最小扩展该脚本，支持 forced _main_0 decompile/export，而不是重写 IDA 能力。
+已有相关能力：
+
+```text
+reverse_agent/local_reverse_constraint_recovery.py exists.
+It currently contains classification-specific constraint recovery for previous local_reverse profiles.
+Before adding any new code, Codex must inspect it and decide whether affine support belongs there or should be a small generic adapter.
+
+reverse_agent/local_reverse_targeted_static_reextract.py exists.
+Do not duplicate its static extraction role.
+
+reverse_agent/ida_scripts/collect_evidence.py already supports forced _main_0 decompile from the previous round.
+Do not rerun IDA unless this round becomes BLOCKED due to missing targeted artifact; normal path should consume the existing project_state JSON.
 ```
 
 `negative_results.json` 仍禁止 old sample_solver blind search、only increase beam/budget、commit full solve_reports、重复旧 runtime/probe 失败方向。本轮不得进入这些方向。
@@ -136,35 +112,36 @@ reverse_agent/ida_scripts/collect_evidence.py:
 
 ```text
 1. 不运行 affine.exe。
-2. 不运行 solver。
-3. 不生成 candidate、flag 或最终答案。
-4. 不运行 debugger、runtime probe、Frida、OllyDbg、x64dbg、emulator。
-5. 不上传 E:\reverse 原始样本。
-6. 不复制 affine.exe 到仓库。
-7. 不提交 full solve_reports 目录。
-8. 不修改 .codex-skills。
-9. 不新建重复 IDA runner 或 Ghidra runner。
-10. 不新建 affine 专用 solver。
-11. 不把 affine 单题结论写入长期 skill。
-12. 不回到 old sample_solver blind search。
-13. 不扩大 beam/budget/bruteforce。
-14. 不把 CRT/debug heap 函数表述为业务验证函数。
-15. 不把 IDA 静态证据等同于 runtime validation。
+2. 不运行 runtime probe、debugger、Frida、OllyDbg、x64dbg、emulator。
+3. 不生成 flag、validated_candidate 或最终答案。
+4. 不发明 expected ciphertext。
+5. 不把 printf 输出路径误判成 password checker 的 success path。
+6. 不把 candidate_compare_sites=[] 的程序硬塞进 compare solver。
+7. 不回到 old sample_solver blind search。
+8. 不扩大 beam/budget/bruteforce。
+9. 不新建 affine_8cfebe03 单样本硬编码 solver。
+10. 不把 affine 单题结论写入 .codex-skills。
+11. 不修改 .codex-skills。
+12. 不上传或复制 E:\reverse 原始样本。
+13. 不提交 full solve_reports 目录。
+14. 不提交 IDA .i64 数据库或无必要 log。
+15. 不把 IDA 静态证据说成 runtime validation。
 16. 不读取完整 solve_reports 或 PROJECT_PROGRESS_LOG.txt。
-17. 不把 _strncmp/__GLOBAL_HEAP_SELECTED 当作业务 final compare。
-18. 不删除或回退上一轮已接受的 affine reextract artifact。
-19. 不重新引入 reverse_agent/local_reverse_affine_main_input_flow_reextract.py。
+17. 不改变上一轮已接受 artifact 的语义事实。
+18. 不删除 current affine artifact。
 ```
 
 允许：
 
 ```text
-1. 运行 IDA/Hex-Rays 静态分析，仅限 affine_8cfebe03 的 _main_0 targeted export。
-2. 最小扩展 reverse_agent/ida_scripts/collect_evidence.py，使其支持 forced function/eaddr decompile/export。
-3. 必要时最小扩展 tool_runners.py 传递 forced target env/args；不得复制 runner。
-4. 生成 project_state/local_reverse_affine_main0_targeted_ida_decompile.json。
-5. 更新 artifact_index/codex_execution_report/pytest_result。
-6. 新增或修改与 forced IDA export 直接相关的轻量测试。
+1. 读取默认 project_state 事实源。
+2. 读取 project_state/local_reverse_affine_main0_targeted_ida_decompile.json。
+3. 检查 existing local_reverse constraint/static modules，避免重复造轮子。
+4. 新增或最小扩展一个通用 affine inverse handoff 能力，输入为结构化 affine static artifact。
+5. 输出 project_state/local_reverse_affine_inverse_handoff.json。
+6. 更新 artifact_index.json，将新 handoff 登记为 freshness=current。
+7. 更新 codex_execution_report.md 和 pytest_result.txt。
+8. 添加或修改轻量单元测试，覆盖 affine 参数解析、模逆元、无目标密文阻断。
 ```
 
 ---
@@ -186,20 +163,20 @@ project_state/pytest_result.txt
 必须检查：
 
 ```text
-project_state/local_reverse_affine_ida_summary.json
-project_state/local_reverse_affine_main_input_flow_reextract.json
-solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_evidence.json
-reverse_agent/tool_runners.py
-reverse_agent/ida_scripts/collect_evidence.py
+project_state/local_reverse_affine_main0_targeted_ida_decompile.json
+reverse_agent/local_reverse_constraint_recovery.py
 reverse_agent/local_reverse_targeted_static_reextract.py
+reverse_agent/local_reverse_training_status.py
+project_state/local_reverse_training_status.json
 ```
 
 必要时检查：
 
 ```text
-tests/test_project_state.py
+tests/test_local_reverse_constraint_recovery.py
 tests/test_local_reverse_inventory.py
 tests/test_local_reverse_training_status.py
+tests/test_project_state.py
 ```
 
 不要默认读取：
@@ -219,110 +196,113 @@ Codex 报告必须回答：
 ```text
 1. 是否确认当前 decision_packet 是本轮唯一执行权威。
 2. 是否确认 task_packet.task 只是 advisory。
-3. 是否确认目标样本是 affine_8cfebe03。
-4. 是否确认 sample_id、relative_path、sha256、size_bytes、executed_sample=false 未被错误修改。
-5. 是否确认 affine IDA summary、detailed evidence、main-input-flow reextract 在 artifact_index.latest_artifacts_v2 中 freshness=current。
-6. 是否检查并复用已有 IDA runner / IDAPython script。
-7. 是否没有新建重复 IDA/Ghidra runner。
-8. 如果修改 collect_evidence.py，是否只是最小 forced decompile/export 扩展。
-9. 是否只对 _main_0 / 0x401000-0x401100 做 targeted static export。
-10. 是否没有运行 affine.exe。
-11. 是否没有运行 solver、runtime probe、debugger、emulator。
-12. 是否没有上传原始样本。
-13. 是否没有提交 full solve_reports。
-14. 是否没有修改 .codex-skills。
-15. 是否生成 project_state/local_reverse_affine_main0_targeted_ida_decompile.json。
-16. 是否将该 artifact 登记到 artifact_index.latest_artifacts 和 latest_artifacts_v2，freshness=current，source_run=round_20260605_affine_main0_targeted_ida_decompile_v1。
-17. 是否明确区分 IDA static evidence 与 runtime validation。
-18. 是否没有把 _strncmp/__GLOBAL_HEAP_SELECTED 误判为业务 final compare。
-19. 是否更新 codex_execution_report.md 和 pytest_result.txt。
-20. pytest_result.txt 是否记录真实测试命令、IDA command 或 BLOCKED 原因、Exit code。
-21. codex_report_summary.based_on_decision_id 是否等于 decision_20260605_affine_main0_targeted_ida_decompile_v1。
+3. 是否确认本轮主线为 reverse_solving，且没有扩大到工程重构或训练集批量跑。
+4. 是否确认目标样本是 affine_8cfebe03。
+5. 是否确认 targeted IDA artifact 为 freshness=current。
+6. 是否确认 targeted artifact 中 executed_sample=false、ida_static_only=true。
+7. 是否确认程序为 affine encoder / pure transform，而不是 password checker。
+8. 是否确认 candidate_compare_sites=[]、success_failure_branch_candidates=[]。
+9. 是否检查并复用/评估已有 local_reverse_constraint_recovery.py，避免重复造轮子。
+10. 如果新增 affine handoff 模块，是否为通用 affine profile adapter，而非 affine_8cfebe03 硬编码。
+11. 是否计算并记录 gcd(a, modulus)=1 与 inverse_a=21。
+12. 是否在没有 expected ciphertext 时输出 BLOCKED/PARTIAL，而不是生成 candidate。
+13. 是否没有运行 affine.exe。
+14. 是否没有运行 runtime probe、debugger、emulator。
+15. 是否没有运行 old sample_solver blind search。
+16. 是否没有提交 full solve_reports、IDA .i64 或无必要 log。
+17. 是否没有修改 .codex-skills。
+18. 是否生成 project_state/local_reverse_affine_inverse_handoff.json。
+19. 是否更新 artifact_index.latest_artifacts 与 latest_artifacts_v2，freshness=current，source_run=round_20260605_affine_inverse_handoff_static_only_v1。
+20. 是否更新 codex_execution_report.md 与 pytest_result.txt。
+21. codex_report_summary.based_on_decision_id 是否等于 decision_20260605_affine_inverse_handoff_static_only_v1。
+22. codex_report_summary.tests_ran 是否完整列出 py_compile、pytest、lint-decision、lint-report、git diff --check、git status --short。
+23. pytest_result.txt 是否记录每条命令、Exit code 和输出摘要。
 ```
 
 ---
 
 ## 6. Implementation Scope
 
+优先方案：在现有 local_reverse 约束恢复体系中增加 **通用 affine encoder handoff**，不要写单题 solver。
+
 允许修改：
 
 ```text
-reverse_agent/ida_scripts/collect_evidence.py
+reverse_agent/local_reverse_constraint_recovery.py
 project_state/artifact_index.json
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
 
-必要时允许最小修改：
+如现有 `local_reverse_constraint_recovery.py` 的输入结构不适合消费 `local_reverse_affine_main0_targeted_ida_decompile.json`，允许新增一个小型通用 adapter：
 
 ```text
-reverse_agent/tool_runners.py
+reverse_agent/local_reverse_affine_inverse_handoff.py
 ```
 
-允许新增：
+允许新增输出：
 
 ```text
-project_state/local_reverse_affine_main0_targeted_ida_decompile.json
+project_state/local_reverse_affine_inverse_handoff.json
 ```
 
-如需测试 forced export helper，允许新增或修改直接相关的轻量测试，例如：
+允许新增或修改测试：
 
 ```text
-tests/test_ida_collect_evidence_forced_targets.py
+tests/test_local_reverse_affine_inverse_handoff.py
+tests/test_local_reverse_constraint_recovery.py
 ```
 
 实现约束：
 
 ```text
-1. 优先在 reverse_agent/ida_scripts/collect_evidence.py 中添加 forced targets 机制，例如：
-   - REVERSE_AGENT_IDA_FORCE_FUNCS=_main_0
-   - REVERSE_AGENT_IDA_FORCE_EAS=0x401000
-   - REVERSE_AGENT_IDA_FORCE_RANGE=0x401000:0x401100
-   - 或等价 argv 参数。
-2. forced export 应追加字段，不破坏旧字段：
-   - forced_decompiler_snippets
-   - forced_disassembly_contexts
-   - forced_targets
-   - forced_export_errors
-3. 保持旧 collect_evidence.py 默认行为兼容；未设置 forced target 时，原输出字段和 top-candidate snippets 不应被破坏。
-4. 不复制 IDA runner 逻辑。
-5. 不新增 Ghidra runner。
-6. 不新增 solver。
-7. 不读取或提交原始 affine.exe。
-8. 输出必须是结构化 JSON，便于下一轮 reextract/solver 选择。
-9. 如果 IDA/Hex-Rays 不可用或本地样本不可用，必须报告 BLOCKED，不得伪造 artifact。
+1. 输入必须来自 project_state/local_reverse_affine_main0_targeted_ida_decompile.json 或等价结构化 JSON。
+2. 不从原始 binary 重新提取，不运行 IDA，除非输入 artifact 缺失或不可解析，此时应 BLOCKED。
+3. 从 artifact 中读取 affine_parameters: a, b, modulus。
+4. 校验 alphabet/input domain 为 lowercase a-z；如果不满足，输出 BLOCKED/UNSUPPORTED_DOMAIN。
+5. 计算 gcd(a, modulus)。若 gcd != 1，输出 BLOCKED/NON_INVERTIBLE_AFFINE_MULTIPLIER。
+6. 对 a=5, modulus=26，计算 inverse_a=21。
+7. 输出 inverse_formula 与 per-character mapping 规则。
+8. 如果 artifact 未提供 expected_ciphertext，则 status=BLOCKED 或 PARTIAL，blocked_reason=MISSING_EXPECTED_CIPHERTEXT。
+9. 不生成 candidate，除非输入中明确存在 expected_ciphertext 且来源字段可审计；本轮当前 artifact 没有该字段，因此正常结果应不含 validated_candidate。
+10. 输出必须明确 static_only=true、runtime_validated=false、executed_sample=false。
+11. 保持旧字段兼容，不破坏已有 local_reverse_constraint_recovery tests。
+12. 不把本轮逻辑写入 .codex-skills。
 ```
 
-建议 `project_state/local_reverse_affine_main0_targeted_ida_decompile.json` 结构：
+建议输出结构：
 
 ```json
 {
   "schema_version": 1,
   "sample_id": "affine_8cfebe03",
-  "relative_path": "逆向课程2024春补考03/affine.exe",
-  "analysis_mode": "targeted_ida_decompile_main0",
+  "source_artifact": "project_state/local_reverse_affine_main0_targeted_ida_decompile.json",
+  "analysis_mode": "affine_inverse_handoff_static_only",
   "executed_sample": false,
-  "ida_static_only": true,
-  "source_summary": "project_state/local_reverse_affine_ida_summary.json",
-  "source_reextract": "project_state/local_reverse_affine_main_input_flow_reextract.json",
-  "target": {
-    "function": "_main_0",
-    "ea": "0x401000",
-    "range": "0x401000-0x401100"
+  "static_only": true,
+  "runtime_validated": false,
+  "cipher_type": "affine_cipher",
+  "domain": {
+    "alphabet": "lowercase_ascii",
+    "min_char": "a",
+    "max_char": "z",
+    "modulus": 26
   },
-  "ida_status": "success|blocked|failed",
-  "hexrays_available": true,
-  "pseudocode_available": true,
-  "pseudocode": "...",
-  "bounded_disassembly_context": [],
-  "input_flow_evidence": {},
-  "post_scanf_flow_evidence": {},
-  "candidate_transform_sites": [],
-  "candidate_compare_sites": [],
-  "success_failure_branch_candidates": [],
-  "confidence": "low|medium|high",
-  "blockers": [],
-  "recommended_next_action": "rerun_main_input_reextract|affine_constraint_recovery|blocked"
+  "forward_transform": {
+    "a": 5,
+    "b": 5,
+    "formula": "c = (a * p + b) mod 26"
+  },
+  "inverse_transform": {
+    "gcd_a_modulus": 1,
+    "inverse_a": 21,
+    "formula": "p = inverse_a * (c - b) mod 26"
+  },
+  "expected_ciphertext": null,
+  "candidate": null,
+  "status": "BLOCKED",
+  "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
+  "recommended_next_action": "Provide expected ciphertext from challenge statement or another allowed evidence source before candidate generation."
 }
 ```
 
@@ -333,7 +313,7 @@ tests/test_ida_collect_evidence_forced_targets.py
 必须运行并记录：
 
 ```bash
-python -m py_compile reverse_agent/ida_scripts/collect_evidence.py
+python -m py_compile reverse_agent/local_reverse_constraint_recovery.py
 python -m pytest -q tests/test_project_state.py
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
@@ -341,37 +321,37 @@ git diff --check
 git status --short
 ```
 
-如果修改 `reverse_agent/tool_runners.py`，必须额外运行：
+如果新增 `reverse_agent/local_reverse_affine_inverse_handoff.py`，必须额外运行：
 
 ```bash
-python -m py_compile reverse_agent/tool_runners.py
+python -m py_compile reverse_agent/local_reverse_affine_inverse_handoff.py
+python -m pytest -q tests/test_local_reverse_affine_inverse_handoff.py
 ```
 
-如果新增或修改 forced IDA export 测试，必须运行：
+如果修改 `tests/test_local_reverse_constraint_recovery.py`，必须额外运行：
 
 ```bash
-python -m pytest -q tests/test_ida_collect_evidence_forced_targets.py
+python -m pytest -q tests/test_local_reverse_constraint_recovery.py
 ```
 
-必须记录 IDA targeted export 命令及结果：
+如果运行 handoff CLI，必须记录命令、Exit code、输出路径和摘要，例如：
+
+```bash
+python -m reverse_agent.local_reverse_affine_inverse_handoff \
+  --input project_state/local_reverse_affine_main0_targeted_ida_decompile.json \
+  --out project_state/local_reverse_affine_inverse_handoff.json
+```
+
+测试期望：
 
 ```text
-- IDA command line or runner invocation
-- Exit code
-- output artifact path
-- whether Hex-Rays pseudocode for _main_0 was produced
+1. 无 expected_ciphertext 时，artifact status 为 BLOCKED 或 PARTIAL，blocked_reason=MISSING_EXPECTED_CIPHERTEXT。
+2. inverse_a=21。
+3. executed_sample=false、static_only=true、runtime_validated=false。
+4. 不产生 validated_candidate。
+5. 旧 project_state tests 不回退。
+6. git status --short 不出现 full solve_reports 批量新增；不得出现 .i64。
 ```
-
-如果本地环境没有 IDA/Hex-Rays 或 affine.exe，必须：
-
-```text
-1. 不伪造成功。
-2. codex_execution_report.md 写 BLOCKED。
-3. pytest_result.txt 记录已运行的静态测试和明确 BLOCKED 原因。
-4. 不更新 artifact_index 为 current 的新 targeted artifact。
-```
-
-所有 required non-IDA commands 必须 Exit code 0。IDA command 如果失败，报告必须是 BLOCKED 或 FAILED，不能写 SUCCESS/ACCEPTED。
 
 ---
 
@@ -380,29 +360,30 @@ python -m pytest -q tests/test_ida_collect_evidence_forced_targets.py
 立即停止并报告 `BLOCKED`：
 
 ```text
-1. project_state/local_reverse_affine_ida_summary.json 缺失或 JSON 无法解析。
-2. project_state/local_reverse_affine_main_input_flow_reextract.json 缺失或 JSON 无法解析。
-3. solve_reports/tool_artifacts/local_reverse_affine_ida_static_export_v1/affine_8cfebe03/affine_ida_evidence.json 缺失或 JSON 无法解析。
-4. artifact_index 中 affine summary/evidence/main-input-flow reextract 不是 freshness=current。
-5. 本地 IDA/Hex-Rays 不可用。
-6. 本地 affine.exe 不可用。
-7. 完成本轮需要运行 affine.exe。
-8. 完成本轮需要 solver、runtime probe、debugger、emulator。
-9. 完成本轮需要上传原始样本。
-10. 完成本轮需要提交 full solve_reports。
-11. forced decompile 扩展会破坏 collect_evidence.py 旧默认行为。
-12. 需要新建重复 IDA/Ghidra runner 才能完成。
+1. project_state/local_reverse_affine_main0_targeted_ida_decompile.json 缺失或 JSON 不可解析。
+2. artifact_index 中 local_reverse_affine_main0_targeted_ida_decompile 不是 freshness=current。
+3. targeted artifact 未明确 executed_sample=false 或 ida_static_only=true。
+4. targeted artifact 不含 affine_parameters，且不能从结构化字段可靠恢复 a/b/modulus。
+5. affine multiplier 与 modulus 不互素，无法求逆。
+6. 输入域不是 lowercase a-z，且当前实现不支持该域。
+7. 需要运行 affine.exe 才能完成本轮。
+8. 需要 runtime probe/debugger/emulator 才能完成本轮。
+9. 需要读取完整 solve_reports 或 PROJECT_PROGRESS_LOG 才能完成本轮。
+10. 需要提交 full solve_reports、IDA .i64 或原始样本才能完成本轮。
+11. 需要把单题结论写入 .codex-skills 才能完成本轮。
 ```
 
 完成条件：
 
 ```text
-1. project_state/local_reverse_affine_main0_targeted_ida_decompile.json 已生成。
-2. artifact 内容明确 executed_sample=false、ida_static_only=true。
-3. artifact 包含 _main_0 pseudocode；如果 Hex-Rays 不可用，则包含 bounded disassembly context 和明确 blocker。
-4. artifact 登记进 artifact_index.latest_artifacts 和 latest_artifacts_v2，freshness=current，source_run=round_20260605_affine_main0_targeted_ida_decompile_v1。
-5. report/pytest 与 decision_20260605_affine_main0_targeted_ida_decompile_v1 对齐。
-6. required tests、git diff --check、git status --short、IDA targeted command 全部记录。
-7. 未运行样本、solver、runtime probe、debugger、emulator。
-8. 未上传原始样本，未提交 full solve_reports。
+1. 生成 project_state/local_reverse_affine_inverse_handoff.json。
+2. artifact 明确记录 forward affine transform、inverse transform、inverse_a=21。
+3. artifact 在缺少 expected ciphertext 时明确 BLOCKED/PARTIAL，不生成 candidate。
+4. artifact 明确 executed_sample=false、static_only=true、runtime_validated=false。
+5. artifact_index.latest_artifacts 和 latest_artifacts_v2 已登记 handoff，freshness=current，source_run=round_20260605_affine_inverse_handoff_static_only_v1。
+6. codex_execution_report.md 和 pytest_result.txt 与当前 decision_id/round_id 对齐。
+7. codex_report_summary.tests_ran 完整列出 required commands，包括 git diff --check 和 git status --short。
+8. 必要测试全部 Exit code 0。
+9. 未运行样本、solver blind search、runtime probe、debugger、emulator。
+10. 未提交 full solve_reports、IDA .i64、原始样本或 .codex-skills 修改。
 ```
