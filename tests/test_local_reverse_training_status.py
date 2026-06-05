@@ -437,28 +437,31 @@ def test_evaluation_queue_prioritizes_simple_tags() -> None:
 
 
 class TestBuildStaticHandoffOverlay:
-    """Tests for the static handoff overlay builder that scans artifact_index.json."""
+    """Tests for the static handoff overlay builder that scans artifact_index.json.
+
+    After rework: static handoff overlay ONLY accepts artifacts that satisfy ALL of:
+      - static_only is True
+      - executed_sample is False
+      - runtime_validated is False
+      - status == "BLOCKED"
+      - candidate is None
+      - blocked_reason is non-empty
+
+    It can NEVER produce solved/known_candidate.
+    """
 
     def _make_artifact_index(
         self,
         tmp_path,
         artifacts: list[dict],
     ) -> Path:
-        """Helper: create an artifact_index.json with given artifact entries.
-
-        Each entry in *artifacts* is a dict with keys:
-            key_prefix  – used to form the v2 key (must match a _STATIC_HANDOFF_SUFFIXES
-                          or _STATIC_ANALYSIS_SUFFIXES prefix)
-            freshness   – "current" or anything else
-            artifact    – the JSON payload that will be written to the artifact file
-        """
+        """Helper: create an artifact_index.json with given artifact entries."""
         v2: dict[str, dict] = {}
         for i, art_meta in enumerate(artifacts):
             key_prefix = art_meta["key_prefix"]
             freshness = art_meta.get("freshness", "current")
             artifact_payload = art_meta["artifact"]
 
-            # Create the artifact JSON file
             art_file = tmp_path / f"artifact_{i}.json"
             _write_json(art_file, artifact_payload)
 
@@ -471,6 +474,22 @@ class TestBuildStaticHandoffOverlay:
         index_path = tmp_path / "artifact_index.json"
         _write_json(index_path, {"latest_artifacts_v2": v2})
         return index_path
+
+    def _make_blocked_artifact(self, **overrides) -> dict:
+        """Helper: build a minimal valid blocked artifact for overlay."""
+        base = {
+            "sample_id": "test_blocked",
+            "static_only": True,
+            "executed_sample": False,
+            "runtime_validated": False,
+            "status": "BLOCKED",
+            "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
+            "candidate": None,
+            "cipher_type": "affine_cipher",
+            "analysis_mode": "affine inverse handoff static only",
+        }
+        base.update(overrides)
+        return base
 
     # -- 1. No artifact_index file -> returns empty dict --
 
@@ -486,30 +505,24 @@ class TestBuildStaticHandoffOverlay:
             {
                 "key_prefix": "local_reverse_affine_inverse_handoff",
                 "freshness": "stale",
-                "artifact": {
-                    "sample_id": "skip_me",
-                    "status": "READY",
-                    "candidate": "xor_key",
-                },
+                "artifact": self._make_blocked_artifact(),
             },
         ])
         result = _build_static_handoff_overlay(index_path)
         assert result == {}
 
-    # -- 3. Artifact with status=BLOCKED, blocked_reason=MISSING_EXPECTED_CIPHERTEXT -> training_status=blocked --
+    # -- 3. Valid blocked artifact -> training_status=blocked --
 
-    def test_blocked_artifact_with_missing_ciphertext(self, tmp_path: Path) -> None:
+    def test_valid_blocked_artifact_accepted(self, tmp_path: Path) -> None:
         index_path = self._make_artifact_index(tmp_path, [
             {
                 "key_prefix": "local_reverse_targeted_static_reextraction_result",
                 "freshness": "current",
-                "artifact": {
-                    "sample_id": "blocked_sample_01",
-                    "status": "BLOCKED",
-                    "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
-                    "cipher_type": "xor_fixed_key",
-                    "analysis_mode": "targeted_static",
-                },
+                "artifact": self._make_blocked_artifact(
+                    sample_id="blocked_sample_01",
+                    cipher_type="xor_fixed_key",
+                    analysis_mode="targeted_static",
+                ),
             },
         ])
         result = _build_static_handoff_overlay(index_path)
@@ -517,16 +530,21 @@ class TestBuildStaticHandoffOverlay:
         entry = result["blocked_sample_01"]
         assert entry["training_status"] == TRAINING_STATUS_BLOCKED
         assert entry["blocked_reason"] == "MISSING_EXPECTED_CIPHERTEXT"
+        assert "known_candidate" not in entry
 
-    # -- 4. Artifact with status=READY and candidate -> training_status=solved --
+    # -- 4. READY + candidate -> NOT solved, skipped entirely --
 
-    def test_ready_with_candidate_is_solved(self, tmp_path: Path) -> None:
+    def test_ready_with_candidate_skipped(self, tmp_path: Path) -> None:
+        """READY + candidate static handoff must NOT produce solved/known_candidate."""
         index_path = self._make_artifact_index(tmp_path, [
             {
                 "key_prefix": "local_reverse_affine_inverse_handoff",
                 "freshness": "current",
                 "artifact": {
-                    "sample_id": "solved_sample_01",
+                    "sample_id": "ready_sample",
+                    "static_only": True,
+                    "executed_sample": False,
+                    "runtime_validated": False,
                     "status": "READY",
                     "candidate": "affine_key_ab",
                     "cipher_type": "affine",
@@ -535,93 +553,138 @@ class TestBuildStaticHandoffOverlay:
             },
         ])
         result = _build_static_handoff_overlay(index_path)
-        assert "solved_sample_01" in result
-        entry = result["solved_sample_01"]
-        assert entry["training_status"] == TRAINING_STATUS_SOLVED
-        assert entry["known_candidate"] == "affine_key_ab"
+        # Must NOT appear in overlay at all
+        assert "ready_sample" not in result
 
-    # -- 5. Handoff artifact takes priority over analysis artifact for same sample_id --
+    # -- 5. Missing static_only field -> skipped --
 
-    def test_handoff_priority_over_analysis(self, tmp_path: Path) -> None:
+    def test_missing_static_only_skipped(self, tmp_path: Path) -> None:
+        artifact = self._make_blocked_artifact(sample_id="no_static")
+        del artifact["static_only"]
+        index_path = self._make_artifact_index(tmp_path, [
+            {"key_prefix": "local_reverse_affine_inverse_handoff", "freshness": "current", "artifact": artifact},
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        assert "no_static" not in result
+
+    # -- 6. executed_sample=true -> skipped --
+
+    def test_executed_sample_true_skipped(self, tmp_path: Path) -> None:
         index_path = self._make_artifact_index(tmp_path, [
             {
-                # Analysis artifact (processed first because it appears first)
-                "key_prefix": "local_reverse_affine_main0_targeted_ida_decompile",
-                "freshness": "current",
-                "artifact": {
-                    "sample_id": "priority_sample",
-                    "status": "READY",
-                    "candidate": "analysis_candidate",
-                    "cipher_type": "xor_fixed_key",
-                    "analysis_mode": "targeted_decompile",
-                },
-            },
-            {
-                # Handoff artifact (should take priority)
                 "key_prefix": "local_reverse_affine_inverse_handoff",
                 "freshness": "current",
-                "artifact": {
-                    "sample_id": "priority_sample",
-                    "status": "READY",
-                    "candidate": "handoff_candidate",
-                    "cipher_type": "affine",
-                    "analysis_mode": "targeted_inverse",
-                },
+                "artifact": self._make_blocked_artifact(
+                    sample_id="executed_sample",
+                    executed_sample=True,
+                ),
             },
         ])
         result = _build_static_handoff_overlay(index_path)
-        assert "priority_sample" in result
-        entry = result["priority_sample"]
-        # Handoff candidate should win
-        assert entry["known_candidate"] == "handoff_candidate"
-        assert entry["training_status"] == TRAINING_STATUS_SOLVED
+        assert "executed_sample" not in result
 
-    # -- 6. Evidence sources include source filename and cipher_type --
+    # -- 7. runtime_validated=true -> skipped --
 
-    def test_evidence_sources_include_filename_and_cipher(self, tmp_path: Path) -> None:
+    def test_runtime_validated_true_skipped(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_affine_inverse_handoff",
+                "freshness": "current",
+                "artifact": self._make_blocked_artifact(
+                    sample_id="runtime_validated",
+                    runtime_validated=True,
+                ),
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        assert "runtime_validated" not in result
+
+    # -- 8. candidate present -> skipped --
+
+    def test_candidate_present_skipped(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_affine_inverse_handoff",
+                "freshness": "current",
+                "artifact": self._make_blocked_artifact(
+                    sample_id="has_candidate",
+                    candidate="some_answer",
+                ),
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        assert "has_candidate" not in result
+
+    # -- 9. Evidence sources include static_handoff tag --
+
+    def test_evidence_sources_include_static_handoff(self, tmp_path: Path) -> None:
         index_path = self._make_artifact_index(tmp_path, [
             {
                 "key_prefix": "local_reverse_targeted_static_reextraction_result",
                 "freshness": "current",
-                "artifact": {
-                    "sample_id": "evidence_sample",
-                    "status": "READY",
-                    "candidate": "xor_key_42",
-                    "cipher_type": "xor_fixed_key",
-                    "confidence": "high",
-                },
+                "artifact": self._make_blocked_artifact(
+                    sample_id="evidence_sample",
+                    cipher_type="xor_fixed_key",
+                    confidence="high",
+                ),
             },
         ])
         result = _build_static_handoff_overlay(index_path)
         entry = result["evidence_sample"]
         sources = entry["evidence_sources"]
-        # Should contain the artifact filename
-        assert any(s.startswith("source:artifact_") for s in sources)
-        # Should contain cipher_type indicator
+        assert "static_handoff" in sources
         assert "static_cipher_analysis" in sources
-        # Should contain confidence
         assert "confidence:high" in sources
 
-    # -- 7. Classification includes cipher_type and analysis_mode --
+    # -- 10. Classification includes cipher_type, analysis_mode, and blocked_reason --
 
-    def test_classification_includes_cipher_and_mode(self, tmp_path: Path) -> None:
+    def test_classification_includes_cipher_mode_and_reason(self, tmp_path: Path) -> None:
         index_path = self._make_artifact_index(tmp_path, [
             {
                 "key_prefix": "local_reverse_affine_inverse_handoff",
                 "freshness": "current",
-                "artifact": {
-                    "sample_id": "class_sample",
-                    "status": "READY",
-                    "candidate": "affine_sol",
-                    "cipher_type": "affine",
-                    "analysis_mode": "targeted_inverse",
-                },
+                "artifact": self._make_blocked_artifact(
+                    sample_id="class_sample",
+                    cipher_type="affine_cipher",
+                    analysis_mode="affine inverse handoff static only",
+                    blocked_reason="MISSING_EXPECTED_CIPHERTEXT",
+                ),
             },
         ])
         result = _build_static_handoff_overlay(index_path)
         entry = result["class_sample"]
         classification = entry["classification"]
-        # cipher_type should appear
-        assert "affine" in classification
-        # analysis_mode (stripped of "targeted_" prefix) should appear
+        assert "affine_cipher" in classification
         assert "inverse" in classification
+        assert "missing_expected_ciphertext" in classification
+
+    # -- 11. Handoff takes priority over analysis for same sample_id --
+
+    def test_handoff_priority_over_analysis(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_affine_main0_targeted_ida_decompile",
+                "freshness": "current",
+                "artifact": self._make_blocked_artifact(
+                    sample_id="priority_sample",
+                    cipher_type="xor_fixed_key",
+                    analysis_mode="targeted_decompile",
+                    blocked_reason="NEEDS_MORE_EVIDENCE",
+                ),
+            },
+            {
+                "key_prefix": "local_reverse_affine_inverse_handoff",
+                "freshness": "current",
+                "artifact": self._make_blocked_artifact(
+                    sample_id="priority_sample",
+                    cipher_type="affine_cipher",
+                    analysis_mode="affine inverse handoff static only",
+                    blocked_reason="MISSING_EXPECTED_CIPHERTEXT",
+                ),
+            },
+        ])
+        result = _build_static_handoff_overlay(index_path)
+        entry = result["priority_sample"]
+        # Handoff should win (affine_cipher, not xor_fixed_key)
+        assert "affine_cipher" in entry["classification"]
+        assert entry["blocked_reason"] == "MISSING_EXPECTED_CIPHERTEXT"

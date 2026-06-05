@@ -279,13 +279,37 @@ def _build_static_handoff_overlay(
         if not sample_id:
             continue
 
-        # Determine overlay status from artifact
+        # --- Strict acceptance gate for static handoff overlay ---
+        # Only accept artifacts that are truly static-only blocked evidence.
+        # Reject anything that claims to be solved, runtime-validated, or
+        # has a candidate (static handoff must NOT produce solved/known_candidate).
+        static_only = artifact.get("static_only", False)
+        executed_sample = artifact.get("executed_sample", False)
+        runtime_validated = artifact.get("runtime_validated", False)
+        candidate = artifact.get("candidate")
         status = artifact.get("status", "")
         blocked_reason = artifact.get("blocked_reason", "")
+
+        # Skip if not explicitly static-only
+        if static_only is not True:
+            continue
+        # Skip if sample was executed (runtime evidence, not static)
+        if executed_sample is not False:
+            continue
+        # Skip if runtime-validated (should go through validated candidate path)
+        if runtime_validated is not False:
+            continue
+        # Skip if candidate is present (static handoff must not produce solved)
+        if candidate is not None:
+            continue
+        # Skip if not BLOCKED with a reason
+        if status != "BLOCKED" or not blocked_reason:
+            continue
+
+        # Extract metadata for classification and evidence
         cipher_type = artifact.get("cipher_type", "")
         analysis_mode = artifact.get("analysis_mode", "")
         confidence = artifact.get("confidence", "")
-        candidate = artifact.get("candidate")
         recommended_next = artifact.get("recommended_next_action", "")
 
         # Build classification from artifact metadata
@@ -294,32 +318,22 @@ def _build_static_handoff_overlay(
             classification_parts.append(cipher_type)
         if analysis_mode:
             classification_parts.append(analysis_mode.replace("targeted_", "").replace("_", " "))
+        if blocked_reason:
+            classification_parts.append(blocked_reason.lower())
         classification = " ".join(classification_parts) if classification_parts else ""
 
-        # Determine training status
-        if candidate and status == "READY":
-            training_status = TRAINING_STATUS_SOLVED
-        elif blocked_reason:
-            training_status = TRAINING_STATUS_BLOCKED
-        elif status == "BLOCKED":
-            training_status = TRAINING_STATUS_BLOCKED
-        else:
-            training_status = TRAINING_STATUS_NEEDS_TRIAGE
+        # Static handoff overlay can only produce blocked, never solved
+        training_status = TRAINING_STATUS_BLOCKED
 
         # Build evidence sources
-        evidence_sources = [f"source:{artifact_path.name}"]
+        evidence_sources = [f"source:{artifact_path.name}", "static_handoff"]
         if cipher_type:
             evidence_sources.append("static_cipher_analysis")
         if confidence:
             evidence_sources.append(f"confidence:{confidence}")
 
         # Determine next action
-        if candidate:
-            next_action = f"validate candidate: {candidate}"
-        elif blocked_reason:
-            next_action = recommended_next or f"resolve: {blocked_reason}"
-        else:
-            next_action = recommended_next or "continue static analysis"
+        next_action = recommended_next or f"resolve: {blocked_reason}"
 
         entry: dict[str, Any] = {
             "training_status": training_status,
@@ -328,8 +342,6 @@ def _build_static_handoff_overlay(
             "evidence_sources": evidence_sources,
             "next_action": next_action,
         }
-        if candidate:
-            entry["known_candidate"] = candidate
 
         # Merge with existing overlay (handoff takes priority over analysis)
         if sample_id in overlay:

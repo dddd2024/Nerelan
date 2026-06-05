@@ -1,8 +1,8 @@
 ================================================================================
-PYTEST RESULT - Round: round_20260605_affine_training_status_overlay_v1
-Decision: decision_20260605_affine_training_status_overlay_v1
-Report: report_20260605_affine_training_status_overlay_v1
-Generated: 2026-06-05T05:37:00Z
+PYTEST RESULT - Round: round_20260605_affine_training_status_overlay_rework_v1
+Decision: decision_20260605_affine_training_status_overlay_rework_v1
+Report: report_20260605_affine_training_status_overlay_rework_v1
+Generated: 2026-06-05T06:06:00Z
 Status: PASSED
 Acceptance: ACCEPT
 Tests Ran: 8
@@ -24,8 +24,8 @@ Result: PASSED
 Command: python -m pytest -q tests/test_local_reverse_training_status.py
 Exit Code: 0
 Output:
-..................                                                       [100%]
-18 passed in 1.13s
+......................                                                  [100%]
+22 passed in 1.28s
 Result: PASSED
 
 ================================================================================
@@ -36,7 +36,7 @@ Command: python -m pytest -q tests/test_local_reverse_affine_inverse_handoff.py
 Exit Code: 0
 Output:
 ...................................                                      [100%]
-35 passed in 1.34s
+35 passed in 1.09s
 Result: PASSED
 
 ================================================================================
@@ -49,7 +49,7 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 .............                                                            [100%]
-157 passed in 65.04s (0:01:05)
+157 passed in 69.51s (0:01:09)
 Result: PASSED
 
 ================================================================================
@@ -60,14 +60,14 @@ Command: python -m reverse_agent.project_state lint-decision --state-dir project
 Exit Code: 0
 Output:
 lint-decision: OK
-decision_id: decision_20260605_affine_training_status_overlay_v1
+decision_id: decision_20260605_affine_training_status_overlay_rework_v1
 decision_status: APPROVED
 mainline: training_dataset
 Result: PASSED
 
 ================================================================================
 
-[6] Training Status CLI with Static Handoff Overlay
+[6] Training Status CLI with Tightened Overlay
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.local_reverse_training_status --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json
 Exit Code: 0
@@ -80,10 +80,10 @@ Output:
 Result: PASSED
 
 Verification:
-  affine_8cfebe03 training_status: blocked
-  affine_8cfebe03 blocked_reason: MISSING_EXPECTED_CIPHERTEXT
-  affine_8cfebe03 classification: affine_cipher affine inverse handoff static only
-  affine_8cfebe03 evidence_sources: [source:local_reverse_affine_inverse_handoff.json, static_cipher_analysis]
+  affine_8cfebe03: blocked, MISSING_EXPECTED_CIPHERTEXT, no candidate
+  affine_8cfebe03 classification: affine_cipher affine inverse handoff static only missing_expected_ciphertext
+  affine_8cfebe03 evidence_sources: [source:..., static_handoff, static_cipher_analysis]
+  affine_8cfebe03 in queue: False
 
 ================================================================================
 

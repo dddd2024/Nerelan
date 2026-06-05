@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-05T05:55:16Z",
+  "generated_at": "2026-06-05T06:23:40Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
@@ -52,9 +52,10 @@
       "training_status": "blocked",
       "known_candidate": "",
       "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
-      "classification": "affine_cipher affine inverse handoff static only",
+      "classification": "affine_cipher affine inverse handoff static only missing_expected_ciphertext",
       "evidence_sources": [
         "source:local_reverse_affine_inverse_handoff.json",
+        "static_handoff",
         "static_cipher_analysis"
       ],
       "next_action": "Provide expected ciphertext from challenge statement or another allowed evidence source before candidate generation."
