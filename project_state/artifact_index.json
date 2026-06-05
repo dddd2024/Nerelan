@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-04T15:35:21Z",
+  "generated_at": "2026-06-05T02:09:24Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -59,7 +59,8 @@
     "local_reverse_affine_static_feature_result": "project_state\\local_reverse_affine_static_feature_result.json",
     "local_reverse_affine_static_feature_summary": "project_state\\local_reverse_affine_static_feature_summary.json",
     "local_reverse_affine_ida_summary": "project_state\\local_reverse_affine_ida_summary.json",
-    "local_reverse_ida_evidence_affine_8cfebe03": "solve_reports\\tool_artifacts\\local_reverse_affine_ida_static_export_v1\\affine_8cfebe03\\affine_ida_evidence.json"
+    "local_reverse_ida_evidence_affine_8cfebe03": "solve_reports\\tool_artifacts\\local_reverse_affine_ida_static_export_v1\\affine_8cfebe03\\affine_ida_evidence.json",
+    "local_reverse_affine_main_input_flow_reextract": "project_state\\local_reverse_affine_main_input_flow_reextract.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -637,10 +638,10 @@
       "kind": "local_reverse_affine_main_input_flow_reextract",
       "path": "project_state\\local_reverse_affine_main_input_flow_reextract.json",
       "freshness": "current",
-      "source_run": "round_20260604_affine_main_input_flow_reextract_v1",
+      "source_run": "round_20260605_affine_reextract_scope_rework_v1",
       "sha256": "f903d1a8efef29ad3f585f0b05be86ed454bde96eb0cdd10b42a44bd5df6fbb0",
-      "size_bytes": 26283,
-      "modified_at": "2026-06-04T15:52:45Z",
+      "size_bytes": 25759,
+      "modified_at": "2026-06-05T02:09:24Z",
       "sample_id": "affine_8cfebe03"
     }
   },
