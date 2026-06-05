@@ -68,7 +68,8 @@
     "local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_ida_control_flow_recheck.json",
     "local_reverse_cpp1_2f6fcb63_signed_transform_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json",
     "local_reverse_cpp1_2f6fcb63_target_provenance_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json",
-    "local_reverse_cpp1_7b504c54_static_triage": "project_state\\local_reverse_cpp1_7b504c54_static_triage.json"
+    "local_reverse_cpp1_7b504c54_static_triage": "project_state\\local_reverse_cpp1_7b504c54_static_triage.json",
+    "local_reverse_cpp1_7b504c54_xor_handoff": "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -750,6 +751,16 @@
       "sha256": "0bc1606affb78a8b79670b1559f822f85e86682febdec2f252bb4225e84724ff",
       "size_bytes": 21641,
       "modified_at": "2026-06-05T15:24:35Z",
+      "sample_id": "cpp1_7b504c54"
+    },
+    "local_reverse_cpp1_7b504c54_xor_handoff": {
+      "kind": "local_reverse_cpp1_7b504c54_xor_handoff",
+      "path": "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json",
+      "freshness": "current",
+      "source_run": "round_20260605_cpp1_7b504c54_xor_handoff_v1",
+      "sha256": "95f1ecc48c2457ba28c9f81ab4a082ee52691efb66d8bb997958c49b209305d2",
+      "size_bytes": 1537,
+      "modified_at": "2026-06-05T15:55:00Z",
       "sample_id": "cpp1_7b504c54"
     }
   },

@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_7b504c54",
+  "analysis_mode": "cpp1_7b504c54_static_xor_handoff",
+  "mainline": "reverse_solving",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "generated_at": "2026-06-05T16:10:15Z",
+  "source_artifacts": [
+    "local_reverse_cpp1_7b504c54_static_triage"
+  ],
+  "source_artifact_freshness": "current",
+  "source_triage_artifact": "project_state/local_reverse_cpp1_7b504c54_static_triage.json",
+  "main_function": "_main_0",
+  "main_entry_ea": "0x401110",
+  "input_length": 10,
+  "transform_formula": "candidate[i] = byte_427A30[9-i] ^ byte_427A3C[i] ^ byte_427A48[i]",
+  "arrays": {
+    "byte_427A30": {
+      "address": "0x427A30",
+      "bytes_hex": "0102030405060708090a",
+      "length": 10
+    },
+    "byte_427A3C": {
+      "address": "0x427A3C",
+      "bytes_hex": "1112131415161718191a",
+      "length": 10
+    },
+    "byte_427A48": {
+      "address": "0x427A48",
+      "bytes_hex": "4c7e507d7c645a6f5470",
+      "length": 10
+    }
+  },
+  "static_candidate_hex": "57654b6e6f7749744f6b",
+  "static_candidate_text": "WeKnowItOk",
+  "static_candidate_printable": true,
+  "forward_transform_verified": true,
+  "candidate": null,
+  "known_candidate": "",
+  "validation_status": "not_validated",
+  "solved": false,
+  "recommended_next_action": "Static candidate computed. Runtime validation or manual review required before marking solved.",
+  "status": "READY_FOR_STATIC_REVIEW",
+  "blocked_reason": ""
+}
