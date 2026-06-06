@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_2f64e68d_console_mature_backend_probe_contract_rework_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_console_mature_backend_probe_contract_rework_v1",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -19,88 +19,69 @@
 
 本轮主线是 **tool_integration**。
 
-目标：修复上一轮 `cpp2_2f64e68d` mature backend availability probe 的 artifact contract mismatch。上一轮功能方向基本正确，确实执行了成熟后端 availability probe，没有运行 `CPP2.exe`，也没有实现完整 ConPTY/Expect/terminal 后端；但实际生成和登记的 artifact 名称为：
+目标：修复 `reverse_agent/local_reverse_console_mature_backend_probe.py` 中 ConPTY API presence 的 gate 语义。ConPTY API presence 只能作为系统能力信号，不能被计入 mature backend availability，不能单独导致：
 
 ```text
-project_state/local_reverse_cpp2_2f64e68d_mature_backend_probe.json
-artifact key=local_reverse_cpp2_2f64e68d_mature_backend_probe
+probe_status=READY_FOR_MATURE_BACKEND_VALIDATION
+can_attempt_interactive_console_validation_next=true
+recommended_backend=windows_conpty_api
 ```
 
-而当前 decision 明确要求：
-
-```text
-project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
-artifact key=local_reverse_cpp2_2f64e68d_console_mature_backend_probe
-```
-
-本轮只做 **artifact contract rework**：重命名/重登记 probe artifact，修正 report/pytest。不得重新执行 probe，也不得运行目标样本。
-
-同时修正一个后续风险点：上一轮 probe 代码/报告中不得建议下一轮自研 `ctypes` ConPTY wrapper。Windows ConPTY API presence 只能作为系统能力信号；下一轮如需交互控制台验证，应优先安装或接入成熟 backend（pywinpty/winpty/wexpect），不能因为 API presence 就授权自研完整 backend。
-
-本轮保持上一轮实质结论：
-
-```text
-probe_status=BLOCKED_MATURE_BACKEND_MISSING
-can_attempt_interactive_console_validation_next=false
-known_candidate=""
-solved=false
-```
+当前 artifact contract 已基本修复，本轮不重新 probe、不运行样本、不做 runtime validation。
 
 ---
 
 ## 2. Current Evidence
 
-`project_state/task_packet.json` 仍是旧 `samplereverse` advisory，不控制本轮。当前执行权威是本 `project_state/decision_packet.md`。
+`project_state/task_packet.json` 仍主要是旧 `samplereverse` advisory，不控制本轮。当前执行权威是本 `project_state/decision_packet.md`。
 
 `project_state/current_state.json` 仍主要是旧 samplereverse 压缩状态，`state_build_id=state_20260602_053948_4e3984041cd7`，`state_digest=4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c`。
 
-上一轮提交：
+上一轮 contract rework 的有效结果：
 
 ```text
-commit=77ceb8f2ba516683039dada6baadffc6a85bec83
-message=feat(cpp2): add mature backend availability probe (BLOCKED_MATURE_BACKEND_MISSING)
-decision_id=decision_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1
-round_id=round_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1
-```
-
-上一轮有效事实：
-
-```text
+new artifact path=project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
+old artifact path=project_state/local_reverse_cpp2_2f64e68d_mature_backend_probe.json removed
+artifact key=local_reverse_cpp2_2f64e68d_console_mature_backend_probe
+artifact_index freshness=current
 probe_status=BLOCKED_MATURE_BACKEND_MISSING
-pywinpty=false
-winpty=false
-wexpect=false
-pexpect=false
-conpty_api_available=false
-windows_platform=true
-executed_target=false
-runtime_validated=false
+can_attempt_interactive_console_validation_next=false
 known_candidate=""
 solved=false
-no_custom_conpty_runner=true
-no_expect_state_machine=true
-no_terminal_emulator=true
+executed_target=false
+runtime_validated=false
 ```
 
-上一轮审计失败点：
+上一轮 report/pytest 闭合通过：
 
 ```text
-1. expected path: project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
-2. actual path:   project_state/local_reverse_cpp2_2f64e68d_mature_backend_probe.json
-3. expected key:  local_reverse_cpp2_2f64e68d_console_mature_backend_probe
-4. actual key:    local_reverse_cpp2_2f64e68d_mature_backend_probe
-```
-
-上一轮 report/pytest 闭合本身通过：
-
-```text
+lint-decision Exit Code=0
+py_compile Exit Code=0
+pytest tests/test_local_reverse_console_mature_backend_probe.py: 11 passed
+pytest tests/test_project_state.py: 158 passed
 lint-report Exit Code=0
 project_state status: decision_consumed_by_report=True, decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
 ```
 
-但 artifact contract mismatch 仍需返工，不能 ACCEPTED。
+但审计发现代码层 gate 仍有后续误授权风险：
+
+```text
+has_windows_backend = pywinpty_available or winpty_available or wexpect_available or conpty_api_available
+```
+
+这会导致在 pywinpty/winpty/wexpect 都缺失但 `conpty_api_available=true` 时，probe 可能输出：
+
+```text
+probe_status=READY_FOR_MATURE_BACKEND_VALIDATION
+can_attempt_interactive_console_validation_next=true
+recommended_backend=windows_conpty_api
+```
+
+这违反上一轮 decision 的核心约束：Windows ConPTY API presence 只能作为系统能力信号，不能授权自研完整 backend，也不能替代成熟 Python backend。
 
 当前 `negative_results.json` 仍禁止 old sample_solver blind search、仅扩 beam/budget、compare_semantics_agree=false primary frontier、提交 full solve_reports、无新证据重复 dynamic probe、Base64/RC4 breakpoint probe before lhs producer identification。本轮不触碰这些方向。
+
+已有相关能力：项目已有 console mature backend availability probe 模块与对应单测；本轮只修正 gate 语义和测试覆盖，不新增工具接口，不重复实现 mature backend。
 
 ---
 
@@ -110,8 +91,8 @@ project_state status: decision_consumed_by_report=True, decision_execution_state
 
 ```text
 1. 不运行 CPP2.exe。
-2. 不重新运行 mature backend probe CLI。
-3. 不重新运行 pair validator。
+2. 不重新运行 mature backend probe CLI 来覆盖 project_state artifact。
+3. 不运行 pair validator。
 4. 不运行 IDA/Ghidra。
 5. 不运行 debugger、OllyDbg、Frida hook、emulator、CompareProbe。
 6. 不运行 solver、bruteforce、guided pool、symbolic search 或 constraint recovery。
@@ -133,18 +114,16 @@ project_state status: decision_consumed_by_report=True, decision_execution_state
 22. 不实现 terminal emulator。
 23. 不新增 pywinpty/wexpect/pexpect 到 requirements 或 pyproject。
 24. 不建议因为 ConPTY API presence 就自研完整 ctypes backend。
+25. 不让 ConPTY API presence 单独触发 READY_FOR_MATURE_BACKEND_VALIDATION。
 ```
 
 允许：
 
 ```text
-1. 将 project_state/local_reverse_cpp2_2f64e68d_mature_backend_probe.json 重命名/复制为 project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json。
-2. 删除旧路径 project_state/local_reverse_cpp2_2f64e68d_mature_backend_probe.json，或者保留但从 artifact_index 移除；推荐删除旧路径，避免双 source of truth。
-3. 更新 artifact_index.json，将 key 改为 local_reverse_cpp2_2f64e68d_console_mature_backend_probe。
-4. 更新 artifact_index latest_artifacts_v2 中 path、sha256、size_bytes、modified_at、source_run。
-5. 修改 reverse_agent/local_reverse_console_mature_backend_probe.py 中的 recommended_next_action 文案，移除“thin ctypes wrapper could be used”这类容易授权自研 backend 的表述。
-6. 更新 tests/test_local_reverse_console_mature_backend_probe.py 中对应断言。
-7. 更新 project_state/codex_execution_report.md 与 project_state/pytest_result.txt。
+1. 修改 reverse_agent/local_reverse_console_mature_backend_probe.py 的 backend gate 逻辑。
+2. 修改 tests/test_local_reverse_console_mature_backend_probe.py，新增 ConPTY-only blocked 单测。
+3. 更新 project_state/codex_execution_report.md。
+4. 更新 project_state/pytest_result.txt。
 ```
 
 ---
@@ -161,10 +140,7 @@ project_state/negative_results.json
 project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
-project_state/local_reverse_cpp2_2f64e68d_mature_backend_probe.json
-project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json
-project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
-project_state/local_reverse_cpp2_2f64e68d_static_triage.json
+project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
 reverse_agent/local_reverse_console_mature_backend_probe.py
 tests/test_local_reverse_console_mature_backend_probe.py
 .codex-skills/registry.json
@@ -188,84 +164,73 @@ Codex 报告必须回答：
 1. 是否确认当前 decision_packet 是本轮唯一执行权威。
 2. 是否确认 task_packet.task 只是旧 samplereverse advisory。
 3. 是否确认本轮主线为 tool_integration。
-4. 是否确认本轮是 artifact contract rework，不是重新 probe。
+4. 是否确认本轮只修复 ConPTY presence gate，不是重新 probe。
 5. 是否确认没有运行 CPP2.exe。
-6. 是否确认没有重新运行 mature backend probe CLI。
+6. 是否确认没有重新运行 mature backend probe CLI 覆盖 project_state artifact。
 7. 是否确认没有运行 pair validator。
 8. 是否确认没有运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。
 9. 是否确认没有运行 solver/bruteforce/guided pool/symbolic search。
-10. 是否确认旧 artifact key/path 已替换为 decision 要求的 console_mature_backend_probe key/path。
-11. 是否确认 artifact_index 不再登记 local_reverse_cpp2_2f64e68d_mature_backend_probe。
-12. 是否确认 artifact_index 登记 local_reverse_cpp2_2f64e68d_console_mature_backend_probe 且 freshness=current。
-13. 是否确认 probe artifact 内容保持 BLOCKED_MATURE_BACKEND_MISSING、known_candidate=""、solved=false。
-14. 是否确认 no_custom_conpty_runner/no_expect_state_machine/no_terminal_emulator 仍为 true。
-15. 是否确认代码/报告不再建议自研 ctypes ConPTY backend。
-16. 是否确认没有修改 runtime_pair_validation/static_triage/strcmp_handoff artifacts。
-17. 是否确认没有修改 training status、queue、overlay 或 cpp1 artifacts。
-18. 是否确认 codex_report_summary 与本 decision_id/round_id 匹配。
-19. 是否确认 pytest_result.txt 使用本 decision_id/report_id/round_id。
-20. 是否确认 lint-report Exit Code 0，project_state status 消费当前 success report。
-21. 是否确认 git status --short 和 git diff --name-status 只包含允许文件。
+10. 是否确认 ConPTY API presence 不再计入 mature backend availability。
+11. 是否确认仅 pywinpty/winpty/wexpect 可使 READY_FOR_MATURE_BACKEND_VALIDATION。
+12. 是否确认仅 pywinpty/winpty/wexpect 可使 can_attempt_interactive_console_validation_next=true。
+13. 是否确认 conpty_api_available=true 且 pywinpty/winpty/wexpect=false 时，probe_status 仍为 BLOCKED_MATURE_BACKEND_MISSING 或更具体的 BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY。
+14. 是否确认 conpty_api_available=true 且 pywinpty/winpty/wexpect=false 时，recommended_backend 不是 windows_conpty_api。
+15. 是否确认新增单测覆盖 ConPTY-only blocked 情况。
+16. 是否确认 no_custom_conpty_runner/no_expect_state_machine/no_terminal_emulator 仍为 true。
+17. 是否确认没有修改 runtime_pair_validation/static_triage/strcmp_handoff artifacts。
+18. 是否确认没有修改 training status、queue、overlay 或 cpp1 artifacts。
+19. 是否确认 codex_report_summary 与本 decision_id/round_id 匹配。
+20. 是否确认 pytest_result.txt 使用本 decision_id/report_id/round_id。
+21. 是否确认 lint-report Exit Code 0，project_state status 消费当前 success report。
+22. 是否确认 git status --short 和 git diff --name-status 只包含允许文件。
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-目标 artifact 路径必须为：
+核心修正：
 
-```text
-project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
+```python
+has_mature_windows_backend = (
+    pkg_availability["pywinpty_available"]
+    or pkg_availability["winpty_available"]
+    or pkg_availability["wexpect_available"]
+)
 ```
 
-artifact_index 必须使用 key：
+`conpty_api_available` 仍保留在 artifact 中，但只作为 capability signal，不参与 mature backend ready 判定。
+
+ConPTY-only 情况，即：
 
 ```text
-local_reverse_cpp2_2f64e68d_console_mature_backend_probe
+windows_platform=true
+pywinpty_available=false
+winpty_available=false
+wexpect_available=false
+conpty_api_available=true
 ```
 
-artifact_index latest_artifacts_v2 entry：
+必须输出 blocked 状态，例如：
 
 ```text
-kind=local_reverse_console_mature_backend_availability_probe
-path=project_state\local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
-freshness=current
-source_run=round_20260606_cpp2_2f64e68d_console_mature_backend_probe_contract_rework_v1
-sha256=<actual sha256 of renamed artifact>
-size_bytes=<actual size>
-modified_at=<UTC>
-sample_id=cpp2_2f64e68d
-```
-
-probe artifact 内容必须保持：
-
-```text
-analysis_mode=console_mature_backend_availability_probe
-mature_backend_priority=true
 probe_status=BLOCKED_MATURE_BACKEND_MISSING
 can_attempt_interactive_console_validation_next=false
-executed_target=false
-runtime_validated=false
-known_candidate=""
-solved=false
-no_custom_conpty_runner=true
-no_expect_state_machine=true
-no_terminal_emulator=true
+recommended_backend=""
+recommended_next_action="ConPTY API is present, but no mature Python backend is installed. Prefer adding/using a mature backend such as pywinpty or wexpect in a separate dependency decision before interactive validation."
 ```
 
-代码文案修正要求：
+允许使用更具体状态名：
 
 ```text
-如果 conpty_api_available=true 且 pywinpty/winpty/wexpect 都缺失，recommended_next_action 不能写“implement/use thin ctypes wrapper”。
-应写："ConPTY API is present, but no mature Python backend is installed. Prefer adding/using a mature backend such as pywinpty or wexpect in a separate dependency decision before interactive validation."
+BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY
 ```
+
+但若新增状态名，必须同步更新测试允许列表和文档化含义。
 
 允许修改：
 
 ```text
-project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
-project_state/local_reverse_cpp2_2f64e68d_mature_backend_probe.json  # delete or replace only
-project_state/artifact_index.json
 reverse_agent/local_reverse_console_mature_backend_probe.py
 tests/test_local_reverse_console_mature_backend_probe.py
 project_state/codex_execution_report.md
@@ -275,6 +240,8 @@ project_state/pytest_result.txt
 不得修改：
 
 ```text
+project_state/artifact_index.json
+project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
 project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json
 project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
 project_state/local_reverse_cpp2_2f64e68d_static_triage.json
@@ -306,39 +273,6 @@ pyproject.toml
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m py_compile reverse_agent/local_reverse_console_mature_backend_probe.py
 python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py
-python - <<'PY'
-import json
-from pathlib import Path
-probe_path=Path('project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json')
-old_path=Path('project_state/local_reverse_cpp2_2f64e68d_mature_backend_probe.json')
-assert probe_path.exists()
-assert not old_path.exists()
-probe=json.loads(probe_path.read_text(encoding='utf-8'))
-index=json.loads(Path('project_state/artifact_index.json').read_text(encoding='utf-8'))
-assert probe['schema_version']==1
-assert probe['sample_id']=='cpp2_2f64e68d'
-assert probe['analysis_mode']=='console_mature_backend_availability_probe'
-assert probe['mainline']=='tool_integration'
-assert probe['mature_backend_priority'] is True
-assert probe['probe_status']=='BLOCKED_MATURE_BACKEND_MISSING'
-assert probe['can_attempt_interactive_console_validation_next'] is False
-assert probe['executed_target'] is False
-assert probe['runtime_validated'] is False
-assert probe['known_candidate']==''
-assert probe['solved'] is False
-assert probe['no_custom_conpty_runner'] is True
-assert probe['no_expect_state_machine'] is True
-assert probe['no_terminal_emulator'] is True
-assert 'local_reverse_cpp2_2f64e68d_mature_backend_probe' not in index['latest_artifacts']
-assert 'local_reverse_cpp2_2f64e68d_mature_backend_probe' not in index['latest_artifacts_v2']
-assert index['latest_artifacts']['local_reverse_cpp2_2f64e68d_console_mature_backend_probe']=='project_state\\local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json'
-entry=index['latest_artifacts_v2']['local_reverse_cpp2_2f64e68d_console_mature_backend_probe']
-assert entry['freshness']=='current'
-assert entry['kind']=='local_reverse_console_mature_backend_availability_probe'
-assert entry['sample_id']=='cpp2_2f64e68d'
-assert entry['source_run']=='round_20260606_cpp2_2f64e68d_console_mature_backend_probe_contract_rework_v1'
-print('cpp2 mature backend probe contract rework consistency OK')
-PY
 python -m pytest -q tests/test_project_state.py
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
@@ -347,37 +281,38 @@ git status --short
 git diff --name-status
 ```
 
-`pytest_result.txt` 必须包含每条命令原文、Exit Code、输出摘要、PASSED/FAILED/BLOCKED 结果，以及本轮 decision_id、round_id、report_id。
+新增单测必须 mock 或 monkeypatch 出 ConPTY-only 情况：
+
+```text
+windows_platform=true
+pywinpty_available=false
+winpty_available=false
+wexpect_available=false
+conpty_api_available=true
+```
+
+并断言：
+
+```text
+probe_status != READY_FOR_MATURE_BACKEND_VALIDATION
+can_attempt_interactive_console_validation_next is False
+recommended_backend != windows_conpty_api
+no_custom_conpty_runner is True
+no_expect_state_machine is True
+no_terminal_emulator is True
+```
 
 ---
 
 ## 8. Stop Conditions
 
-立即停止并报告 `BLOCKED` 或 `REWORK_REQUIRED`：
+完成后停止于：
 
 ```text
-1. 旧 probe artifact 缺失且没有可迁移内容。
-2. 迁移后 probe artifact 不再保持 BLOCKED_MATURE_BACKEND_MISSING / solved=false。
-3. artifact_index 同时保留旧 key 和新 key。
-4. 需要运行 CPP2.exe 才能继续。
-5. 需要重新运行 mature backend probe CLI 才能继续。
-6. 需要运行 pair validator、IDA/Ghidra、debugger/hook/emulator/CompareProbe 才能继续。
-7. 需要修改 runtime/static/source artifacts、训练状态、队列、overlay 或 cpp1 artifacts 才能继续。
-8. 需要新增 dependencies 才能继续。
-9. 代码仍建议自研 ctypes ConPTY backend。
-10. lint-report 或 project_state status 无法闭合。
-11. git diff 包含 forbidden files。
+1. 单测和 project_state 检查全部通过。
+2. codex_execution_report.md 写入新的 codex_report_summary。
+3. pytest_result.txt 使用本轮 decision_id/report_id/round_id。
+4. git status 只包含允许文件。
 ```
 
-成功完成的最低标准：
-
-```text
-1. probe artifact 路径与 key 完全匹配 decision contract。
-2. 旧 mature_backend_probe key/path 不再作为 current artifact 登记。
-3. probe 实质结论保持 BLOCKED_MATURE_BACKEND_MISSING。
-4. 不运行目标、不重新探测、不验证 candidate。
-5. 不修改 runtime/static/source artifacts、训练状态、队列、overlay 或依赖文件。
-6. 不再建议自研 ctypes ConPTY backend。
-7. report/pytest_result 与本 decision_id/round_id 匹配。
-8. 所有测试与 git 检查真实记录。
-```
+本轮不要进入 CPP2 交互验证或候选求解。
