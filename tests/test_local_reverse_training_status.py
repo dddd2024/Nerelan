@@ -9,6 +9,7 @@ from reverse_agent.local_reverse_training_status import (
     TRAINING_STATUS_SOLVED,
     _build_blocked_map,
     _build_evaluation_queue,
+    _build_runtime_validation_overlay,
     _build_sample_entry,
     _build_solved_map,
     _build_static_handoff_overlay,
@@ -432,6 +433,97 @@ def test_evaluation_queue_prioritizes_simple_tags() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Tests for _build_runtime_validation_overlay
+# ---------------------------------------------------------------------------
+
+
+class TestBuildRuntimeValidationOverlay:
+    def _make_artifact_index(
+        self,
+        tmp_path: Path,
+        artifacts: list[dict],
+    ) -> Path:
+        v2: dict[str, dict] = {}
+        for i, art_meta in enumerate(artifacts):
+            artifact_payload = art_meta["artifact"]
+            art_file = tmp_path / f"runtime_artifact_{i}.json"
+            _write_json(art_file, artifact_payload)
+
+            v2_key = art_meta.get("key", f"local_reverse_runtime_validation_{i}")
+            v2[v2_key] = {
+                "kind": art_meta.get("kind", "local_reverse_console_runtime_validation"),
+                "freshness": art_meta.get("freshness", "current"),
+                "path": str(art_file),
+                "sample_id": art_meta.get("sample_id"),
+            }
+
+        index_path = tmp_path / "artifact_index.json"
+        _write_json(index_path, {"latest_artifacts_v2": v2})
+        return index_path
+
+    def _make_success_artifact(self, **overrides) -> dict:
+        base = {
+            "sample_id": "cpp1_7b504c54",
+            "analysis_mode": "console_runtime_validation",
+            "validation_status": "VALIDATED_SUCCESS",
+            "runtime_validated": True,
+            "solved": True,
+            "known_candidate": "WeKnowItOk",
+        }
+        base.update(overrides)
+        return base
+
+    def test_validated_success_artifact_marks_sample_solved(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {"artifact": self._make_success_artifact()},
+        ])
+
+        result = _build_runtime_validation_overlay(index_path)
+
+        entry = result["cpp1_7b504c54"]
+        assert entry["known_candidate"] == "WeKnowItOk"
+        assert entry["validation_status"] == "VALIDATED_SUCCESS"
+        assert "console_runtime_validation" in entry["evidence_sources"]
+        assert "runtime_validated_success" in entry["evidence_sources"]
+
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"validation_status": "BLOCKED"},
+            {"validation_status": "VALIDATED_FAILURE"},
+            {"validation_status": "AMBIGUOUS_OUTPUT"},
+            {"runtime_validated": False},
+            {"solved": False},
+            {"known_candidate": ""},
+        ],
+    )
+    def test_non_success_runtime_artifacts_do_not_mark_solved(
+        self,
+        tmp_path: Path,
+        overrides: dict,
+    ) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {"artifact": self._make_success_artifact(**overrides)},
+        ])
+
+        assert _build_runtime_validation_overlay(index_path) == {}
+
+    def test_stale_or_wrong_kind_runtime_artifact_skipped(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "freshness": "stale",
+                "artifact": self._make_success_artifact(sample_id="stale_success"),
+            },
+            {
+                "kind": "local_reverse_static_handoff",
+                "artifact": self._make_success_artifact(sample_id="wrong_kind"),
+            },
+        ])
+
+        assert _build_runtime_validation_overlay(index_path) == {}
+
+
+# ---------------------------------------------------------------------------
 # Tests for _build_static_handoff_overlay
 # ---------------------------------------------------------------------------
 
@@ -768,6 +860,7 @@ def test_real_cpp1_target_provenance_recheck_removes_cpp1_from_queue(tmp_path: P
     )
 
     assert result["status_summary"]["blocked"] >= 4
+    assert result["status_summary"]["solved"] >= 2
 
     status_data = json.loads(out_path.read_text(encoding="utf-8"))
     samples_by_id = {s["sample_id"]: s for s in status_data["samples"]}
@@ -778,8 +871,18 @@ def test_real_cpp1_target_provenance_recheck_removes_cpp1_from_queue(tmp_path: P
     assert "source:local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json" in cpp1["evidence_sources"]
     assert "static_blocked_artifact" in cpp1["evidence_sources"]
 
+    runtime_cpp1 = samples_by_id["cpp1_7b504c54"]
+    assert runtime_cpp1["training_status"] == TRAINING_STATUS_SOLVED
+    assert runtime_cpp1["known_candidate"] == "WeKnowItOk"
+    assert runtime_cpp1["blocked_reason"] == ""
+    assert "source:local_reverse_cpp1_7b504c54_runtime_validation.json" in runtime_cpp1["evidence_sources"]
+    assert "console_runtime_validation" in runtime_cpp1["evidence_sources"]
+
     queue_data = json.loads(queue_path.read_text(encoding="utf-8"))
-    assert "cpp1_2f6fcb63" not in {item["sample_id"] for item in queue_data["items"]}
+    queue_ids = {item["sample_id"] for item in queue_data["items"]}
+    assert "cpp1_2f6fcb63" not in queue_ids
+    assert "cpp1_7b504c54" not in queue_ids
+    assert queue_data["items"][0]["sample_id"] == "cpp2_2f64e68d"
 
     github_text = gh_path.read_text(encoding="utf-8")
     assert "E:\\reverse" not in github_text

@@ -16,6 +16,7 @@ It DOES:
 - Read from validated_candidate_handoff.json (status overlay)
 - Read from local_reverse_constraint_recovery_result.json (blocked/solved facts)
 - Read from local_reverse_ida_solver_result.json (prior evidence)
+- Read current console runtime validation artifacts from artifact_index.json
 - Produce training_status.json, evaluation_queue.json, status_overlay.json
 """
 
@@ -123,6 +124,7 @@ def build_training_status(
     evidence_sources_map = _build_evidence_sources_map(solver_data, validated_path, constraint_path)
 
     # Static handoff overlay from artifact_index
+    runtime_validation_map = _build_runtime_validation_overlay(artifact_index_path)
     static_handoff_map = _build_static_handoff_overlay(artifact_index_path)
 
     # Merge with inventory entries
@@ -139,6 +141,10 @@ def build_training_status(
             status = TRAINING_STATUS_SOLVED
             info = solved_map[sample_id]
             counts["solved"] += 1
+        elif sample_id in runtime_validation_map:
+            status = TRAINING_STATUS_SOLVED
+            info = runtime_validation_map[sample_id]
+            counts["solved"] += 1
         elif sample_id in blocked_map:
             status = TRAINING_STATUS_BLOCKED
             info = blocked_map[sample_id]
@@ -146,6 +152,10 @@ def build_training_status(
         elif short_id in solved_map:
             status = TRAINING_STATUS_SOLVED
             info = solved_map[short_id]
+            counts["solved"] += 1
+        elif short_id in runtime_validation_map:
+            status = TRAINING_STATUS_SOLVED
+            info = runtime_validation_map[short_id]
             counts["solved"] += 1
         elif short_id in blocked_map:
             status = TRAINING_STATUS_BLOCKED
@@ -252,6 +262,58 @@ def _build_blocked_map(constraint_data: dict[str, Any]) -> dict[str, dict[str, A
     return result
 
 
+def _build_runtime_validation_overlay(
+    artifact_index_path: Path,
+) -> dict[str, dict[str, Any]]:
+    """Scan artifact_index for current successful console runtime validations."""
+    if not artifact_index_path.exists():
+        return {}
+
+    artifact_index = _load_json(artifact_index_path, "artifact_index")
+    v2 = artifact_index.get("latest_artifacts_v2", {})
+
+    overlay: dict[str, dict[str, Any]] = {}
+    for key, meta in v2.items():
+        if meta.get("freshness") != "current":
+            continue
+        if meta.get("kind") != "local_reverse_console_runtime_validation":
+            continue
+
+        artifact_path_text = meta.get("path", "")
+        if not artifact_path_text:
+            continue
+        artifact_path = _resolve_artifact_path(artifact_path_text, artifact_index_path)
+
+        artifact = _load_json(artifact_path, f"artifact:{key}")
+        if not artifact:
+            continue
+
+        sample_id = artifact.get("sample_id") or meta.get("sample_id", "")
+        known_candidate = artifact.get("known_candidate", "")
+        if not sample_id or not known_candidate:
+            continue
+        if artifact.get("validation_status") != "VALIDATED_SUCCESS":
+            continue
+        if artifact.get("runtime_validated") is not True:
+            continue
+        if artifact.get("solved") is not True:
+            continue
+
+        overlay[sample_id] = {
+            "known_candidate": known_candidate,
+            "classification": artifact.get("analysis_mode", ""),
+            "validation_status": artifact.get("validation_status", ""),
+            "evidence_sources": [
+                f"source:{artifact_path.name}",
+                "console_runtime_validation",
+                "runtime_validated_success",
+            ],
+            "next_action": "sample solved by current console runtime validation",
+        }
+
+    return overlay
+
+
 def _build_static_handoff_overlay(
     artifact_index_path: Path,
 ) -> dict[str, dict[str, Any]]:
@@ -276,11 +338,7 @@ def _build_static_handoff_overlay(
         artifact_path_text = meta.get("path", "")
         if not artifact_path_text:
             continue
-        artifact_path = Path(artifact_path_text)
-        if not artifact_path.is_absolute() and not artifact_path.exists():
-            index_relative_path = artifact_index_path.parent / artifact_path
-            if index_relative_path.exists():
-                artifact_path = index_relative_path
+        artifact_path = _resolve_artifact_path(artifact_path_text, artifact_index_path)
 
         artifact = _load_json(artifact_path, f"artifact:{key}")
         if not artifact:
@@ -374,6 +432,18 @@ def _build_static_handoff_overlay(
                     existing[k] = v
 
     return overlay
+
+
+def _resolve_artifact_path(artifact_path_text: str, artifact_index_path: Path) -> Path:
+    artifact_path = Path(artifact_path_text)
+    if artifact_path.is_absolute() or artifact_path.exists():
+        return artifact_path
+
+    index_relative_path = artifact_index_path.parent / artifact_path
+    if index_relative_path.exists():
+        return index_relative_path
+
+    return artifact_path
 
 
 def _static_blocked_artifact_priority(

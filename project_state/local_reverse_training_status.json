@@ -1,15 +1,40 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-05T14:53:51Z",
+  "generated_at": "2026-06-06T05:22:23Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
-    "solved": 1,
+    "solved": 2,
     "blocked": 4,
     "needs_triage": 0,
-    "inventory_only": 24
+    "inventory_only": 23
   },
   "samples": [
+    {
+      "sample_id": "cpp1_7b504c54",
+      "relative_path": "逆向课程2023春补考01/Cpp1.exe",
+      "sha256": "7b504c54c165100549a0eacb7eb7cad26bc235ec0c4bed5c38c95a827ff81a3c",
+      "size_bytes": 184398,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "solved",
+      "known_candidate": "WeKnowItOk",
+      "blocked_reason": "",
+      "classification": "console_runtime_validation",
+      "evidence_sources": [
+        "source:local_reverse_cpp1_7b504c54_runtime_validation.json",
+        "console_runtime_validation",
+        "runtime_validated_success"
+      ],
+      "next_action": "sample solved by current console runtime validation"
+    },
     {
       "sample_id": "cpp1_bcbd9979",
       "relative_path": "逆向课程2022春补考01/Cpp1.exe",
@@ -149,27 +174,6 @@
         "local",
         "reverse",
         "python"
-      ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
-    },
-    {
-      "sample_id": "cpp1_7b504c54",
-      "relative_path": "逆向课程2023春补考01/Cpp1.exe",
-      "sha256": "7b504c54c165100549a0eacb7eb7cad26bc235ec0c4bed5c38c95a827ff81a3c",
-      "size_bytes": 184398,
-      "extension": ".exe",
-      "guessed_file_type": "pe",
-      "category": "cpp",
-      "tags": [
-        "local",
-        "reverse",
-        "cpp",
-        "pe"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",
