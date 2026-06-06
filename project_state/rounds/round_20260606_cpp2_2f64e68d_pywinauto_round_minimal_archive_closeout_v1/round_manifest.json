@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-06T13:04:44Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1\\codex_execution_report.md",
+      "sha256": "6840259ccdfda51c8a108d6553189829eb76131640297c5f91adedcfcf3cbf17",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1\\decision_packet.md",
+      "sha256": "d2e78ba4b8c424f46ddf07c89f0c7901457585f9ef96844ca59d93a15c48ea45",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1\\pytest_result.txt",
+      "sha256": "3d0e4036a22118ba1ba23924a1fbb11c99835b7f02438ebfbec405bdda4d910f",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1",
+  "schema_version": 1,
+  "source_git_commit": "ec069d0c9dbf",
+  "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+  "state_build_id": "state_20260602_053948_4e3984041cd7",
+  "state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
+  "workflow_status": "REPORT_AVAILABLE"
+}
