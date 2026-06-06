@@ -1,17 +1,15 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_2f64e68d_static_triage_v1",
-  "report_id": "report_20260606_cpp2_2f64e68d_static_triage_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_static_triage_v1",
-  "generated_at": "2026-06-06T06:08:00Z",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1",
+  "report_id": "report_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1",
+  "generated_at": "2026-06-06T06:28:54Z",
   "status": "PASSED",
   "tests_ran": [
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py",
+    "python -c (readonly consistency check: cpp2 static triage schema fields + artifact_index)",
     "python -m pytest -q tests/test_project_state.py",
-    "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp2_2f64e68d --out project_state/local_reverse_cpp2_2f64e68d_static_triage.json",
-    "python -c (readonly consistency check: cpp2 static triage artifact + artifact_index)",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
@@ -22,7 +20,7 @@
 ```
 
 ================================================================================
-PYTEST RESULT DETAILS - Round: round_20260606_cpp2_2f64e68d_static_triage_v1
+PYTEST RESULT DETAILS - Round: round_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
 ================================================================================
 
 [1] python -m reverse_agent.project_state lint-decision --state-dir project_state
@@ -31,7 +29,7 @@ Command: python -m reverse_agent.project_state lint-decision --state-dir project
 Exit Code: 0
 Output:
   lint-decision: OK
-  decision_id: decision_20260606_cpp2_2f64e68d_static_triage_v1
+  decision_id: decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
   decision_status: APPROVED
   mainline: tool_integration
   skill_profiles: ['reverse-agent-iteration@v2']
@@ -43,13 +41,12 @@ Output:
   active_decision_packet: project_state/decision_packet.md
 Result: PASSED
 
-[2] python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py
+[2] python -c (readonly consistency check)
 --------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py
+Command: python -c "readonly consistency check: cpp2 static triage schema fields + artifact_index"
 Exit Code: 0
 Output:
-  .......................                                                  [100%]
-  23 passed in 0.08s
+  cpp2 static triage schema rework consistency OK
 Result: PASSED
 
 [3] python -m pytest -q tests/test_project_state.py
@@ -60,105 +57,40 @@ Output:
   ........................................................................ [ 45%]
   ........................................................................ [ 91%]
   ..............                                                           [100%]
-  158 passed in 27.26s
+  158 passed in 26.47s
 Result: PASSED
 
-[4] python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp2_2f64e68d --out project_state/local_reverse_cpp2_2f64e68d_static_triage.json
---------------------------------------------------------------------------------
-Command: python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp2_2f64e68d --out project_state/local_reverse_cpp2_2f64e68d_static_triage.json
-Exit Code: 0
-Output:
-  static triage: status=success sample_id=cpp2_2f64e68d
-  strings: 50
-  functions: 30
-  compare_contexts: 2
-  hypotheses: ['string_compare_password_checker', 'standard_input_based', 'strcmp_direct_compare']
-Result: PASSED
-
-[5] python -c (readonly consistency check)
---------------------------------------------------------------------------------
-Command: python -c "readonly consistency check: cpp2 static triage artifact + artifact_index"
-Exit Code: 0
-Output:
-  cpp2 static triage consistency OK
-Result: PASSED
-
-[6] python -m reverse_agent.project_state lint-report --state-dir project_state
+[4] python -m reverse_agent.project_state lint-report --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-report --state-dir project_state
 Exit Code: 0
 Output:
   lint-report: OK
   warning: report round not archived yet
-  report_id: report_20260606_cpp2_2f64e68d_static_triage_v1
+  report_id: report_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
   report_status: SUCCESS
   acceptance_recommendation: ACCEPTED
-  based_on_decision_id: decision_20260606_cpp2_2f64e68d_static_triage_v1
-  decision_id: decision_20260606_cpp2_2f64e68d_static_triage_v1
+  based_on_decision_id: decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
+  decision_id: decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
   decision_report_id_match: True
-  round_id: round_20260606_cpp2_2f64e68d_static_triage_v1
-  report_round_id: round_20260606_cpp2_2f64e68d_static_triage_v1
-  decision_round_id: round_20260606_cpp2_2f64e68d_static_triage_v1
-  current_state_round_id: round_20260602_053948
-  current_state_scope: sample_state
   report_decision_round_id_match: True
   report_current_state_round_relation: different_but_allowed_sample_state
-  round_manifest_present: False
   archive_status: not_archived
-  round_manifest_path: project_state\rounds\round_20260606_cpp2_2f64e68d_static_triage_v1\round_manifest.json
-  round_manifest_files: []
-  round_manifest_forbidden_files: []
-  round_manifest_required_files_missing: []
-  tests_ran_count: 10
+  tests_ran_count: 8
   generated_artifacts_count: 1
-  pytest_result_present: True
   pytest_result_status: PASSED
-  pytest_result_decision_id: decision_20260606_cpp2_2f64e68d_static_triage_v1
-  pytest_result_report_id: report_20260606_cpp2_2f64e68d_static_triage_v1
-  pytest_result_round_id: round_20260606_cpp2_2f64e68d_static_triage_v1
   pytest_result_matches_report: True
-  report_tests_ran_count: 10
-  pytest_result_tests_ran_count: 10
   pytest_result_tests_cover_report: True
-  pytest_result_missing_report_tests: []
-  pytest_result_parse_error: None
 Result: PASSED
 
-[7] python -m reverse_agent.project_state status --state-dir project_state
+[5] python -m reverse_agent.project_state status --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state status --state-dir project_state
 Exit Code: 0
 Output:
-  state_dir: project_state
-  latest_harness_run: solve_reports\harness_runs\sr_arg0_hook_readiness_ordering_20260526_r1
-  missing: []
-  artifact_freshness: {'current': 39, 'missing': 24, 'stale': 15}
-  should_call_model: True
-  context_level: 2
-  reason: window_lifecycle_no_window_created
-  task: Review bounded window discovery diagnostics
-  state_scope: sample_state
-  task_source: derived_from_sample_artifacts
-  derived_task: Review bounded window discovery diagnostics
-  active_decision_packet: project_state/decision_packet.md
-  execution_scope: decision_packet_controls_current_round
-  expected_gpt_output: project_state/decision_packet.md
-  decision_status: APPROVED
-  decision_id: decision_20260606_cpp2_2f64e68d_static_triage_v1
-  decision_based_on_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
-  decision_parse_error: None
-  report_status: SUCCESS
-  report_acceptance_recommendation: ACCEPTED
-  report_id: report_20260606_cpp2_2f64e68d_static_triage_v1
+  decision_id: decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
+  report_id: report_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
   pytest_result_status: PASSED
-  pytest_result_decision_id: decision_20260606_cpp2_2f64e68d_static_triage_v1
-  pytest_result_report_id: report_20260606_cpp2_2f64e68d_static_triage_v1
-  pytest_result_round_id: round_20260606_cpp2_2f64e68d_static_triage_v1
-  pytest_result_matches_report: True
-  report_tests_ran_count: 10
-  pytest_result_tests_ran_count: 10
-  pytest_result_tests_cover_report: True
-  pytest_result_missing_report_tests: []
   decision_report_id_match: True
   decision_state_digest_match: True
   decision_consumed_by_report: True
@@ -166,59 +98,55 @@ Output:
   decision_ready_for_execution: False
   report_decision_round_id_match: True
   report_current_state_round_relation: different_but_allowed_sample_state
-  round_manifest_present: False
   archive_status: not_archived
-  round_manifest_path: project_state\rounds\round_20260606_cpp2_2f64e68d_static_triage_v1\round_manifest.json
-  round_manifest_files: []
-  round_manifest_forbidden_files: []
-  round_manifest_required_files_missing: []
 Result: PASSED
 
-[8] git diff --check
+[6] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
 Output:
   warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it
   warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
+  warning: in the working copy of 'project_state/local_reverse_cpp2_2f64e68d_static_triage.json', LF will be replaced by CRLF the next time Git touches it
   warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
 Result: PASSED (line-ending warnings only)
 
-[9] git status --short
+[7] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
 Output:
   M project_state/artifact_index.json
   M project_state/codex_execution_report.md
+  M project_state/local_reverse_cpp2_2f64e68d_static_triage.json
   M project_state/pytest_result.txt
-  ?? project_state/local_reverse_cpp2_2f64e68d_static_triage.json
 Result: PASSED (allowed files only)
 
-[10] git diff --name-status
+[8] git diff --name-status
 --------------------------------------------------------------------------------
 Command: git diff --name-status
 Exit Code: 0
 Output:
   M       project_state/artifact_index.json
   M       project_state/codex_execution_report.md
+  M       project_state/local_reverse_cpp2_2f64e68d_static_triage.json
   M       project_state/pytest_result.txt
   warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it
   warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
+  warning: in the working copy of 'project_state/local_reverse_cpp2_2f64e68d_static_triage.json', LF will be replaced by CRLF the next time Git touches it
   warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
-Result: PASSED (allowed tracked files only; untracked triage artifact shown by git status)
+Result: PASSED (allowed tracked files only)
 
 ================================================================================
 SUMMARY
 ================================================================================
-Total Commands: 10
-Passed: 10
+Total Commands: 8
+Passed: 8
 Failed: 0
 lint-decision: OK
-pytest_static_triage: 23 passed
+readonly_consistency_check: cpp2 static triage schema rework consistency OK
 pytest_project_state: 158 passed
-static_triage: tool_status=success, source_tool=IDA
-readonly_consistency_check: cpp2 static triage consistency OK
 lint-report: OK with expected not-archived warning
 project_state status: decision_consumed_by_report=True, decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
 git_diff_check: OK, line-ending warnings only

@@ -790,10 +790,10 @@
       "kind": "local_reverse_single_sample_static_triage",
       "path": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json",
       "freshness": "current",
-      "source_run": "round_20260606_cpp2_2f64e68d_static_triage_v1",
-      "sha256": "b8001a2426a5482490d350cac815577475588d28df947990cd85e273ee845365",
-      "size_bytes": 22650,
-      "modified_at": "2026-06-06T06:05:24Z",
+      "source_run": "round_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1",
+      "sha256": "1ebf003b8fedf0b217a669f8330039197f581b96ea505cbbeff2f5fdff3434d5",
+      "size_bytes": 22831,
+      "modified_at": "2026-06-06T06:27:22Z",
       "sample_id": "cpp2_2f64e68d"
     }
   },
