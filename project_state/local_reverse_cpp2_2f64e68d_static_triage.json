@@ -1,0 +1,544 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp2_2f64e68d",
+  "relative_path": "逆向课程2025春03/CPP2.exe",
+  "analysis_mode": "single_sample_static_triage",
+  "mainline": "tool_integration",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "generated_at": "2026-06-06T06:05:24Z",
+  "tool_status": "success",
+  "blocked_reason": "",
+  "source_tool": "IDA",
+  "sha256": "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
+  "size_bytes": 196689,
+  "file_type": "pe",
+  "category": "cpp",
+  "tags": [
+    "local",
+    "reverse",
+    "cpp",
+    "pe"
+  ],
+  "queue_rank": 1,
+  "triage": {
+    "input_apis": [
+      "__input"
+    ],
+    "interesting_strings": [
+      {
+        "address": "",
+        "value": "memory check error at 0x%08X = 0x%02X, should be 0x%02X.\n"
+      },
+      {
+        "address": "",
+        "value": "flag == 0 || flag == 1"
+      },
+      {
+        "address": "",
+        "value": "R6018\r\n- unexpected heap error\r\n"
+      },
+      {
+        "address": "",
+        "value": "R6017\r\n- unexpected multithread lock error\r\n"
+      },
+      {
+        "address": "",
+        "value": "Error"
+      },
+      {
+        "address": "",
+        "value": "{%ld} "
+      },
+      {
+        "address": "",
+        "value": "a_cmp.c"
+      },
+      {
+        "address": "",
+        "value": "input.c"
+      },
+      {
+        "address": "",
+        "value": "DebugBreak"
+      },
+      {
+        "address": "",
+        "value": "GetLastError"
+      },
+      {
+        "address": "",
+        "value": "SING error\r\n"
+      },
+      {
+        "address": "",
+        "value": "TLOSS error\r\n"
+      },
+      {
+        "address": "",
+        "value": "DOMAIN error\r\n"
+      },
+      {
+        "address": "",
+        "value": "runtime error "
+      },
+      {
+        "address": "",
+        "value": "Assertion Failed"
+      },
+      {
+        "address": "",
+        "value": "Assertion failed!"
+      },
+      {
+        "address": "",
+        "value": "_CrtCheckMemory()"
+      },
+      {
+        "address": "",
+        "value": "Assertion failed: "
+      },
+      {
+        "address": "",
+        "value": "OutputDebugStringA"
+      },
+      {
+        "address": "",
+        "value": "#File Error#(%d) : "
+      },
+      {
+        "address": "",
+        "value": "Please input a string : "
+      },
+      {
+        "address": "",
+        "value": "Runtime Error!\n\nProgram: "
+      },
+      {
+        "address": "",
+        "value": "Client hook free failure.\n"
+      },
+      {
+        "address": "",
+        "value": "Client hook allocation failure.\n"
+      },
+      {
+        "address": "",
+        "value": "_heapchk fails with _HEAPBADEND.\n"
+      },
+      {
+        "address": "",
+        "value": "_heapchk fails with _HEAPBADPTR.\n"
+      },
+      {
+        "address": "",
+        "value": "Microsoft Visual C++ Debug Library"
+      },
+      {
+        "address": "",
+        "value": "_heapchk fails with _HEAPBADNODE.\n"
+      },
+      {
+        "address": "",
+        "value": "Client hook re-allocation failure.\n"
+      },
+      {
+        "address": "",
+        "value": "_heapchk fails with _HEAPBADBEGIN.\n"
+      },
+      {
+        "address": "",
+        "value": "_CrtMemCheckPoint: NULL state pointer.\n"
+      },
+      {
+        "address": "",
+        "value": "_CrtDbgReport: String too long or IO Error"
+      },
+      {
+        "address": "",
+        "value": "_heapchk fails with unknown return value!\n"
+      },
+      {
+        "address": "",
+        "value": "Error: memory allocation: bad memory block type.\n"
+      },
+      {
+        "address": "",
+        "value": "Second Chance Assertion Failed: File %s, Line %d\n"
+      },
+      {
+        "address": "",
+        "value": "Client hook allocation failure at file %hs line %d.\n"
+      },
+      {
+        "address": "",
+        "value": "Client hook re-allocation failure at file %hs line %d.\n"
+      },
+      {
+        "address": "",
+        "value": "Debug %s!\n\nProgram: %s%s%s%s%s%s%s%s%s%s%s\n\n(Press Retry to debug the application)"
+      },
+      {
+        "address": "",
+        "value": "\n\nFor information on how your program can cause an assertion\nfailure, see the Visual C++ documentation on asserts."
+      },
+      {
+        "address": "",
+        "value": "%.2X "
+      },
+      {
+        "address": "",
+        "value": "700WP\u0007"
+      },
+      {
+        "address": "",
+        "value": " (8PX\u0007\b"
+      },
+      {
+        "address": "",
+        "value": "user32.dll"
+      },
+      {
+        "address": "",
+        "value": "KERNEL32.dll"
+      },
+      {
+        "address": "",
+        "value": "i386\\chkesp.c"
+      },
+      {
+        "address": "",
+        "value": "ch != _T('\\0')"
+      },
+      {
+        "address": "",
+        "value": "**argv != _T('\\0')"
+      },
+      {
+        "address": "",
+        "value": "*command != _T('\\0')"
+      },
+      {
+        "address": "",
+        "value": "*filename != _T('\\0')"
+      },
+      {
+        "address": "",
+        "value": "Bad memory block found at 0x%08X.\n"
+      }
+    ],
+    "functions": [
+      {
+        "name": "_strcmp",
+        "address": ""
+      },
+      {
+        "name": "___sbh_heap_check_0",
+        "address": ""
+      },
+      {
+        "name": "DebugBreak",
+        "address": ""
+      },
+      {
+        "name": "GetLastError",
+        "address": ""
+      },
+      {
+        "name": "OutputDebugStringA",
+        "address": ""
+      },
+      {
+        "name": "_CheckBytes",
+        "address": ""
+      },
+      {
+        "name": "__CrtMemCheckpoint",
+        "address": ""
+      },
+      {
+        "name": "__CrtSetDbgFlag",
+        "address": ""
+      },
+      {
+        "name": "___sbh_heap_check",
+        "address": ""
+      },
+      {
+        "name": "___sbh_verify_block",
+        "address": ""
+      },
+      {
+        "name": "__flushall",
+        "address": ""
+      },
+      {
+        "name": "__input",
+        "address": ""
+      },
+      {
+        "name": "_fast_error_exit",
+        "address": ""
+      },
+      {
+        "name": "_strncmp",
+        "address": ""
+      },
+      {
+        "name": "__NLG_Notify1",
+        "address": ""
+      },
+      {
+        "name": "___sbh_alloc_block_0",
+        "address": ""
+      },
+      {
+        "name": "___sbh_find_block_0",
+        "address": ""
+      },
+      {
+        "name": "___sbh_resize_block_0",
+        "address": ""
+      },
+      {
+        "name": "__except_handler3",
+        "address": ""
+      },
+      {
+        "name": "__global_unwind2",
+        "address": ""
+      },
+      {
+        "name": "__i64toa",
+        "address": ""
+      },
+      {
+        "name": "__local_unwind2",
+        "address": ""
+      },
+      {
+        "name": "__ui64toa",
+        "address": ""
+      },
+      {
+        "name": "_get_int64_arg",
+        "address": ""
+      },
+      {
+        "name": "_main_0",
+        "address": ""
+      },
+      {
+        "name": "_memcpy_0",
+        "address": ""
+      },
+      {
+        "name": "_strncnt_0",
+        "address": ""
+      },
+      {
+        "name": "unknown_libname_1",
+        "address": ""
+      },
+      {
+        "name": "x64toa(x,x,x,x,x)",
+        "address": ""
+      },
+      {
+        "name": "CloseHandle",
+        "address": ""
+      }
+    ],
+    "compare_contexts": [
+      {
+        "call_ea": "0x40111C",
+        "caller_func": "_main_0",
+        "callee": "_strcmp",
+        "call_disasm": "call    _strcmp",
+        "nearby": "jmp     short loc_4010D0 || push    offset Str2; \"ippio\" || lea     ecx, [ebp+Str1] || push    ecx; Str1",
+        "ref_strings": ""
+      },
+      {
+        "call_ea": "0x4062DE",
+        "caller_func": "sub_406220",
+        "callee": "_strncmp",
+        "call_disasm": "call    _strncmp",
+        "nearby": "push    16h; MaxCount || lea     ecx, [ebp+Buffer] || push    ecx; Str2 || push    offset Str1; \"__GLOBAL_HEAP_SELECTED\"",
+        "ref_strings": "__GLOBAL_HEAP_SELECTED"
+      }
+    ],
+    "validation_function_candidates": [
+      {
+        "function": "sub_407B60",
+        "score": "107",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x407BD0 | 0x407BFB | 0x407C23 | 0x407C4B | 0x407C73 | 0x407D1F | 0x407D4A | 0x407DA7"
+      },
+      {
+        "function": "__CrtDbgReport",
+        "score": "81",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x402051 | 0x402072 | 0x4020A2 | 0x4020B2 | 0x402105 | 0x40213D | 0x4021D8 | 0x402125"
+      },
+      {
+        "function": "__heap_alloc_dbg",
+        "score": "52",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x406B28 | 0x406B91 | 0x406BB9 | 0x406C6C | 0x406B15 | 0x406BA7 | 0x406C5A | 0x406B84"
+      },
+      {
+        "function": "_realloc_help",
+        "score": "52",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x406F7E | 0x406FE9 | 0x407011 | 0x407092 | 0x406F6B | 0x406FFF | 0x407080 | 0x406FDC"
+      },
+      {
+        "function": "sub_4074A0",
+        "score": "44",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x4074CF | 0x40751F | 0x40762C | 0x407692 | 0x4074BC | 0x40750D | 0x407685 | 0x40761F"
+      },
+      {
+        "function": "_CrtMessageWindow",
+        "score": "40",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x4025DD | 0x4025F5 | 0x40260E | 0x402602 | 0x4025E9 | 0x4025CC | 0x40244E"
+      },
+      {
+        "function": "_main_0",
+        "score": "30",
+        "reason": "compare_context | local_check_context | interesting_string_xref",
+        "evidence": "0x40111C | 0x401054 | 0x401065 | 0x40104F"
+      },
+      {
+        "function": "__input",
+        "score": "26",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x403A45 | 0x403A72 | 0x403A3E | 0x403A6B"
+      },
+      {
+        "function": "__spawnve",
+        "score": "24",
+        "reason": "local_check_context",
+        "evidence": "0x401C91 | 0x401C9D | 0x401D57 | 0x401D63"
+      },
+      {
+        "function": "__spawnvpe",
+        "score": "24",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x4017D4 | 0x40185A | 0x4018CE | 0x40184A | 0x4017C4"
+      },
+      {
+        "function": "_CheckBytes",
+        "score": "16",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x407B31 | 0x407B24"
+      },
+      {
+        "function": "__ftbuf",
+        "score": "15",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x402906 | 0x4028F3"
+      },
+      {
+        "function": "sub_4029A0",
+        "score": "15",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x402AD0 | 0x403055 | 0x402ABD"
+      },
+      {
+        "function": "__CrtMemDumpAllObjectsSince",
+        "score": "14",
+        "reason": "interesting_string_xref",
+        "evidence": "0x40858F | 0x408536 | 0x408649 | 0x4086A6 | 0x4085DE"
+      },
+      {
+        "function": "__NMSG_WRITE",
+        "score": "13",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x406946 | 0x40693A"
+      },
+      {
+        "function": "__msize_dbg",
+        "score": "13",
+        "reason": "local_check_context | interesting_string_xref",
+        "evidence": "0x4078E1 | 0x4078CE"
+      },
+      {
+        "function": "___crtGetEnvironmentStringsA",
+        "score": "12",
+        "reason": "local_check_context",
+        "evidence": "0x405D23 | 0x405E01"
+      },
+      {
+        "function": "___initstdio",
+        "score": "12",
+        "reason": "local_check_context",
+        "evidence": "0x403910 | 0x403945"
+      },
+      {
+        "function": "__ioinit",
+        "score": "12",
+        "reason": "local_check_context",
+        "evidence": "0x405E67 | 0x405F57"
+      },
+      {
+        "function": "__setenvp",
+        "score": "12",
+        "reason": "local_check_context",
+        "evidence": "0x40563D | 0x4056AB"
+      }
+    ],
+    "solver_profile_hypotheses": [
+      "string_compare_password_checker",
+      "standard_input_based",
+      "strcmp_direct_compare"
+    ],
+    "decompiler_snippets": [
+      {
+        "function": "sub_407B60",
+        "entry_ea": "0x407B60",
+        "text": "int sub_407B60()\n{\n  _DWORD *v1; // eax\n  int v2; // ecx\n  _DWORD *v3; // edx\n  const char *v4; // [esp+10h] [ebp-14h]\n  int v5; // [esp+14h] [ebp-10h]\n  int v6; // [esp+18h] [ebp-Ch]\n  _DWORD *i; // [esp+1Ch] [ebp-8h]\n  int v8; // [esp+20h] [ebp-4h]\n\n  if ( (dword_429E50 & 1) == 0 )\n    return 1;\n  v6 = sub_40F8B0();\n  if ( v6 == -1 || v6 == -2 )\n  {\n    v8 = 1;\n    for ( i = (_DWORD *)dword_42CE20; i; i = (_DWORD *)*i )\n    {\n      v5 = 1;\n      if ( (unsigned __int16)i[5] == 4 || i[5] == 1 || (v1 = i, (unsigned __int16)i[5] == 2) || i[5] == 3 )\n      {\n        v1 = i;\n        v4 = *(const char **)&off_429E60[4 * (unsigned __int16)i[5]];\n      }\n      else\n      {\n        v4 = \"DAMAGED\";\n      }\n      LOBYTE(v1) = byte_429E5C;\n      if ( !CheckBytes(i + 7, v1, 4) )\n      {\n        if ( _CrtDbgReport(0, 0, 0, 0, \"DAMAGE: before %hs block (#%d) at 0x%08X.\\n\", (char)v4) == 1 )\n          __debugbreak();\n        v5 = 0;\n      }\n      LOBYTE(v2) = byte_429E5C;\n      if ( !CheckBytes((char *)i + i[4] + 32, v2, 4) )\n      {\n        if ( _CrtDbgReport(0, 0, 0, 0, \"DAMAGE: after %hs block (#%d) at 0x%08X.\\n\", (char)v4) == 1 )\n          __debugbreak();\n        v5 = 0;\n      }\n      v3 = i;\n      if ( !i[5] )\n      {\n        LOBYTE(v3) = byte_429E5D;\n        if ( !CheckBytes(i + 8, v3, i[4]) )\n        {\n          if ( _CrtDbgReport(0, 0, 0, 0, \"DAMAGE: on top of Free block at 0x%08X.\\n\","
+      },
+      {
+        "function": "__CrtDbgReport",
+        "entry_ea": "0x401FB0",
+        "text": "int __cdecl _CrtDbgReport(unsigned int a1, const char *a2, int Value, int a4, char *Format, char a6)\n{\n  DWORD v7; // eax\n  int v8; // eax\n  char *v9; // [esp+4h] [ebp-302Ch]\n  char Buffer[20]; // [esp+Ch] [ebp-3024h] BYREF\n  DWORD NumberOfBytesWritten; // [esp+20h] [ebp-3010h] BYREF\n  HMODULE hModule; // [esp+24h] [ebp-300Ch]\n  char v13[4093]; // [esp+28h] [ebp-3008h] BYREF\n  __int16 v14; // [esp+1025h] [ebp-200Bh]\n  char v15; // [esp+1027h] [ebp-2009h]\n  CHAR OutputString[4093]; // [esp+1028h] [ebp-2008h] BYREF\n  __int16 v17; // [esp+2025h] [ebp-100Bh]\n  char v18; // [esp+2027h] [ebp-1009h]\n  int v19; // [esp+2028h] [ebp-1008h] BYREF\n  va_list ArgList; // [esp+202Ch] [ebp-1004h]\n  char Destination[4093]; // [esp+2030h] [ebp-1000h] BYREF\n  __int16 v22; // [esp+302Dh] [ebp-3h]\n  char v23; // [esp+302Fh] [ebp-1h]\n\n  memset(v13, 0, sizeof(v13));\n  v14 = 0;\n  v15 = 0;\n  memset(OutputString, 0, sizeof(OutputString));\n  v17 = 0;\n  v18 = 0;\n  memset(Destination, 0, sizeof(Destination));\n  v22 = 0;\n  v23 = 0;\n  ArgList = &a6;\n  if ( a1 >= 3 )\n    return -1;\n  if ( a1 == 2 && InterlockedIncrement(&Addend) > 0 )\n  {\n    if ( dword_42CCF8\n      || (hModule = LoadLibraryA(\"user32.dll\")) != 0\n      && (dword_42CCF8 = (int (*)(_DWORD, const char *, ...))GetProcAddress(hModule, \"wsprintfA\")) != 0 )\n    {\n      dword_42CCF8(OutputString, \"Second Chance Assertion Failed: File %s, Line %d\\n\", a"
+      },
+      {
+        "function": "__heap_alloc_dbg",
+        "entry_ea": "0x406AF0",
+        "text": "_DWORD *__cdecl _heap_alloc_dbg(size_t Size, int a2, int a3, int a4)\n{\n  char v5; // [esp+0h] [ebp-1Ch]\n  int v6; // [esp+10h] [ebp-Ch]\n  int v7; // [esp+14h] [ebp-8h]\n  _DWORD *v8; // [esp+18h] [ebp-4h]\n\n  v6 = 0;\n  if ( (dword_429E50 & 4) != 0 && !sub_407B60() && _CrtDbgReport(2u, \"dbgheap.c\", 332, 0, \"_CrtCheckMemory()\", v5) == 1 )\n    __debugbreak();\n  v7 = dword_429E54;\n  if ( dword_429E54 == dword_429E58 )\n    __debugbreak();\n  if ( off_42C358(1, 0, Size, a2, dword_429E54, a3, a4) )\n  {\n    if ( (unsigned __int16)a2 != 2 && (dword_429E50 & 1) == 0 )\n      v6 = 1;\n    if ( Size <= 0xFFFFFFE0 && Size + 36 <= 0xFFFFFFE0 )\n    {\n      if ( (unsigned __int16)a2 != 4\n        && a2 != 1\n        && (unsigned __int16)a2 != 2\n        && a2 != 3\n        && _CrtDbgReport(1u, 0, 0, 0, \"%s\", (char)\"Error: memory allocation: bad memory block type.\\n\") == 1 )\n      {\n        __debugbreak();\n      }\n      v8 = (_DWORD *)sub_40F160(Size + 36);\n      if ( v8 )\n      {\n        ++dword_429E54;\n        if ( v6 )\n        {\n          *v8 = 0;\n          v8[1] = 0;\n          v8[2] = 0;\n          v8[3] = -19088708;\n          v8[4] = Size;\n          v8[5] = 3;\n          v8[6] = 0;\n        }\n        else\n        {\n          dword_42CE1C += Size;\n          dword_42CE24 += Size;\n          if ( dword_42CE24 > (unsigned int)dword_42CE28 )\n            dword_42CE28 = dword_42CE24;\n          if ( dword_42CE"
+      },
+      {
+        "function": "_realloc_help",
+        "entry_ea": "0x406F00",
+        "text": "_DWORD *__cdecl realloc_help(int a1, size_t a2, int a3, int a4, int a5, int a6)\n{\n  char v7; // [esp+0h] [ebp-20h]\n  int v8; // [esp+Ch] [ebp-14h]\n  int v9; // [esp+10h] [ebp-10h]\n  _DWORD *v10; // [esp+14h] [ebp-Ch]\n  _DWORD *lpMem; // [esp+18h] [ebp-8h]\n  _DWORD *v12; // [esp+1Ch] [ebp-4h]\n\n  v8 = 0;\n  if ( !a1 )\n    return (_DWORD *)_malloc_dbg(a2, a3, a4, a5);\n  if ( a6 && !a2 )\n  {\n    sub_4074A0(a1, a3);\n    return 0;\n  }\n  if ( (dword_429E50 & 4) != 0 && !sub_407B60() && _CrtDbgReport(2u, \"dbgheap.c\", 582, 0, \"_CrtCheckMemory()\", v7) == 1 )\n    __debugbreak();\n  v9 = dword_429E54;\n  if ( dword_429E54 == dword_429E58 )\n    __debugbreak();\n  if ( off_42C358(2, a1, a2, a3, dword_429E54, a4, a5) )\n  {\n    if ( a2 <= 0xFFFFFFDB )\n    {\n      if ( a3 != 1\n        && (unsigned __int16)a3 != 4\n        && (unsigned __int16)a3 != 2\n        && _CrtDbgReport(1u, 0, 0, 0, \"%s\", (char)\"Error: memory allocation: bad memory block type.\\n\") == 1 )\n      {\n        __debugbreak();\n      }\n      if ( !sub_407FA0(a1) && _CrtDbgReport(2u, \"dbgheap.c\", 622, 0, \"_CrtIsValidHeapPointer(pUserData)\", v7) == 1 )\n        __debugbreak();\n      lpMem = (_DWORD *)(a1 - 32);\n      if ( *(_DWORD *)(a1 - 32 + 20) == 3 )\n        v8 = 1;\n      if ( v8 )\n      {\n        if ( (lpMem[3] != -19088708 || lpMem[6])\n          && _CrtDbgReport(\n               2u,\n               \"dbgheap.c\",\n               632,\n    "
+      },
+      {
+        "function": "sub_4074A0",
+        "entry_ea": "0x4074A0",
+        "text": "void *__cdecl sub_4074A0(_DWORD *a1, int a2)\n{\n  void *result; // eax\n  char *v3; // ecx\n  int v4; // ecx\n  char v5; // [esp+0h] [ebp-10h]\n  _DWORD *lpMem; // [esp+Ch] [ebp-4h]\n\n  result = (void *)(dword_429E50 & 4);\n  if ( (dword_429E50 & 4) != 0 )\n  {\n    result = (void *)sub_407B60();\n    if ( !result )\n    {\n      result = (void *)_CrtDbgReport(2u, \"dbgheap.c\", 1026, 0, \"_CrtCheckMemory()\", v5);\n      if ( result == (void *)1 )\n        __debugbreak();\n    }\n  }\n  if ( a1 )\n  {\n    if ( off_42C358(3, a1, 0, a2, 0, 0, 0) )\n    {\n      if ( !sub_407FA0(a1) && _CrtDbgReport(2u, \"dbgheap.c\", 1044, 0, \"_CrtIsValidHeapPointer(pUserData)\", v5) == 1 )\n        __debugbreak();\n      v3 = (char *)(a1 - 8);\n      lpMem = a1 - 8;\n      if ( (unsigned __int16)*(a1 - 3) != 4 )\n      {\n        v3 = (char *)(a1 - 8);\n        if ( lpMem[5] != 1 && (unsigned __int16)lpMem[5] != 2 )\n        {\n          v3 = (char *)(a1 - 8);\n          if ( lpMem[5] != 3\n            && _CrtDbgReport(2u, \"dbgheap.c\", 1050, 0, \"_BLOCK_TYPE_IS_VALID(pHead->nBlockUse)\", v5) == 1 )\n          {\n            __debugbreak();\n          }\n        }\n      }\n      if ( (dword_429E50 & 4) == 0 )\n      {\n        LOBYTE(v3) = byte_429E5C;\n        if ( !CheckBytes(lpMem + 7, v3, 4)\n          && _CrtDbgReport(\n               1u,\n               0,\n               0,\n               0,\n               \"DAMAGE: before %hs block (#%d) a"
+      },
+      {
+        "function": "_CrtMessageWindow",
+        "entry_ea": "0x402340",
+        "text": "BOOL __cdecl CrtMessageWindow(int a1, const char *a2, const char *a3, const char *a4, const char *a5)\n{\n  int v5; // eax\n  char v7; // [esp+0h] [ebp-1138h]\n  const char *v8; // [esp+4h] [ebp-1134h]\n  const char *v9; // [esp+8h] [ebp-1130h]\n  const char *v10; // [esp+Ch] [ebp-112Ch]\n  const char *v11; // [esp+10h] [ebp-1128h]\n  const char *v12; // [esp+14h] [ebp-1124h]\n  const char *v13; // [esp+18h] [ebp-1120h]\n  const char *v14; // [esp+1Ch] [ebp-111Ch]\n  const char *v15; // [esp+20h] [ebp-1118h]\n  const char *v16; // [esp+24h] [ebp-1114h]\n  char *v17; // [esp+28h] [ebp-1110h]\n  char Destination[4096]; // [esp+2Ch] [ebp-110Ch] BYREF\n  int v19; // [esp+102Ch] [ebp-10Ch]\n  CHAR Filename[260]; // [esp+1030h] [ebp-108h] BYREF\n  char *Str; // [esp+1134h] [ebp-4h]\n\n  if ( !a5 && _CrtDbgReport(2u, \"dbgrpt.c\", 474, 0, \"szUserMessage != NULL\", v7) == 1 )\n    sub_401EA0();\n  if ( !GetModuleFileNameA(0, Filename, 0x104u) )\n    strcpy(Filename, \"<program name unknown>\");\n  Str = Filename;\n  if ( strlen(Filename) > 0x40 )\n  {\n    Str = &Str[strlen(Str) - 64];\n    strncpy(Str, \"...\", 3u);\n  }\n  v17 = (char *)a4;\n  if ( a4 && strlen(a4) > 0x40 )\n  {\n    v17 = (char *)&a4[strlen(a4) - 64];\n    strncpy(v17, \"...\", 3u);\n  }\n  if ( a1 == 2 )\n    v16 = \"\\n\"\n          \"\\n\"\n          \"For information on how your program can cause an assertion\\n\"\n          \"failure, see the Visual C++ documentation "
+      }
+    ],
+    "solver_hints": [
+      {
+        "kind": "direct_strcmp",
+        "reason": "compare API context recovered"
+      },
+      {
+        "kind": "gui_input",
+        "reason": "input-oriented strings recovered"
+      }
+    ]
+  },
+  "candidate": null,
+  "known_candidate": "",
+  "recommended_next_action": "Compare context found; consider constraint recovery or targeted decompilation."
+}

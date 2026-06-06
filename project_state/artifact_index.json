@@ -71,7 +71,8 @@
     "local_reverse_cpp1_7b504c54_static_triage": "project_state\\local_reverse_cpp1_7b504c54_static_triage.json",
     "local_reverse_cpp1_7b504c54_xor_handoff": "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json",
     "local_reverse_cpp1_7b504c54_runtime_validation": "project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json",
-    "local_reverse_cpp1_7b504c54_training_status_sync": "project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json"
+    "local_reverse_cpp1_7b504c54_training_status_sync": "project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json",
+    "local_reverse_cpp2_2f64e68d_static_triage": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -784,6 +785,16 @@
       "size_bytes": 1101,
       "modified_at": "2026-06-06T05:46:14Z",
       "sample_id": "cpp1_7b504c54"
+    },
+    "local_reverse_cpp2_2f64e68d_static_triage": {
+      "kind": "local_reverse_single_sample_static_triage",
+      "path": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json",
+      "freshness": "current",
+      "source_run": "round_20260606_cpp2_2f64e68d_static_triage_v1",
+      "sha256": "b8001a2426a5482490d350cac815577475588d28df947990cd85e273ee845365",
+      "size_bytes": 22650,
+      "modified_at": "2026-06-06T06:05:24Z",
+      "sample_id": "cpp2_2f64e68d"
     }
   },
   "latest_case_results": [
