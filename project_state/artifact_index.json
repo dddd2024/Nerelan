@@ -72,7 +72,8 @@
     "local_reverse_cpp1_7b504c54_xor_handoff": "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json",
     "local_reverse_cpp1_7b504c54_runtime_validation": "project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json",
     "local_reverse_cpp1_7b504c54_training_status_sync": "project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json",
-    "local_reverse_cpp2_2f64e68d_static_triage": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json"
+    "local_reverse_cpp2_2f64e68d_static_triage": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json",
+    "local_reverse_cpp2_2f64e68d_strcmp_handoff": "project_state\\local_reverse_cpp2_2f64e68d_strcmp_handoff.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -794,6 +795,16 @@
       "sha256": "1ebf003b8fedf0b217a669f8330039197f581b96ea505cbbeff2f5fdff3434d5",
       "size_bytes": 22831,
       "modified_at": "2026-06-06T06:27:22Z",
+      "sample_id": "cpp2_2f64e68d"
+    },
+    "local_reverse_cpp2_2f64e68d_strcmp_handoff": {
+      "kind": "local_reverse_direct_strcmp_handoff",
+      "path": "project_state\\local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
+      "freshness": "current",
+      "source_run": "round_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1",
+      "sha256": "6d08c8b36b59c29740258139d7c2c2a4041e4bba5a6e1907a01880e4b37ebd1d",
+      "size_bytes": 1475,
+      "modified_at": "2026-06-06T06:54:16Z",
       "sample_id": "cpp2_2f64e68d"
     }
   },

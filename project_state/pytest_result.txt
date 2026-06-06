@@ -1,14 +1,17 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1",
-  "report_id": "report_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1",
-  "generated_at": "2026-06-06T06:28:54Z",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1",
+  "report_id": "report_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1",
+  "generated_at": "2026-06-06T06:56:10Z",
   "status": "PASSED",
   "tests_ran": [
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "python -c (readonly consistency check: cpp2 static triage schema fields + artifact_index)",
+    "python -m py_compile reverse_agent/local_reverse_direct_strcmp_handoff.py",
+    "python -m pytest -q tests/test_local_reverse_direct_strcmp_handoff.py",
+    "python -m reverse_agent.local_reverse_direct_strcmp_handoff --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --out project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
+    "python -c (readonly consistency check: cpp2 direct strcmp handoff + artifact_index)",
     "python -m pytest -q tests/test_project_state.py",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state status --state-dir project_state",
@@ -20,7 +23,7 @@
 ```
 
 ================================================================================
-PYTEST RESULT DETAILS - Round: round_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
+PYTEST RESULT DETAILS - Round: round_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
 ================================================================================
 
 [1] python -m reverse_agent.project_state lint-decision --state-dir project_state
@@ -29,9 +32,9 @@ Command: python -m reverse_agent.project_state lint-decision --state-dir project
 Exit Code: 0
 Output:
   lint-decision: OK
-  decision_id: decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
+  decision_id: decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
   decision_status: APPROVED
-  mainline: tool_integration
+  mainline: reverse_solving
   skill_profiles: ['reverse-agent-iteration@v2']
   based_on_state_build_id: state_20260602_053948_4e3984041cd7
   based_on_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
@@ -41,15 +44,42 @@ Output:
   active_decision_packet: project_state/decision_packet.md
 Result: PASSED
 
-[2] python -c (readonly consistency check)
+[2] python -m py_compile reverse_agent/local_reverse_direct_strcmp_handoff.py
 --------------------------------------------------------------------------------
-Command: python -c "readonly consistency check: cpp2 static triage schema fields + artifact_index"
+Command: python -m py_compile reverse_agent/local_reverse_direct_strcmp_handoff.py
 Exit Code: 0
 Output:
-  cpp2 static triage schema rework consistency OK
 Result: PASSED
 
-[3] python -m pytest -q tests/test_project_state.py
+[3] python -m pytest -q tests/test_local_reverse_direct_strcmp_handoff.py
+--------------------------------------------------------------------------------
+Command: python -m pytest -q tests/test_local_reverse_direct_strcmp_handoff.py
+Exit Code: 0
+Output:
+  ......                                                                   [100%]
+  6 passed in 0.17s
+Result: PASSED
+
+[4] python -m reverse_agent.local_reverse_direct_strcmp_handoff --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --out project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
+--------------------------------------------------------------------------------
+Command: python -m reverse_agent.local_reverse_direct_strcmp_handoff --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --out project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
+Exit Code: 0
+Output:
+  direct_strcmp_handoff: status=READY_FOR_RUNTIME_VALIDATION sample_id=cpp2_2f64e68d
+    static_candidate_text: ippio
+    static_candidate_hex: 697070696f
+    compare_call_ea: 0x40111C
+Result: PASSED
+
+[5] python -c (readonly consistency check)
+--------------------------------------------------------------------------------
+Command: python -c "readonly consistency check: cpp2 direct strcmp handoff + artifact_index"
+Exit Code: 0
+Output:
+  cpp2 direct strcmp handoff consistency OK
+Result: PASSED
+
+[6] python -m pytest -q tests/test_project_state.py
 --------------------------------------------------------------------------------
 Command: python -m pytest -q tests/test_project_state.py
 Exit Code: 0
@@ -57,39 +87,39 @@ Output:
   ........................................................................ [ 45%]
   ........................................................................ [ 91%]
   ..............                                                           [100%]
-  158 passed in 26.47s
+  158 passed in 24.66s
 Result: PASSED
 
-[4] python -m reverse_agent.project_state lint-report --state-dir project_state
+[7] python -m reverse_agent.project_state lint-report --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-report --state-dir project_state
 Exit Code: 0
 Output:
   lint-report: OK
   warning: report round not archived yet
-  report_id: report_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
+  report_id: report_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
   report_status: SUCCESS
   acceptance_recommendation: ACCEPTED
-  based_on_decision_id: decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
-  decision_id: decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
+  based_on_decision_id: decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
+  decision_id: decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
   decision_report_id_match: True
   report_decision_round_id_match: True
   report_current_state_round_relation: different_but_allowed_sample_state
   archive_status: not_archived
-  tests_ran_count: 8
+  tests_ran_count: 11
   generated_artifacts_count: 1
   pytest_result_status: PASSED
   pytest_result_matches_report: True
   pytest_result_tests_cover_report: True
 Result: PASSED
 
-[5] python -m reverse_agent.project_state status --state-dir project_state
+[8] python -m reverse_agent.project_state status --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state status --state-dir project_state
 Exit Code: 0
 Output:
-  decision_id: decision_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
-  report_id: report_20260606_cpp2_2f64e68d_static_triage_schema_rework_v1
+  decision_id: decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
+  report_id: report_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
   pytest_result_status: PASSED
   decision_report_id_match: True
   decision_state_digest_match: True
@@ -101,51 +131,53 @@ Output:
   archive_status: not_archived
 Result: PASSED
 
-[6] git diff --check
+[9] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
 Output:
   warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it
   warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
-  warning: in the working copy of 'project_state/local_reverse_cpp2_2f64e68d_static_triage.json', LF will be replaced by CRLF the next time Git touches it
   warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
 Result: PASSED (line-ending warnings only)
 
-[7] git status --short
+[10] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
 Output:
   M project_state/artifact_index.json
   M project_state/codex_execution_report.md
-  M project_state/local_reverse_cpp2_2f64e68d_static_triage.json
   M project_state/pytest_result.txt
+  ?? project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
+  ?? reverse_agent/local_reverse_direct_strcmp_handoff.py
+  ?? tests/test_local_reverse_direct_strcmp_handoff.py
 Result: PASSED (allowed files only)
 
-[8] git diff --name-status
+[11] git diff --name-status
 --------------------------------------------------------------------------------
 Command: git diff --name-status
 Exit Code: 0
 Output:
   M       project_state/artifact_index.json
   M       project_state/codex_execution_report.md
-  M       project_state/local_reverse_cpp2_2f64e68d_static_triage.json
   M       project_state/pytest_result.txt
   warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it
   warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
-  warning: in the working copy of 'project_state/local_reverse_cpp2_2f64e68d_static_triage.json', LF will be replaced by CRLF the next time Git touches it
   warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
-Result: PASSED (allowed tracked files only)
+Result: PASSED (allowed tracked files only; untracked generated/code/test files shown by git status)
 
 ================================================================================
 SUMMARY
 ================================================================================
-Total Commands: 8
-Passed: 8
+Total Commands: 11
+Passed: 11
 Failed: 0
 lint-decision: OK
-readonly_consistency_check: cpp2 static triage schema rework consistency OK
+py_compile: OK
+pytest_direct_strcmp_handoff: 6 passed
+direct_strcmp_handoff: READY_FOR_RUNTIME_VALIDATION, static_candidate_text=ippio
+readonly_consistency_check: cpp2 direct strcmp handoff consistency OK
 pytest_project_state: 158 passed
 lint-report: OK with expected not-archived warning
 project_state status: decision_consumed_by_report=True, decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
