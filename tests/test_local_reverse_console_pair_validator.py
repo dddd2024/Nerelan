@@ -8,6 +8,8 @@ from pathlib import Path
 
 from reverse_agent.local_reverse_console_pair_validator import (
     _generate_negative_control,
+    get_console_backend_capabilities,
+    is_console_backend_validator_supported,
     validate_console_pair,
 )
 
@@ -56,6 +58,40 @@ def _handoff(**overrides: object) -> dict[str, object]:
     }
     handoff.update(overrides)
     return handoff
+
+
+class TestConsoleBackendCapabilities:
+    def test_registry_exposes_subprocess_and_pywinauto(self):
+        capabilities = get_console_backend_capabilities()
+
+        assert sorted(capabilities) == ["pywinauto", "subprocess"]
+        assert capabilities["subprocess"]["validator_supported"] is True
+        assert capabilities["subprocess"]["mature_interactive_console"] is False
+        assert capabilities["pywinauto"]["validator_supported"] is False
+        assert capabilities["pywinauto"]["mature_interactive_console"] is False
+
+    def test_registry_is_json_serializable(self):
+        capabilities = get_console_backend_capabilities()
+
+        encoded = json.dumps(capabilities, sort_keys=True)
+
+        assert "subprocess" in encoded
+        assert "pywinauto" in encoded
+
+    def test_registry_return_value_does_not_mutate_global_state(self):
+        capabilities = get_console_backend_capabilities()
+        capabilities["pywinauto"]["validator_supported"] = True
+        capabilities["subprocess"]["mature_interactive_console"] = True
+
+        fresh = get_console_backend_capabilities()
+
+        assert fresh["pywinauto"]["validator_supported"] is False
+        assert fresh["subprocess"]["mature_interactive_console"] is False
+
+    def test_validator_supported_helper(self):
+        assert is_console_backend_validator_supported("subprocess") is True
+        assert is_console_backend_validator_supported("pywinauto") is False
+        assert is_console_backend_validator_supported("missing") is False
 
 
 class TestGenerateNegativeControl:

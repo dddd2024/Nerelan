@@ -11,6 +11,7 @@ from reverse_agent.local_reverse_console_mature_backend_probe import (
     build_probe_artifact,
     detect_platform_info,
     detect_pywinauto_in_requirements,
+    detect_pywinauto_validator_support,
     detect_python_backend_availability,
     detect_windows_conpty_api_presence,
 )
@@ -92,6 +93,44 @@ class TestDetectPywinautoInRequirements:
 
     def test_missing_requirements_is_false(self, tmp_path: Path):
         assert detect_pywinauto_in_requirements(tmp_path / "missing.txt") is False
+
+
+class TestDetectPywinautoValidatorSupport:
+    def test_default_registry_marks_pywinauto_unsupported(self):
+        assert detect_pywinauto_validator_support() is False
+
+    def test_requires_validator_support_and_mature_interactive_console(self):
+        with patch(
+            "reverse_agent.local_reverse_console_pair_validator.get_console_backend_capabilities"
+        ) as mock_registry:
+            mock_registry.return_value = {
+                "pywinauto": {
+                    "validator_supported": True,
+                    "mature_interactive_console": False,
+                }
+            }
+            assert detect_pywinauto_validator_support() is False
+
+            mock_registry.return_value = {
+                "pywinauto": {
+                    "validator_supported": True,
+                    "mature_interactive_console": True,
+                }
+            }
+            assert detect_pywinauto_validator_support() is True
+
+    def test_registry_missing_or_invalid_fails_closed(self):
+        with patch(
+            "reverse_agent.local_reverse_console_pair_validator.get_console_backend_capabilities"
+        ) as mock_registry:
+            mock_registry.return_value = {}
+            assert detect_pywinauto_validator_support() is False
+
+            mock_registry.return_value = {"pywinauto": []}
+            assert detect_pywinauto_validator_support() is False
+
+            mock_registry.side_effect = AttributeError("registry unavailable")
+            assert detect_pywinauto_validator_support() is False
 
 
 class TestDetectPlatformInfo:
@@ -294,6 +333,41 @@ class TestBuildProbeArtifact:
         assert result["no_custom_conpty_runner"] is True
         assert result["no_expect_state_machine"] is True
         assert result["no_terminal_emulator"] is True
+
+    def test_default_registry_blocks_pywinauto_capability_only(self, tmp_path: Path):
+        rp, hp, tp = self._write_artifacts(tmp_path)
+        with (
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_python_backend_availability") as mock_pkg,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_pywinauto_in_requirements") as mock_req,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_windows_conpty_api_presence") as mock_conpty,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_platform_info") as mock_platform,
+        ):
+            mock_pkg.return_value = {
+                "pywinauto_available": True,
+                "pywinpty_available": False,
+                "winpty_available": False,
+                "wexpect_available": False,
+                "pexpect_available": False,
+            }
+            mock_req.return_value = True
+            mock_conpty.return_value = {
+                "conpty_api_available": False,
+                "conpty_api_checked": True,
+            }
+            mock_platform.return_value = {
+                "windows_platform": True,
+                "platform_system": "Windows",
+                "sys_platform": "win32",
+                "os_name": "nt",
+            }
+            result = build_probe_artifact(rp, hp, tp)
+
+        assert result["pywinauto_available"] is True
+        assert result["pywinauto_in_requirements"] is True
+        assert result["pywinauto_validator_supported"] is False
+        assert result["pywinauto_readiness_policy"] == "capability_only"
+        assert result["probe_status"] == "BLOCKED_MATURE_BACKEND_MISSING"
+        assert result["can_attempt_interactive_console_validation_next"] is False
 
     def test_requirements_pywinauto_without_validator_support_is_not_ready(self, tmp_path: Path):
         rp, hp, tp = self._write_artifacts(tmp_path)

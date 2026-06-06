@@ -11,6 +11,7 @@ Does NOT contain sample-specific hardcoded algorithms.
 from __future__ import annotations
 
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -19,6 +20,47 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+CONSOLE_BACKEND_CAPABILITIES: dict[str, dict[str, object]] = {
+    "subprocess": {
+        "available": True,
+        "validator_supported": True,
+        "mature_interactive_console": False,
+        "readiness_policy": "basic_subprocess_fallback",
+        "reason": (
+            "Existing pair validator uses subprocess for bounded candidate/control "
+            "runs; it is not a mature interactive console backend for ambiguous "
+            "Windows console flows."
+        ),
+    },
+    "pywinauto": {
+        "available": False,
+        "validator_supported": False,
+        "mature_interactive_console": False,
+        "readiness_policy": "capability_only_until_adapter_exists",
+        "reason": (
+            "pywinauto dependency may exist, but no pywinauto-backed console "
+            "validator is implemented."
+        ),
+    },
+}
+
+
+def get_console_backend_capabilities() -> dict[str, dict[str, object]]:
+    """Return JSON-serializable console backend capabilities.
+
+    The returned mapping is detached from the module-level registry so callers
+    cannot accidentally mutate the source of truth.
+    """
+    return copy.deepcopy(CONSOLE_BACKEND_CAPABILITIES)
+
+
+def is_console_backend_validator_supported(name: str) -> bool:
+    """Return whether a named backend has validator support."""
+    capabilities = get_console_backend_capabilities()
+    entry = capabilities.get(name.strip().lower(), {})
+    return bool(entry.get("validator_supported", False))
 
 
 def _resolve_target_path(relative_path: str) -> Path | None:

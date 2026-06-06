@@ -17,6 +17,7 @@ import json
 import os
 import platform
 import sys
+from collections.abc import Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -64,10 +65,29 @@ def detect_pywinauto_in_requirements(requirements_path: Path | None = None) -> b
 def detect_pywinauto_validator_support() -> bool:
     """Return whether the existing console validator supports pywinauto.
 
-    Current audit scope found pywinauto only in GUI/debugger-oriented helpers,
-    not in the console pair validator or tool runner console backend boundary.
+    Capability registry failures are treated as unsupported so environment
+    package presence cannot accidentally authorize interactive validation.
     """
-    return False
+    try:
+        from reverse_agent.local_reverse_console_pair_validator import (
+            get_console_backend_capabilities,
+        )
+
+        capabilities = get_console_backend_capabilities()
+        if not isinstance(capabilities, Mapping):
+            return False
+        pywinauto_entry = capabilities.get("pywinauto")
+        if not isinstance(pywinauto_entry, Mapping):
+            return False
+        validator_supported = bool(
+            pywinauto_entry.get("validator_supported", False)
+        )
+        mature_interactive = bool(
+            pywinauto_entry.get("mature_interactive_console", False)
+        )
+        return validator_supported and mature_interactive
+    except (ImportError, AttributeError, KeyError, TypeError, ValueError):
+        return False
 
 
 def detect_windows_conpty_api_presence() -> dict[str, Any]:

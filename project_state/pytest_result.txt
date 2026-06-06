@@ -1,15 +1,16 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1",
-  "report_id": "report_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1",
-  "generated_at": "2026-06-06T13:02:43Z",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1",
+  "report_id": "report_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1",
+  "generated_at": "2026-06-06T13:16:41Z",
   "status": "PASSED",
   "tests_ran": [
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+    "python -m py_compile reverse_agent/local_reverse_console_pair_validator.py reverse_agent/local_reverse_console_mature_backend_probe.py",
+    "python -m pytest -q tests/test_local_reverse_console_pair_validator.py tests/test_local_reverse_console_mature_backend_probe.py",
     "python -m pytest -q tests/test_project_state.py",
-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
@@ -19,7 +20,7 @@
 }
 ```
 
-# Pytest Result - round_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1
+# Pytest Result - round_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1
 
 ## Command 1: lint-decision
 
@@ -32,9 +33,9 @@ Exit Code: 0
 Output:
 ```
 lint-decision: OK
-decision_id: decision_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1
+decision_id: decision_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1
 decision_status: APPROVED
-mainline: engineering_branch
+mainline: tool_integration
 skill_profiles: ['reverse-agent-iteration@v2']
 based_on_state_build_id: state_20260602_053948_4e3984041cd7
 based_on_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
@@ -46,7 +47,35 @@ active_decision_packet: project_state/decision_packet.md
 
 Result: PASSED
 
-## Command 2: pytest project_state
+## Command 2: py_compile
+
+```
+python -m py_compile reverse_agent/local_reverse_console_pair_validator.py reverse_agent/local_reverse_console_mature_backend_probe.py
+```
+
+Exit Code: 0
+
+Output: no output
+
+Result: PASSED
+
+## Command 3: focused console backend tests
+
+```
+python -m pytest -q tests/test_local_reverse_console_pair_validator.py tests/test_local_reverse_console_mature_backend_probe.py
+```
+
+Exit Code: 0
+
+Output:
+```
+..................................                                       [100%]
+34 passed in 0.32s
+```
+
+Result: PASSED
+
+## Command 4: project_state tests
 
 ```
 python -m pytest -q tests/test_project_state.py
@@ -59,24 +88,12 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 ..............                                                           [100%]
-158 passed in 25.87s
+158 passed in 25.13s
 ```
 
 Result: PASSED
 
-## Command 3: archive-round
-
-```
-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260606_cpp2_2f64e68d_pywinauto_round_minimal_archive_closeout_v1
-```
-
-Exit Code: 0
-
-Output: no output
-
-Result: PASSED
-
-## Command 4: lint-report
+## Command 5: lint-report
 
 ```
 python -m reverse_agent.project_state lint-report --state-dir project_state
@@ -87,12 +104,13 @@ Exit Code: 0
 Output summary:
 ```
 lint-report: OK
+warning: report round not archived yet
 report_status: SUCCESS
 acceptance_recommendation: ACCEPTED
 decision_report_id_match: True
 report_decision_round_id_match: True
-round_manifest_present: True
-archive_status: archived
+round_manifest_present: False
+archive_status: not_archived
 pytest_result_status: PASSED
 pytest_result_matches_report: True
 pytest_result_tests_cover_report: True
@@ -100,7 +118,7 @@ pytest_result_tests_cover_report: True
 
 Result: PASSED
 
-## Command 5: status
+## Command 6: status
 
 ```
 python -m reverse_agent.project_state status --state-dir project_state
@@ -114,8 +132,8 @@ decision_report_id_match: True
 decision_state_digest_match: True
 decision_consumed_by_report: True
 decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
-round_manifest_present: True
-archive_status: archived
+round_manifest_present: False
+archive_status: not_archived
 pytest_result_status: PASSED
 pytest_result_matches_report: True
 pytest_result_tests_cover_report: True
@@ -123,7 +141,7 @@ pytest_result_tests_cover_report: True
 
 Result: PASSED
 
-## Command 6: git diff --check
+## Command 7: git diff --check
 
 ```
 git diff --check
@@ -138,7 +156,7 @@ line-ending warnings only
 
 Result: PASSED
 
-## Command 7: git status --short
+## Command 8: git status --short
 
 ```
 git status --short
@@ -148,12 +166,12 @@ Exit Code: 0
 
 Output summary:
 ```
-Allowed files only: active report/result, minimal round archive files, and inherited accepted pywinauto capability code/test changes already present before this closeout round.
+Allowed files only: source/test registry changes plus active project_state report/result refresh.
 ```
 
 Result: PASSED
 
-## Command 8: git diff --name-status
+## Command 9: git diff --name-status
 
 ```
 git diff --name-status
@@ -163,11 +181,11 @@ Exit Code: 0
 
 Output summary:
 ```
-Allowed files only: active report/result, minimal round archive files, and inherited accepted pywinauto capability code/test changes already present before this closeout round.
+Allowed files only: source/test registry changes plus active project_state report/result refresh.
 ```
 
 Result: PASSED
 
 ## Summary
 
-All required checks passed. The archive was created through default `archive-round` without `--include-diff` and without `--include-state-snapshot`. No CPP2 runtime validation, mature backend probe CLI, pair validator, IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver, candidate/control input, code edit, schema edit, or current CPP2 artifact overwrite was performed.
+All required checks passed. No CPP2 runtime validation, mature backend probe CLI, pair validator, IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver, candidate/control input, dependency change, current CPP2 artifact overwrite, or solve_reports write was performed.
