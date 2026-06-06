@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp1_7b504c54_runtime_validation_v1",
-  "round_id": "round_20260606_cpp1_7b504c54_runtime_validation_v1",
+  "decision_id": "decision_20260606_cpp1_7b504c54_training_status_sync_v1",
+  "round_id": "round_20260606_cpp1_7b504c54_training_status_sync_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
-  "mainline": "reverse_solving",
+  "mainline": "training_dataset",
   "skill_profiles": [
     "reverse-agent-iteration@v2"
   ]
@@ -17,139 +17,159 @@
 
 ## 1. Goal
 
-本轮主线是 **reverse_solving**。
+本轮主线是 **training_dataset**。
 
-目标：对 `cpp1_7b504c54` 的 current static candidate 做有界 runtime validation，并把验证结果写成可审计 artifact。上一轮只完成 report/metadata 修复；当前 `project_state/local_reverse_cpp1_7b504c54_xor_handoff.json` 仍是 static-only，不能直接当 solved 结果。
+目标：把上一轮已经 runtime validated 的 `cpp1_7b504c54` 同步到训练集状态文件、评估队列和 status overlay，使训练数据状态与 current artifact evidence 一致。
 
-本轮允许：
+上一轮已经完成并审计接受：
 
 ```text
-1. 读取 current static triage 与 XOR handoff artifact。
-2. 新增一个可复用的 console runtime validator，用于 stdin/stdout 型本地 PE 样本验证。
-3. 用 validator 仅验证 handoff artifact 中的 static_candidate_text=WeKnowItOk。
-4. 生成 project_state/local_reverse_cpp1_7b504c54_runtime_validation.json。
-5. 更新 project_state/artifact_index.json 登记 runtime validation artifact。
-6. 如果且仅如果目标进程真实执行且 stdout/stderr 中观察到 success token，可在 runtime validation artifact 中设置 candidate/known_candidate/solved=true。
+runtime_validation_artifact=project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
+sample_id=cpp1_7b504c54
+candidate=WeKnowItOk
+known_candidate=WeKnowItOk
+executed_sample=true
+runtime_validated=true
+validation_status=VALIDATED_SUCCESS
+success_observed=true
+solved=true
+target_sha256=7b504c54c165100549a0eacb7eb7cad26bc235ec0c4bed5c38c95a827ff81a3c
 ```
 
-本轮不做训练集批量推进，不进入旧 `samplereverse` 路线，不扩大到其他样本。
+当前不一致点：
+
+```text
+1. project_state/local_reverse_training_status.json 仍把 cpp1_7b504c54 标为 inventory_only，known_candidate 为空。
+2. training_materials/local_reverse/status_overlay.json 仍把 cpp1_7b504c54 标为 inventory_only，known_candidate 为空。
+3. project_state/local_reverse_evaluation_queue.json 仍把 cpp1_7b504c54 放在 rank=1，allowed_actions=static_triage。
+```
+
+本轮只做状态收敛，不继续求解新样本，不运行工具，不生成新的候选。
+
+预期结果：
+
+```text
+1. cpp1_7b504c54 在 training_status 与 status_overlay 中变为 solved。
+2. cpp1_7b504c54 的 known_candidate 变为 WeKnowItOk。
+3. status_summary 从 solved=1, blocked=4, needs_triage=0, inventory_only=24 更新为 solved=2, blocked=4, needs_triage=0, inventory_only=23。
+4. cpp1_7b504c54 从 evaluation_queue.items 中移除，其余 item 重新连续编号 rank。
+5. 生成一个轻量同步审计 artifact：project_state/local_reverse_cpp1_7b504c54_training_status_sync.json。
+6. artifact_index 登记该同步 artifact，freshness=current。
+```
 
 ---
 
 ## 2. Current Evidence
 
-当前 `project_state/task_packet.json` 仍是旧 `samplereverse` advisory：`task=Review bounded window discovery diagnostics`，并明确 `project_state/decision_packet.md` 才是当前轮执行权威。`task_packet.task` 不控制本轮。
+`project_state/task_packet.json` 仍是旧 `samplereverse` advisory，`task=Review bounded window discovery diagnostics`，并明确 `project_state/decision_packet.md` 才是当前轮执行权威。`task_packet.task` 不控制本轮。
 
-当前 `project_state/current_state.json` 仍主要是旧 samplereverse 压缩状态，`state_build_id=state_20260602_053948_4e3984041cd7`，`state_digest=4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c`。本轮有关 `cpp1_7b504c54` 的事实以 `artifact_index.json`、`local_reverse_cpp1_7b504c54_static_triage.json`、`local_reverse_cpp1_7b504c54_xor_handoff.json` 为准。
+`project_state/current_state.json` 仍主要是旧 samplereverse 压缩状态，`state_build_id=state_20260602_053948_4e3984041cd7`，`state_digest=4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c`。本轮有关 local reverse 训练状态的事实以 current artifact 和 training files 为准。
 
-当前上一轮 Codex 报告已经闭合：
+上一轮 `codex_execution_report.md` 已闭合：
 
 ```text
-report_id=report_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
-based_on_decision_id=decision_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
-round_id=round_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
+report_id=report_20260606_cpp1_7b504c54_runtime_validation_v1
+based_on_decision_id=decision_20260606_cpp1_7b504c54_runtime_validation_v1
+round_id=round_20260606_cpp1_7b504c54_runtime_validation_v1
 status=SUCCESS
 acceptance_recommendation=ACCEPTED
 ```
 
-当前 `pytest_result.txt` 记录：
+上一轮 `pytest_result.txt` 已记录真实测试：
 
 ```text
 status=PASSED
-Total Commands=7
-Passed=7
+Total Commands=10
+Passed=10
 Failed=0
+runtime_validation=VALIDATED_SUCCESS, solved=True, candidate=WeKnowItOk
 lint-report=OK
 project_state status: decision_consumed_by_report=True, decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
-readonly_consistency_check: arrays match, kind=local_reverse_cpp1_xor_handoff
 ```
 
-当前 static triage artifact：
+当前 runtime validation artifact：
 
 ```text
-path=project_state/local_reverse_cpp1_7b504c54_static_triage.json
+path=project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
+schema_version=1
 sample_id=cpp1_7b504c54
+analysis_mode=console_runtime_validation
+mainline=reverse_solving
+source_artifact_freshness=current
 relative_path=逆向课程2023春补考01/Cpp1.exe
-source_tool=IDA
-executed_sample=false
-static_only=true
-runtime_validated=false
-source_artifact_freshness=current
-main_function=_main_0
-main_entry_ea=0x401110
+candidate_source_field=static_candidate_text
+candidate=WeKnowItOk
+known_candidate=WeKnowItOk
+executed_sample=true
+runtime_validated=true
+validation_status=VALIDATED_SUCCESS
+success_token=Congratulations! You are right!
+success_observed=true
+failure_observed=false
+length_error_observed=false
+return_code=0
+solved=true
+blocked_reason=""
+target_sha256=7b504c54c165100549a0eacb7eb7cad26bc235ec0c4bed5c38c95a827ff81a3c
 ```
 
-IDA decompiler snippet 已给出核心逻辑：
-
-```text
-printf("Please give me your input:\n");
-sub_401005(Str, 15);
-if ( strlen(Str) == 10 ) {
-  for i in 0..9: v4[i + 20] = byte_427A30[9 - i] ^ Str[i]
-  for i in 0..9: v4[i] = byte_427A3C[i] ^ v4[i + 20]
-  for i in 0..9 && v4[i] == byte_427A48[i]
-  if i == 10: printf("Congratulations! You are right!\n")
-  else: printf("Sorry, you are wrong!\n")
-  system("pause")
-} else {
-  printf("Sorry, the length is wrong!\n")
-  system("pause")
-}
-```
-
-当前 XOR handoff artifact：
-
-```text
-path=project_state/local_reverse_cpp1_7b504c54_xor_handoff.json
-sample_id=cpp1_7b504c54
-analysis_mode=cpp1_7b504c54_static_xor_handoff
-executed_sample=false
-static_only=true
-runtime_validated=false
-source_artifact_freshness=current
-input_length=10
-transform_formula="candidate[i] = byte_427A30[9-i] ^ byte_427A3C[i] ^ byte_427A48[i]"
-byte_427A30.bytes_hex=0102030405060708090a
-byte_427A3C.bytes_hex=1112131415161718191a
-byte_427A48.bytes_hex=4c7e507d7c645a6f5470
-static_candidate_hex=57654b6e6f7749744f6b
-static_candidate_text=WeKnowItOk
-static_candidate_printable=true
-forward_transform_verified=true
-candidate=null
-known_candidate=""
-validation_status=not_validated
-solved=false
-status=READY_FOR_STATIC_REVIEW
-```
-
-当前 `artifact_index.json` 已登记 current artifacts：
+当前 artifact_index 已登记：
 
 ```text
 local_reverse_cpp1_7b504c54_static_triage:
   kind=local_reverse_single_sample_static_triage
-  path=project_state\local_reverse_cpp1_7b504c54_static_triage.json
   freshness=current
-  source_run=round_20260605_cpp1_7b504c54_static_triage_v1
   sample_id=cpp1_7b504c54
 
 local_reverse_cpp1_7b504c54_xor_handoff:
   kind=local_reverse_cpp1_xor_handoff
-  path=project_state\local_reverse_cpp1_7b504c54_xor_handoff.json
   freshness=current
-  source_run=round_20260605_cpp1_7b504c54_xor_handoff_v1
+  sample_id=cpp1_7b504c54
+
+local_reverse_cpp1_7b504c54_runtime_validation:
+  kind=local_reverse_console_runtime_validation
+  path=project_state\local_reverse_cpp1_7b504c54_runtime_validation.json
+  freshness=current
+  source_run=round_20260606_cpp1_7b504c54_runtime_validation_v1
   sample_id=cpp1_7b504c54
 ```
 
-已有工具接口检查：
+当前 `project_state/local_reverse_training_status.json` 仍不一致：
 
 ```text
-1. IDA/IDAPython: reverse_agent/tool_runners.py 已有 run_ida_evidence 与 ida_scripts/collect_evidence.py；当前 static triage 已来自 IDA，不需要本轮重新运行 IDA。
-2. OllyDbg/debugger: reverse_agent/tool_runners.py 有 OllyDbg/CompareProbe 接口，但当前样本是 console stdin/stdout 型 Cpp1.exe，不是 GUI 宽字符串 compare_probe 场景。
-3. CompareProbe: reverse_agent/olly_scripts/compare_probe.py 依赖 frida + pywinauto + GUI 控件 auto_id，目标是 samplereverse GUI compare capture；本轮不得用它硬套 console 样本。
-4. Static XOR handoff: reverse_agent/local_reverse_cpp1_7b504c54_xor_handoff.py 是 static-only，文件头明确 Does NOT execute target binary / Does NOT validate at runtime。
-5. 当前缺口：缺少一个小型、可复用的 console candidate runtime validator。
+status_summary.solved=1
+status_summary.blocked=4
+status_summary.needs_triage=0
+status_summary.inventory_only=24
+samples[cpp1_7b504c54].training_status=inventory_only
+samples[cpp1_7b504c54].known_candidate=""
+samples[cpp1_7b504c54].classification=""
+samples[cpp1_7b504c54].evidence_sources=[]
+samples[cpp1_7b504c54].next_action="static triage and manual evaluation required"
 ```
+
+当前 `training_materials/local_reverse/status_overlay.json` 仍不一致：
+
+```text
+status_summary.solved=1
+status_summary.blocked=4
+status_summary.needs_triage=0
+status_summary.inventory_only=24
+samples[cpp1_7b504c54].training_status=inventory_only
+samples[cpp1_7b504c54].known_candidate=""
+samples[cpp1_7b504c54].blocked_reason=""
+```
+
+当前 `project_state/local_reverse_evaluation_queue.json` 仍不一致：
+
+```text
+items[0].rank=1
+items[0].sample_id=cpp1_7b504c54
+items[0].allowed_actions=["static_triage"]
+items[0].forbidden_actions includes runtime_probe
+```
+
+这与 current runtime validation artifact 冲突，应移出待评估队列。
 
 当前 `negative_results.json` 仍禁止：
 
@@ -162,7 +182,16 @@ local_reverse_cpp1_7b504c54_xor_handoff:
 6. run Base64/RC4 breakpoint probe before real lhs producer identification
 ```
 
-本轮不触碰旧 samplereverse 搜索/beam/Base64/RC4/compare-probe 方向；本轮只验证当前 `cpp1_7b504c54` 的单个 static candidate。
+本轮不触碰这些方向。
+
+已有能力检查：
+
+```text
+1. IDA/IDAPython 能力已存在，且当前 static triage 已来自 IDA；本轮不运行 IDA。
+2. Console runtime validator 已新增并通过上一轮 13 个单元测试；本轮不再次运行目标 binary。
+3. artifact_index 已能登记 project_state artifacts；本轮只增加 training_status_sync artifact。
+4. 当前缺口不是 solver 能力，而是训练集状态未与 current validation evidence 同步。
+```
 
 ---
 
@@ -171,34 +200,32 @@ local_reverse_cpp1_7b504c54_xor_handoff:
 严禁：
 
 ```text
-1. 不回到 old sample_solver blind search。
-2. 不扩 beam/topN/budget/timeout 来碰运气。
-3. 不运行 IDA/Ghidra；current static evidence 已足够。
-4. 不运行 OllyDbg、Frida hook、CompareProbe、debugger、emulator。
-5. 不把 reverse_agent/olly_scripts/compare_probe.py 硬套到当前 console 样本。
-6. 不重新生成或修改 project_state/local_reverse_cpp1_7b504c54_xor_handoff.json。
-7. 不重新生成或修改 project_state/local_reverse_cpp1_7b504c54_static_triage.json。
-8. 不修改 .codex-skills。
-9. 不提交本地 binary、IDA database、raw temp、triage temp dir 或 full solve_reports。
-10. 不读取 full solve_reports 或 PROJECT_PROGRESS_LOG。
-11. 不批量处理 local_reverse_samples / E:\reverse 下其他样本。
-12. 不修改其他样本状态。
-13. 不把 static_candidate_text 直接写入 global known_candidate。
-14. 不在未观察到真实 success output 时标记 solved=true。
-15. 不把 timeout、target missing、unsupported runtime 当作验证失败；这些只能是 BLOCKED/NOT_VALIDATED。
-16. 不把 stdout 中的 prompt 或 length message 当作成功。
+1. 不运行目标样本，不做 runtime validation。
+2. 不运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。
+3. 不运行 solver/bruteforce/guided pool/constraint recovery。
+4. 不推进任何新样本求解。
+5. 不批量跑 local_reverse_samples / E:\reverse。
+6. 不修改 project_state/local_reverse_cpp1_7b504c54_runtime_validation.json。
+7. 不修改 project_state/local_reverse_cpp1_7b504c54_xor_handoff.json。
+8. 不修改 project_state/local_reverse_cpp1_7b504c54_static_triage.json。
+9. 不修改 reverse_agent/local_reverse_console_validator.py 或其测试，除非只读发现语法损坏；默认不改代码。
+10. 不修改 .codex-skills。
+11. 不提交本地 binary、IDA database、raw temp、triage temp dir 或 full solve_reports。
+12. 不读取 full solve_reports 或 PROJECT_PROGRESS_LOG。
+13. 不把其他 inventory_only 样本顺手改成 solved/blocked。
+14. 不把 cpp1_7b504c54 保留在 evaluation_queue 中。
+15. 不把 training_status 与 status_overlay 更新成彼此不一致的状态。
 ```
 
 允许：
 
 ```text
-1. 新增通用 console runtime validator 模块，例如 reverse_agent/local_reverse_console_validator.py。
-2. 新增对应单元测试，例如 tests/test_local_reverse_console_validator.py。
-3. 运行 validator 对 cpp1_7b504c54 的 static_candidate_text=WeKnowItOk 做单候选 runtime validation。
-4. 生成 project_state/local_reverse_cpp1_7b504c54_runtime_validation.json。
-5. 更新 project_state/artifact_index.json，登记 local_reverse_cpp1_7b504c54_runtime_validation。
-6. 更新 project_state/codex_execution_report.md 与 project_state/pytest_result.txt。
-7. 如果且仅如果 runtime validation 成功，可在 runtime validation artifact 中记录 candidate/known_candidate/solved=true；不要修改 static handoff artifact。
+1. 修改 project_state/local_reverse_training_status.json。
+2. 修改 project_state/local_reverse_evaluation_queue.json。
+3. 修改 training_materials/local_reverse/status_overlay.json。
+4. 新增 project_state/local_reverse_cpp1_7b504c54_training_status_sync.json。
+5. 更新 project_state/artifact_index.json 登记 training status sync artifact。
+6. 更新 project_state/codex_execution_report.md 和 project_state/pytest_result.txt。
 ```
 
 ---
@@ -215,25 +242,20 @@ project_state/negative_results.json
 project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
-project_state/local_reverse_cpp1_7b504c54_static_triage.json
-project_state/local_reverse_cpp1_7b504c54_xor_handoff.json
-.codex-skills/registry.json
-reverse_agent/tool_runners.py
-reverse_agent/local_reverse_cpp1_7b504c54_xor_handoff.py
-```
-
-必须检查但不应默认使用：
-
-```text
-reverse_agent/olly_scripts/compare_probe.py
-```
-
-按需读取：
-
-```text
-tests/test_local_reverse_cpp1_7b504c54_xor_handoff.py
+project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
 project_state/local_reverse_training_status.json
 project_state/local_reverse_evaluation_queue.json
+training_materials/local_reverse/status_overlay.json
+.codex-skills/registry.json
+```
+
+只读参考，默认不要修改：
+
+```text
+project_state/local_reverse_cpp1_7b504c54_xor_handoff.json
+project_state/local_reverse_cpp1_7b504c54_static_triage.json
+reverse_agent/local_reverse_console_validator.py
+tests/test_local_reverse_console_validator.py
 ```
 
 不要默认读取：
@@ -253,77 +275,110 @@ Codex 报告必须回答：
 ```text
 1. 是否确认当前 decision_packet 是本轮唯一执行权威。
 2. 是否确认 task_packet.task 只是旧 samplereverse advisory。
-3. 是否确认本轮主线为 reverse_solving。
-4. 是否确认 current static triage artifact 与 XOR handoff artifact 均为 current。
-5. 是否确认 source_tool=IDA 且本轮不需要重跑 IDA/Ghidra。
-6. 是否确认已有 OllyDbg/CompareProbe 接口不适合当前 console sample，并未使用。
-7. 是否确认没有运行 debugger/hook/emulator/CompareProbe。
-8. 是否确认没有回到 old sample_solver blind search。
-9. 是否确认只验证 handoff artifact 中的单个 static_candidate_text。
-10. 是否确认 validator 是 stdin/stdout console validation，不包含样本专属硬编码算法。
-11. 是否确认没有修改 static triage artifact。
-12. 是否确认没有修改 XOR handoff artifact。
-13. 是否确认 runtime validation artifact 明确记录 executed_sample/runtime_validated/validation_status/solved/blocked_reason。
-14. 如果成功，是否确认 stdout/stderr 中观察到 exact success token: "Congratulations! You are right!"。
-15. 如果失败，是否区分 wrong candidate、target missing、unsupported runtime、timeout、ambiguous output。
-16. 是否确认没有把 blocked/timeout/ambiguous 当作 solved=false 的候选反证。
-17. 是否确认 artifact_index 新增/更新 key=local_reverse_cpp1_7b504c54_runtime_validation，freshness=current，sample_id=cpp1_7b504c54，source_run=round_20260606_cpp1_7b504c54_runtime_validation_v1。
-18. 是否确认 project_state/codex_execution_report.md 顶部 codex_report_summary 与本 decision_id/round_id 匹配。
-19. 是否确认 pytest_result.txt 记录每条命令、Exit Code 和输出摘要。
-20. 是否确认 git status --short 和 git diff --name-status 只包含允许文件。
+3. 是否确认本轮主线为 training_dataset。
+4. 是否确认 runtime validation artifact 为 current 且 solved=true。
+5. 是否确认 artifact_index 中 runtime validation entry 为 freshness=current。
+6. 是否确认未运行目标样本、未做 runtime validation。
+7. 是否确认未运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。
+8. 是否确认未运行 solver/bruteforce/guided pool/constraint recovery。
+9. 是否确认未修改 runtime validation artifact、XOR handoff artifact、static triage artifact。
+10. 是否确认只同步 cpp1_7b504c54 一个样本。
+11. 是否确认 training_status 中 cpp1_7b504c54.training_status=solved。
+12. 是否确认 training_status 中 cpp1_7b504c54.known_candidate=WeKnowItOk。
+13. 是否确认 training_status.status_summary 为 solved=2, blocked=4, needs_triage=0, inventory_only=23。
+14. 是否确认 status_overlay 与 training_status 对 cpp1_7b504c54 的状态一致。
+15. 是否确认 status_overlay.status_summary 同步为 solved=2, blocked=4, needs_triage=0, inventory_only=23。
+16. 是否确认 cpp1_7b504c54 已从 evaluation_queue.items 移除。
+17. 是否确认 evaluation_queue 剩余 items 的 rank 从 1 开始连续递增。
+18. 是否确认生成 training_status_sync artifact 并在 artifact_index 中登记 freshness=current。
+19. 是否确认 codex_report_summary 与本 decision_id/round_id 匹配。
+20. 是否确认 pytest_result.txt 记录每条命令、Exit Code 和输出摘要。
+21. 是否确认 git status --short 和 git diff --name-status 只包含允许文件。
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-建议实现：
+具体同步要求：
 
 ```text
-1. 新增 reverse_agent/local_reverse_console_validator.py
-   - 输入：triage artifact、candidate artifact、candidate field、success token、failure token、timeout、output path。
-   - 解析 triage.relative_path，并复用 LOCAL_REVERSE_ROOT / E:\reverse / D:\reverse / C:\reverse / ~/reverse 的路径查找逻辑。
-   - 只通过 subprocess 启动目标，向 stdin 写入 candidate + newline + newline，以覆盖 system("pause")。
-   - 捕获 stdout/stderr/returncode。
-   - 超时必须 kill process。
-   - 输出 JSON artifact。
+project_state/local_reverse_training_status.json:
+  generated_at 更新为本轮 UTC 时间。
+  status_summary 更新为:
+    solved=2
+    blocked=4
+    needs_triage=0
+    inventory_only=23
+  samples 中 sample_id=cpp1_7b504c54 更新为:
+    training_status="solved"
+    known_candidate="WeKnowItOk"
+    blocked_reason=""
+    classification="cpp1_xor_string_compare runtime_validated console_runtime_validation"
+    evidence_sources 包含且仅使用 current/local project_state 证据，不使用 solve_reports:
+      "source:local_reverse_cpp1_7b504c54_runtime_validation.json"
+      "runtime_validation"
+      "source:local_reverse_cpp1_7b504c54_xor_handoff.json"
+      "static_handoff"
+      "source:local_reverse_cpp1_7b504c54_static_triage.json"
+      "ida_static_triage"
+    next_action="No further solving action required; keep as solved regression sample."
 
-2. 新增 tests/test_local_reverse_console_validator.py
-   - 用临时 Python 子进程或 mock subprocess 测试 success/failure/target_missing/timeout/ambiguous。
-   - 不依赖本地 E:\reverse 或真实 PE。
+training_materials/local_reverse/status_overlay.json:
+  generated_at 更新为本轮 UTC 时间。
+  status_summary 同步为 solved=2, blocked=4, needs_triage=0, inventory_only=23。
+  samples 中 sample_id=cpp1_7b504c54 更新为:
+    training_status="solved"
+    known_candidate="WeKnowItOk"
+    blocked_reason=""
 
-3. 运行实际验证命令：
-   python -m reverse_agent.local_reverse_console_validator \
-     --triage project_state/local_reverse_cpp1_7b504c54_static_triage.json \
-     --candidate-artifact project_state/local_reverse_cpp1_7b504c54_xor_handoff.json \
-     --candidate-field static_candidate_text \
-     --success-token "Congratulations! You are right!" \
-     --failure-token "Sorry, you are wrong!" \
-     --length-token "Sorry, the length is wrong!" \
-     --out project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
+project_state/local_reverse_evaluation_queue.json:
+  generated_at 更新为本轮 UTC 时间。
+  从 items 中移除 sample_id=cpp1_7b504c54。
+  其余 items 按原相对顺序重新编号 rank=1..N。
+  queue_policy 保持不变，除非现有生成逻辑必须补充说明；不得扩大策略。
 
-4. 更新 project_state/artifact_index.json：
-   latest_artifacts.local_reverse_cpp1_7b504c54_runtime_validation = project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json
-   latest_artifacts_v2.local_reverse_cpp1_7b504c54_runtime_validation = {
-     kind=local_reverse_console_runtime_validation,
-     path=project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json,
-     freshness=current,
-     source_run=round_20260606_cpp1_7b504c54_runtime_validation_v1,
-     sha256=<actual file sha256>,
-     size_bytes=<actual size>,
-     modified_at=<actual UTC timestamp>,
-     sample_id=cpp1_7b504c54
-   }
+project_state/local_reverse_cpp1_7b504c54_training_status_sync.json:
+  schema_version=1
+  sample_id=cpp1_7b504c54
+  mainline=training_dataset
+  source_artifacts 包含 local_reverse_cpp1_7b504c54_runtime_validation
+  source_artifact_freshness=current
+  source_run=round_20260606_cpp1_7b504c54_training_status_sync_v1
+  training_status_before=inventory_only
+  training_status_after=solved
+  known_candidate=WeKnowItOk
+  status_summary_before={solved:1, blocked:4, needs_triage:0, inventory_only:24}
+  status_summary_after={solved:2, blocked:4, needs_triage:0, inventory_only:23}
+  queue_removed_sample=true
+  overlay_updated=true
+  runtime_validation_artifact=project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
+  validation_status=VALIDATED_SUCCESS
+  solved=true
+  blocked_reason=""
+  generated_at=<UTC>
 
-5. 更新 project_state/codex_execution_report.md 与 project_state/pytest_result.txt。
+project_state/artifact_index.json:
+  latest_artifacts.local_reverse_cpp1_7b504c54_training_status_sync = "project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json"
+  latest_artifacts_v2.local_reverse_cpp1_7b504c54_training_status_sync = {
+    kind="local_reverse_training_status_sync",
+    path="project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json",
+    freshness="current",
+    source_run="round_20260606_cpp1_7b504c54_training_status_sync_v1",
+    sha256=<actual file sha256>,
+    size_bytes=<actual size>,
+    modified_at=<actual UTC timestamp>,
+    sample_id="cpp1_7b504c54"
+  }
 ```
 
 允许修改：
 
 ```text
-reverse_agent/local_reverse_console_validator.py
-tests/test_local_reverse_console_validator.py
-project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
+project_state/local_reverse_training_status.json
+project_state/local_reverse_evaluation_queue.json
+training_materials/local_reverse/status_overlay.json
+project_state/local_reverse_cpp1_7b504c54_training_status_sync.json
 project_state/artifact_index.json
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
@@ -332,77 +387,16 @@ project_state/pytest_result.txt
 不得修改：
 
 ```text
+project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
 project_state/local_reverse_cpp1_7b504c54_xor_handoff.json
 project_state/local_reverse_cpp1_7b504c54_static_triage.json
-project_state/local_reverse_training_status.json
-project_state/local_reverse_evaluation_queue.json
-training_materials/local_reverse/status_overlay.json
-reverse_agent/local_reverse_cpp1_7b504c54_xor_handoff.py
-tests/test_local_reverse_cpp1_7b504c54_xor_handoff.py
+reverse_agent/local_reverse_console_validator.py
+tests/test_local_reverse_console_validator.py
 reverse_agent/tool_runners.py
 reverse_agent/olly_scripts/compare_probe.py
 .codex-skills/*
 solve_reports/*
 project_state/triage_*
-```
-
-Runtime validation artifact 最低字段：
-
-```text
-schema_version
-sample_id
-analysis_mode=console_runtime_validation
-mainline=reverse_solving
-source_artifacts
-source_artifact_freshness
-relative_path
-candidate_source_field
-candidate
-known_candidate
-executed_sample
-runtime_validated
-validation_status
-success_token
-failure_token
-length_token
-success_observed
-failure_observed
-length_error_observed
-return_code
-stdout_tail
-stderr_tail
-solved
-blocked_reason
-generated_at
-```
-
-状态语义：
-
-```text
-VALIDATED_SUCCESS:
-  executed_sample=true
-  runtime_validated=true
-  success_observed=true
-  candidate=WeKnowItOk
-  known_candidate=WeKnowItOk
-  solved=true
-
-VALIDATED_FAILURE:
-  executed_sample=true
-  runtime_validated=true
-  success_observed=false
-  failure_observed=true or length_error_observed=true
-  candidate=null
-  known_candidate=""
-  solved=false
-
-BLOCKED:
-  executed_sample=false or runtime_validated=false
-  validation_status=blocked
-  candidate=null
-  known_candidate=""
-  solved=false
-  blocked_reason one of TARGET_MISSING / UNSUPPORTED_RUNTIME / TIMEOUT / DEPENDENCY_ERROR / AMBIGUOUS_OUTPUT / CANDIDATE_MISSING
 ```
 
 ---
@@ -412,40 +406,47 @@ BLOCKED:
 必须运行并记录：
 
 ```bash
-python -m py_compile reverse_agent/local_reverse_console_validator.py
-python -m pytest -q tests/test_local_reverse_console_validator.py
-python -m reverse_agent.local_reverse_console_validator --triage project_state/local_reverse_cpp1_7b504c54_static_triage.json --candidate-artifact project_state/local_reverse_cpp1_7b504c54_xor_handoff.json --candidate-field static_candidate_text --success-token "Congratulations! You are right!" --failure-token "Sorry, you are wrong!" --length-token "Sorry, the length is wrong!" --out project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
-git diff --check
-git status --short
-git diff --name-status
-```
-
-建议追加只读 consistency check：
-
-```bash
+python -m pytest -q tests/test_project_state.py
 python - <<'PY'
 import json
 from pathlib import Path
-v=json.loads(Path('project_state/local_reverse_cpp1_7b504c54_runtime_validation.json').read_text(encoding='utf-8'))
-i=json.loads(Path('project_state/artifact_index.json').read_text(encoding='utf-8'))
-assert v['sample_id']=='cpp1_7b504c54'
-assert v['candidate'] in (None, 'WeKnowItOk')
-assert v['known_candidate'] in ('', 'WeKnowItOk')
-assert v['solved'] in (False, True)
-if v['solved']:
-    assert v['validation_status']=='VALIDATED_SUCCESS'
-    assert v['runtime_validated'] is True
-    assert v['success_observed'] is True
-    assert v['known_candidate']=='WeKnowItOk'
-entry=i['latest_artifacts_v2']['local_reverse_cpp1_7b504c54_runtime_validation']
+training=json.loads(Path('project_state/local_reverse_training_status.json').read_text(encoding='utf-8'))
+overlay=json.loads(Path('training_materials/local_reverse/status_overlay.json').read_text(encoding='utf-8'))
+queue=json.loads(Path('project_state/local_reverse_evaluation_queue.json').read_text(encoding='utf-8'))
+sync=json.loads(Path('project_state/local_reverse_cpp1_7b504c54_training_status_sync.json').read_text(encoding='utf-8'))
+index=json.loads(Path('project_state/artifact_index.json').read_text(encoding='utf-8'))
+validation=json.loads(Path('project_state/local_reverse_cpp1_7b504c54_runtime_validation.json').read_text(encoding='utf-8'))
+assert validation['sample_id']=='cpp1_7b504c54'
+assert validation['validation_status']=='VALIDATED_SUCCESS'
+assert validation['known_candidate']=='WeKnowItOk'
+assert validation['solved'] is True
+expected={'solved':2,'blocked':4,'needs_triage':0,'inventory_only':23}
+assert training['status_summary']==expected
+assert overlay['status_summary']==expected
+train_sample=next(s for s in training['samples'] if s['sample_id']=='cpp1_7b504c54')
+overlay_sample=next(s for s in overlay['samples'] if s['sample_id']=='cpp1_7b504c54')
+assert train_sample['training_status']=='solved'
+assert train_sample['known_candidate']=='WeKnowItOk'
+assert overlay_sample['training_status']=='solved'
+assert overlay_sample['known_candidate']=='WeKnowItOk'
+assert all(item['sample_id']!='cpp1_7b504c54' for item in queue['items'])
+assert [item['rank'] for item in queue['items']]==list(range(1, len(queue['items'])+1))
+assert sync['sample_id']=='cpp1_7b504c54'
+assert sync['training_status_after']=='solved'
+assert sync['known_candidate']=='WeKnowItOk'
+entry=index['latest_artifacts_v2']['local_reverse_cpp1_7b504c54_training_status_sync']
 assert entry['freshness']=='current'
+assert entry['kind']=='local_reverse_training_status_sync'
 assert entry['sample_id']=='cpp1_7b504c54'
-assert entry['kind']=='local_reverse_console_runtime_validation'
-assert entry['source_run']=='round_20260606_cpp1_7b504c54_runtime_validation_v1'
+assert entry['source_run']=='round_20260606_cpp1_7b504c54_training_status_sync_v1'
+print('training status sync consistency OK')
 PY
+git diff --check
+git status --short
+git diff --name-status
 ```
 
 `pytest_result.txt` 必须包含：
@@ -458,7 +459,15 @@ PY
 5. 本轮 decision_id、round_id、report_id。
 ```
 
-如果真实 PE 或 Windows runtime 不可用，validator 命令可以生成 BLOCKED artifact，但 Codex 报告必须是 `status=BLOCKED` 或 `status=PARTIAL`，不得写 `acceptance_recommendation=ACCEPTED`。
+`codex_report_summary` 建议：
+
+```text
+report_id=report_20260606_cpp1_7b504c54_training_status_sync_v1
+round_id=round_20260606_cpp1_7b504c54_training_status_sync_v1
+based_on_decision_id=decision_20260606_cpp1_7b504c54_training_status_sync_v1
+status=SUCCESS only if all checks pass and constraints are respected
+acceptance_recommendation=ACCEPTED only if status=SUCCESS
+```
 
 ---
 
@@ -467,27 +476,30 @@ PY
 立即停止并报告 `BLOCKED` 或 `REWORK_REQUIRED`：
 
 ```text
-1. project_state/local_reverse_cpp1_7b504c54_xor_handoff.json 缺失或无法解析。
-2. project_state/local_reverse_cpp1_7b504c54_static_triage.json 缺失或无法解析。
-3. artifact_index 中 current handoff/static_triage 缺失或 freshness 不是 current。
-4. handoff artifact 的 static_candidate_text 缺失、不是 10 字符、或 forward_transform_verified=false。
-5. 需要修改 handoff artifact 或 static triage artifact 才能继续。
-6. 需要运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe 才能继续。
-7. 目标 binary 缺失且 validator 无法生成清晰 BLOCKED artifact。
-8. 运行目标超时且无法安全终止进程。
-9. stdout/stderr 同时不能确认 success/failure/length/timeout，且 artifact 没有标记 AMBIGUOUS_OUTPUT。
-10. lint-report 或 project_state status 无法闭合。
-11. git diff 包含 forbidden files。
+1. runtime validation artifact 缺失或无法解析。
+2. runtime validation artifact 不是 sample_id=cpp1_7b504c54。
+3. runtime validation artifact 的 validation_status 不是 VALIDATED_SUCCESS。
+4. runtime validation artifact 的 known_candidate 不是 WeKnowItOk 或 solved 不是 true。
+5. artifact_index 中 runtime validation entry 缺失或 freshness 不是 current。
+6. training_status 中找不到 cpp1_7b504c54。
+7. status_overlay 中找不到 cpp1_7b504c54。
+8. evaluation_queue 中没有 cpp1_7b504c54，但 training_status/overlay 仍不一致，需要报告当前状态而不是猜测。
+9. 需要运行目标样本、IDA/Ghidra/debugger/hook/emulator 才能继续。
+10. 需要修改 runtime validation/XOR handoff/static triage artifact 才能继续。
+11. 状态计数无法自洽。
+12. queue rank 无法连续重排。
+13. lint-report 或 project_state status 无法闭合。
+14. git diff 包含 forbidden files。
 ```
 
 成功完成的最低标准：
 
 ```text
-1. 新增的 console validator 有单元测试覆盖。
-2. runtime validation artifact 已生成，且状态语义清晰。
-3. artifact_index 已登记 current runtime validation artifact。
-4. 没有修改 static triage 或 XOR handoff artifact。
-5. 没有使用 IDA/Ghidra/debugger/hook/emulator/CompareProbe。
-6. 如果 solved=true，必须有真实 success token 证据。
-7. lint-decision/lint-report/status 和 git 检查全部记录到 pytest_result.txt。
-```
+1. training_status 与 status_overlay 均将 cpp1_7b504c54 标为 solved。
+2. training_status 与 status_overlay 均记录 known_candidate=WeKnowItOk。
+3. status_summary 更新一致。
+4. evaluation_queue 移除 cpp1_7b504c54 并重新连续编号。
+5. 生成 training_status_sync artifact 并登记到 artifact_index。
+6. 未运行任何工具或样本。
+7. 未修改 runtime validation/XOR handoff/static triage artifact。
+8. pytest_result.txt 完整记录真实测试。
