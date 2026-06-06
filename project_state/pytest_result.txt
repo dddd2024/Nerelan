@@ -1,18 +1,16 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260605_cpp1_7b504c54_xor_handoff_v1",
-  "report_id": "report_20260605_cpp1_7b504c54_xor_handoff_v1",
-  "round_id": "round_20260605_cpp1_7b504c54_xor_handoff_v1",
-  "generated_at": "2026-06-05T15:58:00Z",
+  "decision_id": "decision_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1",
+  "report_id": "report_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1",
+  "round_id": "round_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1",
+  "generated_at": "2026-06-05T16:30:00Z",
   "status": "PASSED",
   "tests_ran": [
-    "python -m py_compile reverse_agent/local_reverse_cpp1_7b504c54_xor_handoff.py",
-    "python -m pytest -q tests/test_local_reverse_cpp1_7b504c54_xor_handoff.py",
-    "python -m reverse_agent.local_reverse_cpp1_7b504c54_xor_handoff --static-triage project_state/local_reverse_cpp1_7b504c54_static_triage.json --out project_state/local_reverse_cpp1_7b504c54_xor_handoff.json",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state status --state-dir project_state",
+    "python -c (readonly consistency check: arrays + artifact_index kind + freshness + known_candidate)",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
@@ -21,65 +19,39 @@
 ```
 
 ================================================================================
-PYTEST RESULT DETAILS - Round: round_20260605_cpp1_7b504c54_xor_handoff_v1
+PYTEST RESULT DETAILS - Round: round_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
 ================================================================================
 
-[1] python -m py_compile reverse_agent/local_reverse_cpp1_7b504c54_xor_handoff.py
---------------------------------------------------------------------------------
-Command: python -m py_compile reverse_agent/local_reverse_cpp1_7b504c54_xor_handoff.py
-Exit Code: 0
-Output: (none)
-Result: PASSED
-
-[2] python -m pytest -q tests/test_local_reverse_cpp1_7b504c54_xor_handoff.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_cpp1_7b504c54_xor_handoff.py
-Exit Code: 0
-Output: 9 passed in 0.73s
-Result: PASSED
-
-[3] python -m reverse_agent.local_reverse_cpp1_7b504c54_xor_handoff ...
---------------------------------------------------------------------------------
-Command: python -m reverse_agent.local_reverse_cpp1_7b504c54_xor_handoff --static-triage project_state/local_reverse_cpp1_7b504c54_static_triage.json --out project_state/local_reverse_cpp1_7b504c54_xor_handoff.json
-Exit Code: 0
-Output:
-  xor_handoff: status=READY_FOR_STATIC_REVIEW sample_id=cpp1_7b504c54
-    candidate_hex: 57654b6e6f7749744f6b
-    candidate_text: WeKnowItOk
-    printable: True
-    forward_verified: True
-Result: PASSED
-
-[4] python -m reverse_agent.project_state lint-decision --state-dir project_state
+[1] python -m reverse_agent.project_state lint-decision --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
 Exit Code: 0
 Output:
   lint-decision: OK
-  decision_id: decision_20260605_cpp1_7b504c54_xor_handoff_v1
+  decision_id: decision_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
   decision_status: APPROVED
-  mainline: reverse_solving
+  mainline: engineering_branch
 Result: PASSED
 
-[5] python -m reverse_agent.project_state lint-report --state-dir project_state
+[2] python -m reverse_agent.project_state lint-report --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-report --state-dir project_state
 Exit Code: 0
 Output:
   lint-report: OK
-  report_id: report_20260605_cpp1_7b504c54_xor_handoff_v1
+  report_id: report_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
   report_status: SUCCESS
   acceptance_recommendation: ACCEPTED
-  based_on_decision_id: decision_20260605_cpp1_7b504c54_xor_handoff_v1
-  decision_id: decision_20260605_cpp1_7b504c54_xor_handoff_v1
+  based_on_decision_id: decision_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
+  decision_id: decision_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
   decision_report_id_match: True
-  round_id: round_20260605_cpp1_7b504c54_xor_handoff_v1
-  report_round_id: round_20260605_cpp1_7b504c54_xor_handoff_v1
-  decision_round_id: round_20260605_cpp1_7b504c54_xor_handoff_v1
+  round_id: round_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
+  report_round_id: round_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
+  decision_round_id: round_20260605_cpp1_7b504c54_xor_handoff_report_metadata_rework_v1
   report_decision_round_id_match: True
 Result: PASSED
 
-[6] python -m reverse_agent.project_state status --state-dir project_state
+[3] python -m reverse_agent.project_state status --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state status --state-dir project_state
 Exit Code: 0
@@ -90,27 +62,31 @@ Output:
   decision_ready_for_execution: False
 Result: PASSED
 
-[7] git diff --check
+[4] python -c (readonly consistency check)
+--------------------------------------------------------------------------------
+Command: python -c "import json; from pathlib import Path; h=json.loads(Path('project_state/local_reverse_cpp1_7b504c54_xor_handoff.json').read_text(encoding='utf-8')); i=json.loads(Path('project_state/artifact_index.json').read_text(encoding='utf-8')); a=h['arrays']; assert a['byte_427A30']['bytes_hex']=='0102030405060708090a'; assert a['byte_427A3C']['bytes_hex']=='1112131415161718191a'; assert a['byte_427A48']['bytes_hex']=='4c7e507d7c645a6f5470'; assert h['known_candidate']=='' and h['runtime_validated'] is False and h['solved'] is False; entry=i['latest_artifacts_v2']['local_reverse_cpp1_7b504c54_xor_handoff']; assert entry['freshness']=='current'; assert entry['sample_id']=='cpp1_7b504c54'; assert entry['source_run']=='round_20260605_cpp1_7b504c54_xor_handoff_v1'; assert entry['kind']=='local_reverse_cpp1_xor_handoff'; print('All assertions passed')"
+Exit Code: 0
+Output: All assertions passed
+Result: PASSED
+
+[5] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
 Output: (none)
 Result: PASSED
 
-[8] git status --short
+[6] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
 Output:
-  ?? reverse_agent/local_reverse_cpp1_7b504c54_xor_handoff.py
-  ?? tests/test_local_reverse_cpp1_7b504c54_xor_handoff.py
-  ?? project_state/local_reverse_cpp1_7b504c54_xor_handoff.json
   M project_state/artifact_index.json
   M project_state/codex_execution_report.md
   M project_state/pytest_result.txt
 Result: PASSED (allowed files only)
 
-[9] git diff --name-status
+[7] git diff --name-status
 --------------------------------------------------------------------------------
 Command: git diff --name-status
 Exit Code: 0
@@ -123,10 +99,11 @@ Result: PASSED (allowed tracked files only)
 ================================================================================
 SUMMARY
 ================================================================================
-Total Commands: 9
-Passed: 9
+Total Commands: 7
+Passed: 7
 Failed: 0
 lint-decision: OK
 lint-report: OK
 project_state status: decision_consumed_by_report=True, decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
-generated_artifacts_count: 4
+readonly_consistency_check: All assertions passed (arrays match, kind=local_reverse_cpp1_xor_handoff)
+generated_artifacts_count: 3

@@ -754,7 +754,7 @@
       "sample_id": "cpp1_7b504c54"
     },
     "local_reverse_cpp1_7b504c54_xor_handoff": {
-      "kind": "local_reverse_cpp1_7b504c54_xor_handoff",
+      "kind": "local_reverse_cpp1_xor_handoff",
       "path": "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json",
       "freshness": "current",
       "source_run": "round_20260605_cpp1_7b504c54_xor_handoff_v1",
