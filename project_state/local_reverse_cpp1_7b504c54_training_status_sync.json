@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_7b504c54",
+  "mainline": "training_dataset",
+  "analysis_mode": "training_status_sync_rework",
+  "source_run": "round_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
+  "source_artifacts": [
+    "local_reverse_cpp1_7b504c54_runtime_validation"
+  ],
+  "source_artifact_freshness": "current",
+  "runtime_validation_artifact": "project_state/local_reverse_cpp1_7b504c54_runtime_validation.json",
+  "validation_status": "VALIDATED_SUCCESS",
+  "training_status_before": "inventory_only",
+  "training_status_after": "solved",
+  "known_candidate": "WeKnowItOk",
+  "status_summary_before": {
+    "solved": 1,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 24
+  },
+  "status_summary_after": {
+    "solved": 2,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 23
+  },
+  "queue_removed_sample": true,
+  "overlay_updated": true,
+  "solved": true,
+  "blocked_reason": "",
+  "rework_reason": "previous report referenced runtime_validation decision and omitted sync artifact registration",
+  "generated_at": "2026-06-06T05:45:59Z"
+}

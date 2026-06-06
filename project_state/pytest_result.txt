@@ -1,16 +1,15 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp1_7b504c54_runtime_validation_v1",
-  "report_id": "report_20260606_cpp1_7b504c54_runtime_validation_v1",
-  "round_id": "round_20260606_cpp1_7b504c54_runtime_validation_v1",
-  "generated_at": "2026-06-06T05:25:19Z",
+  "decision_id": "decision_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
+  "report_id": "report_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
+  "round_id": "round_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
+  "generated_at": "2026-06-06T05:50:12Z",
   "status": "PASSED",
   "tests_ran": [
-    "python -m py_compile reverse_agent/local_reverse_training_status.py",
+    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m pytest -q tests/test_local_reverse_training_status.py",
-    "python -m reverse_agent.local_reverse_training_status --github-status-out training_materials/local_reverse/status_overlay.json",
-    "python -c (readonly consistency check: training status + queue + GitHub-safe overlay)",
+    "python -c (readonly consistency check: sync artifact + artifact_index + training status + queue + overlay)",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
@@ -21,14 +20,21 @@
 ```
 
 ================================================================================
-PYTEST RESULT DETAILS - Round: round_20260606_cpp1_7b504c54_runtime_validation_v1
+PYTEST RESULT DETAILS - Round: round_20260606_cpp1_7b504c54_training_status_sync_rework_v1
 ================================================================================
 
-[1] python -m py_compile reverse_agent/local_reverse_training_status.py
+[1] python -m reverse_agent.project_state lint-decision --state-dir project_state
 --------------------------------------------------------------------------------
-Command: python -m py_compile reverse_agent/local_reverse_training_status.py
+Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
 Exit Code: 0
-Output: (none)
+Output:
+  lint-decision: OK
+  decision_id: decision_20260606_cpp1_7b504c54_training_status_sync_rework_v1
+  decision_status: APPROVED
+  mainline: training_dataset
+  skill_profiles: ['reverse-agent-iteration@v2']
+  based_on_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
+  current_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
 Result: PASSED
 
 [2] python -m pytest -q tests/test_local_reverse_training_status.py
@@ -37,102 +43,102 @@ Command: python -m pytest -q tests/test_local_reverse_training_status.py
 Exit Code: 0
 Output:
   .................................                                        [100%]
-  33 passed in 0.55s
+  33 passed in 0.63s
 Result: PASSED
 
-[3] python -m reverse_agent.local_reverse_training_status
+[3] python -c (readonly consistency check)
 --------------------------------------------------------------------------------
-Command: python -m reverse_agent.local_reverse_training_status --github-status-out training_materials/local_reverse/status_overlay.json
+Command: python -c "readonly consistency check: sync artifact + artifact_index + training status + queue + overlay"
 Exit Code: 0
 Output:
-  [training_status] samples=29 solved=2 blocked=4 needs_triage=0 inventory_only=23
-  [training_status] status out: project_state\local_reverse_training_status.json
-  [training_status] queue out: project_state\local_reverse_evaluation_queue.json
-  [training_status] github status: training_materials\local_reverse\status_overlay.json
-  [training_status] queue items: 20
+  training status sync rework consistency OK
 Result: PASSED
 
-[4] python -c (readonly consistency check)
---------------------------------------------------------------------------------
-Command: python -c "readonly consistency check: training status + queue + GitHub-safe overlay"
-Exit Code: 0
-Output:
-  OK cpp1_7b504c54 solved; queue excludes it; next rank=cpp2_2f64e68d
-Result: PASSED
-
-[5] python -m reverse_agent.project_state lint-report --state-dir project_state
+[4] python -m reverse_agent.project_state lint-report --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state lint-report --state-dir project_state
 Exit Code: 0
 Output:
   lint-report: OK
   warning: report round not archived yet
-  report_id: report_20260606_cpp1_7b504c54_runtime_validation_v1
+  report_id: report_20260606_cpp1_7b504c54_training_status_sync_rework_v1
   report_status: SUCCESS
   acceptance_recommendation: ACCEPTED
+  based_on_decision_id: decision_20260606_cpp1_7b504c54_training_status_sync_rework_v1
+  decision_id: decision_20260606_cpp1_7b504c54_training_status_sync_rework_v1
   decision_report_id_match: True
   report_decision_round_id_match: True
+  report_current_state_round_relation: different_but_allowed_sample_state
   archive_status: not_archived
+  tests_ran_count: 8
+  pytest_result_status: PASSED
   pytest_result_matches_report: True
   pytest_result_tests_cover_report: True
 Result: PASSED
 
-[6] python -m reverse_agent.project_state status --state-dir project_state
+[5] python -m reverse_agent.project_state status --state-dir project_state
 --------------------------------------------------------------------------------
 Command: python -m reverse_agent.project_state status --state-dir project_state
 Exit Code: 0
 Output:
-  decision_status: APPROVED
+  decision_id: decision_20260606_cpp1_7b504c54_training_status_sync_rework_v1
+  report_id: report_20260606_cpp1_7b504c54_training_status_sync_rework_v1
+  pytest_result_status: PASSED
+  decision_report_id_match: True
+  decision_state_digest_match: True
   decision_consumed_by_report: True
   decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
   decision_ready_for_execution: False
+  report_decision_round_id_match: True
   report_current_state_round_relation: different_but_allowed_sample_state
   archive_status: not_archived
 Result: PASSED
 
-[7] git diff --check
+[6] git diff --check
 --------------------------------------------------------------------------------
 Command: git diff --check
 Exit Code: 0
 Output:
-  warning: in the working copy of 'reverse_agent/local_reverse_training_status.py', LF will be replaced by CRLF the next time Git touches it
-  warning: in the working copy of 'tests/test_local_reverse_training_status.py', LF will be replaced by CRLF the next time Git touches it
+  warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it
+  warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
+  warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
 Result: PASSED (line-ending warnings only)
 
-[8] git status --short
+[7] git status --short
 --------------------------------------------------------------------------------
 Command: git status --short
 Exit Code: 0
 Output:
-  M project_state/local_reverse_evaluation_queue.json
-  M project_state/local_reverse_training_status.json
-  M reverse_agent/local_reverse_training_status.py
-  M tests/test_local_reverse_training_status.py
-  M training_materials/local_reverse/status_overlay.json
-Result: PASSED (allowed files only before report/result refresh)
+  M project_state/artifact_index.json
+  M project_state/codex_execution_report.md
+  M project_state/pytest_result.txt
+  ?? project_state/local_reverse_cpp1_7b504c54_training_status_sync.json
+Result: PASSED (allowed files only)
 
-[9] git diff --name-status
+[8] git diff --name-status
 --------------------------------------------------------------------------------
 Command: git diff --name-status
 Exit Code: 0
 Output:
-  M       project_state/local_reverse_evaluation_queue.json
-  M       project_state/local_reverse_training_status.json
-  M       reverse_agent/local_reverse_training_status.py
-  M       tests/test_local_reverse_training_status.py
-  M       training_materials/local_reverse/status_overlay.json
-Result: PASSED (allowed files only before report/result refresh)
+  M       project_state/artifact_index.json
+  M       project_state/codex_execution_report.md
+  M       project_state/pytest_result.txt
+  warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it
+  warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
+  warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
+Result: PASSED (allowed tracked files only; untracked sync artifact shown by git status)
 
 ================================================================================
 SUMMARY
 ================================================================================
-Total Commands: 9
-Passed: 9
+Total Commands: 8
+Passed: 8
 Failed: 0
-py_compile: OK
+lint-decision: OK
 pytest_training_status: 33 passed
-training_status_regeneration: solved=2, blocked=4, inventory_only=23, queue_items=20
-readonly_consistency_check: cpp1_7b504c54 solved, queue excludes it, next rank=cpp2_2f64e68d
-lint-report: OK with expected not-archived warning before archive
+readonly_consistency_check: training status sync rework consistency OK
+lint-report: OK with expected not-archived warning
 project_state status: decision_consumed_by_report=True, decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
 git_diff_check: OK, line-ending warnings only
+git_status: allowed files only
+git_diff_name_status: allowed tracked files only

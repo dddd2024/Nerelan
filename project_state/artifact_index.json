@@ -70,7 +70,8 @@
     "local_reverse_cpp1_2f6fcb63_target_provenance_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json",
     "local_reverse_cpp1_7b504c54_static_triage": "project_state\\local_reverse_cpp1_7b504c54_static_triage.json",
     "local_reverse_cpp1_7b504c54_xor_handoff": "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json",
-    "local_reverse_cpp1_7b504c54_runtime_validation": "project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json"
+    "local_reverse_cpp1_7b504c54_runtime_validation": "project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json",
+    "local_reverse_cpp1_7b504c54_training_status_sync": "project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -772,6 +773,16 @@
       "sha256": "5a8c2082c57455128ea032722f2adad789e640f37b4cf79ab168f7f47cf0e443",
       "size_bytes": 1178,
       "modified_at": "2026-06-06T05:01:04Z",
+      "sample_id": "cpp1_7b504c54"
+    },
+    "local_reverse_cpp1_7b504c54_training_status_sync": {
+      "kind": "local_reverse_training_status_sync",
+      "path": "project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json",
+      "freshness": "current",
+      "source_run": "round_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
+      "sha256": "1bf5e4ad6a566acb7a3a079306722b4b187488c74cf0406f66d870ab1aa53d95",
+      "size_bytes": 1101,
+      "modified_at": "2026-06-06T05:46:14Z",
       "sample_id": "cpp1_7b504c54"
     }
   },
