@@ -142,6 +142,7 @@ class TestBuildProbeArtifact:
             "READY_FOR_MATURE_BACKEND_VALIDATION",
             "BLOCKED_NON_WINDOWS_ENVIRONMENT",
             "BLOCKED_MATURE_BACKEND_MISSING",
+            "BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY",
             "BLOCKED_SOURCE_ARTIFACT_MISMATCH",
         )
 
@@ -177,3 +178,48 @@ class TestBuildProbeArtifact:
         tp.write_text(json.dumps(_triage(status="INCOMPLETE")), encoding="utf-8")
         result = build_probe_artifact(rp, hp, tp)
         assert result["probe_status"] == "BLOCKED_SOURCE_ARTIFACT_MISMATCH"
+
+    def test_conpty_only_blocked(self, tmp_path: Path):
+        """ConPTY API present but no mature Python backend → must be blocked."""
+        rp, hp, tp = self._write_artifacts(tmp_path)
+        with (
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_python_backend_availability") as mock_pkg,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_windows_conpty_api_presence") as mock_conpty,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_platform_info") as mock_platform,
+        ):
+            mock_pkg.return_value = {
+                "pywinpty_available": False,
+                "winpty_available": False,
+                "wexpect_available": False,
+                "pexpect_available": False,
+            }
+            mock_conpty.return_value = {
+                "conpty_api_available": True,
+                "conpty_api_checked": True,
+            }
+            mock_platform.return_value = {
+                "windows_platform": True,
+                "platform_system": "Windows",
+                "sys_platform": "win32",
+                "os_name": "nt",
+            }
+            result = build_probe_artifact(rp, hp, tp)
+
+        # Must NOT be READY
+        assert result["probe_status"] != "READY_FOR_MATURE_BACKEND_VALIDATION"
+        assert result["can_attempt_interactive_console_validation_next"] is False
+        # recommended_backend must NOT be windows_conpty_api
+        assert result["recommended_backend"] != "windows_conpty_api"
+        # Safety flags must remain true
+        assert result["no_custom_conpty_runner"] is True
+        assert result["no_expect_state_machine"] is True
+        assert result["no_terminal_emulator"] is True
+        # Must be one of the blocked statuses
+        assert result["probe_status"] in (
+            "BLOCKED_MATURE_BACKEND_MISSING",
+            "BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY",
+        )
+        # solved/candidate must remain false/null
+        assert result["solved"] is False
+        assert result["known_candidate"] == ""
+        assert result["candidate"] is None

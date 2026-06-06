@@ -100,12 +100,13 @@ def build_probe_artifact(
     conpty_info = detect_windows_conpty_api_presence()
     platform_info = detect_platform_info()
 
-    # Determine if any mature Windows-capable backend is available
-    has_windows_backend = (
+    # Determine if any mature Python backend is available.
+    # ConPTY API presence is only a capability signal; it does NOT count as
+    # a mature backend and must not trigger READY_FOR_MATURE_BACKEND_VALIDATION.
+    has_mature_python_backend = (
         pkg_availability["pywinpty_available"]
         or pkg_availability["winpty_available"]
         or pkg_availability["wexpect_available"]
-        or conpty_info["conpty_api_available"]
     )
 
     # Determine probe status
@@ -128,12 +129,20 @@ def build_probe_artifact(
     elif not platform_info["windows_platform"]:
         probe_status = "BLOCKED_NON_WINDOWS_ENVIRONMENT"
         blocked_reason = "Not a Windows environment; PE interactive console validation not applicable"
-    elif not has_windows_backend:
-        probe_status = "BLOCKED_MATURE_BACKEND_MISSING"
-        blocked_reason = "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)"
+    elif not has_mature_python_backend:
+        if conpty_info["conpty_api_available"]:
+            probe_status = "BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY"
+            blocked_reason = (
+                "ConPTY API is present, but no mature Python backend is installed. "
+                "Prefer adding/using a mature backend such as pywinpty or wexpect "
+                "in a separate dependency decision before interactive validation."
+            )
+        else:
+            probe_status = "BLOCKED_MATURE_BACKEND_MISSING"
+            blocked_reason = "Windows platform but no mature backend available (pywinpty/winpty/wexpect)"
     else:
         probe_status = "READY_FOR_MATURE_BACKEND_VALIDATION"
-        # Determine preferred backend
+        # Determine preferred backend (only mature Python backends)
         if pkg_availability["pywinpty_available"]:
             recommended_backend = "pywinpty"
             recommended_next_action = (
@@ -151,13 +160,6 @@ def build_probe_artifact(
             recommended_next_action = (
                 "Use wexpect for interactive-console validation. "
                 "Design at most 2-run candidate/control validation for ippio vs negative control."
-            )
-        elif conpty_info["conpty_api_available"]:
-            recommended_backend = "windows_conpty_api"
-            recommended_next_action = (
-                "ConPTY API is present, but no mature Python backend is installed. "
-                "Prefer adding/using a mature backend such as pywinpty or wexpect "
-                "in a separate dependency decision before interactive validation."
             )
 
     return {
