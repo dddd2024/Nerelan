@@ -1,8 +1,8 @@
-# Pytest Result — round_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
+# Pytest Result — round_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1
 
-decision_id: decision_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
-round_id: round_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
-report_id: report_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
+decision_id: decision_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1
+round_id: round_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1
+report_id: report_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1
 status: PASSED
 
 ---
@@ -17,40 +17,77 @@ Exit Code: 0
 Output:
 ```
 lint-decision: OK
-decision_id: decision_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
+decision_id: decision_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1
 decision_status: APPROVED
-mainline: reverse_solving
+mainline: tool_integration
 execution_scope: decision_packet_controls_current_round
 ```
 Result: PASSED
 
 ---
 
-## Command 2: readonly consistency check
+## Command 2: py_compile
 
 ```
-python -c (inline readonly assertions for runtime_pair_validation artifact + artifact_index)
+python -m py_compile reverse_agent/local_reverse_console_mature_backend_probe.py
+```
+
+Exit Code: 0
+Output: (no output)
+Result: PASSED
+
+---
+
+## Command 3: pytest probe
+
+```
+python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py
 ```
 
 Exit Code: 0
 Output:
 ```
-cpp2 runtime pair report rework consistency OK
+...........                                                               [100%]
+11 passed in 0.76s
 ```
-Result: PASSED
-
-Assertions verified:
-- runtime artifact: sample_id=cpp2_2f64e68d, analysis_mode=console_runtime_pair_validation
-- candidate_input=ippio, negative_control_input!=ippio, max_runs=2
-- validation_status=AMBIGUOUS_OUTPUT, outputs_differ=False
-- candidate=None, known_candidate="", solved=False
-- candidate_accepted=False, control_rejected=False
-- artifact_index entry: freshness=current, kind=local_reverse_console_pair_runtime_validation
-- source_run=round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1
+Result: PASSED (11 passed)
 
 ---
 
-## Command 3: lint-report
+## Command 4: probe CLI
+
+```
+python -m reverse_agent.local_reverse_console_mature_backend_probe --runtime-artifact ... --handoff-artifact ... --triage-artifact ... --out ...
+```
+
+Exit Code: 1 (expected: probe_status=BLOCKED_MATURE_BACKEND_MISSING)
+Output:
+```
+Probe artifact written to project_state\local_reverse_cpp2_2f64e68d_mature_backend_probe.json
+probe_status=BLOCKED_MATURE_BACKEND_MISSING
+recommended_backend=
+can_attempt_interactive_console_validation_next=False
+```
+Result: PASSED (artifact generated; no mature backend available)
+
+---
+
+## Command 5: readonly consistency check
+
+```
+python -c (inline readonly assertions for probe artifact + artifact_index)
+```
+
+Exit Code: 0
+Output:
+```
+cpp2 mature backend probe consistency OK
+```
+Result: PASSED
+
+---
+
+## Command 6: lint-report
 
 ```
 python -m reverse_agent.project_state lint-report --state-dir project_state
@@ -60,20 +97,18 @@ Exit Code: 0
 Output:
 ```
 lint-report: OK
-report_id: report_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
+report_id: report_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
+based_on_decision_id: decision_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1
 decision_report_id_match: True
-report_round_id: round_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
-decision_round_id: round_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
 report_decision_round_id_match: True
 ```
 Result: PASSED
 
 ---
 
-## Command 4: project_state status
+## Command 7: project_state status
 
 ```
 python -m reverse_agent.project_state status --state-dir project_state
@@ -83,10 +118,8 @@ Exit Code: 0
 Output:
 ```
 decision_status: APPROVED
-decision_id: decision_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
 report_status: SUCCESS
 report_acceptance_recommendation: ACCEPTED
-report_id: report_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1
 decision_consumed_by_report: True
 decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
 decision_ready_for_execution: False
@@ -95,7 +128,7 @@ Result: PASSED
 
 ---
 
-## Command 5: git diff --check
+## Command 8: git diff --check
 
 ```
 git diff --check
@@ -107,7 +140,7 @@ Result: PASSED
 
 ---
 
-## Command 6: git status --short
+## Command 9: git status --short
 
 ```
 git status --short
@@ -116,14 +149,17 @@ git status --short
 Exit Code: 0
 Output:
 ```
+ M project_state/artifact_index.json
  M project_state/codex_execution_report.md
- M project_state/pytest_result.txt
+?? project_state/local_reverse_cpp2_2f64e68d_mature_backend_probe.json
+?? reverse_agent/local_reverse_console_mature_backend_probe.py
+?? tests/test_local_reverse_console_mature_backend_probe.py
 ```
 Result: PASSED (allowed files only)
 
 ---
 
-## Command 7: git diff --name-status
+## Command 10: git diff --name-status
 
 ```
 git diff --name-status
@@ -132,8 +168,8 @@ git diff --name-status
 Exit Code: 0
 Output:
 ```
+M       project_state/artifact_index.json
 M       project_state/codex_execution_report.md
-M       project_state/pytest_result.txt
 ```
 Result: PASSED (allowed tracked files only)
 
@@ -144,12 +180,15 @@ Result: PASSED (allowed tracked files only)
 | # | Command | Exit Code | Result |
 |---|---------|-----------|--------|
 | 1 | lint-decision | 0 | PASSED |
-| 2 | readonly consistency check | 0 | PASSED |
-| 3 | lint-report | 0 | PASSED |
-| 4 | project_state status | 0 | PASSED |
-| 5 | git diff --check | 0 | PASSED |
-| 6 | git status --short | 0 | PASSED |
-| 7 | git diff --name-status | 0 | PASSED |
+| 2 | py_compile | 0 | PASSED |
+| 3 | pytest probe | 0 | PASSED (11 passed) |
+| 4 | probe CLI | 1 | PASSED (BLOCKED_MATURE_BACKEND_MISSING, expected) |
+| 5 | consistency check | 0 | PASSED |
+| 6 | lint-report | 0 | PASSED |
+| 7 | project_state status | 0 | PASSED |
+| 8 | git diff --check | 0 | PASSED |
+| 9 | git status --short | 0 | PASSED |
+| 10 | git diff --name-status | 0 | PASSED |
 
 Key closure checks:
 - lint-report Exit Code: 0
