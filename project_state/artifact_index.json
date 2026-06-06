@@ -75,7 +75,8 @@
     "local_reverse_cpp2_2f64e68d_static_triage": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json",
     "local_reverse_cpp2_2f64e68d_strcmp_handoff": "project_state\\local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
     "local_reverse_cpp2_2f64e68d_runtime_pair_validation": "project_state\\local_reverse_cpp2_2f64e68d_runtime_pair_validation.json",
-    "local_reverse_cpp2_2f64e68d_console_mature_backend_probe": "project_state\\local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json"
+    "local_reverse_cpp2_2f64e68d_console_mature_backend_probe": "project_state\\local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
+    "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {

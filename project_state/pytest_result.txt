@@ -1,10 +1,40 @@
-pytest_result decision_id=decision_20260606_cpp2_2f64e68d_training_status_blocked_overlay_v1
-report_id=report_20260606_cpp2_2f64e68d_training_status_blocked_overlay_v1
-round_id=round_20260606_cpp2_2f64e68d_training_status_blocked_overlay_v1
-tests_ran=41
-passed=41
-failed=0
-skipped=0
-lint_decision=PASS
-lint_report=PASS (after update)
-status=PASS
+pytest_result decision_id=decision_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
+report_id=report_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
+round_id=round_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
+
+[command 1] python -m pytest -q tests/test_project_state.py
+exit_code=0
+output=158 passed in 43.18s
+
+[command 2] python -m reverse_agent.project_state lint-decision --state-dir project_state
+exit_code=0
+output=lint-decision: OK
+decision_id=decision_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
+decision_status=APPROVED
+mainline=engineering_branch
+
+[command 3] python -m reverse_agent.project_state lint-report --state-dir project_state
+exit_code=0
+output=lint-report: OK
+
+[command 4] python -m reverse_agent.project_state status --state-dir project_state
+exit_code=0
+output=status: OK
+
+[command 5] git diff --check
+exit_code=0
+output=(no output)
+
+[command 6] git status --short
+exit_code=0
+output=M project_state/artifact_index.json
+M project_state/codex_execution_report.md
+M project_state/pytest_result.txt
+
+[command 7] git diff --name-status
+exit_code=0
+output=M project_state/artifact_index.json
+M project_state/codex_execution_report.md
+M project_state/pytest_result.txt
+
+summary: all commands passed, no errors
