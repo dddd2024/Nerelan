@@ -32,11 +32,42 @@ def detect_python_backend_availability() -> dict[str, bool]:
     Uses importlib.util.find_spec to check availability without importing.
     """
     return {
+        "pywinauto_available": importlib.util.find_spec("pywinauto") is not None,
         "pywinpty_available": importlib.util.find_spec("pywinpty") is not None,
         "winpty_available": importlib.util.find_spec("winpty") is not None,
         "wexpect_available": importlib.util.find_spec("wexpect") is not None,
         "pexpect_available": importlib.util.find_spec("pexpect") is not None,
     }
+
+
+def detect_pywinauto_in_requirements(requirements_path: Path | None = None) -> bool:
+    """Return whether requirements.txt declares pywinauto.
+
+    Missing or unreadable requirements files are treated as no declaration so
+    this capability probe never fails because project metadata is unavailable.
+    """
+    if requirements_path is None:
+        requirements_path = Path(__file__).resolve().parents[1] / "requirements.txt"
+
+    try:
+        lines = requirements_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return False
+
+    for line in lines:
+        normalized = line.split("#", 1)[0].strip().lower()
+        if normalized.startswith("pywinauto"):
+            return True
+    return False
+
+
+def detect_pywinauto_validator_support() -> bool:
+    """Return whether the existing console validator supports pywinauto.
+
+    Current audit scope found pywinauto only in GUI/debugger-oriented helpers,
+    not in the console pair validator or tool runner console backend boundary.
+    """
+    return False
 
 
 def detect_windows_conpty_api_presence() -> dict[str, Any]:
@@ -97,8 +128,17 @@ def build_probe_artifact(
 
     # Detect backends
     pkg_availability = detect_python_backend_availability()
+    pywinauto_in_requirements = detect_pywinauto_in_requirements()
+    pywinauto_validator_supported = detect_pywinauto_validator_support()
     conpty_info = detect_windows_conpty_api_presence()
     platform_info = detect_platform_info()
+    pywinauto_readiness_policy = (
+        "supported_backend"
+        if pywinauto_validator_supported
+        else "capability_only"
+        if pkg_availability["pywinauto_available"] or pywinauto_in_requirements
+        else "unsupported"
+    )
 
     # Determine if any mature Python backend is available.
     # ConPTY API presence is only a capability signal; it does NOT count as
@@ -133,13 +173,18 @@ def build_probe_artifact(
         if conpty_info["conpty_api_available"]:
             probe_status = "BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY"
             blocked_reason = (
-                "ConPTY API is present, but no mature Python backend is installed. "
-                "Prefer adding/using a mature backend such as pywinpty or wexpect "
+                "ConPTY API is present, but no supported mature Python console backend is installed. "
+                "pywinauto is only a capability signal unless the console validator supports it. "
+                "Prefer adding/using a supported backend such as pywinpty or wexpect "
                 "in a separate dependency decision before interactive validation."
             )
         else:
             probe_status = "BLOCKED_MATURE_BACKEND_MISSING"
-            blocked_reason = "Windows platform but no mature backend available (pywinpty/winpty/wexpect)"
+            blocked_reason = (
+                "Windows platform but no supported mature backend available "
+                "(pywinpty/winpty/wexpect); pywinauto is capability-only unless "
+                "the console validator supports it."
+            )
     else:
         probe_status = "READY_FOR_MATURE_BACKEND_VALIDATION"
         # Determine preferred backend (only mature Python backends)
@@ -186,10 +231,14 @@ def build_probe_artifact(
         "preferred_backend_order": [
             "pywinpty_or_winpty",
             "wexpect",
+            "pywinauto_capability_only",
             "windows_conpty_api_presence",
             "pexpect_posix_reference_only",
         ],
         **pkg_availability,
+        "pywinauto_in_requirements": pywinauto_in_requirements,
+        "pywinauto_validator_supported": pywinauto_validator_supported,
+        "pywinauto_readiness_policy": pywinauto_readiness_policy,
         **platform_info,
         **conpty_info,
         "no_custom_conpty_runner": True,

@@ -10,6 +10,7 @@ from unittest.mock import patch
 from reverse_agent.local_reverse_console_mature_backend_probe import (
     build_probe_artifact,
     detect_platform_info,
+    detect_pywinauto_in_requirements,
     detect_python_backend_availability,
     detect_windows_conpty_api_presence,
 )
@@ -70,12 +71,27 @@ def _triage(**overrides: object) -> dict[str, object]:
 class TestDetectPythonBackendAvailability:
     def test_returns_dict_with_all_keys(self):
         result = detect_python_backend_availability()
+        assert "pywinauto_available" in result
         assert "pywinpty_available" in result
         assert "winpty_available" in result
         assert "wexpect_available" in result
         assert "pexpect_available" in result
         for v in result.values():
             assert isinstance(v, bool)
+
+
+class TestDetectPywinautoInRequirements:
+    def test_detects_pywinauto_declaration(self, tmp_path: Path):
+        requirements_path = tmp_path / "requirements.txt"
+        requirements_path.write_text(
+            "requests>=2.32.0\r\npywinauto>=0.6.8\r\n",
+            encoding="utf-8",
+        )
+
+        assert detect_pywinauto_in_requirements(requirements_path) is True
+
+    def test_missing_requirements_is_false(self, tmp_path: Path):
+        assert detect_pywinauto_in_requirements(tmp_path / "missing.txt") is False
 
 
 class TestDetectPlatformInfo:
@@ -126,6 +142,18 @@ class TestBuildProbeArtifact:
         assert result["previous_known_candidate"] == ""
         assert result["previous_solved"] is False
         assert result["mature_backend_priority"] is True
+        assert "pywinauto_available" in result
+        assert "pywinauto_in_requirements" in result
+        assert "pywinauto_validator_supported" in result
+        assert "pywinauto_readiness_policy" in result
+        assert isinstance(result["pywinauto_available"], bool)
+        assert isinstance(result["pywinauto_in_requirements"], bool)
+        assert isinstance(result["pywinauto_validator_supported"], bool)
+        assert result["pywinauto_readiness_policy"] in (
+            "capability_only",
+            "supported_backend",
+            "unsupported",
+        )
         assert result["no_custom_conpty_runner"] is True
         assert result["no_expect_state_machine"] is True
         assert result["no_terminal_emulator"] is True
@@ -152,6 +180,7 @@ class TestBuildProbeArtifact:
         assert result["preferred_backend_order"] == [
             "pywinpty_or_winpty",
             "wexpect",
+            "pywinauto_capability_only",
             "windows_conpty_api_presence",
             "pexpect_posix_reference_only",
         ]
@@ -188,6 +217,7 @@ class TestBuildProbeArtifact:
             patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_platform_info") as mock_platform,
         ):
             mock_pkg.return_value = {
+                "pywinauto_available": False,
                 "pywinpty_available": False,
                 "winpty_available": False,
                 "wexpect_available": False,
@@ -223,3 +253,81 @@ class TestBuildProbeArtifact:
         assert result["solved"] is False
         assert result["known_candidate"] == ""
         assert result["candidate"] is None
+
+    def test_pywinauto_available_without_validator_support_is_capability_only(self, tmp_path: Path):
+        rp, hp, tp = self._write_artifacts(tmp_path)
+        with (
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_python_backend_availability") as mock_pkg,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_pywinauto_in_requirements") as mock_req,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_pywinauto_validator_support") as mock_support,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_windows_conpty_api_presence") as mock_conpty,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_platform_info") as mock_platform,
+        ):
+            mock_pkg.return_value = {
+                "pywinauto_available": True,
+                "pywinpty_available": False,
+                "winpty_available": False,
+                "wexpect_available": False,
+                "pexpect_available": False,
+            }
+            mock_req.return_value = True
+            mock_support.return_value = False
+            mock_conpty.return_value = {
+                "conpty_api_available": False,
+                "conpty_api_checked": True,
+            }
+            mock_platform.return_value = {
+                "windows_platform": True,
+                "platform_system": "Windows",
+                "sys_platform": "win32",
+                "os_name": "nt",
+            }
+            result = build_probe_artifact(rp, hp, tp)
+
+        assert result["pywinauto_available"] is True
+        assert result["pywinauto_in_requirements"] is True
+        assert result["pywinauto_validator_supported"] is False
+        assert result["pywinauto_readiness_policy"] == "capability_only"
+        assert result["probe_status"] == "BLOCKED_MATURE_BACKEND_MISSING"
+        assert result["can_attempt_interactive_console_validation_next"] is False
+        assert result["recommended_backend"] == ""
+        assert result["no_custom_conpty_runner"] is True
+        assert result["no_expect_state_machine"] is True
+        assert result["no_terminal_emulator"] is True
+
+    def test_requirements_pywinauto_without_validator_support_is_not_ready(self, tmp_path: Path):
+        rp, hp, tp = self._write_artifacts(tmp_path)
+        with (
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_python_backend_availability") as mock_pkg,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_pywinauto_in_requirements") as mock_req,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_pywinauto_validator_support") as mock_support,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_windows_conpty_api_presence") as mock_conpty,
+            patch("reverse_agent.local_reverse_console_mature_backend_probe.detect_platform_info") as mock_platform,
+        ):
+            mock_pkg.return_value = {
+                "pywinauto_available": False,
+                "pywinpty_available": False,
+                "winpty_available": False,
+                "wexpect_available": False,
+                "pexpect_available": False,
+            }
+            mock_req.return_value = True
+            mock_support.return_value = False
+            mock_conpty.return_value = {
+                "conpty_api_available": False,
+                "conpty_api_checked": True,
+            }
+            mock_platform.return_value = {
+                "windows_platform": True,
+                "platform_system": "Windows",
+                "sys_platform": "win32",
+                "os_name": "nt",
+            }
+            result = build_probe_artifact(rp, hp, tp)
+
+        assert result["pywinauto_available"] is False
+        assert result["pywinauto_in_requirements"] is True
+        assert result["pywinauto_validator_supported"] is False
+        assert result["pywinauto_readiness_policy"] == "capability_only"
+        assert result["probe_status"] == "BLOCKED_MATURE_BACKEND_MISSING"
+        assert result["can_attempt_interactive_console_validation_next"] is False

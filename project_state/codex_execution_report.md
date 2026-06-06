@@ -1,18 +1,18 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1",
-  "based_on_decision_id": "decision_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1",
+  "report_id": "report_20260606_cpp2_2f64e68d_pywinauto_backend_capability_audit_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_pywinauto_backend_capability_audit_v1",
+  "based_on_decision_id": "decision_20260606_cpp2_2f64e68d_pywinauto_backend_capability_audit_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
+    "reverse_agent/local_reverse_console_mature_backend_probe.py",
+    "tests/test_local_reverse_console_mature_backend_probe.py",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
   "tests_ran": [
-    "git rev-parse HEAD",
-    "git ls-files project_state/task_packet.json project_state/current_state.json",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m py_compile reverse_agent/local_reverse_console_mature_backend_probe.py",
     "python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py",
@@ -24,7 +24,7 @@
     "git diff --name-status"
   ],
   "generated_artifacts": [],
-  "next_suggested_task": "Archive this state-file-sync round only if a separate closeout decision requests archival."
+  "next_suggested_task": "If a separate decision requests runtime validation, first add or select a supported mature console backend runner; pywinauto remains capability-only until validator support exists."
 }
 ```
 
@@ -32,61 +32,70 @@
 
 ## 1. Execution Authority
 
-- Implemented `decision_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1` as the only active execution authority.
-- Rebound `codex_execution_report.md` and `pytest_result.txt` from the prior ConPTY validation decision to this current state-file-sync decision.
-- Did not create a new decision and did not change parser/schema behavior.
+- Implemented `decision_20260606_cpp2_2f64e68d_pywinauto_backend_capability_audit_v1` as the only active execution authority.
+- Confirmed `project_state/task_packet.json` is old advisory context; it explicitly leaves execution authority with `project_state/decision_packet.md`.
+- This round stayed on `tool_integration`; it did not enter CPP2 solving, candidate validation, runtime probing, or mature backend probe artifact regeneration.
 
-## 2. Round Purpose
+## 2. Changes
 
-This round fixes an untrustworthy validation record caused by local state-file drift. The current scoped facts are:
-
-- `project_state/task_packet.json` exists locally and is tracked by git.
-- `project_state/current_state.json` exists locally and is tracked by git.
-- `git diff --name-status origin/main -- project_state/task_packet.json project_state/current_state.json` produced no output, so these scoped files match the current tracked `origin/main` copy available in this checkout.
-- `task_packet.json` remains advisory; `project_state/decision_packet.md` is the execution authority.
-
-No CPP2 solving, candidate validation, runtime probing, or mature backend probe rerun was performed.
+- Added pywinauto capability/support fields to `reverse_agent/local_reverse_console_mature_backend_probe.py`:
+  - `pywinauto_available`
+  - `pywinauto_in_requirements`
+  - `pywinauto_validator_supported`
+  - `pywinauto_readiness_policy`
+- Kept pywinauto conservative: current `local_reverse_console_pair_validator.py` and `tool_runners.py` have no pywinauto-backed interactive console validation runner, so `pywinauto_validator_supported=false`.
+- `pywinauto_available=true` or `pywinauto_in_requirements=true` is capability-only and cannot trigger `READY_FOR_MATURE_BACKEND_VALIDATION` or `can_attempt_interactive_console_validation_next=true`.
+- Updated `tests/test_local_reverse_console_mature_backend_probe.py` to cover pywinauto capability fields, requirements detection, capability-only blocking, and the existing ConPTY-only blocked case.
 
 ## 3. Scope Compliance
 
+- Confirmed `requirements.txt` contains `pywinauto>=0.6.8`.
+- Confirmed the current CPP2 console mature backend probe artifact remains `BLOCKED_MATURE_BACKEND_MISSING` and was not regenerated or overwritten.
+- Confirmed the previous probe schema did not record pywinauto capability/support fields.
+- Confirmed `local_reverse_console_pair_validator.py` does not contain pywinauto support.
+- Confirmed `tool_runners.py` does not contain pywinauto support.
 - Did not run `CPP2.exe`.
-- Did not rerun the mature backend probe CLI or overwrite its artifact.
-- Did not run pair validator, IDA, Ghidra, debugger, OllyDbg, Frida, emulator, CompareProbe, solver, brute force, guided pool, or symbolic search.
-- Did not modify `project_state/artifact_index.json`, `project_state/task_packet.json`, `project_state/current_state.json`, `project_state/negative_results.json`, CPP2 artifacts, code, tests, `.codex-skills`, requirements, pyproject, or `solve_reports`.
-- Only `project_state/codex_execution_report.md` and `project_state/pytest_result.txt` are modified.
+- Did not run the mature backend probe CLI or overwrite `project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json`.
+- Did not run the console pair validator or any runtime validation.
+- Did not run IDA, Ghidra, debugger, OllyDbg, Frida, emulator, CompareProbe, solver, brute force, guided pool, symbolic search, or candidate/control input.
+- Did not implement a custom ConPTY runner, Expect-like state machine, terminal emulator, or full pywinauto runtime validator.
+- Did not modify `artifact_index.json`, current CPP2 artifacts, `task_packet.json`, `current_state.json`, `negative_results.json`, `.codex-skills/*`, or `solve_reports/`.
 
 ## 4. Test Results
 
 | Command | Exit Code | Result |
 |---------|-----------|--------|
-| `git rev-parse HEAD` | 0 | PASSED |
-| `git ls-files project_state/task_packet.json project_state/current_state.json` | 0 | PASSED |
 | `python -m reverse_agent.project_state lint-decision --state-dir project_state` | 0 | PASSED |
 | `python -m py_compile reverse_agent/local_reverse_console_mature_backend_probe.py` | 0 | PASSED |
-| `python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py` | 0 | PASSED (12 passed) |
+| `python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py` | 0 | PASSED (16 passed) |
 | `python -m pytest -q tests/test_project_state.py` | 0 | PASSED (158 passed) |
 | `python -m reverse_agent.project_state lint-report --state-dir project_state` | 0 | PASSED |
 | `python -m reverse_agent.project_state status --state-dir project_state` | 0 | PASSED |
-| `git diff --check` | 0 | PASSED |
+| `git diff --check` | 0 | PASSED (line-ending warnings only) |
 | `git status --short` | 0 | PASSED (allowed files only) |
 | `git diff --name-status` | 0 | PASSED (allowed files only) |
 
 ## 5. Required Audit
 
-1. `git rev-parse HEAD`: `b49e7465f272709d14ef4cd28352e20297eccb73`.
-2. `git status --short` does not show `project_state/task_packet.json` or `project_state/current_state.json` missing.
-3. `git ls-files project_state/task_packet.json project_state/current_state.json` outputs both tracked files:
-   - `project_state/current_state.json`
-   - `project_state/task_packet.json`
-4. Scoped sync confirmed: the local worktree has both required files tracked and present, and those paths have no diff versus `origin/main`.
-5. `task_packet.json` and `current_state.json` are present locally and git-tracked.
-6. Current `decision_packet.md` is the only execution authority.
-7. This round only fixes state-file sync validation records; it does not change `artifact_index` or probe artifacts.
-8. `CPP2.exe` was not run.
-9. The mature backend probe CLI was not run and no probe artifact was overwritten.
-10. `lint-decision` Exit Code is 0.
-11. `lint-report` Exit Code is 0.
-12. `project_state status` Exit Code is 0.
-13. `pytest_result.txt` records all required commands.
-14. `codex_report_summary` matches this decision id and round id.
-15. `git diff --name-status` contains only allowed files: `project_state/codex_execution_report.md` and `project_state/pytest_result.txt`.
+1. Current `decision_packet.md` is confirmed as this round's only execution authority.
+2. `task_packet.task` is confirmed as old samplereverse advisory context.
+3. This round's mainline is confirmed as `tool_integration`.
+4. The prior state-file sync report was `SUCCESS` / `ACCEPTED`, with `pytest_result` status `PASSED`.
+5. `requirements.txt` contains `pywinauto>=0.6.8`.
+6. Current CPP2 console probe artifact remains `BLOCKED_MATURE_BACKEND_MISSING`.
+7. The current probe artifact did not record pywinauto capability fields before this code change.
+8. `local_reverse_console_pair_validator.py` has no pywinauto runner/support.
+9. `tool_runners.py` has no pywinauto runner/support.
+10. `CPP2.exe` was not run.
+11. The mature backend probe CLI was not run and no project_state probe artifact was overwritten.
+12. Pair validator/runtime validation was not run.
+13. IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver were not run.
+14. New pywinauto fields are covered by focused probe tests.
+15. `pywinauto_available=true` with `pywinauto_validator_supported=false` cannot trigger READY.
+16. No existing validator/runner support for pywinauto was found, so no supported-backend case was added.
+17. `no_custom_conpty_runner`, `no_expect_state_machine`, and `no_terminal_emulator` remain true.
+18. `artifact_index.json` and current CPP2 artifacts were not modified.
+19. `codex_report_summary` matches this decision id and round id.
+20. `pytest_result.txt` uses this decision id, report id, and round id.
+21. `lint-report` and `project_state status` pass for this success report.
+22. `git status --short` and `git diff --name-status` contain only allowed files.

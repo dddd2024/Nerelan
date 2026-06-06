@@ -1,14 +1,12 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1",
-  "report_id": "report_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1",
-  "generated_at": "2026-06-06T11:29:36Z",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_pywinauto_backend_capability_audit_v1",
+  "report_id": "report_20260606_cpp2_2f64e68d_pywinauto_backend_capability_audit_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_pywinauto_backend_capability_audit_v1",
+  "generated_at": "2026-06-06T11:48:31Z",
   "status": "PASSED",
   "tests_ran": [
-    "git rev-parse HEAD",
-    "git ls-files project_state/task_packet.json project_state/current_state.json",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m py_compile reverse_agent/local_reverse_console_mature_backend_probe.py",
     "python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py",
@@ -22,40 +20,9 @@
 }
 ```
 
-# Pytest Result - round_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1
+# Pytest Result - round_20260606_cpp2_2f64e68d_pywinauto_backend_capability_audit_v1
 
-## Command 1: git rev-parse HEAD
-
-```
-git rev-parse HEAD
-```
-
-Exit Code: 0
-
-Output:
-```
-b49e7465f272709d14ef4cd28352e20297eccb73
-```
-
-Result: PASSED
-
-## Command 2: git ls-files
-
-```
-git ls-files project_state/task_packet.json project_state/current_state.json
-```
-
-Exit Code: 0
-
-Output:
-```
-project_state/current_state.json
-project_state/task_packet.json
-```
-
-Result: PASSED
-
-## Command 3: lint-decision
+## Command 1: lint-decision
 
 ```
 python -m reverse_agent.project_state lint-decision --state-dir project_state
@@ -66,7 +33,7 @@ Exit Code: 0
 Output:
 ```
 lint-decision: OK
-decision_id: decision_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1
+decision_id: decision_20260606_cpp2_2f64e68d_pywinauto_backend_capability_audit_v1
 decision_status: APPROVED
 mainline: tool_integration
 skill_profiles: ['reverse-agent-iteration@v2']
@@ -80,7 +47,7 @@ active_decision_packet: project_state/decision_packet.md
 
 Result: PASSED
 
-## Command 4: py_compile
+## Command 2: py_compile
 
 ```
 python -m py_compile reverse_agent/local_reverse_console_mature_backend_probe.py
@@ -92,7 +59,7 @@ Output: no output
 
 Result: PASSED
 
-## Command 5: pytest probe
+## Command 3: pytest probe
 
 ```
 python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py
@@ -102,13 +69,13 @@ Exit Code: 0
 
 Output:
 ```
-............                                                             [100%]
-12 passed in 0.14s
+................                                                         [100%]
+16 passed in 0.14s
 ```
 
 Result: PASSED
 
-## Command 6: pytest project_state
+## Command 4: pytest project_state
 
 ```
 python -m pytest -q tests/test_project_state.py
@@ -121,12 +88,12 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 ..............                                                           [100%]
-158 passed in 25.02s
+158 passed in 25.63s
 ```
 
 Result: PASSED
 
-## Command 7: lint-report
+## Command 5: lint-report
 
 ```
 python -m reverse_agent.project_state lint-report --state-dir project_state
@@ -137,6 +104,7 @@ Exit Code: 0
 Output summary:
 ```
 lint-report: OK
+warning: report round not archived yet
 report_status: SUCCESS
 acceptance_recommendation: ACCEPTED
 decision_report_id_match: True
@@ -148,7 +116,7 @@ pytest_result_tests_cover_report: True
 
 Result: PASSED
 
-## Command 8: status
+## Command 6: status
 
 ```
 python -m reverse_agent.project_state status --state-dir project_state
@@ -168,7 +136,7 @@ pytest_result_tests_cover_report: True
 
 Result: PASSED
 
-## Command 9: git diff --check
+## Command 7: git diff --check
 
 ```
 git diff --check
@@ -180,11 +148,13 @@ Output:
 ```
 warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
 warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'reverse_agent/local_reverse_console_mature_backend_probe.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'tests/test_local_reverse_console_mature_backend_probe.py', LF will be replaced by CRLF the next time Git touches it
 ```
 
 Result: PASSED
 
-## Command 10: git status --short
+## Command 8: git status --short
 
 ```
 git status --short
@@ -196,11 +166,13 @@ Output:
 ```
  M project_state/codex_execution_report.md
  M project_state/pytest_result.txt
+ M reverse_agent/local_reverse_console_mature_backend_probe.py
+ M tests/test_local_reverse_console_mature_backend_probe.py
 ```
 
 Result: PASSED (allowed files only)
 
-## Command 11: git diff --name-status
+## Command 9: git diff --name-status
 
 ```
 git diff --name-status
@@ -212,10 +184,12 @@ Output:
 ```
 M       project_state/codex_execution_report.md
 M       project_state/pytest_result.txt
+M       reverse_agent/local_reverse_console_mature_backend_probe.py
+M       tests/test_local_reverse_console_mature_backend_probe.py
 ```
 
 Result: PASSED (allowed files only)
 
 ## Summary
 
-All required commands passed. `project_state/task_packet.json` and `project_state/current_state.json` are present, tracked, and not modified.
+All required checks passed. No CPP2 runtime validation, mature backend probe CLI, pair validator, IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver, candidate/control input, or current CPP2 artifact overwrite was performed.
