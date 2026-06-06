@@ -6,6 +6,7 @@ import json
 import tempfile
 from pathlib import Path
 
+import reverse_agent.local_reverse_console_pair_validator as pair_validator
 from reverse_agent.local_reverse_console_pair_validator import (
     _generate_negative_control,
     get_console_backend_capabilities,
@@ -18,7 +19,7 @@ def _triage(**overrides: object) -> dict[str, object]:
     triage: dict[str, object] = {
         "schema_version": 1,
         "sample_id": "cpp2_2f64e68d",
-        "relative_path": "逆向课程2025春03/CPP2.exe",
+        "relative_path": "synthetic/nonexistent/unit_test_binary.exe",
         "analysis_mode": "local_reverse_single_sample_static_triage",
         "source_artifact_freshness": "current",
         "mainline": "reverse_solving",
@@ -58,6 +59,19 @@ def _handoff(**overrides: object) -> dict[str, object]:
     }
     handoff.update(overrides)
     return handoff
+
+
+def _block_real_target_execution(monkeypatch):
+    monkeypatch.setattr(
+        pair_validator,
+        "_resolve_target_path",
+        lambda relative_path: None,
+    )
+
+    def fail_if_run(*args, **kwargs):
+        raise AssertionError("unit tests must not run target binaries")
+
+    monkeypatch.setattr(pair_validator, "_run_single", fail_if_run)
 
 
 class TestConsoleBackendCapabilities:
@@ -120,7 +134,8 @@ class TestGenerateNegativeControl:
 
 
 class TestValidateConsolePairBlocked:
-    def test_candidate_missing(self, tmp_path: Path):
+    def test_candidate_missing(self, tmp_path: Path, monkeypatch):
+        _block_real_target_execution(monkeypatch)
         triage_file = tmp_path / "triage.json"
         handoff_file = tmp_path / "handoff.json"
         triage_file.write_text(json.dumps(_triage()), encoding="utf-8")
@@ -131,7 +146,8 @@ class TestValidateConsolePairBlocked:
         assert result["blocked_reason"] == "CANDIDATE_MISSING"
         assert result["solved"] is False
 
-    def test_target_missing(self, tmp_path: Path):
+    def test_target_missing(self, tmp_path: Path, monkeypatch):
+        _block_real_target_execution(monkeypatch)
         triage_file = tmp_path / "triage.json"
         handoff_file = tmp_path / "handoff.json"
         triage_file.write_text(
@@ -147,7 +163,8 @@ class TestValidateConsolePairBlocked:
 
 
 class TestValidateConsolePairSchema:
-    def test_output_has_required_fields(self, tmp_path: Path):
+    def test_output_has_required_fields(self, tmp_path: Path, monkeypatch):
+        _block_real_target_execution(monkeypatch)
         triage_file = tmp_path / "triage.json"
         handoff_file = tmp_path / "handoff.json"
         triage_file.write_text(json.dumps(_triage()), encoding="utf-8")
@@ -196,7 +213,8 @@ class TestValidateConsolePairSchema:
         else:
             assert result["known_candidate"] == ""
 
-    def test_solved_false_when_blocked(self, tmp_path: Path):
+    def test_solved_false_when_blocked(self, tmp_path: Path, monkeypatch):
+        _block_real_target_execution(monkeypatch)
         triage_file = tmp_path / "triage.json"
         handoff_file = tmp_path / "handoff.json"
         triage_file.write_text(

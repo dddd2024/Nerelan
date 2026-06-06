@@ -1,13 +1,14 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1",
-  "report_id": "report_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1",
-  "generated_at": "2026-06-06T13:16:41Z",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1",
+  "report_id": "report_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1",
+  "generated_at": "2026-06-06T13:33:57Z",
   "status": "PASSED",
   "tests_ran": [
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+    "Select-String -Path tests/test_local_reverse_console_pair_validator.py -Pattern 'CPP2\\.exe|逆向课程2025春03/CPP2\\.exe|LOCAL_REVERSE_ROOT|REVERSE_ROOT|E:\\\\reverse|D:\\\\reverse|C:\\\\reverse|F:\\\\reverse|~/reverse'",
     "python -m py_compile reverse_agent/local_reverse_console_pair_validator.py reverse_agent/local_reverse_console_mature_backend_probe.py",
     "python -m pytest -q tests/test_local_reverse_console_pair_validator.py tests/test_local_reverse_console_mature_backend_probe.py",
     "python -m pytest -q tests/test_project_state.py",
@@ -20,7 +21,7 @@
 }
 ```
 
-# Pytest Result - round_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1
+# Pytest Result - round_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1
 
 ## Command 1: lint-decision
 
@@ -33,7 +34,7 @@ Exit Code: 0
 Output:
 ```
 lint-decision: OK
-decision_id: decision_20260606_cpp2_2f64e68d_console_backend_contract_registry_v1
+decision_id: decision_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1
 decision_status: APPROVED
 mainline: tool_integration
 skill_profiles: ['reverse-agent-iteration@v2']
@@ -47,7 +48,19 @@ active_decision_packet: project_state/decision_packet.md
 
 Result: PASSED
 
-## Command 2: py_compile
+## Command 2: static path safety check
+
+```
+Select-String -Path tests/test_local_reverse_console_pair_validator.py -Pattern 'CPP2\.exe|逆向课程2025春03/CPP2\.exe|LOCAL_REVERSE_ROOT|REVERSE_ROOT|E:\\reverse|D:\\reverse|C:\\reverse|F:\\reverse|~/reverse'
+```
+
+Exit Code: 0
+
+Output: no matches
+
+Result: PASSED
+
+## Command 3: py_compile
 
 ```
 python -m py_compile reverse_agent/local_reverse_console_pair_validator.py reverse_agent/local_reverse_console_mature_backend_probe.py
@@ -59,7 +72,7 @@ Output: no output
 
 Result: PASSED
 
-## Command 3: focused console backend tests
+## Command 4: focused console backend tests
 
 ```
 python -m pytest -q tests/test_local_reverse_console_pair_validator.py tests/test_local_reverse_console_mature_backend_probe.py
@@ -70,12 +83,12 @@ Exit Code: 0
 Output:
 ```
 ..................................                                       [100%]
-34 passed in 0.32s
+34 passed in 0.24s
 ```
 
 Result: PASSED
 
-## Command 4: project_state tests
+## Command 5: project_state tests
 
 ```
 python -m pytest -q tests/test_project_state.py
@@ -88,12 +101,12 @@ Output:
 ........................................................................ [ 45%]
 ........................................................................ [ 91%]
 ..............                                                           [100%]
-158 passed in 25.13s
+158 passed in 16.70s
 ```
 
 Result: PASSED
 
-## Command 5: lint-report
+## Command 6: lint-report
 
 ```
 python -m reverse_agent.project_state lint-report --state-dir project_state
@@ -118,7 +131,7 @@ pytest_result_tests_cover_report: True
 
 Result: PASSED
 
-## Command 6: status
+## Command 7: status
 
 ```
 python -m reverse_agent.project_state status --state-dir project_state
@@ -141,7 +154,7 @@ pytest_result_tests_cover_report: True
 
 Result: PASSED
 
-## Command 7: git diff --check
+## Command 8: git diff --check
 
 ```
 git diff --check
@@ -156,7 +169,7 @@ line-ending warnings only
 
 Result: PASSED
 
-## Command 8: git status --short
+## Command 9: git status --short
 
 ```
 git status --short
@@ -166,12 +179,12 @@ Exit Code: 0
 
 Output summary:
 ```
-Allowed files only: source/test registry changes plus active project_state report/result refresh.
+Allowed files only: pair-validator test safety rework plus active project_state report/result refresh.
 ```
 
 Result: PASSED
 
-## Command 9: git diff --name-status
+## Command 10: git diff --name-status
 
 ```
 git diff --name-status
@@ -181,11 +194,11 @@ Exit Code: 0
 
 Output summary:
 ```
-Allowed files only: source/test registry changes plus active project_state report/result refresh.
+Allowed files only: pair-validator test safety rework plus active project_state report/result refresh.
 ```
 
 Result: PASSED
 
 ## Summary
 
-All required checks passed. No CPP2 runtime validation, mature backend probe CLI, pair validator, IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver, candidate/control input, dependency change, current CPP2 artifact overwrite, or solve_reports write was performed.
+All required checks passed. No CPP2 runtime validation, real binary target, mature backend probe CLI, pair validator CLI, IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver, candidate/control input, dependency change, current CPP2 artifact overwrite, or solve_reports write was performed.
