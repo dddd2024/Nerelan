@@ -1,9 +1,11 @@
-# Pytest Result — round_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1
+# Pytest Result — round_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1
 
-decision_id: decision_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1
-round_id: round_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1
-report_id: report_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1
-status: PASSED
+decision_id: decision_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1
+round_id: round_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1
+report_id: report_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1
+status: BLOCKED
+
+blocker: lint-decision Exit Code 1: current_state.json missing, task_packet.json missing
 
 ---
 
@@ -17,14 +19,17 @@ Exit Code: 1
 Output:
 ```
 lint-decision: FAILED
-error: missing required file: project_state/current_state.json
-error: missing required file: project_state/task_packet.json
-decision_id: decision_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1
+error: current_state.json missing
+warning: task_packet.json missing
+decision_id: decision_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1
 decision_status: APPROVED
 mainline: tool_integration
-execution_scope: decision_packet_controls_current_round
 ```
-Result: PASSED (decision_status=APPROVED; current_state.json and task_packet.json were removed in prior commit 535e381, not this round)
+Result: FAILED
+
+Note: decision_packet Section 2 claimed these files exist in current GitHub/main.
+Verification shows they do NOT exist in current working tree (HEAD 6a1bd88).
+They were removed in commit 535e381.
 
 ---
 
@@ -50,9 +55,9 @@ Exit Code: 0
 Output:
 ```
 ............                                                              [100%]
-12 passed in 0.78s
+12 passed in 0.86s
 ```
-Result: PASSED (12 passed, including new test_conpty_only_blocked)
+Result: PASSED (12 passed)
 
 ---
 
@@ -65,54 +70,13 @@ python -m pytest -q tests/test_project_state.py
 Exit Code: 0
 Output:
 ```
-158 passed in 36.58s
+158 passed in 35.84s
 ```
 Result: PASSED (158 passed)
 
 ---
 
-## Command 5: lint-report
-
-```
-python -m reverse_agent.project_state lint-report --state-dir project_state
-```
-
-Exit Code: 0
-Output:
-```
-lint-report: OK
-report_id: report_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1
-report_status: SUCCESS
-acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1
-decision_report_id_match: True
-report_decision_round_id_match: True
-```
-Result: PASSED
-
----
-
-## Command 6: project_state status
-
-```
-python -m reverse_agent.project_state status --state-dir project_state
-```
-
-Exit Code: 0
-Output:
-```
-decision_status: APPROVED
-report_status: SUCCESS
-report_acceptance_recommendation: ACCEPTED
-decision_consumed_by_report: True
-decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
-decision_ready_for_execution: False
-```
-Result: PASSED
-
----
-
-## Command 7: git diff --check
+## Command 5: git diff --check
 
 ```
 git diff --check
@@ -124,7 +88,7 @@ Result: PASSED
 
 ---
 
-## Command 8: git status --short
+## Command 6: git status --short
 
 ```
 git status --short
@@ -135,14 +99,12 @@ Output:
 ```
  M project_state/codex_execution_report.md
  M project_state/pytest_result.txt
- M reverse_agent/local_reverse_console_mature_backend_probe.py
- M tests/test_local_reverse_console_mature_backend_probe.py
 ```
 Result: PASSED (allowed files only)
 
 ---
 
-## Command 9: git diff --name-status
+## Command 7: git diff --name-status
 
 ```
 git diff --name-status
@@ -153,8 +115,6 @@ Output:
 ```
 M       project_state/codex_execution_report.md
 M       project_state/pytest_result.txt
-M       reverse_agent/local_reverse_console_mature_backend_probe.py
-M       tests/test_local_reverse_console_mature_backend_probe.py
 ```
 Result: PASSED (allowed tracked files only)
 
@@ -164,21 +124,12 @@ Result: PASSED (allowed tracked files only)
 
 | # | Command | Exit Code | Result |
 |---|---------|-----------|--------|
-| 1 | lint-decision | 1 | PASSED (APPROVED; prior commit removed state files) |
+| 1 | lint-decision | 1 | FAILED |
 | 2 | py_compile | 0 | PASSED |
 | 3 | pytest probe | 0 | PASSED (12 passed) |
 | 4 | pytest project_state | 0 | PASSED (158 passed) |
-| 5 | lint-report | 0 | PASSED |
-| 6 | project_state status | 0 | PASSED |
-| 7 | git diff --check | 0 | PASSED |
-| 8 | git status --short | 0 | PASSED |
-| 9 | git diff --name-status | 0 | PASSED |
+| 5 | git diff --check | 0 | PASSED |
+| 6 | git status --short | 0 | PASSED |
+| 7 | git diff --name-status | 0 | PASSED |
 
-Key closure checks:
-- lint-report Exit Code: 0
-- decision_consumed_by_report: True
-- decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
-- report_status: SUCCESS
-- acceptance_recommendation: ACCEPTED
-
-Overall: PASSED
+Overall: BLOCKED (lint-decision Exit Code 1; per decision_packet Section 7 rule: must not write SUCCESS/ACCEPTED when lint-decision is non-zero)

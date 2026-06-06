@@ -1,14 +1,12 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1",
-  "based_on_decision_id": "decision_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1",
-  "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED",
+  "report_id": "report_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1",
+  "based_on_decision_id": "decision_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1",
+  "status": "BLOCKED",
+  "acceptance_recommendation": "NOT_ACCEPTED",
   "files_changed": [
-    "reverse_agent/local_reverse_console_mature_backend_probe.py",
-    "tests/test_local_reverse_console_mature_backend_probe.py",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
@@ -17,13 +15,12 @@
     "python -m py_compile reverse_agent/local_reverse_console_mature_backend_probe.py",
     "python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py",
     "python -m pytest -q tests/test_project_state.py",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
   ],
-  "generated_artifacts": []
+  "generated_artifacts": [],
+  "blocker": "lint-decision Exit Code 1: current_state.json missing, task_packet.json missing"
 }
 ```
 
@@ -31,15 +28,14 @@
 
 ## 1. Execution Authority
 
-- Implemented `decision_20260606_cpp2_2f64e68d_conpty_presence_gate_rework_v1` as the only active execution authority.
-- `project_state/task_packet.json` and `project_state/current_state.json` were removed in a prior commit (`535e381`). This does not affect decision authority.
+- Implemented `decision_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1` as the only active execution authority.
 - Confirmed this round is `tool_integration` for target sample `cpp2_2f64e68d`.
 
 ## 2. Round Purpose
 
-本轮是 **ConPTY presence gate rework**，修复 probe 代码中 `has_windows_backend` 包含 `conpty_api_available` 的误授权风险。
+本轮是 **ConPTY gate validation record rework**，在当前同步后的工作树中重新运行所有必跑命令并记录真实结果。
 
-核心修正：将 `has_windows_backend`（包含 ConPTY API）改为 `has_mature_python_backend`（仅 pywinpty/winpty/wexpect），ConPTY API 只作为 capability signal 保留在 artifact 中。
+decision_packet 第 2 节声称 `project_state/task_packet.json` 和 `project_state/current_state.json` 在当前 GitHub/main 中实际存在。经验证，**这两个文件在当前工作树中不存在**（它们在 commit `535e381` 中被删除，当前 HEAD `6a1bd88` 不包含它们）。
 
 ## 3. Scope Compliance
 
@@ -47,86 +43,43 @@
 - **没有重新运行 mature backend probe CLI。**
 - **没有运行 pair validator。**
 - **没有运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。**
-- **没有运行 solver/bruteforce/guided pool/symbolic search。**
-- **没有修改 artifact_index。**
-- **没有修改 console_mature_backend_probe.json artifact。**
-- **没有修改 runtime_pair_validation/static_triage/strcmp_handoff artifacts。**
-- **没有修改 training status、evaluation queue、status overlay 或 cpp1 artifacts。**
+- **没有修改 artifact_index、probe artifact 或任何 source artifacts。**
+- **没有修改代码文件**（所有测试通过，无需修改）。
 
-## 4. Code Changes
+## 4. Test Results
 
-### 4.1 Gate 语义修正
+| Command | Exit Code | Result |
+|---------|-----------|--------|
+| lint-decision | 1 | FAILED |
+| py_compile | 0 | PASSED |
+| pytest probe (12 tests) | 0 | PASSED |
+| pytest project_state (158 tests) | 0 | PASSED |
+| git diff --check | 0 | PASSED |
+| git status --short | 0 | PASSED (allowed files only) |
+| git diff --name-status | 0 | PASSED |
 
-旧代码：
-```python
-has_windows_backend = (
-    pkg_availability["pywinpty_available"]
-    or pkg_availability["winpty_available"]
-    or pkg_availability["wexpect_available"]
-    or conpty_info["conpty_api_available"]  # ← 错误：ConPTY 不是 mature backend
-)
+## 5. Blocker
+
+`lint-decision` Exit Code 1，错误信息：
+```
+lint-decision: FAILED
+error: current_state.json missing
+warning: task_packet.json missing
 ```
 
-新代码：
-```python
-has_mature_python_backend = (
-    pkg_availability["pywinpty_available"]
-    or pkg_availability["winpty_available"]
-    or pkg_availability["wexpect_available"]
-    # conpty_api_available 不再参与 mature backend 判定
-)
-```
+按 decision_packet 第 7 条规则："如果 lint-decision 仍为 1，必须把本轮 status 标为 BLOCKED 或 FAILURE，不能写 SUCCESS/ACCEPTED。"
 
-### 4.2 ConPTY-only 情况处理
+因此本轮 `status=BLOCKED`，`acceptance_recommendation=NOT_ACCEPTED`。
 
-当 `conpty_api_available=true` 但 pywinpty/winpty/wexpect 全部缺失时：
-- `probe_status=BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY`（新增状态）
-- `can_attempt_interactive_console_validation_next=false`
-- `recommended_backend=""`（不是 `windows_conpty_api`）
-- `recommended_next_action` 建议安装成熟 backend
+## 6. Required Audit (10 Points)
 
-### 4.3 READY 判定
-
-只有 pywinpty/winpty/wexpect 至少一个可用时，才能触发 `READY_FOR_MATURE_BACKEND_VALIDATION`。
-
-## 5. Test Changes
-
-- 新增 `test_conpty_only_blocked` 单测：mock ConPTY-only 场景，断言 probe_status != READY、can_attempt=false、recommended_backend != windows_conpty_api、安全标志为 true。
-- 更新 `test_probe_status_in_valid_range`：添加 `BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY` 到允许列表。
-- 总计 12 个测试全部通过。
-
-## 6. Validation
-
-- `lint-decision`: Exit Code 1（因 current_state.json/task_packet.json 在 prior commit 中被删除，非本轮问题；decision_status=APPROVED）。
-- `py_compile`: Exit Code 0。
-- `pytest probe`: 12 passed。
-- `pytest project_state`: 158 passed。
-- `lint-report`: Exit Code 0。
-- `project_state status`: decision_consumed_by_report=True, CONSUMED_BY_SUCCESS_REPORT。
-- `git diff --check`: Exit Code 0。
-- `git status --short` 和 `git diff --name-status` 只包含允许文件。
-
-## 7. Required Audit (22 Points)
-
-1. **是否确认当前 decision_packet 是本轮唯一执行权威。** 是。
-2. **是否确认 task_packet.task 只是旧 samplereverse advisory。** 是（文件已在 prior commit 中删除）。
-3. **是否确认本轮主线为 tool_integration。** 是。
-4. **是否确认本轮只修复 ConPTY presence gate，不是重新 probe。** 是。
-5. **是否确认没有运行 CPP2.exe。** 是。
-6. **是否确认没有重新运行 mature backend probe CLI 覆盖 project_state artifact。** 是。
-7. **是否确认没有运行 pair validator。** 是。
-8. **是否确认没有运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。** 是。
-9. **是否确认没有运行 solver/bruteforce/guided pool/symbolic search。** 是。
-10. **是否确认 ConPTY API presence 不再计入 mature backend availability。** 是。`has_mature_python_backend` 不包含 `conpty_api_available`。
-11. **是否确认仅 pywinpty/winpty/wexpect 可使 READY_FOR_MATURE_BACKEND_VALIDATION。** 是。
-12. **是否确认仅 pywinpty/winpty/wexpect 可使 can_attempt_interactive_console_validation_next=true。** 是。
-13. **是否确认 conpty_api_available=true 且 pywinpty/winpty/wexpect=false 时，probe_status 为 BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY。** 是。
-14. **是否确认 conpty_api_available=true 且 pywinpty/winpty/wexpect=false 时，recommended_backend 不是 windows_conpty_api。** 是。recommended_backend=""。
-15. **是否确认新增单测覆盖 ConPTY-only blocked 情况。** 是。`test_conpty_only_blocked` 通过。
-16. **是否确认 no_custom_conpty_runner/no_expect_state_machine/no_terminal_emulator 仍为 true。** 是。
-17. **是否确认没有修改 runtime_pair_validation/static_triage/strcmp_handoff artifacts。** 是。
-18. **是否确认没有修改 training status、queue、overlay 或 cpp1 artifacts。** 是。
-19. **是否确认 codex_report_summary 与本 decision_id/round_id 匹配。** 是。
-20. **是否确认 pytest_result.txt 使用本 decision_id/report_id/round_id。** 是。
-21. **是否确认 lint-report Exit Code 0，project_state status 消费当前 success report。** 是。
-22. **是否确认 git status --short 和 git diff --name-status 只包含允许文件。** 是。
+1. **是否确认 task_packet.json/current_state.json 在当前工作树中存在。** 否。两个文件均不存在。它们在 commit `535e381` 中被删除，当前 HEAD `6a1bd88` 不包含它们。decision_packet 第 2 节的声称与事实不符。
+2. **是否确认当前 decision_packet 是本轮唯一执行权威。** 是。
+3. **是否确认本轮只修复验证记录，不改 artifact_index，不改 probe artifact。** 是。仅修改了 codex_execution_report.md 和 pytest_result.txt。
+4. **是否确认没有运行 CPP2.exe。** 是。
+5. **是否确认没有运行 mature backend probe CLI 覆盖 artifact。** 是。
+6. **是否确认 lint-decision Exit Code 是 0。** 否。lint-decision Exit Code 是 1。
+7. **如果 lint-decision 仍为 1，是否把本轮 status 标为 BLOCKED 或 FAILURE。** 是。status=BLOCKED，acceptance_recommendation=NOT_ACCEPTED。
+8. **是否确认 pytest_result.txt 中每个命令的 Exit Code 与 Result 一致。** 是。lint-decision Exit Code 1 标为 FAILED，其余 Exit Code 0 标为 PASSED。
+9. **是否确认 codex_report_summary 与本 decision_id/round_id 匹配。** 是。
+10. **是否确认 git status --short 和 git diff --name-status 只包含允许文件。** 是。仅 codex_execution_report.md 和 pytest_result.txt。
