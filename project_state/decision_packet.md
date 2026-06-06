@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_32f1713e_static_triage_v1",
-  "round_id": "round_20260606_cpp2_32f1713e_static_triage_v1",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -19,36 +19,29 @@
 
 本轮主线是 **tool_integration**。
 
-目标：按当前 `project_state/local_reverse_evaluation_queue.json` 的第 1 项，对 `cpp2_32f1713e` 执行一次 **有界单样本静态 triage**，只复用现有静态工具接口收集结构化证据，不运行目标样本、不做 runtime validation、不生成 candidate、不推进 solver。
+目标：优先回到 `cpp2_2f64e68d`，只解决它当前的 console backend 环境阻塞：在项目目录下创建或复用本地 `.venv`，安装 `pywinpty`，记录安装/import 证据，然后重新运行现有 mature backend probe。若 probe 显示 pywinpty backend ready，本轮只生成 ready 证据；**不在本轮运行目标样本验证**。后续是否对 `ippio` 做 interactive validation，必须下一轮单独 decision 授权。
 
-目标样本：
+本轮 supersede 上一轮 `cpp2_32f1713e_static_triage` decision。用户当前明确要求优先处理 `cpp2_2f64e68d` 的 pywinpty/backend 路线。
 
-```text
-sample_id=cpp2_32f1713e
-relative_path=逆向课程2023春补考02/Cpp2.exe
-category=cpp
-file_type=pe
-queue_rank=1
-allowed_actions=[static_triage]
-forbidden_actions=[runtime_probe, bruteforce, upload_binary]
-```
-
-预期产物：
+预期结果：
 
 ```text
-project_state/local_reverse_cpp2_32f1713e_static_triage.json
-artifact_index.latest_artifacts["local_reverse_cpp2_32f1713e_static_triage"]
-artifact_index.latest_artifacts_v2["local_reverse_cpp2_32f1713e_static_triage"]
+1. 项目根目录下存在 .venv，且 .venv 被 .gitignore 忽略。
+2. pywinpty 安装在 .venv 内，不提交 .venv/site-packages/wheel/DLL/EXE。
+3. 新增或更新 requirements-console-backend.txt，用轻量文本声明 pywinpty 依赖。
+4. 生成 project_state/local_reverse_cpp2_2f64e68d_pywinpty_setup.json。
+5. 重新生成 project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json。
+6. 更新 project_state/artifact_index.json，登记 setup/probe artifact current provenance。
+7. 更新 project_state/codex_execution_report.md 与 project_state/pytest_result.txt。
 ```
 
-接受的结果状态：
+依赖声明建议：
 
 ```text
-A. tool_status=success：IDA 静态证据提取成功，artifact 包含 strings/functions/compare_contexts/solver_profile_hypotheses/decompiler_snippets 等结构化摘要。
-B. tool_status=blocked：本地样本根、IDA executable 或 IDA script 不可用，artifact 必须明确 blocked_reason，例如 BINARY_NOT_FOUND 或 STATIC_TOOL_UNAVAILABLE:*。
+pywinpty==3.0.3 ; platform_system == "Windows" and python_version >= "3.9"
 ```
 
-无论 A/B，都不得把样本标记为 solved，不得写入 known_candidate，不得生成 flag。
+本轮不得把 `ippio` 写成答案；不得修改训练状态为 solved。
 
 ---
 
@@ -70,110 +63,49 @@ state_build_id=state_20260602_053948_4e3984041cd7
 state_digest=4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
 ```
 
-上一轮 closeout 已审计 ACCEPTED：
+`cpp2_2f64e68d` 当前事实：
 
 ```text
-report_id=report_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
-round_id=round_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
-based_on_decision_id=decision_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
-status=SUCCESS
-acceptance_recommendation=ACCEPTED
-files_changed=[project_state/artifact_index.json, project_state/codex_execution_report.md, project_state/pytest_result.txt]
+training_status=blocked
+known_candidate=""
+solved=false
+static_candidate_text=ippio  # only static candidate, not validated
+runtime pair validation status=AMBIGUOUS_OUTPUT
+candidate/control outputs_differ=false
+mature backend probe status=BLOCKED_MATURE_BACKEND_MISSING
 ```
 
-`project_state/pytest_result.txt` 已是命令级记录，且上一轮 tests/lint/status 均通过：
+当前 mature backend probe 能力：
 
 ```text
-python -m pytest -q tests/test_project_state.py -> 158 passed
-lint-decision -> OK
-lint-report -> OK
-status -> OK
-git diff --name-status -> only allowed project_state files
+reverse_agent/local_reverse_console_mature_backend_probe.py
+  - 使用 importlib.util.find_spec 检测 pywinpty/winpty/wexpect 等 Python backend。
+  - 不运行目标样本。
+  - 若 pywinpty/winpty/wexpect 可用，可输出 READY_FOR_MATURE_BACKEND_VALIDATION。
+  - artifact 必须保持 executed_target=false、runtime_validated=false、candidate=None、known_candidate=""、solved=false。
 ```
 
-当前训练队列证据：
+当前 pair validator 限制：
 
 ```text
-project_state/local_reverse_evaluation_queue.json
-rank=1
-sample_id=cpp2_32f1713e
-relative_path=逆向课程2023春补考02/Cpp2.exe
-reason=PE sample (196686 bytes), static triage tags: pe, reverse, cpp, local
-proposed_next_mainline=tool_integration
-allowed_actions=[static_triage]
-forbidden_actions=[runtime_probe, bruteforce, upload_binary]
+reverse_agent/local_reverse_console_pair_validator.py 当前没有 pywinpty backend implementation。
+因此本轮只做 setup/probe，不做 interactive validation，也不改 validator。
 ```
 
-当前 case metadata 证据：
+外部依赖事实：
 
 ```text
-training_materials/local_reverse/cases/cpp2_32f1713e.json
-input_value=${LOCAL_REVERSE_ROOT}/逆向课程2023春补考02/Cpp2.exe
-expected_flag=""
-category=cpp
-tags=[local, reverse, cpp, pe]
+pywinpty 是 Windows Python pseudo-terminal package。
+可通过 pip install pywinpty 安装。
+当前 PyPI release 为 3.0.3，要求 Python >=3.9。
 ```
 
-已有工具接口能力：
+`.gitignore` 已包含：
 
 ```text
-reverse_agent/local_reverse_single_sample_static_triage.py
-  - 已存在单样本静态 triage adapter。
-  - 复用 tool_runners / collect_evidence.py / IDA 静态证据提取。
-  - 文件头说明：Does NOT execute the target binary. Does NOT generate candidates.
-  - run_static_triage() 能生成 success artifact 或 blocked artifact。
-  - success artifact 中 executed_sample=false、static_only=true、runtime_validated=false、candidate=None、known_candidate=""。
-  - blocked artifact 中同样 executed_sample=false、static_only=true、runtime_validated=false、candidate=None、known_candidate=""。
-
-tests/test_local_reverse_single_sample_static_triage.py
-  - 已覆盖 sample root、sample locate、path resolve、IDA evidence parse、blocked artifact、run_static_triage 等逻辑。
-```
-
-现有成熟工具优先原则：
-
-```text
-本轮只允许使用现有 IDA/IDAPython 静态导出接口。
-不得为 strings/functions/compare_contexts/decompiler 重新造轮子。
-不得新增重复 IDA runner。
-不得新增自研反汇编器或二进制解析器。
-```
-
-`negative_results.json` 仍主要约束旧 samplereverse 失败方向。本轮不触碰这些方向，尤其不运行 old sample_solver blind search、guided_pool、Base64/RC4 breakpoint probe、CompareProbe、runtime hook 或 solve_reports 全量扫描。
-
-artifact freshness 当前相关事实：
-
-```text
-cpp2_32f1713e 尚无 current static_triage artifact。
-cpp2_2f64e68d 的 training_status_sync 已在 latest_artifacts 和 latest_artifacts_v2 双字段登记完成；本轮不得回改该 closeout。
-```
-
-是否允许运行工具：
-
-```text
-允许：
-  - python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp2_32f1713e --out project_state/local_reverse_cpp2_32f1713e_static_triage.json
-  - 该 CLI 内部仅允许解析 LOCAL_REVERSE_ROOT 下这一份样本路径，并调用现有 IDA 静态提取。
-  - python 单元测试、project_state lint/status、git diff/status。
-
-不允许：
-  - 运行 Cpp2.exe / CPP2.exe 本体。
-  - runtime_probe、pair validator、mature backend probe、debugger、hook、emulator、CompareProbe、solver、bruteforce。
-```
-
-是否允许读取本地样本：
-
-```text
-仅允许通过 LOCAL_REVERSE_ROOT + relative_path 解析 cpp2_32f1713e 这一份样本，并只作为 IDA 静态输入读取。
-不允许上传、复制、提交样本 binary。
-不允许批量扫描 E:\reverse 或其他训练目录。
-```
-
-是否允许读取重型 artifact：
-
-```text
-不允许默认读取完整 solve_reports 或 PROJECT_PROGRESS_LOG。
-不允许读取 project_state/rounds 全量历史。
-只允许读取本轮 target、queue、inventory、case、static_triage 源码/测试和 artifact_index 相关小文件。
+.venv/
+venv/
+env/
 ```
 
 ---
@@ -183,34 +115,31 @@ cpp2_2f64e68d 的 training_status_sync 已在 latest_artifacts 和 latest_artifa
 严禁：
 
 ```text
-1. 不运行 Cpp2.exe / CPP2.exe 目标程序。
-2. 不做 runtime_probe。
-3. 不运行 console pair validator。
-4. 不运行 mature backend probe。
-5. 不运行 debugger、OllyDbg、x64dbg、Frida hook、emulator、CompareProbe。
-6. 不运行 solver、bruteforce、guided pool、symbolic search、constraint recovery。
-7. 不扫描完整 E:\reverse、D:\reverse、C:\reverse、F:\reverse 或 ~/reverse。
-8. 不上传、复制、提交任何样本 binary。
-9. 不新增 IDA runner、Ghidra runner、二进制解析器、反汇编器或反编译器。
-10. 不修改 reverse_agent/local_reverse_single_sample_static_triage.py，除非测试暴露出阻塞 bug，且必须最小修复并说明。
-11. 不修改 solver/validator/probe 代码。
-12. 不修改 .codex-skills/*。
-13. 不提交 solve_reports。
-14. 不读取完整 PROJECT_PROGRESS_LOG.txt。
-15. 不把任何静态字符串、candidate-looking literal 或 compare operand 写成 known_candidate/solved/flag。
-16. 不更新 local_reverse_training_status.json、local_reverse_evaluation_queue.json 或 status_overlay.json，除非后续单独 decision 明确要求训练状态同步。
+1. 不换到 cpp2_32f1713e 或其他样本。
+2. 不运行 Cpp2.exe / CPP2.exe 或任何目标样本。
+3. 不运行 console pair validator 做 candidate/control validation。
+4. 不运行 debugger、hook、emulator、CompareProbe、solver、bruteforce、guided pool。
+5. 不修改 reverse_agent/local_reverse_console_pair_validator.py。
+6. 不新增自研 terminal emulator、expect state machine 或 custom ConPTY runner。
+7. 不提交 .venv、site-packages、wheel、DLL、EXE、样本 binary。
+8. 不提交 solve_reports。
+9. 不修改 .codex-skills/*。
+10. 不扫描完整本地训练样本目录。
+11. 不把 ippio 写成 known_candidate/candidate/solved/flag。
+12. 不更新 local_reverse_training_status.json 为 solved。
 ```
 
 允许：
 
 ```text
-1. 读取 queue/inventory/case metadata。
-2. 运行现有 single_sample_static_triage CLI，限定 sample_id=cpp2_32f1713e。
-3. 如 LOCAL_REVERSE_ROOT/IDA/script 不可用，生成 blocked static triage artifact。
-4. 新建 project_state/local_reverse_cpp2_32f1713e_static_triage.json。
-5. 更新 project_state/artifact_index.json，登记 latest_artifacts 与 latest_artifacts_v2。
-6. 更新 project_state/codex_execution_report.md 和 project_state/pytest_result.txt。
-7. 可新建本轮 minimal round archive，只包含 decision/report/pytest/round_manifest；不要包含 sample binary 或完整 state snapshot。
+1. 在项目根目录创建或复用 .venv。
+2. 在 .venv 内执行 pip install pywinpty。
+3. 新增 requirements-console-backend.txt。
+4. 运行 pywinpty import 检测命令。
+5. 重新运行现有 mature backend probe。
+6. 生成 pywinpty_setup artifact。
+7. 更新 mature backend probe artifact。
+8. 更新 artifact_index、codex_execution_report、pytest_result。
 ```
 
 ---
@@ -228,17 +157,18 @@ project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 .codex-skills/registry.json
-project_state/local_reverse_evaluation_queue.json
-project_state/local_reverse_inventory.json
-training_materials/local_reverse/cases/cpp2_32f1713e.json
-reverse_agent/local_reverse_single_sample_static_triage.py
-tests/test_local_reverse_single_sample_static_triage.py
+.gitignore
+project_state/local_reverse_cpp2_2f64e68d_static_triage.json
+project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
+project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json
+project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
+reverse_agent/local_reverse_console_mature_backend_probe.py
+tests/test_local_reverse_console_mature_backend_probe.py
 ```
 
 必要时读取：
 
 ```text
-reverse_agent/tool_runners.py
 reverse_agent/project_state.py
 tests/test_project_state.py
 ```
@@ -261,67 +191,116 @@ Codex 报告必须回答：
 ```text
 1. 是否确认当前 decision_packet 是本轮唯一执行权威。
 2. 是否确认 task_packet.task 只是旧 samplereverse advisory。
-3. 是否确认本轮主线为 tool_integration。
-4. 是否确认目标样本来自 evaluation_queue rank=1: cpp2_32f1713e。
-5. 是否确认 allowed_actions 只有 static_triage，forbidden_actions 包含 runtime_probe/bruteforce/upload_binary。
-6. 是否确认使用了现有 reverse_agent.local_reverse_single_sample_static_triage 接口，没有新建重复 IDA/Ghidra/debugger 接口。
-7. 是否确认没有运行目标程序本体。
-8. 是否确认没有运行 runtime validator、mature backend probe、debugger、hook、emulator、CompareProbe、solver、bruteforce。
-9. 是否确认没有上传/复制/提交 sample binary。
-10. 是否确认若访问 LOCAL_REVERSE_ROOT，只访问 cpp2_32f1713e 的相对路径，且仅供 IDA 静态读取。
-11. 是否确认 artifact 中 executed_sample=false、static_only=true、runtime_validated=false。
-12. 是否确认 artifact 中 candidate is null、known_candidate=""、solved 不为 true。
-13. 是否确认 artifact_index latest_artifacts/latest_artifacts_v2 已登记 local_reverse_cpp2_32f1713e_static_triage。
-14. 是否确认未修改 local_reverse_training_status.json / local_reverse_evaluation_queue.json / status_overlay.json。
-15. 是否确认未修改 .codex-skills 和 solve_reports。
-16. 是否确认 pytest_result.txt 使用本 decision_id/report_id/round_id。
-17. 是否确认测试/lint/status 结果真实记录。
-18. 是否确认 git diff --name-status 只包含允许文件。
+3. 是否确认本轮主线为 tool_integration，且 supersede cpp2_32f1713e static triage decision。
+4. 是否确认 cpp2_2f64e68d 当前未 solved，known_candidate 为空。
+5. 是否确认 ippio 只是 static candidate，不是 validated known_candidate。
+6. 是否确认 .venv 位于项目目录且被 .gitignore 忽略。
+7. 是否确认 pywinpty 安装在 .venv 内。
+8. 是否确认没有提交 .venv/site-packages/wheel/DLL/EXE/样本 binary。
+9. 是否确认 requirements-console-backend.txt 如有新增，只是轻量依赖声明。
+10. 是否确认 setup artifact 记录 Python 版本、pip 版本、pywinpty install/import 状态。
+11. 是否确认 mature backend probe 已重新运行，且 artifact 记录 pywinpty_available。
+12. 是否确认本轮没有运行目标样本，没有运行 pair validator validation。
+13. 是否确认没有修改 validator/solver/debugger/hook/emulator 相关实现。
+14. 是否确认 artifact_index latest_artifacts/latest_artifacts_v2 登记 setup/probe artifacts。
+15. 是否确认 pytest_result.txt 使用本 decision_id/report_id/round_id，并记录命令、exit code、关键输出。
+16. 是否确认 git diff --name-status 只包含允许文件。
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-小步推进，不跨主线扩张。
+### Phase A — project-local pywinpty install
 
-具体执行：
+优先使用 Windows Python launcher；如不可用，使用当前 Python：
 
-```text
-1. 确认 cpp2_32f1713e 在 project_state/local_reverse_evaluation_queue.json 中 rank=1，allowed_actions=[static_triage]。
-2. 确认 project_state/local_reverse_inventory.json 或 training_materials/local_reverse/cases/cpp2_32f1713e.json 中 relative_path 与 sha/category/tags 一致。
-3. 运行现有 CLI：
-   python -m reverse_agent.local_reverse_single_sample_static_triage \
-     --sample-id cpp2_32f1713e \
-     --queue project_state/local_reverse_evaluation_queue.json \
-     --inventory project_state/local_reverse_inventory.json \
-     --artifact-index project_state/artifact_index.json \
-     --out project_state/local_reverse_cpp2_32f1713e_static_triage.json
-4. 如果 CLI 输出 success artifact：保留 strings/functions/compare_contexts/validation_function_candidates/solver_profile_hypotheses/decompiler_snippets 等摘要；不生成 candidate。
-5. 如果 CLI 输出 blocked artifact：保留 blocked_reason；不要尝试绕过 LOCAL_REVERSE_ROOT/IDA/script 缺失；不要自行实现替代工具。
-6. 更新 project_state/artifact_index.json：
-   - latest_artifacts["local_reverse_cpp2_32f1713e_static_triage"] = "project_state\\local_reverse_cpp2_32f1713e_static_triage.json"
-   - latest_artifacts_v2["local_reverse_cpp2_32f1713e_static_triage"] = {
-       kind="local_reverse_single_sample_static_triage",
-       path="project_state\\local_reverse_cpp2_32f1713e_static_triage.json",
-       freshness="current",
-       source_run="round_20260606_cpp2_32f1713e_static_triage_v1",
-       sha256=<artifact file sha256>,
-       size_bytes=<artifact file size>,
-       modified_at=<artifact mtime iso>,
-       sample_id="cpp2_32f1713e"
-     }
-7. 更新 project_state/codex_execution_report.md 和 project_state/pytest_result.txt。
+```bat
+py -3 -m venv .venv
+.venv\Scripts\python -m pip install --upgrade pip
+.venv\Scripts\python -m pip install "pywinpty==3.0.3"
+.venv\Scripts\python -c "import sys; print(sys.version); import winpty; print('winpty_import_ok')"
 ```
 
-不得做：
+备用：
+
+```bat
+python -m venv .venv
+.venv\Scripts\python -m pip install --upgrade pip
+.venv\Scripts\python -m pip install "pywinpty==3.0.3"
+.venv\Scripts\python -c "import sys; print(sys.version); import winpty; print('winpty_import_ok')"
+```
+
+生成：
 
 ```text
-- 不更新训练状态 overlay。
-- 不从 static candidate 进入 runtime validation。
-- 不从 compare_context 直接生成 known_candidate。
-- 不写 solve report。
+project_state/local_reverse_cpp2_2f64e68d_pywinpty_setup.json
 ```
+
+字段至少包含：
+
+```text
+schema_version
+sample_id=cpp2_2f64e68d
+mainline=tool_integration
+python_executable_kind=.venv
+python_version
+pip_version
+pywinpty_requested_version=3.0.3
+pywinpty_import_module=winpty
+pywinpty_import_ok=true/false
+setup_status=INSTALLED|BLOCKED_INSTALL_FAILED|BLOCKED_IMPORT_FAILED|BLOCKED_PYTHON_VERSION
+executed_target=false
+runtime_validated=false
+candidate=null
+known_candidate=""
+solved=false
+```
+
+### Phase B — dependency declaration
+
+新增或更新：
+
+```text
+requirements-console-backend.txt
+```
+
+内容建议：
+
+```text
+pywinpty==3.0.3 ; platform_system == "Windows" and python_version >= "3.9"
+```
+
+不得把 lockfile、wheel 或 site-packages 当作依赖声明提交。
+
+### Phase C — rerun mature backend probe
+
+使用 `.venv\Scripts\python` 运行：
+
+```bat
+.venv\Scripts\python -m reverse_agent.local_reverse_console_mature_backend_probe --runtime-artifact project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json --handoff-artifact project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json --triage-artifact project_state/local_reverse_cpp2_2f64e68d_static_triage.json --out project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
+```
+
+注意：如果 probe 因 status 非 READY 返回 exit code 1，但 artifact 正常生成，应按 artifact 内容分类为 blocked/readiness failure，不视为 Python 崩溃。
+
+### Phase D — artifact index and report
+
+更新：
+
+```text
+project_state/artifact_index.json
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
+```
+
+artifact_index 至少登记：
+
+```text
+local_reverse_cpp2_2f64e68d_pywinpty_setup
+local_reverse_cpp2_2f64e68d_console_mature_backend_probe
+```
+
+必须同时更新 legacy `latest_artifacts` 和 `latest_artifacts_v2`。
 
 ---
 
@@ -330,13 +309,15 @@ Codex 报告必须回答：
 必须运行并记录：
 
 ```text
-python -m py_compile reverse_agent/local_reverse_single_sample_static_triage.py
-python -m pytest -q tests/test_local_reverse_single_sample_static_triage.py
-python -m pytest -q tests/test_project_state.py
-python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp2_32f1713e --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp2_32f1713e_static_triage.json
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-python -m reverse_agent.project_state lint-report --state-dir project_state
-python -m reverse_agent.project_state status --state-dir project_state
+.venv\Scripts\python -m pip show pywinpty
+.venv\Scripts\python -c "import winpty; print('winpty_import_ok')"
+.venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_mature_backend_probe.py
+.venv\Scripts\python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py
+.venv\Scripts\python -m pytest -q tests/test_project_state.py
+.venv\Scripts\python -m reverse_agent.local_reverse_console_mature_backend_probe --runtime-artifact project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json --handoff-artifact project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json --triage-artifact project_state/local_reverse_cpp2_2f64e68d_static_triage.json --out project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
+.venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
+.venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
+.venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
 git diff --check
 git status --short
 git diff --name-status
@@ -345,20 +326,14 @@ git diff --name-status
 必须做内容断言并在报告中写明：
 
 ```text
-1. project_state/local_reverse_cpp2_32f1713e_static_triage.json 存在。
-2. artifact.sample_id == "cpp2_32f1713e"。
-3. artifact.mainline == "tool_integration"。
-4. artifact.executed_sample is false。
-5. artifact.static_only is true。
-6. artifact.runtime_validated is false。
-7. artifact.candidate is null。
-8. artifact.known_candidate == ""。
-9. artifact.solved is not true 或 solved 字段不存在。
-10. 如果 tool_status=success，则 source_tool == "IDA"，并包含 triage dict。
-11. 如果 tool_status=blocked，则 blocked_reason 非空，且不得继续尝试 runtime/solver。
-12. artifact_index latest_artifacts 和 latest_artifacts_v2 均登记 local_reverse_cpp2_32f1713e_static_triage。
-13. local_reverse_training_status.json / local_reverse_evaluation_queue.json / status_overlay.json 未被修改。
-14. git diff --name-status 只包含允许文件。
+1. .venv 未被 git 跟踪。
+2. git diff --name-status 不包含 .venv、site-packages、*.whl、*.dll、*.exe、sample binary 或 solve_reports。
+3. pywinpty_setup artifact 存在，并记录 install/import 结果。
+4. mature backend probe artifact 存在，并记录 pywinpty_available。
+5. mature backend probe artifact 中 executed_target=false、runtime_validated=false、candidate=null、known_candidate=""、solved=false。
+6. 如果 probe_status=READY_FOR_MATURE_BACKEND_VALIDATION，则 report 中建议下一轮进入 pywinpty-backed validator implementation/interactive validation。
+7. 如果 probe 仍 blocked，则 report 中建议下一轮转 static compare-path proof 或修复 Python/backend 环境。
+8. local_reverse_training_status.json 不在本轮改为 solved。
 ```
 
 ---
@@ -368,14 +343,13 @@ git diff --name-status
 必须停止并写 `status=BLOCKED` 或 `status=FAILED`，不得写 SUCCESS/ACCEPTED，如果出现任一情况：
 
 ```text
-1. cpp2_32f1713e 不再是 evaluation_queue rank=1，且没有明确理由选择它。
-2. queue 中该样本 allowed_actions 不包含 static_triage。
-3. 需要运行目标程序、runtime validator、debugger、hook、emulator、CompareProbe、solver 或 bruteforce 才能继续。
-4. 需要上传、复制或提交样本 binary。
-5. 现有 static_triage CLI 需要大范围改造或新增重复 IDA/Ghidra interface 才能继续。
-6. 生成 artifact 中出现 known_candidate、candidate 非空、solved=true 或 runtime_validated=true。
-7. artifact_index 无法登记 current provenance。
-8. pytest、lint-decision、lint-report、status 任一失败且无法在本轮范围内最小修复。
-9. git diff 显示 .codex-skills、solve_reports、训练状态 overlay 或无关源码变更。
-10. 需要读取完整 solve_reports、完整 PROJECT_PROGRESS_LOG 或扫描完整本地训练目录。
+1. Python 版本 < 3.9 且无法创建可用 .venv。
+2. pip install pywinpty 失败且无法在本轮范围内解决。
+3. import winpty 失败。
+4. 需要修改全局 Python 或系统级 PATH 才能继续。
+5. 需要运行目标样本或 pair validator runtime validation 才能继续。
+6. 需要修改 local_reverse_console_pair_validator.py 才能继续。
+7. 需要自研 terminal emulator、expect state machine 或 custom ConPTY runner。
+8. git diff 显示 .venv、site-packages、wheel、DLL、EXE、sample binary、solve_reports、.codex-skills 或无关文件变更。
+9. pytest、lint-decision、lint-report、status 任一失败且无法在本轮范围内最小修复。
 ```
