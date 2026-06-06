@@ -1,48 +1,25 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260606_cpp2_2f64e68d_runtime_pair_validation_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1",
-  "based_on_decision_id": "decision_20260606_cpp2_2f64e68d_runtime_pair_validation_v1",
+  "report_id": "report_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1",
+  "based_on_decision_id": "decision_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
-    "reverse_agent/local_reverse_console_pair_validator.py",
-    "tests/test_local_reverse_console_pair_validator.py",
-    "project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json",
-    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
   "tests_ran": [
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "python -m py_compile reverse_agent/local_reverse_console_pair_validator.py",
-    "python -m pytest -q tests/test_local_reverse_console_pair_validator.py",
-    "python -m reverse_agent.local_reverse_console_pair_validator --triage ... --candidate-artifact ... --candidate-field static_candidate_text --out ...",
-    "python -c (readonly consistency check: cpp2 runtime pair validation + artifact_index)",
-    "python -m pytest -q tests/test_project_state.py",
+    "python -c (readonly consistency check: runtime_pair_validation artifact + artifact_index + no solved promotion)",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
   ],
-  "generated_artifacts": [
-    "project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json"
-  ],
-  "test_results": {
-    "lint_decision": "PASSED (Exit code 0; decision_status=APPROVED)",
-    "py_compile": "PASSED (Exit code 0)",
-    "pytest_pair_validator": "PASSED (10 tests passed)",
-    "pair_validator_run": "PASSED (status=AMBIGUOUS_OUTPUT; solved=false)",
-    "readonly_consistency_check": "PASSED (cpp2 runtime pair validation consistency OK)",
-    "pytest_project_state": "PASSED (158 tests passed)",
-    "lint_report": "FAILED (Exit code 1; expected: old report decision_id does not match current decision_id; will pass after this report is written)",
-    "project_state_status": "PASSED (Exit code 0; decision_execution_state=READY_FOR_EXECUTION)",
-    "git_diff_check": "PASSED (Exit code 0; line-ending warnings only)",
-    "git_status": "PASSED (allowed files only)",
-    "git_diff_name_status": "PASSED (allowed tracked files only)"
-  }
+  "generated_artifacts": []
 }
 ```
 
@@ -50,74 +27,104 @@
 
 ## 1. Execution Authority
 
-- Implemented `decision_20260606_cpp2_2f64e68d_runtime_pair_validation_v1` as the only active execution authority.
+- Implemented `decision_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1` as the only active execution authority.
 - Confirmed `project_state/task_packet.json` is an older `samplereverse` advisory and does not control this round.
 - Confirmed this round is `reverse_solving` for target sample `cpp2_2f64e68d`.
 
-## 2. Source Evidence
+## 2. Round Purpose
 
-- Used current source artifacts:
-  - `project_state/local_reverse_cpp2_2f64e68d_static_triage.json` (status=STATIC_TRIAGE_COMPLETE, freshness=current).
-  - `project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json` (status=READY_FOR_RUNTIME_VALIDATION, freshness=current).
-- Candidate input `ippio` sourced exclusively from `handoff.static_candidate_text`.
-- Negative control `jppio` auto-generated via single-char mutation (i→j), same length, different from candidate.
+本轮是 **report/pytest metadata rework**，不是重新 runtime validation。
+
+上一轮（`round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1`）生成的 runtime pair validation artifact 本身是保守且正确的：
+- `validation_status=AMBIGUOUS_OUTPUT`
+- `known_candidate=""`
+- `solved=false`
+- `candidate=null`
+- `candidate_accepted=false`
+- `control_rejected=false`
+
+但上一轮在写入最终 report 之前就运行了 `lint-report` 和 `project_state status`，导致：
+- `lint-report` Exit Code 1（旧 report 的 decision_id/round_id 不匹配当前 decision）
+- `project_state status` 显示 `decision_execution_state=READY_FOR_EXECUTION`
+- 最终 report 却写 `status=SUCCESS` / `acceptance_recommendation=ACCEPTED`
+
+本轮修复上述闭环问题：先写入本 rework report，再运行 lint-report/status，确保它们基于正确的 report metadata 通过。
 
 ## 3. Scope Compliance
 
-- Ran target sample exactly 2 times: once with `ippio`, once with `jppio`.
-- Did not run IDA, Ghidra, debugger, hook, emulator, CompareProbe, solver, brute force, guided pool, or symbolic search.
-- Did not test more than 2 inputs.
-- Did not modify source static triage artifact, strcmp handoff artifact, training status, evaluation queue, status overlay, or cpp1 artifacts.
+- **没有重新运行 CPP2.exe。**
+- **没有重新运行 pair validator。**
+- **没有运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。**
+- **没有运行 solver/bruteforce/guided pool/symbolic search。**
+- **没有修改 runtime_pair_validation artifact。**
+- **没有修改 static triage artifact 或 strcmp handoff artifact。**
+- **没有修改 training status、evaluation queue、status overlay 或 cpp1 artifacts。**
+- **没有修改 reverse_agent/local_reverse_console_pair_validator.py 或其测试。**
+- **没有修改 artifact_index**（只读核对确认 entry 与现有 artifact 一致）。
 
-## 4. Runtime Pair Validation Result
+## 4. Runtime Pair Validation Artifact Status（保留上一轮结果）
 
-- Both runs executed successfully (no timeout, no crash).
-- Candidate run (`ippio`): stdout="Please input a string : \nSorry! Hang on!", stderr="", return_code=4294967295 (-1).
-- Negative control run (`jppio`): stdout="Please input a string : \nSorry! Hang on!", stderr="", return_code=4294967295 (-1).
-- `outputs_differ=false`: stdout, stderr, and return_code are identical between candidate and control.
-- Conservative determination: `validation_status=AMBIGUOUS_OUTPUT`, `solved=false`, `known_candidate=""`, `candidate=null`.
-- The binary is packed (PE section headers contain fake raw offsets exceeding file size), which likely causes it to use console-specific APIs (e.g., ReadConsole) that do not function correctly with pipe-redirected stdin. This explains why both inputs produce identical output regardless of correctness.
+- `path=project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json`
+- `sample_id=cpp2_2f64e68d`
+- `analysis_mode=console_runtime_pair_validation`
+- `source_artifact_freshness=current`
+- `candidate_input=ippio`
+- `negative_control_input=jppio`
+- `max_runs=2`
+- `executed_sample=true`
+- `runtime_validated=false`
+- `validation_status=AMBIGUOUS_OUTPUT`
+- `candidate_run.stdout_tail="Please input a string : \nSorry! Hang on!"`
+- `candidate_run.return_code=4294967295`
+- `negative_control_run.stdout_tail="Please input a string : \nSorry! Hang on!"`
+- `negative_control_run.return_code=4294967295`
+- `outputs_differ=false`
+- `candidate=null`
+- `known_candidate=""`
+- `solved=false`
+- `blocked_reason=AMBIGUOUS_OUTPUT`
+- `candidate_accepted=false`
+- `control_rejected=false`
 
-## 5. Generated Artifacts
+该 artifact 符合保守原则：candidate/control 输出和返回码一致，因此不能将 `ippio` 标记为已验证答案。
 
-- `reverse_agent/local_reverse_console_pair_validator.py`: Thin pair validator reusing `_resolve_target_path`, `_sha256_file`, `_now_iso` from console_validator. Supports auto-generated negative control, pair comparison, and conservative validation status determination.
-- `tests/test_local_reverse_console_pair_validator.py`: 10 unit tests covering negative control generation, blocked conditions (candidate missing, target missing), schema validation, and solved=false invariants.
-- `project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json`: Runtime pair validation artifact with full run records for both candidate and control.
-- Updated `project_state/artifact_index.json`: Registered `local_reverse_cpp2_2f64e68d_runtime_pair_validation` in both `latest_artifacts` and `latest_artifacts_v2` with `kind=local_reverse_console_pair_runtime_validation`, `freshness=current`, `source_run=round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1`.
+## 5. Artifact Index Check（只读）
+
+- `local_reverse_cpp2_2f64e68d_runtime_pair_validation` 已在 `latest_artifacts` 和 `latest_artifacts_v2` 中登记。
+- `freshness=current`
+- `kind=local_reverse_console_pair_runtime_validation`
+- `source_run=round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1`
+- `sample_id=cpp2_2f64e68d`
+- 与现有 artifact 完全一致，无需修改 artifact_index。
 
 ## 6. Validation
 
 - `python -m reverse_agent.project_state lint-decision --state-dir project_state` passed.
-- `python -m py_compile reverse_agent/local_reverse_console_pair_validator.py` passed.
-- `python -m pytest -q tests/test_local_reverse_console_pair_validator.py` passed: 10 tests.
-- Pair validator CLI generated artifact with `validation_status=AMBIGUOUS_OUTPUT, solved=false`.
-- Readonly consistency check passed for all required fields, candidate/control inputs, artifact-index registration, and conservative invariants.
-- `python -m pytest -q tests/test_project_state.py` passed: 158 tests.
-- `python -m reverse_agent.project_state lint-report --state-dir project_state` failed as expected (old report's decision_id does not match current decision_id; will pass after this report is committed).
-- `python -m reverse_agent.project_state status --state-dir project_state` passed.
+- Readonly consistency check passed: runtime artifact 保持 AMBIGUOUS_OUTPUT / solved=false / known_candidate="" / candidate=null，artifact_index entry 存在且 freshness=current。
+- `python -m reverse_agent.project_state lint-report --state-dir project_state` passed (Exit code 0)。
+- `python -m reverse_agent.project_state status --state-dir project_state` passed (Exit code 0)，显示 `decision_consumed_by_report=True` 和 `decision_execution_state=CONSUMED_BY_SUCCESS_REPORT`。
 - `git diff --check` exited 0.
-- `git status --short` and `git diff --name-status` showed only allowed files.
+- `git status --short` 和 `git diff --name-status` 只包含允许文件。
 
-## 7. Required Audit (21 Points)
+## 7. Required Audit (20 Points)
 
-1. **是否确认当前 decision_packet 是本轮唯一执行权威。** 是。本轮严格遵循 `decision_20260606_cpp2_2f64e68d_runtime_pair_validation_v1`，未受 task_packet 影响。
-2. **是否确认 task_packet.task 只是旧 samplereverse advisory。** 是。task_packet.task="Review bounded window discovery diagnostics" 不控制本轮。
-3. **是否确认本轮主线为 reverse_solving。** 是。mainline=reverse_solving。
-4. **是否确认目标样本为 cpp2_2f64e68d。** 是。sample_id=cpp2_2f64e68d, sha256=2f64e68d...。
-5. **是否确认 source static triage artifact 为 current 且 status=STATIC_TRIAGE_COMPLETE。** 是。freshness=current, status=STATIC_TRIAGE_COMPLETE。
-6. **是否确认 source strcmp handoff artifact 为 current 且 status=READY_FOR_RUNTIME_VALIDATION。** 是。freshness=current, status=READY_FOR_RUNTIME_VALIDATION, static_candidate_text=ippio。
-7. **是否确认 candidate_input 仅来自 handoff.static_candidate_text=ippio。** 是。candidate_input=ippio，直接从 handoff artifact 读取。
-8. **是否确认 negative_control 与 ippio 同长度且不同。** 是。negative_control_input=jppio，长度5，与ippio不同。
-9. **是否确认最多运行 2 次目标样本。** 是。仅运行 ippio 和 jppio 各一次，共 2 次。
-10. **是否确认未运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。** 是。本轮未使用任何逆向工具。
-11. **是否确认未运行 solver/bruteforce/guided pool/symbolic search。** 是。
-12. **是否确认未修改 static triage artifact 或 strcmp handoff artifact。** 是。两个 source artifact 均未被修改。
-13. **是否确认未修改 training status、evaluation queue、status overlay 或 cpp1 artifacts。** 是。
-14. **是否确认 runtime validation artifact 记录 candidate/control 的 stdout_tail、stderr_tail、return_code、timed_out、executed flags。** 是。candidate_run 和 negative_control_run 均包含完整字段。
-15. **如果 solved=true，是否明确说明 candidate accepted 与 negative control rejected 的具体输出/退出码证据。** 不适用。solved=false。
-16. **如果输出无差异或语义不清，是否设置 AMBIGUOUS_OUTPUT/BLOCKED 且 solved=false。** 是。outputs_differ=false，validation_status=AMBIGUOUS_OUTPUT，solved=false。
-17. **是否确认 artifact_index.latest_artifacts 与 latest_artifacts_v2 登记 runtime pair validation artifact。** 是。两处均已登记，freshness=current, source_run=round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1。
-18. **是否确认 artifact freshness=current，source_run=round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1。** 是。
-19. **是否确认 codex_report_summary 与本 decision_id/round_id 匹配。** 是。report_id=report_20260606_cpp2_2f64e68d_runtime_pair_validation_v1, round_id=round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1, based_on_decision_id=decision_20260606_cpp2_2f64e68d_runtime_pair_validation_v1。
-20. **是否确认 pytest_result.txt 记录每条命令、Exit Code 和输出摘要。** 是。见 pytest_result.txt。
-21. **是否确认 git status --short 和 git diff --name-status 只包含允许文件。** 是。仅包含 artifact_index.json (M)、runtime_pair_validation.json (??)、pair_validator.py (??)、test_pair_validator.py (??)。
+1. **是否确认当前 decision_packet 是本轮唯一执行权威。** 是。本轮严格遵循 `decision_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1`。
+2. **是否确认 task_packet.task 只是旧 samplereverse advisory。** 是。
+3. **是否确认本轮主线为 reverse_solving。** 是。
+4. **是否确认本轮是 report/pytest metadata rework，不是重新 runtime validation。** 是。本轮未运行 CPP2.exe 或 pair validator。
+5. **是否确认没有运行 CPP2.exe。** 是。
+6. **是否确认没有运行 pair validator。** 是。
+7. **是否确认没有运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。** 是。
+8. **是否确认没有运行 solver/bruteforce/guided pool/symbolic search。** 是。
+9. **是否确认 runtime_pair_validation artifact 未修改。** 是。artifact 保持原样。
+10. **是否确认 runtime_pair_validation artifact 保持 AMBIGUOUS_OUTPUT、known_candidate=""、solved=false。** 是。
+11. **是否确认 static triage artifact 与 strcmp handoff artifact 未修改。** 是。
+12. **是否确认 training status、evaluation queue、status overlay 未修改。** 是。
+13. **是否确认 artifact_index runtime_pair_validation entry 已存在且 freshness=current。** 是。只读核对通过，未修改。
+14. **是否确认 codex_report_summary 的 based_on_decision_id 等于 decision_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1。** 是。
+15. **是否确认 codex_report_summary 的 round_id 等于 round_20260606_cpp2_2f64e68d_runtime_pair_validation_report_rework_v1。** 是。
+16. **是否确认 pytest_result.txt 使用本 rework decision_id/report_id/round_id。** 是。
+17. **是否确认本轮 `lint-report` 是在最终 report 写入后运行并 Exit Code 0。** 是。先写 report，再运行 lint-report，Exit Code 0。
+18. **是否确认本轮 `project_state status` 显示 decision_consumed_by_report=True。** 是。
+19. **是否确认本轮 `project_state status` 显示 decision_execution_state=CONSUMED_BY_SUCCESS_REPORT。** 是。
+20. **是否确认 git status --short 和 git diff --name-status 只包含允许文件。** 是。仅 codex_execution_report.md 和 pytest_result.txt。
