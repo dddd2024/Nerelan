@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_conpty_gate_validation_record_rework_v1",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_state_file_sync_and_validation_rework_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -19,43 +19,43 @@
 
 本轮主线是 **tool_integration**。
 
-目标：只修复上一轮 ConPTY gate 返工的验证记录问题。代码修复方向已经正确，本轮重点是重新在当前 GitHub/main 同步后的工作树中运行 project_state 检查，并写入真实 `codex_execution_report.md` 与 `pytest_result.txt`。
+目标：修复 Codex 本地工作树与 GitHub/main 状态不一致导致的验证记录不可信问题。当前 GitHub/main 可读取：
 
-不得继续修改 gate 逻辑，除非重新运行测试发现当前代码实际失败。
+```text
+project_state/task_packet.json
+project_state/current_state.json
+```
+
+因此 Codex 不能继续声称这两个文件在当前 GitHub/main 不存在。必须重新同步工作树，重新运行完整 project_state 检查，并写入真实 report/pytest_result。
+
+本轮不要推进 CPP2 解题、交互验证或任何候选验证。
 
 ---
 
 ## 2. Current Evidence
 
-`project_state/task_packet.json` 与 `project_state/current_state.json` 在当前 GitHub/main 中实际存在。上一轮 Codex 报告声称这两个文件在 prior commit 中被删除，并将 `lint-decision Exit Code 1` 记录为 PASSED；该验证记录不可信，需要返工。
-
-上一轮代码已经完成核心语义：
+GitHub/main 当前存在：
 
 ```text
-ConPTY API presence 不再计入 mature backend availability。
-仅 pywinpty/winpty/wexpect 可触发 READY_FOR_MATURE_BACKEND_VALIDATION。
-ConPTY-only 情况输出 BLOCKED_MATURE_BACKEND_MISSING_CONPTY_ONLY。
+project_state/task_packet.json
+project_state/current_state.json
 ```
 
-但上一轮测试记录中：
+上一轮 Codex report 声称这两个文件不存在，导致 `lint-decision Exit Code 1`，并标记 `status=BLOCKED`。这个结果不能接受为最终状态，因为与 GitHub/main 文件事实冲突。
+
+当前 `task_packet.json` 仍是旧 samplereverse advisory，并且包含：
 
 ```text
-lint-decision Exit Code=1
-lint-decision: FAILED
-missing project_state/current_state.json
-missing project_state/task_packet.json
+active_decision_packet=project_state/decision_packet.md
+execution_scope=decision_packet_controls_current_round
+local_reverse_task_packet_authority_note=Advisory only; project_state/decision_packet.md remains the execution authority.
 ```
 
-同时又被标成：
-
-```text
-Result: PASSED
-Overall: PASSED
-```
-
-当前 GitHub/main 中 `project_state/task_packet.json` 和 `project_state/current_state.json` 实际存在，因此需要重新在干净/同步后的工作树中运行验证。
+当前 `current_state.json` 仍主要是旧 samplereverse 压缩状态，不能覆盖本轮 decision。
 
 当前 `negative_results.json` 仍禁止 old sample_solver blind search、仅扩 beam/budget、compare_semantics_agree=false primary frontier、提交 full solve_reports、无新证据重复 dynamic probe、Base64/RC4 breakpoint probe before lhs producer identification。本轮不触碰这些方向。
+
+上一轮 ConPTY gate 代码修复本身已经完成，本轮只处理状态文件同步与验证记录可信性。
 
 ---
 
@@ -65,18 +65,17 @@ Overall: PASSED
 
 ```text
 1. 不运行 CPP2.exe。
-2. 不重新运行 mature backend probe CLI 覆盖 project_state artifact。
+2. 不重新运行 mature backend probe CLI 覆盖 artifact。
 3. 不运行 pair validator。
-4. 不运行 IDA/Ghidra。
-5. 不运行 debugger、OllyDbg、Frida hook、emulator、CompareProbe。
-6. 不运行 solver、bruteforce、guided pool、symbolic search 或 constraint recovery。
-7. 不测试任何 candidate/control 输入。
-8. 不修改 project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json。
-9. 不修改 project_state/artifact_index.json。
-10. 不修改 runtime_pair_validation/static_triage/strcmp_handoff artifacts。
-11. 不修改 training status、queue、overlay 或 cpp1 artifacts。
+4. 不运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。
+5. 不运行 solver/bruteforce/guided pool/symbolic search。
+6. 不修改 artifact_index.json。
+7. 不修改 local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json。
+8. 不修改 runtime_pair_validation/static_triage/strcmp_handoff artifacts。
+9. 不修改 task_packet.json/current_state.json/negative_results.json，除非文件在本地确实缺失且需要从 GitHub/main 恢复；恢复时必须保持内容与 GitHub/main 一致。
+10. 不把 Exit Code 1 标为 PASSED。
+11. 不省略 lint-report 或 project_state status。
 12. 不提交 solve_reports。
-13. 不把 lint-decision Exit Code 1 标成 PASSED。
 ```
 
 允许：
@@ -84,8 +83,7 @@ Overall: PASSED
 ```text
 1. 更新 project_state/codex_execution_report.md。
 2. 更新 project_state/pytest_result.txt。
-3. 只有在重新运行测试发现代码实际失败时，才允许修改 reverse_agent/local_reverse_console_mature_backend_probe.py。
-4. 只有在重新运行测试发现测试断言实际失败时，才允许修改 tests/test_local_reverse_console_mature_backend_probe.py。
+3. 仅当本地缺失但 GitHub/main 存在时，恢复 project_state/task_packet.json 与 project_state/current_state.json，且内容必须与 GitHub/main 一致。
 ```
 
 ---
@@ -119,19 +117,24 @@ project_state/rounds/ 全量历史
 
 ## 5. Required Audit
 
-Codex 报告必须回答：
+Codex 必须回答：
 
 ```text
-1. 是否确认 task_packet.json/current_state.json 在当前工作树中存在。
-2. 是否确认当前 decision_packet 是本轮唯一执行权威。
-3. 是否确认本轮只修复验证记录，不改 artifact_index，不改 probe artifact。
-4. 是否确认没有运行 CPP2.exe。
-5. 是否确认没有运行 mature backend probe CLI 覆盖 artifact。
-6. 是否确认 lint-decision Exit Code 是 0。
-7. 如果 lint-decision 仍为 1，必须把本轮 status 标为 BLOCKED 或 FAILURE，不能写 SUCCESS/ACCEPTED。
-8. 是否确认 pytest_result.txt 中每个命令的 Exit Code 与 Result 一致。
-9. 是否确认 codex_report_summary 与本 decision_id/round_id 匹配。
-10. 是否确认 git status --short 和 git diff --name-status 只包含允许文件。
+1. git rev-parse HEAD 是多少。
+2. git status --short 是否显示 task_packet/current_state 缺失。
+3. git ls-files project_state/task_packet.json project_state/current_state.json 的输出是什么。
+4. 是否确认本地工作树与 GitHub/main 同步。
+5. 是否确认 task_packet.json/current_state.json 在本地存在且被 git 跟踪。
+6. 是否确认当前 decision_packet 是本轮唯一执行权威。
+7. 是否确认本轮只修复状态文件同步与验证记录，不改 artifact_index，不改 probe artifact。
+8. 是否确认没有运行 CPP2.exe。
+9. 是否确认没有运行 mature backend probe CLI 覆盖 artifact。
+10. lint-decision 是否 Exit Code 0。
+11. lint-report 是否 Exit Code 0。
+12. project_state status 是否 Exit Code 0。
+13. pytest_result.txt 是否完整记录所有必跑命令。
+14. codex_report_summary 是否与本 decision_id/round_id 匹配。
+15. git diff --name-status 是否只包含允许文件。
 ```
 
 ---
@@ -145,24 +148,26 @@ project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
 
-只有在测试发现代码实际失败时，才允许修改：
+仅当本地缺失但 GitHub/main 存在时，允许恢复：
 
 ```text
-reverse_agent/local_reverse_console_mature_backend_probe.py
-tests/test_local_reverse_console_mature_backend_probe.py
+project_state/task_packet.json
+project_state/current_state.json
 ```
+
+恢复时不得改写内容，只能与 GitHub/main 当前内容一致。
 
 不得修改：
 
 ```text
 project_state/artifact_index.json
+project_state/negative_results.json
 project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
 project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json
 project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
 project_state/local_reverse_cpp2_2f64e68d_static_triage.json
-project_state/task_packet.json
-project_state/current_state.json
-project_state/negative_results.json
+reverse_agent/local_reverse_console_mature_backend_probe.py
+tests/test_local_reverse_console_mature_backend_probe.py
 .codex-skills/*
 solve_reports/*
 requirements.txt
@@ -174,9 +179,11 @@ pyproject.toml
 
 ## 7. Tests
 
-必须重新运行并记录真实结果：
+必须运行并记录：
 
 ```bash
+git rev-parse HEAD
+git ls-files project_state/task_packet.json project_state/current_state.json
 python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m py_compile reverse_agent/local_reverse_console_mature_backend_probe.py
 python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py
@@ -191,22 +198,27 @@ git diff --name-status
 要求：
 
 ```text
-1. lint-decision 必须 Exit Code 0 才能写 SUCCESS/ACCEPTED。
-2. 若任何必跑命令 Exit Code 非 0，report status 不能写 SUCCESS。
-3. pytest_result.txt 不能把失败命令写成 PASSED。
+1. task_packet.json/current_state.json 必须在本地存在且被 git 跟踪。
+2. lint-decision 必须 Exit Code 0 才能写 SUCCESS/ACCEPTED。
+3. lint-report 必须 Exit Code 0 才能写 SUCCESS/ACCEPTED。
+4. project_state status 必须 Exit Code 0 才能写 SUCCESS/ACCEPTED。
+5. 若任何必跑命令 Exit Code 非 0，report status 不能写 SUCCESS。
+6. pytest_result.txt 不能把失败命令写成 PASSED。
 ```
 
 ---
 
 ## 8. Stop Conditions
 
-完成后停止于：
+只有全部满足才可写 `SUCCESS/ACCEPTED`：
 
 ```text
-1. 所有必跑命令 Exit Code 0。
-2. codex_execution_report.md 使用本轮 decision_id/round_id。
-3. pytest_result.txt 使用本轮 decision_id/report_id/round_id。
-4. git status 只包含允许文件。
+1. task_packet.json/current_state.json 在本地存在且被 git 跟踪。
+2. lint-decision Exit Code 0。
+3. lint-report Exit Code 0。
+4. project_state status Exit Code 0。
+5. pytest_result.txt 中每个命令 Exit Code 与 Result 一致。
+6. git diff 只包含允许文件。
 ```
 
-本轮不要继续推进 CPP2 解题或交互验证。
+本轮不要推进 CPP2 解题或交互验证。
