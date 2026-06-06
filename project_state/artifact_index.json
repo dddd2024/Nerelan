@@ -76,6 +76,7 @@
     "local_reverse_cpp2_2f64e68d_strcmp_handoff": "project_state\\local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
     "local_reverse_cpp2_2f64e68d_runtime_pair_validation": "project_state\\local_reverse_cpp2_2f64e68d_runtime_pair_validation.json",
     "local_reverse_cpp2_2f64e68d_console_mature_backend_probe": "project_state\\local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
+    "local_reverse_cpp2_2f64e68d_pywinpty_setup": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_setup.json",
     "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json"
   },
   "latest_artifacts_v2": {
@@ -820,14 +821,24 @@
       "modified_at": "2026-06-06T08:26:13Z",
       "sample_id": "cpp2_2f64e68d"
     },
+    "local_reverse_cpp2_2f64e68d_pywinpty_setup": {
+      "kind": "local_reverse_pywinpty_setup",
+      "path": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_setup.json",
+      "freshness": "current",
+      "source_run": "round_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1",
+      "sha256": "bc41b750682670a1b9530a3adc0ca27ad2f187977723adc39b7538c34a1d09d9",
+      "size_bytes": 606,
+      "modified_at": "2026-06-06T10:15:00Z",
+      "sample_id": "cpp2_2f64e68d"
+    },
     "local_reverse_cpp2_2f64e68d_console_mature_backend_probe": {
       "kind": "local_reverse_console_mature_backend_availability_probe",
       "path": "project_state\\local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
       "freshness": "current",
-      "source_run": "round_20260606_cpp2_2f64e68d_console_mature_backend_probe_contract_rework_v1",
-      "sha256": "4a62e335bc443dbc500e5e50fbd4fe0f35b61d2ff875d271c2976d2eff0e9839",
-      "size_bytes": 1975,
-      "modified_at": "2026-06-06T09:16:28Z",
+      "source_run": "round_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1",
+      "sha256": "1a42ac8d5a7eb8bbd638ceefa8d958c3f498b8f342f79ea977a0f62a2ae3a555",
+      "size_bytes": 2283,
+      "modified_at": "2026-06-06T10:15:00Z",
       "sample_id": "cpp2_2f64e68d"
     },
     "local_reverse_cpp2_2f64e68d_training_status_sync": {

@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp2_2f64e68d",
+  "mainline": "tool_integration",
+  "python_executable_kind": ".venv",
+  "python_version": "3.13.12 (tags/v3.13.12:1cbe481, Feb  3 2026, 18:22:25) [MSC v.1944 64 bit (AMD64)]",
+  "pip_version": "25.3",
+  "pywinpty_requested_version": "3.0.3",
+  "pywinpty_installed_version": "3.0.3",
+  "pywinpty_import_module": "winpty",
+  "pywinpty_import_ok": true,
+  "setup_status": "INSTALLED",
+  "executed_target": false,
+  "runtime_validated": false,
+  "candidate": null,
+  "known_candidate": "",
+  "solved": false,
+  "generated_at": "2026-06-06T10:15:00Z"
+}

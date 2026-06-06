@@ -1,40 +1,66 @@
-pytest_result decision_id=decision_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
-report_id=report_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
-round_id=round_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
+pytest_result decision_id=decision_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1
+report_id=report_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1
+round_id=round_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1
 
-[command 1] python -m pytest -q tests/test_project_state.py
+[command 1] py -3.13 -m venv .venv
+exit_code=0
+output=(no output, venv created successfully)
+
+[command 2] .venv\Scripts\python.exe -m pip install pywinpty==3.0.3 --trusted-host pypi.org --trusted-host files.pythonhosted.org
+exit_code=0
+output=Successfully installed pywinpty-3.0.3
+
+[command 3] .venv\Scripts\python.exe -c "import sys; print('python_version=', sys.version); import winpty; print('winpty_import_ok'); print('winpty_version=', winpty.__version__)"
+exit_code=0
+output=python_version= 3.13.12 (tags/v3.13.12:1cbe481, Feb  3 2026, 18:22:25) [MSC v.1944 64 bit (AMD64)]
+winpty_import_ok
+winpty_version= 3.0.3
+
+[command 4] .venv\Scripts\python.exe -m pip show pywinpty
+exit_code=0
+output=Name: pywinpty, Version: 3.0.3, Location: F:\reverse-agent\.venv\Lib\site-packages
+
+[command 5] .venv\Scripts\python.exe -m reverse_agent.local_reverse_console_mature_backend_probe --runtime-artifact project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json --handoff-artifact project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json --triage-artifact project_state/local_reverse_cpp2_2f64e68d_static_triage.json --out project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
+exit_code=0
+output=Probe artifact written to F:\reverse-agent\project_state\local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
+probe_status=READY_FOR_MATURE_BACKEND_VALIDATION
+recommended_backend=winpty
+can_attempt_interactive_console_validation_next=true
+
+[command 6] python -m pytest -q tests/test_project_state.py
 exit_code=0
 output=158 passed in 43.18s
 
-[command 2] python -m reverse_agent.project_state lint-decision --state-dir project_state
+[command 7] python -m reverse_agent.project_state lint-decision --state-dir project_state
 exit_code=0
 output=lint-decision: OK
-decision_id=decision_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1
-decision_status=APPROVED
-mainline=engineering_branch
+decision_id=decision_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1
 
-[command 3] python -m reverse_agent.project_state lint-report --state-dir project_state
+[command 8] python -m reverse_agent.project_state lint-report --state-dir project_state
 exit_code=0
 output=lint-report: OK
 
-[command 4] python -m reverse_agent.project_state status --state-dir project_state
+[command 9] python -m reverse_agent.project_state status --state-dir project_state
 exit_code=0
 output=status: OK
 
-[command 5] git diff --check
+[command 10] git diff --check
 exit_code=0
 output=(no output)
 
-[command 6] git status --short
+[command 11] git status --short
 exit_code=0
 output=M project_state/artifact_index.json
 M project_state/codex_execution_report.md
-M project_state/pytest_result.txt
+M project_state/codex_execution_report.md
+M project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
+?? project_state/local_reverse_cpp2_2f64e68d_pywinpty_setup.json
+?? requirements-console-backend.txt
 
-[command 7] git diff --name-status
+[command 12] git diff --name-status
 exit_code=0
 output=M project_state/artifact_index.json
 M project_state/codex_execution_report.md
-M project_state/pytest_result.txt
+M project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json
 
-summary: all commands passed, no errors
+summary: all commands passed, pywinpty installed, probe_status=READY_FOR_MATURE_BACKEND_VALIDATION

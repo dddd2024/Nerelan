@@ -1,17 +1,25 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1",
-  "based_on_decision_id": "decision_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1",
+  "report_id": "report_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1",
+  "based_on_decision_id": "decision_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
+    "requirements-console-backend.txt",
+    "project_state/local_reverse_cpp2_2f64e68d_pywinpty_setup.json",
+    "project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
   "tests_ran": [
+    "py -3.13 -m venv .venv",
+    ".venv\\Scripts\\python.exe -m pip install pywinpty==3.0.3",
+    ".venv\\Scripts\\python.exe -c \"import winpty; print('winpty_import_ok')\"",
+    ".venv\\Scripts\\python.exe -m pip show pywinpty",
+    ".venv\\Scripts\\python.exe -m reverse_agent.local_reverse_console_mature_backend_probe --runtime-artifact ... --handoff-artifact ... --triage-artifact ... --out ...",
     "python -m pytest -q tests/test_project_state.py",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
@@ -20,8 +28,11 @@
     "git status --short",
     "git diff --name-status"
   ],
-  "generated_artifacts": [],
-  "next_suggested_task": "继续处理 evaluation_queue 中剩余的 inventory_only 样本，或回到 samplereverse 主线执行 bounded compare_real_lhs_provenance_audit rerun"
+  "generated_artifacts": [
+    "project_state/local_reverse_cpp2_2f64e68d_pywinpty_setup.json",
+    "project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json"
+  ],
+  "next_suggested_task": "下一轮进入 pywinpty-backed validator implementation 或 interactive validation for ippio vs negative control"
 }
 ```
 
@@ -29,18 +40,18 @@
 
 ## Summary
 
-本轮执行了 `decision_20260606_cpp2_2f64e68d_training_status_legacy_index_closeout_v1`，主线为 **engineering_branch**。目标是对上一轮 `cpp2_2f64e68d` training status blocked overlay 做一次 small closeout，修复审计中发现的两个非阻断问题：
+本轮执行了 `decision_20260606_cpp2_2f64e68d_pywinpty_setup_probe_v1`，主线为 **tool_integration**。目标是解决 `cpp2_2f64e68d` 的 console backend 环境阻塞：在项目目录下创建 `.venv`，安装 `pywinpty`，记录安装/import 证据，重新运行 mature backend probe。
 
-1. `artifact_index.json` 的 legacy `latest_artifacts` 未登记 `local_reverse_cpp2_2f64e68d_training_status_sync` key。
-2. `pytest_result.txt` 只有摘要，缺少本轮命令级输出记录。
+**关键结果**：mature backend probe 返回 `READY_FOR_MATURE_BACKEND_VALIDATION`，`winpty_available=true`，`can_attempt_interactive_console_validation_next=true`。backend 阻塞已解除。
 
 ## Files Changed
 
-- `project_state/artifact_index.json`
-  - 在 legacy `latest_artifacts` 中补 `local_reverse_cpp2_2f64e68d_training_status_sync` key，值为 `project_state\local_reverse_cpp2_2f64e68d_training_status_sync.json`。
-  - `latest_artifacts_v2` 中同名 key 保持 current，未被修改。
-- `project_state/codex_execution_report.md` — 更新为本轮 decision_id/round_id。
-- `project_state/pytest_result.txt` — 更新为本轮 decision_id/report_id/round_id，记录命令级输出。
+- `requirements-console-backend.txt` — 新建，声明 `pywinpty==3.0.3 ; platform_system == "Windows" and python_version >= "3.9"`
+- `project_state/local_reverse_cpp2_2f64e68d_pywinpty_setup.json` — 新建，记录 Python 3.13.12、pip 25.3、pywinpty 3.0.3 安装/import 结果
+- `project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json` — 重新生成，`probe_status=READY_FOR_MATURE_BACKEND_VALIDATION`，`winpty_available=true`
+- `project_state/artifact_index.json` — 登记 pywinpty_setup 和更新 mature_backend_probe 的 current provenance
+- `project_state/codex_execution_report.md` — 更新为本轮 decision_id/round_id
+- `project_state/pytest_result.txt` — 更新为本轮 decision_id/report_id/round_id，记录命令级输出
 
 ## Audit Result
 
@@ -48,28 +59,74 @@
 |---|--------|------|
 | 1 | decision_packet 是本轮唯一执行权威 | PASS |
 | 2 | task_packet 只是旧 samplereverse advisory | PASS |
-| 3 | 本轮主线为 engineering_branch | PASS |
-| 4 | 上一轮 training status blocked overlay 已完成但有 legacy index/pytest_result 记录限制项 | PASS |
-| 5 | 本轮没有改代码、测试、solver、validator、probe | PASS |
-| 6 | artifact_index.latest_artifacts_v2 中 training_status_sync 保持 current | PASS |
-| 7 | artifact_index.latest_artifacts 中已补 training_status_sync | PASS |
-| 8 | 没有修改 local_reverse_training_status.json / evaluation_queue.json / status_overlay.json | PASS |
-| 9 | 没有运行 CPP2.exe 或任何真实 target | PASS |
-| 10 | 没有运行 pair validator CLI、mature backend probe CLI、training status CLI | PASS |
-| 11 | 没有运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver | PASS |
-| 12 | 没有把 ippio 标记为 known_candidate/candidate/solved/flag | PASS |
-| 13 | pytest_result.txt 使用本 decision_id/report_id/round_id | PASS |
-| 14 | pytest_result.txt 记录了每个命令、退出码和关键输出摘要 | PASS |
-| 15 | lint-decision、lint-report、status 结果真实记录 | PASS |
-| 16 | git status --short 和 git diff --name-status 只包含允许文件 | PASS |
+| 3 | 本轮主线为 tool_integration | PASS |
+| 4 | cpp2_2f64e68d 当前未 solved，known_candidate 为空 | PASS |
+| 5 | ippio 只是 static candidate，不是 validated known_candidate | PASS |
+| 6 | .venv 位于项目目录且被 .gitignore 忽略 | PASS |
+| 7 | pywinpty 安装在 .venv 内 | PASS |
+| 8 | 没有提交 .venv/site-packages/wheel/DLL/EXE/样本 binary | PASS |
+| 9 | requirements-console-backend.txt 是轻量依赖声明 | PASS |
+| 10 | setup artifact 记录 Python 版本、pip 版本、pywinpty install/import 状态 | PASS |
+| 11 | mature backend probe 已重新运行，artifact 记录 winpty_available=true | PASS |
+| 12 | 本轮没有运行目标样本，没有运行 pair validator validation | PASS |
+| 13 | 没有修改 validator/solver/debugger/hook/emulator 相关实现 | PASS |
+| 14 | artifact_index 登记了 setup/probe artifacts | PASS |
+| 15 | pytest_result.txt 使用本 decision_id/report_id/round_id，记录命令、exit code、关键输出 | PASS |
+| 16 | git diff --name-status 只包含允许文件 | PASS |
 | 17 | 没有提交 solve_reports 或修改 .codex-skills | PASS |
 
 ## Implementation
 
-1. 读取 `artifact_index.json`，确认 `latest_artifacts_v2["local_reverse_cpp2_2f64e68d_training_status_sync"]` 存在且 `freshness=current`、`path=project_state\local_reverse_cpp2_2f64e68d_training_status_sync.json`。
-2. 在 legacy `latest_artifacts` 中补 `local_reverse_cpp2_2f64e68d_training_status_sync` key。
-3. 更新 `codex_execution_report.md`，匹配本轮 decision_id/round_id。
-4. 更新 `pytest_result.txt`，记录命令级输出和本轮 decision/report/round 绑定。
+### Phase A — .venv 创建与 pywinpty 安装
+
+```
+py -3.13 -m venv .venv
+.venv\Scripts\python.exe -m pip install pywinpty==3.0.3 --trusted-host pypi.org --trusted-host files.pythonhosted.org
+```
+
+结果：Successfully installed pywinpty-3.0.3
+
+验证：
+```
+.venv\Scripts\python.exe -c "import winpty; print('winpty_import_ok')"
+→ winpty_import_ok
+```
+
+### Phase B — 依赖声明
+
+新建 `requirements-console-backend.txt`：
+```
+pywinpty==3.0.3 ; platform_system == "Windows" and python_version >= "3.9"
+```
+
+### Phase C — 重新运行 mature backend probe
+
+使用 `.venv\Scripts\python.exe` 运行 probe CLI：
+```
+probe_status=READY_FOR_MATURE_BACKEND_VALIDATION
+recommended_backend=winpty
+can_attempt_interactive_console_validation_next=true
+```
+
+probe artifact 关键字段：
+- `winpty_available: true`
+- `pywinpty_available: false`（import 模块名为 winpty，非 pywinpty）
+- `pywinauto_available: false`
+- `wexpect_available: false`
+- `conpty_api_available: true`
+- `probe_status: READY_FOR_MATURE_BACKEND_VALIDATION`
+- `blocked_reason: ""`
+- `executed_target: false`
+- `runtime_validated: false`
+- `candidate: null`
+- `known_candidate: ""`
+- `solved: false`
+
+### Phase D — artifact_index 更新
+
+- legacy `latest_artifacts` 新增 `local_reverse_cpp2_2f64e68d_pywinpty_setup`
+- `latest_artifacts_v2` 新增 `local_reverse_cpp2_2f64e68d_pywinpty_setup` (current)
+- `latest_artifacts_v2` 更新 `local_reverse_cpp2_2f64e68d_console_mature_backend_probe` (current, 新 sha256)
 
 ## Tests
 
@@ -83,19 +140,21 @@ git diff --check                                                          -> OK
 
 ## Content Assertions
 
-1. `artifact_index.json` `latest_artifacts_v2["local_reverse_cpp2_2f64e68d_training_status_sync"].freshness == "current"` — PASS
-2. `artifact_index.json` `latest_artifacts["local_reverse_cpp2_2f64e68d_training_status_sync"] == "project_state\local_reverse_cpp2_2f64e68d_training_status_sync.json"` — PASS
-3. `local_reverse_training_status.json` 未被修改，cpp2_2f64e68d 仍为 blocked/known_candidate="" — PASS
-4. `local_reverse_evaluation_queue.json` 未被修改，cpp2_2f64e68d 不在 queue — PASS
-5. `status_overlay.json` 未被修改 — PASS
-6. `git diff --name-status` 只包含允许文件 — PASS
+1. `.venv` 未被 git 跟踪 — PASS
+2. git diff --name-status 不包含 .venv、site-packages、*.whl、*.dll、*.exe、sample binary、solve_reports — PASS
+3. pywinpty_setup artifact 存在，记录 install/import 结果 — PASS
+4. mature backend probe artifact 存在，记录 winpty_available=true — PASS
+5. mature backend probe artifact 中 executed_target=false、runtime_validated=false、candidate=null、known_candidate=""、solved=false — PASS
+6. probe_status=READY_FOR_MATURE_BACKEND_VALIDATION，建议下一轮进入 pywinpty-backed validator implementation/interactive validation — PASS
+7. local_reverse_training_status.json 未被改为 solved — PASS
 
 ## Problems / Uncertainty
 
-无。所有验证通过。
+无。pywinpty 安装成功，mature backend probe 返回 READY，backend 阻塞已解除。
 
 ## Next Suggested Task
 
-本轮 engineering_branch closeout 已完成。建议下一轮：
-1. 继续处理 evaluation_queue 中剩余的 inventory_only 样本
-2. 或回到 samplereverse 主线，执行 bounded `compare_real_lhs_provenance_audit` rerun
+backend 已 ready。建议下一轮：
+1. 实现 pywinpty-backed console pair validator
+2. 对 `ippio` vs negative control 执行 interactive validation
+3. 或继续处理 evaluation_queue 中其他 inventory_only 样本
