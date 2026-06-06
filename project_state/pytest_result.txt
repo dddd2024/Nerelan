@@ -1,55 +1,62 @@
-pytest_result decision_id=decision_20260606_cpp2_2f64e68d_winpty_validator_adapter_v1
-report_id=report_20260606_cpp2_2f64e68d_winpty_validator_adapter_v1
-round_id=round_20260606_cpp2_2f64e68d_winpty_validator_adapter_v1
+pytest_result decision_id=decision_20260606_cpp2_2f64e68d_winpty_adapter_venv_readiness_closeout_v1
+report_id=report_20260606_cpp2_2f64e68d_winpty_adapter_venv_readiness_closeout_v1
+round_id=round_20260606_cpp2_2f64e68d_winpty_adapter_venv_readiness_closeout_v1
 
-[command 1] python -m py_compile reverse_agent/local_reverse_console_pair_validator.py
+[command 1] .venv\Scripts\python -c "import sys; print(sys.executable); import winpty; print('winpty_import_ok')"
+exit_code=0
+output=F:\reverse-agent\.venv\Scripts\python.exe
+winpty_import_ok
+
+[command 2] .venv\Scripts\python -c "import reverse_agent.local_reverse_console_pair_validator as v; caps=v.get_console_backend_capabilities(); print(caps['winpty']); assert caps['winpty']['available'] is True; assert caps['winpty']['validator_supported'] is True; print('assertions_passed')"
+exit_code=0
+output={'available': True, 'validator_supported': True, 'mature_interactive_console': True, 'readiness_policy': 'mature_interactive_console_backend', 'reason': 'winpty/pywinpty provides a mature pseudo-terminal backend for Windows console applications.'}
+assertions_passed
+
+[command 3] .venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py
 exit_code=0
 output=(no output)
 
-[command 2] python -m pytest -q tests/test_local_reverse_console_pair_validator.py
+[command 4] .venv\Scripts\python -m pytest -q tests/test_local_reverse_console_pair_validator.py
 exit_code=0
-output=25 passed in 1.08s
+output=25 passed in 0.99s
 
-[command 3] python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py
+[command 5] .venv\Scripts\python -m pytest -q tests/test_local_reverse_console_mature_backend_probe.py
 exit_code=0
-output=20 passed in 1.34s
+output=20 passed in 1.29s
 
-[command 4] python -m pytest -q tests/test_project_state.py
+[command 6] .venv\Scripts\python -m pytest -q tests/test_project_state.py
 exit_code=0
-output=158 passed in 35.50s
+output=158 passed in 55.86s
 
-[command 5] python -m reverse_agent.project_state lint-decision --state-dir project_state
+[command 7] .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
 exit_code=0
 output=lint-decision: OK
-decision_id=decision_20260606_cpp2_2f64e68d_winpty_validator_adapter_v1
+decision_id=decision_20260606_cpp2_2f64e68d_winpty_adapter_venv_readiness_closeout_v1
 
-[command 6] python -m reverse_agent.project_state lint-report --state-dir project_state
+[command 8] .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
 exit_code=0
 output=lint-report: OK
 
-[command 7] python -m reverse_agent.project_state status --state-dir project_state
+[command 9] .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
 exit_code=0
 output=status: OK
 
-[command 8] git diff --check
+[command 10] git diff --check
 exit_code=0
 output=(no output)
 
-[command 9] git status --short
+[command 11] git status --short
 exit_code=0
-output=M reverse_agent/local_reverse_console_pair_validator.py
-M tests/test_local_reverse_console_pair_validator.py
-M project_state/artifact_index.json
+output=M project_state/artifact_index.json
 M project_state/codex_execution_report.md
-M project_state/pytest_result.txt
-?? project_state/local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness.json
-
-[command 10] git diff --name-status
-exit_code=0
-output=M reverse_agent/local_reverse_console_pair_validator.py
-M tests/test_local_reverse_console_pair_validator.py
-M project_state/artifact_index.json
-M project_state/codex_execution_report.md
+M project_state/local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness.json
 M project_state/pytest_result.txt
 
-summary: all commands passed, 25 validator tests + 20 probe tests + 158 project_state tests
+[command 12] git diff --name-status
+exit_code=0
+output=M project_state/artifact_index.json
+M project_state/codex_execution_report.md
+M project_state/local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness.json
+M project_state/pytest_result.txt
+
+summary: all commands passed, .venv winpty ready, adapter_available=true, adapter_ready=true

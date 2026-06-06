@@ -8,20 +8,22 @@
     "local_reverse_cpp2_2f64e68d_console_mature_backend_probe"
   ],
   "source_artifact_freshness": "current",
+  "python_executable": "F:\\reverse-agent\\.venv\\Scripts\\python.exe",
+  "python_executable_kind": ".venv",
   "setup_status": "INSTALLED",
   "probe_status": "READY_FOR_MATURE_BACKEND_VALIDATION",
   "recommended_backend": "winpty",
   "adapter_backend_name": "winpty",
   "adapter_registered": true,
-  "adapter_available": false,
-  "adapter_validator_supported": false,
-  "adapter_ready": false,
+  "adapter_available": true,
+  "adapter_validator_supported": true,
+  "adapter_ready": true,
   "executed_target": false,
   "runtime_validated": false,
   "candidate": null,
   "known_candidate": "",
   "solved": false,
-  "blocked_reason": "winpty module not available in current Python environment",
+  "blocked_reason": "",
   "next_action": "run bounded winpty validation under separate reverse_solving decision",
-  "generated_at": "2026-06-06T16:04:18Z"
+  "generated_at": "2026-06-06T16:25:43Z"
 }
