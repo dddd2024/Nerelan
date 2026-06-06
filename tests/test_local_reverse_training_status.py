@@ -9,6 +9,8 @@ from reverse_agent.local_reverse_training_status import (
     TRAINING_STATUS_SOLVED,
     _build_blocked_map,
     _build_evaluation_queue,
+    _build_mature_backend_blocked_overlay,
+    _build_runtime_blocked_overlay,
     _build_runtime_validation_overlay,
     _build_sample_entry,
     _build_solved_map,
@@ -522,6 +524,204 @@ class TestBuildRuntimeValidationOverlay:
 
         assert _build_runtime_validation_overlay(index_path) == {}
 
+    # -- Tests for _build_runtime_blocked_overlay --
+
+    def test_ambiguous_output_runtime_artifact_marks_blocked_not_solved(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "artifact": {
+                    "sample_id": "cpp2_ambiguous",
+                    "analysis_mode": "console_runtime_pair_validation",
+                    "validation_status": "AMBIGUOUS_OUTPUT",
+                    "runtime_validated": False,
+                    "solved": False,
+                    "blocked_reason": "AMBIGUOUS_OUTPUT",
+                    "failure_reason": "Candidate and negative control produced identical stdout, stderr, and return code.",
+                    "known_candidate": "",
+                },
+                "kind": "local_reverse_console_pair_runtime_validation",
+            },
+        ])
+
+        result = _build_runtime_blocked_overlay(index_path)
+        entry = result["cpp2_ambiguous"]
+        assert entry["training_status"] == TRAINING_STATUS_BLOCKED
+        assert entry["blocked_reason"] == "AMBIGUOUS_OUTPUT"
+        assert "known_candidate" not in entry
+        assert "runtime_validation_status:AMBIGUOUS_OUTPUT" in entry["evidence_sources"]
+
+    def test_validated_failure_runtime_artifact_marks_blocked(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "artifact": {
+                    "sample_id": "cpp2_failure",
+                    "analysis_mode": "console_runtime_validation",
+                    "validation_status": "VALIDATED_FAILURE",
+                    "runtime_validated": False,
+                    "solved": False,
+                    "blocked_reason": "VALIDATED_FAILURE",
+                    "failure_reason": "Candidate produced wrong output.",
+                    "known_candidate": "",
+                },
+                "kind": "local_reverse_console_runtime_validation",
+            },
+        ])
+
+        result = _build_runtime_blocked_overlay(index_path)
+        entry = result["cpp2_failure"]
+        assert entry["training_status"] == TRAINING_STATUS_BLOCKED
+        assert entry["blocked_reason"] == "VALIDATED_FAILURE"
+
+    def test_validated_success_not_in_runtime_blocked_overlay(self, tmp_path: Path) -> None:
+        """VALIDATED_SUCCESS should NOT appear in runtime_blocked overlay."""
+        index_path = self._make_artifact_index(tmp_path, [
+            {"artifact": self._make_success_artifact(sample_id="cpp1_success")},
+        ])
+
+        assert _build_runtime_blocked_overlay(index_path) == {}
+
+    def test_runtime_blocked_uses_failure_reason_fallback(self, tmp_path: Path) -> None:
+        """When blocked_reason is empty but failure_reason exists, use failure_reason."""
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "artifact": {
+                    "sample_id": "cpp2_fallback",
+                    "analysis_mode": "console_runtime_validation",
+                    "validation_status": "BLOCKED",
+                    "runtime_validated": False,
+                    "solved": False,
+                    "blocked_reason": "",
+                    "failure_reason": "Some failure reason",
+                    "known_candidate": "",
+                },
+                "kind": "local_reverse_console_runtime_validation",
+            },
+        ])
+
+        result = _build_runtime_blocked_overlay(index_path)
+        assert result["cpp2_fallback"]["blocked_reason"] == "Some failure reason"
+
+    # -- Tests for _build_mature_backend_blocked_overlay --
+
+    def test_mature_backend_missing_marks_blocked(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "artifact": {
+                    "sample_id": "cpp2_backend",
+                    "analysis_mode": "console_mature_backend_availability_probe",
+                    "probe_status": "BLOCKED_MATURE_BACKEND_MISSING",
+                    "can_attempt_interactive_console_validation_next": False,
+                    "solved": False,
+                    "blocked_reason": "Windows platform but no mature backend available",
+                    "known_candidate": "",
+                },
+                "kind": "local_reverse_console_mature_backend_availability_probe",
+            },
+        ])
+
+        result = _build_mature_backend_blocked_overlay(index_path)
+        entry = result["cpp2_backend"]
+        assert entry["training_status"] == TRAINING_STATUS_BLOCKED
+        assert entry["blocked_reason"] == "Windows platform but no mature backend available"
+        assert "known_candidate" not in entry
+        assert "console_mature_backend_probe" in entry["evidence_sources"]
+        assert "mature_backend_missing" in entry["evidence_sources"]
+
+    def test_mature_backend_can_attempt_true_skipped(self, tmp_path: Path) -> None:
+        """If can_attempt_interactive_console_validation_next is True, skip."""
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "artifact": {
+                    "sample_id": "cpp2_can_attempt",
+                    "analysis_mode": "console_mature_backend_availability_probe",
+                    "probe_status": "BLOCKED_MATURE_BACKEND_MISSING",
+                    "can_attempt_interactive_console_validation_next": True,
+                    "solved": False,
+                    "blocked_reason": "Windows platform but no mature backend available",
+                },
+                "kind": "local_reverse_console_mature_backend_availability_probe",
+            },
+        ])
+
+        assert _build_mature_backend_blocked_overlay(index_path) == {}
+
+    def test_mature_backend_solved_true_skipped(self, tmp_path: Path) -> None:
+        """If solved=True, skip."""
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "artifact": {
+                    "sample_id": "cpp2_solved",
+                    "analysis_mode": "console_mature_backend_availability_probe",
+                    "probe_status": "BLOCKED_MATURE_BACKEND_MISSING",
+                    "can_attempt_interactive_console_validation_next": False,
+                    "solved": True,
+                    "blocked_reason": "Windows platform but no mature backend available",
+                },
+                "kind": "local_reverse_console_mature_backend_availability_probe",
+            },
+        ])
+
+        assert _build_mature_backend_blocked_overlay(index_path) == {}
+
+    # -- Priority test: mature_backend_blocked overrides runtime_blocked --
+
+    def test_mature_backend_priority_overrides_ambiguous_runtime(self, tmp_path: Path) -> None:
+        """For same sample, mature_backend_blocked should take priority over runtime_blocked."""
+        # Build artifact index with both artifacts for same sample
+        v2: dict[str, dict] = {}
+
+        runtime_artifact = {
+            "sample_id": "cpp2_both",
+            "analysis_mode": "console_runtime_pair_validation",
+            "validation_status": "AMBIGUOUS_OUTPUT",
+            "runtime_validated": False,
+            "solved": False,
+            "blocked_reason": "AMBIGUOUS_OUTPUT",
+            "failure_reason": "Candidate and negative control produced identical output.",
+            "known_candidate": "",
+        }
+        runtime_file = tmp_path / "runtime_blocked.json"
+        _write_json(runtime_file, runtime_artifact)
+        v2["local_reverse_cpp2_runtime_pair_validation"] = {
+            "kind": "local_reverse_console_pair_runtime_validation",
+            "freshness": "current",
+            "path": str(runtime_file),
+            "sample_id": "cpp2_both",
+        }
+
+        probe_artifact = {
+            "sample_id": "cpp2_both",
+            "analysis_mode": "console_mature_backend_availability_probe",
+            "probe_status": "BLOCKED_MATURE_BACKEND_MISSING",
+            "can_attempt_interactive_console_validation_next": False,
+            "solved": False,
+            "blocked_reason": "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)",
+            "known_candidate": "",
+        }
+        probe_file = tmp_path / "probe_blocked.json"
+        _write_json(probe_file, probe_artifact)
+        v2["local_reverse_cpp2_console_mature_backend_probe"] = {
+            "kind": "local_reverse_console_mature_backend_availability_probe",
+            "freshness": "current",
+            "path": str(probe_file),
+            "sample_id": "cpp2_both",
+        }
+
+        index_path = tmp_path / "artifact_index.json"
+        _write_json(index_path, {"latest_artifacts_v2": v2})
+
+        runtime_blocked = _build_runtime_blocked_overlay(index_path)
+        mature_backend_blocked = _build_mature_backend_blocked_overlay(index_path)
+
+        assert "cpp2_both" in runtime_blocked
+        assert "cpp2_both" in mature_backend_blocked
+
+        # Simulate the priority logic from build_training_status
+        # mature_backend_blocked should win
+        info = mature_backend_blocked["cpp2_both"]
+        assert info["blocked_reason"] == "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)"
+        assert "mature_backend_missing" in info["evidence_sources"]
+
 
 # ---------------------------------------------------------------------------
 # Tests for _build_static_handoff_overlay
@@ -882,7 +1082,15 @@ def test_real_cpp1_target_provenance_recheck_removes_cpp1_from_queue(tmp_path: P
     queue_ids = {item["sample_id"] for item in queue_data["items"]}
     assert "cpp1_2f6fcb63" not in queue_ids
     assert "cpp1_7b504c54" not in queue_ids
-    assert queue_data["items"][0]["sample_id"] == "cpp2_2f64e68d"
+    # cpp2_2f64e68d should now be blocked (AMBIGUOUS_OUTPUT + BLOCKED_MATURE_BACKEND_MISSING)
+    assert "cpp2_2f64e68d" not in queue_ids
+
+    # Verify cpp2_2f64e68d is correctly marked as blocked
+    cpp2 = samples_by_id["cpp2_2f64e68d"]
+    assert cpp2["training_status"] == TRAINING_STATUS_BLOCKED
+    assert cpp2["known_candidate"] == ""
+    assert cpp2["blocked_reason"] != ""
+    assert "console_mature_backend_probe" in cpp2["evidence_sources"] or "console_runtime_validation" in cpp2["evidence_sources"]
 
     github_text = gh_path.read_text(encoding="utf-8")
     assert "E:\\reverse" not in github_text

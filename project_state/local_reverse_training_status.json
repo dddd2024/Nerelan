@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-06T05:22:23Z",
+  "generated_at": "2026-06-06T14:26:09Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
     "solved": 2,
-    "blocked": 4,
+    "blocked": 5,
     "needs_triage": 0,
-    "inventory_only": 23
+    "inventory_only": 22
   },
   "samples": [
     {
@@ -113,6 +113,31 @@
       "next_action": "Keep cpp1_2f6fcb63 blocked/static-only. Current target bytes are raw-data consistent but do not have a complete printable preimage under the confirmed transform; any non-printable or alternative-span path needs a separate bounded review decision."
     },
     {
+      "sample_id": "cpp2_2f64e68d",
+      "relative_path": "逆向课程2025春03/CPP2.exe",
+      "sha256": "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
+      "size_bytes": 196689,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "blocked",
+      "known_candidate": "",
+      "blocked_reason": "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)",
+      "classification": "console_mature_backend_availability_probe",
+      "evidence_sources": [
+        "source:local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
+        "console_mature_backend_probe",
+        "mature_backend_missing"
+      ],
+      "next_action": "resolve: Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)"
+    },
+    {
       "sample_id": "cpp2_4c69f173",
       "relative_path": "逆向课程2022春02/CPP2.exe",
       "sha256": "4c69f173f2bd0211fe472e12b3ecc4dcfbae6a20735a750b8f8c0ea5c566223a",
@@ -174,27 +199,6 @@
         "local",
         "reverse",
         "python"
-      ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
-    },
-    {
-      "sample_id": "cpp2_2f64e68d",
-      "relative_path": "逆向课程2025春03/CPP2.exe",
-      "sha256": "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
-      "size_bytes": 196689,
-      "extension": ".exe",
-      "guessed_file_type": "pe",
-      "category": "cpp",
-      "tags": [
-        "local",
-        "reverse",
-        "cpp",
-        "pe"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",

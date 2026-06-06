@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-06T05:22:23Z",
+  "generated_at": "2026-06-06T14:26:09Z",
   "source_inventory_hint": "LOCAL_REVERSE_ROOT",
   "sample_count": 29,
   "status_summary": {
     "solved": 2,
-    "blocked": 4,
+    "blocked": 5,
     "needs_triage": 0,
-    "inventory_only": 23
+    "inventory_only": 22
   },
   "samples": [
     {
@@ -66,6 +66,20 @@
       "blocked_reason": "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE"
     },
     {
+      "sample_id": "cpp2_2f64e68d",
+      "relative_path": "逆向课程2025春03/CPP2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "blocked",
+      "known_candidate": "",
+      "blocked_reason": "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)"
+    },
+    {
       "sample_id": "cpp2_4c69f173",
       "relative_path": "逆向课程2022春02/CPP2.exe",
       "category": "cpp",
@@ -101,20 +115,6 @@
         "local",
         "reverse",
         "python"
-      ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": ""
-    },
-    {
-      "sample_id": "cpp2_2f64e68d",
-      "relative_path": "逆向课程2025春03/CPP2.exe",
-      "category": "cpp",
-      "tags": [
-        "local",
-        "reverse",
-        "cpp",
-        "pe"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",

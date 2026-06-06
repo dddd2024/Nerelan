@@ -123,8 +123,10 @@ def build_training_status(
     blocked_map = _build_blocked_map(constraint_data)
     evidence_sources_map = _build_evidence_sources_map(solver_data, validated_path, constraint_path)
 
-    # Static handoff overlay from artifact_index
+    # Runtime/probe overlays from artifact_index
     runtime_validation_map = _build_runtime_validation_overlay(artifact_index_path)
+    runtime_blocked_map = _build_runtime_blocked_overlay(artifact_index_path)
+    mature_backend_blocked_map = _build_mature_backend_blocked_overlay(artifact_index_path)
     static_handoff_map = _build_static_handoff_overlay(artifact_index_path)
 
     # Merge with inventory entries
@@ -160,6 +162,15 @@ def build_training_status(
         elif short_id in blocked_map:
             status = TRAINING_STATUS_BLOCKED
             info = blocked_map[short_id]
+            counts["blocked"] += 1
+        # Priority: mature_backend_blocked > runtime_blocked > static_handoff
+        elif sample_id in mature_backend_blocked_map:
+            status = TRAINING_STATUS_BLOCKED
+            info = mature_backend_blocked_map[sample_id]
+            counts["blocked"] += 1
+        elif sample_id in runtime_blocked_map:
+            status = TRAINING_STATUS_BLOCKED
+            info = runtime_blocked_map[sample_id]
             counts["blocked"] += 1
         elif sample_id in static_handoff_map:
             overlay = static_handoff_map[sample_id]
@@ -309,6 +320,142 @@ def _build_runtime_validation_overlay(
                 "runtime_validated_success",
             ],
             "next_action": "sample solved by current console runtime validation",
+        }
+
+    return overlay
+
+
+def _build_runtime_blocked_overlay(
+    artifact_index_path: Path,
+) -> dict[str, dict[str, Any]]:
+    """Scan artifact_index for current runtime validation artifacts that are blocked.
+
+    Accepts artifacts with:
+      - validation_status in (AMBIGUOUS_OUTPUT, VALIDATED_FAILURE, BLOCKED)
+      - solved=False
+      - blocked_reason present
+    Does NOT produce known_candidate.
+    """
+    if not artifact_index_path.exists():
+        return {}
+
+    artifact_index = _load_json(artifact_index_path, "artifact_index")
+    v2 = artifact_index.get("latest_artifacts_v2", {})
+
+    overlay: dict[str, dict[str, Any]] = {}
+    for key, meta in v2.items():
+        if meta.get("freshness") != "current":
+            continue
+        kind = meta.get("kind", "")
+        # Accept both direct runtime validation and pair runtime validation
+        if kind not in ("local_reverse_console_runtime_validation", "local_reverse_console_pair_runtime_validation"):
+            continue
+
+        artifact_path_text = meta.get("path", "")
+        if not artifact_path_text:
+            continue
+        artifact_path = _resolve_artifact_path(artifact_path_text, artifact_index_path)
+
+        artifact = _load_json(artifact_path, f"artifact:{key}")
+        if not artifact:
+            continue
+
+        sample_id = artifact.get("sample_id") or meta.get("sample_id", "")
+        if not sample_id:
+            continue
+
+        validation_status = artifact.get("validation_status", "")
+        solved = artifact.get("solved", False)
+        blocked_reason = artifact.get("blocked_reason", "")
+        failure_reason = artifact.get("failure_reason", "")
+
+        # Only accept non-success blocked states
+        if validation_status not in ("AMBIGUOUS_OUTPUT", "VALIDATED_FAILURE", "BLOCKED"):
+            continue
+        if solved is not False:
+            continue
+        if not blocked_reason and not failure_reason:
+            continue
+
+        # Use blocked_reason, fallback to failure_reason, fallback to validation_status
+        effective_blocked_reason = blocked_reason or failure_reason or validation_status
+
+        overlay[sample_id] = {
+            "training_status": TRAINING_STATUS_BLOCKED,
+            "blocked_reason": effective_blocked_reason,
+            "classification": artifact.get("analysis_mode", ""),
+            "evidence_sources": [
+                f"source:{artifact_path.name}",
+                "console_runtime_validation",
+                f"runtime_validation_status:{validation_status}",
+            ],
+            "next_action": f"resolve: {effective_blocked_reason}",
+        }
+
+    return overlay
+
+
+def _build_mature_backend_blocked_overlay(
+    artifact_index_path: Path,
+) -> dict[str, dict[str, Any]]:
+    """Scan artifact_index for current mature backend availability probe artifacts.
+
+    Accepts artifacts with:
+      - probe_status=BLOCKED_MATURE_BACKEND_MISSING
+      - can_attempt_interactive_console_validation_next=False
+      - solved=False
+    """
+    if not artifact_index_path.exists():
+        return {}
+
+    artifact_index = _load_json(artifact_index_path, "artifact_index")
+    v2 = artifact_index.get("latest_artifacts_v2", {})
+
+    overlay: dict[str, dict[str, Any]] = {}
+    for key, meta in v2.items():
+        if meta.get("freshness") != "current":
+            continue
+        kind = meta.get("kind", "")
+        if kind != "local_reverse_console_mature_backend_availability_probe":
+            continue
+
+        artifact_path_text = meta.get("path", "")
+        if not artifact_path_text:
+            continue
+        artifact_path = _resolve_artifact_path(artifact_path_text, artifact_index_path)
+
+        artifact = _load_json(artifact_path, f"artifact:{key}")
+        if not artifact:
+            continue
+
+        sample_id = artifact.get("sample_id") or meta.get("sample_id", "")
+        if not sample_id:
+            continue
+
+        probe_status = artifact.get("probe_status", "")
+        can_attempt = artifact.get("can_attempt_interactive_console_validation_next", True)
+        solved = artifact.get("solved", False)
+        blocked_reason = artifact.get("blocked_reason", "")
+
+        if probe_status != "BLOCKED_MATURE_BACKEND_MISSING":
+            continue
+        if can_attempt is not False:
+            continue
+        if solved is not False:
+            continue
+        if not blocked_reason:
+            continue
+
+        overlay[sample_id] = {
+            "training_status": TRAINING_STATUS_BLOCKED,
+            "blocked_reason": blocked_reason,
+            "classification": artifact.get("analysis_mode", ""),
+            "evidence_sources": [
+                f"source:{artifact_path.name}",
+                "console_mature_backend_probe",
+                "mature_backend_missing",
+            ],
+            "next_action": f"resolve: {blocked_reason}",
         }
 
     return overlay

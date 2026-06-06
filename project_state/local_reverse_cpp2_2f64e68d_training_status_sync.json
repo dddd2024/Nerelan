@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp2_2f64e68d",
+  "mainline": "training_dataset",
+  "source_artifacts": [
+    "local_reverse_cpp2_2f64e68d_static_triage",
+    "local_reverse_cpp2_2f64e68d_strcmp_handoff",
+    "local_reverse_cpp2_2f64e68d_runtime_pair_validation",
+    "local_reverse_cpp2_2f64e68d_console_mature_backend_probe"
+  ],
+  "source_artifact_freshness": "current",
+  "training_status": "blocked",
+  "known_candidate": "",
+  "blocked_reason": "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)",
+  "candidate_was_static_only": true,
+  "runtime_validated": false,
+  "solved": false,
+  "executed_target": false,
+  "generated_at": "2026-06-06T10:00:00Z"
+}
