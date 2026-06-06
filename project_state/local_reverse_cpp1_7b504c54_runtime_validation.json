@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_7b504c54",
+  "analysis_mode": "console_runtime_validation",
+  "mainline": "reverse_solving",
+  "source_artifacts": [
+    "local_reverse_cpp1_7b504c54_xor_handoff"
+  ],
+  "source_artifact_freshness": "current",
+  "relative_path": "逆向课程2023春补考01/Cpp1.exe",
+  "candidate_source_field": "static_candidate_text",
+  "candidate": "WeKnowItOk",
+  "known_candidate": "WeKnowItOk",
+  "executed_sample": true,
+  "runtime_validated": true,
+  "validation_status": "VALIDATED_SUCCESS",
+  "success_token": "Congratulations! You are right!",
+  "failure_token": "Sorry, you are wrong!",
+  "length_token": "Sorry, the length is wrong!",
+  "success_observed": true,
+  "failure_observed": false,
+  "length_error_observed": false,
+  "return_code": 0,
+  "stdout_tail": "Press any key to continue . . . \nPlease give me your input:\nCongratulations! You are right!\n",
+  "stderr_tail": "",
+  "solved": true,
+  "blocked_reason": "",
+  "target_sha256": "7b504c54c165100549a0eacb7eb7cad26bc235ec0c4bed5c38c95a827ff81a3c",
+  "target_resolved_path": "E:\\reverse\\逆向课程2023春补考01\\Cpp1.exe",
+  "generated_at": "2026-06-06T05:00:37Z"
+}

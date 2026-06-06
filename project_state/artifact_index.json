@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-05T14:37:53Z",
+  "generated_at": "2026-06-06T05:01:04Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -69,7 +69,8 @@
     "local_reverse_cpp1_2f6fcb63_signed_transform_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json",
     "local_reverse_cpp1_2f6fcb63_target_provenance_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json",
     "local_reverse_cpp1_7b504c54_static_triage": "project_state\\local_reverse_cpp1_7b504c54_static_triage.json",
-    "local_reverse_cpp1_7b504c54_xor_handoff": "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json"
+    "local_reverse_cpp1_7b504c54_xor_handoff": "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json",
+    "local_reverse_cpp1_7b504c54_runtime_validation": "project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -761,6 +762,16 @@
       "sha256": "95f1ecc48c2457ba28c9f81ab4a082ee52691efb66d8bb997958c49b209305d2",
       "size_bytes": 1537,
       "modified_at": "2026-06-05T15:55:00Z",
+      "sample_id": "cpp1_7b504c54"
+    },
+    "local_reverse_cpp1_7b504c54_runtime_validation": {
+      "kind": "local_reverse_console_runtime_validation",
+      "path": "project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json",
+      "freshness": "current",
+      "source_run": "round_20260606_cpp1_7b504c54_runtime_validation_v1",
+      "sha256": "5a8c2082c57455128ea032722f2adad789e640f37b4cf79ab168f7f47cf0e443",
+      "size_bytes": 1178,
+      "modified_at": "2026-06-06T05:01:04Z",
       "sample_id": "cpp1_7b504c54"
     }
   },
