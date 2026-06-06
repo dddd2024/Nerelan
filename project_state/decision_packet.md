@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
-  "mainline": "tool_integration",
+  "mainline": "engineering_branch",
   "skill_profiles": [
     "reverse-agent-iteration@v2"
   ]
@@ -17,11 +17,23 @@
 
 ## 1. Goal
 
-本轮主线是 **tool_integration**。
+本轮主线是 **engineering_branch**。
 
-目标：只修复上一轮 console backend registry 测试的安全边界问题，确保 `tests/test_local_reverse_console_pair_validator.py` 不访问本地样本路径、不解析 `E:\reverse` / `D:\reverse` / `LOCAL_REVERSE_ROOT` 等训练目录、不可能运行 `CPP2.exe` 或任何真实 target。
+目标：对已 ACCEPTED 的 console backend contract test safety rework 做一次 **minimal archive closeout**，让 active report 从：
 
-上一轮 registry 代码方向基本正确，本轮不要扩大实现范围，不进入真实样本验证。
+```text
+round_manifest_present=False
+archive_status=not_archived
+```
+
+收束为：
+
+```text
+round_manifest_present=True
+archive_status=archived
+```
+
+本轮只做工程状态归档，不改 Python 源码、不改测试、不运行任何真实样本、不运行任何逆向工具、不做 runtime validation。
 
 ---
 
@@ -37,27 +49,43 @@ local_reverse_task_packet_authority_note=Advisory only; project_state/decision_p
 
 当前 `project_state/current_state.json` 仍主要是旧 samplereverse 压缩状态，`state_build_id=state_20260602_053948_4e3984041cd7`，`state_digest=4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c`。本轮不得改写 sample state 或 task_packet。
 
-上一轮 console backend contract registry 的实现方向基本正确：
+上一轮 console backend contract test safety rework 已 ACCEPTED：
 
 ```text
-1. local_reverse_console_pair_validator.py 已新增 CONSOLE_BACKEND_CAPABILITIES。
-2. subprocess 被标记为 validator_supported=true 但 mature_interactive_console=false。
-3. pywinauto 被标记为 validator_supported=false 且 mature_interactive_console=false。
-4. get_console_backend_capabilities() 返回 deepcopy，避免污染全局 registry。
-5. detect_pywinauto_validator_support() 已从 registry 读取，且 fail closed。
-6. pywinauto_available=true + pywinauto_validator_supported=false 仍不能触发 READY_FOR_MATURE_BACKEND_VALIDATION。
+report_id=report_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1
+round_id=round_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1
+based_on_decision_id=decision_20260606_cpp2_2f64e68d_console_backend_contract_test_safety_rework_v1
+status=SUCCESS
+acceptance_recommendation=ACCEPTED
+pytest_result_status=PASSED
+focused console backend tests=34 passed
+project_state tests=158 passed
+lint-decision=0
+lint-report=0
+project_state status=0
 ```
 
-但审计发现新增测试存在安全边界问题：
+上一轮已确认测试安全边界修复：
 
 ```text
-tests/test_local_reverse_console_pair_validator.py 中 _triage() 默认 relative_path 使用真实样本路径：逆向课程2025春03/CPP2.exe。
-测试直接调用 validate_console_pair()。
-validate_console_pair() 会通过 _resolve_target_path() 搜索 LOCAL_REVERSE_ROOT、REVERSE_ROOT、E:\reverse、D:\reverse、C:\reverse、F:\reverse、~/reverse。
-若用户本地存在 CPP2.exe，测试可能进入 _run_single() 并通过 subprocess.Popen() 运行真实 target。
+tests/test_local_reverse_console_pair_validator.py no longer contains CPP2.exe
+tests/test_local_reverse_console_pair_validator.py no longer contains 逆向课程2025春03/CPP2.exe
+default relative_path is synthetic/nonexistent/unit_test_binary.exe
+_validate_console_pair unit tests monkeypatch _resolve_target_path to None
+_validate_console_pair unit tests monkeypatch _run_single to raise AssertionError if reached
 ```
 
-这违反上一轮 decision 的约束：新增 `tests/test_local_reverse_console_pair_validator.py` 必须不运行 target、不访问本地样本路径、不依赖 Windows GUI 环境。
+当前 active `lint-report/status` 仍显示：
+
+```text
+warning: report round not archived yet
+round_manifest_present=False
+archive_status=not_archived
+decision_consumed_by_report=True
+decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
+```
+
+本轮只处理这个工程 closeout 状态。
 
 当前 `negative_results.json` 仍禁止以下方向，本轮不得触碰：
 
@@ -73,17 +101,16 @@ reuse old [ebp-0x1170] without real-lhs provenance evidence
 已有相关能力：
 
 ```text
-1. 已有 console pair validator，不要新建重复 validator。
-2. 已有 mature backend availability probe，不要新建重复 probe。
-3. 已有 backend registry 代码，不要扩大成 pywinauto adapter。
-4. 已有 project_state lint/report/status 机制。
+1. reverse_agent.project_state archive-round 已用于 minimal archive closeout。
+2. project_state lint-report/status 能识别 archive_status。
+3. 历史 minimal archive round 已证明只允许 decision_packet.md、codex_execution_report.md、pytest_result.txt、round_manifest.json。
 ```
 
 是否允许运行工具：
 
 ```text
-允许运行 py_compile、pytest、project_state lint/status、git diff/status。
-不允许运行 CPP2.exe、任何真实 target、mature backend probe CLI 覆盖 artifact、pair validator CLI、IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver。
+允许运行 project_state lint/status/archive-round、pytest tests/test_project_state.py、git diff/status。
+不允许运行 CPP2.exe、任何真实 target、mature backend probe CLI、pair validator CLI、IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver。
 ```
 
 是否允许读取重型 artifact：
@@ -91,7 +118,7 @@ reuse old [ebp-0x1170] without real-lhs provenance evidence
 ```text
 不允许默认读取完整 solve_reports 或 PROJECT_PROGRESS_LOG。
 不允许读取 project_state/rounds 全量历史。
-允许读取当前 project_state 小文件和本轮直接相关源码/测试。
+只允许读取本轮 round 目录和与 active report/pytest/decision 直接相关的小文件。
 ```
 
 ---
@@ -103,17 +130,17 @@ reuse old [ebp-0x1170] without real-lhs provenance evidence
 ```text
 1. 不运行 CPP2.exe。
 2. 不运行任何真实 binary target。
-3. 不运行 mature backend probe CLI 覆盖 artifact。
+3. 不运行 mature backend probe CLI。
 4. 不运行 console pair validator CLI。
 5. 不运行任何真实 candidate/control 输入。
 6. 不访问 E:\reverse、D:\reverse、C:\reverse、F:\reverse、~/reverse 或 LOCAL_REVERSE_ROOT/REVERSE_ROOT 指向的真实样本路径。
 7. 不运行 IDA/Ghidra。
 8. 不运行 debugger、OllyDbg、Frida hook、emulator、CompareProbe。
 9. 不运行 solver、bruteforce、guided pool、symbolic search 或 constraint recovery。
-10. 不实现完整 pywinauto runtime validator。
-11. 不实现完整 terminal emulator。
-12. 不实现 Expect-like 状态机。
-13. 不实现自研 ConPTY runner。
+10. 不修改 reverse_agent/local_reverse_console_pair_validator.py。
+11. 不修改 reverse_agent/local_reverse_console_mature_backend_probe.py。
+12. 不修改 tests/test_local_reverse_console_pair_validator.py。
+13. 不修改 tests/test_local_reverse_console_mature_backend_probe.py。
 14. 不修改 artifact_index.json。
 15. 不修改 current_state.json、task_packet.json、negative_results.json。
 16. 不修改 project_state/local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json。
@@ -121,18 +148,26 @@ reuse old [ebp-0x1170] without real-lhs provenance evidence
 18. 不修改 .codex-skills/*。
 19. 不提交 solve_reports。
 20. 不读取完整 solve_reports 或 PROJECT_PROGRESS_LOG。
-21. 不新增 pywinpty/wexpect/pexpect 到 requirements 或 pyproject。
-22. 不新增重型依赖或平台服务。
+21. 不运行 archive-round --include-diff。
+22. 不运行 archive-round --include-state-snapshot。
+23. 不让 round_manifest 包含 git_diff.patch 或 full state snapshot。
 ```
 
 允许：
 
 ```text
-1. 修改 tests/test_local_reverse_console_pair_validator.py。
-2. 必要时修改 tests/test_local_reverse_console_mature_backend_probe.py。
-3. 只有测试安全修复确实需要时，才允许最小修改 reverse_agent/local_reverse_console_pair_validator.py。
-4. 更新 project_state/codex_execution_report.md。
-5. 更新 project_state/pytest_result.txt。
+1. 更新 project_state/codex_execution_report.md。
+2. 更新 project_state/pytest_result.txt。
+3. 新建 project_state/rounds/round_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1/ 下的 minimal archive 文件。
+```
+
+允许的 round archive 文件仅限：
+
+```text
+project_state/rounds/round_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1/decision_packet.md
+project_state/rounds/round_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1/codex_execution_report.md
+project_state/rounds/round_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1/pytest_result.txt
+project_state/rounds/round_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1/round_manifest.json
 ```
 
 ---
@@ -149,11 +184,14 @@ project_state/negative_results.json
 project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
-reverse_agent/local_reverse_console_pair_validator.py
-reverse_agent/local_reverse_console_mature_backend_probe.py
-tests/test_local_reverse_console_pair_validator.py
-tests/test_local_reverse_console_mature_backend_probe.py
+reverse_agent/project_state.py
 .codex-skills/registry.json
+```
+
+必要时读取：
+
+```text
+project_state/rounds/round_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1/round_manifest.json
 ```
 
 不要默认读取：
@@ -173,82 +211,50 @@ Codex 报告必须回答：
 ```text
 1. 是否确认当前 decision_packet 是本轮唯一执行权威。
 2. 是否确认 task_packet.task 只是旧 samplereverse advisory。
-3. 是否确认本轮主线为 tool_integration。
-4. 是否确认本轮只修复测试安全边界。
-5. 是否确认 tests/test_local_reverse_console_pair_validator.py 不再包含 CPP2.exe 字符串。
-6. 是否确认 tests/test_local_reverse_console_pair_validator.py 不再包含 逆向课程2025春03/CPP2.exe 路径。
-7. 是否确认测试不会访问 LOCAL_REVERSE_ROOT/REVERSE_ROOT 或常见本地 reverse roots。
-8. 是否确认测试中调用 validate_console_pair() 时已通过 monkeypatch/fake path 保证不会进入 _run_single/subprocess.Popen。
-9. 是否确认新增或调整测试证明 _run_single 若被调用会导致测试失败。
-10. 是否确认没有运行 CPP2.exe 或任何真实 target。
-11. 是否确认没有运行 pair validator CLI/runtime validation。
-12. 是否确认没有运行 mature backend probe CLI 覆盖 artifact。
-13. 是否确认没有运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver。
-14. 是否确认没有修改 artifact_index/current_state/task_packet/negative_results/current CPP2 artifacts。
-15. 是否确认 codex_report_summary 与本 decision_id/round_id 匹配。
-16. 是否确认 pytest_result.txt 使用本 decision_id/report_id/round_id。
-17. 是否确认 lint-report Exit Code 0，project_state status 消费当前 success report。
-18. 是否确认 git status --short 和 git diff --name-status 只包含允许文件。
+3. 是否确认本轮主线为 engineering_branch。
+4. 是否确认上一轮 test safety rework 已 SUCCESS/ACCEPTED 且 pytest_result PASSED。
+5. 是否确认本轮只做 minimal archive closeout，不改代码、不改测试、不改 artifact schema。
+6. 是否确认 archive-round 默认/本次执行没有 include-diff。
+7. 是否确认 archive-round 默认/本次执行没有 include-state-snapshot。
+8. 是否确认 round_manifest 中 files 只包含 decision_packet.md、codex_execution_report.md、pytest_result.txt、round_manifest.json。
+9. 是否确认 round_manifest 不包含 git_diff.patch。
+10. 是否确认 round_manifest 不包含 current_state.json、artifact_index.json、negative_results.json、task_packet.json、model_gate.json。
+11. 是否确认没有运行 CPP2.exe 或任何真实 target。
+12. 是否确认没有运行 mature backend probe CLI。
+13. 是否确认没有运行 pair validator CLI/runtime validation。
+14. 是否确认没有运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe/solver。
+15. 是否确认没有修改 artifact_index/current_state/task_packet/negative_results/current CPP2 artifacts。
+16. 是否确认 codex_report_summary 与本 decision_id/round_id 匹配。
+17. 是否确认 pytest_result.txt 使用本 decision_id/report_id/round_id。
+18. 是否确认 lint-report Exit Code 0 且 archive_status=archived。
+19. 是否确认 project_state status Exit Code 0 且 decision_consumed_by_report=True。
+20. 是否确认 git status --short 和 git diff --name-status 只包含允许文件。
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-### Phase A：移除真实样本路径
+本轮不改 Python 代码，不改测试。
 
-在 `tests/test_local_reverse_console_pair_validator.py` 中：
-
-```text
-1. 将 _triage() 默认 relative_path 改成 synthetic/nonexistent/unit_test_binary.exe 或等价 synthetic path。
-2. 不允许测试文件中再出现 CPP2.exe。
-3. 不允许测试文件中再出现 逆向课程2025春03/CPP2.exe。
-4. 不允许测试依赖 LOCAL_REVERSE_ROOT、REVERSE_ROOT、E:\reverse、D:\reverse、C:\reverse、F:\reverse、~/reverse。
-```
-
-### Phase B：阻断真实执行路径
-
-对所有调用 `validate_console_pair()` 的测试，必须保证不可能进入真实 target 运行：
+执行方式建议：
 
 ```text
-1. 使用 monkeypatch 将 _resolve_target_path 固定为 None；或
-2. 使用 monkeypatch 将 _run_single 替换成一旦调用就 raise AssertionError；或
-3. 同时使用两者以明确证明测试不会进入 subprocess.Popen。
+1. 确认上一轮 test safety rework report/pytest_result 已 SUCCESS/ACCEPTED/PASSED。
+2. 写入本轮 codex_execution_report.md，report_id 使用：
+   report_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1
+3. 写入本轮 pytest_result.txt，summary 使用本轮 decision_id/report_id/round_id。
+4. 运行本轮必跑检查。
+5. 执行 minimal archive：
+   python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1
+6. 不带 --include-diff。
+7. 不带 --include-state-snapshot。
+8. 重新运行 lint-report 与 project_state status，确认 archive_status=archived。
 ```
 
-建议新增辅助函数：
+若当前 CLI 没有 `archive-round` 子命令，必须停止并写 `status=BLOCKED`，不得手工伪造 round_manifest。
 
-```python
-def _block_real_target_execution(monkeypatch):
-    monkeypatch.setattr(
-        pair_validator,
-        "_resolve_target_path",
-        lambda relative_path: None,
-    )
-    monkeypatch.setattr(
-        pair_validator,
-        "_run_single",
-        lambda *args, **kwargs: (_ for _ in ()).throw(
-            AssertionError("unit tests must not run target binaries")
-        ),
-    )
-```
-
-并在相关测试中调用。
-
-### Phase C：保留 registry 契约测试
-
-不得破坏上一轮已建立的契约：
-
-```text
-1. get_console_backend_capabilities() 仍返回 subprocess 和 pywinauto entries。
-2. registry 仍可 JSON 序列化。
-3. 返回值仍不会污染全局 registry。
-4. pywinauto 当前仍 validator_supported=false / mature_interactive_console=false。
-5. subprocess 仍不是 mature interactive backend。
-6. mature probe registry 缺失/异常时仍 fail closed。
-7. pywinauto_available=true 且 registry unsupported 时仍不能 READY。
-```
+若 `archive-round` 生成了 `git_diff.patch` 或 state snapshot，必须停止并写 `status=FAILED` 或 `REWORK_REQUIRED`，不得写 SUCCESS/ACCEPTED。
 
 ---
 
@@ -258,9 +264,8 @@ def _block_real_target_execution(monkeypatch):
 
 ```bash
 python -m reverse_agent.project_state lint-decision --state-dir project_state
-python -m py_compile reverse_agent/local_reverse_console_pair_validator.py reverse_agent/local_reverse_console_mature_backend_probe.py
-python -m pytest -q tests/test_local_reverse_console_pair_validator.py tests/test_local_reverse_console_mature_backend_probe.py
 python -m pytest -q tests/test_project_state.py
+python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260606_cpp2_2f64e68d_console_backend_test_safety_minimal_archive_closeout_v1
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
 git diff --check
@@ -268,14 +273,27 @@ git status --short
 git diff --name-status
 ```
 
-新增或保留测试必须证明：
+`pytest_result.txt` 必须记录 archive-round 命令本身，以及 archive 之后的 lint-report/status 输出摘要。
+
+最终 `lint-report` 输出必须包含或等价表达：
 
 ```text
-1. validate_console_pair() 的单元测试不会执行 _run_single。
-2. 测试文件不包含 CPP2.exe。
-3. 测试文件不包含真实样本相对路径 逆向课程2025春03/CPP2.exe。
-4. registry 仍可 JSON 序列化。
-5. pywinauto unsupported/capability-only 仍不能触发 READY。
+lint-report: OK
+archive_status=archived
+round_manifest_present=True
+pytest_result_status=PASSED
+pytest_result_matches_report=True
+pytest_result_tests_cover_report=True
+```
+
+最终 `project_state status` 输出必须包含或等价表达：
+
+```text
+decision_consumed_by_report=True
+decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
+pytest_result_status=PASSED
+pytest_result_matches_report=True
+pytest_result_tests_cover_report=True
 ```
 
 ---
@@ -285,11 +303,12 @@ git diff --name-status
 完成后停止于：
 
 ```text
-1. 所有测试通过。
-2. tests/test_local_reverse_console_pair_validator.py 不再引用 CPP2.exe 或真实 CPP2 样本路径。
-3. validate_console_pair() 单元测试已 monkeypatch 阻断 _run_single/subprocess.Popen 路径。
-4. report/pytest_result 匹配本轮 decision_id/round_id。
-5. git status 只包含允许文件。
+1. 本轮 active report/pytest_result 与本 decision_id/round_id 匹配。
+2. minimal archive 目录已生成。
+3. round_manifest 只包含允许的 minimal 文件。
+4. lint-report Exit Code 0 且 archive_status=archived。
+5. project_state status Exit Code 0。
+6. git status 只包含允许文件。
 ```
 
-本轮不要进入 CPP2 交互验证、候选求解、runtime validation、完整 pywinauto adapter 实现或任何逆向工具运行。
+本轮不要进入 CPP2 交互验证、候选求解、runtime validation 或任何工具接入扩展。
