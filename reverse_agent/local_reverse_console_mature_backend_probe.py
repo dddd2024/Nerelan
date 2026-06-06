@@ -155,9 +155,9 @@ def build_probe_artifact(
         elif conpty_info["conpty_api_available"]:
             recommended_backend = "windows_conpty_api"
             recommended_next_action = (
-                "Windows ConPTY API is available. A thin ctypes wrapper (not a full runner) "
-                "could be used for interactive-console validation. "
-                "Design at most 2-run candidate/control validation for ippio vs negative control."
+                "ConPTY API is present, but no mature Python backend is installed. "
+                "Prefer adding/using a mature backend such as pywinpty or wexpect "
+                "in a separate dependency decision before interactive validation."
             )
 
     return {

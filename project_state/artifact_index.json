@@ -75,7 +75,7 @@
     "local_reverse_cpp2_2f64e68d_static_triage": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json",
     "local_reverse_cpp2_2f64e68d_strcmp_handoff": "project_state\\local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
     "local_reverse_cpp2_2f64e68d_runtime_pair_validation": "project_state\\local_reverse_cpp2_2f64e68d_runtime_pair_validation.json",
-    "local_reverse_cpp2_2f64e68d_mature_backend_probe": "project_state\\local_reverse_cpp2_2f64e68d_mature_backend_probe.json"
+    "local_reverse_cpp2_2f64e68d_console_mature_backend_probe": "project_state\\local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -819,11 +819,11 @@
       "modified_at": "2026-06-06T08:26:13Z",
       "sample_id": "cpp2_2f64e68d"
     },
-    "local_reverse_cpp2_2f64e68d_mature_backend_probe": {
+    "local_reverse_cpp2_2f64e68d_console_mature_backend_probe": {
       "kind": "local_reverse_console_mature_backend_availability_probe",
-      "path": "project_state\\local_reverse_cpp2_2f64e68d_mature_backend_probe.json",
+      "path": "project_state\\local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
       "freshness": "current",
-      "source_run": "round_20260606_cpp2_2f64e68d_console_mature_backend_probe_v1",
+      "source_run": "round_20260606_cpp2_2f64e68d_console_mature_backend_probe_contract_rework_v1",
       "sha256": "4a62e335bc443dbc500e5e50fbd4fe0f35b61d2ff875d271c2976d2eff0e9839",
       "size_bytes": 1975,
       "modified_at": "2026-06-06T09:16:28Z",
