@@ -73,7 +73,8 @@
     "local_reverse_cpp1_7b504c54_runtime_validation": "project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json",
     "local_reverse_cpp1_7b504c54_training_status_sync": "project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json",
     "local_reverse_cpp2_2f64e68d_static_triage": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json",
-    "local_reverse_cpp2_2f64e68d_strcmp_handoff": "project_state\\local_reverse_cpp2_2f64e68d_strcmp_handoff.json"
+    "local_reverse_cpp2_2f64e68d_strcmp_handoff": "project_state\\local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
+    "local_reverse_cpp2_2f64e68d_runtime_pair_validation": "project_state\\local_reverse_cpp2_2f64e68d_runtime_pair_validation.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -805,6 +806,16 @@
       "sha256": "6d08c8b36b59c29740258139d7c2c2a4041e4bba5a6e1907a01880e4b37ebd1d",
       "size_bytes": 1475,
       "modified_at": "2026-06-06T06:54:16Z",
+      "sample_id": "cpp2_2f64e68d"
+    },
+    "local_reverse_cpp2_2f64e68d_runtime_pair_validation": {
+      "kind": "local_reverse_console_pair_runtime_validation",
+      "path": "project_state\\local_reverse_cpp2_2f64e68d_runtime_pair_validation.json",
+      "freshness": "current",
+      "source_run": "round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1",
+      "sha256": "63715343e7ddb18d8bab88e4b4a772004afb775617915725bec0253a1cf52695",
+      "size_bytes": 1986,
+      "modified_at": "2026-06-06T08:26:13Z",
       "sample_id": "cpp2_2f64e68d"
     }
   },

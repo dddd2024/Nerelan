@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp2_2f64e68d",
+  "analysis_mode": "console_runtime_pair_validation",
+  "mainline": "reverse_solving",
+  "source_artifacts": [
+    "local_reverse_cpp2_2f64e68d_strcmp_handoff",
+    "local_reverse_cpp2_2f64e68d_static_triage"
+  ],
+  "source_artifact_freshness": "current",
+  "source_candidate_artifact": "project_state\\local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
+  "source_triage_artifact": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json",
+  "relative_path": "逆向课程2025春03/CPP2.exe",
+  "sha256": "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
+  "candidate_source_field": "static_candidate_text",
+  "candidate_input": "ippio",
+  "negative_control_input": "jppio",
+  "negative_control_strategy": "single_char_mutation",
+  "max_runs": 2,
+  "executed_sample": true,
+  "runtime_validated": false,
+  "validation_status": "AMBIGUOUS_OUTPUT",
+  "candidate_run": {
+    "input": "ippio",
+    "executed": true,
+    "timed_out": false,
+    "return_code": 4294967295,
+    "stdout_tail": "Please input a string : \nSorry! Hang on!",
+    "stderr_tail": ""
+  },
+  "negative_control_run": {
+    "input": "jppio",
+    "executed": true,
+    "timed_out": false,
+    "return_code": 4294967295,
+    "stdout_tail": "Please input a string : \nSorry! Hang on!",
+    "stderr_tail": ""
+  },
+  "outputs_differ": false,
+  "success_reason": "",
+  "failure_reason": "Candidate and negative control produced identical stdout, stderr, and return code. Cannot conservatively determine acceptance/rejection.",
+  "candidate": null,
+  "known_candidate": "",
+  "solved": false,
+  "blocked_reason": "AMBIGUOUS_OUTPUT",
+  "target_sha256": "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
+  "target_resolved_path": "E:\\reverse\\逆向课程2025春03\\CPP2.exe",
+  "generated_at": "2026-06-06T08:26:13Z",
+  "candidate_accepted": false,
+  "control_rejected": false
+}

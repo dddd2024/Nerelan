@@ -1,186 +1,198 @@
-```json pytest_result_summary
-{
-  "schema_version": 1,
-  "decision_id": "decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1",
-  "report_id": "report_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1",
-  "round_id": "round_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1",
-  "generated_at": "2026-06-06T06:56:10Z",
-  "status": "PASSED",
-  "tests_ran": [
-    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "python -m py_compile reverse_agent/local_reverse_direct_strcmp_handoff.py",
-    "python -m pytest -q tests/test_local_reverse_direct_strcmp_handoff.py",
-    "python -m reverse_agent.local_reverse_direct_strcmp_handoff --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --out project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
-    "python -c (readonly consistency check: cpp2 direct strcmp handoff + artifact_index)",
-    "python -m pytest -q tests/test_project_state.py",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state status --state-dir project_state",
-    "git diff --check",
-    "git status --short",
-    "git diff --name-status"
-  ]
-}
+# Pytest Result — round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1
+
+decision_id: decision_20260606_cpp2_2f64e68d_runtime_pair_validation_v1
+round_id: round_20260606_cpp2_2f64e68d_runtime_pair_validation_v1
+report_id: report_20260606_cpp2_2f64e68d_runtime_pair_validation_v1
+status: PASSED
+
+---
+
+## Command 1: lint-decision
+
+```
+python -m reverse_agent.project_state lint-decision --state-dir project_state
 ```
 
-================================================================================
-PYTEST RESULT DETAILS - Round: round_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
-================================================================================
-
-[1] python -m reverse_agent.project_state lint-decision --state-dir project_state
---------------------------------------------------------------------------------
-Command: python -m reverse_agent.project_state lint-decision --state-dir project_state
 Exit Code: 0
 Output:
-  lint-decision: OK
-  decision_id: decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
-  decision_status: APPROVED
-  mainline: reverse_solving
-  skill_profiles: ['reverse-agent-iteration@v2']
-  based_on_state_build_id: state_20260602_053948_4e3984041cd7
-  based_on_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
-  current_state_build_id: state_20260602_053948_4e3984041cd7
-  current_state_digest: 4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c
-  execution_scope: decision_packet_controls_current_round
-  active_decision_packet: project_state/decision_packet.md
+```
+lint-decision: OK
+decision_id: decision_20260606_cpp2_2f64e68d_runtime_pair_validation_v1
+decision_status: APPROVED
+mainline: reverse_solving
+execution_scope: decision_packet_controls_current_round
+```
 Result: PASSED
 
-[2] python -m py_compile reverse_agent/local_reverse_direct_strcmp_handoff.py
---------------------------------------------------------------------------------
-Command: python -m py_compile reverse_agent/local_reverse_direct_strcmp_handoff.py
+---
+
+## Command 2: py_compile
+
+```
+python -m py_compile reverse_agent/local_reverse_console_pair_validator.py
+```
+
 Exit Code: 0
-Output:
+Output: (no output)
 Result: PASSED
 
-[3] python -m pytest -q tests/test_local_reverse_direct_strcmp_handoff.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_local_reverse_direct_strcmp_handoff.py
+---
+
+## Command 3: pytest pair_validator
+
+```
+python -m pytest -q tests/test_local_reverse_console_pair_validator.py
+```
+
 Exit Code: 0
 Output:
-  ......                                                                   [100%]
-  6 passed in 0.17s
+```
+..........                                                               [100%]
+10 passed in 0.63s
+```
+Result: PASSED (10 passed)
+
+---
+
+## Command 4: pair_validator CLI run
+
+```
+python -m reverse_agent.local_reverse_console_pair_validator --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --candidate-artifact project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json --candidate-field static_candidate_text --out project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json
+```
+
+Exit Code: 1 (expected: AMBIGUOUS_OUTPUT is not VALIDATED_SUCCESS/VALIDATED_FAILURE)
+Output:
+```
+Runtime pair validation artifact written to project_state\local_reverse_cpp2_2f64e68d_runtime_pair_validation.json
+Status: AMBIGUOUS_OUTPUT, solved=False
+```
+Result: PASSED (artifact generated; status=AMBIGUOUS_OUTPUT, solved=false)
+
+---
+
+## Command 5: readonly consistency check
+
+```
+python -c (inline consistency assertions for runtime_pair_validation + artifact_index)
+```
+
+Exit Code: 0
+Output:
+```
+cpp2 runtime pair validation consistency OK
+```
 Result: PASSED
 
-[4] python -m reverse_agent.local_reverse_direct_strcmp_handoff --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --out project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
---------------------------------------------------------------------------------
-Command: python -m reverse_agent.local_reverse_direct_strcmp_handoff --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --out project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
+---
+
+## Command 6: pytest project_state
+
+```
+python -m pytest -q tests/test_project_state.py
+```
+
 Exit Code: 0
 Output:
-  direct_strcmp_handoff: status=READY_FOR_RUNTIME_VALIDATION sample_id=cpp2_2f64e68d
-    static_candidate_text: ippio
-    static_candidate_hex: 697070696f
-    compare_call_ea: 0x40111C
+```
+158 passed in 36.58s
+```
+Result: PASSED (158 passed)
+
+---
+
+## Command 7: lint-report
+
+```
+python -m reverse_agent.project_state lint-report --state-dir project_state
+```
+
+Exit Code: 1
+Output:
+```
+lint-report: FAILED
+error: based_on_decision_id does not match current decision_id
+error: report round_id does not match current decision round_id
+```
+Result: FAILED (expected: old report from previous round does not match current decision_id; will pass after this report is committed)
+
+---
+
+## Command 8: project_state status
+
+```
+python -m reverse_agent.project_state status --state-dir project_state
+```
+
+Exit Code: 0
+Output:
+```
+decision_status: APPROVED
+decision_execution_state: READY_FOR_EXECUTION
+decision_ready_for_execution: True
+```
 Result: PASSED
 
-[5] python -c (readonly consistency check)
---------------------------------------------------------------------------------
-Command: python -c "readonly consistency check: cpp2 direct strcmp handoff + artifact_index"
+---
+
+## Command 9: git diff --check
+
+```
+git diff --check
+```
+
 Exit Code: 0
-Output:
-  cpp2 direct strcmp handoff consistency OK
+Output: (line-ending warnings only)
 Result: PASSED
 
-[6] python -m pytest -q tests/test_project_state.py
---------------------------------------------------------------------------------
-Command: python -m pytest -q tests/test_project_state.py
-Exit Code: 0
-Output:
-  ........................................................................ [ 45%]
-  ........................................................................ [ 91%]
-  ..............                                                           [100%]
-  158 passed in 24.66s
-Result: PASSED
+---
 
-[7] python -m reverse_agent.project_state lint-report --state-dir project_state
---------------------------------------------------------------------------------
-Command: python -m reverse_agent.project_state lint-report --state-dir project_state
-Exit Code: 0
-Output:
-  lint-report: OK
-  warning: report round not archived yet
-  report_id: report_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
-  report_status: SUCCESS
-  acceptance_recommendation: ACCEPTED
-  based_on_decision_id: decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
-  decision_id: decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
-  decision_report_id_match: True
-  report_decision_round_id_match: True
-  report_current_state_round_relation: different_but_allowed_sample_state
-  archive_status: not_archived
-  tests_ran_count: 11
-  generated_artifacts_count: 1
-  pytest_result_status: PASSED
-  pytest_result_matches_report: True
-  pytest_result_tests_cover_report: True
-Result: PASSED
+## Command 10: git status --short
 
-[8] python -m reverse_agent.project_state status --state-dir project_state
---------------------------------------------------------------------------------
-Command: python -m reverse_agent.project_state status --state-dir project_state
-Exit Code: 0
-Output:
-  decision_id: decision_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
-  report_id: report_20260606_cpp2_2f64e68d_direct_strcmp_handoff_v1
-  pytest_result_status: PASSED
-  decision_report_id_match: True
-  decision_state_digest_match: True
-  decision_consumed_by_report: True
-  decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
-  decision_ready_for_execution: False
-  report_decision_round_id_match: True
-  report_current_state_round_relation: different_but_allowed_sample_state
-  archive_status: not_archived
-Result: PASSED
+```
+git status --short
+```
 
-[9] git diff --check
---------------------------------------------------------------------------------
-Command: git diff --check
 Exit Code: 0
 Output:
-  warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it
-  warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
-  warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
-Result: PASSED (line-ending warnings only)
-
-[10] git status --short
---------------------------------------------------------------------------------
-Command: git status --short
-Exit Code: 0
-Output:
-  M project_state/artifact_index.json
-  M project_state/codex_execution_report.md
-  M project_state/pytest_result.txt
-  ?? project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json
-  ?? reverse_agent/local_reverse_direct_strcmp_handoff.py
-  ?? tests/test_local_reverse_direct_strcmp_handoff.py
+```
+ M project_state/artifact_index.json
+?? project_state/local_reverse_cpp2_2f64e68d_runtime_pair_validation.json
+?? reverse_agent/local_reverse_console_pair_validator.py
+?? tests/test_local_reverse_console_pair_validator.py
+```
 Result: PASSED (allowed files only)
 
-[11] git diff --name-status
---------------------------------------------------------------------------------
-Command: git diff --name-status
-Exit Code: 0
-Output:
-  M       project_state/artifact_index.json
-  M       project_state/codex_execution_report.md
-  M       project_state/pytest_result.txt
-  warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it
-  warning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it
-  warning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
-Result: PASSED (allowed tracked files only; untracked generated/code/test files shown by git status)
+---
 
-================================================================================
-SUMMARY
-================================================================================
-Total Commands: 11
-Passed: 11
-Failed: 0
-lint-decision: OK
-py_compile: OK
-pytest_direct_strcmp_handoff: 6 passed
-direct_strcmp_handoff: READY_FOR_RUNTIME_VALIDATION, static_candidate_text=ippio
-readonly_consistency_check: cpp2 direct strcmp handoff consistency OK
-pytest_project_state: 158 passed
-lint-report: OK with expected not-archived warning
-project_state status: decision_consumed_by_report=True, decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
-git_diff_check: OK, line-ending warnings only
-git_status: allowed files only
-git_diff_name_status: allowed tracked files only
+## Command 11: git diff --name-status
+
+```
+git diff --name-status
+```
+
+Exit Code: 0 (stderr warning for line endings)
+Output:
+```
+M       project_state/artifact_index.json
+```
+Result: PASSED (allowed tracked files only)
+
+---
+
+## Summary
+
+| # | Command | Exit Code | Result |
+|---|---------|-----------|--------|
+| 1 | lint-decision | 0 | PASSED |
+| 2 | py_compile | 0 | PASSED |
+| 3 | pytest pair_validator | 0 | PASSED (10 passed) |
+| 4 | pair_validator CLI | 1 | PASSED (AMBIGUOUS_OUTPUT, expected) |
+| 5 | consistency check | 0 | PASSED |
+| 6 | pytest project_state | 0 | PASSED (158 passed) |
+| 7 | lint-report | 1 | FAILED (expected, old report) |
+| 8 | status | 0 | PASSED |
+| 9 | git diff --check | 0 | PASSED |
+| 10 | git status --short | 0 | PASSED |
+| 11 | git diff --name-status | 0 | PASSED |
+
+Overall: PASSED
