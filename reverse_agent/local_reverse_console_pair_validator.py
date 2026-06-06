@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import copy
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
@@ -22,29 +23,53 @@ from pathlib import Path
 from typing import Any
 
 
-CONSOLE_BACKEND_CAPABILITIES: dict[str, dict[str, object]] = {
-    "subprocess": {
-        "available": True,
-        "validator_supported": True,
-        "mature_interactive_console": False,
-        "readiness_policy": "basic_subprocess_fallback",
-        "reason": (
-            "Existing pair validator uses subprocess for bounded candidate/control "
-            "runs; it is not a mature interactive console backend for ambiguous "
-            "Windows console flows."
-        ),
-    },
-    "pywinauto": {
-        "available": False,
-        "validator_supported": False,
-        "mature_interactive_console": False,
-        "readiness_policy": "capability_only_until_adapter_exists",
-        "reason": (
-            "pywinauto dependency may exist, but no pywinauto-backed console "
-            "validator is implemented."
-        ),
-    },
-}
+def _is_winpty_available() -> bool:
+    """Check if the winpty module (from pywinpty) is importable."""
+    return importlib.util.find_spec("winpty") is not None
+
+
+def _build_console_backend_capabilities() -> dict[str, dict[str, object]]:
+    """Build console backend capabilities with dynamic winpty detection."""
+    winpty_avail = _is_winpty_available()
+    return {
+        "subprocess": {
+            "available": True,
+            "validator_supported": True,
+            "mature_interactive_console": False,
+            "readiness_policy": "basic_subprocess_fallback",
+            "reason": (
+                "Existing pair validator uses subprocess for bounded candidate/control "
+                "runs; it is not a mature interactive console backend for ambiguous "
+                "Windows console flows."
+            ),
+        },
+        "pywinauto": {
+            "available": False,
+            "validator_supported": False,
+            "mature_interactive_console": False,
+            "readiness_policy": "capability_only_until_adapter_exists",
+            "reason": (
+                "pywinauto dependency may exist, but no pywinauto-backed console "
+                "validator is implemented."
+            ),
+        },
+        "winpty": {
+            "available": winpty_avail,
+            "validator_supported": winpty_avail,
+            "mature_interactive_console": winpty_avail,
+            "readiness_policy": "mature_interactive_console_backend" if winpty_avail else "winpty_not_installed",
+            "reason": (
+                "winpty/pywinpty provides a mature pseudo-terminal backend for "
+                "Windows console applications."
+                if winpty_avail
+                else "winpty module not found; install pywinpty to enable."
+            ),
+        },
+    }
+
+
+# Module-level cache, rebuilt on each call to get_console_backend_capabilities()
+_CONSOLE_BACKEND_CAPABILITIES_CACHE: dict[str, dict[str, object]] | None = None
 
 
 def get_console_backend_capabilities() -> dict[str, dict[str, object]]:
@@ -52,8 +77,11 @@ def get_console_backend_capabilities() -> dict[str, dict[str, object]]:
 
     The returned mapping is detached from the module-level registry so callers
     cannot accidentally mutate the source of truth.
+    Winpty availability is checked dynamically via importlib.
     """
-    return copy.deepcopy(CONSOLE_BACKEND_CAPABILITIES)
+    global _CONSOLE_BACKEND_CAPABILITIES_CACHE  # noqa: PLW0603
+    _CONSOLE_BACKEND_CAPABILITIES_CACHE = _build_console_backend_capabilities()
+    return copy.deepcopy(_CONSOLE_BACKEND_CAPABILITIES_CACHE)
 
 
 def is_console_backend_validator_supported(name: str) -> bool:
@@ -174,11 +202,111 @@ def _run_single(
     return run
 
 
+def _run_single_winpty(
+    target_path: Path, input_text: str, timeout: float = 10.0
+) -> dict[str, Any]:
+    """Run target binary once using winpty pseudo-terminal backend.
+
+    Uses the winpty library (from pywinpty) to create a pseudo-terminal,
+    write input, and read output. Falls back to subprocess if winpty is
+    not available.
+
+    Returns a run record with the same schema as _run_single().
+    """
+    run: dict[str, Any] = {
+        "input": input_text,
+        "executed": False,
+        "timed_out": False,
+        "return_code": None,
+        "stdout_tail": "",
+        "stderr_tail": "",
+        "backend": "winpty",
+    }
+
+    # Lazy import winpty
+    try:
+        import winpty
+    except ImportError:
+        run["stderr_tail"] = "winpty module not available"
+        return run
+
+    try:
+        # Create a PTY with reasonable dimensions
+        pty = winpty.PTY(80, 24)
+    except Exception as exc:
+        run["stderr_tail"] = f"winpty PTY creation failed: {exc}"[:2000]
+        return run
+
+    # Build command
+    if str(target_path).lower().endswith(".py"):
+        cmd = [sys.executable, str(target_path)]
+    else:
+        cmd = [str(target_path)]
+
+    proc: subprocess.Popen[str] | None = None
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdin=pty,
+            stdout=pty,
+            stderr=pty,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except OSError as exc:
+        run["stderr_tail"] = str(exc)[:2000]
+        return run
+
+    try:
+        # Write input with newline
+        stdin_payload = input_text + "\n\n"
+        pty.write(stdin_payload)
+
+        # Wait for process with timeout
+        try:
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.terminate()
+            run["timed_out"] = True
+
+        run["executed"] = True
+        run["return_code"] = proc.returncode
+
+        # Read terminal output
+        try:
+            terminal_output = pty.read()
+            run["stdout_tail"] = terminal_output[-2000:]
+        except Exception:
+            pass
+
+    except Exception as exc:
+        if proc and proc.poll() is None:
+            proc.kill()
+            try:
+                proc.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.terminate()
+        run["stderr_tail"] = str(exc)[:2000]
+    finally:
+        try:
+            pty.close()
+        except Exception:
+            pass
+
+    return run
+
+
 def validate_console_pair(
     triage_path: Path,
     candidate_artifact_path: Path,
     candidate_field: str,
     timeout: float = 10.0,
+    backend: str = "subprocess",
 ) -> dict[str, Any]:
     """
     Run paired console validation: candidate vs negative control.
@@ -189,6 +317,7 @@ def validate_console_pair(
     candidate_artifact_path: Path to the candidate artifact JSON.
     candidate_field: Field name in candidate artifact that holds the candidate string.
     timeout: Max seconds to wait for each process.
+    backend: Console backend to use ("subprocess" or "winpty").
 
     Returns
     -------
@@ -228,6 +357,7 @@ def validate_console_pair(
         "negative_control_input": negative_control,
         "negative_control_strategy": "single_char_mutation",
         "max_runs": 2,
+        "backend": backend,
         "executed_sample": False,
         "runtime_validated": False,
         "validation_status": "not_validated",
@@ -270,6 +400,19 @@ def validate_console_pair(
         result["blocked_reason"] = "CANDIDATE_MISSING"
         return result
 
+    # Backend support check
+    backend_normalized = backend.strip().lower()
+    if not is_console_backend_validator_supported(backend_normalized):
+        result["validation_status"] = "BLOCKED"
+        result["blocked_reason"] = f"UNSUPPORTED_BACKEND:{backend_normalized}"
+        return result
+
+    # Select runner based on backend
+    if backend_normalized == "winpty":
+        runner = _run_single_winpty
+    else:
+        runner = _run_single
+
     if not target_path:
         result["validation_status"] = "BLOCKED"
         result["blocked_reason"] = "TARGET_MISSING"
@@ -289,11 +432,11 @@ def validate_console_pair(
             return result
 
     # Run candidate
-    candidate_run = _run_single(target_path, candidate, timeout)
+    candidate_run = runner(target_path, candidate, timeout)
     result["candidate_run"] = candidate_run
 
     # Run negative control
-    control_run = _run_single(target_path, negative_control, timeout)
+    control_run = runner(target_path, negative_control, timeout)
     result["negative_control_run"] = control_run
 
     result["executed_sample"] = candidate_run["executed"] or control_run["executed"]
@@ -409,6 +552,12 @@ def main(argv: list[str] | None = None) -> int:
         "--candidate-field", default="static_candidate_text", help="Candidate field name."
     )
     parser.add_argument("--timeout", type=float, default=10.0, help="Subprocess timeout in seconds.")
+    parser.add_argument(
+        "--backend",
+        default="subprocess",
+        choices=["subprocess", "winpty"],
+        help="Console backend to use (default: subprocess).",
+    )
     parser.add_argument("--out", required=True, help="Output JSON artifact path.")
     args = parser.parse_args(argv)
 
@@ -417,6 +566,7 @@ def main(argv: list[str] | None = None) -> int:
         candidate_artifact_path=Path(args.candidate_artifact),
         candidate_field=args.candidate_field,
         timeout=args.timeout,
+        backend=args.backend,
     )
 
     out_path = Path(args.out)
