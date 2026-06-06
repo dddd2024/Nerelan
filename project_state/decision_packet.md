@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
-  "round_id": "round_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
+  "decision_id": "decision_20260606_cpp2_2f64e68d_static_triage_v1",
+  "round_id": "round_20260606_cpp2_2f64e68d_static_triage_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
-  "mainline": "training_dataset",
+  "mainline": "tool_integration",
   "skill_profiles": [
     "reverse-agent-iteration@v2"
   ]
@@ -17,94 +17,122 @@
 
 ## 1. Goal
 
-本轮主线是 **training_dataset**。
+本轮主线是 **tool_integration**。
 
-目标：修复上一轮 `cpp1_7b504c54` 训练状态同步提交的审计闭环问题。上一轮状态同步的实际结果大体正确，但不能接受为最终轮次，因为 `codex_execution_report.md` 仍引用旧 runtime-validation decision，缺少本轮要求的 sync artifact 与 artifact_index 登记，并且存在未按 decision 说明的代码/测试改动。
+目标：对训练队列 rank 1 的 `cpp2_2f64e68d` 做有界静态 triage，优先复用项目已有 IDA/IDAPython 工具接口，生成 current static triage artifact，并登记到 `artifact_index.json`。
 
-本轮只允许做 **metadata/report/artifact rework**：
+本轮只做工具取证与证据结构化，不求解、不生成 candidate、不运行样本、不做 runtime validation。
+
+目标样本：
 
 ```text
-1. 保留已完成的训练状态同步结果，除非一致性检查证明它错误。
-2. 新增 project_state/local_reverse_cpp1_7b504c54_training_status_sync.json。
-3. 更新 project_state/artifact_index.json，登记 local_reverse_cpp1_7b504c54_training_status_sync。
-4. 重写 project_state/codex_execution_report.md，使其对应本 rework decision。
-5. 重写 project_state/pytest_result.txt，记录本 rework 轮真实测试。
-6. 在报告中明确说明上一轮为什么修改了 reverse_agent/local_reverse_training_status.py 与 tests/test_local_reverse_training_status.py；若无法正当说明，必须回退这两个文件。
+sample_id=cpp2_2f64e68d
+relative_path=逆向课程2025春03/CPP2.exe
+sha256=2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1
+size_bytes=196689
+category=cpp
+tags=local, reverse, cpp, pe
+queue_rank=1
+queue_allowed_actions=static_triage
+queue_forbidden_actions=runtime_probe, bruteforce, upload_binary
 ```
 
-本轮不继续求解，不运行样本，不运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe，不生成新 candidate。
+预期产物：
+
+```text
+project_state/local_reverse_cpp2_2f64e68d_static_triage.json
+```
+
+预期登记：
+
+```text
+artifact_index.latest_artifacts.local_reverse_cpp2_2f64e68d_static_triage
+artifact_index.latest_artifacts_v2.local_reverse_cpp2_2f64e68d_static_triage
+```
 
 ---
 
 ## 2. Current Evidence
 
-`project_state/task_packet.json` 仍是旧 `samplereverse` advisory，不控制本轮。当前执行权威是本 `project_state/decision_packet.md`。
+`project_state/task_packet.json` 仍是旧 `samplereverse` advisory，`task=Review bounded window discovery diagnostics`，且明确 `project_state/decision_packet.md` 是当前执行权威。`task_packet.task` 不控制本轮。
 
-`project_state/current_state.json` 仍主要是旧 samplereverse 压缩状态，`state_build_id=state_20260602_053948_4e3984041cd7`，`state_digest=4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c`。
+`project_state/current_state.json` 仍主要是旧 samplereverse 压缩状态，`state_build_id=state_20260602_053948_4e3984041cd7`，`state_digest=4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c`。本轮 local reverse 事实以 `local_reverse_training_status.json`、`local_reverse_evaluation_queue.json`、`artifact_index.json` 为准。
 
-当前最新提交：
-
-```text
-commit=9e1ae7e9873c3d79b844382ebc3db39e16716de0
-message=Fix local_reverse training status overlays and archive round
-```
-
-该提交显示训练状态同步结果大体已完成：
+上一轮 rework 已闭合：
 
 ```text
-cpp1_7b504c54 已从 local_reverse_evaluation_queue.json 移除。
-下一队列样本变为 cpp2_2f64e68d。
-status summary 变为 solved=2, blocked=4, needs_triage=0, inventory_only=23。
-pytest_training_status=33 tests passed。
-training_status_regeneration=PASSED。
-readonly_consistency_check=PASSED。
+report_id=report_20260606_cpp1_7b504c54_training_status_sync_rework_v1
+based_on_decision_id=decision_20260606_cpp1_7b504c54_training_status_sync_rework_v1
+round_id=round_20260606_cpp1_7b504c54_training_status_sync_rework_v1
+status=SUCCESS
+acceptance_recommendation=ACCEPTED
 ```
 
-但上一轮审计结论为 `REWORK_REQUIRED`，原因如下：
+上一轮 `pytest_result.txt` 已闭合：
 
 ```text
-1. codex_execution_report.md 仍写 Active decision remains decision_20260606_cpp1_7b504c54_runtime_validation_v1。
-2. codex_execution_report.md 仍写 Active round remains round_20260606_cpp1_7b504c54_runtime_validation_v1。
-3. 当前实际应对应 training_status_sync / rework decision，而不是旧 runtime_validation decision。
-4. 缺少 project_state/local_reverse_cpp1_7b504c54_training_status_sync.json。
-5. artifact_index 未登记 local_reverse_cpp1_7b504c54_training_status_sync。
-6. tests_ran 缺少 python -m reverse_agent.project_state lint-decision --state-dir project_state。
-7. 上一轮修改了 reverse_agent/local_reverse_training_status.py 与 tests/test_local_reverse_training_status.py，但未在 decision 允许范围内说明或处理。
+status=PASSED
+lint-decision=OK
+pytest_training_status=33 passed
+lint-report=OK
+project_state status: decision_consumed_by_report=True, decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
 ```
 
-当前 runtime validation artifact 仍是前置证据：
+当前训练状态：
 
 ```text
-path=project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
-sample_id=cpp1_7b504c54
-known_candidate=WeKnowItOk
-runtime_validated=true
-validation_status=VALIDATED_SUCCESS
-success_observed=true
-solved=true
+status_summary.solved=2
+status_summary.blocked=4
+status_summary.needs_triage=0
+status_summary.inventory_only=23
+cpp1_7b504c54.training_status=solved
+cpp1_7b504c54.known_candidate=WeKnowItOk
 ```
 
-当前 negative_results 仍禁止：
+当前评估队列：
 
 ```text
-old sample_solver blind search
-increase guided_pool beam/budget only
-compare_semantics_agree=false primary frontier
-commit full solve_reports directory
-repeat dynamic-probe directions without new evidence
-Base64/RC4 breakpoint probe before real lhs producer identification
+items[0].rank=1
+items[0].sample_id=cpp2_2f64e68d
+items[0].relative_path=逆向课程2025春03/CPP2.exe
+items[0].proposed_next_mainline=tool_integration
+items[0].allowed_actions=["static_triage"]
+items[0].forbidden_actions=["runtime_probe", "bruteforce", "upload_binary"]
 ```
 
-本轮不触碰这些方向。
-
-已有能力检查：
+当前 `artifact_index.json` 已登记 `cpp1_7b504c54` 的 current artifacts：
 
 ```text
-1. IDA/IDAPython 能力已存在，但本轮不运行 IDA。
-2. Console runtime validator 已存在，但本轮不运行目标 binary。
-3. local_reverse_training_status.py 已能再生成 training_status/queue/overlay，但本轮优先不再改实现。
-4. artifact_index 已支持 project_state artifact 登记；本轮必须使用它登记 sync artifact。
+local_reverse_cpp1_7b504c54_static_triage=current
+local_reverse_cpp1_7b504c54_xor_handoff=current
+local_reverse_cpp1_7b504c54_runtime_validation=current
+local_reverse_cpp1_7b504c54_training_status_sync=current
 ```
+
+当前未发现 `local_reverse_cpp2_2f64e68d_static_triage` 的 current artifact；本轮目标就是建立该 artifact。
+
+已有工具接口检查：
+
+```text
+1. reverse_agent/tool_runners.py 已有 run_ida_evidence(file_path, artifacts_dir, log, ida_executable, ida_script_path, timeout_seconds)。
+2. reverse_agent/tool_runners.py 已有默认 IDA 脚本解析逻辑：reverse_agent/ida_scripts/collect_evidence.py。
+3. run_ida_evidence 会生成 *_ida_evidence.json，并提取 strings/functions/compare_contexts/local_check_contexts/control_id_contexts/string_xrefs/validation_function_candidates/decompiler_snippets/solver_hints。
+4. tool_runners.py 也有 OllyDbg/CompareProbe 接口，但当前队列明确 forbidden runtime_probe；本轮不得使用。
+5. 成熟工具优先，不要在项目中重写反汇编器、反编译器、PE parser 或 debugger。
+```
+
+当前 `negative_results.json` 仍禁止：
+
+```text
+1. old sample_solver blind search
+2. only increase guided_pool beam or budget
+3. use compare_semantics_agree=false candidates as primary frontier
+4. commit full solve_reports directory
+5. repeat dynamic-probe directions without new evidence
+6. run Base64/RC4 breakpoint probe before real lhs producer identification
+```
+
+本轮不触碰旧 samplereverse 搜索、beam、Base64/RC4、CompareProbe 或 runtime probe 方向。
 
 ---
 
@@ -113,32 +141,31 @@ Base64/RC4 breakpoint probe before real lhs producer identification
 严禁：
 
 ```text
-1. 不运行目标样本，不重新 runtime validation。
-2. 不运行 IDA/Ghidra/debugger/hook/emulator/CompareProbe。
-3. 不运行 solver/bruteforce/guided pool/constraint recovery。
-4. 不推进任何新样本求解。
-5. 不批量跑 local_reverse_samples / E:\reverse。
-6. 不修改 project_state/local_reverse_cpp1_7b504c54_runtime_validation.json。
-7. 不修改 project_state/local_reverse_cpp1_7b504c54_xor_handoff.json。
-8. 不修改 project_state/local_reverse_cpp1_7b504c54_static_triage.json。
-9. 不继续改 reverse_agent/local_reverse_training_status.py 或 tests/test_local_reverse_training_status.py；除非选择回退上一轮越界改动。
-10. 不修改 .codex-skills。
+1. 不运行目标样本。
+2. 不做 runtime validation。
+3. 不运行 debugger、OllyDbg、Frida hook、emulator、CompareProbe。
+4. 不运行 solver、bruteforce、guided pool、symbolic search 或 constraint recovery。
+5. 不生成 candidate，不写 known_candidate，不标记 solved。
+6. 不修改 local_reverse_training_status.json。
+7. 不修改 local_reverse_evaluation_queue.json。
+8. 不修改 training_materials/local_reverse/status_overlay.json。
+9. 不修改 cpp1_7b504c54 的任何 artifact。
+10. 不读取 full solve_reports 或 PROJECT_PROGRESS_LOG。
 11. 不提交本地 binary、IDA database、raw temp、triage temp dir 或 full solve_reports。
-12. 不读取 full solve_reports 或 PROJECT_PROGRESS_LOG。
-13. 不把其他样本状态顺手改成 solved/blocked。
-14. 不把旧 runtime_validation decision 写成本轮 report 的 based_on_decision_id。
-15. 不把 report/pytest_result 留在旧 round_id。
+12. 不新增重复 IDA/Ghidra/debugger 接口。
+13. 不把 IDA missing/timeout 当作样本分析失败；应写成 blocked/static_triage_not_completed artifact。
+14. 不将 stale/unknown artifact 当 current evidence。
 ```
 
 允许：
 
 ```text
-1. 新增 project_state/local_reverse_cpp1_7b504c54_training_status_sync.json。
-2. 更新 project_state/artifact_index.json。
-3. 更新 project_state/codex_execution_report.md。
-4. 更新 project_state/pytest_result.txt。
-5. 仅当一致性检查发现状态文件不符合已验证事实时，才修正 project_state/local_reverse_training_status.json、project_state/local_reverse_evaluation_queue.json、training_materials/local_reverse/status_overlay.json。
-6. 仅当无法正当解释上一轮代码/测试越界改动时，回退 reverse_agent/local_reverse_training_status.py 与 tests/test_local_reverse_training_status.py。
+1. 使用已有 run_ida_evidence / collect_evidence.py 对 cpp2_2f64e68d 执行一次有界 IDA static extraction。
+2. 若 IDA 不可用或目标 binary 不存在，生成清晰的 static_triage artifact，状态为 BLOCKED 或 NOT_ATTEMPTED，并记录 blocked_reason。
+3. 新增 project_state/local_reverse_cpp2_2f64e68d_static_triage.json。
+4. 更新 project_state/artifact_index.json 登记该 artifact。
+5. 更新 project_state/codex_execution_report.md 与 project_state/pytest_result.txt。
+6. 如现有代码没有可直接运行的 CLI 入口，可新增一个很薄的 wrapper，但必须复用现有 run_ida_evidence，不得重写成熟工具能力。
 ```
 
 ---
@@ -155,27 +182,23 @@ project_state/negative_results.json
 project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
-project_state/local_reverse_cpp1_7b504c54_runtime_validation.json
 project_state/local_reverse_training_status.json
 project_state/local_reverse_evaluation_queue.json
 training_materials/local_reverse/status_overlay.json
 .codex-skills/registry.json
+reverse_agent/tool_runners.py
+reverse_agent/ida_scripts/collect_evidence.py
 ```
 
-必须检查上一轮越界改动：
+按需读取：
 
 ```text
 reverse_agent/local_reverse_training_status.py
 tests/test_local_reverse_training_status.py
-```
-
-只读参考，默认不要修改：
-
-```text
-project_state/local_reverse_cpp1_7b504c54_xor_handoff.json
-project_state/local_reverse_cpp1_7b504c54_static_triage.json
-reverse_agent/local_reverse_console_validator.py
-tests/test_local_reverse_console_validator.py
+README.md
+pyproject.toml
+requirements.txt
+requirements-dev.txt
 ```
 
 不要默认读取：
@@ -195,24 +218,24 @@ Codex 报告必须回答：
 ```text
 1. 是否确认当前 decision_packet 是本轮唯一执行权威。
 2. 是否确认 task_packet.task 只是旧 samplereverse advisory。
-3. 是否确认本轮主线为 training_dataset。
-4. 是否确认本轮是 rework：修复 report/pytest/artifact_index/sync artifact 闭环。
-5. 是否确认 runtime validation artifact 仍为 current 且 solved=true。
-6. 是否确认 cpp1_7b504c54 在 training_status 与 status_overlay 中为 solved。
-7. 是否确认 cpp1_7b504c54.known_candidate=WeKnowItOk。
-8. 是否确认 status_summary 为 solved=2, blocked=4, needs_triage=0, inventory_only=23。
-9. 是否确认 cpp1_7b504c54 已从 evaluation_queue 中移除。
-10. 是否确认 queue rank 连续递增。
-11. 是否生成 local_reverse_cpp1_7b504c54_training_status_sync.json。
-12. 是否在 artifact_index.latest_artifacts 与 latest_artifacts_v2 登记 sync artifact。
-13. 是否确认 sync artifact freshness=current。
-14. 是否确认 codex_report_summary 的 based_on_decision_id 等于 decision_20260606_cpp1_7b504c54_training_status_sync_rework_v1。
-15. 是否确认 codex_report_summary 的 round_id 等于 round_20260606_cpp1_7b504c54_training_status_sync_rework_v1。
-16. 是否确认 pytest_result_summary 使用本 rework decision_id/report_id/round_id。
-17. 是否确认本轮运行了 lint-decision、lint-report、project_state status。
-18. 是否确认没有运行目标样本、IDA/Ghidra/debugger/hook/emulator/CompareProbe。
-19. 是否确认没有修改 runtime validation/XOR handoff/static triage artifact。
-20. 是否说明上一轮 reverse_agent/local_reverse_training_status.py 与 tests/test_local_reverse_training_status.py 的处理方式：保留并解释，或回退。
+3. 是否确认本轮主线为 tool_integration。
+4. 是否确认目标样本为 cpp2_2f64e68d，而不是 cpp1_7b504c54。
+5. 是否确认 cpp2_2f64e68d 是 evaluation_queue rank 1。
+6. 是否确认 queue 只允许 static_triage，禁止 runtime_probe/bruteforce/upload_binary。
+7. 是否检查了已有 IDA/IDAPython 接口。
+8. 是否复用了 run_ida_evidence / collect_evidence.py，或明确说明为什么只能生成 blocked artifact。
+9. 是否确认没有新增重复 IDA/Ghidra/debugger 接口。
+10. 是否确认没有运行目标样本。
+11. 是否确认没有运行 OllyDbg/Frida/hook/emulator/CompareProbe。
+12. 是否确认没有运行 solver/bruteforce/guided pool/symbolic search。
+13. 是否确认没有生成 candidate/known_candidate/solved=true。
+14. 是否生成 project_state/local_reverse_cpp2_2f64e68d_static_triage.json。
+15. 是否在 artifact_index.latest_artifacts 与 latest_artifacts_v2 登记 local_reverse_cpp2_2f64e68d_static_triage。
+16. 是否确认 artifact freshness=current。
+17. 是否确认若 IDA 不可用，则 blocked_reason 清晰，且不把它当作样本失败。
+18. 是否确认未修改 training_status/evaluation_queue/status_overlay。
+19. 是否确认 codex_report_summary 与本 decision_id/round_id 匹配。
+20. 是否确认 pytest_result.txt 记录每条命令、Exit Code 和输出摘要。
 21. 是否确认 git status --short 和 git diff --name-status 只包含允许文件。
 ```
 
@@ -220,95 +243,99 @@ Codex 报告必须回答：
 
 ## 6. Implementation Scope
 
-必须新增 sync artifact：
+产物最低字段：
 
-```json
-{
-  "schema_version": 1,
-  "sample_id": "cpp1_7b504c54",
-  "mainline": "training_dataset",
-  "analysis_mode": "training_status_sync_rework",
-  "source_run": "round_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
-  "source_artifacts": [
-    "local_reverse_cpp1_7b504c54_runtime_validation"
-  ],
-  "source_artifact_freshness": "current",
-  "runtime_validation_artifact": "project_state/local_reverse_cpp1_7b504c54_runtime_validation.json",
-  "validation_status": "VALIDATED_SUCCESS",
-  "training_status_before": "inventory_only",
-  "training_status_after": "solved",
-  "known_candidate": "WeKnowItOk",
-  "status_summary_before": {
-    "solved": 1,
-    "blocked": 4,
-    "needs_triage": 0,
-    "inventory_only": 24
-  },
-  "status_summary_after": {
-    "solved": 2,
-    "blocked": 4,
-    "needs_triage": 0,
-    "inventory_only": 23
-  },
-  "queue_removed_sample": true,
-  "overlay_updated": true,
-  "solved": true,
-  "blocked_reason": "",
-  "rework_reason": "previous report referenced runtime_validation decision and omitted sync artifact registration",
-  "generated_at": "<UTC>"
-}
+```text
+schema_version=1
+sample_id=cpp2_2f64e68d
+mainline=tool_integration
+analysis_mode=local_reverse_single_sample_static_triage
+relative_path=逆向课程2025春03/CPP2.exe
+sha256=2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1
+size_bytes=196689
+source_tool=IDA or fallback_static_triage
+source_artifact_freshness=current
+executed_sample=false
+static_only=true
+runtime_validated=false
+candidate=null
+known_candidate=""
+solved=false
+status=STATIC_TRIAGE_COMPLETE or BLOCKED
+blocked_reason="" or TARGET_MISSING / IDA_MISSING / IDA_TIMEOUT / IDA_OUTPUT_MISSING / IDA_OUTPUT_UNPARSEABLE
+ida_attempted=true/false
+ida_success=true/false
+ida_output_path="..." or ""
+strings_summary
+functions_summary
+compare_contexts_summary
+local_check_contexts_summary
+string_xrefs_summary
+validation_function_candidates_summary
+decompiler_snippets_summary
+solver_hints_summary
+generated_at=<UTC>
+```
+
+若 IDA 成功，artifact 应尽量压缩并结构化：
+
+```text
+1. 记录入口地址。
+2. 记录关键字符串，尤其是 prompt/success/failure/length/error 字符串。
+3. 记录比较函数调用点或局部校验函数候选。
+4. 记录 main 或 validation function 的反编译片段摘要。
+5. 记录 solver_hints，但不得直接求解。
+6. 记录原始 IDA evidence 的路径或摘要，不提交 IDA database。
 ```
 
 必须更新 artifact_index：
 
 ```text
-latest_artifacts.local_reverse_cpp1_7b504c54_training_status_sync = "project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json"
+latest_artifacts.local_reverse_cpp2_2f64e68d_static_triage = "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json"
 
-latest_artifacts_v2.local_reverse_cpp1_7b504c54_training_status_sync = {
-  kind="local_reverse_training_status_sync",
-  path="project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json",
+latest_artifacts_v2.local_reverse_cpp2_2f64e68d_static_triage = {
+  kind="local_reverse_single_sample_static_triage",
+  path="project_state\\local_reverse_cpp2_2f64e68d_static_triage.json",
   freshness="current",
-  source_run="round_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
+  source_run="round_20260606_cpp2_2f64e68d_static_triage_v1",
   sha256=<actual file sha256>,
   size_bytes=<actual size>,
   modified_at=<actual UTC timestamp>,
-  sample_id="cpp1_7b504c54"
+  sample_id="cpp2_2f64e68d"
 }
 ```
 
-必须重写 report 顶部：
+允许修改：
 
-```json
-{
-  "schema_version": 1,
-  "report_id": "report_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
-  "round_id": "round_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
-  "based_on_decision_id": "decision_20260606_cpp1_7b504c54_training_status_sync_rework_v1",
-  "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED",
-  "files_changed": [
-    "project_state/local_reverse_cpp1_7b504c54_training_status_sync.json",
-    "project_state/artifact_index.json",
-    "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt"
-  ],
-  "tests_ran": [
-    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state status --state-dir project_state",
-    "python -m pytest -q tests/test_local_reverse_training_status.py",
-    "python -c (readonly consistency check: sync artifact + artifact_index + training status + queue + overlay)",
-    "git diff --check",
-    "git status --short",
-    "git diff --name-status"
-  ],
-  "generated_artifacts": [
-    "project_state/local_reverse_cpp1_7b504c54_training_status_sync.json"
-  ]
-}
+```text
+project_state/local_reverse_cpp2_2f64e68d_static_triage.json
+project_state/artifact_index.json
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
 ```
 
-如果本轮还修改 training status/queue/overlay 或回退代码/测试，必须把这些文件补入 `files_changed` 并解释原因。不得漏报。
+按需允许新增薄 wrapper 与测试：
+
+```text
+reverse_agent/local_reverse_static_triage.py
+tests/test_local_reverse_static_triage.py
+```
+
+仅当没有现有 CLI 能调用 `run_ida_evidence` 时才新增 wrapper；wrapper 必须薄，不得重写 IDA/Ghidra/PE parser 能力。
+
+不得修改：
+
+```text
+project_state/local_reverse_training_status.json
+project_state/local_reverse_evaluation_queue.json
+training_materials/local_reverse/status_overlay.json
+project_state/local_reverse_cpp1_7b504c54_*.json
+reverse_agent/tool_runners.py
+reverse_agent/ida_scripts/collect_evidence.py
+reverse_agent/olly_scripts/*
+.codex-skills/*
+solve_reports/*
+```
 
 ---
 
@@ -318,51 +345,50 @@ latest_artifacts_v2.local_reverse_cpp1_7b504c54_training_status_sync = {
 
 ```bash
 python -m reverse_agent.project_state lint-decision --state-dir project_state
-python -m reverse_agent.project_state lint-report --state-dir project_state
-python -m reverse_agent.project_state status --state-dir project_state
-python -m pytest -q tests/test_local_reverse_training_status.py
+python -m pytest -q tests/test_project_state.py
+# 如果新增 wrapper，则运行：
+python -m py_compile reverse_agent/local_reverse_static_triage.py
+python -m pytest -q tests/test_local_reverse_static_triage.py
+# 执行静态 triage 命令；若 IDA/target 缺失，必须生成 BLOCKED artifact，而不是崩溃。
+python -m reverse_agent.local_reverse_static_triage --sample-id cpp2_2f64e68d --relative-path "逆向课程2025春03/CPP2.exe" --sha256 2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1 --out project_state/local_reverse_cpp2_2f64e68d_static_triage.json
 python - <<'PY'
 import json
 from pathlib import Path
-training=json.loads(Path('project_state/local_reverse_training_status.json').read_text(encoding='utf-8'))
-overlay=json.loads(Path('training_materials/local_reverse/status_overlay.json').read_text(encoding='utf-8'))
-queue=json.loads(Path('project_state/local_reverse_evaluation_queue.json').read_text(encoding='utf-8'))
-sync=json.loads(Path('project_state/local_reverse_cpp1_7b504c54_training_status_sync.json').read_text(encoding='utf-8'))
+triage=json.loads(Path('project_state/local_reverse_cpp2_2f64e68d_static_triage.json').read_text(encoding='utf-8'))
 index=json.loads(Path('project_state/artifact_index.json').read_text(encoding='utf-8'))
-validation=json.loads(Path('project_state/local_reverse_cpp1_7b504c54_runtime_validation.json').read_text(encoding='utf-8'))
-expected={'solved':2,'blocked':4,'needs_triage':0,'inventory_only':23}
-assert validation['sample_id']=='cpp1_7b504c54'
-assert validation['validation_status']=='VALIDATED_SUCCESS'
-assert validation['known_candidate']=='WeKnowItOk'
-assert validation['solved'] is True
-assert training['status_summary']==expected
-assert overlay['status_summary']==expected
-train_sample=next(s for s in training['samples'] if s['sample_id']=='cpp1_7b504c54')
-overlay_sample=next(s for s in overlay['samples'] if s['sample_id']=='cpp1_7b504c54')
-assert train_sample['training_status']=='solved'
-assert train_sample['known_candidate']=='WeKnowItOk'
-assert overlay_sample['training_status']=='solved'
-assert overlay_sample['known_candidate']=='WeKnowItOk'
-assert all(item['sample_id']!='cpp1_7b504c54' for item in queue['items'])
-assert [item['rank'] for item in queue['items']]==list(range(1, len(queue['items'])+1))
-assert sync['sample_id']=='cpp1_7b504c54'
-assert sync['training_status_after']=='solved'
-assert sync['known_candidate']=='WeKnowItOk'
-assert sync['queue_removed_sample'] is True
-assert sync['overlay_updated'] is True
-entry=index['latest_artifacts_v2']['local_reverse_cpp1_7b504c54_training_status_sync']
+assert triage['sample_id']=='cpp2_2f64e68d'
+assert triage['executed_sample'] is False
+assert triage['static_only'] is True
+assert triage['runtime_validated'] is False
+assert triage['candidate'] is None
+assert triage['known_candidate']==''
+assert triage['solved'] is False
+assert triage['status'] in ('STATIC_TRIAGE_COMPLETE','BLOCKED')
+entry=index['latest_artifacts_v2']['local_reverse_cpp2_2f64e68d_static_triage']
 assert entry['freshness']=='current'
-assert entry['kind']=='local_reverse_training_status_sync'
-assert entry['sample_id']=='cpp1_7b504c54'
-assert entry['source_run']=='round_20260606_cpp1_7b504c54_training_status_sync_rework_v1'
-print('training status sync rework consistency OK')
+assert entry['kind']=='local_reverse_single_sample_static_triage'
+assert entry['sample_id']=='cpp2_2f64e68d'
+assert entry['source_run']=='round_20260606_cpp2_2f64e68d_static_triage_v1'
+print('cpp2 static triage consistency OK')
 PY
+python -m reverse_agent.project_state lint-report --state-dir project_state
+python -m reverse_agent.project_state status --state-dir project_state
 git diff --check
 git status --short
 git diff --name-status
 ```
 
-`pytest_result.txt` 必须包含每条命令原文、Exit Code、输出摘要、PASSED/FAILED/BLOCKED 结果，以及本轮 decision_id/report_id/round_id。
+`pytest_result.txt` 必须包含：
+
+```text
+1. 每条命令原文；
+2. Exit Code；
+3. 输出摘要；
+4. PASSED/FAILED/BLOCKED 结果；
+5. 本轮 decision_id、round_id、report_id。
+```
+
+如果 IDA 或本地目标文件不可用，但 artifact 正确记录 `status=BLOCKED` 且测试闭合，Codex 报告可用 `status=SUCCESS`，但必须把 implementation result 说清楚：完成的是 bounded static triage attempt / blocked artifact，而不是完成 IDA triage。
 
 ---
 
@@ -371,29 +397,27 @@ git diff --name-status
 立即停止并报告 `BLOCKED` 或 `REWORK_REQUIRED`：
 
 ```text
-1. runtime validation artifact 缺失或不是 VALIDATED_SUCCESS。
-2. artifact_index 中 runtime validation entry 缺失或 freshness 不是 current。
-3. training_status/overlay/queue 当前状态与 solved=2、known_candidate=WeKnowItOk、queue exclude cpp1_7b504c54 不一致，且无法在不运行工具的情况下修正。
-4. 无法生成 sync artifact。
-5. 无法计算 sync artifact sha256/size/modified_at。
-6. lint-decision、lint-report 或 project_state status 失败。
-7. pytest_training_status 失败。
-8. git diff 包含 forbidden files。
-9. 需要运行样本、IDA/Ghidra/debugger/hook/emulator/CompareProbe 才能继续。
-10. 需要修改 runtime validation/XOR handoff/static triage artifact 才能继续。
-11. report 仍引用旧 runtime_validation decision 或旧 round。
-12. pytest_result 仍引用旧 runtime_validation decision 或旧 round。
+1. 当前 decision_packet 无法解析或 decision_meta 缺失。
+2. skill profile 不在 registry active skills 中。
+3. evaluation_queue rank 1 不再是 cpp2_2f64e68d，需要报告状态变化，不要猜测。
+4. artifact_index 已存在 current local_reverse_cpp2_2f64e68d_static_triage，且 provenance 指向当前样本；不要重复生成，转为 metadata audit。
+5. 需要运行目标样本或 runtime probe 才能继续。
+6. 需要运行 debugger/hook/emulator/CompareProbe 才能继续。
+7. 需要修改 training_status/evaluation_queue/status_overlay 才能继续。
+8. 需要新增重型 disassembler/PE parser 才能继续。
+9. 需要提交 binary、IDA DB、solve_reports 或临时目录才可继续。
+10. lint-report 或 project_state status 无法闭合。
+11. git diff 包含 forbidden files。
 ```
 
 成功完成的最低标准：
 
 ```text
-1. report/decision/round 三者匹配本 rework decision。
-2. pytest_result 匹配本 rework decision。
-3. sync artifact 存在且语义完整。
-4. artifact_index 登记 sync artifact 为 current。
-5. training_status、status_overlay、evaluation_queue 与 validated solved fact 一致。
-6. 未运行样本或工具。
-7. 未修改 runtime validation/XOR handoff/static triage artifact。
-8. 对上一轮代码/测试越界改动给出明确处理：保留并解释，或回退。
+1. 生成 cpp2_2f64e68d static triage artifact，状态为 STATIC_TRIAGE_COMPLETE 或 BLOCKED。
+2. artifact 明确 executed_sample=false、runtime_validated=false、solved=false。
+3. artifact_index 登记 current triage artifact。
+4. 未运行样本，未做 runtime。
+5. 未改训练状态/队列/overlay。
+6. report/pytest_result 与本 decision_id/round_id 匹配。
+7. 所有测试与 git 检查真实记录。
 ```
