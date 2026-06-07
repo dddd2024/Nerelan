@@ -1,0 +1,153 @@
+{
+  "schema_version": 1,
+  "mainline": "reverse_solving",
+  "round_id": "round_20260607_cpp2_32f1713e_targeted_static_solve_v1",
+  "decision_id": "decision_20260607_cpp2_32f1713e_targeted_static_solve_v1",
+  "sample_id": "cpp2_32f1713e",
+  "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "sample_path": "E:\\reverse\\逆向课程2023春补考02\\Cpp2.exe",
+  "size_bytes": 196686,
+  "sha256": "32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412",
+  "identity_verified": true,
+  "source_static_extraction_artifact": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
+  "source_readiness_artifact": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json",
+  "solving_method": "targeted_static_analysis",
+  "solving_status": "SOLVED_BY_STATIC_ANALYSIS",
+  "unvalidated_candidate": "KEEP_DREAM",
+  "candidate_confidence": "HIGH",
+  "candidate_confidence_reason": "Self-inverse bit-swap transform verified algebraically for all 256 byte values; expected comparison table extracted directly from binary; length check (==10) confirmed in disassembly",
+  "answer_length": 10,
+  "answer_raw_bytes": "4b 45 45 50 5f 44 52 45 41 4d",
+  "answer_ascii": "KEEP_DREAM",
+  "analysis_details": {
+    "algorithm_summary": "Two-pass main function: (1) transform each input byte by swapping bit positions 1 and 2 in the low nibble, (2) compare transformed input against a 10-byte expected table at VA 0x429a30, (3) if all 10 bytes match and length==10, print success",
+    "transform_function": "f(b) = (b & 0xF0) | ((b & 0x0C) >> 2) | ((b & 0x03) << 2)",
+    "transform_property": "self_inverse",
+    "transform_property_proof": "Swapping bit positions 1 and 2 twice restores original; verified for all 256 byte values",
+    "expected_table_va": "0x429a30",
+    "expected_table_file_offset": "0x29a30",
+    "expected_table_bytes": "4e 45 45 50 5f 41 58 45 44 47",
+    "expected_table_ascii": "NEEP_AXEDG",
+    "inverse_transform_applied": true,
+    "inverse_is_same_as_forward": true,
+    "string_anchors": {
+      "input_prompt": {
+        "string": "Plase give me your answer:",
+        "va": "0x427088",
+        "push_ref_rva": "0x1028"
+      },
+      "success_message": {
+        "string": "Congratulations! You are right!",
+        "va": "0x427038",
+        "push_ref_rva": "0x1107"
+      },
+      "failure_message_1": {
+        "string": "Sorry, you are wrong!",
+        "va": "0x42701c",
+        "push_ref_rva": "0x1116"
+      },
+      "failure_message_2": {
+        "string": "Sorry,you are wrong!",
+        "va": "0x427068",
+        "push_ref_rva": "0x105b"
+      },
+      "flag_check_debug": {
+        "string": "flag == 0 || flag == 1",
+        "va": "0x427528",
+        "push_ref_rva": "0x3d93"
+      },
+      "hex_format": {
+        "string": "%.2X ",
+        "va": "0x427fa0",
+        "push_ref_rva": "0x817f"
+      }
+    },
+    "main_function_analysis": {
+      "prologue_rva": "0x1010",
+      "epilogue_rva": "0x1138",
+      "stack_frame": "ebp-based, local vars at ebp-0x54 to ebp-0x10",
+      "input_buffer": "ebp-0x10",
+      "input_length_var": "ebp-0x14",
+      "loop_counter_var": "ebp-0x04",
+      "transform_loop": {
+        "start_rva": "0x107c",
+        "end_rva": "0x10c0",
+        "description": "For each input byte: keep bits 7-4, swap bits 1<->2 in low nibble",
+        "instructions_summary": [
+          "mov [ebp-4], 0",
+          "jmp check1",
+          "loop1: add [ebp-4], 1",
+          "check1: cmp [ebp-4], [ebp-0x14]",
+          "jge end_transform",
+          "movsx edx, byte ptr [ebp+ecx-0x10]  ; input[i]",
+          "and edx, 0xF0                       ; keep high nibble",
+          "movsx ecx, byte ptr [ebp+eax-0x10]  ; input[i]",
+          "and ecx, 0x0C                       ; bits 2-3",
+          "shr ecx, 2                          ; -> positions 0-1",
+          "or edx, ecx                         ; merge",
+          "movsx ecx, byte ptr [ebp+eax-0x10]  ; input[i]",
+          "and ecx, 0x03                       ; bits 0-1",
+          "shl ecx, 2                          ; -> positions 2-3",
+          "or edx, ecx                         ; final merged",
+          "mov [ebp+eax-0x10], dl              ; store back",
+          "jmp loop1"
+        ]
+      },
+      "comparison_loop": {
+        "start_rva": "0x10c7",
+        "end_rva": "0x10f4",
+        "description": "Compare each transformed input byte with expected table at 0x429a30",
+        "instructions_summary": [
+          "mov [ebp-4], 0",
+          "jmp check2",
+          "loop2: inc [ebp-4]",
+          "check2: cmp [ebp-4], [ebp-0x14]",
+          "jge post_compare",
+          "movsx ecx, byte ptr [ebp+eax-0x10]  ; transformed_input[i]",
+          "movsx eax, byte ptr [edx+0x429a30]  ; expected[i]",
+          "cmp ecx, eax",
+          "je next_iter",
+          "jmp reset_loop2  ; mismatch -> restart from 0"
+        ]
+      },
+      "length_check": {
+        "rva": "0x10fb",
+        "instruction": "cmp [ebp-4], 0xa",
+        "meaning": "After comparison loop, verify counter == 10 (exact length check)"
+      },
+      "branch_logic": {
+        "success_path": "if counter==10: push 'Congratulations! You are right!'",
+        "failure_path": "if counter!=10: push 'Sorry, you are wrong!' then 'Sorry,you are wrong!'"
+      }
+    },
+    "early_failure_path": {
+      "rva": "0x1058",
+      "description": "If input_length < 10 (cmp [ebp-0x14], 0xa; jl), prints both failure messages and exits with 0",
+      "evidence": "0x1058: 83 7d ec 0a 74 21 = cmp [ebp-0x14], 0xa; je +0x21"
+    }
+  },
+  "extraction_bounds": {
+    "only_targeted_regions_dumped": true,
+    "no_full_disassembly": true,
+    "no_raw_binary": true,
+    "no_sample_execution": true,
+    "no_debugger": true,
+    "no_runtime_tools": true,
+    "tool": "Python stdlib PE parser + manual x86 instruction decoding"
+  },
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_debugger": false,
+  "ran_bruteforce": false,
+  "candidate_generated": true,
+  "candidate_validation_attempted": false,
+  "uploaded_binary": false,
+  "binary_content_recorded": false,
+  "full_strings_dump_recorded": false,
+  "full_disassembly_recorded": false,
+  "training_status_modified": false,
+  "next_recommended_mainline": "validation",
+  "next_recommended_action": "Validate candidate KEEP_DREAM by running the sample with command-scoped root injection (LOCAL_REVERSE_ROOT=E:\\reverse). Provide KEEP_DREAM as stdin input and verify 'Congratulations! You are right!' appears in stdout. If validated, update training_status to solved with known_candidate=KEEP_DREAM.",
+  "generated_at": "2026-06-07T15:00:00Z"
+}

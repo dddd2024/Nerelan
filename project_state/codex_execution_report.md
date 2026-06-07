@@ -1,13 +1,13 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_32f1713e_bounded_static_extraction_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_bounded_static_extraction_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_bounded_static_extraction_v1",
+  "report_id": "report_20260607_cpp2_32f1713e_targeted_static_solving_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_targeted_static_solving_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_targeted_static_solving_v1",
   "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
-    "project_state/local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
+    "project_state/local_reverse_cpp2_32f1713e_targeted_static_solve.json",
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
@@ -23,8 +23,10 @@
     "git diff --name-status"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_cpp2_32f1713e_bounded_static_extraction.json"
-  ]
+    "project_state/local_reverse_cpp2_32f1713e_targeted_static_solve.json"
+  ],
+  "candidate": "KEEP_DREAM",
+  "candidate_confidence": "HIGH"
 }
 ```
 
@@ -33,97 +35,133 @@
 ## 1. Authority Confirmation
 
 - **decision_packet is the sole execution authority**: Confirmed.
-- **mainline = tool_integration**: Confirmed.
-- **This is bounded static extraction, not reverse_solving**: Confirmed.
+- **mainline = reverse_solving**: Confirmed.
+- **This is targeted static solving, not runtime validation**: Confirmed.
 - **task_packet.task remains advisory**: Confirmed.
 
 ## 2. State Preflight (Phase A)
 
-- Source readiness artifact: `local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json` — readiness_status=READY, ready_for_static_extraction=true, source_run=round_20260607_cpp2_32f1713e_command_scoped_env_readiness_v1. **Confirmed.**
-- Evaluation queue: items[0].sample_id=cpp2_32f1713e, forbidden_actions includes runtime_probe, bruteforce, upload_binary. **Confirmed.**
-- Training status: cpp2_32f1713e.training_status=inventory_only, known_candidate="", blocked_reason="". **Confirmed.**
-- Identity reverified: size=196686, sha256=32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412. **Match.**
+- Source static extraction artifact: `local_reverse_cpp2_32f1713e_bounded_static_extraction.json` — static_extraction_status=SUCCESS, challenge_type=console_password_checker. **Confirmed.**
+- Source readiness artifact: `local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json` — READY. **Confirmed.**
+- Identity reverified: size=196686, sha256=32f1713e... **Match.**
 
-## 3. Existing Capability Inspection (Phase B)
+## 3. String RVA Location (Phase B)
 
-Inspected existing interfaces:
-- `reverse_agent/local_reverse_single_sample_static_triage.py`: IDA-dependent, IDA executable not available on this system.
-- `reverse_agent/tool_runners.py`: IDA/ollydbg runners, IDA not available.
-- `reverse_agent/evidence.py`: StructuredEvidence class available.
-- `reverse_agent/static_feature_extractor.py`, `simple_static_patterns.py`: General-purpose, not sample-specific.
+All 6 target strings located in .rdata section:
 
-Decision: Used minimal Python stdlib PE header parser + strings extractor. No new permanent interface created. pefile/lief/IDA/radare2/objdump all unavailable.
+| String | VA | RVA |
+|--------|----|-----|
+| `Plase give me your answer:` | 0x427088 | 0x27088 |
+| `Congratulations! You are right!` | 0x427038 | 0x27038 |
+| `Sorry, you are wrong!` | 0x42701c | 0x2701c |
+| `Sorry,you are wrong!` | 0x427068 | 0x27068 |
+| `flag == 0 \|\| flag == 1` | 0x427528 | 0x27528 |
+| `%.2X ` | 0x427fa0 | 0x27fa0 |
 
-## 4. Static Extraction Results (Phase C)
+## 4. Reference Search (Phase C)
 
-### PE Metadata
-- **File type**: PE32 i386 (32-bit), image base 0x400000
-- **Entry point**: RVA 0x1440
-- **Subsystem**: Windows CUI (Console)
-- **Sections**: 5 (.text 153KB, .rdata 5.7KB, .data 22KB, .idata 2.1KB, .reloc 4.2KB)
-- **Single import DLL**: KERNEL32.dll (59 functions, statically linked CRT)
+All strings referenced via `push imm32` in .text section. Key reference locations:
 
-### Key Challenge Strings
-| String | Significance |
-|--------|-------------|
-| `Plase give me your answer:` | Input prompt (typo "Plase" is intentional) |
-| `Congratulations! You are right!` | Success message |
-| `Sorry, you are wrong!` / `Sorry,you are wrong!` | Failure messages (two variants) |
-| `flag == 0 \|\| flag == 1` | Binary flag check after comparison |
-| `%.2X ` | Hex format string (possible hex encoding) |
+| String | push RVA | Context |
+|--------|----------|---------|
+| Input prompt | 0x1028 | Main function entry |
+| Success | 0x1107 | Post-comparison success path |
+| Failure 1 | 0x1116 | Post-comparison failure path |
+| Failure 2 | 0x105b | Early failure (length < 10) |
+| Flag check | 0x3d93 | Debug/assert function |
+| Hex format | 0x817f | Unrelated utility function |
 
-### Solver Profile Hypotheses
-1. **direct_string_compare_password_checker**: Console input → string compare → flag-based success/failure
-2. **hex_encoded_comparison**: The `%.2X` format suggests hex encoding of input or expected value
+## 5. Comparison Region Recovery (Phase C)
 
-## 5. Artifact Generated (Phase D)
+### Main Function Structure (RVA 0x1010-0x1140)
 
-`project_state/local_reverse_cpp2_32f1713e_bounded_static_extraction.json`:
-- static_extraction_status = **SUCCESS**
-- identity_verified = **true**
-- All forbidden flags = false
-- next_recommended_mainline = **reverse_solving**
+**Step 1 — Input**: `scanf` reads input into buffer at `[ebp-0x10]`, length stored at `[ebp-0x14]`.
 
-## 6. Artifact Index Registration (Phase E)
+**Step 2 — Early length check** (RVA 0x1058): `cmp [ebp-0x14], 0xa; je +0x21` — if length != 10, prints both failure messages and exits.
+
+**Step 3 — Transform loop** (RVA 0x107c-0x10c0): For each input byte `b`:
+```
+result = (b & 0xF0) | ((b & 0x0C) >> 2) | ((b & 0x03) << 2)
+```
+This swaps bit positions 1 and 2 in the low nibble. **Property: self-inverse** (verified for all 256 values).
+
+**Step 4 — Comparison loop** (RVA 0x10c7-0x10f4): Compares each transformed byte with expected table at VA `0x429a30`. On mismatch, resets counter to 0 (infinite retry pattern).
+
+**Step 5 — Length re-check** (RVA 0x10fb): `cmp [ebp-4], 0xa` — verifies exactly 10 bytes matched.
+
+**Step 6 — Branch**: counter==10 → "Congratulations!", counter!=10 → "Sorry, you are wrong!"
+
+### Expected Table at VA 0x429a30
+```
+4e 45 45 50 5f 41 58 45 44 47  (ASCII: NEEP_AXEDG)
+```
+
+## 6. Solving (Phase D)
+
+Since the transform is self-inverse:
+```
+answer[i] = transform(expected[i])
+```
+
+| Index | Expected | Transform | Answer |
+|-------|----------|-----------|--------|
+| 0 | 0x4E (N) | 0x4B | K |
+| 1 | 0x45 (E) | 0x45 | E |
+| 2 | 0x45 (E) | 0x45 | E |
+| 3 | 0x50 (P) | 0x50 | P |
+| 4 | 0x5F (_) | 0x5F | _ |
+| 5 | 0x41 (A) | 0x44 | D |
+| 6 | 0x58 (X) | 0x52 | R |
+| 7 | 0x45 (E) | 0x45 | E |
+| 8 | 0x44 (D) | 0x41 | A |
+| 9 | 0x47 (G) | 0x4D | M |
+
+**Answer: `KEEP_DREAM`**
+
+## 7. Artifact Generated (Phase D)
+
+`project_state/local_reverse_cpp2_32f1713e_targeted_static_solve.json`:
+- solving_status = **SOLVED_BY_STATIC_ANALYSIS**
+- unvalidated_candidate = **KEEP_DREAM**
+- candidate_confidence = **HIGH**
+
+## 8. Artifact Index Registration (Phase E)
 
 Registered in all three locations:
-- `latest_artifacts["local_reverse_cpp2_32f1713e_bounded_static_extraction"]`
-- `latest_artifacts_v2["local_reverse_cpp2_32f1713e_bounded_static_extraction"]` (freshness=current, sha256=07efe99d...)
-- `artifact_refs["local_reverse_cpp2_32f1713e_bounded_static_extraction"]`
+- `latest_artifacts["local_reverse_cpp2_32f1713e_targeted_static_solve"]`
+- `latest_artifacts_v2["local_reverse_cpp2_32f1713e_targeted_static_solve"]` (sha256=c60524c8...)
+- `artifact_refs["local_reverse_cpp2_32f1713e_targeted_static_solve"]`
 
-No changes to training_status/status_overlay or cpp2_2f64e68d solved facts.
+## 9. Limitation Note
 
-## 7. Limitation Note
+Candidate derived from pure static analysis. The self-inverse property was algebraically verified for all 256 byte values, giving HIGH confidence. However, runtime validation has not been performed.
 
-Static evidence only — no candidate validation, no runtime testing. The `%.2X` format string and `flag == 0 || flag == 1` code cue suggest a hex-encoded comparison pattern, but this requires a separate reverse_solving decision to confirm.
-
-## 8. Audit Checklist
+## 10. Audit Checklist
 
 | # | Check | Result |
 |---|-------|--------|
 | 1 | Confirmed decision_packet is sole authority | PASS |
-| 2 | Confirmed mainline=tool_integration | PASS |
-| 3 | Confirmed this is bounded static extraction, not reverse_solving | PASS |
+| 2 | Confirmed mainline=reverse_solving | PASS |
+| 3 | Confirmed this is targeted static solving | PASS |
 | 4 | Confirmed task_packet.task remains advisory | PASS |
-| 5 | Confirmed source readiness is current and READY | PASS |
-| 6 | Confirmed cpp2_32f1713e remains rank 1 / inventory_only / known_candidate="" | PASS |
+| 5 | Source static extraction artifact current and SUCCESS | PASS |
+| 6 | Identity reverified by size and sha256 | PASS |
 | 7 | Used command-scoped LOCAL_REVERSE_ROOT=E:\reverse | PASS |
-| 8 | Verified path/size/sha256 before extraction | PASS |
-| 9 | Inspected existing IDA/Ghidra/static interfaces | PASS |
-| 10 | Tools used: Python stdlib PE parser + strings extractor; unavailable: IDA, pefile, lief, radare2, objdump | PASS |
-| 11 | No duplicate interface created | PASS |
-| 12 | Generated bounded_static_extraction.json | PASS |
-| 13 | Artifact includes PE identity, sections, imports, strings, indicators, handoff | PASS |
-| 14 | Strings capped at 80/160 chars | PASS |
-| 15 | Registered in latest_artifacts/latest_artifacts_v2/artifact_refs | PASS |
-| 16 | No sample execution | PASS |
-| 17 | No debugger/hook/emulator/runtime probe/winpty | PASS |
-| 18 | No brute force/dictionary/solver/candidate validation | PASS |
-| 19 | No candidate generated or solved/blocked status change | PASS |
-| 20 | No binary uploaded/copied/embedded/committed | PASS |
-| 21 | Preserved training_status/status_overlay and cpp2_2f64e68d solved facts | PASS |
-| 22 | negative_results unchanged | PASS |
+| 8 | All 6 target strings located with RVA/VA | PASS |
+| 9 | All push references found in .text | PASS |
+| 10 | Main function comparison logic fully recovered | PASS |
+| 11 | Transform function identified and algebraically verified | PASS |
+| 12 | Self-inverse property confirmed for all 256 values | PASS |
+| 13 | Expected table extracted from binary | PASS |
+| 14 | Candidate KEEP_DREAM derived by inverse transform | PASS |
+| 15 | No sample execution | PASS |
+| 16 | No debugger/hook/emulator/runtime probe | PASS |
+| 17 | No brute force/dictionary | PASS |
+| 18 | No candidate runtime validation attempted | PASS |
+| 19 | No binary uploaded/copied/embedded/committed | PASS |
+| 20 | Artifact contains no raw binary or full disassembly | PASS |
+| 21 | Preserved training_status/status_overlay | PASS |
+| 22 | Registered in latest_artifacts/latest_artifacts_v2/artifact_refs | PASS |
 | 23 | Ran py_compile/pytest/lint/status/git checks | PASS |
 | 24 | pytest_result uses this decision_id/report_id/round_id | PASS |
-| 25 | Final lint-report run after report write | PASS |
-| 26 | git diff only contains allowed files | PASS |
+| 25 | git diff only contains allowed files | PASS |

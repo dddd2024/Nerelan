@@ -93,7 +93,8 @@
     "local_reverse_winpty_py_target_spawn_fix": "project_state\\local_reverse_winpty_py_target_spawn_fix.json",
     "local_reverse_cpp2_32f1713e_local_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_local_env_readiness.json",
     "local_reverse_cpp2_32f1713e_command_scoped_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json",
-    "local_reverse_cpp2_32f1713e_bounded_static_extraction": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json"
+    "local_reverse_cpp2_32f1713e_bounded_static_extraction": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
+    "local_reverse_cpp2_32f1713e_targeted_static_solve": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1056,6 +1057,19 @@
       "static_extraction_status": "SUCCESS",
       "identity_verified": true,
       "source_readiness_artifact": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json"
+    },
+    "local_reverse_cpp2_32f1713e_targeted_static_solve": {
+      "kind": "local_reverse_targeted_static_solve",
+      "path": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_32f1713e_targeted_static_solve_v1",
+      "sha256": "c60524c8165ea5b22e911f0a9d985f525b237d6afabdfa3560e4cc5c135f30b3",
+      "size_bytes": 6689,
+      "modified_at": "2026-06-07T15:00:00Z",
+      "sample_id": "cpp2_32f1713e",
+      "solving_status": "SOLVED_BY_STATIC_ANALYSIS",
+      "unvalidated_candidate": "KEEP_DREAM",
+      "candidate_confidence": "HIGH"
     }
   },
   "latest_case_results": [
@@ -1205,6 +1219,7 @@
     "local_reverse_training_status_summary_sync": "project_state\\local_reverse_training_status_summary_sync.json",
     "local_reverse_cpp2_32f1713e_local_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_local_env_readiness.json",
     "local_reverse_cpp2_32f1713e_command_scoped_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json",
-    "local_reverse_cpp2_32f1713e_bounded_static_extraction": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json"
+    "local_reverse_cpp2_32f1713e_bounded_static_extraction": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
+    "local_reverse_cpp2_32f1713e_targeted_static_solve": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json"
   }
 }
