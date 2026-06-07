@@ -1,27 +1,28 @@
-decision_id=decision_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1
-report_id=report_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1
-round_id=round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1
+decision_id=decision_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1
+report_id=report_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1
+round_id=round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1
 
 === Content Assertions ===
-1. source sync artifact is current/solved/KEEP_DREAM: PASS
-2. source validation artifact is current/VALIDATED: PASS
-3. pre-refresh task_packet recent_solved was stale (cpp2_2f64e68d): PASS
-4. post-refresh task_packet recent_solved is cpp2_32f1713e/KEEP_DREAM: PASS
-5. post-refresh task_packet training_summary: solved=4, inventory_only=21: PASS
-6. post-refresh task_packet next_queue_hint is cpp2_883e67b9: PASS
-7. pre-refresh current_state recent_solved was stale (cpp2_2f64e68d): PASS
-8. post-refresh current_state recent_solved is cpp2_32f1713e/KEEP_DREAM: PASS
-9. post-refresh current_state training_summary: solved=4, inventory_only=21: PASS
-10. post-refresh current_state next_queue_hint is cpp2_883e67b9: PASS
-11. queue refresh artifact exists: PASS
-12. artifact_index registers local_reverse_cpp2_32f1713e_queue_refresh as current: PASS
-13. no sample executable was run: PASS
-14. no runtime tools/debugger/hook/emulator/probe: PASS
-15. no brute force/dictionary/search/fuzzing: PASS
-16. no binary was uploaded, copied, embedded, or committed: PASS
-17. no training_status.json or status_overlay.json changes in this round: PASS
-18. pytest_result uses this decision_id/report_id/round_id: PASS
-19. git diff --name-status only contains allowed files: PASS
+1. source training_status_sync artifact is current/solved/KEEP_DREAM: PASS
+2. legacy queue_refresh artifact identified with wrong accepted_round: PASS
+3. task_packet accepted_round updated to training_status_sync round: PASS
+4. current_state accepted_round updated to training_status_sync round: PASS
+5. task_packet allowed_actions includes bounded_static_extraction_readiness: PASS
+6. task_packet forbidden_actions includes debugger/hook/emulator: PASS
+7. task_packet next_suggested_task mentions cpp2_883e67b9: PASS
+8. current_state allowed_actions includes bounded_static_extraction_readiness: PASS
+9. current_state forbidden_actions includes debugger/hook/emulator: PASS
+10. new artifact filename = local_reverse_queue_refresh_after_cpp2_32f1713e.json: PASS
+11. new artifact decision_id/round_id match this rework decision: PASS
+12. artifact_index registers local_reverse_queue_refresh_after_cpp2_32f1713e as current: PASS
+13. old artifact marked stale in latest_artifacts_v2: PASS
+14. no sample executable was run: PASS
+15. no runtime tools/debugger/hook/emulator/probe: PASS
+16. no brute force/dictionary/search: PASS
+17. no binary was uploaded, copied, embedded, or committed: PASS
+18. pytest_result uses this rework decision_id/report_id/round_id: PASS
+19. final lint-report ran after report write: PASS
+20. git diff --name-status only contains allowed files: PASS
 
 === pytest output ===
 158 passed in tests/test_project_state.py

@@ -9712,7 +9712,7 @@
       "sample_id": "cpp2_32f1713e",
       "known_candidate": "KEEP_DREAM",
       "validation_artifact": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
-      "accepted_round": "round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1"
+      "accepted_round": "round_20260607_cpp2_32f1713e_training_status_sync_v1"
     },
     "local_reverse_training_summary": {
       "sample_count": 29,
@@ -9725,8 +9725,8 @@
       "sample_id": "cpp2_883e67b9",
       "relative_path": "逆向课程2024春02/CPP2.exe",
       "proposed_next_mainline": "tool_integration",
-      "allowed_actions": ["static_triage"],
-      "forbidden_actions": ["runtime_probe", "bruteforce", "upload_binary"]
+      "allowed_actions": ["static_triage", "bounded_static_extraction_readiness"],
+      "forbidden_actions": ["runtime_probe", "brute_force", "debugger", "hook", "emulator", "upload_binary"]
     },
     "scope_note": "samplereverse fields are retained as compatibility/background; this local_reverse_training block is the current local_reverse evidence entrypoint."
   }

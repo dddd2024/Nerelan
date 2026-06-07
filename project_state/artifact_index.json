@@ -98,7 +98,8 @@
     "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
     "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
     "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json",
-    "local_reverse_cpp2_32f1713e_queue_refresh": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json"
+    "local_reverse_cpp2_32f1713e_queue_refresh": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json",
+    "local_reverse_queue_refresh_after_cpp2_32f1713e": "project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1134,7 +1135,7 @@
     "local_reverse_cpp2_32f1713e_queue_refresh": {
       "kind": "local_reverse_queue_refresh",
       "path": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json",
-      "freshness": "current",
+      "freshness": "stale",
       "source_run": "round_20260607_cpp2_32f1713e_queue_refresh_v1",
       "sha256": "3d7c823b0991d5cd96ecf6be06869ae6c9cad1e051dfef0f089c62dfaa4bbaa8",
       "size_bytes": 2843,
@@ -1142,6 +1143,20 @@
       "sample_id": "cpp2_32f1713e",
       "refresh_type": "post_solve_queue_and_low_token_state_refresh",
       "next_queue_hint_sample_id": "cpp2_883e67b9"
+    },
+    "local_reverse_queue_refresh_after_cpp2_32f1713e": {
+      "kind": "local_reverse_queue_refresh",
+      "path": "project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json",
+      "freshness": "current",
+      "source_run": "round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1",
+      "sha256": "d4e1d3e8e0c8a3f5b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0",
+      "size_bytes": 2153,
+      "modified_at": "2026-06-07T15:00:00Z",
+      "sample_id": "cpp2_32f1713e",
+      "refresh_type": "post_solve_queue_and_low_token_state_refresh",
+      "next_queue_hint_sample_id": "cpp2_883e67b9",
+      "rework_of": "local_reverse_cpp2_32f1713e_queue_refresh",
+      "rework_reason": "path_key_provenance_and_low_token_field_alignment"
     }
   },
   "latest_case_results": [
@@ -1296,6 +1311,7 @@
     "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
     "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
     "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json",
-    "local_reverse_cpp2_32f1713e_queue_refresh": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json"
+    "local_reverse_cpp2_32f1713e_queue_refresh": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json",
+    "local_reverse_queue_refresh_after_cpp2_32f1713e": "project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json"
   }
 }
