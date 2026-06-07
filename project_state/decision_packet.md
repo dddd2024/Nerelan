@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_local_reverse_training_status_summary_sync_v1",
-  "round_id": "round_20260607_local_reverse_training_status_summary_sync_v1",
+  "decision_id": "decision_20260607_cpp2_32f1713e_static_triage_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_static_triage_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
-  "mainline": "training_dataset",
+  "mainline": "tool_integration",
   "skill_profiles": [
     "reverse-agent-iteration@v2"
   ]
@@ -17,127 +17,146 @@
 
 ## 1. Goal
 
-本轮主线是 **training_dataset**。
+本轮主线是 **tool_integration**。
 
-目标：修复上一轮审计中留下的唯一状态一致性限制：`project_state/local_reverse_training_status.json` 顶部 `status_summary` 仍显示 `solved=2 / blocked=5`，但样本列表、`status_overlay.json`、`current_state.json` 和 post-solve sync artifact 已经确认 `cpp2_2f64e68d` 为 `solved / 10013`，训练集汇总应为：
+目标：对训练队列第一项 `cpp2_32f1713e` 做一次 **bounded static triage**，确认该本地 PE 样本的静态证据入口、可复用工具接口和后续候选分析路线。
+
+本轮不是求解，不生成 candidate，不做 runtime validation。允许的动作仅限：
 
 ```text
-sample_count=29
-solved=3
-blocked=4
-needs_triage=0
-inventory_only=22
+sample_id=cpp2_32f1713e
+relative_path=逆向课程2023春补考02/Cpp2.exe
+mainline=tool_integration
+allowed_actions=[static_triage]
+forbidden_actions=[runtime_probe, bruteforce, upload_binary]
 ```
 
-本轮只做 **training status aggregate summary sync**，不做新样本求解，不进入 `reverse_solving`，不运行样本、IDA/Ghidra/debugger/hook/emulator/solver/bruteforce/runtime probe。
-
-必须保持已接受事实：
+本轮必须产出一个可审计的静态 triage artifact，并登记到 artifact_index：
 
 ```text
-sample_id=cpp2_2f64e68d
-training_status=solved
-known_candidate=10013
-classification=oracle_backed_runtime_validated
-accepted_validation_artifact=project_state/local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json
-accepted_rework_round=round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1
-post_solve_sync_artifact=project_state/local_reverse_post_solve_state_sync.json
+project_state/local_reverse_cpp2_32f1713e_static_triage.json
+```
+
+Artifact 目标不是证明答案，而是回答：
+
+```text
+1. 该样本在训练队列和训练状态中是否仍是 inventory_only。
+2. 现有项目中可复用哪些静态/IDA/StructuredEvidence/solver/harness 接口。
+3. 当前样本是否已有 current 静态 artifact；若没有，是否能用已有接口生成静态证据。
+4. 初步识别样本类型、PE 元数据、字符串/导入/比较点/常量线索。
+5. 给出下一轮 reverse_solving 或继续 tool_integration 的最小可执行建议。
 ```
 
 ---
 
 ## 2. Current Evidence
 
-当前 `decision_packet.md` 是本轮唯一执行权威。`project_state/task_packet.json` 中的 `task` 仍是旧 `samplereverse` advisory，不控制本轮。
+当前 `decision_packet.md` 是本轮唯一执行权威。`project_state/task_packet.json` 的 `task` 仍是旧 `samplereverse` advisory，不控制本轮。
 
-上一轮审计结论为 `ACCEPTED_WITH_LIMITATIONS`，限制点为：
+最近一轮 `training_dataset` 汇总同步已经 ACCEPTED：
 
 ```text
 project_state/local_reverse_training_status.json:
-  top-level status_summary still says solved=2, blocked=5, inventory_only=22.
+  sample_count=29
+  solved=3
+  blocked=4
+  needs_triage=0
+  inventory_only=22
 
-But sample entry cpp2_2f64e68d says:
-  training_status=solved
-  known_candidate=10013
-  classification=oracle_backed_runtime_validated
-```
-
-已同步的新事实：
-
-```text
-training_materials/local_reverse/status_overlay.json:
-  generated_at=2026-06-07T15:00:00Z
-  status_summary.solved=3
-  status_summary.blocked=4
-  status_summary.needs_triage=0
-  status_summary.inventory_only=22
-  cpp2_2f64e68d.training_status=solved
-  cpp2_2f64e68d.known_candidate=10013
-
-project_state/local_reverse_post_solve_state_sync.json:
-  mainline=training_dataset
+project_state/local_reverse_training_status_summary_sync.json:
   executed_sample=false
   ran_static_tools=false
   ran_runtime_tools=false
-  updated_sample_id=cpp2_2f64e68d
-  known_candidate=10013
-  status_summary_after={sample_count=29, solved=3, blocked=4, needs_triage=0, inventory_only=22}
-
-project_state/artifact_index.json:
-  latest_artifacts_v2.local_reverse_post_solve_state_sync.freshness=current
-  source_run=round_20260607_local_reverse_post_solve_state_sync_rework_v1
+  before_summary={sample_count=29, solved=2, blocked=5, needs_triage=0, inventory_only=22}
+  after_summary={sample_count=29, solved=3, blocked=4, needs_triage=0, inventory_only=22}
 ```
 
-`negative_results.json` 主要记录旧 `samplereverse` 禁止方向。本轮是训练集状态汇总同步，不应新增 negative result，也不得触碰旧 blind search、guided pool、Base64/RC4 breakpoint probe、CompareProbe 或任意样本求解方向。
-
-现有相关能力：
+Current queue context:
 
 ```text
-project_state lint-decision / lint-report / status already exists.
-tests/test_project_state.py already covers project_state lint behavior.
-artifact_index latest_artifacts and latest_artifacts_v2 both exist and must be kept compatible.
+project_state/local_reverse_evaluation_queue.json:
+  queue_policy=simple_static_first_unsolved_only
+  exclude_solved_samples includes cpp2_2f64e68d
+  rank 1 sample_id=cpp2_32f1713e
+  relative_path=逆向课程2023春补考02/Cpp2.exe
+  proposed_next_mainline=tool_integration
+  allowed_actions=[static_triage]
+  forbidden_actions=[runtime_probe, bruteforce, upload_binary]
 ```
+
+Training status context:
+
+```text
+project_state/local_reverse_training_status.json:
+  cpp2_32f1713e.training_status=inventory_only
+  cpp2_32f1713e.known_candidate=""
+  cpp2_32f1713e.blocked_reason=""
+  cpp2_32f1713e.classification=""
+  cpp2_32f1713e.next_action="static triage and manual evaluation required"
+```
+
+Existing related capabilities found in repository state/search and must be inspected before implementation:
+
+```text
+reverse_agent/local_reverse_ida_guided_solver.py
+reverse_agent/local_reverse_targeted_static_reextract.py
+reverse_agent/local_reverse_constraint_recovery.py
+reverse_agent/local_reverse_training_status.py
+reverse_agent/project_state.py
+project_state/local_reverse_ida_summary.json
+project_state/local_reverse_ida_solver_result.json
+project_state/local_reverse_forced_ida_extraction_result.json
+project_state/local_reverse_training_status_summary_sync.json
+```
+
+Known existing static/IDA evidence keys in artifact_index/current_state include prior local_reverse IDA evidence and solver outputs for other samples, but there is no current static triage artifact for `cpp2_32f1713e`. Do not treat artifacts for other samples as current evidence for this sample.
+
+`negative_results.json` mainly records old `samplereverse` forbidden directions. They remain applicable as global safety constraints: do not return to blind search, do not expand beam/budget, do not run breakpoint probes, and do not commit solve_reports.
 
 ---
 
 ## 3. Do Not Do
 
-严禁：
+Strictly forbidden:
 
 ```text
-1. 不把 task_packet.task 当作当前轮任务。
-2. 不运行任何样本。
-3. 不运行 IDA/Ghidra/debugger/hook/emulator/solver/bruteforce/runtime probe。
-4. 不分析 cpp2_32f1713e；它只能继续作为 next_queue_hint。
-5. 不打开本地样本二进制，不上传或提交任何样本文件。
-6. 不扫描完整 solve_reports、PROJECT_PROGRESS_LOG.txt、本地训练样本目录。
-7. 不重建全量 inventory。
-8. 不修改 .codex-skills。
-9. 不提交 .venv、site-packages、wheel、DLL、EXE、sample binary、solve_reports。
-10. 不改变任何样本的 training_status / known_candidate / blocked_reason / classification。
-11. 不把 10013 写入除 cpp2_2f64e68d 外的任何样本。
-12. 不删除 current_state.json、task_packet.json、artifact_index.json 的旧兼容字段。
-13. 不把 cpp2_32f1713e 写成当前执行任务；它只能作为下一轮 tool_integration/static_triage 建议。
-14. 不修改 reverse_agent 源码，除非 lint 工具本身无法读取现有状态；若需要源码修改，停止并写 BLOCKED。
+1. Do not treat task_packet.task as current execution authority.
+2. Do not solve cpp2_32f1713e in this round.
+3. Do not generate or validate a candidate.
+4. Do not run the sample executable.
+5. Do not run debugger, hook, emulator, runtime probe, console validator, winpty, or dynamic harness.
+6. Do not bruteforce or run dictionary search.
+7. Do not upload, copy, commit, base64-embed, or otherwise add any sample binary to GitHub.
+8. Do not commit solve_reports, .venv, site-packages, wheel, DLL, EXE, PDB, dump, screenshot, or local binary data.
+9. Do not scan full solve_reports, full PROJECT_PROGRESS_LOG.txt, or the entire local sample tree.
+10. Do not rebuild full inventory.
+11. Do not modify .codex-skills.
+12. Do not create a duplicate IDA/Ghidra/debugger interface if an existing interface can be reused.
+13. Do not mark cpp2_32f1713e solved or blocked in training_status/status_overlay.
+14. Do not change any existing solved sample, especially cpp2_2f64e68d / 10013.
+15. Do not use stale artifacts for other samples as current evidence for cpp2_32f1713e.
 ```
 
-允许：
+Allowed:
 
 ```text
-1. 读取默认 project_state 文件。
-2. 读取 .codex-skills/registry.json 以确认 skill profile 合法。
-3. 读取 local_reverse_training_status、status_overlay、evaluation_queue、post_solve_state_sync、accepted validation artifact。
-4. 小范围更新 project_state/local_reverse_training_status.json 的 generated_at、status_summary、兼容计数字段和 provenance 字段。
-5. 生成 project_state/local_reverse_training_status_summary_sync.json。
-6. 更新 artifact_index.latest_artifacts 和 latest_artifacts_v2，登记 local_reverse_training_status_summary_sync。
-7. 必要时在 current_state/task_packet 添加一个低 token 的 summary_sync artifact 指针；不得改变 task_packet.task。
-8. 写 codex_execution_report.md 与 pytest_result.txt。
+1. Read default project_state files.
+2. Read .codex-skills/registry.json.
+3. Inspect existing local_reverse static/IDA/training modules and tests.
+4. Read local inventory/training metadata for cpp2_32f1713e only.
+5. If the local binary exists, run static-only metadata extraction using mature tools or existing project wrappers: file/strings/objdump/radare2/pefile/IDA batch static export, with no process execution.
+6. If IDA/Ghidra/static tools are unavailable, record availability=false and proceed with repository metadata/static alternatives only.
+7. Generate project_state/local_reverse_cpp2_32f1713e_static_triage.json.
+8. Update artifact_index latest_artifacts and latest_artifacts_v2 for the new artifact.
+9. Optionally add low-token pointers in current_state/task_packet; preserve old fields and task advisory semantics.
+10. Write codex_execution_report.md and pytest_result.txt.
 ```
 
 ---
 
 ## 4. Files To Inspect
 
-必须读取：
+Must inspect:
 
 ```text
 project_state/task_packet.json
@@ -149,226 +168,238 @@ project_state/codex_execution_report.md
 project_state/pytest_result.txt
 .codex-skills/registry.json
 project_state/local_reverse_training_status.json
-project_state/local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json
-project_state/local_reverse_post_solve_state_sync.json
-training_materials/local_reverse/status_overlay.json
 project_state/local_reverse_evaluation_queue.json
+project_state/local_reverse_training_status_summary_sync.json
+training_materials/local_reverse/status_overlay.json
 reverse_agent/project_state.py
+reverse_agent/local_reverse_training_status.py
+reverse_agent/local_reverse_ida_guided_solver.py
+reverse_agent/local_reverse_targeted_static_reextract.py
+reverse_agent/local_reverse_constraint_recovery.py
 tests/test_project_state.py
 ```
 
-不要默认读取：
+Inspect if present and directly relevant:
 
 ```text
-solve_reports/ 全量
-PROJECT_PROGRESS_LOG.txt 全量
-project_state/rounds/ 全量历史
-local_reverse_samples/ 或 E:\reverse 全量目录
+project_state/local_reverse_inventory.json
+project_state/local_reverse_ida_summary.json
+project_state/local_reverse_ida_solver_result.json
+project_state/local_reverse_forced_ida_extraction_result.json
+project_state/local_reverse_cpp2_32f1713e_static_triage.json  # should be missing/stale before this round
+```
+
+Do not default-read:
+
+```text
+solve_reports/ full tree
+PROJECT_PROGRESS_LOG.txt full file
+project_state/rounds/ full history
+local_reverse_samples/ full tree
+E:\reverse full tree
 ```
 
 ---
 
 ## 5. Required Audit
 
-Codex 报告必须回答：
+Codex report must answer:
 
 ```text
-1. 是否确认当前 decision_packet 是本轮唯一执行权威。
-2. 是否确认本轮主线为 training_dataset。
-3. 是否确认本轮只是 aggregate summary sync，不是新样本求解。
-4. 是否确认本轮没有运行任何样本。
-5. 是否确认本轮没有运行 IDA/Ghidra/debugger/hook/emulator/solver/bruteforce/runtime probe。
-6. 是否确认 accepted validation artifact 存在且 validation_status=VALIDATED_SUCCESS。
-7. 是否确认 cpp2_2f64e68d known_candidate=10013 且只作用于该样本。
-8. 是否确认 status_overlay summary 为 solved=3 blocked=4 inventory_only=22。
-9. 是否确认 local_reverse_training_status 样本列表中 cpp2_2f64e68d 已是 solved/10013。
-10. 是否更新 local_reverse_training_status 顶部 status_summary 为 solved=3 blocked=4 needs_triage=0 inventory_only=22。
-11. 是否同步 legacy 兼容字段 solved_count=3 blocked_count=4 inventory_only_count=22。
-12. 是否未改变任何 samples[] 条目的 training_status/known_candidate/blocked_reason/classification。
-13. 是否生成 project_state/local_reverse_training_status_summary_sync.json。
-14. 是否更新 artifact_index 的 latest_artifacts 和 latest_artifacts_v2。
-15. 是否说明 negative_results 未更新的理由。
-16. 是否确认 task_packet.task 未变成 cpp2_32f1713e 执行任务。
-17. 是否确认 cpp2_32f1713e 仍只是 next_queue_hint，没有执行。
-18. 是否补跑 py_compile reverse_agent/project_state.py。
-19. 是否确认 pytest_result.txt 使用本 decision_id/report_id/round_id。
-20. 是否确认 final lint-report 是写入本轮 report 后的最终成功记录。
-21. 是否确认 git diff --check、git status --short、git diff --name-status 均有真实输出记录。
-22. 是否确认没有提交 .venv、site-packages、wheel、DLL、EXE、sample binary、solve_reports 或 .codex-skills。
+1. Did it confirm decision_packet is the sole execution authority?
+2. Did it confirm mainline=tool_integration?
+3. Did it confirm task_packet.task remains advisory and not this round's task?
+4. Did it confirm cpp2_32f1713e is rank 1 in local_reverse_evaluation_queue?
+5. Did it confirm cpp2_32f1713e is inventory_only before this round?
+6. Did it confirm no sample executable was run?
+7. Did it confirm no debugger/hook/emulator/runtime probe/winpty/console validator was run?
+8. Did it confirm no bruteforce/dictionary search/candidate validation was run?
+9. Did it confirm no sample binary was uploaded or committed?
+10. Did it inspect existing static/IDA/tool interfaces before adding any code?
+11. Did it avoid duplicate IDA/Ghidra/debugger interface implementation?
+12. Did it list which mature/static tools were available and used or unavailable?
+13. Did it generate project_state/local_reverse_cpp2_32f1713e_static_triage.json?
+14. Did the static triage artifact record tool availability, metadata source, sample id/path/sha if available, and extracted static evidence?
+15. Did it register the new artifact in artifact_index.latest_artifacts and latest_artifacts_v2?
+16. Did it preserve training_status/status_overlay sample state and not mark solved/blocked?
+17. Did it preserve old current_state/task_packet compatibility fields?
+18. Did it explain why negative_results was not changed, or update it only if a new failed direction was actually discovered?
+19. Did it run py_compile and pytest/lint checks?
+20. Did pytest_result.txt use this decision_id/report_id/round_id?
+21. Did final lint-report run after report write?
+22. Did git diff only contain allowed files?
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-小范围修复，不新增工具，不跨主线扩张。
+Small bounded task. Prefer mature tools and existing wrappers. Do not add heavy architecture.
 
-### Phase A — preflight
+### Phase A — preflight state checks
 
-必须使用 `.venv\Scripts\python`。
+Use `.venv\Scripts\python` for Python commands.
 
-读取并断言：
+Assert:
 
 ```text
-project_state/local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json:
-  validation_status=VALIDATED_SUCCESS
-  runtime_validated=true
-  candidate=10013
-  known_candidate=10013
-  solved=true
-  timeout_after_oracle_signal_captured=true
+project_state/local_reverse_evaluation_queue.json:
+  items[0].sample_id == cpp2_32f1713e
+  items[0].allowed_actions == [static_triage]
+  items[0].forbidden_actions includes runtime_probe, bruteforce, upload_binary
 
-project_state/local_reverse_post_solve_state_sync.json:
-  mainline=training_dataset
-  executed_sample=false
-  ran_static_tools=false
-  ran_runtime_tools=false
-  updated_sample_id=cpp2_2f64e68d
-  known_candidate=10013
-  status_summary_after.solved=3
-  status_summary_after.blocked=4
-  status_summary_after.needs_triage=0
-  status_summary_after.inventory_only=22
+project_state/local_reverse_training_status.json:
+  cpp2_32f1713e.training_status == inventory_only
+  cpp2_32f1713e.known_candidate == ""
+  cpp2_32f1713e.blocked_reason == ""
 
 training_materials/local_reverse/status_overlay.json:
-  status_summary.solved=3
-  status_summary.blocked=4
-  status_summary.needs_triage=0
-  status_summary.inventory_only=22
-  cpp2_2f64e68d.training_status=solved
-  cpp2_2f64e68d.known_candidate=10013
+  cpp2_32f1713e.training_status == inventory_only
+  cpp2_32f1713e.known_candidate == ""
 ```
 
-如果 accepted validation artifact 或 post-solve sync artifact 缺失、不一致，停止并写 `status=BLOCKED`。不得重跑样本。
+If any assertion fails, stop and write `status=BLOCKED`; do not self-correct the queue or status in this round.
 
-### Phase B — compute aggregate from samples[]
+### Phase B — capability audit
 
-从 `project_state/local_reverse_training_status.json.samples[]` 重新计算：
+Inspect existing code before building anything:
 
 ```text
-sample_count = len(samples)
-solved = count(training_status == "solved")
-blocked = count(training_status == "blocked")
-needs_triage = count(training_status == "needs_triage")
-inventory_only = count(training_status == "inventory_only")
+reverse_agent/local_reverse_ida_guided_solver.py
+reverse_agent/local_reverse_targeted_static_reextract.py
+reverse_agent/local_reverse_constraint_recovery.py
+reverse_agent/local_reverse_training_status.py
+reverse_agent/project_state.py
+tests/test_project_state.py
 ```
 
-断言结果必须为：
+Record in artifact:
 
 ```text
-sample_count=29
-solved=3
-blocked=4
-needs_triage=0
-inventory_only=22
+existing_ida_interface=true|false
+existing_ghidra_interface=true|false
+existing_strings_or_file_static_path=true|false
+existing_radare2_or_objdump_static_path=true|false
+existing_structured_evidence_conversion=true|false
+existing_solver_templates=true|false
+existing_harness_or_validation_path=true|false
+reuse_decision=<which interface to reuse or why unavailable>
+duplicate_interface_created=false
 ```
 
-若计算结果不是上述值，停止并写 `status=BLOCKED`，不要手工覆盖。
+Do not create a duplicate IDA runner if an existing one is available. If a missing wrapper is discovered, record it as a future gap; do not implement it unless it is a tiny adapter strictly needed for artifact formatting and covered by tests.
 
-### Phase C — update local_reverse_training_status summary only
+### Phase C — static triage extraction
 
-更新 `project_state/local_reverse_training_status.json` 顶部字段：
+If the local sample file is available at the inventory path, perform static-only extraction. Allowed examples:
 
 ```text
-generated_at=<current timestamp>
-status_summary.solved=3
-status_summary.blocked=4
-status_summary.needs_triage=0
-status_summary.inventory_only=22
-status_summary.solved_count=3
-status_summary.blocked_count=4
-status_summary.inventory_only_count=22
+file type / PE architecture / subsystem / bitness / imports / exports / sections
+strings summary with bounded count and relevant suspicious strings
+static compare/import clues: strcmp/strncmp/memcmp/GetProcAddress/ReadFile/scanf/cin/printf/message strings
+candidate algorithm hints: xor/shift/base64/rc4/des/sha/md5/aes table constants if visible
+IDA/Ghidra static output only if existing integration is present and does not execute the binary
 ```
 
-可追加低 token provenance：
+Hard limits:
 
 ```text
-summary_sync_round_id=round_20260607_local_reverse_training_status_summary_sync_v1
-summary_sync_decision_id=decision_20260607_local_reverse_training_status_summary_sync_v1
-summary_source_status_overlay=training_materials/local_reverse/status_overlay.json
-summary_source_post_solve_sync=project_state/local_reverse_post_solve_state_sync.json
+Do not execute the PE.
+Do not attach debugger.
+Do not invoke harness runtime validation.
+Do not brute force or solve.
+Do not dump full strings if large; record bounded top/relevant strings only.
+Do not store raw binary bytes in artifact.
 ```
 
-不得修改 `samples[]` 中任何样本的状态、候选、分类、路径、sha256、evidence_sources 或 next_action。
-
-### Phase D — generate summary sync artifact
-
-生成：
+If local sample is unavailable in Codex environment, still generate a BLOCKED or PARTIAL artifact that records:
 
 ```text
-project_state/local_reverse_training_status_summary_sync.json
+local_sample_available=false
+reason=MISSING_LOCAL_SAMPLE_OR_ROOT
+next_action=request local sample access or rerun on local machine
+```
+
+### Phase D — artifact generation
+
+Generate:
+
+```text
+project_state/local_reverse_cpp2_32f1713e_static_triage.json
 ```
 
 Required fields:
 
 ```text
 schema_version=1
-mainline=training_dataset
-sync_round_id=round_20260607_local_reverse_training_status_summary_sync_v1
-sync_decision_id=decision_20260607_local_reverse_training_status_summary_sync_v1
+mainline=tool_integration
+round_id=round_20260607_cpp2_32f1713e_static_triage_v1
+decision_id=decision_20260607_cpp2_32f1713e_static_triage_v1
+sample_id=cpp2_32f1713e
+relative_path=逆向课程2023春补考02/Cpp2.exe
+training_status_before=inventory_only
+known_candidate_before=""
 executed_sample=false
-ran_static_tools=false
 ran_runtime_tools=false
-updated_file=project_state\local_reverse_training_status.json
-updated_sample_statuses=false
-updated_known_candidates=false
-before_summary={sample_count=29, solved=2, blocked=5, needs_triage=0, inventory_only=22}
-after_summary={sample_count=29, solved=3, blocked=4, needs_triage=0, inventory_only=22}
-computed_from_samples=true
-status_overlay_summary_agrees=true
-post_solve_sync_summary_agrees=true
-recent_solved_sample_id=cpp2_2f64e68d
-known_candidate=10013
-next_queue_hint_sample_id=cpp2_32f1713e
+ran_debugger=false
+ran_bruteforce=false
+uploaded_binary=false
+local_sample_available=true|false
+static_tools_used=[]
+static_tools_unavailable=[]
+existing_tool_interfaces={...}
+duplicate_interface_created=false
+file_metadata={...}
+static_evidence={strings_summary, imports_summary, sections_summary, compare_clues, crypto_or_transform_hints}
+triage_status=SUCCESS|PARTIAL|BLOCKED
+recommended_next_mainline=reverse_solving|tool_integration|training_dataset
+recommended_next_action=<bounded next step>
 generated_at=<timestamp>
 ```
 
-### Phase E — artifact_index
+### Phase E — artifact_index and optional low-token pointers
 
-Register:
+Update:
 
 ```text
-latest_artifacts["local_reverse_training_status_summary_sync"]
-latest_artifacts_v2["local_reverse_training_status_summary_sync"]
+artifact_index.latest_artifacts["local_reverse_cpp2_32f1713e_static_triage"]
+artifact_index.latest_artifacts_v2["local_reverse_cpp2_32f1713e_static_triage"]
 ```
 
 `latest_artifacts_v2` must include:
 
 ```text
-kind=local_reverse_training_status_summary_sync
-path=project_state\local_reverse_training_status_summary_sync.json
+kind=local_reverse_static_triage
+path=project_state\local_reverse_cpp2_32f1713e_static_triage.json
 freshness=current
-source_run=round_20260607_local_reverse_training_status_summary_sync_v1
+source_run=round_20260607_cpp2_32f1713e_static_triage_v1
 sha256=<actual sha256>
 size_bytes=<actual size>
 modified_at=<artifact generated_at or filesystem mtime>
-sample_id=cpp2_2f64e68d
+sample_id=cpp2_32f1713e
 ```
 
-Do not remove existing `local_reverse_post_solve_state_sync` or `local_reverse_cpp2_2f64e68d_training_status_sync` artifacts.
-
-### Phase F — optional low-token pointers
-
-If useful, update `project_state/current_state.json` and `project_state/task_packet.json` by adding only low-token fields such as:
+Optional low-token updates:
 
 ```text
-local_reverse_training_status_summary_sync=project_state\local_reverse_training_status_summary_sync.json
-local_reverse_training_summary_source=project_state\local_reverse_training_status.json
+current_state.local_reverse_next_queue_hint may remain cpp2_32f1713e.
+current_state may add local_reverse_current_static_triage=project_state\local_reverse_cpp2_32f1713e_static_triage.json.
+task_packet may add local_reverse_current_static_triage but must keep task_packet.task advisory.
 ```
 
-Preserve all old fields. Do not change `task_packet.task`. Do not turn `cpp2_32f1713e` into an execution task.
+Do not update training_status/status_overlay to solved or blocked in this round. If triage is successful, keep sample as `inventory_only` or at most add a non-status artifact pointer only if existing format supports it; otherwise leave status files unchanged.
 
-### Phase G — report
+### Phase F — report
 
 `codex_execution_report.md` top block must be:
 
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_local_reverse_training_status_summary_sync_v1",
-  "round_id": "round_20260607_local_reverse_training_status_summary_sync_v1",
-  "based_on_decision_id": "decision_20260607_local_reverse_training_status_summary_sync_v1",
-  "status": "SUCCESS|BLOCKED|FAILED",
+  "report_id": "report_20260607_cpp2_32f1713e_static_triage_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_static_triage_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_static_triage_v1",
+  "status": "SUCCESS|PARTIAL|BLOCKED|FAILED",
   "acceptance_recommendation": "ACCEPTED|ACCEPTED_WITH_LIMITATIONS|REWORK_REQUIRED|BLOCKED",
   "files_changed": [],
   "tests_ran": [],
@@ -376,7 +407,7 @@ Preserve all old fields. Do not change `task_packet.task`. Do not turn `cpp2_32f
 }
 ```
 
-Report must explicitly state that this is a training status summary sync and not new solving.
+Report must explicitly state whether static triage produced enough evidence to schedule a future `reverse_solving` decision, or whether another `tool_integration` evidence extraction step is needed first.
 
 ---
 
@@ -397,23 +428,22 @@ git status --short
 git diff --name-status
 ```
 
+If any project source files are changed, also run targeted tests for the changed code. If only project_state JSON/Markdown artifacts are changed, `tests/test_project_state.py` is sufficient.
+
 Content assertions required in report/pytest_result:
 
 ```text
-1. No sample executed.
-2. No IDA/Ghidra/debugger/hook/emulator/solver/bruteforce/runtime probe run.
-3. local_reverse_training_status summary computed from samples[].
-4. local_reverse_training_status summary updated to solved=3 blocked=4 needs_triage=0 inventory_only=22.
-5. legacy count fields updated: solved_count=3 blocked_count=4 inventory_only_count=22.
-6. No samples[] entry status/candidate/classification was changed.
-7. status_overlay summary agrees with training_status summary.
-8. post_solve_sync summary agrees with training_status summary.
-9. local_reverse_training_status_summary_sync.json exists and records before/after summary.
-10. artifact_index registers local_reverse_training_status_summary_sync current provenance.
-11. task_packet.task remains advisory and unchanged.
-12. cpp2_32f1713e remains next_queue_hint only, not executed.
-13. pytest_result uses this decision_id/report_id/round_id.
-14. git diff --name-status only contains allowed files.
+1. No sample executable run.
+2. No debugger/hook/emulator/runtime probe/winpty/console validator run.
+3. No bruteforce/dictionary/candidate validation run.
+4. No binary uploaded or committed.
+5. Existing local_reverse static/IDA interfaces were inspected.
+6. No duplicate mature-tool interface was created.
+7. cpp2_32f1713e remained inventory_only and known_candidate="".
+8. local_reverse_cpp2_32f1713e_static_triage.json exists.
+9. artifact_index registers local_reverse_cpp2_32f1713e_static_triage as current.
+10. pytest_result uses this decision_id/report_id/round_id.
+11. git diff --name-status only contains allowed files.
 ```
 
 ---
@@ -423,18 +453,20 @@ Content assertions required in report/pytest_result:
 Stop and write `status=BLOCKED` or `status=FAILED`, not ACCEPT, if any condition occurs:
 
 ```text
-1. accepted oracle-backed validation artifact is missing or not VALIDATED_SUCCESS.
-2. post_solve_sync artifact is missing or does not say solved=3 blocked=4.
-3. status_overlay summary does not say solved=3 blocked=4.
-4. recomputing local_reverse_training_status samples[] does not yield sample_count=29 solved=3 blocked=4 needs_triage=0 inventory_only=22.
-5. Any samples[] entry would need status/candidate/classification mutation.
-6. Any sample, IDA/Ghidra, debugger, hook, emulator, solver, bruteforce, or runtime probe would be needed.
-7. current_state/task_packet update would delete old samplereverse compatibility fields.
-8. task_packet.task would become cpp2_32f1713e execution task.
-9. local_reverse_training_status_summary_sync.json is not generated.
-10. artifact_index does not register local_reverse_training_status_summary_sync.
-11. pytest_result does not include py_compile reverse_agent/project_state.py.
-12. pytest_result does not match this decision/report/round.
-13. lint-report after final report write fails.
-14. git diff includes .venv, site-packages, DLL, EXE, sample binary, solve_reports, or .codex-skills.
+1. cpp2_32f1713e is not rank 1 in evaluation_queue.
+2. cpp2_32f1713e is not inventory_only before triage.
+3. Any sample execution would be required.
+4. Any debugger/hook/emulator/runtime probe/winpty/console validator would be required.
+5. Any bruteforce/dictionary/candidate validation would be required.
+6. Existing static/IDA interfaces cannot be inspected.
+7. A duplicate mature-tool interface would be needed.
+8. The local sample binary would need to be uploaded or committed.
+9. The triage artifact cannot be generated.
+10. artifact_index cannot register the triage artifact.
+11. training_status/status_overlay would need solved/blocked mutation.
+12. current_state/task_packet update would delete old compatibility fields.
+13. pytest_result does not include py_compile reverse_agent/project_state.py.
+14. pytest_result does not match this decision/report/round.
+15. lint-report after final report write fails.
+16. git diff includes .venv, site-packages, DLL, EXE, sample binary, solve_reports, or .codex-skills.
 ```
