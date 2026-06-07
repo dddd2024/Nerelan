@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "analysis_mode": "winpty_py_target_spawn_fix",
+  "source_smoke_artifact": "project_state\\local_reverse_winpty_synthetic_smoke.json",
+  "previous_failure": "python_exe_interpreted_as_script",
+  "changed_file": "reverse_agent/local_reverse_console_pair_validator.py",
+  "fixed_behavior": ".py target uses Path(sys.executable).name appname and script-only cmdline",
+  "executed_real_sample": false,
+  "repeated_ippio_jppio_validation": false,
+  "candidate": null,
+  "known_candidate": "",
+  "solved": false,
+  "synthetic_smoke_status": "PASS",
+  "synthetic_smoke_stdout_contains_seen_input": true,
+  "synthetic_smoke_failure_stage": "read_loop",
+  "synthetic_smoke_stderr_tail": "winpty read failed: \n",
+  "next_action": "open separate reverse_solving decision for bounded ippio/jppio validation",
+  "generated_at": "2026-06-07T07:01:39Z"
+}

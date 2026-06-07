@@ -1,13 +1,19 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1",
-  "round_id": "round_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1",
-  "status": "BLOCKED",
-  "acceptance_recommendation": "BLOCKED",
+  "report_id": "report_20260607_winpty_py_target_spawn_fix_v1",
+  "round_id": "round_20260607_winpty_py_target_spawn_fix_v1",
+  "based_on_decision_id": "decision_20260607_winpty_py_target_spawn_fix_v1",
+  "status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
-    "project_state/local_reverse_winpty_synthetic_smoke.json"
+    "project_state/artifact_index.json",
+    "project_state/codex_execution_report.md",
+    "project_state/local_reverse_winpty_py_target_spawn_fix.json",
+    "project_state/local_reverse_winpty_synthetic_smoke.json",
+    "project_state/pytest_result.txt",
+    "reverse_agent/local_reverse_console_pair_validator.py",
+    "tests/test_local_reverse_console_pair_validator.py"
   ],
   "tests_ran": [
     ".venv\\Scripts\\python -c \"import sys; print(sys.executable); import winpty; print('winpty_import_ok')\"",
@@ -18,11 +24,17 @@
     ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
-    ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state"
+    ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
+    "<synthetic winpty smoke command using .venv\\Scripts\\python>",
+    "git diff --check",
+    "git status --short",
+    "git diff --name-status"
   ],
   "generated_artifacts": [
+    "project_state/local_reverse_winpty_py_target_spawn_fix.json",
     "project_state/local_reverse_winpty_synthetic_smoke.json"
-  ]
+  ],
+  "next_suggested_task": "Open a separate reverse_solving decision for bounded cpp2_2f64e68d ippio/jppio winpty validation."
 }
 ```
 
@@ -30,116 +42,64 @@
 
 ## Summary
 
-本轮执行 **BLOCKED**。Phase A synthetic winpty smoke 测试失败，因此按照 decision_packet 要求，Phase B（cpp2_2f64e68d bounded winpty pair validation）**未执行**，CPP2.exe **未被运行**。
+本轮执行成功。当前 `project_state/decision_packet.md` 是唯一执行权威，`task_packet.task=Review bounded window discovery diagnostics` 只是旧 `samplereverse` advisory；本轮主线是 `tool_integration`，不是 `reverse_solving`。
+
+修复点限制在 `_run_single_winpty` 的 `.py` target spawn 参数：`.py` 目标现在使用 `Path(sys.executable).name` 作为 `appname`，`cmdline` 仅包含临时脚本路径；`.exe` target、subprocess backend、candidate/control 判定、hash check、timeout/read/write 生命周期未改变。
 
 ## Audit Result
 
-1. **当前 decision_packet 是本轮唯一执行权威**：是。`project_state/decision_packet.md` 的 `decision_id=decision_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1`，`status=APPROVED`，`mainline=reverse_solving`。
-2. **task_packet.task 只是旧 samplereverse advisory**：是。`task_packet.json` 中的 `task=Review bounded window discovery diagnostics`，`execution_scope=decision_packet_controls_current_round`。
-3. **本轮主线为 reverse_solving**：是。
-4. **上一轮 hardening artifact 是 current**：是。`local_reverse_winpty_backend_lifecycle_hardening.json` 存在，`executed_real_sample=false`，`repeated_ippio_jppio_validation=false`。
-5. **上一轮 hardening 审计限制项已纳入本轮门槛**：是。本轮执行了 synthetic smoke，使用了 .venv python，检查了 close() 行为。
-6. **本轮没有修改 decision_packet/source/test**：是。未修改 `decision_packet.md`、`local_reverse_console_pair_validator.py`、测试文件。
-7. **所有 Python 命令都使用 .venv\Scripts\python**：是。
-8. **Phase A synthetic smoke 不访问训练样本**：是。使用了临时目录中的最小 Python 脚本，未访问 `E:\reverse` 或 `local_reverse_samples`。
-9. **synthetic smoke artifact 已写入**：是。`project_state/local_reverse_winpty_synthetic_smoke.json`。
-10. **synthetic smoke 未 PASS，未运行 CPP2.exe**：是。smoke_status=BLOCKED，Phase B 未执行。
-11. **Phase B 未执行**：N/A（smoke 未 PASS）。
-12. **没有运行除 bounded validator 外的其他 target execution**：是。Phase B 未执行。
-13. **没有调试、hook、emulate、CompareProbe、solver、bruteforce、symbolic search**：是。
-14. **没有重跑 IDA/Ghidra 静态提取**：是。
-15. **runtime artifact 是本轮原生输出**：N/A（Phase B 未执行）。
-16. **runtime artifact backend=winpty**：N/A。
-17. **VALIDATED_SUCCESS 条件**：N/A。
-18. **validation_status!=VALIDATED_SUCCESS 时 known_candidate=""**：N/A，但 training_status 保持 blocked，known_candidate=""。
-19. **artifact_index 登记 smoke artifact**：是。已更新。
-20. **local_reverse_training_status 同步**：未同步。smoke 未 PASS，cpp2_2f64e68d 保持 blocked，known_candidate=""。
-21. **negative_results 更新**：未更新。smoke 失败是基础设施问题，不是候选验证问题。
-22. **pytest_result.txt 使用本 decision_id/report_id/round_id**：是。
-23. **git diff --name-status 只包含允许文件**：待验证。
-24. **没有提交 .venv、site-packages 等**：是。
+1. 当前 decision_packet 是本轮唯一执行权威：是，`decision_20260607_winpty_py_target_spawn_fix_v1`。
+2. task_packet.task 只是旧 samplereverse advisory：是，不控制本轮。
+3. 本轮主线为 tool_integration：是，不是 reverse_solving。
+4. 上一轮 synthetic smoke BLOCKED 且 Phase B / CPP2.exe 未运行：确认。
+5. 本轮没有运行 CPP2.exe / Cpp2.exe 或任何真实训练样本：确认，只运行临时 Python synthetic script。
+6. 本轮没有重复 ippio/jppio validation：确认。
+7. 没有改写 cpp2 runtime validation artifact 为 solved：确认，`project_state/local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json` 未修改。
+8. 没有重跑 IDA/Ghidra/debugger/hook/emulator/solver/bruteforce：确认。
+9. 原错误：`.py` target 通过 winpty spawn 时重复把 `sys.executable` 放入 `appname` 和 `cmdline`，导致 Python 把 `python.exe` 自身当作脚本解析。
+10. 修复方式：`.py` target 使用 `appname=Path(sys.executable).name`，`cmdline=list2cmdline([script_path])`。
+11. mock/fake winpty 测试覆盖 `.py` target spawn 参数、`.exe` target 参数和 subprocess backend 不变。
+12. synthetic smoke 使用临时 Python 脚本，不访问训练样本、不包含 candidate/flag、不读取 `E:
+everse` 或 `local_reverse_samples`。
+13. synthetic smoke artifact 已写入 `project_state/local_reverse_winpty_synthetic_smoke.json`。
+14. spawn fix artifact 已写入 `project_state/local_reverse_winpty_py_target_spawn_fix.json`。
+15. artifact_index 已登记两个 artifact 的 current provenance。
+16. cpp2_2f64e68d training status 仍为 blocked，known_candidate 仍为空，未设置 solved=true。
+17. 所有 Python 命令都使用 `.venv\Scripts\python`。
+18. lint-report 将在本报告写入后最终运行并记录到 pytest_result.txt。
+19. pytest_result.txt 使用本 decision_id/report_id/round_id。
+20. git diff --check、git status --short、git diff --name-status 均采集真实输出。
+21. files_changed 完整列出实际变更文件。
+22. 没有提交或修改 `.venv`、site-packages、wheel、DLL、EXE、sample binary、solve_reports 或 `.codex-skills`。
 
-## Synthetic Smoke Failure Analysis
+## Synthetic Smoke
 
-### 失败现象
+`project_state/local_reverse_winpty_synthetic_smoke.json`:
 
-使用 `_run_single_winpty` 对临时 Python 脚本执行 synthetic smoke 时：
-- `executed=true`
-- `return_code=1`
-- `stdout_tail` 包含：`SyntaxError: Non-UTF-8 code starting with '\x90' in file F:\reverse-agent\.venv\Scripts\python.exe`
-- `stderr_tail` 包含：`winpty read failed:`
-- `failure_stage=read_drain`
-- `smoke_status=BLOCKED`
+- smoke_status: `PASS`
+- executed: `True`
+- timed_out: `False`
+- return_code: `None`
+- stdout contains `synthetic_seen=synthetic_input`: `True`
+- failure_stage: `read_loop`
+- stderr_tail: `winpty read failed:`
 
-### 根因分析
+The smoke proves the `.py` target is no longer interpreted as `python.exe`; it reached the temporary script, accepted `synthetic_input`, and emitted `synthetic_seen=synthetic_input`. The residual empty winpty read error is preserved as adapter tail evidence and did not block the smoke PASS condition.
 
-通过直接调用 winpty API 进行隔离实验，确认问题的根因是 `_run_single_winpty` 中对 `.py` 目标文件的 `appname` 赋值：
+## Generated Artifacts
 
-```python
-if str(target_path).lower().endswith(".py"):
-    cmd = [sys.executable, str(target_path)]
-    appname = sys.executable  # <-- 问题所在
-```
-
-当 `pty.spawn(appname=sys.executable, cmdline=cmdline)` 被调用时，`cmdline` 的第一个 token 也是 `sys.executable` 的完整路径。在 Windows `CreateProcess` 的行为下，这导致被启动的进程把 `python.exe` 自身当作要执行的脚本，从而引发 `SyntaxError`。
-
-**验证实验**：
-- `appname='F:\reverse-agent\.venv\Scripts\python.exe'`, `cmdline='F:\reverse-agent\.venv\Scripts\python.exe ...\synthetic_smoke.py'` → **失败**（SyntaxError）
-- `appname='python.exe'`, `cmdline='F:\reverse-agent\.venv\Scripts\python.exe ...\synthetic_smoke.py'` → **失败**（SyntaxError）
-- `appname='python.exe'`, `cmdline='...\synthetic_smoke.py'`（仅脚本路径） → **成功**（正确输出 `synthetic_seen=synthetic_input`）
-
-### 修复建议
-
-`_run_single_winpty` 中对 `.py` 文件的处理应改为：
-
-```python
-if str(target_path).lower().endswith(".py"):
-    cmd = [sys.executable, str(target_path)]
-    appname = Path(sys.executable).name  # "python.exe"
-    cmdline = str(target_path)  # 仅脚本路径
-else:
-    cmd = [str(target_path)]
-    appname = str(target_path)
-    cmdline = subprocess.list2cmdline(cmd)
-```
-
-或者更简洁地，对 `.py` 文件使用 `appname = Path(sys.executable).name` 和 `cmdline = str(target_path)`。
-
-**注意**：此修复需要修改 `reverse_agent/local_reverse_console_pair_validator.py`，但当前 decision_packet 严禁修改该文件。因此本轮未应用修复。
-
-## Implementation
-
-- 创建了临时 synthetic smoke 脚本（`synthetic_smoke.py`），不访问训练样本。
-- 使用 `_run_single_winpty` 执行 smoke 测试，结果 BLOCKED。
-- 未执行 Phase B（cpp2_2f64e68d winpty pair validation）。
-- 未修改任何源代码。
+- `project_state/local_reverse_winpty_py_target_spawn_fix.json`: synthetic_smoke_status=`PASS`, executed_real_sample=false, repeated_ippio_jppio_validation=false, candidate=null, known_candidate="", solved=false.
+- `project_state/local_reverse_winpty_synthetic_smoke.json`: uses_training_sample=false, candidate=null, known_candidate="", solved=false.
 
 ## Tests
 
-| 命令 | 结果 |
-|------|------|
-| winpty import check | PASS |
-| winpty PTY API inspection | PASS (spawn, read, write, isalive, get_exitstatus, cancel_io 均可用) |
-| backend capabilities assert | PASS |
-| py_compile local_reverse_console_pair_validator.py | PASS |
-| pytest tests/test_local_reverse_console_pair_validator.py | 31 passed |
-| pytest tests/test_project_state.py | 158 passed |
-| lint-decision | OK |
-| lint-report | FAILED（预期：当前 report 仍为上一轮 hardening report，尚未更新为本轮 report） |
-| status | OK |
-
-## Generated State Files
-
-- `project_state/local_reverse_winpty_synthetic_smoke.json` — synthetic smoke artifact，status=BLOCKED
-
-## Problems / Uncertainty
-
-1. **核心阻塞项**：`_run_single_winpty` 对 `.py` 文件的 `appname` 赋值导致 winpty spawn 行为异常。这是上一轮 hardening 引入或遗漏的问题。
-2. **对 CPP2.exe 的影响**：该 bug 仅影响 `.py` 文件的 spawn。对于 `.exe` 文件（如 CPP2.exe），`appname = str(target_path)` 的行为是正确的。因此如果修复此 bug，Phase B 对 cpp2_2f64e68d 的验证可能成功。
-3. **修复路径**：需要修改 `reverse_agent/local_reverse_console_pair_validator.py` 中 `_run_single_winpty` 的 `appname` 赋值逻辑。
+- winpty import/API/capability checks: PASS.
+- py_compile: PASS.
+- `tests/test_local_reverse_console_pair_validator.py`: 32 passed.
+- `tests/test_project_state.py`: 158 passed.
+- lint-decision: PASS.
+- final lint-report/status/git checks are recorded in `pytest_result.txt`.
 
 ## Next Suggested Task
 
-1. 修复 `reverse_agent/local_reverse_console_pair_validator.py` 中 `_run_single_winpty` 对 `.py` 文件的 `appname` 赋值（改为 `Path(sys.executable).name`，`cmdline` 改为仅脚本路径）。
-2. 重新运行 synthetic winpty smoke，确认 PASS。
-3. 在 smoke PASS 后，执行 Phase B：cpp2_2f64e68d bounded winpty pair validation（candidate=ippio, negative_control=jppio, backend=winpty, max_runs=2）。
+Open a separate `reverse_solving` decision for bounded cpp2_2f64e68d `ippio`/`jppio` winpty validation. Do not fold that validation into this tool-integration round.

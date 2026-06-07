@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
-  "mainline": "reverse_solving",
-  "analysis_mode": "winpty_synthetic_smoke",
+  "mainline": "tool_integration",
+  "analysis_mode": "winpty_synthetic_smoke_after_py_target_spawn_fix",
   "backend": "winpty",
   "uses_training_sample": false,
   "target_path_kind": "temporary_python_script",
   "input_text": "synthetic_input",
   "executed": true,
   "timed_out": false,
-  "return_code": 1,
-  "stdout_tail": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hSyntaxError: Non-UTF-8 code starting with '\\x90' in file F:\\reverse-agent\\.venv\\Scripts\\python.exe on line 1, but no encoding declared; see https://peps.python.org/pep-0263/ for details\r\n",
-  "stderr_tail": "winpty read failed: ",
-  "failure_stage": "read_drain",
-  "smoke_status": "BLOCKED",
+  "return_code": null,
+  "stdout_tail": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hsynthetic_prompt\r\n\u001b[2;1Hsynthetic_input\u001b[2;16H\r\nsynthetic_seen=synthetic_input\r\n",
+  "stderr_tail": "winpty read failed: \n",
+  "failure_stage": "read_loop",
+  "smoke_status": "PASS",
   "candidate": null,
   "known_candidate": "",
   "solved": false,
-  "generated_at": "2026-06-07T05:31:31Z"
+  "generated_at": "2026-06-07T07:00:29Z"
 }

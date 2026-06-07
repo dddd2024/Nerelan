@@ -1,73 +1,97 @@
-pytest_result for round_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1
-report_id: report_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1
-decision_id: decision_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1
+```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260607_winpty_py_target_spawn_fix_v1",
+  "report_id": "report_20260607_winpty_py_target_spawn_fix_v1",
+  "round_id": "round_20260607_winpty_py_target_spawn_fix_v1",
+  "generated_at": "2026-06-07T07:03:30Z",
+  "status": "PASSED",
+  "tests_ran": [
+    ".venv\\Scripts\\python -c \"import sys; print(sys.executable); import winpty; print('winpty_import_ok')\"",
+    ".venv\\Scripts\\python -c \"import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])\"",
+    ".venv\\Scripts\\python -c \"import reverse_agent.local_reverse_console_pair_validator as v; caps=v.get_console_backend_capabilities(); print(caps['winpty']); assert caps['winpty']['available'] is True; assert caps['winpty']['validator_supported'] is True\"",
+    ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py",
+    ".venv\\Scripts\\python -m pytest -q tests/test_local_reverse_console_pair_validator.py",
+    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
+    ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
+    ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
+    ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
+    "<synthetic winpty smoke command using .venv\\Scripts\\python>",
+    "git diff --check",
+    "git status --short",
+    "git diff --name-status"
+  ]
+}
+```
 
-=== Commands and Results ===
+# pytest_result for round_20260607_winpty_py_target_spawn_fix_v1
 
-1. .venv\Scripts\python -c "import sys; print(sys.executable); import winpty; print('winpty_import_ok')"
+## Commands and Results
+
+1. `.venv\Scripts\python -c "import sys; print(sys.executable); import winpty; print('winpty_import_ok')"`
    exit_code: 0
-   output: F:\reverse-agent\.venv\Scripts\python.exe\nwinpty_import_ok\n
+   output: `F:
+everse-agent\.venv\Scripts\python.exe
+winpty_import_ok`
 
-2. .venv\Scripts\python -c "import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])"
+2. `.venv\Scripts\python -c "import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])"`
    exit_code: 0
-   output: True\n['cancel_io', 'fd', 'get_exitstatus', 'isalive', 'iseof', 'pid', 'read', 'set_size', 'spawn', 'write']\n
+   output: `True`; PTY API includes `cancel_io`, `get_exitstatus`, `isalive`, `read`, `spawn`, `write`.
 
-3. .venv\Scripts\python -c "import reverse_agent.local_reverse_console_pair_validator as v; caps=v.get_console_backend_capabilities(); print(caps['winpty']); assert caps['winpty']['available'] is True; assert caps['winpty']['validator_supported'] is True"
+3. `.venv\Scripts\python -c "import reverse_agent.local_reverse_console_pair_validator as v; ..."`
    exit_code: 0
-   output: {'available': True, 'validator_supported': True, 'mature_interactive_console': True, 'readiness_policy': 'mature_interactive_console_backend', 'reason': 'winpty/pywinpty provides a mature pseudo-terminal backend for Windows console applications.'}\n
+   output: winpty available=true, validator_supported=true, mature_interactive_console=true.
 
-4. .venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py
+4. `.venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py`
    exit_code: 0
-   output: (no output)
+   output: no output.
 
-
-5. .venv\Scripts\python -m pytest -q tests/test_local_reverse_console_pair_validator.py
+5. `.venv\Scripts\python -m pytest -q tests/test_local_reverse_console_pair_validator.py`
    exit_code: 0
-   output: ...............................\n31 passed in 3.14s\n
+   output: `32 passed in 0.53s`.
 
-6. .venv\Scripts\python -m pytest -q tests/test_project_state.py
+6. `.venv\Scripts\python -m pytest -q tests/test_project_state.py`
    exit_code: 0
-   output: ........................................................................ [ 45%]\n........................................................................ [ 91%]\n..............                                                           [100%]\n158 passed in 67.86s (0:01:07)\n
+   output: `158 passed in 21.97s`.
 
-7. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
+7. synthetic winpty smoke command using `.venv\Scripts\python`
+   first attempt exit_code: 1, removed prior SyntaxError but did not capture final `synthetic_seen` line before process exit.
+   final attempt exit_code: 0, output artifact has `smoke_status=PASS` and stdout contains `synthetic_seen=synthetic_input`.
+
+8. `.venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state`
    exit_code: 0
-   output: lint-decision: OK\n...
+   output: `lint-decision: OK` for `decision_20260607_winpty_py_target_spawn_fix_v1`.
 
-
-8. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
-   exit_code: 1
-   output: lint-report: FAILED\nerror: based_on_decision_id does not match current decision_id\nerror: report round_id does not match current decision round_id\n...
-   note: Expected failure because previous round report was still present before this report was written.
-
-
-9. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
+9. `git diff --check`
    exit_code: 0
-   output: state_dir: project_state\n...
+   output: no whitespace errors; Git reported LF-to-CRLF normalization warnings for edited text/Python files.
 
+10. `git status --short`
+   exit_code: 0
+   output before report write: allowed files only plus new `project_state/local_reverse_winpty_py_target_spawn_fix.json`.
 
-=== Content Assertions ===
+11. `git diff --name-status`
+   exit_code: 0
+   output before report write: allowed modified files only; untracked spawn-fix artifact is visible in `git status --short`.
 
-1. synthetic smoke artifact exists: PASS (project_state/local_reverse_winpty_synthetic_smoke.json)
-2. synthetic smoke artifact uses_training_sample=false: PASS
-3. synthetic smoke artifact candidate=null, known_candidate="", solved=false: PASS
-4. smoke_status != PASS, no CPP2.exe executed: PASS (Phase B skipped)
-5. Phase B runtime artifact exists: N/A (Phase B not executed)
-6. Phase B runtime artifact backend=winpty: N/A
-7. Phase B runtime artifact max_runs=2: N/A
-8. Phase B runtime artifact candidate_input=ippio: N/A
-9. Phase B runtime artifact negative_control_input=jppio: N/A
-10. Phase B runtime artifact target_sha256 matches cpp2_2f64e68d: N/A
-11. validation_status=VALIDATED_SUCCESS -> runtime_validated=true, known_candidate=ippio, solved=true: N/A
-12. validation_status!=VALIDATED_SUCCESS -> known_candidate="", solved=false: PASS (training status unchanged)
-13. artifact_index registers smoke artifact: PASS
-14. git diff --name-status only allowed files: to be verified at commit time
+12. `.venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state`
+   exit_code: 0
+   output: `lint-report: OK`; report_status=SUCCESS; acceptance_recommendation=ACCEPTED; decision_report_id_match=True; pytest_result_tests_cover_report=True.
 
-=== Summary ===
-- py_compile: PASS
-- test_local_reverse_console_pair_validator: 31 passed
-- test_project_state: 158 passed
-- lint-decision: PASS
-- lint-report: FAILED (expected: old report mismatch before update)
-- status: PASS
-- synthetic smoke: BLOCKED (infrastructure bug in _run_single_winpty appname for .py targets)
-- Phase B: SKIPPED (smoke blocked)
+13. `.venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state`
+   exit_code: 0
+   output: `report_status: SUCCESS`; `pytest_result_status: PASSED`; `decision_execution_state: CONSUMED_BY_SUCCESS_REPORT`.
+
+## Content Assertions
+
+- spawn fix artifact exists: PASS.
+- synthetic smoke artifact exists: PASS.
+- synthetic smoke uses_training_sample=false: PASS.
+- synthetic smoke candidate=null, known_candidate="", solved=false: PASS.
+- no CPP2.exe execution: PASS.
+- no ippio/jppio validation: PASS.
+- cpp2 runtime validation artifact was not modified: PASS.
+- cpp2 training status was not marked solved: PASS.
+- artifact_index registers current provenance for spawn fix and smoke artifacts: PASS.
+- files_changed includes all modified files: PASS.
+- git diff/status contains only allowed files: PASS.

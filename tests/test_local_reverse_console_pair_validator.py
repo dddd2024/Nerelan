@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
 import types
@@ -400,6 +401,79 @@ class TestWinptyBackendValidation:
         assert "accepted" in result["stdout_tail"]
         assert ("write", "hello\r\n\r\n") in events
         assert ("close", None) in events
+        spawn_events = [event for event in events if event[0] == "spawn"]
+        assert spawn_events == [
+            (
+                "spawn",
+                (
+                    str(target),
+                    subprocess.list2cmdline([str(target)]),
+                    str(target.parent),
+                    None,
+                ),
+            )
+        ]
+
+    def test_winpty_runner_py_target_spawn_uses_script_only_cmdline(
+        self, monkeypatch, tmp_path: Path
+    ):
+        target = tmp_path / "synthetic smoke.py"
+        target.write_text("print('synthetic')\n", encoding="utf-8")
+        events: list[tuple[str, object]] = []
+
+        class FakePTY:
+            def __init__(self, columns, rows):
+                events.append(("init", (columns, rows)))
+                self.alive = True
+                self.outputs = ["synthetic_prompt\r\n", "synthetic_seen=hello\r\n"]
+
+            def spawn(self, appname, cmdline=None, cwd=None, env=None):
+                events.append(("spawn", (appname, cmdline, cwd, env)))
+                return True
+
+            def read(self, blocking=False):
+                return self.outputs.pop(0) if self.outputs else ""
+
+            def write(self, data):
+                events.append(("write", data))
+                self.alive = False
+
+            def isalive(self):
+                return self.alive
+
+            def get_exitstatus(self):
+                return 0
+
+            def cancel_io(self):
+                events.append(("cancel_io", None))
+
+            def close(self):
+                events.append(("close", None))
+
+        monkeypatch.setitem(sys.modules, "winpty", types.SimpleNamespace(PTY=FakePTY))
+
+        result = pair_validator._run_single_winpty(target, "hello", timeout=1)
+
+        assert result["executed"] is True
+        assert result["timed_out"] is False
+        assert result["return_code"] == 0
+        spawn_events = [event for event in events if event[0] == "spawn"]
+        assert spawn_events == [
+            (
+                "spawn",
+                (
+                    Path(sys.executable).name,
+                    subprocess.list2cmdline([str(target)]),
+                    str(target.parent),
+                    None,
+                ),
+            )
+        ]
+        _, (appname, cmdline, cwd, _env) = spawn_events[0]
+        assert appname == Path(sys.executable).name
+        assert sys.executable not in str(cmdline)
+        assert str(target) in str(cmdline)
+        assert cwd == str(target.parent)
 
     def test_winpty_runner_timeout_cancels_and_closes(self, monkeypatch, tmp_path: Path):
         target = tmp_path / "synthetic.exe"

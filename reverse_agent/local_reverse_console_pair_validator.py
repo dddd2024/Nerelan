@@ -241,12 +241,12 @@ def _run_single_winpty(
         return run
 
     if str(target_path).lower().endswith(".py"):
-        cmd = [sys.executable, str(target_path)]
-        appname = sys.executable
+        appname = Path(sys.executable).name
+        cmdline = subprocess.list2cmdline([str(target_path)])
     else:
         cmd = [str(target_path)]
         appname = str(target_path)
-    cmdline = subprocess.list2cmdline(cmd)
+        cmdline = subprocess.list2cmdline(cmd)
     output_chunks: list[str] = []
 
     def _record_stderr(message: str) -> None:
