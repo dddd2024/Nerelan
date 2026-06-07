@@ -1,13 +1,16 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-07T05:06:27Z",
+  "generated_at": "2026-06-07T07:31:23Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
     "solved": 2,
     "blocked": 5,
     "needs_triage": 0,
-    "inventory_only": 22
+    "inventory_only": 22,
+    "blocked_count": 5,
+    "inventory_only_count": 22,
+    "solved_count": 2
   },
   "samples": [
     {
@@ -128,17 +131,19 @@
       ],
       "training_status": "blocked",
       "known_candidate": "",
-      "blocked_reason": "WINPTY_VALIDATOR_COMMAND_TIMEOUT_NO_ARTIFACT",
-      "classification": "console_winpty_runtime_validation_blocked",
+      "blocked_reason": "AMBIGUOUS_OUTPUT",
+      "classification": "console_winpty_runtime_validation_ambiguous",
       "evidence_sources": [
         "source:local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
         "console_mature_backend_probe",
         "source:local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
         "winpty_runtime_validation_blocked",
         "source:local_reverse_winpty_backend_lifecycle_hardening.json",
-        "winpty_backend_lifecycle_hardened"
+        "winpty_backend_lifecycle_hardened",
+        "winpty_runtime_validation_ambiguous_output",
+        "source_run:round_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1"
       ],
-      "next_action": "After accepting winpty lifecycle hardening, run a separate bounded ippio/jppio validation decision."
+      "next_action": "Do not mark ippio solved from this winpty output. Open a separate decision only if a stronger acceptance signal or console-output classifier is approved."
     },
     {
       "sample_id": "cpp2_4c69f173",
