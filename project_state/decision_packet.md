@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1",
-  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1",
+  "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -17,22 +17,24 @@
 
 ## 1. Goal
 
-本轮主线是 **reverse_solving**，任务是修复上一轮 `cpp2_883e67b9_targeted_static_solving` 的 metadata、schema、status、artifact_index 和 next-step 问题。
+本轮主线是 **reverse_solving**，任务是修复 `cpp2_883e67b9_targeted_static_solving` 返工失败遗留问题。
 
-上一轮产物包含有价值的局部静态分析，但不能验收，原因是：
+只做 metadata / schema / report / test 修复，不做新静态分析，不运行样本，不改训练状态。
+
+上一轮 rework 仍未修复：
 
 ```text
-1. decision 要求 mainline=reverse_solving，但 report 正文和 artifact 写成 tool_integration。
-2. 无 candidate、无完整 proof chain，却把 static_solving_status 写成 SUCCESS。
-3. artifact 字段名偏离 decision schema：source_extraction_artifact/source_extraction_status/raw_offset_correction。
-4. artifact 缺少 candidate_validation_attempted、candidate_acceptance_status 等必需字段。
-5. next_recommended_action 建议 runtime validation guesses / bounded brute-force，违反本轮禁止项。
-6. pytest_result 没有捕获 mainline/status/schema/next-step 这些关键错误。
+1. artifact.mainline 仍为 tool_integration。
+2. report 正文 mainline 仍为 tool_integration。
+3. report summary 仍为 SUCCESS / ACCEPTED。
+4. artifact 仍使用 source_extraction_artifact / source_extraction_status / raw_offset_correction。
+5. artifact 缺少 candidate_validation_attempted=false。
+6. artifact 缺少 candidate_acceptance_status=null。
+7. next_recommended_action 仍包含 runtime validation guesses / debugger / emulator / bounded brute-force。
+8. pytest_result 未检查上述核心条件。
 ```
 
-目标：保留上一轮有价值的 bounded region analysis，但规范化为 **PARTIAL targeted static solving artifact**。不得运行样本，不得 runtime validation，不得 brute force，不得生成 candidate guesses，不得修改训练状态。
-
-必须修复：
+必须修复以下文件：
 
 ```text
 project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json
@@ -41,38 +43,59 @@ project_state/codex_execution_report.md
 project_state/pytest_result.txt
 ```
 
+不得修改：
+
+```text
+project_state/local_reverse_training_status.json
+training_materials/local_reverse/status_overlay.json
+.codex-skills/*
+```
+
 ---
 
 ## 2. Current Evidence
 
 当前 `project_state/decision_packet.md` 是 Codex 本轮唯一执行权威。`project_state/task_packet.json` 仍是 advisory，不控制本轮。
 
-上一轮 artifact 的可复用证据：
+Current source static extraction artifact is already accepted with limitations:
+
+```text
+project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json:
+  sample_id=cpp2_883e67b9
+  identity_verified=true
+  extraction_status=SUCCESS
+  source_readiness_status=READY
+  candidate_generated=false
+  candidate_validation_attempted=false
+  executed_sample=false
+```
+
+Current nonconforming targeted solving artifact contains reusable bounded analysis but wrong metadata/schema:
 
 ```text
 project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json:
-  sample_id=cpp2_883e67b9
-  identity_verified=true
-  expected_sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
-  expected_size_bytes=196689
-  source_extraction_artifact=project_state\local_reverse_cpp2_883e67b9_bounded_static_extraction.json
-  source_extraction_status=SUCCESS
-  pe_layout_reverified exists
-  raw_offset_correction.status=corrected
-  prompt_path analyzed around 0x4010ad
-  failure_path analyzed around 0x4010e6
-  assert_path analyzed around 0x4061c3
-  constants in assert_path include 194, 141, 133, 0x1102, 0x10c, 0x108, 255, 0x100
-  loop_indicators found in assert_path
-  candidate_generated=false
-  candidate_validated=false
-  training_status_modified=false
-  status_overlay_modified=false
-  executed_sample=false
-  ran_runtime_tools=false
+  mainline=tool_integration                 # wrong, must be reverse_solving
+  static_solving_status=PARTIAL             # correct
+  source_extraction_artifact=...            # wrong field name
+  source_extraction_status=SUCCESS          # wrong field name
+  raw_offset_correction={...}               # wrong field name
+  candidate_generated=false                 # correct
+  candidate_validated=false                 # correct
+  missing candidate_validation_attempted
+  missing candidate_acceptance_status
+  next_recommended_action still suggests runtime validation guesses/debugger/emulator/brute-force
 ```
 
-But the previous artifact is nonconforming and must be rewritten in-place using the required schema.
+Useful bounded analysis to preserve:
+
+```text
+prompt_path around 0x4010ad
+failure_path around 0x4010e6
+assert_path around 0x4061c3
+assert_path constants: 194, 141, 133, 0x1102, 0x10c, 0x108, 255, 0x100
+assert_path loop indicators
+no candidate extracted
+```
 
 Current training facts must remain unchanged:
 
@@ -89,11 +112,13 @@ Required corrected interpretation:
 
 ```text
 static_solving_status=PARTIAL
-status=PARTIAL
+report status=PARTIAL
 acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
 candidate_generated=false
-unvalidated_candidate_hypothesis=null OR candidate=null with explicit no_candidate_extracted status
-next step must be deeper bounded static evidence extraction / local disassembly / loop reconstruction, not runtime guesses or brute-force
+candidate_validation_attempted=false
+candidate_validated=false
+candidate_acceptance_status=null
+next step must be deeper bounded static evidence extraction / local disassembly / loop reconstruction only
 ```
 
 negative_results mainly concerns old `samplereverse` directions. This round must not repeat blind search, budget expansion, stale artifact assumptions, full solve_reports commits, or candidate search.
@@ -126,7 +151,7 @@ Strictly forbidden:
 17. Do not create duplicate IDA/Ghidra/debugger/static extraction/runtime interfaces.
 18. Do not use stale IDA/Ghidra/static artifacts as current evidence for cpp2_883e67b9.
 19. Do not claim IDA/Ghidra evidence was used unless current artifact proves it for this sample and this round.
-20. Do not leave any next_recommended_action that suggests runtime validation guesses, brute force, dictionary search, fuzzing, enumeration, candidate ranking, or candidate guesses.
+20. Do not leave any next_recommended_action that suggests runtime validation guesses, debugger, emulator, brute force, dictionary search, fuzzing, enumeration, candidate ranking, or candidate guesses.
 ```
 
 Allowed:
@@ -177,83 +202,52 @@ E:\reverse tree or any sample binary
 
 ## 5. Required Audit
 
-Codex report must answer:
+Codex report must answer and pytest_result must explicitly check:
 
 ```text
-1. Did it confirm decision_packet is the sole execution authority?
-2. Did it confirm mainline=reverse_solving?
-3. Did it confirm this is targeted static solving rework, not runtime validation or solving expansion?
-4. Did it confirm task_packet remains advisory?
-5. Did it confirm source bounded_static_extraction artifact is current/SUCCESS/identity_verified?
-6. Did it confirm cpp2_883e67b9 remains inventory_only/known_candidate="" before and after?
-7. Did it confirm cpp2_32f1713e/KEEP_DREAM and cpp2_2f64e68d/10013 solved facts remain unchanged?
-8. Did it preserve useful bounded region analysis from the previous artifact?
-9. Did it set artifact.mainline=reverse_solving?
-10. Did it set static_solving_status=PARTIAL, not SUCCESS?
-11. Did it set report status=PARTIAL and acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS?
-12. Did it use source_static_extraction_artifact and source_static_extraction_status field names?
-13. Did it include prior_raw_offset_fields_treated_as and mapping_correction_summary?
-14. Did it include candidate_validation_attempted=false?
-15. Did it include candidate_acceptance_status=null?
-16. Did it keep candidate_generated=false and candidate_validated=false?
-17. Did it avoid claiming a candidate or writing known_candidate?
-18. Did next_recommended_action avoid runtime validation guesses, brute force, dictionary search, fuzzing, enumeration, candidate ranking and candidate guesses?
-19. Did it update artifact_index latest_artifacts_v2 static_solving_status=PARTIAL?
-20. Did it avoid sample execution/runtime validation/debugger/hook/emulator/probe?
-21. Did it avoid modifying training_status/status_overlay?
-22. Did it explain negative_results unchanged or non-use?
-23. Did it run required py_compile/pytest/lint/status/git checks?
-24. Did pytest_result.txt use this rework decision_id/report_id/round_id?
-25. Did pytest_result explicitly check mainline/status/schema/next-step constraints?
-26. Did final lint-report run after report write?
-27. Did git diff only contain allowed files?
+1. artifact.mainline == reverse_solving
+2. report正文 mainline == reverse_solving
+3. report summary status == PARTIAL
+4. report summary acceptance_recommendation == ACCEPTED_WITH_LIMITATIONS
+5. artifact.static_solving_status == PARTIAL
+6. artifact uses source_static_extraction_artifact
+7. artifact uses source_static_extraction_status
+8. artifact uses prior_raw_offset_fields_treated_as
+9. artifact uses mapping_correction_summary
+10. artifact includes candidate_validation_attempted=false
+11. artifact includes candidate_acceptance_status=null
+12. next_recommended_action does not contain runtime validation guesses
+13. next_recommended_action does not contain debugger/emulator
+14. next_recommended_action does not contain brute force / dictionary / fuzz / enumeration / ranking / guesses
+15. artifact_index latest_artifacts_v2 mirrors PARTIAL, source_run=this rework round, and source_static_extraction_artifact
+16. training_status/status_overlay unchanged
+17. no sample execution/runtime/debugger/hook/emulator/probe
+18. no brute force/dictionary/search/fuzzing/candidate enumeration
+19. no binary upload/copy/embed/full dumps
+20. final lint-report ran after report write
+21. git diff only contains allowed files
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-Small metadata/schema/status rework only.
-
-### Phase A — preflight
-
-Use `.venv\Scripts\python` for repository Python commands.
-
-Verify:
-
-```text
-project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json:
-  sample_id == cpp2_883e67b9
-  identity_verified == true
-  extraction_status == SUCCESS
-  source_readiness_status == READY
-  candidate_generated == false
-  candidate_validation_attempted == false
-  executed_sample == false
-
-project_state/local_reverse_training_status.json:
-  cpp2_883e67b9.training_status == inventory_only
-  cpp2_883e67b9.known_candidate == ""
-  cpp2_883e67b9.blocked_reason == ""
-```
-
-If state has drifted, stop as BLOCKED rather than proceeding silently.
-
-### Phase B — normalize targeted static solving artifact
-
-Rewrite:
+Only rewrite these files:
 
 ```text
 project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json
+project_state/artifact_index.json
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
 ```
 
-Required corrected top-level fields:
+Required corrected artifact values:
 
 ```text
 schema_version=1
 mainline=reverse_solving
-round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
-decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
+round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
+decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
 sample_id=cpp2_883e67b9
 relative_path=逆向课程2024春02/CPP2.exe
 command_scoped_root=E:\reverse
@@ -262,19 +256,20 @@ expected_sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
 expected_size_bytes=196689
 identity_verified=true
 static_solving_status=PARTIAL
+partial_reason=bounded_region_analysis_complete_but_no_candidate_extracted
 training_status_before=inventory_only
 known_candidate_before=""
 source_static_extraction_artifact=project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json
 source_static_extraction_status=SUCCESS
-prior_raw_offset_fields_treated_as=corrected_file_offsets 或 RVA_only，按上一轮实际映射结论选择
-mapping_correction_summary={bounded summary preserving prior finding}
+prior_raw_offset_fields_treated_as=corrected_file_offsets
+mapping_correction_summary={bounded summary preserving previous correction: region_rva_start 0xead/0xce6 corrected to anchor RVAs 0x10ad/0x10e6; assert anchor 0x61c3; .rdata string offsets treated safely according to PE mapping}
 existing_helpers_checked=true
 helpers_or_tools_used=[python_stdlib_pe_parser, bounded_static_window_analysis, local_reverse_xref_disassembly_patterns]
 target_regions_analyzed=[preserve prompt/failure/assert summaries]
-logic_evidence={preserve constants, loops, no candidate proof chain}
+logic_evidence={preserve constants, loops, no complete candidate proof chain}
 solver_classification={type:unknown, confidence:medium, reason:multi_phase_loop_comparison_no_complete_formula}
 static_proof_chain=[] OR partial proof chain clearly marked incomplete
-unvalidated_candidate_hypothesis=null OR {candidate:null, validation_status:unvalidated, candidate_source:no_candidate_extracted, requires_future_runtime_validation:false}
+unvalidated_candidate_hypothesis=null OR {candidate:null, validation_status:no_candidate, candidate_source:no_candidate_extracted, requires_future_runtime_validation:false}
 candidate_generated=false
 candidate_validation_attempted=false
 candidate_validated=false
@@ -306,67 +301,52 @@ full_disassembly_recorded=false
 full_decompilation_recorded=false
 bounded_negative_results=[preserve no Sorry direct/indirect refs; no complete candidate proof chain]
 next_recommended_mainline=tool_integration
-next_recommended_action=Generate a deeper bounded local disassembly/xref evidence extraction decision for cpp2_883e67b9, focused on assert_path 0x4061c3 loop reconstruction and precise comparison operand recovery. Do not run runtime validation, brute force, dictionary search, fuzzing, enumeration, candidate ranking, or candidate guesses until a concrete static candidate exists.
+next_recommended_action=Generate a deeper bounded static evidence extraction decision for cpp2_883e67b9, focused on assert_path 0x4061c3 loop reconstruction and precise comparison operand recovery. Do not run runtime validation, debugger/emulator, brute force, dictionary search, fuzzing, enumeration, ranking, or candidate guesses until a concrete static candidate exists.
 generated_at=<timestamp>
 ```
 
-### Phase C — artifact_index registration
-
-Update the existing key:
-
-```text
-artifact_index.latest_artifacts["local_reverse_cpp2_883e67b9_targeted_static_solving"]
-artifact_index.latest_artifacts_v2["local_reverse_cpp2_883e67b9_targeted_static_solving"]
-artifact_index.artifact_refs["local_reverse_cpp2_883e67b9_targeted_static_solving"]
-```
-
-`latest_artifacts_v2` must include:
+Required artifact_index latest_artifacts_v2 update:
 
 ```text
 kind=local_reverse_targeted_static_solving
 path=project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json
 freshness=current
-source_run=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
-sha256=<actual artifact sha256>
-size_bytes=<actual artifact size>
-modified_at=<artifact generated_at or filesystem mtime>
+source_run=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
 sample_id=cpp2_883e67b9
 relative_path=逆向课程2024春02/CPP2.exe
 static_solving_status=PARTIAL
 identity_verified=true
 training_status_before=inventory_only
 candidate_generated=false
+candidate_validation_attempted=false
 candidate_validated=false
 candidate_acceptance_status=null
 source_static_extraction_artifact=project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json
 next_recommended_mainline=tool_integration
 ```
 
-Do not modify `local_reverse_training_status.json` or `status_overlay.json`.
-
-### Phase D — report
-
-`codex_execution_report.md` top block must be:
+Required report summary:
 
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1",
-  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1",
-  "status": "PARTIAL|BLOCKED|FAILED",
-  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS|BLOCKED|REWORK_REQUIRED",
+  "report_id": "report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+  "status": "PARTIAL",
+  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
   "files_changed": [],
   "tests_ran": [],
   "generated_artifacts": []
 }
 ```
 
-Expected successful rework mapping:
+Report正文必须写：
 
 ```text
-status=PARTIAL
-acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
+mainline=reverse_solving
+this is metadata/schema/status rework of targeted static solving artifact
+no sample execution, no runtime validation, no debugger/emulator/brute force
 ```
 
 ---
@@ -386,71 +366,63 @@ git status --short
 git diff --name-status
 ```
 
-`pytest_result.txt` must include:
+`pytest_result.txt` must include this rework id triplet:
 
 ```text
-decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
-report_id=report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
-round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
+decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
+report_id=report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
+round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
 ```
 
-Content assertions must include:
+`pytest_result.txt` must explicitly include:
 
 ```text
-1. artifact.mainline == reverse_solving
-2. report正文不再声称 mainline=tool_integration
-3. static_solving_status == PARTIAL when candidate_generated=false
-4. report status == PARTIAL
-5. acceptance_recommendation == ACCEPTED_WITH_LIMITATIONS
-6. schema uses source_static_extraction_artifact/source_static_extraction_status
-7. schema includes prior_raw_offset_fields_treated_as and mapping_correction_summary
-8. candidate_validation_attempted=false
-9. candidate_acceptance_status=null
-10. next_recommended_action does not contain runtime validation guesses
-11. next_recommended_action does not contain brute force / dictionary / fuzz / enumeration / candidate ranking / candidate guesses
-12. artifact_index latest_artifacts_v2 mirrors PARTIAL and source_run=this rework round
-13. training_status/status_overlay not modified
-14. no sample executable was run
-15. no runtime tools/debugger/hook/emulator/probe were run
-16. no brute force/dictionary/search/fuzzing/candidate enumeration was run
-17. no binary was uploaded, copied, embedded, or committed
-18. no full strings/imports/sections/disassembly/decompilation dump was recorded
-19. final lint-report ran after report write
-20. git diff --name-status only contains allowed files
+artifact.mainline == reverse_solving: PASS
+report mainline text == reverse_solving: PASS
+report status == PARTIAL: PASS
+acceptance_recommendation == ACCEPTED_WITH_LIMITATIONS: PASS
+static_solving_status == PARTIAL: PASS
+schema source_static_extraction_artifact/source_static_extraction_status present: PASS
+prior_raw_offset_fields_treated_as present: PASS
+mapping_correction_summary present: PASS
+candidate_validation_attempted=false: PASS
+candidate_acceptance_status=null: PASS
+next_recommended_action forbidden terms absent: PASS
+artifact_index mirrors corrected fields: PASS
+training_status/status_overlay unchanged: PASS
 ```
 
-If `pytest` reports no tests collected, record it explicitly and do not claim full test coverage.
+Forbidden-term assertion must fail if `next_recommended_action` contains any of:
+
+```text
+runtime validation guesses
+debugger
+emulator
+brute force
+brute-force
+dictionary
+fuzz
+enumeration
+rank
+candidate guesses
+```
 
 ---
 
 ## 8. Stop Conditions
 
-Stop with `PARTIAL / ACCEPTED_WITH_LIMITATIONS` if:
+Stop with `PARTIAL / ACCEPTED_WITH_LIMITATIONS` only if all required audit and pytest assertions pass.
+
+Stop with `FAILED / REWORK_REQUIRED` if any of the following remain:
 
 ```text
-1. artifact and report mainline are reverse_solving;
-2. static_solving_status is PARTIAL;
-3. artifact schema uses required field names;
-4. no candidate is claimed;
-5. next recommendation is bounded static evidence extraction only;
-6. artifact_index/report/pytest_result are aligned with this rework decision;
-7. training_status/status_overlay remain unchanged;
-8. no runtime/search/validation action occurred.
-```
-
-Stop with `BLOCKED` if:
-
-```text
-1. source static extraction artifact is missing/stale/not SUCCESS;
-2. training state has drifted and cannot be safely preserved;
-3. required artifact cannot be normalized without rerunning forbidden actions.
-```
-
-Stop with `FAILED / REWORK_REQUIRED` if:
-
-```text
-1. any forbidden execution/tool/search action occurs;
-2. candidate validation is attempted;
-3. training_status/status_overlay are modified;
-4. artifact_index/report/pytest_result do not align with this rework decision.
+1. artifact.mainline != reverse_solving;
+2. report status != PARTIAL;
+3. acceptance_recommendation != ACCEPTED_WITH_LIMITATIONS;
+4. old schema fields are still primary fields;
+5. candidate_validation_attempted or candidate_acceptance_status is missing;
+6. next_recommended_action contains runtime validation guesses, debugger, emulator, brute force, dictionary, fuzz, enumeration, ranking, or candidate guesses;
+7. artifact_index/report/pytest_result do not align with this rework decision;
+8. training_status/status_overlay are modified;
+9. runtime/search/validation action occurred.
 ```
