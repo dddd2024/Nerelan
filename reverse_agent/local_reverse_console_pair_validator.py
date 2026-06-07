@@ -18,6 +18,8 @@ import json
 import os
 import subprocess
 import sys
+import threading
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -207,9 +209,8 @@ def _run_single_winpty(
 ) -> dict[str, Any]:
     """Run target binary once using winpty pseudo-terminal backend.
 
-    Uses the winpty library (from pywinpty) to create a pseudo-terminal,
-    write input, and read output. Falls back to subprocess if winpty is
-    not available.
+    Uses the winpty library (from pywinpty) to spawn the target inside a
+    pseudo-terminal and drive a bounded read/write lifecycle.
 
     Returns a run record with the same schema as _run_single().
     """
@@ -221,82 +222,129 @@ def _run_single_winpty(
         "stdout_tail": "",
         "stderr_tail": "",
         "backend": "winpty",
+        "failure_stage": "",
     }
 
-    # Lazy import winpty
     try:
         import winpty
     except ImportError:
         run["stderr_tail"] = "winpty module not available"
+        run["failure_stage"] = "import"
         return run
 
+    pty = None
     try:
-        # Create a PTY with reasonable dimensions
         pty = winpty.PTY(80, 24)
     except Exception as exc:
         run["stderr_tail"] = f"winpty PTY creation failed: {exc}"[:2000]
+        run["failure_stage"] = "pty_create"
         return run
 
-    # Build command
     if str(target_path).lower().endswith(".py"):
         cmd = [sys.executable, str(target_path)]
+        appname = sys.executable
     else:
         cmd = [str(target_path)]
+        appname = str(target_path)
+    cmdline = subprocess.list2cmdline(cmd)
+    output_chunks: list[str] = []
 
-    proc: subprocess.Popen[str] | None = None
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdin=pty,
-            stdout=pty,
-            stderr=pty,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-    except OSError as exc:
-        run["stderr_tail"] = str(exc)[:2000]
-        return run
+    def _record_stderr(message: str) -> None:
+        if run["stderr_tail"]:
+            run["stderr_tail"] = f"{run['stderr_tail']}\n{message}"[-2000:]
+        else:
+            run["stderr_tail"] = message[-2000:]
 
-    try:
-        # Write input with newline
-        stdin_payload = input_text + "\n\n"
-        pty.write(stdin_payload)
-
-        # Wait for process with timeout
+    def _read_available(stage: str) -> None:
         try:
-            proc.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            proc.kill()
+            chunk = pty.read(blocking=False)
+        except Exception as exc:
+            if not run["failure_stage"]:
+                run["failure_stage"] = stage
+            _record_stderr(f"winpty read failed: {exc}")
+            raise
+        if chunk:
+            output_chunks.append(chunk)
+
+    def _call_pty_method_bounded(method_name: str, stage: str, limit: float = 1.0) -> None:
+        method = getattr(pty, method_name, None)
+        if not method:
+            return
+        errors: list[BaseException] = []
+
+        def _target() -> None:
             try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.terminate()
-            run["timed_out"] = True
+                method()
+            except BaseException as exc:  # pragma: no cover - surfaced below
+                errors.append(exc)
 
+        worker = threading.Thread(target=_target, daemon=True)
+        worker.start()
+        worker.join(timeout=limit)
+        if worker.is_alive():
+            if not run["failure_stage"]:
+                run["failure_stage"] = stage
+            _record_stderr(f"winpty {method_name} timed out during {stage}")
+            return
+        if errors:
+            if not run["failure_stage"]:
+                run["failure_stage"] = stage
+            _record_stderr(f"winpty {method_name} failed: {errors[0]}")
+
+    try:
+        spawned = pty.spawn(appname, cmdline=cmdline, cwd=str(target_path.parent))
+        if not spawned:
+            run["failure_stage"] = "spawn"
+            _record_stderr("winpty spawn returned false")
+            return run
         run["executed"] = True
-        run["return_code"] = proc.returncode
 
-        # Read terminal output
+        deadline = time.monotonic() + max(timeout, 0.1)
+        _read_available("read_before_input")
+
+        stdin_payload = input_text + "\r\n\r\n"
         try:
-            terminal_output = pty.read()
-            run["stdout_tail"] = terminal_output[-2000:]
+            pty.write(stdin_payload)
         except Exception:
-            pass
+            run["failure_stage"] = "write"
+            raise
+
+        while True:
+            _read_available("read_loop")
+            if not pty.isalive():
+                break
+            if time.monotonic() >= deadline:
+                run["timed_out"] = True
+                run["failure_stage"] = "timeout"
+                _call_pty_method_bounded("cancel_io", "timeout_cancel")
+                break
+            time.sleep(0.05)
+
+        drain_deadline = time.monotonic() + 0.25
+        while time.monotonic() < drain_deadline:
+            try:
+                _read_available("read_drain")
+            except Exception:
+                break
+            if not pty.isalive():
+                break
+            time.sleep(0.05)
+
+        if not run["timed_out"]:
+            try:
+                run["return_code"] = pty.get_exitstatus()
+            except Exception as exc:
+                run["failure_stage"] = run["failure_stage"] or "exitstatus"
+                _record_stderr(f"winpty get_exitstatus failed: {exc}")
 
     except Exception as exc:
-        if proc and proc.poll() is None:
-            proc.kill()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.terminate()
-        run["stderr_tail"] = str(exc)[:2000]
+        if not run["failure_stage"]:
+            run["failure_stage"] = "exception"
+        _record_stderr(str(exc)[:2000])
     finally:
-        try:
-            pty.close()
-        except Exception:
-            pass
+        if output_chunks:
+            run["stdout_tail"] = "".join(output_chunks)[-2000:]
+        _call_pty_method_bounded("close", "close")
 
     return run
 

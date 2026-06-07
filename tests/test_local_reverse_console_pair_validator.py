@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
+import types
 from pathlib import Path
 
 import reverse_agent.local_reverse_console_pair_validator as pair_validator
@@ -331,6 +333,196 @@ class TestWinptyBackendValidation:
 
         result = json.loads(out_file.read_text(encoding="utf-8"))
         assert result["backend"] == "winpty"
+
+    def test_winpty_runner_import_failure_returns_record(self, monkeypatch):
+        monkeypatch.setitem(sys.modules, "winpty", None)
+
+        result = pair_validator._run_single_winpty(Path("dummy.exe"), "input")
+
+        assert result["executed"] is False
+        assert result["failure_stage"] == "import"
+        assert "winpty module not available" in result["stderr_tail"]
+
+    def test_winpty_runner_pty_creation_failure_returns_record(self, monkeypatch):
+        fake_winpty = types.SimpleNamespace(PTY=lambda *args: (_ for _ in ()).throw(RuntimeError("no pty")))
+        monkeypatch.setitem(sys.modules, "winpty", fake_winpty)
+
+        result = pair_validator._run_single_winpty(Path("dummy.exe"), "input")
+
+        assert result["executed"] is False
+        assert result["failure_stage"] == "pty_create"
+        assert "no pty" in result["stderr_tail"]
+
+    def test_winpty_runner_spawn_write_read_success(self, monkeypatch, tmp_path: Path):
+        target = tmp_path / "synthetic.exe"
+        target.write_bytes(b"\0")
+        events: list[tuple[str, object]] = []
+
+        class FakePTY:
+            def __init__(self, columns, rows):
+                events.append(("init", (columns, rows)))
+                self.alive = True
+                self.outputs = ["prompt> ", "accepted\r\n"]
+
+            def spawn(self, appname, cmdline=None, cwd=None, env=None):
+                events.append(("spawn", (appname, cmdline, cwd, env)))
+                return True
+
+            def read(self, blocking=False):
+                events.append(("read", blocking))
+                return self.outputs.pop(0) if self.outputs else ""
+
+            def write(self, data):
+                events.append(("write", data))
+                self.alive = False
+
+            def isalive(self):
+                return self.alive
+
+            def get_exitstatus(self):
+                return 0
+
+            def cancel_io(self):
+                events.append(("cancel_io", None))
+
+            def close(self):
+                events.append(("close", None))
+
+        monkeypatch.setitem(sys.modules, "winpty", types.SimpleNamespace(PTY=FakePTY))
+
+        result = pair_validator._run_single_winpty(target, "hello", timeout=1)
+
+        assert result["executed"] is True
+        assert result["timed_out"] is False
+        assert result["return_code"] == 0
+        assert result["failure_stage"] == ""
+        assert "prompt" in result["stdout_tail"]
+        assert "accepted" in result["stdout_tail"]
+        assert ("write", "hello\r\n\r\n") in events
+        assert ("close", None) in events
+
+    def test_winpty_runner_timeout_cancels_and_closes(self, monkeypatch, tmp_path: Path):
+        target = tmp_path / "synthetic.exe"
+        target.write_bytes(b"\0")
+        events: list[str] = []
+
+        class FakePTY:
+            def __init__(self, *args):
+                pass
+
+            def spawn(self, *args, **kwargs):
+                events.append("spawn")
+                return True
+
+            def read(self, blocking=False):
+                return ""
+
+            def write(self, data):
+                events.append("write")
+
+            def isalive(self):
+                return True
+
+            def get_exitstatus(self):
+                return 0
+
+            def cancel_io(self):
+                events.append("cancel_io")
+
+            def close(self):
+                events.append("close")
+
+        monkeypatch.setitem(sys.modules, "winpty", types.SimpleNamespace(PTY=FakePTY))
+
+        result = pair_validator._run_single_winpty(target, "hello", timeout=0.01)
+
+        assert result["executed"] is True
+        assert result["timed_out"] is True
+        assert result["failure_stage"] == "timeout"
+        assert "cancel_io" in events
+        assert "close" in events
+
+    def test_winpty_runner_read_and_close_errors_preserve_record(self, monkeypatch, tmp_path: Path):
+        target = tmp_path / "synthetic.exe"
+        target.write_bytes(b"\0")
+
+        class FakePTY:
+            def __init__(self, *args):
+                pass
+
+            def spawn(self, *args, **kwargs):
+                return True
+
+            def read(self, blocking=False):
+                raise RuntimeError("read failed")
+
+            def write(self, data):
+                raise AssertionError("write should not be reached after read failure")
+
+            def isalive(self):
+                return False
+
+            def get_exitstatus(self):
+                return 1
+
+            def cancel_io(self):
+                pass
+
+            def close(self):
+                raise RuntimeError("close failed")
+
+        monkeypatch.setitem(sys.modules, "winpty", types.SimpleNamespace(PTY=FakePTY))
+
+        result = pair_validator._run_single_winpty(target, "hello", timeout=1)
+
+        assert result["executed"] is True
+        assert result["failure_stage"] == "read_before_input"
+        assert "read failed" in result["stderr_tail"]
+        assert "close failed" in result["stderr_tail"]
+
+    def test_cli_winpty_blocked_writes_artifact(self, tmp_path: Path, monkeypatch):
+        monkeypatch.setattr(pair_validator, "_is_winpty_available", lambda: True)
+        target = tmp_path / "target.exe"
+        target.write_bytes(b"\0" * 8)
+        monkeypatch.setattr(pair_validator, "_resolve_target_path", lambda _relative: target)
+        monkeypatch.setattr(
+            pair_validator,
+            "_sha256_file",
+            lambda _path: "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
+        )
+
+        def blocked_run(_target_path, input_text, timeout=10.0):
+            return {
+                "input": input_text,
+                "executed": True,
+                "timed_out": True,
+                "return_code": None,
+                "stdout_tail": "partial",
+                "stderr_tail": "",
+                "backend": "winpty",
+                "failure_stage": "timeout",
+            }
+
+        monkeypatch.setattr(pair_validator, "_run_single_winpty", blocked_run)
+        triage_file = tmp_path / "triage.json"
+        handoff_file = tmp_path / "handoff.json"
+        out_file = tmp_path / "out.json"
+        triage_file.write_text(json.dumps(_triage()), encoding="utf-8")
+        handoff_file.write_text(json.dumps(_handoff()), encoding="utf-8")
+
+        ret = pair_validator.main([
+            "--triage", str(triage_file),
+            "--candidate-artifact", str(handoff_file),
+            "--candidate-field", "static_candidate_text",
+            "--backend", "winpty",
+            "--out", str(out_file),
+        ])
+
+        result = json.loads(out_file.read_text(encoding="utf-8"))
+        assert ret == 1
+        assert result["validation_status"] == "BLOCKED"
+        assert result["blocked_reason"] == "TIMEOUT"
+        assert result["candidate_run"]["failure_stage"] == "timeout"
 
 
 class TestGenerateNegativeControl:

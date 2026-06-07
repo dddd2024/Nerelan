@@ -79,7 +79,8 @@
     "local_reverse_cpp2_2f64e68d_pywinpty_setup": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_setup.json",
     "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
     "local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness": "project_state\\local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness.json",
-    "local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json"
+    "local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
+    "local_reverse_winpty_backend_lifecycle_hardening": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -871,6 +872,16 @@
       "sha256": "14240979fa5b5dec202414f33bb1bf3145e2c1a7277529f4e734617cb7e2ca1f",
       "size_bytes": 3397,
       "modified_at": "2026-06-07T04:33:56Z",
+      "sample_id": "cpp2_2f64e68d"
+    },
+    "local_reverse_winpty_backend_lifecycle_hardening": {
+      "kind": "local_reverse_winpty_backend_lifecycle_hardening",
+      "path": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
+      "freshness": "current",
+      "source_run": "round_20260607_winpty_validator_lifecycle_hardening_v1",
+      "sha256": "466882d314a11b3a47d99af3932cbdb7fa56847edf22e1635e53d659757862fe",
+      "size_bytes": 2377,
+      "modified_at": "2026-06-07T05:06:27Z",
       "sample_id": "cpp2_2f64e68d"
     }
   },

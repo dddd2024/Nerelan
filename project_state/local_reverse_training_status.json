@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-07T04:33:56Z",
+  "generated_at": "2026-06-07T05:06:27Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
@@ -133,11 +133,12 @@
       "evidence_sources": [
         "source:local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
         "console_mature_backend_probe",
-        "mature_backend_missing",
         "source:local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
-        "winpty_runtime_validation_blocked"
+        "winpty_runtime_validation_blocked",
+        "source:local_reverse_winpty_backend_lifecycle_hardening.json",
+        "winpty_backend_lifecycle_hardened"
       ],
-      "next_action": "Inspect validator timeout/artifact flushing before repeating bounded ippio/jppio winpty validation."
+      "next_action": "After accepting winpty lifecycle hardening, run a separate bounded ippio/jppio validation decision."
     },
     {
       "sample_id": "cpp2_4c69f173",

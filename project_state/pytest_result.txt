@@ -1,22 +1,19 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_cpp2_2f64e68d_bounded_winpty_runtime_validation_v1",
-  "report_id": "report_20260607_cpp2_2f64e68d_bounded_winpty_runtime_validation_v1",
-  "round_id": "round_20260607_cpp2_2f64e68d_bounded_winpty_runtime_validation_v1",
-  "generated_at": "2026-06-07T04:38:29Z",
-  "status": "PARTIAL",
+  "decision_id": "decision_20260607_winpty_validator_lifecycle_hardening_v1",
+  "report_id": "report_20260607_winpty_validator_lifecycle_hardening_v1",
+  "round_id": "round_20260607_winpty_validator_lifecycle_hardening_v1",
+  "generated_at": "2026-06-07T05:06:27Z",
+  "status": "PASSED",
   "tests_ran": [
-    ".venv\\Scripts\\python -c \"import sys; print(sys.executable); import winpty; print('winpty_import_ok')\"",
-    ".venv\\Scripts\\python -c \"import reverse_agent.local_reverse_console_pair_validator as v; caps=v.get_console_backend_capabilities(); print(caps['winpty']); assert caps['winpty']['available'] is True; assert caps['winpty']['validator_supported'] is True\"",
-    "readiness artifact assertions",
-    ".venv\\Scripts\\python -m reverse_agent.local_reverse_console_pair_validator --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --candidate-artifact project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json --candidate-field static_candidate_text --backend winpty --timeout 10 --out project_state/local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
+    ".venv\\Scripts\\python -c \"import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])\"",
     ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py",
     ".venv\\Scripts\\python -m pytest -q tests/test_local_reverse_console_pair_validator.py",
     ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
-    ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
-    ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
+    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
@@ -24,74 +21,153 @@
 }
 ```
 
-[command 1] .venv\Scripts\python -c "import sys; print(sys.executable); import winpty; print('winpty_import_ok')"
-exit_code=0
-output=F:\reverse-agent\.venv\Scripts\python.exe
-winpty_import_ok
+## Command Results
 
-[command 2] .venv\Scripts\python -c "import reverse_agent.local_reverse_console_pair_validator as v; caps=v.get_console_backend_capabilities(); print(caps['winpty']); assert caps['winpty']['available'] is True; assert caps['winpty']['validator_supported'] is True"
-exit_code=0
-output={'available': True, 'validator_supported': True, 'mature_interactive_console': True, 'readiness_policy': 'mature_interactive_console_backend', 'reason': 'winpty/pywinpty provides a mature pseudo-terminal backend for Windows console applications.'}
+### winpty API inspection
 
-[command 3] readiness artifact assertions
-exit_code=0
-output=readiness_assertions_passed
+Command:
 
-[command 4] .venv\Scripts\python -m reverse_agent.local_reverse_console_pair_validator --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --candidate-artifact project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json --candidate-field static_candidate_text --backend winpty --timeout 10 --out project_state/local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json
-exit_code=124
-output=command timed out after 34441 milliseconds
-note=no native runtime artifact was generated; no rerun performed to preserve max_runs boundary
+`.venv\Scripts\python -c "import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])"`
 
-[command 5] .venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py
-exit_code=0
-output=(no output)
+Result: PASS
 
-[command 6] .venv\Scripts\python -m pytest -q tests/test_local_reverse_console_pair_validator.py
-exit_code=0
-output=25 passed in 0.11s
+Output:
 
-[command 7] .venv\Scripts\python -m pytest -q tests/test_project_state.py
-exit_code=0
-output=158 passed in 21.29s
+```text
+True
+['cancel_io', 'fd', 'get_exitstatus', 'isalive', 'iseof', 'pid', 'read', 'set_size', 'spawn', 'write']
+```
 
-[command 8] .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
-exit_code=0
-output=lint-decision: OK; decision_id=decision_20260607_cpp2_2f64e68d_bounded_winpty_runtime_validation_v1; mainline=reverse_solving
+### py_compile
 
-[command 9] .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
-exit_code=0
-output=lint-report: OK; warnings: report_status is BLOCKED; report round not archived yet; pytest_result_matches_report=True; pytest_result_tests_cover_report=True
+Command:
 
-[command 10] .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
-exit_code=0
-output=report_status=BLOCKED; decision_consumed_by_report=True; decision_execution_state=CONSUMED_BY_NON_SUCCESS_REPORT; artifact_freshness current=46 missing=24 stale=15
+`.venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py`
 
-[command 11] git diff --check
-exit_code=0
-output=(no output after LF normalization)
+Result: PASS
 
-[command 12] git status --short
-exit_code=0
-output=M project_state/artifact_index.json
-M project_state/codex_execution_report.md
-M project_state/local_reverse_training_status.json
-M project_state/pytest_result.txt
-?? project_state/local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json
+### validator tests
 
-[command 13] git diff --name-status
-exit_code=0
-output=M project_state/artifact_index.json
-M project_state/codex_execution_report.md
-M project_state/local_reverse_training_status.json
-M project_state/pytest_result.txt
+Command:
 
-content_assertions:
-1. pywinpty runtime validation artifact exists: PASS
-2. backend=winpty: PASS
-3. max_runs=2: PASS
-4. candidate_input=ippio: PASS
-5. negative_control_input=jppio: PASS
-6. target_sha256 matches cpp2_2f64e68d: PASS
-7. validation_status!=VALIDATED_SUCCESS, so known_candidate="" and solved=false: PASS
-8. artifact_index current provenance registered: PASS
-9. tracked git diff contains only allowed project_state files: PASS
+`.venv\Scripts\python -m pytest -q tests/test_local_reverse_console_pair_validator.py`
+
+Result: PASS
+
+Output:
+
+```text
+31 passed in 0.51s
+```
+
+### project_state tests
+
+Command:
+
+`.venv\Scripts\python -m pytest -q tests/test_project_state.py`
+
+Result: PASS
+
+Output:
+
+```text
+158 passed in 18.59s
+```
+
+### lint-decision
+
+Command:
+
+`python -m reverse_agent.project_state lint-decision --state-dir project_state`
+
+Result: PASS
+
+### lint-report
+
+Command:
+
+`python -m reverse_agent.project_state lint-report --state-dir project_state`
+
+Result: PASS
+
+Note: emitted expected warning that `round_20260607_winpty_validator_lifecycle_hardening_v1` is not archived yet.
+
+### status
+
+Command:
+
+`python -m reverse_agent.project_state status --state-dir project_state`
+
+Result: PASS
+
+Key output:
+
+```text
+report_status=SUCCESS
+acceptance_recommendation=ACCEPTED
+decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
+```
+
+### git diff check
+
+Command:
+
+`git diff --check`
+
+Result: PASS
+
+Note: git emitted CRLF replacement warnings only.
+
+### git status
+
+Command:
+
+`git status --short`
+
+Result: PASS
+
+Output:
+
+```text
+ M project_state/artifact_index.json
+ M project_state/codex_execution_report.md
+ M project_state/decision_packet.md
+ M project_state/local_reverse_training_status.json
+ M project_state/pytest_result.txt
+ M reverse_agent/local_reverse_console_pair_validator.py
+ M tests/test_local_reverse_console_pair_validator.py
+?? project_state/local_reverse_winpty_backend_lifecycle_hardening.json
+```
+
+### git diff name-status
+
+Command:
+
+`git diff --name-status`
+
+Result: PASS
+
+Output:
+
+```text
+M	project_state/artifact_index.json
+M	project_state/codex_execution_report.md
+M	project_state/decision_packet.md
+M	project_state/local_reverse_training_status.json
+M	project_state/pytest_result.txt
+M	reverse_agent/local_reverse_console_pair_validator.py
+M	tests/test_local_reverse_console_pair_validator.py
+```
+
+### content assertions
+
+Result: PASS
+
+Checked:
+
+- hardening artifact has `executed_real_sample=false`.
+- hardening artifact has `repeated_ippio_jppio_validation=false`.
+- hardening artifact keeps `candidate=null`, `known_candidate=""`, and `solved=false`.
+- artifact index registers `local_reverse_winpty_backend_lifecycle_hardening` as current.
+- `cpp2_2f64e68d` remains `training_status=blocked` with empty `known_candidate`.
+- stale `mature_backend_missing` was removed only from `cpp2_2f64e68d` evidence sources.

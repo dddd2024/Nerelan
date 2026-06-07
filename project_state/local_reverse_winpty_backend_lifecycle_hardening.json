@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "analysis_mode": "winpty_backend_lifecycle_hardening",
+  "source_blocked_artifact": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
+  "source_readiness_artifact": "project_state\\local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness.json",
+  "winpty_import_ok": true,
+  "capability_available": true,
+  "capability_validator_supported": true,
+  "inspected_api_summary": "pywinpty exposes PTY.spawn(appname, cmdline=None, cwd=None, env=None), read(blocking=False), write(to_write), isalive(), get_exitstatus(), cancel_io(); previous subprocess stdio wiring was not the pywinpty process lifecycle API.",
+  "fixed_lifecycle_points": [
+    "uses PTY.spawn instead of subprocess.Popen stdio wiring",
+    "bounded nonblocking read loop before and after input write",
+    "CRLF input submission with second newline preserved from prior validator behavior",
+    "timeout path sets timed_out=true and calls cancel_io through a bounded cleanup guard",
+    "finally path drains captured output and calls close through a bounded cleanup guard",
+    "run records include backend, executed, timed_out, return_code, stdout_tail, stderr_tail, and failure_stage",
+    "CLI still writes JSON artifacts for BLOCKED/TIMEOUT outcomes because runner returns a structured record"
+  ],
+  "mock_tests_added": [
+    "winpty import failure returns structured record",
+    "PTY creation failure returns failure_stage=pty_create",
+    "spawn/write/read success collects stdout_tail and exit status",
+    "timeout calls cancel_io and close while preserving timed_out=true",
+    "read and close exceptions preserve stderr/failure_stage",
+    "CLI --backend winpty writes an artifact for mocked BLOCKED/TIMEOUT"
+  ],
+  "synthetic_smoke_ran": false,
+  "synthetic_smoke_status": "SKIPPED",
+  "synthetic_smoke_reason": "Skipped to avoid spawning any process while validating the lifecycle change; coverage is via fake winpty objects and API inspection, and no real training sample is allowed in this round.",
+  "executed_real_sample": false,
+  "repeated_ippio_jppio_validation": false,
+  "candidate": null,
+  "known_candidate": "",
+  "solved": false,
+  "next_action": "after audit acceptance, open separate reverse_solving decision for bounded ippio/jppio validation",
+  "generated_at": "2026-06-07T05:06:27Z"
+}
