@@ -1,7 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-06T14:26:09Z",
+  "generated_at": "2026-06-07T15:00:00Z",
   "queue_policy": "simple_static_first_unsolved_only",
+  "source_status_overlay": "training_materials/local_reverse/status_overlay.json",
+  "source_training_status": "project_state/local_reverse_training_status.json",
+  "post_solve_sync_round_id": "round_20260607_local_reverse_post_solve_state_sync_rework_v1",
+  "exclude_solved_samples": [
+    "cpp2_2f64e68d"
+  ],
   "items": [
     {
       "rank": 1,

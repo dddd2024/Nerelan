@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "mainline": "training_dataset",
+  "analysis_mode": "training_status_sync",
+  "sync_round_id": "round_20260607_local_reverse_post_solve_state_sync_rework_v1",
+  "sync_decision_id": "decision_20260607_local_reverse_post_solve_state_sync_rework_v1",
+  "executed_sample": false,
+  "ran_static_tools": false,
+  "ran_runtime_tools": false,
+  "updated_sample_id": "cpp2_2f64e68d",
+  "known_candidate": "10013",
+  "accepted_validation_artifact": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
+  "accepted_rework_round": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+  "status_overlay_after": {
+    "training_status": "solved",
+    "known_candidate": "10013",
+    "blocked_reason": ""
+  },
+  "status_summary_after": {
+    "sample_count": 29,
+    "solved": 3,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 22
+  },
+  "evaluation_queue_first_item": {
+    "sample_id": "cpp2_32f1713e",
+    "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+    "proposed_next_mainline": "tool_integration",
+    "allowed_actions": ["static_triage"],
+    "forbidden_actions": ["runtime_probe", "bruteforce", "upload_binary"]
+  },
+  "current_state_updated": true,
+  "task_packet_updated": true,
+  "status_overlay_generated_at_refreshed": true,
+  "evaluation_queue_metadata_synced": true,
+  "previous_round_incomplete": "round_20260607_local_reverse_post_solve_state_sync_v1",
+  "rework_note": "This is a rework of incomplete state sync from the previous round. The previous round only completed status_overlay.json partial sync but missed: post_solve_state_sync artifact, artifact_index registration, evaluation_queue metadata, current_state/task_packet summaries, status_overlay.generated_at refresh, and py_compile reverse_agent/project_state.py.",
+  "generated_at": "2026-06-07T15:00:00Z"
+}

@@ -150,5 +150,26 @@
     "local_reverse_targeted_static_reextraction_result",
     "local_reverse_forced_ida_extraction_result"
   ],
+  "local_reverse_recent_solved": {
+    "sample_id": "cpp2_2f64e68d",
+    "known_candidate": "10013",
+    "validation_artifact": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
+    "accepted_round": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1"
+  },
+  "local_reverse_training_summary": {
+    "sample_count": 29,
+    "solved": 3,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 22
+  },
+  "local_reverse_next_queue_hint": {
+    "sample_id": "cpp2_32f1713e",
+    "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+    "proposed_next_mainline": "tool_integration",
+    "allowed_actions": ["static_triage"],
+    "forbidden_actions": ["runtime_probe", "bruteforce", "upload_binary"]
+  },
+  "local_reverse_next_suggested_task": "Advisory next queue hint only: cpp2_32f1713e static_triage under a future tool_integration decision; do not execute from task_packet alone.",
   "local_reverse_task_packet_authority_note": "Advisory only; project_state/decision_packet.md remains the execution authority."
 }
