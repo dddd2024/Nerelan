@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
-  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
+  "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -17,83 +17,103 @@
 
 ## 1. Goal
 
-本轮主线是 **tool_integration**，任务是对下一个本地训练样本 `cpp2_883e67b9` 做 **command-scoped environment readiness + bounded static triage readiness**。
+本轮主线是 **tool_integration**，任务是对 `cpp2_883e67b9` 做 **bounded static extraction**。
 
-目标不是解题，不是生成 candidate，也不是 runtime validation；目标是确认样本身份、确认可用的成熟静态工具/已有项目接口、产出低 token 静态 triage/readiness artifact，并为下一轮 bounded static extraction 或 IDA/Ghidra evidence extraction 决策提供依据。
+目标：基于上一轮 readiness artifact 中确认的 PE32/string triage 信息，定位关键字符串引用、相邻候选比较区域、可能的输入长度/初始阶段判断证据，并将其整理为低 token 的 `StructuredEvidence` 或等价结构化证据。不得生成 candidate，不得求解，不得运行样本。
 
 必须产出：
 
 ```text
-project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json
+project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json
 ```
 
-本轮允许读取本地样本文件用于 identity/hash/file-type/read-only static triage；禁止运行样本、调试、hook、emulator、runtime probe、bruteforce 或 candidate search。
+本轮允许读取样本文件作只读静态提取；允许使用已有项目接口或成熟静态工具的 bounded 输出；禁止 runtime validation、debugger、hook、emulator、bruteforce、candidate search 和训练状态修改。
 
 ---
 
 ## 2. Current Evidence
 
-当前 `project_state/decision_packet.md` 是 Codex 本轮唯一执行权威。`project_state/task_packet.json` 仍是 advisory，不控制本轮执行。
+当前 `project_state/decision_packet.md` 是 Codex 本轮唯一执行权威。`project_state/task_packet.json` 仍是 advisory，不控制本轮。
 
-上一轮 queue refresh rework 审计结论为 `ACCEPTED_WITH_LIMITATIONS`：
+上一轮 readiness 审计结论为 **ACCEPTED_WITH_LIMITATIONS**：
 
 ```text
-project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json:
-  decision_id=decision_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1
-  round_id=round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1
-  recent_solved.sample_id=cpp2_32f1713e
-  recent_solved.known_candidate=KEEP_DREAM
-  recent_solved.accepted_round=round_20260607_cpp2_32f1713e_training_status_sync_v1
-  next_queue_hint.sample_id=cpp2_883e67b9
-  next_queue_hint.relative_path=逆向课程2024春02/CPP2.exe
-  next_queue_hint.training_status=inventory_only
-  next_queue_hint.known_candidate=""
-  next_queue_hint.allowed_actions=[static_triage, bounded_static_extraction_readiness]
-  next_queue_hint.forbidden_actions=[runtime_probe, brute_force, debugger, hook, emulator, upload_binary]
+project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json:
+  decision_id=decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
+  round_id=round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
+  sample_id=cpp2_883e67b9
+  relative_path=逆向课程2024春02/CPP2.exe
+  command_scoped_root=E:\reverse
+  resolved_sample_path=E:\reverse\逆向课程2024春02\CPP2.exe
+  expected_sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
+  expected_size_bytes=196689
+  identity_verified=true
+  readiness_status=READY
+  training_status_before=inventory_only
+  known_candidate_before=""
+  existing_tool_interfaces_checked=true
+  static_tools_used=[python_stdlib_pe_parser, bounded_strings_extractor]
+  structured_evidence_ready=false
+  candidate_generated=false
+  candidate_validation_attempted=false
+  candidate_validated=false
+  training_status_modified=false
+  status_overlay_modified=false
+  executed_sample=false
 ```
 
-Known current training state:
+Useful bounded triage facts from the readiness artifact:
+
+```text
+file_format=PE32
+platform=Windows
+architecture=i386
+bitness=32
+entry_point_rva=0x1c10
+image_base=0x400000
+sections=[.text, .rdata, .data, .idata, .reloc]
+import_table.present=false
+compiler_clues=[Visual C++ CRT debug strings present, statically linked runtime]
+key_strings:
+  0x2702c: "Please input your flag:"             input_prompt
+  0x27069: "--- Sorry, but try it again! ---"    failure_message
+  0x27c44: "flag == 0 || flag == 1"              debug_assert
+  0x281e8: "You are wrong in the initial phase!" failure_message
+challenge_type_hypothesis=console_password_checker_with_flag_assert
+similarity_to_cpp2_32f1713e=high_same_course_same_name_similar_strings
+```
+
+Current training facts must remain unchanged:
 
 ```text
 project_state/local_reverse_training_status.json:
-  sample_count=29
-  status_summary.solved=4
-  status_summary.blocked=4
-  status_summary.needs_triage=0
-  status_summary.inventory_only=21
-  cpp2_32f1713e.training_status=solved
-  cpp2_32f1713e.known_candidate=KEEP_DREAM
   cpp2_883e67b9.training_status=inventory_only
   cpp2_883e67b9.known_candidate=""
   cpp2_883e67b9.blocked_reason=""
-  cpp2_883e67b9.relative_path=逆向课程2024春02/CPP2.exe
   cpp2_883e67b9.sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
   cpp2_883e67b9.size_bytes=196689
 ```
 
-The next sample should be resolved under command-scoped root:
+Available/checked tool context from readiness:
 
 ```text
-LOCAL_REVERSE_ROOT=E:\reverse
-resolved_sample_path=E:\reverse\逆向课程2024春02\CPP2.exe
-sample_id=cpp2_883e67b9
-expected_sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
-expected_size_bytes=196689
+project interface available:
+  reverse_agent/local_reverse_single_sample_static_triage.py, requires IDA
+  reverse_agent/tool_runners.py, IDA/OLLY config and runner
+  reverse_agent/local_reverse_console_validator.py, runtime validator but forbidden here
+  reverse_agent/ida_scripts/, collect_evidence.py, extract_named_data.py, forced_function_extract.py
+current external tool availability:
+  IDA direct unavailable
+  Ghidra unavailable
+  radare2 unavailable
+  objdump unavailable
+allowed fallback from readiness:
+  Python stdlib PE parser + bounded strings extractor
 ```
 
-Current project rules for tool integration:
+Existing interface rule remains: do not create duplicate IDA/Ghidra/debugger/static extraction interfaces. If a suitable existing parser/extractor exists, reuse it. If no wrapper exists and IDA/Ghidra/radare2 are unavailable, use bounded Python stdlib parsing only and record that as a fallback.
 
-```text
-1. Mature tools first: IDA, Ghidra, strings, file, objdump, radare2, existing solver/harness/StructuredEvidence interfaces.
-2. Do not create duplicate IDA/Ghidra/debugger/static extraction interfaces if existing interfaces are available.
-3. Tool outputs must be summarized into bounded project_state artifacts and artifact_index entries.
-4. No stale artifact may be treated as current evidence.
-5. Static analysis and runtime probe are not equivalent; this round forbids runtime probes.
-```
-
-Known limitation from previous audit: `artifact_index.latest_artifacts_v2[local_reverse_queue_refresh_after_cpp2_32f1713e]` is current but has incomplete optional metadata. This round may use it as a pointer only; do not spend this round on artifact_index hygiene unless required to register the new artifact.
-
-negative_results mainly concerns old `samplereverse` directions. This round must not repeat blind search, budget expansion, stale artifact assumptions, or full solve_reports commits.
+negative_results mainly concerns old `samplereverse` directions. This round must not repeat blind search, budget expansion, stale artifact assumptions, full solve_reports commits, or candidate search.
 
 Skill profile must remain `reverse-agent-iteration@v2`, which is active in `.codex-skills/registry.json`.
 
@@ -108,33 +128,34 @@ Strictly forbidden:
 2. Do not run the sample executable.
 3. Do not execute any candidate or control input.
 4. Do not attach debugger, hook, emulator, instrumentation probe, breakpoint probe, dynamic trace collector, winpty, console validator, or runtime harness.
-5. Do not do runtime validation.
+5. Do not perform runtime validation.
 6. Do not generate a candidate.
 7. Do not brute force, dictionary search, fuzz, enumerate inputs, or rank candidates.
 8. Do not solve cpp2_883e67b9 in this round.
 9. Do not modify project_state/local_reverse_training_status.json.
 10. Do not modify training_materials/local_reverse/status_overlay.json.
-11. Do not mark cpp2_883e67b9 solved, blocked, or validated.
+11. Do not mark cpp2_883e67b9 solved, blocked, validated, or partially solved.
 12. Do not alter accepted solved facts for cpp2_2f64e68d / 10013 or cpp2_32f1713e / KEEP_DREAM.
 13. Do not upload, copy into repo, base64-embed, or commit the sample binary.
-14. Do not store raw binary bytes, full strings dump, full imports, full sections, full disassembly, full decompilation, screenshots, memory dumps, or bulky tool output.
+14. Do not store raw binary bytes, full strings dump, full imports, full sections, full disassembly, full decompilation, screenshots, memory dumps, or bulky static output.
 15. Do not scan full E:\reverse tree, full solve_reports, full PROJECT_PROGRESS_LOG.txt, or full project_state/rounds.
 16. Do not modify .codex-skills.
 17. Do not create duplicate IDA/Ghidra/debugger/static extraction/runtime interfaces.
 18. Do not use stale IDA/Ghidra/static artifacts as current evidence for cpp2_883e67b9.
+19. Do not claim IDA/Ghidra evidence was used unless current artifact proves it for this sample and this round.
 ```
 
 Allowed:
 
 ```text
 1. Read default project_state files and .codex-skills/registry.json.
-2. Read local_reverse_training_status/status_overlay only for current state verification.
-3. Read queue refresh artifact and artifact_index as pointers.
-4. Inspect existing repository interfaces for IDA/Ghidra/strings/file/objdump/radare2/StructuredEvidence/artifact_index registration.
-5. Resolve E:\reverse\逆向课程2024春02\CPP2.exe under command-scoped LOCAL_REVERSE_ROOT.
-6. Read the sample file only for sha256/size/file type and bounded static triage.
-7. Run mature static tools if already available or system-provided, provided outputs are bounded summaries only.
-8. Generate project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json.
+2. Read current readiness artifact for cpp2_883e67b9.
+3. Read local_reverse_training_status/status_overlay only for current state verification.
+4. Inspect existing repository interfaces for PE/static extraction/StructuredEvidence/artifact_index helpers.
+5. Resolve and read only E:\reverse\逆向课程2024春02\CPP2.exe for sha256/size/bounded static extraction.
+6. Use existing interfaces if available; otherwise use bounded Python stdlib PE parser/string-reference search.
+7. Produce bounded evidence: string RVAs, VA/RVA mapping, small candidate xref windows, candidate compare-region metadata, and next bounded action.
+8. Generate project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json.
 9. Register the artifact in artifact_index.
 10. Write codex_execution_report.md and pytest_result.txt.
 ```
@@ -154,26 +175,28 @@ project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 .codex-skills/registry.json
+project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json
 project_state/local_reverse_training_status.json
 training_materials/local_reverse/status_overlay.json
-project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json
 reverse_agent/project_state.py
 tests/test_project_state.py
 ```
 
-Must inspect bounded existing capability surface before any static tool invocation:
+Must inspect bounded existing capability surface before writing extraction code or invoking tools:
 
 ```text
-Search repository for directly relevant existing tool interfaces and schemas:
+Search repository for directly relevant interfaces/schemas:
+  local_reverse_single_sample_static_triage
+  static_extraction
+  StructuredEvidence
+  strings
+  pe parser
+  rva
+  xref
   ida
   ghidra
   radare2
-  r2
-  strings
   objdump
-  file
-  static_extraction
-  StructuredEvidence
   artifact_index
   local_reverse
 
@@ -186,8 +209,8 @@ May inspect if directly relevant and bounded:
 ```text
 project_state/local_reverse_inventory.json
 project_state/local_reverse_evaluation_queue.json
-project_state/local_reverse_ida_summary.json
-existing project_state artifacts that describe current tool availability, only as capability hints, not as evidence for cpp2_883e67b9 unless sample_id/provenance is current.
+project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json
+existing project_state artifacts describing current tool availability, only as capability hints.
 ```
 
 Do not read by default:
@@ -208,37 +231,39 @@ Codex report must answer:
 ```text
 1. Did it confirm decision_packet is the sole execution authority?
 2. Did it confirm mainline=tool_integration?
-3. Did it confirm this is static triage/readiness, not solving or validation?
+3. Did it confirm this is bounded static extraction, not solving or validation?
 4. Did it confirm task_packet remains advisory?
-5. Did it confirm cpp2_883e67b9 is the next inventory_only sample from current queue/training state?
-6. Did it confirm cpp2_32f1713e/KEEP_DREAM and cpp2_2f64e68d/10013 solved facts remain unchanged?
-7. Did it inspect existing IDA/Ghidra/strings/file/objdump/radare2/StructuredEvidence/artifact_index interfaces before acting?
-8. Which existing interfaces/tools are available?
-9. Which existing interfaces/tools were used, if any?
+5. Did it confirm readiness artifact is current/READY/identity_verified for cpp2_883e67b9?
+6. Did it confirm cpp2_883e67b9 remains inventory_only/known_candidate="" before and after?
+7. Did it confirm cpp2_32f1713e/KEEP_DREAM and cpp2_2f64e68d/10013 solved facts remain unchanged?
+8. Did it inspect existing static extraction / StructuredEvidence / tool interfaces before acting?
+9. Which existing interfaces/tools were available and which were used?
 10. Did it avoid creating duplicate tool interfaces?
 11. Did it resolve the sample only through command-scoped LOCAL_REVERSE_ROOT=E:\reverse?
-12. Did it verify size_bytes=196689 and sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8?
-13. Did it classify file type/architecture/platform in bounded form?
-14. Did it collect only bounded static triage summaries, not full dumps?
-15. Did it avoid sample execution/runtime validation/debugger/hook/emulator/probe?
-16. Did it avoid candidate generation/bruteforce/dictionary/search/fuzzing?
-17. Did it avoid binary upload/copy/embed/full dumps?
-18. Did it avoid modifying training_status/status_overlay?
-19. Did it generate project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json?
-20. Did it register the artifact in latest_artifacts/latest_artifacts_v2/artifact_refs?
-21. Did the artifact make a clear recommendation for the next bounded decision, e.g. IDA/Ghidra evidence extraction or static constraint extraction?
-22. Did it explain negative_results unchanged or non-use?
-23. Did it run required py_compile/pytest/lint/status/git checks?
-24. Did pytest_result.txt use this decision_id/report_id/round_id?
-25. Did final lint-report run after report write?
-26. Did git diff only contain allowed files?
+12. Did it reverify size_bytes=196689 and sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8?
+13. Did it map key string offsets to RVAs/VAs in bounded form?
+14. Did it attempt bounded xref/reference discovery from .text to key string RVAs/VAs?
+15. Did it identify bounded candidate functions/regions/windows without full disassembly dump?
+16. Did it emit StructuredEvidence or explain why structured_evidence_ready=false?
+17. Did it avoid candidate generation, brute force, dictionary search, and input enumeration?
+18. Did it avoid sample execution/runtime validation/debugger/hook/emulator/probe?
+19. Did it avoid binary upload/copy/embed/full dumps?
+20. Did it avoid modifying training_status/status_overlay?
+21. Did it generate project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json?
+22. Did it register the artifact in latest_artifacts/latest_artifacts_v2/artifact_refs?
+23. Did the artifact make a clear bounded next recommendation, e.g. targeted static solving, IDA setup, or deeper bounded xref extraction?
+24. Did it explain negative_results unchanged or non-use?
+25. Did it run required py_compile/pytest/lint/status/git checks?
+26. Did pytest_result.txt use this decision_id/report_id/round_id?
+27. Did final lint-report run after report write?
+28. Did git diff only contain allowed files?
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-Small bounded tool-integration readiness only.
+Small bounded static extraction only.
 
 ### Phase A — state preflight
 
@@ -247,47 +272,47 @@ Use `.venv\Scripts\python` for repository Python commands.
 Verify:
 
 ```text
-project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json:
-  next_queue_hint.sample_id == cpp2_883e67b9
-  next_queue_hint.training_status == inventory_only
-  next_queue_hint.known_candidate == ""
-  next_queue_hint.allowed_actions includes static_triage
-  next_queue_hint.allowed_actions includes bounded_static_extraction_readiness
+project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json:
+  sample_id == cpp2_883e67b9
+  identity_verified == true
+  readiness_status == READY
+  expected_sha256 == 883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
+  expected_size_bytes == 196689
+  candidate_generated == false
+  candidate_validation_attempted == false
+  executed_sample == false
 
 project_state/local_reverse_training_status.json:
   cpp2_883e67b9.training_status == inventory_only
   cpp2_883e67b9.known_candidate == ""
   cpp2_883e67b9.blocked_reason == ""
-  cpp2_883e67b9.sha256 == 883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
-  cpp2_883e67b9.size_bytes == 196689
 ```
 
-If the queue or training state has drifted, stop as BLOCKED rather than selecting a different sample silently.
+If readiness/training state has drifted, stop as BLOCKED rather than proceeding silently.
 
-### Phase B — existing tool capability inspection
+### Phase B — existing interface inspection
 
-Search/inspect the repository for existing interfaces before using or adding anything:
+Search/inspect existing project interfaces before implementing extraction logic:
 
 ```text
-IDA / IDAPython runner or scripts
-Ghidra runner or scripts
-strings/file/objdump/radare2 wrappers or invocation patterns
-StructuredEvidence conversion/schema
-artifact_index registration helpers
-local_reverse inventory/evaluation helpers
-solver templates and static extraction templates
+local_reverse_single_sample_static_triage.py
+static extraction helpers
+StructuredEvidence schema/converters
+artifact_index helpers
+IDA/Ghidra/radare2 wrappers
+PE parsing or RVA helpers
 ```
 
 Decision rule:
 
 ```text
-1. Use existing interfaces when available.
-2. Use system mature static tools directly only if there is no project wrapper and output remains bounded.
-3. Do not create a new generic tool interface in this round.
-4. If no static triage path is available, still produce BLOCKED readiness artifact with missing capability details.
+1. Reuse existing helpers if they already support bounded PE/string/RVA extraction.
+2. Do not create a generic new tool interface.
+3. If no helper exists, implement only narrow local script/code inside the current execution workflow or minimal project_state-safe helper if absolutely necessary; prefer artifact-only bounded parsing over adding reusable code.
+4. Do not add IDA/Ghidra/radare2 integrations in this round.
 ```
 
-### Phase C — command-scoped sample identity/readiness
+### Phase C — command-scoped identity recheck
 
 Resolve only this file:
 
@@ -297,37 +322,47 @@ relative_path=逆向课程2024春02/CPP2.exe
 resolved_sample_path=E:\reverse\逆向课程2024春02\CPP2.exe
 ```
 
-Allowed identity checks:
+Allowed identity check:
 
 ```bat
 cmd /c "set LOCAL_REVERSE_ROOT=E:\reverse&& .venv\Scripts\python -c \"import os, pathlib, hashlib; p=pathlib.Path(os.environ['LOCAL_REVERSE_ROOT'])/'逆向课程2024春02'/'CPP2.exe'; b=p.read_bytes(); print(p); print(len(b)); print(hashlib.sha256(b).hexdigest())\""
 ```
 
-Do not print/store raw bytes.
+Do not print or store raw bytes.
 
-### Phase D — bounded static triage
+### Phase D — bounded static extraction
 
-Collect only bounded summary fields, for example:
+Use the PE section mapping from readiness. Extract bounded evidence only:
 
 ```text
-file_format / platform / architecture / bitness if available
-entrypoint if available
-section names/counts only, no full section dump
-import library/function count and only highly relevant names, no full import table
-bounded strings indicators: success/failure/prompt/check keywords, max small snippets
-presence of known packer/compiler clues if available
-existing static-tool capability suitability: IDA/Ghidra/strings/file/objdump/radare2 available or blocked
-recommended next bounded action
+1. Confirm PE layout and section RVA/raw mappings.
+2. Convert key string raw offsets to RVA and VA.
+3. Search .text for little-endian immediate references to key string VAs/RVAs if applicable.
+4. If direct xrefs are not found, record bounded negative result and search nearby code/data references only within a small bounded window.
+5. Identify at most a small number of candidate reference sites or function/region windows.
+6. For each candidate window, record offset/RVA/VA, reason, nearby opcode bytes limited to a small window, and semantic hypothesis such as prompt path/failure path/assert path.
+7. Do not dump full .text, full strings, full imports, full sections, full disassembly, or full decompilation.
+8. Do not derive final password/candidate.
 ```
 
-Do not infer a final candidate. Do not classify solved/blocked unless the triage itself is blocked by missing file/tool capability.
+Suggested evidence categories:
+
+```text
+input_prompt_anchor
+failure_message_anchor
+initial_phase_failure_anchor
+debug_assert_anchor
+candidate_compare_or_branch_region
+unknown_reference_region
+bounded_negative_result
+```
 
 ### Phase E — artifact generation
 
 Generate:
 
 ```text
-project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json
+project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json
 ```
 
 Required top-level fields:
@@ -335,8 +370,8 @@ Required top-level fields:
 ```text
 schema_version=1
 mainline=tool_integration
-round_id=round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
-decision_id=decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
+round_id=round_20260607_cpp2_883e67b9_bounded_static_extraction_v1
+decision_id=decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1
 sample_id=cpp2_883e67b9
 relative_path=逆向课程2024春02/CPP2.exe
 command_scoped_root=E:\reverse
@@ -344,15 +379,19 @@ resolved_sample_path=E:\reverse\逆向课程2024春02\CPP2.exe
 expected_sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
 expected_size_bytes=196689
 identity_verified=true|false
-readiness_status=READY|PARTIAL|BLOCKED|FAILED
+extraction_status=SUCCESS|PARTIAL|BLOCKED|FAILED
 training_status_before=inventory_only
 known_candidate_before=""
-source_queue_refresh_artifact=project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json
+source_readiness_artifact=project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json
+source_readiness_status=READY
 existing_tool_interfaces_checked=true
-existing_tool_interfaces={...bounded summary...}
 static_tools_used=[...]
-static_triage_summary={...bounded summary...}
+pe_layout_summary={...bounded...}
+string_anchor_map=[...bounded...]
+xref_search_summary={...bounded...}
+candidate_regions=[...bounded...]
 structured_evidence_ready=true|false
+structured_evidence={...bounded or null...}
 candidate_generated=false
 candidate_validation_attempted=false
 candidate_validated=false
@@ -381,39 +420,41 @@ full_import_table_recorded=false
 full_section_dump_recorded=false
 full_disassembly_recorded=false
 full_decompilation_recorded=false
-next_recommended_mainline=tool_integration|reverse_solving|training_dataset
+bounded_negative_results=[...]
+next_recommended_mainline=tool_integration|reverse_solving
 next_recommended_action=<bounded next step>
 generated_at=<timestamp>
 ```
 
 ### Phase F — artifact_index registration
 
-Register the artifact regardless of readiness_status:
+Register regardless of extraction_status:
 
 ```text
-artifact_index.latest_artifacts["local_reverse_cpp2_883e67b9_bounded_static_triage_readiness"]
-artifact_index.latest_artifacts_v2["local_reverse_cpp2_883e67b9_bounded_static_triage_readiness"]
-artifact_index.artifact_refs["local_reverse_cpp2_883e67b9_bounded_static_triage_readiness"]
+artifact_index.latest_artifacts["local_reverse_cpp2_883e67b9_bounded_static_extraction"]
+artifact_index.latest_artifacts_v2["local_reverse_cpp2_883e67b9_bounded_static_extraction"]
+artifact_index.artifact_refs["local_reverse_cpp2_883e67b9_bounded_static_extraction"]
 ```
 
 `latest_artifacts_v2` must include:
 
 ```text
-kind=local_reverse_bounded_static_triage_readiness
-path=project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json
+kind=local_reverse_bounded_static_extraction
+path=project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json
 freshness=current
-source_run=round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
+source_run=round_20260607_cpp2_883e67b9_bounded_static_extraction_v1
 sha256=<actual artifact sha256>
 size_bytes=<actual artifact size>
 modified_at=<artifact generated_at or filesystem mtime>
 sample_id=cpp2_883e67b9
 relative_path=逆向课程2024春02/CPP2.exe
-readiness_status=READY|PARTIAL|BLOCKED|FAILED
+extraction_status=SUCCESS|PARTIAL|BLOCKED|FAILED
 identity_verified=true|false
 training_status_before=inventory_only
 candidate_generated=false
 candidate_validated=false
-source_queue_refresh_artifact=project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json
+structured_evidence_ready=true|false
+source_readiness_artifact=project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json
 next_recommended_mainline=<value>
 ```
 
@@ -426,11 +467,11 @@ Do not modify `local_reverse_training_status.json` or `status_overlay.json`.
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
-  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
+  "report_id": "report_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
   "status": "SUCCESS|PARTIAL|BLOCKED|FAILED",
-  "acceptance_recommendation": "ACCEPTED|ACCEPTED_WITH_LIMITATIONS|BLOCKED|REWORK_REQUIRED",
+  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS|BLOCKED|REWORK_REQUIRED",
   "files_changed": [],
   "tests_ran": [],
   "generated_artifacts": []
@@ -440,13 +481,13 @@ Do not modify `local_reverse_training_status.json` or `status_overlay.json`.
 Recommended mapping:
 
 ```text
-readiness_status=READY -> status=SUCCESS, acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
-readiness_status=PARTIAL -> status=PARTIAL, acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
-readiness_status=BLOCKED -> status=BLOCKED, acceptance_recommendation=BLOCKED
-readiness_status=FAILED -> status=FAILED, acceptance_recommendation=REWORK_REQUIRED
+extraction_status=SUCCESS -> status=SUCCESS, acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
+extraction_status=PARTIAL -> status=PARTIAL, acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
+extraction_status=BLOCKED -> status=BLOCKED, acceptance_recommendation=BLOCKED
+extraction_status=FAILED -> status=FAILED, acceptance_recommendation=REWORK_REQUIRED
 ```
 
-Use `ACCEPTED_WITH_LIMITATIONS` for READY/PARTIAL because no candidate solving or validation occurs in this round.
+Use `ACCEPTED_WITH_LIMITATIONS` for SUCCESS/PARTIAL because this round does not solve or validate a candidate.
 
 ---
 
@@ -468,9 +509,9 @@ git diff --name-status
 `pytest_result.txt` must include:
 
 ```text
-decision_id=decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
-report_id=report_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
-round_id=round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
+decision_id=decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1
+report_id=report_20260607_cpp2_883e67b9_bounded_static_extraction_v1
+round_id=round_20260607_cpp2_883e67b9_bounded_static_extraction_v1
 ```
 
 Content assertions to record:
@@ -478,24 +519,25 @@ Content assertions to record:
 ```text
 1. decision_packet is the sole authority.
 2. mainline=tool_integration.
-3. source queue refresh points to cpp2_883e67b9.
+3. source readiness artifact is current/READY/identity_verified.
 4. cpp2_883e67b9 training_status remains inventory_only/known_candidate="".
-5. sample identity verified by size and sha256, or artifact records BLOCKED reason.
-6. existing IDA/Ghidra/strings/file/objdump/radare2/StructuredEvidence interfaces were checked before tool use.
+5. sample identity reverified by size and sha256, or artifact records BLOCKED reason.
+6. existing static extraction / StructuredEvidence / tool interfaces were checked before tool use.
 7. no duplicate tool interface was created.
-8. artifact exists at project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json.
-9. artifact_index registers local_reverse_cpp2_883e67b9_bounded_static_triage_readiness as current.
-10. candidate_generated=false.
-11. candidate_validation_attempted=false.
-12. training_status/status_overlay were not modified.
-13. no sample executable was run.
-14. no runtime tools/debugger/hook/emulator/probe were run.
-15. no brute force/dictionary/search/fuzzing was run.
-16. no binary was uploaded, copied, embedded, or committed.
-17. no full strings/imports/sections/disassembly/decompilation dump was recorded.
-18. pytest_result uses this decision_id/report_id/round_id.
-19. final lint-report ran after report write.
-20. git diff --name-status only contains allowed files.
+8. artifact exists at project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json.
+9. artifact_index registers local_reverse_cpp2_883e67b9_bounded_static_extraction as current.
+10. artifact records bounded string anchor map and xref/reference search summary.
+11. candidate_generated=false.
+12. candidate_validation_attempted=false.
+13. training_status/status_overlay were not modified.
+14. no sample executable was run.
+15. no runtime tools/debugger/hook/emulator/probe were run.
+16. no brute force/dictionary/search/fuzzing was run.
+17. no binary was uploaded, copied, embedded, or committed.
+18. no full strings/imports/sections/disassembly/decompilation dump was recorded.
+19. pytest_result uses this decision_id/report_id/round_id.
+20. final lint-report ran after report write.
+21. git diff --name-status only contains allowed files.
 ```
 
 If `pytest` reports no tests collected, record it explicitly and do not claim full test coverage.
@@ -507,32 +549,31 @@ If `pytest` reports no tests collected, record it explicitly and do not claim fu
 Stop with `SUCCESS / ACCEPTED_WITH_LIMITATIONS` if:
 
 ```text
-1. cpp2_883e67b9 remains the current next queue sample;
-2. identity is verified by command-scoped root, size, and sha256;
-3. existing static/tool interfaces are inspected and no duplicate interface is created;
-4. bounded triage/readiness artifact is produced and registered current;
-5. artifact contains bounded static summary and clear next recommended decision;
-6. no candidate is generated or validated;
-7. no sample execution or forbidden runtime/debugger/search action occurred;
-8. training_status/status_overlay remain unchanged;
-9. tests/lint/report metadata align with this decision/report/round.
+1. readiness artifact is current/READY and sample identity is reverified;
+2. bounded static extraction artifact is produced and registered current;
+3. artifact contains bounded string anchors and xref/reference search summary;
+4. artifact gives clear next bounded recommendation;
+5. no candidate is generated or validated;
+6. no sample execution or forbidden runtime/debugger/search action occurred;
+7. training_status/status_overlay remain unchanged;
+8. tests/lint/report metadata align with this decision/report/round.
 ```
 
 Stop with `PARTIAL / ACCEPTED_WITH_LIMITATIONS` if:
 
 ```text
-1. identity is verified but some static tools are unavailable;
-2. artifact records unavailable capabilities and next bounded step;
+1. identity is verified but xref/reference recovery is incomplete;
+2. artifact records bounded negative results and a next step;
 3. no forbidden action occurred.
 ```
 
 Stop with `BLOCKED` if:
 
 ```text
-1. queue state no longer points to cpp2_883e67b9;
+1. source readiness artifact is missing/stale/not READY;
 2. sample file is missing under command-scoped root;
 3. size/sha256 mismatch;
-4. no bounded static triage path is available.
+4. no bounded static extraction path is available.
 ```
 
 Stop with `FAILED / REWORK_REQUIRED` if:
