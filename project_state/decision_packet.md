@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_cpp2_32f1713e_static_extraction_retry_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_static_extraction_retry_v1",
+  "decision_id": "decision_20260607_cpp2_32f1713e_local_env_readiness_after_setx_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_local_env_readiness_after_setx_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -19,32 +19,19 @@
 
 本轮主线是 **tool_integration**。
 
-用户已在本地执行：
+目标：只做 `cpp2_32f1713e` 的 **local environment readiness preflight**，验证用户通过 `setx LOCAL_REVERSE_ROOT "E:\reverse"` 持久化后，Codex 当前执行进程是否已经能看到该环境变量，并验证单个目标样本路径、大小和 sha256 是否满足后续静态提取的前置条件。
 
-```bat
-set LOCAL_REVERSE_ROOT=E:\reverse
-```
+本轮不是静态提取，不是逆向求解，不运行任何样本、IDA/Ghidra、strings/objdump、调试器、winpty、solver 或 candidate validation。
 
-目标：在 Codex 当前执行环境中重新验证 `LOCAL_REVERSE_ROOT` 是否可见，并在样本路径可解析、大小和 sha256 均匹配 inventory 的前提下，对 `cpp2_32f1713e` 执行一次 **bounded static extraction retry**。
-
-本轮仍不是求解，不生成 candidate，不做 runtime validation。允许动作仅限静态提取和证据结构化：
+必须产出环境预检 artifact：
 
 ```text
-sample_id=cpp2_32f1713e
-relative_path=逆向课程2023春补考02/Cpp2.exe
-expected_root=E:\reverse
-mainline=tool_integration
-allowed_actions=[static_extraction, static_triage_evidence_enrichment]
-forbidden_actions=[runtime_probe, debugger, hook, emulator, winpty, console_validator, bruteforce, dictionary_search, candidate_validation, upload_binary]
+project_state/local_reverse_cpp2_32f1713e_local_env_readiness.json
 ```
 
-必须产出：
+该 artifact 只记录环境变量、单个样本路径存在性、size/sha256 校验、下一步建议；不得记录样本二进制内容、字符串 dump、反汇编、PE 节区/导入或任何静态提取结果。
 
-```text
-project_state/local_reverse_cpp2_32f1713e_static_extraction.json
-```
-
-若 Codex 新终端中 `LOCAL_REVERSE_ROOT` 仍不可见，必须写 `status=BLOCKED`，并明确说明 Windows `set` 只对当前 cmd 会话生效，Codex 需要在同一会话启动，或用户需要用持久环境变量/启动脚本传入。不得生成重复的 PARTIAL static triage artifact。
+如果 readiness 通过，下一轮再单独生成 static extraction 决策；本轮不得顺手执行 strings/objdump/IDA 或生成 `local_reverse_cpp2_32f1713e_static_extraction.json`。
 
 ---
 
@@ -52,15 +39,30 @@ project_state/local_reverse_cpp2_32f1713e_static_extraction.json
 
 当前 `decision_packet.md` 是本轮唯一执行权威。`project_state/task_packet.json` 仍是旧 `samplereverse` advisory，不控制本轮。
 
-上一轮 `decision_20260607_cpp2_32f1713e_static_extraction_v1` 的审计结论为 `BLOCKED`，原因是：
+最近两轮 `static_extraction` / `static_extraction_retry` 均为预期内 `BLOCKED`，原因是 Codex 执行环境中仍看不到 `LOCAL_REVERSE_ROOT`：
 
 ```text
-LOCAL_REVERSE_ROOT=<unset>
-project_state/local_reverse_cpp2_32f1713e_static_extraction.json was not generated
-artifact_index static_extraction registration was not added
+cmd /c echo %LOCAL_REVERSE_ROOT% -> %LOCAL_REVERSE_ROOT%
+Python os.environ.get("LOCAL_REVERSE_ROOT") -> <unset>
+project_state/local_reverse_cpp2_32f1713e_static_extraction.json not generated
+artifact_index static_extraction registration not added
 no static tools ran
 training_status/status_overlay unchanged
 ```
+
+用户随后执行了：
+
+```bat
+setx LOCAL_REVERSE_ROOT "E:\reverse"
+```
+
+并看到 Windows 输出：
+
+```text
+成功：指定的值已得到保存。
+```
+
+该事实只说明变量已写入当前 Windows 用户环境；是否被 Codex 当前进程继承，必须由本轮在实际 Codex 执行进程中重新检查。
 
 已有 current triage artifact：
 
@@ -74,14 +76,6 @@ project_state/local_reverse_cpp2_32f1713e_static_triage.json:
   ran_debugger=false
   ran_bruteforce=false
   uploaded_binary=false
-```
-
-Artifact index 已正确登记 static triage，而不是 static extraction：
-
-```text
-latest_artifacts["local_reverse_cpp2_32f1713e_static_triage"] exists
-latest_artifacts_v2["local_reverse_cpp2_32f1713e_static_triage"].freshness=current
-artifact_refs["local_reverse_cpp2_32f1713e_static_triage"] exists
 ```
 
 Training state must remain unchanged:
@@ -99,10 +93,12 @@ training_materials/local_reverse/status_overlay.json:
   cpp2_32f1713e.blocked_reason=""
 ```
 
-Inventory metadata to verify before extraction:
+Inventory metadata to verify:
 
 ```text
 relative_path=逆向课程2023春补考02/Cpp2.exe
+expected_root=E:\reverse
+expected_sample_path=E:\reverse\逆向课程2023春补考02\Cpp2.exe
 sha256=32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412
 size_bytes=196686
 extension=.exe
@@ -111,22 +107,7 @@ category=cpp
 github_upload_policy=metadata_only
 ```
 
-Existing tool capability evidence from prior triage:
-
-```text
-existing_ida_interface=true
-existing_ghidra_interface=false
-existing_strings_or_file_static_path=true
-existing_radare2_or_objdump_static_path=true
-existing_structured_evidence_conversion=true
-existing_solver_templates=true
-existing_harness_or_validation_path=true but forbidden this round
-strings.exe available if local path resolves
-objdump.exe available if local path resolves
-pefile/lief/capstone unavailable in .venv during previous triage
-```
-
-`negative_results.json` mostly concerns old `samplereverse` directions. It still prohibits blind search, budget expansion, breakpoint probes without new evidence, and committing solve_reports. This round must not touch those directions.
+`negative_results.json` mostly concerns old `samplereverse` directions. This round must not touch blind search, budget expansion, breakpoint probes, solve_reports, or any reverse-solving direction.
 
 ---
 
@@ -137,19 +118,19 @@ Strictly forbidden:
 ```text
 1. Do not treat task_packet.task as current execution authority.
 2. Do not run the sample executable.
-3. Do not attach debugger, hook, emulator, runtime probe, winpty, console validator, or dynamic harness.
-4. Do not run bruteforce, dictionary search, solver search, or candidate validation.
-5. Do not generate a final candidate or mark the sample solved.
-6. Do not upload, copy into repo, base64-embed, or commit the sample binary.
-7. Do not commit DLL/EXE/PDB/dump/screenshot/solve_reports/.venv/site-packages/wheel/local binary data.
-8. Do not scan full solve_reports, full PROJECT_PROGRESS_LOG.txt, or the full local sample tree.
-9. Do not rebuild full inventory.
-10. Do not modify .codex-skills.
-11. Do not create duplicate IDA/Ghidra/debugger/static extraction interfaces when mature tools or existing wrappers suffice.
-12. Do not mark cpp2_32f1713e solved or blocked in training_status/status_overlay.
-13. Do not alter cpp2_2f64e68d / 10013 solved facts.
-14. Do not store raw binary bytes, full disassembly, or unbounded strings in any artifact.
-15. Do not use stale artifacts for other samples as current evidence for cpp2_32f1713e.
+3. Do not run strings, objdump, radare2, file, pefile, lief, capstone, IDA, Ghidra, or any static extraction tool.
+4. Do not attach debugger, hook, emulator, runtime probe, winpty, console validator, or dynamic harness.
+5. Do not run bruteforce, dictionary search, solver search, candidate generation, or candidate validation.
+6. Do not generate project_state/local_reverse_cpp2_32f1713e_static_extraction.json in this round.
+7. Do not generate any candidate or mark the sample solved/blocked.
+8. Do not upload, copy into repo, base64-embed, or commit the sample binary.
+9. Do not store raw binary bytes, strings dump, disassembly, imports, sections, screenshots, dumps, or local binary data in any artifact.
+10. Do not commit DLL/EXE/PDB/dump/screenshot/solve_reports/.venv/site-packages/wheel/local binary data.
+11. Do not scan full solve_reports, full PROJECT_PROGRESS_LOG.txt, or full E:\reverse tree.
+12. Do not rebuild full inventory.
+13. Do not modify .codex-skills.
+14. Do not create duplicate IDA/Ghidra/debugger/static extraction interfaces.
+15. Do not alter cpp2_2f64e68d / 10013 solved facts.
 ```
 
 Allowed:
@@ -157,15 +138,14 @@ Allowed:
 ```text
 1. Read default project_state files and .codex-skills/registry.json.
 2. Read inventory/training/queue metadata for cpp2_32f1713e.
-3. Verify LOCAL_REVERSE_ROOT in the actual Codex execution environment using both cmd and Python environment access.
-4. Resolve LOCAL_REVERSE_ROOT + relative_path and verify the local sample file exists.
-5. Compute local file sha256 and size; compare with inventory before extraction.
-6. Use mature static-only tools such as strings.exe, objdump.exe, file, radare2 in static mode, or existing IDA batch static export route if already present and non-executing.
-7. Use Python only to parse bounded tool outputs and assemble JSON evidence; do not implement a new PE parser/disassembler if mature tools are available.
-8. Generate project_state/local_reverse_cpp2_32f1713e_static_extraction.json only after local sample verification passes.
-9. Update artifact_index latest_artifacts/latest_artifacts_v2/artifact_refs for the new artifact.
-10. Optionally add a low-token pointer in current_state/task_packet, preserving all compatibility fields and task advisory semantics.
-11. Write codex_execution_report.md and pytest_result.txt.
+3. Verify LOCAL_REVERSE_ROOT in the actual Codex process using both cmd and Python environment access.
+4. Resolve LOCAL_REVERSE_ROOT + relative_path for this one sample only.
+5. Check whether that path exists and is a regular file.
+6. Compute file size and sha256 for this one target file only.
+7. Generate project_state/local_reverse_cpp2_32f1713e_local_env_readiness.json.
+8. Register the readiness artifact in artifact_index latest_artifacts, latest_artifacts_v2, and artifact_refs.
+9. Optionally add low-token pointers in current_state/task_packet; preserve old fields and task advisory semantics.
+10. Write codex_execution_report.md and pytest_result.txt.
 ```
 
 ---
@@ -189,29 +169,16 @@ project_state/local_reverse_evaluation_queue.json
 project_state/local_reverse_inventory.json
 training_materials/local_reverse/status_overlay.json
 reverse_agent/project_state.py
-reverse_agent/local_reverse_training_status.py
-reverse_agent/local_reverse_ida_guided_solver.py
-reverse_agent/local_reverse_targeted_static_reextract.py
-reverse_agent/local_reverse_constraint_recovery.py
 tests/test_project_state.py
 ```
 
-Inspect only if directly needed and bounded:
-
-```text
-project_state/local_reverse_ida_summary.json
-project_state/local_reverse_ida_solver_result.json
-project_state/local_reverse_forced_ida_extraction_result.json
-```
-
-Do not default-read:
+Do not read by default:
 
 ```text
 solve_reports/ full tree
 PROJECT_PROGRESS_LOG.txt full file
 project_state/rounds/ full history
-local_reverse_samples/ full tree
-E:\reverse full tree beyond the single relative sample path
+E:\reverse full tree beyond E:\reverse\逆向课程2023春补考02\Cpp2.exe
 ```
 
 ---
@@ -223,25 +190,25 @@ Codex report must answer:
 ```text
 1. Did it confirm decision_packet is the sole execution authority?
 2. Did it confirm mainline=tool_integration?
-3. Did it confirm this is static extraction retry/evidence enrichment, not reverse_solving?
+3. Did it confirm this is local env readiness preflight, not static extraction and not reverse_solving?
 4. Did it confirm task_packet.task remains advisory?
 5. Did it confirm cpp2_32f1713e remains rank 1 / inventory_only / known_candidate=""?
-6. Did it verify LOCAL_REVERSE_ROOT in the actual Codex execution environment?
-7. Did it explain whether the user's `set LOCAL_REVERSE_ROOT=E:\reverse` is visible to this Codex process?
-8. Did it resolve the exact sample path and verify the local sample exists?
-9. Did it verify sha256 and size against inventory before extraction?
-10. If LOCAL_REVERSE_ROOT/sample/sha check failed, did it stop as BLOCKED without generating another redundant PARTIAL triage artifact?
-11. Did it run only static tools and list exact commands/tools used?
-12. Did it confirm no sample execution occurred?
-13. Did it confirm no debugger/hook/emulator/runtime probe/winpty/console validator occurred?
-14. Did it confirm no bruteforce/dictionary/candidate validation occurred?
-15. Did it confirm no binary was uploaded, copied, embedded, or committed?
-16. Did it inspect existing static/IDA/tool interfaces and avoid duplicate implementation?
-17. Did it generate project_state/local_reverse_cpp2_32f1713e_static_extraction.json if and only if local sample access passed?
-18. Did the artifact contain bounded strings/imports/sections/compare clues/crypto-transform hints without raw binary/full disassembly/unbounded dumps?
-19. Did it register the artifact in latest_artifacts, latest_artifacts_v2, and artifact_refs if artifact exists?
+6. Did it verify LOCAL_REVERSE_ROOT in the actual Codex execution process using cmd and Python?
+7. Did it record whether setx is visible to Codex after process restart?
+8. Did it resolve the exact sample path for only cpp2_32f1713e?
+9. Did it verify path exists and is a regular file?
+10. Did it compute size and sha256 for only that one target file?
+11. Did size match 196686 and sha256 match 32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412?
+12. Did it generate local_reverse_cpp2_32f1713e_local_env_readiness.json?
+13. Did it register the readiness artifact in latest_artifacts/latest_artifacts_v2/artifact_refs?
+14. Did it avoid static extraction artifact generation?
+15. Did it avoid strings/objdump/IDA/Ghidra/radare2/file/pefile/lief/capstone?
+16. Did it confirm no sample execution occurred?
+17. Did it confirm no debugger/hook/emulator/runtime probe/winpty/console validator occurred?
+18. Did it confirm no bruteforce/dictionary/candidate validation occurred?
+19. Did it confirm no binary was uploaded/copied/embedded/committed?
 20. Did it preserve training_status/status_overlay sample state?
-21. Did it explain negative_results unchanged or update it only for a real new failed direction?
+21. Did it explain negative_results unchanged?
 22. Did it run required py_compile/pytest/lint/status/git checks?
 23. Did pytest_result.txt use this decision_id/report_id/round_id?
 24. Did final lint-report run after report write?
@@ -252,9 +219,9 @@ Codex report must answer:
 
 ## 6. Implementation Scope
 
-Small bounded static extraction retry only. Prefer mature tools and existing wrappers.
+Small bounded readiness preflight only.
 
-### Phase A — preflight and environment verification
+### Phase A — state preflight
 
 Use `.venv\\Scripts\\python` for Python commands.
 
@@ -276,97 +243,48 @@ project_state/local_reverse_cpp2_32f1713e_static_triage.json:
   local_sample_unavailable_reason == LOCAL_REVERSE_ROOT_NOT_SET
 ```
 
-Verify environment in the actual Codex process:
+### Phase B — environment visibility check
+
+Run and record exact outputs:
 
 ```bat
-echo %LOCAL_REVERSE_ROOT%
-```
-
-and with Python:
-
-```bat
+cmd /c echo %LOCAL_REVERSE_ROOT%
 .venv\Scripts\python -c "import os; print(os.environ.get('LOCAL_REVERSE_ROOT', '<unset>'))"
 ```
 
-Resolve sample path:
+Also record expected value:
 
 ```text
-sample_path = %LOCAL_REVERSE_ROOT%\逆向课程2023春补考02\Cpp2.exe
+expected_LOCAL_REVERSE_ROOT=E:\reverse
 ```
 
-Required local checks:
+### Phase C — single-file path/hash check
+
+If and only if `LOCAL_REVERSE_ROOT` is visible and non-empty, resolve:
 
 ```text
-LOCAL_REVERSE_ROOT is set
-sample_path exists
-sample_path is a regular file
-size_bytes == 196686
-sha256 == 32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412
+sample_path=%LOCAL_REVERSE_ROOT%\逆向课程2023春补考02\Cpp2.exe
 ```
 
-If any local check fails, stop and write `status=BLOCKED`, with no new static_extraction artifact and no artifact_index registration for static_extraction. Explicitly include the likely Windows-session cause if `echo %LOCAL_REVERSE_ROOT%` or Python still shows unset.
-
-### Phase B — capability and tool selection
-
-Inspect existing project wrappers before running tools:
+Check only this path:
 
 ```text
-reverse_agent/local_reverse_ida_guided_solver.py
-reverse_agent/local_reverse_targeted_static_reextract.py
-reverse_agent/local_reverse_constraint_recovery.py
-reverse_agent/local_reverse_training_status.py
+path_exists=true|false
+is_regular_file=true|false
+size_bytes=<actual or null>
+sha256=<actual or null>
+size_matches=(actual == 196686)
+sha256_matches=(actual == 32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412)
 ```
 
-Acceptable static-only sources:
+Do not read strings, imports, sections, PE headers, or disassembly.
+
+### Phase D — readiness artifact
+
+Generate:
 
 ```text
-strings.exe -a -n 4 <sample_path>
-objdump.exe -x <sample_path>
-objdump.exe -h <sample_path>
-objdump.exe -d <sample_path>   # bounded output parsing only; do not store full disassembly
-file <sample_path>             # if available
-radare2 static info commands only, if available and non-executing
-existing IDA static export route, only if already implemented and it does not execute the binary
-```
-
-Do not create a new IDA/Ghidra/debugger runner. A tiny local script to run existing tools, bound output, and assemble JSON is acceptable if not committed as project source; if committed source is necessary, stop and write BLOCKED unless scope is explicitly amended.
-
-### Phase C — extraction content
-
-Generate bounded evidence:
-
-```text
-file_metadata:
-  sha256, size_bytes, guessed file type, architecture/bitness/subsystem if obtainable
-
-sections_summary:
-  section name, virtual size, raw size, entropy if available from tool output or simple bounded calculation
-
-imports_summary:
-  imported DLLs and functions, bounded and grouped
-
-strings_summary:
-  counts and bounded selected strings only
-  include input/output prompts, success/failure messages, format strings, suspicious constants, crypto labels
-  do not store full strings dump
-
-compare_clues:
-  static references to strcmp/strncmp/memcmp/lstrcmp/StrCmp, scanf/cin/getline/read APIs, puts/printf/cout, branch-near-compare clues if obtainable
-
-crypto_or_transform_hints:
-  xor/shift/base64/rc4/des/aes/md5/sha table constants or labels if visible
-
-candidate_status:
-  candidate_generated=false
-  candidate_validation_attempted=false
-```
-
-### Phase D — artifact generation
-
-Generate only after local sample verification passes:
-
-```text
-project_state/local_reverse_cpp2_32f1713e_static_extraction.json
+project_state/local_reverse_cpp2_32f1713e_local_env_readiness.json
 ```
 
 Required fields:
@@ -374,69 +292,75 @@ Required fields:
 ```text
 schema_version=1
 mainline=tool_integration
-round_id=round_20260607_cpp2_32f1713e_static_extraction_retry_v1
-decision_id=decision_20260607_cpp2_32f1713e_static_extraction_retry_v1
+round_id=round_20260607_cpp2_32f1713e_local_env_readiness_after_setx_v1
+decision_id=decision_20260607_cpp2_32f1713e_local_env_readiness_after_setx_v1
 sample_id=cpp2_32f1713e
 relative_path=逆向课程2023春补考02/Cpp2.exe
-source_static_triage=project_state\\local_reverse_cpp2_32f1713e_static_triage.json
-training_status_before=inventory_only
-known_candidate_before=""
+expected_root=E:\reverse
+cmd_env_value=<recorded>
+python_env_value=<recorded>
+env_visible=true|false
+env_matches_expected=true|false
+resolved_sample_path=<path or null>
+path_exists=true|false
+is_regular_file=true|false
+size_bytes=<actual or null>
+sha256=<actual or null>
+size_matches=true|false|null
+sha256_matches=true|false|null
+ready_for_static_extraction=true|false
+readiness_status=READY|BLOCKED|FAILED
+block_reason=<null or reason>
 executed_sample=false
+ran_static_extraction_tools=false
 ran_runtime_tools=false
 ran_debugger=false
 ran_bruteforce=false
 uploaded_binary=false
-local_sample_available=true
-local_sample_sha256_verified=true
-local_sample_size_verified=true
-static_tools_used=[...]
-static_tools_unavailable=[...]
-existing_tool_interfaces={...}
-duplicate_interface_created=false
-file_metadata={...}
-sections_summary=[...]
-imports_summary={...}
-strings_summary={...}
-compare_clues=[...]
-crypto_or_transform_hints=[...]
 candidate_generated=false
 candidate_validation_attempted=false
-extraction_status=SUCCESS|PARTIAL
-recommended_next_mainline=reverse_solving|tool_integration|training_dataset
-recommended_next_action=<bounded next step>
+next_recommended_mainline=tool_integration
+next_recommended_action=<bounded next step>
 generated_at=<timestamp>
 ```
 
-`extraction_status=PARTIAL` is allowed only if local sample access and hash verification succeeded but optional static tools were unavailable. It is not allowed for `LOCAL_REVERSE_ROOT_NOT_SET`; that case must be BLOCKED.
+Readiness rules:
+
+```text
+READY only if env_visible=true, env_matches_expected=true, path_exists=true, is_regular_file=true, size_matches=true, sha256_matches=true.
+BLOCKED if env is unset, path missing, file not regular, size mismatch, or sha mismatch.
+FAILED only for unexpected script/tool/report errors.
+```
 
 ### Phase E — artifact_index and optional pointers
 
-If the extraction artifact is generated, update:
+Register readiness artifact regardless of READY/BLOCKED status:
 
 ```text
-artifact_index.latest_artifacts["local_reverse_cpp2_32f1713e_static_extraction"]
-artifact_index.latest_artifacts_v2["local_reverse_cpp2_32f1713e_static_extraction"]
-artifact_index.artifact_refs["local_reverse_cpp2_32f1713e_static_extraction"]
+artifact_index.latest_artifacts["local_reverse_cpp2_32f1713e_local_env_readiness"]
+artifact_index.latest_artifacts_v2["local_reverse_cpp2_32f1713e_local_env_readiness"]
+artifact_index.artifact_refs["local_reverse_cpp2_32f1713e_local_env_readiness"]
 ```
 
 `latest_artifacts_v2` must include:
 
 ```text
-kind=local_reverse_static_extraction
-path=project_state\\local_reverse_cpp2_32f1713e_static_extraction.json
+kind=local_reverse_local_env_readiness
+path=project_state\\local_reverse_cpp2_32f1713e_local_env_readiness.json
 freshness=current
-source_run=round_20260607_cpp2_32f1713e_static_extraction_retry_v1
-sha256=<actual sha256>
-size_bytes=<actual size>
+source_run=round_20260607_cpp2_32f1713e_local_env_readiness_after_setx_v1
+sha256=<actual artifact sha256>
+size_bytes=<actual artifact size>
 modified_at=<artifact generated_at or filesystem mtime>
 sample_id=cpp2_32f1713e
+readiness_status=READY|BLOCKED|FAILED
 ```
 
 Optional low-token pointers:
 
 ```text
-current_state.local_reverse_current_static_extraction=project_state\\local_reverse_cpp2_32f1713e_static_extraction.json
-task_packet.local_reverse_current_static_extraction=project_state\\local_reverse_cpp2_32f1713e_static_extraction.json
+current_state.local_reverse_current_env_readiness=project_state\\local_reverse_cpp2_32f1713e_local_env_readiness.json
+task_packet.local_reverse_current_env_readiness=project_state\\local_reverse_cpp2_32f1713e_local_env_readiness.json
 ```
 
 Do not change `task_packet.task`. Do not alter training_status/status_overlay.
@@ -448,10 +372,10 @@ Do not change `task_packet.task`. Do not alter training_status/status_overlay.
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_32f1713e_static_extraction_retry_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_static_extraction_retry_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_static_extraction_retry_v1",
-  "status": "SUCCESS|PARTIAL|BLOCKED|FAILED",
+  "report_id": "report_20260607_cpp2_32f1713e_local_env_readiness_after_setx_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_local_env_readiness_after_setx_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_local_env_readiness_after_setx_v1",
+  "status": "SUCCESS|BLOCKED|FAILED",
   "acceptance_recommendation": "ACCEPTED|ACCEPTED_WITH_LIMITATIONS|REWORK_REQUIRED|BLOCKED",
   "files_changed": [],
   "tests_ran": [],
@@ -459,7 +383,13 @@ Do not change `task_packet.task`. Do not alter training_status/status_overlay.
 }
 ```
 
-If extraction succeeds but evidence is insufficient for solving, use `status=PARTIAL` and `acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS`, not NEEDS_REVIEW. If local root/sample is still unavailable, use `status=BLOCKED` and `acceptance_recommendation=BLOCKED`.
+Recommended mapping:
+
+```text
+readiness_status=READY   -> report status=SUCCESS, acceptance_recommendation=ACCEPTED
+readiness_status=BLOCKED -> report status=BLOCKED, acceptance_recommendation=BLOCKED
+readiness_status=FAILED  -> report status=FAILED, acceptance_recommendation=REWORK_REQUIRED
+```
 
 ---
 
@@ -480,24 +410,24 @@ git status --short
 git diff --name-status
 ```
 
-If project source code is modified, run targeted tests for the changed source. If only project_state artifacts are changed, `tests/test_project_state.py` is sufficient.
+If project source code is modified, run targeted tests for changed code. If only project_state artifacts are changed, `tests/test_project_state.py` is sufficient.
 
 Content assertions required in report/pytest_result:
 
 ```text
 1. task_packet.task remains advisory.
 2. cpp2_32f1713e remains inventory_only and known_candidate="".
-3. LOCAL_REVERSE_ROOT was checked in the actual Codex process.
-4. Local sample path was verified before extraction, or report is BLOCKED.
-5. Local sha256/size matched inventory before extraction, or report is BLOCKED.
-6. No sample executable run.
-7. No debugger/hook/emulator/runtime probe/winpty/console validator run.
-8. No bruteforce/dictionary/candidate validation run.
-9. No binary uploaded, copied, embedded, or committed.
-10. Existing static/IDA interfaces were inspected and no duplicate interface was created.
-11. Static extraction artifact exists only if local sample verification passed.
-12. Static extraction artifact contains bounded evidence and no raw binary/full disassembly/unbounded dump.
-13. artifact_index registers local_reverse_cpp2_32f1713e_static_extraction as current if artifact exists.
+3. LOCAL_REVERSE_ROOT was checked in the actual Codex process using cmd and Python.
+4. local_env_readiness artifact exists.
+5. readiness_status follows READY/BLOCKED/FAILED rules.
+6. Static extraction artifact was not generated in this round.
+7. No sample executable run.
+8. No strings/objdump/IDA/Ghidra/radare2/file/pefile/lief/capstone run.
+9. No debugger/hook/emulator/runtime probe/winpty/console validator run.
+10. No bruteforce/dictionary/candidate validation run.
+11. No binary uploaded, copied, embedded, or committed.
+12. Artifact contains no raw binary, strings dump, imports, sections, or disassembly.
+13. artifact_index registers local_reverse_cpp2_32f1713e_local_env_readiness as current.
 14. training_status/status_overlay sample state unchanged.
 15. pytest_result uses this decision_id/report_id/round_id.
 16. git diff --name-status only contains allowed files.
@@ -507,22 +437,20 @@ Content assertions required in report/pytest_result:
 
 ## 8. Stop Conditions
 
-Stop and write `status=BLOCKED` or `status=FAILED`, not ACCEPT, if any condition occurs:
+Stop and write `status=FAILED`, not ACCEPT, if any condition occurs:
 
 ```text
-1. LOCAL_REVERSE_ROOT is unset in Codex execution environment.
-2. sample_path does not exist.
-3. sample size or sha256 does not match inventory.
-4. Any sample execution would be required.
-5. Any debugger/hook/emulator/runtime probe/winpty/console validator would be required.
-6. Any bruteforce/dictionary/candidate validation would be required.
-7. A duplicate mature-tool interface would be needed.
-8. Sample binary would need to be uploaded, copied, embedded, or committed.
-9. training_status/status_overlay would need solved/blocked mutation.
-10. static extraction artifact would contain raw binary, full disassembly, or unbounded dump.
-11. artifact_index cannot register the extraction artifact after successful extraction.
-12. pytest_result does not include py_compile reverse_agent/project_state.py.
-13. pytest_result does not match this decision/report/round.
-14. lint-report after final report write fails.
-15. git diff includes .venv, site-packages, DLL, EXE, sample binary, solve_reports, or .codex-skills.
+1. local_env_readiness artifact cannot be generated.
+2. artifact_index cannot register local_env_readiness artifact.
+3. Any static extraction tool would need to run.
+4. Any sample execution would need to run.
+5. Any debugger/hook/emulator/runtime probe/winpty/console validator would need to run.
+6. Any bruteforce/dictionary/candidate validation would need to run.
+7. Sample binary would need to be uploaded, copied, embedded, or committed.
+8. training_status/status_overlay would need solved/blocked mutation.
+9. Artifact would contain raw binary, strings dump, imports, sections, disassembly, screenshot, dump, or local binary data.
+10. pytest_result does not include py_compile reverse_agent/project_state.py.
+11. pytest_result does not match this decision/report/round.
+12. lint-report after final report write fails.
+13. git diff includes .venv, site-packages, DLL, EXE, sample binary, solve_reports, or .codex-skills.
 ```
