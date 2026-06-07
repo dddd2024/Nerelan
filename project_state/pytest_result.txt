@@ -1,25 +1,52 @@
-decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
-report_id=report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
-round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
+```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+  "report_id": "report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+  "generated_at": "2026-06-07T15:00:00Z",
+  "status": "PASSED",
+  "tests_ran": [
+    "py_compile reverse_agent/project_state.py",
+    "pytest tests/test_project_state.py",
+    "lint-decision",
+    "lint-report",
+    "status",
+    "git diff --check",
+    "git status --short",
+    "git diff --name-status"
+  ]
+}
+```
+
+decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
+report_id=report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
+round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
 
 === Content Assertions ===
-1. static_solving_status corrected to PARTIAL: PASS
-2. partial_reason field added: PASS
-3. validation_status corrected to no_candidate: PASS
-4. next_recommended_mainline corrected to tool_integration: PASS
-5. decision_id/round_id match this rework decision: PASS
-6. bounded region analysis preserved: PASS
-7. training_status/status_overlay unchanged: PASS
-8. no sample executable was run: PASS
-9. no runtime tools/debugger/hook/emulator: PASS
-10. artifact_index updated with new sha256/status: PASS
-11. pytest_result uses this rework decision_id/report_id/round_id: PASS
-12. git diff --name-status only contains allowed files: PASS
+artifact.mainline == reverse_solving: PASS
+report mainline text == reverse_solving: PASS
+report status == PARTIAL: PASS
+acceptance_recommendation == ACCEPTED_WITH_LIMITATIONS: PASS
+static_solving_status == PARTIAL: PASS
+schema source_static_extraction_artifact/source_static_extraction_status present: PASS
+prior_raw_offset_fields_treated_as present: PASS
+mapping_correction_summary present: PASS
+candidate_validation_attempted=false: PASS
+candidate_acceptance_status=null: PASS
+next_recommended_action forbidden terms absent: PASS
+artifact_index mirrors corrected fields: PASS
+training_status/status_overlay unchanged: PASS
+no sample execution/runtime/debugger/hook/emulator/probe: PASS
+no brute force/dictionary/search/fuzzing/candidate enumeration: PASS
+no binary upload/copy/embed/full dumps: PASS
 
-=== pytest output ===
-158 passed in tests/test_project_state.py
-py_compile reverse_agent/project_state.py: OK
-lint-decision: OK
-lint-report: OK
-status: OK
-git diff --check: OK
+=== Command Results ===
+py_compile reverse_agent/project_state.py: PASS
+pytest tests/test_project_state.py: PASS (158 passed in 16.02s)
+lint-decision: PASS (OK; decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2; mainline=reverse_solving; skill_profiles=['reverse-agent-iteration@v2'])
+lint-report: PASS (OK; warnings: report_status is PARTIAL; report round not archived yet; parser enum reports ACCEPTED_WITH_LIMITATIONS as UNKNOWN)
+status: PASS (exit 0; decision_consumed_by_report=True; decision_execution_state=CONSUMED_BY_NON_SUCCESS_REPORT; report_status=PARTIAL)
+git diff --check: PASS
+git status --short: PASS (only allowed project_state files modified)
+git diff --name-status: PASS (only allowed project_state files modified)

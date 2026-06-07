@@ -85,7 +85,6 @@
     "local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle": "project_state\\local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle.json",
     "local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime": "project_state\\local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
     "local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
-    "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
     "local_reverse_post_solve_state_sync": "project_state\\local_reverse_post_solve_state_sync.json",
     "local_reverse_training_status_summary_sync": "project_state\\local_reverse_training_status_summary_sync.json",
     "local_reverse_winpty_backend_lifecycle_hardening": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
@@ -896,10 +895,10 @@
       "kind": "local_reverse_training_status_sync",
       "path": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
       "freshness": "current",
-      "source_run": "round_20260606_cpp2_2f64e68d_training_status_blocked_overlay_v1",
-      "sha256": "643c688631350813834aa425cfbe011e54587e90c63ae602134792afc84faa17",
-      "size_bytes": 706,
-      "modified_at": "2026-06-06T10:00:00Z",
+      "source_run": "round_20260607_cpp2_2f64e68d_training_status_sync_v1",
+      "sha256": "431a9eebab22ce3306da4a5a928f211576f54fa9aff7a20b798fd1ded3eca182",
+      "size_bytes": 1815,
+      "modified_at": "2026-06-07T15:00:00Z",
       "sample_id": "cpp2_2f64e68d"
     },
     "local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation": {
@@ -969,16 +968,6 @@
         "artifact_modified_in_rework": true,
         "review_note": "Artifact modified in rework to add timeout semantic explanation fields: timeout_after_oracle_signal_captured, timeout_source=system_pause, timeout_treated_as_non_blocking_for_oracle_classifier, exit_code_required_for_oracle_verdict=false, oracle_verdict_source, candidate_success_signal_captured_before_timeout, control_failure_signal_captured_before_timeout."
       }
-    },
-    "local_reverse_cpp2_2f64e68d_training_status_sync": {
-      "kind": "local_reverse_training_status_sync",
-      "path": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
-      "freshness": "current",
-      "source_run": "round_20260607_cpp2_2f64e68d_training_status_sync_v1",
-      "sha256": "431a9eebab22ce3306da4a5a928f211576f54fa9aff7a20b798fd1ded3eca182",
-      "size_bytes": 1815,
-      "modified_at": "2026-06-07T15:00:00Z",
-      "sample_id": "cpp2_2f64e68d"
     },
     "local_reverse_post_solve_state_sync": {
       "kind": "local_reverse_post_solve_state_sync",
@@ -1202,9 +1191,9 @@
       "kind": "local_reverse_targeted_static_solving",
       "path": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
       "freshness": "current",
-      "source_run": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1",
-      "sha256": "28c550cd58214ed7e18a42f7dee8d94a6b1a8bf7ba3574a827332dcbdde5d0fa",
-      "size_bytes": 7723,
+      "source_run": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "sha256": "2acc7fe537fe417da0b531895bf5f9dad5db4dbc8114b49a08686064da8c369f",
+      "size_bytes": 14874,
       "modified_at": "2026-06-07T15:00:00Z",
       "sample_id": "cpp2_883e67b9",
       "relative_path": "逆向课程2024春02/CPP2.exe",
@@ -1212,8 +1201,10 @@
       "identity_verified": true,
       "training_status_before": "inventory_only",
       "candidate_generated": false,
+      "candidate_validation_attempted": false,
       "candidate_validated": false,
-      "source_extraction_artifact": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+      "candidate_acceptance_status": null,
+      "source_static_extraction_artifact": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
       "next_recommended_mainline": "tool_integration"
     }
   },
