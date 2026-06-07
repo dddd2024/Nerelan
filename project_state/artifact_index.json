@@ -99,7 +99,8 @@
     "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
     "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json",
     "local_reverse_cpp2_32f1713e_queue_refresh": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json",
-    "local_reverse_queue_refresh_after_cpp2_32f1713e": "project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json"
+    "local_reverse_queue_refresh_after_cpp2_32f1713e": "project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json",
+    "local_reverse_cpp2_883e67b9_bounded_static_triage_readiness": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1157,6 +1158,24 @@
       "next_queue_hint_sample_id": "cpp2_883e67b9",
       "rework_of": "local_reverse_cpp2_32f1713e_queue_refresh",
       "rework_reason": "path_key_provenance_and_low_token_field_alignment"
+    },
+    "local_reverse_cpp2_883e67b9_bounded_static_triage_readiness": {
+      "kind": "local_reverse_bounded_static_triage_readiness",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
+      "sha256": "ea8a46048cb67807be8db4253694b272f9a48f3d5017162039a4d505b3b3e85d",
+      "size_bytes": 5169,
+      "modified_at": "2026-06-07T15:00:00Z",
+      "sample_id": "cpp2_883e67b9",
+      "relative_path": "逆向课程2024春02/CPP2.exe",
+      "readiness_status": "READY",
+      "identity_verified": true,
+      "training_status_before": "inventory_only",
+      "candidate_generated": false,
+      "candidate_validated": false,
+      "source_queue_refresh_artifact": "project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json",
+      "next_recommended_mainline": "tool_integration"
     }
   },
   "latest_case_results": [
@@ -1312,6 +1331,7 @@
     "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
     "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json",
     "local_reverse_cpp2_32f1713e_queue_refresh": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json",
-    "local_reverse_queue_refresh_after_cpp2_32f1713e": "project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json"
+    "local_reverse_queue_refresh_after_cpp2_32f1713e": "project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json",
+    "local_reverse_cpp2_883e67b9_bounded_static_triage_readiness": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json"
   }
 }

@@ -1,0 +1,121 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
+  "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+  "expected_size_bytes": 196689,
+  "identity_verified": true,
+  "readiness_status": "READY",
+  "training_status_before": "inventory_only",
+  "known_candidate_before": "",
+  "source_queue_refresh_artifact": "project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json",
+  "existing_tool_interfaces_checked": true,
+  "existing_tool_interfaces": {
+    "local_reverse_single_sample_static_triage": {
+      "available": true,
+      "path": "reverse_agent/local_reverse_single_sample_static_triage.py",
+      "description": "Single-sample static triage adapter using IDA evidence collection",
+      "requires_ida": true
+    },
+    "tool_runners": {
+      "available": true,
+      "path": "reverse_agent/tool_runners.py",
+      "description": "Tool automation config and runner with IDA/OLLY support"
+    },
+    "local_reverse_console_validator": {
+      "available": true,
+      "path": "reverse_agent/local_reverse_console_validator.py",
+      "description": "Subprocess-based console validation for runtime testing"
+    },
+    "ida_scripts": {
+      "available": true,
+      "path": "reverse_agent/ida_scripts/",
+      "scripts": ["collect_evidence.py", "extract_named_data.py", "forced_function_extract.py"]
+    },
+    "ida_direct": {
+      "available": false,
+      "reason": "IDA Pro executable not found in PATH or default locations"
+    },
+    "ghidra": {
+      "available": false,
+      "reason": "No Ghidra project wrapper or headless analyzer found"
+    },
+    "radare2": {
+      "available": false,
+      "reason": "r2 not found in PATH"
+    },
+    "objdump": {
+      "available": false,
+      "reason": "MinGW/cross-compiler objdump not found; PE format not natively supported"
+    }
+  },
+  "static_tools_used": ["python_stdlib_pe_parser", "bounded_strings_extractor"],
+  "static_triage_summary": {
+    "file_format": "PE32",
+    "platform": "Windows",
+    "architecture": "i386",
+    "bitness": 32,
+    "entry_point_rva": "0x1c10",
+    "image_base": "0x400000",
+    "num_sections": 5,
+    "section_names": [".text", ".rdata", ".data", ".idata", ".reloc"],
+    "section_summary": {
+      ".text": {"vaddr": "0x1000", "vsize": "0x25b20", "rawsize": "0x26000"},
+      ".rdata": {"vaddr": "0x27000", "vsize": "0x1667", "rawsize": "0x2000"},
+      ".data": {"vaddr": "0x29000", "vsize": "0x5764", "rawsize": "0x4000"},
+      ".idata": {"vaddr": "0x2f000", "vsize": "0x851", "rawsize": "0x1000"},
+      ".reloc": {"vaddr": "0x30000", "vsize": "0x10af", "rawsize": "0x2000"}
+    },
+    "import_table": {
+      "present": false,
+      "import_directory_size": 0,
+      "note": "No import directory found; likely statically linked CRT"
+    },
+    "key_strings": [
+      {"offset": "0x2702c", "string": "Please input your flag:", "category": "input_prompt"},
+      {"offset": "0x27069", "string": "--- Sorry, but try it again! ---", "category": "failure_message"},
+      {"offset": "0x27c44", "string": "flag == 0 || flag == 1", "category": "debug_assert"},
+      {"offset": "0x281e8", "string": "You are wrong in the initial phase!", "category": "failure_message"}
+    ],
+    "compiler_clues": ["Visual C++ CRT debug strings present", "Statically linked runtime"],
+    "challenge_type_hypothesis": "console_password_checker_with_flag_assert",
+    "similarity_to_cpp2_32f1713e": "high_same_course_same_name_similar_strings"
+  },
+  "structured_evidence_ready": false,
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "candidate_validated": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_ida": false,
+  "ran_ghidra": false,
+  "ran_strings": false,
+  "ran_file": false,
+  "ran_objdump": false,
+  "ran_radare2": false,
+  "ran_static_extraction": false,
+  "ran_debugger": false,
+  "ran_hook": false,
+  "ran_emulator": false,
+  "ran_probe": false,
+  "ran_bruteforce": false,
+  "ran_dictionary_search": false,
+  "candidate_search_performed": false,
+  "uploaded_binary": false,
+  "binary_content_recorded": false,
+  "full_strings_dump_recorded": false,
+  "full_import_table_recorded": false,
+  "full_section_dump_recorded": false,
+  "full_disassembly_recorded": false,
+  "full_decompilation_recorded": false,
+  "next_recommended_mainline": "tool_integration",
+  "next_recommended_action": "Generate a bounded static extraction decision for cpp2_883e67b9. Use Python stdlib PE parser + strings extractor (IDA/Ghidra unavailable) to locate string RVAs, search .text references, and recover comparison logic. Challenge type appears to be console password checker similar to cpp2_32f1713e.",
+  "generated_at": "2026-06-07T15:00:00Z"
+}

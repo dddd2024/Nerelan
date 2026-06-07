@@ -1,15 +1,13 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1",
-  "round_id": "round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1",
-  "based_on_decision_id": "decision_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1",
+  "report_id": "report_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
+  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
-    "project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json",
-    "project_state/task_packet.json",
-    "project_state/current_state.json",
+    "project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json",
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
@@ -25,7 +23,7 @@
     "git diff --name-status"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json"
+    "project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json"
   ]
 }
 ```
@@ -35,82 +33,88 @@
 ## 1. Authority Confirmation
 
 - **decision_packet is the sole execution authority**: Confirmed.
-- **mainline = training_dataset**: Confirmed.
-- **This is a rework of queue refresh metadata/schema/provenance**: Confirmed.
+- **mainline = tool_integration**: Confirmed.
+- **This is bounded static triage readiness, not solving/validation**: Confirmed.
 - **task_packet.task remains advisory**: Confirmed.
 
 ## 2. State Preflight (Phase A)
 
-- Source training_status_sync artifact: `local_reverse_cpp2_32f1713e_training_status_sync.json` — post_sync_status=solved, post_sync_known_candidate=KEEP_DREAM, aggregate_counts_after={solved:4, inventory_only:21}. **Confirmed.**
-- Legacy queue_refresh artifact: `local_reverse_cpp2_32f1713e_queue_refresh.json` — key=local_reverse_cpp2_32f1713e_queue_refresh, accepted_round=round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1 (wrong round), allowed_actions missing bounded_static_extraction_readiness, forbidden_actions missing debugger/hook/emulator. **Confirmed legacy issues.**
-- task_packet.json: accepted_round stale, next_suggested_task stale, action lists incomplete. **Confirmed.**
-- current_state.json: accepted_round stale, next_queue_hint action lists incomplete. **Confirmed.**
+- Source queue_refresh artifact: `local_reverse_queue_refresh_after_cpp2_32f1713e.json` — next_queue_hint=cpp2_883e67b9, training_status=inventory_only. **Confirmed.**
+- Training status: cpp2_883e67b9.training_status=inventory_only, known_candidate="", blocked_reason="". **Confirmed.**
+- Identity verified: size=196689, sha256=883e67b9... **Match.**
 
-## 3. Issues Fixed
+## 3. Tool Interface Inspection (Phase B)
 
-| Issue | Legacy Value | Fixed Value |
-|-------|-------------|-------------|
-| Artifact filename | `local_reverse_cpp2_32f1713e_queue_refresh.json` | `local_reverse_queue_refresh_after_cpp2_32f1713e.json` |
-| Artifact key | `local_reverse_cpp2_32f1713e_queue_refresh` | `local_reverse_queue_refresh_after_cpp2_32f1713e` |
-| decision_id/round_id | `...cpp2_32f1713e_queue_refresh_v1` | `...local_reverse_queue_refresh_after_cpp2_32f1713e_rework_v1` |
-| accepted_round | runtime validation round | **training_status_sync round** |
-| allowed_actions | ["static_triage"] | ["static_triage", **"bounded_static_extraction_readiness"**] |
-| forbidden_actions | ["runtime_probe", "bruteforce", "upload_binary"] | ["runtime_probe", **"brute_force"**, **"debugger"**, **"hook"**, **"emulator"**, "upload_binary"] |
-| next_suggested_task | mentions cpp2_32f1713e | mentions **cpp2_883e67b9** |
+| Tool | Status | Notes |
+|------|--------|-------|
+| local_reverse_single_sample_static_triage.py | Available | Requires IDA |
+| tool_runners.py | Available | IDA/OLLY config |
+| local_reverse_console_validator.py | Available | Subprocess validation |
+| ida_scripts/ | Available | 3 scripts present |
+| IDA Pro | **Unavailable** | Not in PATH |
+| Ghidra | **Unavailable** | No headless wrapper |
+| radare2 | **Unavailable** | Not in PATH |
+| objdump | **Unavailable** | PE not natively supported |
 
-## 4. Normalized Artifact (Phase C)
+## 4. Bounded Static Triage (Phase C)
 
-`project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json`:
-- decision_id/round_id match this rework decision ✅
-- accepted_round = **round_20260607_cpp2_32f1713e_training_status_sync_v1** ✅
-- allowed_actions includes bounded_static_extraction_readiness ✅
-- forbidden_actions includes debugger/hook/emulator ✅
-- legacy_source_artifact recorded ✅
-- rework_reason = **path_key_provenance_and_low_token_field_alignment** ✅
+### PE Header
+- File type: **PE32 i386**
+- Entry point: RVA 0x1c10, ImageBase 0x400000
+- Sections: .text (156KB), .rdata (5.7KB), .data (22KB), .idata (2.1KB), .reloc (4.2KB)
 
-## 5. Low-Token State Updates (Phase B)
+### Import Table
+- **No import directory** (size=0) — statically linked CRT
 
-### task_packet.json
-- local_reverse_recent_solved.accepted_round: runtime validation round → **training_status_sync round**
-- local_reverse_next_queue_hint.allowed_actions: added **bounded_static_extraction_readiness**
-- local_reverse_next_queue_hint.forbidden_actions: added **brute_force**, **debugger**, **hook**, **emulator**
-- local_reverse_next_suggested_task: mentions cpp2_32f1713e → **cpp2_883e67b9**
+### Key Strings
+| Offset | String | Category |
+|--------|--------|----------|
+| 0x2702c | "Please input your flag:" | input_prompt |
+| 0x27069 | "--- Sorry, but try it again! ---" | failure_message |
+| 0x27c44 | "flag == 0 \|\| flag == 1" | debug_assert |
+| 0x281e8 | "You are wrong in the initial phase!" | failure_message |
 
-### current_state.json
-- local_reverse_recent_solved.accepted_round: runtime validation round → **training_status_sync round**
-- local_reverse_next_queue_hint.allowed_actions: added **bounded_static_extraction_readiness**
-- local_reverse_next_queue_hint.forbidden_actions: added **brute_force**, **debugger**, **hook**, **emulator**
+### Challenge Hypothesis
+- **Type**: console_password_checker_with_flag_assert
+- **Similarity to cpp2_32f1713e**: high (same course, same name, similar strings)
 
-## 6. Artifact Index Registration (Phase D)
+## 5. Artifact Generated (Phase D)
 
-- `latest_artifacts["local_reverse_queue_refresh_after_cpp2_32f1713e"]` ✅
-- `latest_artifacts_v2["local_reverse_queue_refresh_after_cpp2_32f1713e"]` (freshness=current) ✅
-- `artifact_refs["local_reverse_queue_refresh_after_cpp2_32f1713e"]` ✅
-- Old artifact `local_reverse_cpp2_32f1713e_queue_refresh` marked as **stale** in latest_artifacts_v2 ✅
+`project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json`:
+- readiness_status = **READY**
+- identity_verified = **true**
+- structured_evidence_ready = **false**
+- candidate_generated = **false**
+
+## 6. Artifact Index Registration (Phase E)
+
+Registered in all three locations:
+- `latest_artifacts["local_reverse_cpp2_883e67b9_bounded_static_triage_readiness"]` ✅
+- `latest_artifacts_v2["local_reverse_cpp2_883e67b9_bounded_static_triage_readiness"]` (kind=local_reverse_bounded_static_triage_readiness) ✅
+- `artifact_refs["local_reverse_cpp2_883e67b9_bounded_static_triage_readiness"]` ✅
 
 ## 7. Audit Checklist
 
 | # | Check | Result |
 |---|-------|--------|
 | 1 | Confirmed decision_packet is sole authority | PASS |
-| 2 | Confirmed mainline=training_dataset | PASS |
-| 3 | Confirmed this is a rework of queue refresh | PASS |
-| 4 | Source training_status_sync artifact current/solved/KEEP_DREAM | PASS |
-| 5 | Legacy queue_refresh artifact identified with wrong accepted_round | PASS |
-| 6 | task_packet accepted_round updated to training_status_sync round | PASS |
-| 7 | current_state accepted_round updated to training_status_sync round | PASS |
-| 8 | task_packet allowed_actions includes bounded_static_extraction_readiness | PASS |
-| 9 | task_packet forbidden_actions includes debugger/hook/emulator | PASS |
-| 10 | task_packet next_suggested_task mentions cpp2_883e67b9 | PASS |
-| 11 | current_state allowed_actions includes bounded_static_extraction_readiness | PASS |
-| 12 | current_state forbidden_actions includes debugger/hook/emulator | PASS |
-| 13 | New artifact decision_id/round_id match this rework decision | PASS |
-| 14 | New artifact filename = local_reverse_queue_refresh_after_cpp2_32f1713e.json | PASS |
-| 15 | Old artifact marked stale in latest_artifacts_v2 | PASS |
-| 16 | No sample execution | PASS |
-| 17 | No runtime tools/debugger/hook/emulator/probe | PASS |
-| 18 | No brute force/dictionary/search | PASS |
-| 19 | No binary upload/copy/embed | PASS |
-| 20 | Ran py_compile/pytest/lint/status/git checks | PASS |
-| 21 | pytest_result uses this rework decision_id/report_id/round_id | PASS |
-| 22 | git diff only contains allowed files | PASS |
+| 2 | Confirmed mainline=tool_integration | PASS |
+| 3 | Confirmed this is bounded static triage readiness | PASS |
+| 4 | Source queue_refresh artifact current with next_queue_hint=cpp2_883e67b9 | PASS |
+| 5 | Training status inventory_only/known_candidate="" before execution | PASS |
+| 6 | Identity verified by size and sha256 | PASS |
+| 7 | Inspected existing tool interfaces before choosing path | PASS |
+| 8 | Avoided duplicate IDA/Ghidra/debugger/static extraction interface | PASS |
+| 9 | Used Python stdlib PE parser + bounded strings extractor | PASS |
+| 10 | No sample execution | PASS |
+| 11 | No debugger/hook/emulator/probe/instrumentation | PASS |
+| 12 | No brute force/dictionary/search/fuzzing | PASS |
+| 13 | No candidate generated | PASS |
+| 14 | No binary upload/copy/embed/full dumps | PASS |
+| 15 | Artifact contains no raw binary or full disassembly | PASS |
+| 16 | Generated bounded_static_triage_readiness artifact | PASS |
+| 17 | Registered in latest_artifacts/latest_artifacts_v2/artifact_refs | PASS |
+| 18 | training_status/status_overlay unchanged | PASS |
+| 19 | Ran py_compile/pytest/lint/status/git checks | PASS |
+| 20 | pytest_result uses this decision_id/report_id/round_id | PASS |
+| 21 | git diff only contains allowed files | PASS |
