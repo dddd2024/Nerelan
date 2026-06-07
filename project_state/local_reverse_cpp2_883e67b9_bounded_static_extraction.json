@@ -1,0 +1,195 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+  "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+  "expected_size_bytes": 196689,
+  "identity_verified": true,
+  "extraction_status": "SUCCESS",
+  "training_status_before": "inventory_only",
+  "known_candidate_before": "",
+  "source_readiness_artifact": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json",
+  "source_readiness_status": "READY",
+  "existing_tool_interfaces_checked": true,
+  "static_tools_used": ["python_stdlib_pe_parser", "bounded_strings_extractor", "push_imm32_xref_searcher"],
+  "pe_layout_summary": {
+    "file_type": "PE32",
+    "architecture": "i386",
+    "bitness": 32,
+    "image_base": "0x400000",
+    "entry_point_rva": "0x1c10",
+    "num_sections": 5,
+    "sections": [
+      {"name": ".text", "vaddr": "0x1000", "vsize": "0x25b20", "rawptr": "0x400", "rawsize": "0x26000", "executable": true},
+      {"name": ".rdata", "vaddr": "0x27000", "vsize": "0x1667", "rawptr": "0x26400", "rawsize": "0x2000", "executable": false},
+      {"name": ".data", "vaddr": "0x29000", "vsize": "0x5764", "rawptr": "0x28400", "rawsize": "0x4000", "executable": false},
+      {"name": ".idata", "vaddr": "0x2f000", "vsize": "0x851", "rawptr": "0x2c400", "rawsize": "0x1000", "executable": false},
+      {"name": ".reloc", "vaddr": "0x30000", "vsize": "0x10af", "rawptr": "0x2d400", "rawsize": "0x2000", "executable": false}
+    ]
+  },
+  "string_anchor_map": [
+    {
+      "string": "Please input your flag:",
+      "category": "input_prompt",
+      "raw_offset": "0x2702c",
+      "rva": "0x2702c",
+      "va": "0x42702c",
+      "section": ".rdata"
+    },
+    {
+      "string": "--- Sorry, but try it again! ---",
+      "category": "failure_message",
+      "raw_offset": "0x27069",
+      "rva": "0x27069",
+      "va": "0x427069",
+      "section": ".rdata"
+    },
+    {
+      "string": "flag == 0 || flag == 1",
+      "category": "debug_assert",
+      "raw_offset": "0x27c44",
+      "rva": "0x27c44",
+      "va": "0x427c44",
+      "section": ".rdata"
+    },
+    {
+      "string": "You are wrong in the initial phase!",
+      "category": "initial_phase_failure",
+      "raw_offset": "0x281e8",
+      "rva": "0x281e8",
+      "va": "0x4281e8",
+      "section": ".rdata"
+    }
+  ],
+  "xref_search_summary": {
+    "method": "push_imm32_va_search_in_text",
+    "strings_searched": 4,
+    "direct_push_refs_found": 3,
+    "indirect_refs_found": 0,
+    "strings_with_no_direct_refs": ["--- Sorry, but try it again! ---"]
+  },
+  "xrefs": [
+    {
+      "string": "Please input your flag:",
+      "va": "0x42702c",
+      "refs": [
+        {
+          "ref_raw": "0x10ad",
+          "ref_rva": "0x10ad",
+          "ref_va": "0x4010ad",
+          "opcode_window_hex": "10000000b8ccccccccf3ab68709a4200682c704200e80906000083c4086858cd42006874",
+          "push_offset_in_window": 13
+        }
+      ]
+    },
+    {
+      "string": "--- Sorry, but try it again! ---",
+      "va": "0x427069",
+      "refs": []
+    },
+    {
+      "string": "flag == 0 || flag == 1",
+      "va": "0x427c44",
+      "refs": [
+        {
+          "ref_raw": "0x61c3",
+          "ref_rva": "0x61c3",
+          "ref_va": "0x4061c3",
+          "opcode_window_hex": "51535657837d08007427837d0801742168447c42006a0068a1000000682c7c42006a02e8",
+          "push_offset_in_window": 16
+        }
+      ]
+    },
+    {
+      "string": "You are wrong in the initial phase!",
+      "va": "0x4281e8",
+      "refs": [
+        {
+          "ref_raw": "0x10e6",
+          "ref_rva": "0x10e6",
+          "ref_va": "0x4010e6",
+          "opcode_window_hex": "83c4040fbe0d319a42002bc185c0741a68e8814200e88008010083c404681c704200e8c3",
+          "push_offset_in_window": 17
+        }
+      ]
+    }
+  ],
+  "candidate_regions": [
+    {
+      "anchor_string": "Please input your flag:",
+      "anchor_ref_va": "0x4010ad",
+      "region_rva_start": "0xead",
+      "region_rva_end": "0x12ad",
+      "region_size": 1024,
+      "interesting_opcodes_count": 8,
+      "interesting_opcodes_offsets": ["0x1a", "0x1c", "0x74", "0x76", "0x78", "0x7a", "0x7c", "0x7e"],
+      "semantic_hypothesis": "prompt_path"
+    },
+    {
+      "anchor_string": "flag == 0 || flag == 1",
+      "anchor_ref_va": "0x4061c3",
+      "region_rva_start": "0x5fc3",
+      "region_rva_end": "0x64c3",
+      "region_size": 1280,
+      "interesting_opcodes_count": 36,
+      "interesting_opcodes_offsets": ["0x0", "0x2", "0x4", "0x6", "0x8", "0xa", "0xc", "0xe", "0x10", "0x12"],
+      "semantic_hypothesis": "assert_path"
+    },
+    {
+      "anchor_string": "You are wrong in the initial phase!",
+      "anchor_ref_va": "0x4010e6",
+      "region_rva_start": "0xce6",
+      "region_rva_end": "0x12e6",
+      "region_size": 1280,
+      "interesting_opcodes_count": 8,
+      "interesting_opcodes_offsets": ["0x12", "0x14", "0x16", "0x18", "0x1a", "0x1c", "0x1e", "0x20"],
+      "semantic_hypothesis": "failure_path"
+    }
+  ],
+  "bounded_negative_results": [
+    {
+      "type": "no_direct_push_refs",
+      "string": "--- Sorry, but try it again! ---",
+      "va": "0x427069",
+      "note": "No direct push imm32 references found in .text; may be referenced indirectly via register or through another function"
+    }
+  ],
+  "structured_evidence_ready": false,
+  "structured_evidence": null,
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "candidate_validated": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_ida": false,
+  "ran_ghidra": false,
+  "ran_strings": false,
+  "ran_file": false,
+  "ran_objdump": false,
+  "ran_radare2": false,
+  "ran_static_extraction": true,
+  "ran_debugger": false,
+  "ran_hook": false,
+  "ran_emulator": false,
+  "ran_probe": false,
+  "ran_bruteforce": false,
+  "ran_dictionary_search": false,
+  "candidate_search_performed": false,
+  "uploaded_binary": false,
+  "binary_content_recorded": false,
+  "full_strings_dump_recorded": false,
+  "full_import_table_recorded": false,
+  "full_section_dump_recorded": false,
+  "full_disassembly_recorded": false,
+  "full_decompilation_recorded": false,
+  "next_recommended_mainline": "tool_integration",
+  "next_recommended_action": "Generate a targeted static solving decision for cpp2_883e67b9. Focus on the three candidate regions: (1) prompt_path at 0x4010ad, (2) assert_path at 0x4061c3, (3) failure_path at 0x4010e6. Investigate the assert_path region (0x4061c3) for comparison logic and expected value table. Also search for indirect references to the 'Sorry' string (0x427069) which had no direct push refs.",
+  "generated_at": "2026-06-07T15:00:00Z"
+}

@@ -1,34 +1,36 @@
-decision_id=decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
-report_id=report_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
-round_id=round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
+decision_id=decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1
+report_id=report_20260607_cpp2_883e67b9_bounded_static_extraction_v1
+round_id=round_20260607_cpp2_883e67b9_bounded_static_extraction_v1
 
 === Content Assertions ===
-1. source queue_refresh artifact is current with next_queue_hint=cpp2_883e67b9: PASS
-2. training_status inventory_only/known_candidate="" before execution: PASS
-3. identity verified by size and sha256: PASS
-4. existing tool interfaces inspected before choosing path: PASS
-5. no duplicate IDA/Ghidra/debugger/static extraction interface created: PASS
-6. bounded static triage artifact exists: PASS
-7. readiness_status follows READY/BLOCKED/FAILED rules: PASS (READY)
-8. artifact_index registers local_reverse_cpp2_883e67b9_bounded_static_triage_readiness as current: PASS
-9. no sample executable was run: PASS
-10. no debugger/hook/emulator/probe/instrumentation was run: PASS
-11. no brute force/dictionary/search/fuzzing was run: PASS
-12. no candidate was generated: PASS
-13. no binary was uploaded, copied, embedded, or committed: PASS
-14. artifact contains no raw binary, full strings dump, full imports, full sections, full disassembly, screenshots, or dumps: PASS
-15. training_status/status_overlay sample state unchanged: PASS
-16. pytest_result uses this decision_id/report_id/round_id: PASS
-17. git diff --name-status only contains allowed files: PASS
+1. source readiness artifact is current/READY/identity_verified: PASS
+2. training_status remains inventory_only/known_candidate="": PASS
+3. sample identity reverified by size and sha256: PASS
+4. existing static extraction interfaces checked before tool use: PASS
+5. no duplicate tool interface created: PASS
+6. bounded static extraction artifact exists: PASS
+7. extraction_status follows SUCCESS/BLOCKED/FAILED rules: PASS (SUCCESS)
+8. artifact_index registers local_reverse_cpp2_883e67b9_bounded_static_extraction as current: PASS
+9. artifact records bounded string anchor map with RVA/VA: PASS
+10. artifact records xref/reference search summary: PASS
+11. candidate_generated=false: PASS
+12. candidate_validation_attempted=false: PASS
+13. training_status/status_overlay not modified: PASS
+14. no sample executable was run: PASS
+15. no runtime tools/debugger/hook/emulator/probe: PASS
+16. no brute force/dictionary/search/fuzzing: PASS
+17. no binary was uploaded, copied, embedded, or committed: PASS
+18. no full strings/imports/sections/disassembly/decompilation dump: PASS
+19. pytest_result uses this decision_id/report_id/round_id: PASS
+20. git diff --name-status only contains allowed files: PASS
 
-=== Static Triage Results ===
-- File type: PE32 i386
-- Entry point: RVA 0x1c10, ImageBase 0x400000
-- Sections: .text(156KB), .rdata(5.7KB), .data(22KB), .idata(2.1KB), .reloc(4.2KB)
-- Import table: None (statically linked CRT)
-- Key strings: "Please input your flag:", "--- Sorry, but try it again! ---", "flag == 0 || flag == 1", "You are wrong in the initial phase!"
-- Challenge hypothesis: console_password_checker_with_flag_assert
-- Tools used: Python stdlib PE parser + bounded strings extractor
+=== Static Extraction Results ===
+- File type: PE32 i386, image_base=0x400000
+- 4 key strings located in .rdata with RVA/VA
+- XRef search (push imm32 in .text): 3 direct refs found, 1 string (Sorry) with no direct refs
+- Candidate regions identified: prompt_path (0x4010ad), assert_path (0x4061c3), failure_path (0x4010e6)
+- Bounded negative result: Sorry string may be referenced indirectly
+- Tools used: Python stdlib PE parser + bounded strings extractor + push_imm32_xref_searcher
 
 === pytest output ===
 158 passed in tests/test_project_state.py
