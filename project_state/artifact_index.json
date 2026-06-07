@@ -95,7 +95,8 @@
     "local_reverse_cpp2_32f1713e_command_scoped_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json",
     "local_reverse_cpp2_32f1713e_bounded_static_extraction": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
     "local_reverse_cpp2_32f1713e_targeted_static_solve": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json",
-    "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json"
+    "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
+    "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1089,6 +1090,22 @@
       "source_static_artifact": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
       "legacy_source_artifact": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json",
       "rework_of": "local_reverse_cpp2_32f1713e_targeted_static_solve"
+    },
+    "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": {
+      "kind": "local_reverse_candidate_runtime_validation",
+      "path": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1",
+      "sha256": "aeb5d09ad438422984faff38f7c797b8e033775dff2ffc00f0248a79bd38f04b",
+      "size_bytes": 2956,
+      "modified_at": "2026-06-07T15:00:00Z",
+      "sample_id": "cpp2_32f1713e",
+      "candidate": "KEEP_DREAM",
+      "validation_status": "VALIDATED",
+      "candidate_success_signal_captured": true,
+      "control_failure_signal_captured": true,
+      "source_static_solving_artifact": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
+      "training_status_modified": false
     }
   },
   "latest_case_results": [
@@ -1240,6 +1257,7 @@
     "local_reverse_cpp2_32f1713e_command_scoped_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json",
     "local_reverse_cpp2_32f1713e_bounded_static_extraction": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
     "local_reverse_cpp2_32f1713e_targeted_static_solve": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json",
-    "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json"
+    "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
+    "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json"
   }
 }

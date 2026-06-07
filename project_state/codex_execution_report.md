@@ -1,13 +1,13 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1",
+  "report_id": "report_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
   "files_changed": [
-    "project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json",
+    "project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
@@ -23,7 +23,7 @@
     "git diff --name-status"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json"
+    "project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json"
   ]
 }
 ```
@@ -33,87 +33,100 @@
 ## 1. Authority Confirmation
 
 - **decision_packet is the sole execution authority**: Confirmed.
-- **This is a rework of targeted_static_solving metadata/schema/provenance**: Confirmed.
 - **mainline = reverse_solving**: Confirmed.
-- **No runtime validation allowed in this round**: Confirmed.
+- **This is bounded runtime validation, not new solving**: Confirmed.
 - **task_packet.task remains advisory**: Confirmed.
 
 ## 2. State Preflight (Phase A)
 
-- Source static extraction: `local_reverse_cpp2_32f1713e_bounded_static_extraction.json` — static_extraction_status=SUCCESS, identity_verified=true, candidate_generated=false, candidate_validation_attempted=false. **Confirmed.**
-- Source readiness: `local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json` — readiness_status=READY, ready_for_static_extraction=true. **Confirmed.**
-- Legacy source artifact: `local_reverse_cpp2_32f1713e_targeted_static_solve.json` — sample_id=cpp2_32f1713e, unvalidated_candidate=KEEP_DREAM, candidate_validation_attempted=false, executed_sample=false, ran_runtime_tools=false, ran_debugger=false, ran_bruteforce=false. **Confirmed as legacy source only.**
+- Source static solving artifact: `local_reverse_cpp2_32f1713e_targeted_static_solving.json` — static_solving_status=SUCCESS, unvalidated_candidate_hypothesis.candidate=KEEP_DREAM, validation_status=unvalidated. **Confirmed.**
+- Source readiness artifact: `local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json` — readiness_status=READY. **Confirmed.**
 - Training status: cpp2_32f1713e.training_status=inventory_only, known_candidate="", blocked_reason="". **Confirmed unchanged.**
 - Status overlay: cpp2_32f1713e.training_status=inventory_only, known_candidate="", blocked_reason="". **Confirmed unchanged.**
 
-## 3. Legacy Artifact Issues Identified
+## 3. Existing Runtime Interface Inspection (Phase B)
 
-| Issue | Legacy Value | Required Value |
-|-------|-------------|----------------|
-| Artifact filename | `targeted_static_solve.json` | `targeted_static_solving.json` |
-| Artifact key in index | `local_reverse_cpp2_32f1713e_targeted_static_solve` | `local_reverse_cpp2_32f1713e_targeted_static_solving` |
-| decision_id | `decision_20260607_cpp2_32f1713e_targeted_static_solve_v1` | `decision_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1` |
-| round_id | `round_20260607_cpp2_32f1713e_targeted_static_solve_v1` | `round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1` |
-| Status field | `solving_status=SOLVED_BY_STATIC_ANALYSIS` | `static_solving_status=SUCCESS` |
-| Candidate field | `unvalidated_candidate=KEEP_DREAM` | `unvalidated_candidate_hypothesis={...}` |
-| Report acceptance | `ACCEPTED` | `ACCEPTED_WITH_LIMITATIONS` |
+Inspected `reverse_agent/local_reverse_console_validator.py` — existing subprocess-based console validation interface. Decision: reuse the subprocess.Popen pattern directly (same as existing validator) without creating duplicate interfaces. No winpty/pywinpty required for this simple console sample.
 
-## 4. Normalized Artifact Generated (Phase B)
+## 4. Bounded Execution (Phase C)
 
-`project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json`:
-- decision_id = **decision_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1** ✅
-- round_id = **round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1** ✅
-- static_solving_status = **SUCCESS** ✅
-- unvalidated_candidate_hypothesis.candidate = **KEEP_DREAM** ✅
-- unvalidated_candidate_hypothesis.validation_status = **unvalidated** ✅
-- candidate_generated = **true** ✅
-- candidate_validation_attempted = **false** ✅
-- candidate_validated = **false** ✅
-- candidate_acceptance_status = **unvalidated** ✅
-- legacy_source_artifact recorded ✅
-- rework_reason = **provenance_schema_key_alignment** ✅
+### Identity Reverification
+- Path: `E:\reverse\逆向课程2023春补考02\Cpp2.exe`
+- Size: 196686 ✅
+- SHA256: 32f1713e... ✅
 
-## 5. Artifact Index Registration (Phase C)
+### Positive Candidate: KEEP_DREAM
+| Metric | Value |
+|--------|-------|
+| timed_out | False |
+| return_code | 0 |
+| success_observed | **True** |
+| failure_observed | False |
+| stdout | `Press any key to continue...\nPlase give me your answer:\nCongratulations! You are right!` |
+
+### Negative Control: KEEP_DREAN
+| Metric | Value |
+|--------|-------|
+| timed_out | False |
+| return_code | 0 |
+| success_observed | False |
+| failure_observed | **True** |
+| stdout | `Press any key to continue...\nPlase give me your answer:\nSorry, you are wrong!` |
+
+### Oracle Verdict: **VALIDATED**
+- Positive shows success signal ✅
+- Negative shows failure signal ✅
+- Negative does NOT show success signal ✅
+
+## 5. Artifact Generated (Phase D)
+
+`project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json`:
+- validation_status = **VALIDATED**
+- candidate_success_signal_captured = **true**
+- control_failure_signal_captured = **true**
+- executed_sample = **true**
+- execution_count = **2**
+
+## 6. Artifact Index Registration (Phase E)
 
 Registered in all three locations:
-- `latest_artifacts["local_reverse_cpp2_32f1713e_targeted_static_solving"]` ✅
-- `latest_artifacts_v2["local_reverse_cpp2_32f1713e_targeted_static_solving"]` (kind=local_reverse_targeted_static_solving, sha256=9f09e392...) ✅
-- `artifact_refs["local_reverse_cpp2_32f1713e_targeted_static_solving"]` ✅
+- `latest_artifacts["local_reverse_cpp2_32f1713e_keep_dream_runtime_validation"]` ✅
+- `latest_artifacts_v2["local_reverse_cpp2_32f1713e_keep_dream_runtime_validation"]` (kind=local_reverse_candidate_runtime_validation, sha256=aeb5d09a...) ✅
+- `artifact_refs["local_reverse_cpp2_32f1713e_keep_dream_runtime_validation"]` ✅
 
-Old artifact `local_reverse_cpp2_32f1713e_targeted_static_solve` retained as legacy source, not removed.
+## 7. Limitation Note
 
-## 6. Limitation Note
+Candidate KEEP_DREAM is runtime validated, but training status sync is intentionally deferred to a later decision. This round does not mark cpp2_32f1713e as solved.
 
-Candidate KEEP_DREAM remains unvalidated. No runtime testing performed. Next step requires a separate bounded runtime validation decision.
-
-## 7. Audit Checklist
+## 8. Audit Checklist
 
 | # | Check | Result |
 |---|-------|--------|
 | 1 | Confirmed decision_packet is sole authority | PASS |
-| 2 | Confirmed this is a rework of metadata/schema/provenance | PASS |
-| 3 | Confirmed mainline=reverse_solving | PASS |
-| 4 | Confirmed no runtime validation allowed | PASS |
-| 5 | Inspected previous targeted_static_solve only as legacy source | PASS |
-| 6 | Created project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json | PASS |
-| 7 | New artifact decision_id matches this rework decision | PASS |
-| 8 | New artifact round_id matches this rework decision | PASS |
-| 9 | New artifact uses static_solving_status (not SOLVED_BY_STATIC_ANALYSIS) | PASS |
-| 10 | KEEP_DREAM only under unvalidated_candidate_hypothesis | PASS |
-| 11 | candidate_validation_attempted=false and candidate_validated=false | PASS |
-| 12 | Avoided solved/blocked training status changes | PASS |
-| 13 | Registered artifact_index key local_reverse_cpp2_32f1713e_targeted_static_solving as current | PASS |
-| 14 | latest_artifacts_v2 kind is local_reverse_targeted_static_solving | PASS |
-| 15 | latest_artifacts_v2 source_run matches this rework round_id | PASS |
-| 16 | Recorded old targeted_static_solve as legacy_source_artifact | PASS |
-| 17 | No sample execution | PASS |
-| 18 | No debugger/hook/emulator/runtime probe/winpty/console validator | PASS |
-| 19 | No brute force/dictionary/runtime candidate validation | PASS |
-| 20 | No binary or full dumps committed | PASS |
-| 21 | Preserved cpp2_2f64e68d solved facts | PASS |
-| 22 | negative_results unchanged | PASS |
-| 23 | Ran py_compile/pytest/lint/status/git checks | PASS |
-| 24 | pytest_result uses this rework decision_id/report_id/round_id | PASS |
-| 25 | pytest_result checks targeted_static_solving, not targeted_static_solve | PASS |
-| 26 | Final lint-report run after report write | PASS |
-| 27 | git diff only contains allowed files | PASS |
+| 2 | Confirmed mainline=reverse_solving | PASS |
+| 3 | Confirmed this is bounded runtime validation | PASS |
+| 4 | Confirmed task_packet.task remains advisory | PASS |
+| 5 | Source static solving artifact current/SUCCESS/unvalidated | PASS |
+| 6 | Source readiness artifact READY | PASS |
+| 7 | Training status inventory_only/known_candidate="" before execution | PASS |
+| 8 | Inspected existing runtime/console validation interfaces | PASS |
+| 9 | Used subprocess.Popen (existing pattern) | PASS |
+| 10 | Avoided duplicate runtime/debugger/static extraction interfaces | PASS |
+| 11 | Reverified sample identity by size and sha256 | PASS |
+| 12 | Executed only KEEP_DREAM and KEEP_DREAN | PASS |
+| 13 | Captured bounded stdout snippets and exit/timeout semantics | PASS |
+| 14 | Candidate stdout contains success signal | PASS |
+| 15 | Negative control stdout contains failure signal | PASS |
+| 16 | Avoided debugger/hook/emulator/probe/instrumentation | PASS |
+| 17 | Avoided brute force/dictionary/search/fuzzing | PASS |
+| 18 | Avoided binary upload/copy/embed/full dumps | PASS |
+| 19 | Generated runtime validation artifact | PASS |
+| 20 | Registered in latest_artifacts/latest_artifacts_v2/artifact_refs | PASS |
+| 21 | Kept training_status unchanged | PASS |
+| 22 | Kept status_overlay unchanged | PASS |
+| 23 | Preserved cpp2_2f64e68d solved facts | PASS |
+| 24 | negative_results unchanged | PASS |
+| 25 | Ran py_compile/pytest/lint/status/git checks | PASS |
+| 26 | pytest_result uses this decision_id/report_id/round_id | PASS |
+| 27 | Final lint-report run after report write | PASS |
+| 28 | git diff only contains allowed files | PASS |
