@@ -1,20 +1,49 @@
 {
   "schema_version": 1,
-  "sample_id": "cpp2_2f64e68d",
   "mainline": "training_dataset",
-  "source_artifacts": [
-    "local_reverse_cpp2_2f64e68d_static_triage",
-    "local_reverse_cpp2_2f64e68d_strcmp_handoff",
-    "local_reverse_cpp2_2f64e68d_runtime_pair_validation",
-    "local_reverse_cpp2_2f64e68d_console_mature_backend_probe"
+  "analysis_mode": "training_status_sync",
+  "sync_target": "status_overlay.json",
+  "sync_direction": "project_state -> training_materials",
+  "sample_id": "cpp2_2f64e68d",
+  "previous_state": {
+    "training_status": "blocked",
+    "known_candidate": "",
+    "blocked_reason": "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)"
+  },
+  "new_state": {
+    "training_status": "solved",
+    "known_candidate": "10013",
+    "blocked_reason": "",
+    "solved_by": "oracle_backed_runtime_validation",
+    "solved_at": "2026-06-07T15:00:00Z",
+    "solved_round": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+    "evidence_source": "project_state/local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json"
+  },
+  "source_of_truth": "project_state/local_reverse_training_status.json",
+  "source_of_truth_freshness": "current",
+  "validation_artifact": "project_state/local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
+  "validation_artifact_freshness": "current",
+  "synced_files": [
+    "training_materials/local_reverse/status_overlay.json"
   ],
-  "source_artifact_freshness": "current",
-  "training_status": "blocked",
-  "known_candidate": "",
-  "blocked_reason": "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)",
-  "candidate_was_static_only": true,
-  "runtime_validated": false,
-  "solved": false,
-  "executed_target": false,
-  "generated_at": "2026-06-06T10:00:00Z"
+  "synced_fields": [
+    "training_status",
+    "known_candidate",
+    "blocked_reason"
+  ],
+  "added_fields": [
+    "solved_by",
+    "solved_at",
+    "solved_round",
+    "evidence_source"
+  ],
+  "status_summary_delta": {
+    "solved": "+1 (2 -> 3)",
+    "blocked": "-1 (5 -> 4)",
+    "inventory_only": "unchanged (22)"
+  },
+  "queue_check": "cpp2_2f64e68d not present in evaluation_queue (already removed)",
+  "current_state_check": "local_reverse_current_state.json does not exist (no sync needed)",
+  "task_packet_check": "cpp2_2f64e68d not referenced in task_packet (no sync needed)",
+  "generated_at": "2026-06-07T15:00:00Z"
 }

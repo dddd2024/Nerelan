@@ -2,16 +2,12 @@
 {
   "schema_version": 1,
   "found": true,
-  "decision_id": "decision_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
-  "report_id": "report_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
-  "round_id": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+  "decision_id": "decision_20260607_local_reverse_post_solve_state_sync_v1",
+  "report_id": "report_20260607_local_reverse_post_solve_state_sync_v1",
+  "round_id": "round_20260607_local_reverse_post_solve_state_sync_v1",
   "generated_at": "2026-06-07T15:00:00Z",
   "status": "PASSED",
   "tests_ran": [
-    ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py",
-    ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_oracle_runtime_classifier.py",
-    ".venv\\Scripts\\python -m pytest -q tests/test_local_reverse_oracle_runtime_classifier.py",
-    ".venv\\Scripts\\python -m pytest -q tests/test_local_reverse_console_pair_validator.py",
     ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
@@ -25,69 +21,53 @@
 
 === Commands and Results ===
 
-1. .venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py
+1. .venv\Scripts\python -m pytest -q tests/test_project_state.py
    exit_code: 0
-   output: (no output)
+   output: ........................................................................ [ 45%]\n........................................................................ [ 91%]\n..............                                                           [100%]\n158 passed in 63.65s (0:01:03)
 
-2. .venv\Scripts\python -m py_compile reverse_agent/local_reverse_oracle_runtime_classifier.py
+2. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
    exit_code: 0
-   output: (no output)
+   output: lint-decision: OK\ndecision_id: decision_20260607_local_reverse_post_solve_state_sync_v1\ndecision_status: APPROVED\nmainline: training_dataset
 
-3. .venv\Scripts\python -m pytest -q tests/test_local_reverse_oracle_runtime_classifier.py
-   exit_code: 0
-   output: ...........\n11 passed in 0.05s
-
-4. .venv\Scripts\python -m pytest -q tests/test_local_reverse_console_pair_validator.py
-   exit_code: 0
-   output: ................................\n32 passed in 1.73s
-
-5. .venv\Scripts\python -m pytest -q tests/test_project_state.py
-   exit_code: 0
-   output: ........................................................................ [ 45%]\n........................................................................ [ 91%]\n..............                                                           [100%]\n158 passed in 34.64s
-
-6. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
-   exit_code: 0
-   output: lint-decision: OK
-
-7. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
+3. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
    exit_code: 0
    output: lint-report: OK
 
-8. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
+4. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
    exit_code: 0
    output: state_dir: project_state, decision_status: APPROVED, report_status: SUCCESS
 
-9. git diff --check
+5. git diff --check
    exit_code: 0
    output: (no output)
 
-10. git status --short
-    exit_code: 0
-    output: M project_state/artifact_index.json, M project_state/codex_execution_report.md, M project_state/local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json, M project_state/local_reverse_training_status.json, M project_state/pytest_result.txt
+6. git status --short
+   exit_code: 0
+   output: M project_state/artifact_index.json, M project_state/codex_execution_report.md, M project_state/pytest_result.txt, M training_materials/local_reverse/status_overlay.json, ?? project_state/local_reverse_cpp2_2f64e68d_training_status_sync.json
 
-11. git diff --name-status
-    exit_code: 0
-    output: M artifact_index.json, M codex_execution_report.md, M local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json, M local_reverse_training_status.json, M pytest_result.txt
+7. git diff --name-status
+   exit_code: 0
+   output: M artifact_index.json, M codex_execution_report.md, M pytest_result.txt, M training_materials/local_reverse/status_overlay.json
 
 === Content Assertions ===
 
-1. 本轮未执行 CPP2.exe / Cpp2.exe: PASS
-2. raw_candidate_input 仍为 10013: PASS
-3. negative_control_input 仍为 20013: PASS
-4. oracle-backed runtime artifact 最终 status=VALIDATED_SUCCESS: PASS
-5. timeout_after_oracle_signal_captured=true: PASS
-6. training_status 保留 solved, known_candidate=10013: PASS
-7. artifact_index provenance 已修正: PASS
-8. pytest_result 使用本 decision_id/report_id/round_id: PASS
-9. git diff --name-status only contains allowed files: PASS
+1. status_overlay.json cpp2_2f64e68d training_status=solved: PASS
+2. status_overlay.json cpp2_2f64e68d known_candidate=10013: PASS
+3. status_overlay.json status_summary solved=3 blocked=4: PASS
+4. training_status.json not modified: PASS
+5. evaluation_queue.json not modified: PASS
+6. current_state.json does not exist: PASS
+7. task_packet.json not modified: PASS
+8. No sample executed: PASS
+9. No IDA/debugger/solver used: PASS
+10. artifact_index registers sync artifact: PASS
+11. git diff --name-status only allowed files: PASS
 
 === Summary ===
-- py_compile (2 files): ALL PASS
-- test_local_reverse_oracle_runtime_classifier: 11 passed
-- test_local_reverse_console_pair_validator: 32 passed
-- test_project_state: 158 passed
+- pytest test_project_state: 158 passed
 - lint-decision: OK
-- lint-report: OK (final)
+- lint-report: OK
 - status: OK
-- scheme: B (保留 solved，补充 timeout 语义)
-- cpp2_2f64e68d: SOLVED (known_candidate=10013, rework audited)
+- git diff --check: OK
+- training_status sync: SUCCESS
+- cpp2_2f64e68d: solved status synced to status_overlay

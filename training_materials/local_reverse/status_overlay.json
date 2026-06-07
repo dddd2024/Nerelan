@@ -4,8 +4,8 @@
   "source_inventory_hint": "LOCAL_REVERSE_ROOT",
   "sample_count": 29,
   "status_summary": {
-    "solved": 2,
-    "blocked": 5,
+    "solved": 3,
+    "blocked": 4,
     "needs_triage": 0,
     "inventory_only": 22
   },
@@ -75,9 +75,13 @@
         "cpp",
         "pe"
       ],
-      "training_status": "blocked",
-      "known_candidate": "",
-      "blocked_reason": "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)"
+      "training_status": "solved",
+      "known_candidate": "10013",
+      "blocked_reason": "",
+      "solved_by": "oracle_backed_runtime_validation",
+      "solved_at": "2026-06-07T15:00:00Z",
+      "solved_round": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+      "evidence_source": "project_state/local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json"
     },
     {
       "sample_id": "cpp2_4c69f173",

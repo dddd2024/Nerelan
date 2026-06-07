@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-07T14:00:00Z",
+  "generated_at": "2026-06-07T15:00:00Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -84,6 +84,7 @@
     "local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle": "project_state\\local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle.json",
     "local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime": "project_state\\local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
     "local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
+    "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
     "local_reverse_winpty_backend_lifecycle_hardening": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
     "local_reverse_winpty_synthetic_smoke": "project_state\\local_reverse_winpty_synthetic_smoke.json",
     "local_reverse_winpty_py_target_spawn_fix": "project_state\\local_reverse_winpty_py_target_spawn_fix.json"
@@ -938,6 +939,16 @@
         "review_note": "Artifact modified in rework to add timeout semantic explanation fields: timeout_after_oracle_signal_captured, timeout_source=system_pause, timeout_treated_as_non_blocking_for_oracle_classifier, exit_code_required_for_oracle_verdict=false, oracle_verdict_source, candidate_success_signal_captured_before_timeout, control_failure_signal_captured_before_timeout."
       }
     },
+    "local_reverse_cpp2_2f64e68d_training_status_sync": {
+      "kind": "local_reverse_training_status_sync",
+      "path": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_2f64e68d_training_status_sync_v1",
+      "sha256": "431a9eebab22ce3306da4a5a928f211576f54fa9aff7a20b798fd1ded3eca182",
+      "size_bytes": 1815,
+      "modified_at": "2026-06-07T15:00:00Z",
+      "sample_id": "cpp2_2f64e68d"
+    },
     "local_reverse_winpty_backend_lifecycle_hardening": {
       "kind": "local_reverse_winpty_backend_lifecycle_hardening",
       "path": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
@@ -1109,6 +1120,7 @@
     "local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction": "project_state\\local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json",
     "local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle": "project_state\\local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle.json",
     "local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime": "project_state\\local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
-    "local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json"
+    "local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
+    "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json"
   }
 }
