@@ -1,74 +1,66 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
-  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
-  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+  "report_id": "report_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+  "round_id": "round_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
   "status": "PARTIAL",
   "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "mainline": "tool_integration",
+  "sample_id": "cpp2_883e67b9",
+  "identity_verified": true,
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "candidate_validated": false,
+  "runtime_validation_attempted": false,
+  "debugger_attached": false,
+  "emulator_used": false,
   "files_changed": [
-    "project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json",
+    "project_state/local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
   "tests_ran": [
-    "py_compile reverse_agent/project_state.py",
-    "pytest tests/test_project_state.py",
-    "lint-decision",
-    "lint-report",
-    "status",
+    ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py",
+    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
+    ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
+    ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
+    ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
   ],
-  "generated_artifacts": []
+  "generated_artifacts": [
+    "project_state/local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json"
+  ],
+  "parser_limitation": "Current CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS does not include ACCEPTED_WITH_LIMITATIONS; decision-required value is preserved here."
 }
 ```
 
-# Codex Execution Report
+# cpp2_883e67b9 bounded loop evidence extraction v1
 
-## 1. Authority Confirmation
+## Outcome
 
-- decision_packet is the sole execution authority for this round: Confirmed.
-- mainline=reverse_solving: Confirmed.
-- This is metadata/schema/status rework of targeted static solving artifact: Confirmed.
-- task_packet remains advisory only and does not control this round: Confirmed.
+Executed `decision_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1` as a bounded static evidence extraction round for `cpp2_883e67b9`. The artifact mainline is `tool_integration`; the next recommended mainline is `tool_integration`.
 
-## 2. Outcome
+Status: `PARTIAL / ACCEPTED_WITH_LIMITATIONS`.
 
-This round corrects `cpp2_883e67b9_targeted_static_solving` from the previous v1 `SUCCESS / ACCEPTED` closeout to the v2 interpretation required by the active decision: `PARTIAL / ACCEPTED_WITH_LIMITATIONS`.
+## Evidence Produced
 
-No new static analysis was performed. Existing bounded region evidence was preserved, but it still does not contain a concrete candidate or complete proof chain.
+- Verified sample identity from the allowed path only: size `196689`, sha256 `883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8`.
+- Confirmed source targeted static solving artifact is `rework_v2 / PARTIAL / identity_verified=true`.
+- Confirmed bounded static extraction source artifact is `SUCCESS / identity_verified=true`.
+- Confirmed training status and overlay remained `inventory_only` with empty `known_candidate`.
+- Parsed PE mapping with a narrow Python stdlib parser and annotated only `.text` RVA `0x5f00-0x6500` around `assert_path` / `0x61c3`.
+- Recorded bounded summaries: `65` branch hints, `5` backward branch hints, `0` known compare constant operand contexts, and `80` retained state/table access hints.
 
-## 3. Corrections Applied
+## Guardrail Attestation
 
-| Check | Result |
-|---|---|
-| artifact.mainline == reverse_solving | PASS |
-| report mainline text == reverse_solving | PASS |
-| report summary status == PARTIAL | PASS |
-| report summary acceptance_recommendation == ACCEPTED_WITH_LIMITATIONS | PASS |
-| artifact.static_solving_status == PARTIAL | PASS |
-| source_static_extraction_artifact/source_static_extraction_status present | PASS |
-| prior_raw_offset_fields_treated_as present | PASS |
-| mapping_correction_summary present | PASS |
-| candidate_validation_attempted=false | PASS |
-| candidate_acceptance_status=null | PASS |
-| next_recommended_action forbidden terms absent | PASS |
-| artifact_index mirrors corrected fields | PASS |
-| training_status/status_overlay unchanged | PASS |
+No executable run, runtime validation, debugger attachment, hook, emulator, probe, winpty session, brute force, dictionary attempt, fuzzing, enumeration, ranking, candidate generation, or candidate validation was performed. The artifact stores structure summaries only; it does not store raw binary bytes, full strings, imports, sections, disassembly, or decompilation.
 
-## 4. Scope Controls
+## Limitations
 
-- No sample execution: PASS.
-- No runtime validation: PASS.
-- No debugger, hook, emulator, probe, winpty, or runtime harness: PASS.
-- No brute force, dictionary search, fuzzing, enumeration, ranking, or candidate generation: PASS.
-- No binary upload/copy/embed/full dumps: PASS.
-- `project_state/local_reverse_training_status.json` unchanged: PASS.
-- `training_materials/local_reverse/status_overlay.json` unchanged: PASS.
-
-## 5. Next Bounded Action
-
-Generate a deeper bounded static evidence extraction decision for `cpp2_883e67b9`, focused on `assert_path` 0x4061c3 loop reconstruction, local disassembly, and precise comparison operand recovery after a concrete static candidate proof chain exists.
+- Capstone and pefile are unavailable in the current environment, so the extraction uses bounded opcode annotation rather than complete disassembly.
+- The lightweight annotator did not recover known compare constants in this window, so the round is closed as `PARTIAL`.
+- `ACCEPTED_WITH_LIMITATIONS` is preserved in the JSON summary because the decision requires that value. The current `project_state.py` acceptance enum reports it as unsupported; that is a parser limitation recorded in `pytest_result.txt`.

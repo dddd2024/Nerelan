@@ -1,17 +1,17 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
-  "report_id": "report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
-  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
-  "generated_at": "2026-06-07T15:00:00Z",
-  "status": "PASSED",
+  "decision_id": "decision_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+  "report_id": "report_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+  "round_id": "round_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+  "generated_at": "2026-06-07T16:19:34Z",
+  "status": "PARTIAL",
   "tests_ran": [
-    "py_compile reverse_agent/project_state.py",
-    "pytest tests/test_project_state.py",
-    "lint-decision",
-    "lint-report",
-    "status",
+    ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py",
+    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
+    ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
+    ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
+    ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
@@ -19,34 +19,31 @@
 }
 ```
 
-decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
-report_id=report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
-round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2
+decision_id=decision_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1
+report_id=report_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1
+round_id=round_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1
 
-=== Content Assertions ===
-artifact.mainline == reverse_solving: PASS
-report mainline text == reverse_solving: PASS
-report status == PARTIAL: PASS
-acceptance_recommendation == ACCEPTED_WITH_LIMITATIONS: PASS
-static_solving_status == PARTIAL: PASS
-schema source_static_extraction_artifact/source_static_extraction_status present: PASS
-prior_raw_offset_fields_treated_as present: PASS
-mapping_correction_summary present: PASS
-candidate_validation_attempted=false: PASS
-candidate_acceptance_status=null: PASS
-next_recommended_action forbidden terms absent: PASS
-artifact_index mirrors corrected fields: PASS
-training_status/status_overlay unchanged: PASS
-no sample execution/runtime/debugger/hook/emulator/probe: PASS
-no brute force/dictionary/search/fuzzing/candidate enumeration: PASS
-no binary upload/copy/embed/full dumps: PASS
+Command results:
+- PASS `.venv\Scripts\python -m py_compile reverse_agent/project_state.py` (exit 0).
+- PASS `.venv\Scripts\python -m pytest -q tests/test_project_state.py` (158 passed in 15.25s).
+- PASS `.venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state` (exit 0; decision_id=decision_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1).
+- PASS `.venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state` (exit 0). Warnings: acceptance_recommendation is UNKNOWN, report_status is PARTIAL, report round not archived yet.
+- PASS `.venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state` (exit 0; decision_execution_state=CONSUMED_BY_NON_SUCCESS_REPORT; decision_ready_for_execution=False).
+- PASS `git diff --check` (exit 0; no whitespace errors).
+- PASS `git status --short` (exit 0; dirty set limited to allowed files: artifact_index.json, codex_execution_report.md, pytest_result.txt, and new bounded_loop artifact).
+- PASS `git diff --name-status` (exit 0; tracked diff limited to artifact_index.json, codex_execution_report.md, pytest_result.txt; untracked artifact is shown by git status).
 
-=== Command Results ===
-py_compile reverse_agent/project_state.py: PASS
-pytest tests/test_project_state.py: PASS (158 passed in 16.02s)
-lint-decision: PASS (OK; decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2; mainline=reverse_solving; skill_profiles=['reverse-agent-iteration@v2'])
-lint-report: PASS (OK; warnings: report_status is PARTIAL; report round not archived yet; parser enum reports ACCEPTED_WITH_LIMITATIONS as UNKNOWN)
-status: PASS (exit 0; decision_consumed_by_report=True; decision_execution_state=CONSUMED_BY_NON_SUCCESS_REPORT; report_status=PARTIAL)
-git diff --check: PASS
-git status --short: PASS (only allowed project_state files modified)
-git diff --name-status: PASS (only allowed project_state files modified)
+Content assertions:
+- PASS source artifact freshness: targeted_static_solving is rework_v2 / PARTIAL / identity_verified=true.
+- PASS source static extraction: bounded_static_extraction is SUCCESS / identity_verified=true.
+- PASS sample identity: size=196689 and sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8.
+- PASS bounded artifact existence/index registration: project_state/local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json is present and registered in latest_artifacts, latest_artifacts_v2, and artifact_refs.
+- PASS artifact mainline/status: mainline=tool_integration, evidence_extraction_status=PARTIAL.
+- PASS report mainline/status: mainline=tool_integration, status=PARTIAL, decision-required acceptance=ACCEPTED_WITH_LIMITATIONS.
+- PASS bounded evidence shape: branch_evidence and loop_evidence are populated; compare_operand_evidence is an explicit list; limitations record missing compare constants.
+- PASS candidate/validation flags: candidate_generated=false, candidate_validation_attempted=false, candidate_validated=false, candidate_acceptance_status=null.
+- PASS no runtime/search actions: executed_sample/runtime/debugger/hook/probe/emulator/bruteforce/dictionary/fuzz/enumeration/ranking flags are false.
+- PASS no binary dump: raw binary/full strings/imports/sections/disassembly/decompilation flags are false.
+- PASS unchanged training/overlay: local_reverse_training_status.json and status_overlay.json were not modified.
+- PASS final lint/report ID alignment: report_id/round_id/decision_id match this bounded loop extraction round; pytest_result covers all report tests.
+- PASS parser limitation recorded: project_state.py does not include ACCEPTED_WITH_LIMITATIONS in CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS, so status reports acceptance_recommendation=UNKNOWN while report JSON preserves the decision-required value.
