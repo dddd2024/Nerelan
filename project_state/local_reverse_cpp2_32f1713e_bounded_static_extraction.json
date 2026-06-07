@@ -1,0 +1,216 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "round_id": "round_20260607_cpp2_32f1713e_bounded_static_extraction_v1",
+  "decision_id": "decision_20260607_cpp2_32f1713e_bounded_static_extraction_v1",
+  "sample_id": "cpp2_32f1713e",
+  "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "sample_path": "E:\\reverse\\逆向课程2023春补考02\\Cpp2.exe",
+  "size_bytes": 196686,
+  "sha256": "32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412",
+  "identity_verified": true,
+  "source_readiness_artifact": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json",
+  "source_readiness_status": "READY",
+  "tools_attempted": ["IDA (via existing interface)", "pefile library", "lief library", "Python stdlib PE parser", "Python stdlib strings extractor"],
+  "tools_used": ["Python stdlib PE parser", "Python stdlib strings extractor"],
+  "existing_interfaces_inspected": [
+    "reverse_agent/local_reverse_single_sample_static_triage.py (IDA-dependent, IDA not available)",
+    "reverse_agent/tool_runners.py (IDA/ollydbg runners, IDA not available)",
+    "reverse_agent/evidence.py (StructuredEvidence class)",
+    "reverse_agent/static_feature_extractor.py",
+    "reverse_agent/simple_static_patterns.py"
+  ],
+  "new_interface_created": false,
+  "static_extraction_status": "SUCCESS",
+  "file_metadata": {
+    "file_type": "PE",
+    "architecture": "i386",
+    "bitness": 32,
+    "optional_magic": "PE32",
+    "machine_hex": "0x14c",
+    "entry_point_rva": "0x1440",
+    "image_base": "0x400000",
+    "subsystem": "Windows CUI (Console)",
+    "num_sections": 5,
+    "timestamp": 1693450786,
+    "characteristics_hex": "0x10e"
+  },
+  "sections_summary": [
+    {
+      "name": ".text",
+      "virtual_size": 153344,
+      "virtual_address": "0x1000",
+      "raw_size": 155648,
+      "characteristics": "0x60000020"
+    },
+    {
+      "name": ".rdata",
+      "virtual_size": 5768,
+      "virtual_address": "0x27000",
+      "raw_size": 8192,
+      "characteristics": "0x40000040"
+    },
+    {
+      "name": ".data",
+      "virtual_size": 22076,
+      "virtual_address": "0x29000",
+      "raw_size": 16384,
+      "characteristics": "0xc0000040"
+    },
+    {
+      "name": ".idata",
+      "virtual_size": 2129,
+      "virtual_address": "0x2f000",
+      "raw_size": 4096,
+      "characteristics": "0xc0000040"
+    },
+    {
+      "name": ".reloc",
+      "virtual_size": 4240,
+      "virtual_address": "0x30000",
+      "raw_size": 8192,
+      "characteristics": "0x42000040"
+    }
+  ],
+  "imports_summary": {
+    "import_dll_count": 1,
+    "total_imported_functions": 59,
+    "imported_dlls": {
+      "KERNEL32.dll": {
+        "function_count": 59,
+        "selected_functions": [
+          "GetCommandLineA",
+          "GetStdHandle",
+          "WriteFile",
+          "ReadFile",
+          "GetProcAddress",
+          "LoadLibraryA",
+          "GetModuleHandleA",
+          "CreateProcessA",
+          "ExitProcess",
+          "HeapAlloc",
+          "VirtualAlloc",
+          "CompareStringA",
+          "CompareStringW",
+          "GetStartupInfoA",
+          "SetConsoleCtrlHandler",
+          "FlushFileBuffers",
+          "SetFilePointer",
+          "SetStdHandle",
+          "GetExitCodeProcess",
+          "WaitForSingleObject"
+        ]
+      }
+    },
+    "notable_imports": [
+      "CompareStringA",
+      "CompareStringW"
+    ]
+  },
+  "strings_summary": {
+    "total_ascii_strings_seen": 482,
+    "total_utf16_strings_seen": 43,
+    "selection_criteria": "keyword_match + printable_prompt + uppercase_flag patterns",
+    "selected_ascii_count": 80,
+    "selected_utf16_count": 1,
+    "challenge_relevant_strings": [
+      "Congratulations! You are right!",
+      "Plase give me your answer:",
+      "Sorry, you are wrong!",
+      "Sorry,you are wrong!",
+      "flag == 0 || flag == 1",
+      "%.2X "
+    ],
+    "prompt_strings": [
+      "Plase give me your answer:"
+    ],
+    "success_strings": [
+      "Congratulations! You are right!"
+    ],
+    "failure_strings": [
+      "Sorry, you are wrong!",
+      "Sorry,you are wrong!"
+    ],
+    "format_strings": [
+      "%.2X ",
+      "memory check error at 0x%08X = 0x%02X, should be 0x%02X.",
+      "#File Error#(%d) : ",
+      " Data: <%s> %s"
+    ],
+    "code_cue_strings": [
+      "flag == 0 || flag == 1",
+      "scanf.c",
+      "printf.c",
+      "input.c"
+    ]
+  },
+  "static_indicators": [
+    {
+      "type": "challenge_pattern",
+      "description": "Console input->compare->success/failure pattern with flag variable",
+      "evidence": [
+        "Input prompt: 'Plase give me your answer:'",
+        "Success: 'Congratulations! You are right!'",
+        "Failure: 'Sorry, you are wrong!' / 'Sorry,you are wrong!'",
+        "Code cue: 'flag == 0 || flag == 1' suggests a binary flag check after comparison",
+        "Format string '%.2X ' suggests hex output or hex-encoded comparison"
+      ]
+    },
+    {
+      "type": "import_cue",
+      "description": "Only KERNEL32.dll imported; uses CompareStringA/W from kernel32",
+      "evidence": [
+        "No MSVCRT import (statically linked CRT)",
+        "CompareStringA and CompareStringW available as import APIs",
+        "Standard console I/O via ReadFile/WriteFile (statically linked printf/scanf wrappers)"
+      ]
+    },
+    {
+      "type": "structure",
+      "description": "32-bit console PE, statically linked CRT, entry at 0x1440",
+      "evidence": [
+        "PE32 i386, image base 0x400000",
+        "Entry point RVA 0x1440 (likely CRT startup -> main)",
+        "Single import DLL (KERNEL32.dll) indicates static CRT linking",
+        ".text section 153KB (large relative to 196KB total)"
+      ]
+    }
+  ],
+  "structured_evidence": {
+    "challenge_type": "console_password_checker",
+    "input_method": "console_prompt (statically linked scanf wrapper)",
+    "comparison_method": "likely string compare with flag variable (flag == 0 || flag == 1)",
+    "output_pattern": "success/failure message after comparison",
+    "solver_profile_hypotheses": [
+      "direct_string_compare_password_checker",
+      "hex_encoded_comparison (%.2X format suggests possible hex encoding of input or expected value)"
+    ]
+  },
+  "extraction_bounds": {
+    "strings_max_per_category": 80,
+    "strings_max_length": 160,
+    "imports_capped": true,
+    "no_raw_binary": true,
+    "no_full_disassembly": true,
+    "no_full_strings_dump": true,
+    "no_section_bytes": true,
+    "tool": "Python stdlib only (pefile/lief/IDA unavailable)"
+  },
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_debugger": false,
+  "ran_bruteforce": false,
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "uploaded_binary": false,
+  "binary_content_recorded": false,
+  "full_strings_dump_recorded": false,
+  "full_disassembly_recorded": false,
+  "full_import_table_recorded": false,
+  "full_section_dump_recorded": false,
+  "training_status_modified": false,
+  "next_recommended_mainline": "reverse_solving",
+  "next_recommended_action": "Generate a reverse_solving decision for cpp2_32f1713e. Static evidence shows a console password checker pattern with input prompt, flag-based comparison (flag==0||flag==1), and success/failure messages. The %.2X format string suggests possible hex encoding. Recommended approach: targeted IDA decompilation of main/check functions, or runtime oracle validation using command-scoped root injection.",
+  "generated_at": "2026-06-07T15:00:00Z"
+}

@@ -1,22 +1,30 @@
-decision_id=decision_20260607_cpp2_32f1713e_command_scoped_env_readiness_v1
-report_id=report_20260607_cpp2_32f1713e_command_scoped_env_readiness_v1
-round_id=round_20260607_cpp2_32f1713e_command_scoped_env_readiness_v1
+decision_id=decision_20260607_cpp2_32f1713e_bounded_static_extraction_v1
+report_id=report_20260607_cpp2_32f1713e_bounded_static_extraction_v1
+round_id=round_20260607_cpp2_32f1713e_bounded_static_extraction_v1
 
 === Content Assertions ===
-1. command-scoped readiness artifact exists: PASS
-2. readiness_status follows READY/BLOCKED/FAILED rules: PASS (READY)
-3. static extraction artifact was not generated: PASS
-4. no sample executable was run: PASS
-5. no strings/objdump/IDA/Ghidra/radare2/file/pefile/lief/capstone was run: PASS
-6. no debugger/hook/emulator/runtime probe/winpty/console validator was run: PASS
-7. no bruteforce/dictionary/candidate validation was run: PASS
-8. no binary was uploaded, copied, embedded, or committed: PASS
-9. artifact contains no raw binary, strings dump, imports, sections, disassembly, screenshots, or dumps: PASS
-10. artifact_index registers local_reverse_cpp2_32f1713e_command_scoped_env_readiness as current: PASS
-11. training_status/status_overlay sample state unchanged: PASS
-12. pytest_result uses this decision_id/report_id/round_id: PASS
-13. git diff --name-status only contains allowed files: PASS
+1. source command-scoped readiness artifact is current and READY: PASS
+2. sample identity reverified by size and sha256: PASS
+3. bounded static extraction artifact exists: PASS
+4. static_extraction_status follows SUCCESS/PARTIAL/BLOCKED/FAILED rules: PASS (SUCCESS)
+5. artifact_index registers local_reverse_cpp2_32f1713e_bounded_static_extraction as current: PASS
+6. no sample executable was run: PASS
+7. no debugger/hook/emulator/runtime probe/winpty/console validator was run: PASS
+8. no brute force/dictionary/solver/candidate validation was run: PASS
+9. no candidate was generated: PASS
+10. no binary was uploaded, copied, embedded, or committed: PASS
+11. artifact contains no raw binary, full strings dump, full imports, full sections, full disassembly, screenshots, or dumps: PASS
+12. existing mature-tool interfaces were inspected before choosing extraction path: PASS
+13. no duplicate IDA/Ghidra/debugger/static extraction interface was created: PASS
+14. training_status/status_overlay sample state unchanged: PASS
+15. cpp2_2f64e68d solved facts unchanged: PASS
+16. pytest_result uses this decision_id/report_id/round_id: PASS
+17. git diff --name-status only contains allowed files: PASS
 
 === pytest output ===
-No tests collected in tests/test_project_state.py for this bounded readiness round.
-All project_state schema validations passed via lint-decision and lint-report.
+158 passed in tests/test_project_state.py
+py_compile reverse_agent/project_state.py: OK
+lint-decision: OK
+lint-report: OK (with warnings for pytest_result format)
+status: OK
+git diff --check: OK
