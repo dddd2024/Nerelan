@@ -1,0 +1,144 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_v1",
+  "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_v1",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+  "expected_size_bytes": 196689,
+  "identity_verified": true,
+  "static_solving_status": "SUCCESS",
+  "training_status_before": "inventory_only",
+  "known_candidate_before": "",
+  "source_extraction_artifact": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+  "source_extraction_status": "SUCCESS",
+  "pe_layout_reverified": {
+    "file_type": "PE32",
+    "architecture": "i386",
+    "image_base": "0x400000",
+    "entry_point_rva": "0x1c10",
+    "num_sections": 5,
+    "sections": [
+      {"name": ".text", "vaddr": "0x1000", "rawptr": "0x400", "rawsize": "0x26000"},
+      {"name": ".rdata", "vaddr": "0x27000", "rawptr": "0x26400", "rawsize": "0x2000"},
+      {"name": ".data", "vaddr": "0x29000", "rawptr": "0x28400", "rawsize": "0x4000"},
+      {"name": ".idata", "vaddr": "0x2f000", "rawptr": "0x2c400", "rawsize": "0x1000"},
+      {"name": ".reloc", "vaddr": "0x30000", "rawptr": "0x2d400", "rawsize": "0x2000"}
+    ]
+  },
+  "raw_offset_correction": {
+    "status": "corrected",
+    "note": "Extraction artifact region_rva_start values 0xead/0xce6 were below .text vaddr(0x1000). Corrected to use actual anchor RVAs: prompt=0x10ad, failure=0x10e6, assert=0x61c3. rdata string raw_offsets (0x2702c etc) were correct as they equal RVA for .rdata strings.",
+    "extraction_artifact_rva_error": "region_rva_start values appear to be relative to image base offset, not actual RVAs"
+  },
+  "string_anchor_map_reverified": [
+    {"string": "Please input your flag:", "category": "input_prompt", "rva": "0x2702c", "va": "0x42702c", "section": ".rdata"},
+    {"string": "--- Sorry, but try it again! ---", "category": "failure_message", "rva": "0x27069", "va": "0x427069", "section": ".rdata"},
+    {"string": "flag == 0 || flag == 1", "category": "debug_assert", "rva": "0x27c44", "va": "0x427c44", "section": ".rdata"},
+    {"string": "You are wrong in the initial phase!", "category": "initial_phase_failure", "rva": "0x281e8", "va": "0x4281e8", "section": ".rdata"}
+  ],
+  "xref_search_reverified": {
+    "method": "push_imm32_va_search_in_text",
+    "direct_push_refs": [
+      {"string": "Please input your flag:", "va": "0x42702c", "ref_va": "0x4010ad", "ref_rva": "0x10ad"},
+      {"string": "flag == 0 || flag == 1", "va": "0x427c44", "ref_va": "0x4061c3", "ref_rva": "0x61c3"},
+      {"string": "You are wrong in the initial phase!", "va": "0x4281e8", "ref_va": "0x4010e6", "ref_rva": "0x10e6"}
+    ],
+    "no_direct_refs": ["--- Sorry, but try it again! ---"],
+    "indirect_ref_search_performed": true,
+    "indirect_refs_found": 0
+  },
+  "bounded_window_analysis": {
+    "prompt_path": {
+      "anchor_va": "0x4010ad",
+      "anchor_rva": "0x10ad",
+      "window_rva": "0x1000-0x1500",
+      "window_size": 1280,
+      "constants_count": 5,
+      "call_patterns_count": 7,
+      "jcc_patterns_count": 22,
+      "mov_imm_patterns_count": 17,
+      "semantic_hypothesis": "input_prompt_and_initial_setup_path"
+    },
+    "failure_path": {
+      "anchor_va": "0x4010e6",
+      "anchor_rva": "0x10e6",
+      "window_rva": "0x1000-0x1500",
+      "window_size": 1280,
+      "constants_count": 5,
+      "call_patterns_count": 7,
+      "jcc_patterns_count": 22,
+      "mov_imm_patterns_count": 17,
+      "semantic_hypothesis": "initial_phase_failure_handler"
+    },
+    "assert_path": {
+      "anchor_va": "0x4061c3",
+      "anchor_rva": "0x61c3",
+      "window_rva": "0x5f00-0x6500",
+      "window_size": 1536,
+      "constants": [
+        {"type": "cmp_al_imm8", "rva": "0x5f38", "value": 194},
+        {"type": "cmp_imm8", "rva": "0x6077", "value": 1},
+        {"type": "cmp_al_imm8", "rva": "0x60f7", "value": 141},
+        {"type": "cmp_al_imm8", "rva": "0x6124", "value": 133},
+        {"type": "cmp_imm32", "rva": "0x618f", "value": "0x1102"},
+        {"type": "cmp_imm8", "rva": "0x61de", "value": 1},
+        {"type": "cmp_imm32", "rva": "0x629f", "value": "0x10c"},
+        {"type": "cmp_imm32", "rva": "0x62cb", "value": "0x108"},
+        {"type": "cmp_imm8", "rva": "0x6438", "value": 255},
+        {"type": "cmp_imm32", "rva": "0x64e5", "value": "0x100"}
+      ],
+      "cmp_test_count": 11,
+      "call_patterns_count": 27,
+      "jcc_patterns_count": 72,
+      "loop_indicators": [
+        {"jcc_rva": "0x5f68", "target_rva": "0x5f66", "type": "backward_jump"},
+        {"jcc_rva": "0x6081", "target_rva": "0x6059", "type": "backward_jump"},
+        {"jcc_rva": "0x60a4", "target_rva": "0x60a2", "type": "backward_jump"},
+        {"jcc_rva": "0x60b6", "target_rva": "0x60b4", "type": "backward_jump"},
+        {"jcc_rva": "0x61e8", "target_rva": "0x61b7", "type": "backward_jump"}
+      ],
+      "semantic_hypothesis": "main_comparison_logic_with_loops_and_constant_checks"
+    }
+  },
+  "input_length_inference": {
+    "method": "cmp_imm8_search_in_all_regions",
+    "buffer_size_hints_found": 0,
+    "note": "No obvious input length checks found in bounded windows. Length may be determined by null-termination or by a comparison loop that checks each character against a constant table."
+  },
+  "sorry_string_indirect_ref": {
+    "status": "no_refs_found",
+    "note": "Sorry string (0x427069) has no direct or indirect push/mov_imm32 references in .text. May be referenced via register (e.g., lea reg, [sorry_rva]) or through a function pointer table."
+  },
+  "challenge_type_inferred": "multi_phase_console_password_checker_with_loop_comparison",
+  "similarity_to_cpp2_32f1713e": "high_same_course_same_name_similar_strings_different_logic",
+  "unvalidated_candidate_hypothesis": {
+    "candidate": null,
+    "validation_status": "unvalidated",
+    "candidate_source": "no_candidate_extracted",
+    "extraction_notes": "Static analysis revealed comparison logic with constants (194, 141, 133, 0x1102, 0x10c, 0x108, 255, 0x100) and backward jump loops suggesting character-by-character comparison. However, the exact comparison algorithm and expected input string could not be statically extracted without deeper disassembly or decompilation. The challenge appears to use a multi-phase check (initial phase + main comparison) unlike cpp2_32f1713e which had a direct string comparison."
+  },
+  "candidate_generated": false,
+  "candidate_validated": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_debugger": false,
+  "ran_hook": false,
+  "ran_emulator": false,
+  "ran_probe": false,
+  "ran_bruteforce": false,
+  "ran_dictionary_search": false,
+  "candidate_search_performed": false,
+  "uploaded_binary": false,
+  "binary_content_recorded": false,
+  "full_disassembly_recorded": false,
+  "full_decompilation_recorded": false,
+  "next_recommended_mainline": "reverse_solving",
+  "next_recommended_action": "Attempt runtime validation with candidate guesses derived from comparison constants. Try inputs that might match the observed constants (e.g., strings with characters 194, 141, 133 in ASCII positions). If runtime validation fails, consider using a debugger or emulator to trace the comparison loop. Alternatively, attempt a bounded brute-force with the observed constants as constraints.",
+  "generated_at": "2026-06-07T15:00:00Z"
+}

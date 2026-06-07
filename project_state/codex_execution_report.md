@@ -1,13 +1,13 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
-  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+  "report_id": "report_20260607_cpp2_883e67b9_targeted_static_solving_v1",
+  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
   "files_changed": [
-    "project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+    "project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json",
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
@@ -23,7 +23,7 @@
     "git diff --name-status"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json"
+    "project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json"
   ]
 }
 ```
@@ -34,92 +34,99 @@
 
 - **decision_packet is the sole execution authority**: Confirmed.
 - **mainline = tool_integration**: Confirmed.
-- **This is bounded static extraction, not solving or validation**: Confirmed.
+- **This is targeted static solving, not runtime validation or training status sync**: Confirmed.
 - **task_packet.task remains advisory**: Confirmed.
 
 ## 2. State Preflight (Phase A)
 
-- Source readiness artifact: `local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json` — readiness_status=READY, identity_verified=true, expected_sha256=883e67b9... **Confirmed.**
+- Source extraction artifact: `local_reverse_cpp2_883e67b9_bounded_static_extraction.json` — extraction_status=SUCCESS, identity_verified=true, expected_sha256=883e67b9... **Confirmed.**
 - Training status: cpp2_883e67b9.training_status=inventory_only, known_candidate="", blocked_reason="". **Confirmed.**
 - Identity reverified: size=196689, sha256=883e67b9... **Match.**
 
 ## 3. Tool Interface Inspection (Phase B)
 
-- `local_reverse_xref_disassembly.py`: Available with PEMapping, raw_to_rva, rva_to_raw, va_to_raw, executable_sections. **Reused patterns from this interface.**
-- `evidence.py`: StructuredEvidence dataclass available. **Not used (structured_evidence_ready=false).**
-- IDA/Ghidra/radare2/objdump: All unavailable. **Confirmed fallback to Python stdlib only.**
+- `local_reverse_xref_disassembly.py`: Available with PEMapping, rva_to_raw, raw_to_rva, va_to_raw. **Reused patterns.**
+- `evidence.py`: StructuredEvidence available. **Not used (structured_evidence_ready=false).**
+- No new interface created. **Confirmed.**
 
-## 4. Bounded Static Extraction (Phase C)
+## 4. PE Mapping Re-derivation (Phase C)
 
-### String Anchor Map
-| String | Category | RVA | VA |
-|--------|----------|-----|-----|
-| "Please input your flag:" | input_prompt | 0x2702c | 0x42702c |
-| "--- Sorry, but try it again! ---" | failure_message | 0x27069 | 0x427069 |
-| "flag == 0 \|\| flag == 1" | debug_assert | 0x27c44 | 0x427c44 |
-| "You are wrong in the initial phase!" | initial_phase_failure | 0x281e8 | 0x4281e8 |
+- Image base: 0x400000, .text vaddr=0x1000, .rdata vaddr=0x27000
+- **Extraction artifact correction**: region_rva_start values 0xead/0xce6 were below .text vaddr(0x1000). Corrected to actual anchor RVAs: prompt=0x10ad, failure=0x10e6, assert=0x61c3.
+- rdata string raw_offsets (0x2702c etc) confirmed correct.
 
-### XRef Search Results (push imm32 in .text)
-| String | Push Refs Found | Ref VA |
-|--------|----------------|--------|
-| "Please input your flag:" | 1 | 0x4010ad |
-| "--- Sorry, but try it again! ---" | **0** | — |
-| "flag == 0 \|\| flag == 1" | 1 | 0x4061c3 |
-| "You are wrong in the initial phase!" | 1 | 0x4010e6 |
+## 5. Bounded Window Analysis (Phase D)
 
-### Candidate Regions
-| Region | Anchor | Size | Interesting Opcodes | Hypothesis |
-|--------|--------|------|---------------------|------------|
-| 0xead–0x12ad | prompt ref | 1024 | 8 | prompt_path |
-| 0x5fc3–0x64c3 | assert ref | 1280 | 36 | assert_path |
-| 0xce6–0x12e6 | failure ref | 1280 | 8 | failure_path |
+### prompt_path (0x4010ad, window 0x1000-0x1500)
+- 5 constants, 7 calls, 22 jcc, 17 mov_imm
+- Semantic: input_prompt_and_initial_setup_path
 
-### Bounded Negative Result
-- "Sorry" string (0x427069): No direct push imm32 refs in .text; may be referenced indirectly via register or through another function.
+### failure_path (0x4010e6, window 0x1000-0x1500)
+- Same window as prompt_path (co-located)
+- Semantic: initial_phase_failure_handler
 
-## 5. Artifact Generated (Phase D)
+### assert_path (0x4061c3, window 0x5f00-0x6500)
+- **10 constants**: cmp_al_imm8(194), cmp_imm8(1), cmp_al_imm8(141), cmp_al_imm8(133), cmp_imm32(0x1102), cmp_imm8(1), cmp_imm32(0x10c), cmp_imm32(0x108), cmp_imm8(255), cmp_imm32(0x100)
+- 11 cmp/test, 27 calls, 72 jcc
+- **5 backward jump loop indicators**
+- Semantic: main_comparison_logic_with_loops_and_constant_checks
 
-`project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json`:
-- extraction_status = **SUCCESS**
+### Sorry String
+- No direct or indirect references found in .text
+- Likely referenced via register or function pointer table
+
+### Input Length
+- No obvious buffer size checks found
+- Length likely determined by null-termination or comparison loop
+
+## 6. Artifact Generated (Phase E)
+
+`project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json`:
+- static_solving_status = **SUCCESS**
 - identity_verified = **true**
-- structured_evidence_ready = **false**
 - candidate_generated = **false**
-
-## 6. Artifact Index Registration (Phase E)
-
-Registered in all three locations:
-- `latest_artifacts["local_reverse_cpp2_883e67b9_bounded_static_extraction"]` ✅
-- `latest_artifacts_v2["local_reverse_cpp2_883e67b9_bounded_static_extraction"]` (kind=local_reverse_bounded_static_extraction) ✅
-- `artifact_refs["local_reverse_cpp2_883e67b9_bounded_static_extraction"]` ✅
+- unvalidated_candidate_hypothesis.candidate = **null**
+- structured_evidence_ready = **false**
 
 ## 7. Limitation Note
 
-"Sorry" string had no direct push refs; indirect reference search not performed in this bounded round. Structured evidence not yet ready — needs deeper targeted static solving.
+No candidate was statically extracted. The challenge uses multi-phase comparison with loops and constant checks, which is more complex than cpp2_32f1713e's direct string comparison. Deeper disassembly or runtime tracing would be needed to recover the exact expected input.
 
-## 8. Audit Checklist
+## 8. Artifact Index Registration (Phase F)
+
+Registered in all three locations:
+- `latest_artifacts["local_reverse_cpp2_883e67b9_targeted_static_solving"]` ✅
+- `latest_artifacts_v2["local_reverse_cpp2_883e67b9_targeted_static_solving"]` (kind=local_reverse_targeted_static_solving) ✅
+- `artifact_refs["local_reverse_cpp2_883e67b9_targeted_static_solving"]` ✅
+
+## 9. Audit Checklist
 
 | # | Check | Result |
 |---|-------|--------|
 | 1 | Confirmed decision_packet is sole authority | PASS |
 | 2 | Confirmed mainline=tool_integration | PASS |
-| 3 | Confirmed this is bounded static extraction | PASS |
-| 4 | Source readiness artifact current/READY/identity_verified | PASS |
+| 3 | Confirmed this is targeted static solving | PASS |
+| 4 | Source extraction artifact current/SUCCESS/identity_verified | PASS |
 | 5 | cpp2_883e67b9 training_status remains inventory_only | PASS |
 | 6 | Sample identity reverified by size and sha256 | PASS |
 | 7 | Existing static extraction interfaces checked before tool use | PASS |
 | 8 | No duplicate tool interface created | PASS |
-| 9 | Artifact exists at correct path | PASS |
-| 10 | artifact_index registers artifact as current | PASS |
-| 11 | Artifact records bounded string anchor map | PASS |
-| 12 | Artifact records xref/reference search summary | PASS |
-| 13 | candidate_generated=false | PASS |
-| 14 | candidate_validation_attempted=false | PASS |
-| 15 | training_status/status_overlay not modified | PASS |
-| 16 | No sample executable run | PASS |
-| 17 | No runtime tools/debugger/hook/emulator/probe | PASS |
-| 18 | No brute force/dictionary/search/fuzzing | PASS |
-| 19 | No binary uploaded/copied/embedded/committed | PASS |
-| 20 | No full strings/imports/sections/disassembly/decompilation dump | PASS |
-| 21 | pytest_result uses this decision_id/report_id/round_id | PASS |
-| 22 | Final lint-report run after report write | PASS |
-| 23 | git diff only contains allowed files | PASS |
+| 9 | PE mapping re-derived and extraction artifact errors corrected | PASS |
+| 10 | Bounded window analysis performed on all 3 candidate regions | PASS |
+| 11 | Constants, calls, jcc, loops documented in assert_path | PASS |
+| 12 | Sorry string indirect ref search performed | PASS |
+| 13 | Input length inference attempted | PASS |
+| 14 | candidate_generated=false | PASS |
+| 15 | candidate_validated=false | PASS |
+| 16 | unvalidated_candidate_hypothesis.candidate=null | PASS |
+| 17 | training_status/status_overlay not modified | PASS |
+| 18 | No sample executable run | PASS |
+| 19 | No runtime tools/debugger/hook/emulator/probe | PASS |
+| 20 | No brute force/dictionary/search/fuzzing | PASS |
+| 21 | No binary uploaded/copied/embedded/committed | PASS |
+| 22 | Artifact contains no raw binary/full disassembly/decompilation | PASS |
+| 23 | Generated targeted_static_solving artifact | PASS |
+| 24 | Registered in latest_artifacts/latest_artifacts_v2/artifact_refs | PASS |
+| 25 | Ran py_compile/pytest/lint/status/git checks | PASS |
+| 26 | pytest_result uses this decision_id/report_id/round_id | PASS |
+| 27 | git diff only contains allowed files | PASS |
