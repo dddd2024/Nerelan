@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
-  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+  "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_v1",
+  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
-  "mainline": "tool_integration",
+  "mainline": "reverse_solving",
   "skill_profiles": [
     "reverse-agent-iteration@v2"
   ]
@@ -17,17 +17,17 @@
 
 ## 1. Goal
 
-本轮主线是 **tool_integration**，任务是对 `cpp2_883e67b9` 做 **bounded static extraction**。
+本轮主线是 **reverse_solving**，任务是对 `cpp2_883e67b9` 做 **targeted static solving**。
 
-目标：基于上一轮 readiness artifact 中确认的 PE32/string triage 信息，定位关键字符串引用、相邻候选比较区域、可能的输入长度/初始阶段判断证据，并将其整理为低 token 的 `StructuredEvidence` 或等价结构化证据。不得生成 candidate，不得求解，不得运行样本。
+目标：基于上一轮 current bounded static extraction artifact，围绕 `assert_path=0x4061c3`、`failure_path=0x4010e6`、`prompt_path=0x4010ad` 做有界静态分析，恢复输入长度/初始阶段判断/比较逻辑/常量表或变换证据链。允许在证据充分时产出 **unvalidated_candidate_hypothesis**；禁止运行样本、runtime validation、debugger/hook/emulator、bruteforce、字典搜索、训练状态修改。
 
 必须产出：
 
 ```text
-project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json
+project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json
 ```
 
-本轮允许读取样本文件作只读静态提取；允许使用已有项目接口或成熟静态工具的 bounded 输出；禁止 runtime validation、debugger、hook、emulator、bruteforce、candidate search 和训练状态修改。
+本轮不是训练状态同步轮。即使产出候选，也只能是未验证静态假设，不得写入 `known_candidate`、不得标记 solved。
 
 ---
 
@@ -35,52 +35,56 @@ project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json
 
 当前 `project_state/decision_packet.md` 是 Codex 本轮唯一执行权威。`project_state/task_packet.json` 仍是 advisory，不控制本轮。
 
-上一轮 readiness 审计结论为 **ACCEPTED_WITH_LIMITATIONS**：
+上一轮 bounded static extraction 审计结论为 **ACCEPTED_WITH_LIMITATIONS**：
 
 ```text
-project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json:
-  decision_id=decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
-  round_id=round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1
+project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json:
+  decision_id=decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1
+  round_id=round_20260607_cpp2_883e67b9_bounded_static_extraction_v1
   sample_id=cpp2_883e67b9
-  relative_path=逆向课程2024春02/CPP2.exe
-  command_scoped_root=E:\reverse
-  resolved_sample_path=E:\reverse\逆向课程2024春02\CPP2.exe
-  expected_sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
-  expected_size_bytes=196689
   identity_verified=true
-  readiness_status=READY
+  extraction_status=SUCCESS
   training_status_before=inventory_only
   known_candidate_before=""
-  existing_tool_interfaces_checked=true
-  static_tools_used=[python_stdlib_pe_parser, bounded_strings_extractor]
+  source_readiness_status=READY
+  static_tools_used=[python_stdlib_pe_parser, bounded_strings_extractor, push_imm32_xref_searcher]
   structured_evidence_ready=false
   candidate_generated=false
   candidate_validation_attempted=false
   candidate_validated=false
   training_status_modified=false
-  status_overlay_modified=false
   executed_sample=false
 ```
 
-Useful bounded triage facts from the readiness artifact:
+Bounded extraction facts to use:
 
 ```text
-file_format=PE32
-platform=Windows
-architecture=i386
-bitness=32
-entry_point_rva=0x1c10
-image_base=0x400000
-sections=[.text, .rdata, .data, .idata, .reloc]
-import_table.present=false
-compiler_clues=[Visual C++ CRT debug strings present, statically linked runtime]
-key_strings:
-  0x2702c: "Please input your flag:"             input_prompt
-  0x27069: "--- Sorry, but try it again! ---"    failure_message
-  0x27c44: "flag == 0 || flag == 1"              debug_assert
-  0x281e8: "You are wrong in the initial phase!" failure_message
-challenge_type_hypothesis=console_password_checker_with_flag_assert
-similarity_to_cpp2_32f1713e=high_same_course_same_name_similar_strings
+PE layout:
+  file_type=PE32
+  architecture=i386
+  image_base=0x400000
+  entry_point_rva=0x1c10
+  sections=.text,.rdata,.data,.idata,.reloc
+
+String anchors:
+  input_prompt:              "Please input your flag:"             VA=0x42702c, ref_va=0x4010ad
+  failure_message:           "--- Sorry, but try it again! ---"    VA=0x427069, no direct push refs found
+  debug_assert:              "flag == 0 || flag == 1"              VA=0x427c44, ref_va=0x4061c3
+  initial_phase_failure:     "You are wrong in the initial phase!" VA=0x4281e8, ref_va=0x4010e6
+
+Candidate regions:
+  prompt_path:  anchor_ref_va=0x4010ad, region_rva_start=0xead,  region_rva_end=0x12ad, region_size=1024
+  assert_path:  anchor_ref_va=0x4061c3, region_rva_start=0x5fc3, region_rva_end=0x64c3, region_size=1280
+  failure_path: anchor_ref_va=0x4010e6, region_rva_start=0xce6,  region_rva_end=0x12e6, region_size=1280
+
+Bounded negative result:
+  "--- Sorry, but try it again! ---" has no direct push imm32 refs in .text and may be referenced indirectly.
+```
+
+Important caution from audit:
+
+```text
+The previous artifact's string_anchor_map used raw_offset values that appear equal to RVA values. Before using any raw offset for byte reads or local decoding, Codex must rederive file_offset/RVA/VA mapping from the PE section table and record whether prior raw_offset fields were corrected or treated as RVA-only.
 ```
 
 Current training facts must remain unchanged:
@@ -90,28 +94,27 @@ project_state/local_reverse_training_status.json:
   cpp2_883e67b9.training_status=inventory_only
   cpp2_883e67b9.known_candidate=""
   cpp2_883e67b9.blocked_reason=""
-  cpp2_883e67b9.sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
-  cpp2_883e67b9.size_bytes=196689
+  cpp2_883e67b9.classification=""
+  cpp2_883e67b9.evidence_sources=[]
 ```
 
-Available/checked tool context from readiness:
+Tool availability/context:
 
 ```text
-project interface available:
-  reverse_agent/local_reverse_single_sample_static_triage.py, requires IDA
-  reverse_agent/tool_runners.py, IDA/OLLY config and runner
-  reverse_agent/local_reverse_console_validator.py, runtime validator but forbidden here
-  reverse_agent/ida_scripts/, collect_evidence.py, extract_named_data.py, forced_function_extract.py
-current external tool availability:
+Existing project interfaces checked in prior rounds:
+  reverse_agent/local_reverse_single_sample_static_triage.py requires IDA
+  reverse_agent/tool_runners.py supports IDA/OLLY config
+  reverse_agent/local_reverse_console_validator.py exists but is forbidden in this round
+  reverse_agent/ida_scripts/ exists
+  local_reverse_xref_disassembly.py has useful PEMapping/RVA helper patterns
+Current external tools from readiness:
   IDA direct unavailable
   Ghidra unavailable
   radare2 unavailable
   objdump unavailable
-allowed fallback from readiness:
-  Python stdlib PE parser + bounded strings extractor
+Allowed fallback:
+  bounded Python stdlib PE parsing and local byte-window analysis
 ```
-
-Existing interface rule remains: do not create duplicate IDA/Ghidra/debugger/static extraction interfaces. If a suitable existing parser/extractor exists, reuse it. If no wrapper exists and IDA/Ghidra/radare2 are unavailable, use bounded Python stdlib parsing only and record that as a fallback.
 
 negative_results mainly concerns old `samplereverse` directions. This round must not repeat blind search, budget expansion, stale artifact assumptions, full solve_reports commits, or candidate search.
 
@@ -129,12 +132,12 @@ Strictly forbidden:
 3. Do not execute any candidate or control input.
 4. Do not attach debugger, hook, emulator, instrumentation probe, breakpoint probe, dynamic trace collector, winpty, console validator, or runtime harness.
 5. Do not perform runtime validation.
-6. Do not generate a candidate.
-7. Do not brute force, dictionary search, fuzz, enumerate inputs, or rank candidates.
-8. Do not solve cpp2_883e67b9 in this round.
-9. Do not modify project_state/local_reverse_training_status.json.
-10. Do not modify training_materials/local_reverse/status_overlay.json.
-11. Do not mark cpp2_883e67b9 solved, blocked, validated, or partially solved.
+6. Do not brute force, dictionary search, fuzz, enumerate inputs, or rank candidates.
+7. Do not solve by broad candidate search.
+8. Do not modify project_state/local_reverse_training_status.json.
+9. Do not modify training_materials/local_reverse/status_overlay.json.
+10. Do not mark cpp2_883e67b9 solved, blocked, validated, or partially solved.
+11. Do not write known_candidate for cpp2_883e67b9.
 12. Do not alter accepted solved facts for cpp2_2f64e68d / 10013 or cpp2_32f1713e / KEEP_DREAM.
 13. Do not upload, copy into repo, base64-embed, or commit the sample binary.
 14. Do not store raw binary bytes, full strings dump, full imports, full sections, full disassembly, full decompilation, screenshots, memory dumps, or bulky static output.
@@ -143,21 +146,23 @@ Strictly forbidden:
 17. Do not create duplicate IDA/Ghidra/debugger/static extraction/runtime interfaces.
 18. Do not use stale IDA/Ghidra/static artifacts as current evidence for cpp2_883e67b9.
 19. Do not claim IDA/Ghidra evidence was used unless current artifact proves it for this sample and this round.
+20. Do not use previous raw_offset fields as file offsets until PE mapping is rederived.
 ```
 
 Allowed:
 
 ```text
 1. Read default project_state files and .codex-skills/registry.json.
-2. Read current readiness artifact for cpp2_883e67b9.
+2. Read current bounded static extraction and readiness artifacts for cpp2_883e67b9.
 3. Read local_reverse_training_status/status_overlay only for current state verification.
-4. Inspect existing repository interfaces for PE/static extraction/StructuredEvidence/artifact_index helpers.
-5. Resolve and read only E:\reverse\逆向课程2024春02\CPP2.exe for sha256/size/bounded static extraction.
-6. Use existing interfaces if available; otherwise use bounded Python stdlib PE parser/string-reference search.
-7. Produce bounded evidence: string RVAs, VA/RVA mapping, small candidate xref windows, candidate compare-region metadata, and next bounded action.
-8. Generate project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json.
-9. Register the artifact in artifact_index.
-10. Write codex_execution_report.md and pytest_result.txt.
+4. Inspect existing repository helpers for PE mapping, xref disassembly, byte-window extraction, StructuredEvidence, solver templates, artifact_index helpers.
+5. Resolve and read only E:\reverse\逆向课程2024春02\CPP2.exe for sha256/size and bounded static byte-window analysis.
+6. Use bounded Python stdlib PE parser and local byte-window inspection if IDA/Ghidra/radare2 remain unavailable.
+7. Record small opcode windows and decoded local instruction summaries only for the targeted regions.
+8. Produce unvalidated_candidate_hypothesis only if a non-search static proof chain is complete.
+9. Generate project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json.
+10. Register the artifact in artifact_index.
+11. Write codex_execution_report.md and pytest_result.txt.
 ```
 
 ---
@@ -176,27 +181,27 @@ project_state/codex_execution_report.md
 project_state/pytest_result.txt
 .codex-skills/registry.json
 project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json
+project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json
 project_state/local_reverse_training_status.json
 training_materials/local_reverse/status_overlay.json
 reverse_agent/project_state.py
 tests/test_project_state.py
 ```
 
-Must inspect bounded existing capability surface before writing extraction code or invoking tools:
+Must inspect bounded existing capability surface before adding any code or local parser snippets:
 
 ```text
 Search repository for directly relevant interfaces/schemas:
+  local_reverse_xref_disassembly
   local_reverse_single_sample_static_triage
   static_extraction
   StructuredEvidence
-  strings
+  solver templates
+  xor solver
+  bit operation solver
   pe parser
   rva
   xref
-  ida
-  ghidra
-  radare2
-  objdump
   artifact_index
   local_reverse
 
@@ -230,40 +235,41 @@ Codex report must answer:
 
 ```text
 1. Did it confirm decision_packet is the sole execution authority?
-2. Did it confirm mainline=tool_integration?
-3. Did it confirm this is bounded static extraction, not solving or validation?
+2. Did it confirm mainline=reverse_solving?
+3. Did it confirm this is targeted static solving, not runtime validation?
 4. Did it confirm task_packet remains advisory?
-5. Did it confirm readiness artifact is current/READY/identity_verified for cpp2_883e67b9?
+5. Did it confirm source bounded_static_extraction artifact is current/SUCCESS/identity_verified?
 6. Did it confirm cpp2_883e67b9 remains inventory_only/known_candidate="" before and after?
 7. Did it confirm cpp2_32f1713e/KEEP_DREAM and cpp2_2f64e68d/10013 solved facts remain unchanged?
-8. Did it inspect existing static extraction / StructuredEvidence / tool interfaces before acting?
-9. Which existing interfaces/tools were available and which were used?
+8. Did it inspect existing PE/xref/static extraction/solver/StructuredEvidence interfaces before acting?
+9. Which existing helpers or fallback parsers were used?
 10. Did it avoid creating duplicate tool interfaces?
 11. Did it resolve the sample only through command-scoped LOCAL_REVERSE_ROOT=E:\reverse?
 12. Did it reverify size_bytes=196689 and sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8?
-13. Did it map key string offsets to RVAs/VAs in bounded form?
-14. Did it attempt bounded xref/reference discovery from .text to key string RVAs/VAs?
-15. Did it identify bounded candidate functions/regions/windows without full disassembly dump?
-16. Did it emit StructuredEvidence or explain why structured_evidence_ready=false?
-17. Did it avoid candidate generation, brute force, dictionary search, and input enumeration?
-18. Did it avoid sample execution/runtime validation/debugger/hook/emulator/probe?
-19. Did it avoid binary upload/copy/embed/full dumps?
-20. Did it avoid modifying training_status/status_overlay?
-21. Did it generate project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json?
-22. Did it register the artifact in latest_artifacts/latest_artifacts_v2/artifact_refs?
-23. Did the artifact make a clear bounded next recommendation, e.g. targeted static solving, IDA setup, or deeper bounded xref extraction?
-24. Did it explain negative_results unchanged or non-use?
-25. Did it run required py_compile/pytest/lint/status/git checks?
-26. Did pytest_result.txt use this decision_id/report_id/round_id?
-27. Did final lint-report run after report write?
-28. Did git diff only contain allowed files?
+13. Did it rederive file_offset/RVA/VA mappings and address the prior raw_offset caution?
+14. Did it analyze only bounded windows around prompt_path/assert_path/failure_path and optional indirect Sorry reference search?
+15. Did it recover any input length, initial phase, comparison logic, constants, table, branch predicate, or transform evidence?
+16. If it produced unvalidated_candidate_hypothesis, is the proof chain non-search and static-only?
+17. If no candidate was produced, did it record bounded blockers and next evidence needed?
+18. Did it avoid brute force, dictionary search, candidate enumeration, and ranking?
+19. Did it avoid sample execution/runtime validation/debugger/hook/emulator/probe?
+20. Did it avoid binary upload/copy/embed/full dumps?
+21. Did it avoid modifying training_status/status_overlay?
+22. Did it generate project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json?
+23. Did it register the artifact in latest_artifacts/latest_artifacts_v2/artifact_refs?
+24. Did the artifact make a clear bounded next recommendation, e.g. runtime validation if candidate exists, or deeper IDA/static evidence extraction if not?
+25. Did it explain negative_results unchanged or non-use?
+26. Did it run required py_compile/pytest/lint/status/git checks?
+27. Did pytest_result.txt use this decision_id/report_id/round_id?
+28. Did final lint-report run after report write?
+29. Did git diff only contain allowed files?
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-Small bounded static extraction only.
+Small bounded targeted static solving only.
 
 ### Phase A — state preflight
 
@@ -272,12 +278,11 @@ Use `.venv\Scripts\python` for repository Python commands.
 Verify:
 
 ```text
-project_state/local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json:
+project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json:
   sample_id == cpp2_883e67b9
   identity_verified == true
-  readiness_status == READY
-  expected_sha256 == 883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
-  expected_size_bytes == 196689
+  extraction_status == SUCCESS
+  source_readiness_status == READY
   candidate_generated == false
   candidate_validation_attempted == false
   executed_sample == false
@@ -288,31 +293,31 @@ project_state/local_reverse_training_status.json:
   cpp2_883e67b9.blocked_reason == ""
 ```
 
-If readiness/training state has drifted, stop as BLOCKED rather than proceeding silently.
+If state has drifted, stop as BLOCKED rather than proceeding silently.
 
-### Phase B — existing interface inspection
+### Phase B — helper/interface inspection
 
-Search/inspect existing project interfaces before implementing extraction logic:
+Search/inspect existing project helpers before implementing any local analysis:
 
 ```text
-local_reverse_single_sample_static_triage.py
+local_reverse_xref_disassembly.py
+PE mapping helpers
 static extraction helpers
 StructuredEvidence schema/converters
+solver templates for XOR/bit operation/string compare/table lookup
 artifact_index helpers
-IDA/Ghidra/radare2 wrappers
-PE parsing or RVA helpers
 ```
 
 Decision rule:
 
 ```text
-1. Reuse existing helpers if they already support bounded PE/string/RVA extraction.
-2. Do not create a generic new tool interface.
-3. If no helper exists, implement only narrow local script/code inside the current execution workflow or minimal project_state-safe helper if absolutely necessary; prefer artifact-only bounded parsing over adding reusable code.
+1. Reuse existing PE mapping/xref helpers if they already support bounded byte-window analysis.
+2. Do not add a generic new tool integration.
+3. If no helper is reusable, use a narrow in-round Python stdlib parser only to generate the artifact; avoid committing a new reusable module unless absolutely necessary.
 4. Do not add IDA/Ghidra/radare2 integrations in this round.
 ```
 
-### Phase C — command-scoped identity recheck
+### Phase C — command-scoped identity and PE mapping recheck
 
 Resolve only this file:
 
@@ -322,56 +327,80 @@ relative_path=逆向课程2024春02/CPP2.exe
 resolved_sample_path=E:\reverse\逆向课程2024春02\CPP2.exe
 ```
 
-Allowed identity check:
-
-```bat
-cmd /c "set LOCAL_REVERSE_ROOT=E:\reverse&& .venv\Scripts\python -c \"import os, pathlib, hashlib; p=pathlib.Path(os.environ['LOCAL_REVERSE_ROOT'])/'逆向课程2024春02'/'CPP2.exe'; b=p.read_bytes(); print(p); print(len(b)); print(hashlib.sha256(b).hexdigest())\""
-```
-
-Do not print or store raw bytes.
-
-### Phase D — bounded static extraction
-
-Use the PE section mapping from readiness. Extract bounded evidence only:
+Recompute:
 
 ```text
-1. Confirm PE layout and section RVA/raw mappings.
-2. Convert key string raw offsets to RVA and VA.
-3. Search .text for little-endian immediate references to key string VAs/RVAs if applicable.
-4. If direct xrefs are not found, record bounded negative result and search nearby code/data references only within a small bounded window.
-5. Identify at most a small number of candidate reference sites or function/region windows.
-6. For each candidate window, record offset/RVA/VA, reason, nearby opcode bytes limited to a small window, and semantic hypothesis such as prompt path/failure path/assert path.
-7. Do not dump full .text, full strings, full imports, full sections, full disassembly, or full decompilation.
-8. Do not derive final password/candidate.
+size_bytes
+sha256
+section table
+raw_to_rva
+rva_to_raw
+va_to_raw
 ```
 
-Suggested evidence categories:
+Record explicitly:
 
 ```text
-input_prompt_anchor
-failure_message_anchor
-initial_phase_failure_anchor
-debug_assert_anchor
-candidate_compare_or_branch_region
-unknown_reference_region
-bounded_negative_result
+prior_raw_offset_fields_treated_as=RVA_only|corrected_file_offsets|confirmed_file_offsets
+mapping_correction_summary={...}
 ```
+
+### Phase D — bounded window analysis
+
+Analyze only bounded windows:
+
+```text
+1. prompt_path around VA 0x4010ad.
+2. failure_path around VA 0x4010e6.
+3. assert_path around VA 0x4061c3.
+4. Optional bounded indirect search for "--- Sorry, but try it again! ---" reference, limited to local data/code reference patterns and a small result cap.
+```
+
+For each region, record:
+
+```text
+region_id
+anchor_va
+window_va_start/window_va_end
+window_size
+local_instruction_summary_or_opcode_features bounded to a small list
+constants_seen bounded list
+branch_predicates_seen bounded list
+calls_seen bounded list
+stack_or_buffer_hints bounded list
+semantic_hypothesis
+solver_relevance
+```
+
+Preferred recovery targets:
+
+```text
+input length check
+initial phase predicate
+byte/char comparison loop
+target constant/table bytes
+transform formula such as XOR/shift/bit swap/add/sub/mod
+success/failure branch condition
+expected candidate length or character class
+```
+
+No broad search. No candidate enumeration. No runtime.
 
 ### Phase E — artifact generation
 
 Generate:
 
 ```text
-project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json
+project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json
 ```
 
 Required top-level fields:
 
 ```text
 schema_version=1
-mainline=tool_integration
-round_id=round_20260607_cpp2_883e67b9_bounded_static_extraction_v1
-decision_id=decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1
+mainline=reverse_solving
+round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_v1
+decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_v1
 sample_id=cpp2_883e67b9
 relative_path=逆向课程2024春02/CPP2.exe
 command_scoped_root=E:\reverse
@@ -379,32 +408,34 @@ resolved_sample_path=E:\reverse\逆向课程2024春02\CPP2.exe
 expected_sha256=883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8
 expected_size_bytes=196689
 identity_verified=true|false
-extraction_status=SUCCESS|PARTIAL|BLOCKED|FAILED
+static_solving_status=SUCCESS|PARTIAL|BLOCKED|FAILED
 training_status_before=inventory_only
 known_candidate_before=""
-source_readiness_artifact=project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json
-source_readiness_status=READY
-existing_tool_interfaces_checked=true
-static_tools_used=[...]
-pe_layout_summary={...bounded...}
-string_anchor_map=[...bounded...]
-xref_search_summary={...bounded...}
-candidate_regions=[...bounded...]
-structured_evidence_ready=true|false
-structured_evidence={...bounded or null...}
-candidate_generated=false
+source_static_extraction_artifact=project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json
+source_static_extraction_status=SUCCESS
+prior_raw_offset_fields_treated_as=RVA_only|corrected_file_offsets|confirmed_file_offsets
+mapping_correction_summary={...bounded...}
+existing_helpers_checked=true
+helpers_or_tools_used=[...]
+target_regions_analyzed=[...bounded...]
+logic_evidence={...bounded...}
+solver_classification={type:string_compare|xor|bit_operation|table_lookup|unknown, confidence:...}
+static_proof_chain=[...]
+unvalidated_candidate_hypothesis=null|{candidate, confidence, validation_status:unvalidated, proof_chain_summary, requires_future_runtime_validation:true}
+candidate_generated=true|false
 candidate_validation_attempted=false
 candidate_validated=false
+candidate_acceptance_status=unvalidated|null
 training_status_modified=false
 status_overlay_modified=false
 executed_sample=false
 ran_runtime_tools=false
-ran_ida=true|false
-ran_ghidra=true|false
-ran_strings=true|false
-ran_file=true|false
-ran_objdump=true|false
-ran_radare2=true|false
+ran_ida=false
+ran_ghidra=false
+ran_strings=false
+ran_file=false
+ran_objdump=false
+ran_radare2=false
 ran_static_extraction=true|false
 ran_debugger=false
 ran_hook=false
@@ -421,40 +452,49 @@ full_section_dump_recorded=false
 full_disassembly_recorded=false
 full_decompilation_recorded=false
 bounded_negative_results=[...]
-next_recommended_mainline=tool_integration|reverse_solving
+next_recommended_mainline=reverse_solving|tool_integration
 next_recommended_action=<bounded next step>
 generated_at=<timestamp>
 ```
 
-### Phase F — artifact_index registration
-
-Register regardless of extraction_status:
+Status mapping guidance:
 
 ```text
-artifact_index.latest_artifacts["local_reverse_cpp2_883e67b9_bounded_static_extraction"]
-artifact_index.latest_artifacts_v2["local_reverse_cpp2_883e67b9_bounded_static_extraction"]
-artifact_index.artifact_refs["local_reverse_cpp2_883e67b9_bounded_static_extraction"]
+SUCCESS: static logic and candidate hypothesis recovered with a coherent non-search proof chain.
+PARTIAL: relevant regions and some logic recovered, but no candidate or incomplete proof chain.
+BLOCKED: source artifact missing/stale, identity mismatch, or no bounded static path.
+FAILED: forbidden action, malformed artifact, or inconsistent metadata.
+```
+
+### Phase F — artifact_index registration
+
+Register regardless of static_solving_status:
+
+```text
+artifact_index.latest_artifacts["local_reverse_cpp2_883e67b9_targeted_static_solving"]
+artifact_index.latest_artifacts_v2["local_reverse_cpp2_883e67b9_targeted_static_solving"]
+artifact_index.artifact_refs["local_reverse_cpp2_883e67b9_targeted_static_solving"]
 ```
 
 `latest_artifacts_v2` must include:
 
 ```text
-kind=local_reverse_bounded_static_extraction
-path=project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json
+kind=local_reverse_targeted_static_solving
+path=project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json
 freshness=current
-source_run=round_20260607_cpp2_883e67b9_bounded_static_extraction_v1
+source_run=round_20260607_cpp2_883e67b9_targeted_static_solving_v1
 sha256=<actual artifact sha256>
 size_bytes=<actual artifact size>
 modified_at=<artifact generated_at or filesystem mtime>
 sample_id=cpp2_883e67b9
 relative_path=逆向课程2024春02/CPP2.exe
-extraction_status=SUCCESS|PARTIAL|BLOCKED|FAILED
+static_solving_status=SUCCESS|PARTIAL|BLOCKED|FAILED
 identity_verified=true|false
 training_status_before=inventory_only
-candidate_generated=false
+candidate_generated=true|false
 candidate_validated=false
-structured_evidence_ready=true|false
-source_readiness_artifact=project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json
+candidate_acceptance_status=unvalidated|null
+source_static_extraction_artifact=project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json
 next_recommended_mainline=<value>
 ```
 
@@ -467,9 +507,9 @@ Do not modify `local_reverse_training_status.json` or `status_overlay.json`.
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
-  "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+  "report_id": "report_20260607_cpp2_883e67b9_targeted_static_solving_v1",
+  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_v1",
   "status": "SUCCESS|PARTIAL|BLOCKED|FAILED",
   "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS|BLOCKED|REWORK_REQUIRED",
   "files_changed": [],
@@ -481,13 +521,13 @@ Do not modify `local_reverse_training_status.json` or `status_overlay.json`.
 Recommended mapping:
 
 ```text
-extraction_status=SUCCESS -> status=SUCCESS, acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
-extraction_status=PARTIAL -> status=PARTIAL, acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
-extraction_status=BLOCKED -> status=BLOCKED, acceptance_recommendation=BLOCKED
-extraction_status=FAILED -> status=FAILED, acceptance_recommendation=REWORK_REQUIRED
+static_solving_status=SUCCESS -> status=SUCCESS, acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
+static_solving_status=PARTIAL -> status=PARTIAL, acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS
+static_solving_status=BLOCKED -> status=BLOCKED, acceptance_recommendation=BLOCKED
+static_solving_status=FAILED -> status=FAILED, acceptance_recommendation=REWORK_REQUIRED
 ```
 
-Use `ACCEPTED_WITH_LIMITATIONS` for SUCCESS/PARTIAL because this round does not solve or validate a candidate.
+Even if a candidate hypothesis is produced, use `ACCEPTED_WITH_LIMITATIONS` because runtime validation is intentionally deferred.
 
 ---
 
@@ -509,35 +549,36 @@ git diff --name-status
 `pytest_result.txt` must include:
 
 ```text
-decision_id=decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1
-report_id=report_20260607_cpp2_883e67b9_bounded_static_extraction_v1
-round_id=round_20260607_cpp2_883e67b9_bounded_static_extraction_v1
+decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_v1
+report_id=report_20260607_cpp2_883e67b9_targeted_static_solving_v1
+round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_v1
 ```
 
 Content assertions to record:
 
 ```text
 1. decision_packet is the sole authority.
-2. mainline=tool_integration.
-3. source readiness artifact is current/READY/identity_verified.
+2. mainline=reverse_solving.
+3. source bounded_static_extraction artifact is current/SUCCESS/identity_verified.
 4. cpp2_883e67b9 training_status remains inventory_only/known_candidate="".
 5. sample identity reverified by size and sha256, or artifact records BLOCKED reason.
-6. existing static extraction / StructuredEvidence / tool interfaces were checked before tool use.
-7. no duplicate tool interface was created.
-8. artifact exists at project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json.
-9. artifact_index registers local_reverse_cpp2_883e67b9_bounded_static_extraction as current.
-10. artifact records bounded string anchor map and xref/reference search summary.
-11. candidate_generated=false.
-12. candidate_validation_attempted=false.
-13. training_status/status_overlay were not modified.
-14. no sample executable was run.
-15. no runtime tools/debugger/hook/emulator/probe were run.
-16. no brute force/dictionary/search/fuzzing was run.
-17. no binary was uploaded, copied, embedded, or committed.
-18. no full strings/imports/sections/disassembly/decompilation dump was recorded.
-19. pytest_result uses this decision_id/report_id/round_id.
-20. final lint-report ran after report write.
-21. git diff --name-status only contains allowed files.
+6. prior raw_offset caution is addressed by rederived PE mapping.
+7. existing PE/xref/static extraction/solver/StructuredEvidence helpers were checked before tool use.
+8. no duplicate tool interface was created.
+9. artifact exists at project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json.
+10. artifact_index registers local_reverse_cpp2_883e67b9_targeted_static_solving as current.
+11. artifact records target regions analyzed and logic evidence or bounded blockers.
+12. candidate, if generated, is only unvalidated_candidate_hypothesis.
+13. candidate_validation_attempted=false.
+14. training_status/status_overlay were not modified.
+15. no sample executable was run.
+16. no runtime tools/debugger/hook/emulator/probe were run.
+17. no brute force/dictionary/search/fuzzing/candidate enumeration was run.
+18. no binary was uploaded, copied, embedded, or committed.
+19. no full strings/imports/sections/disassembly/decompilation dump was recorded.
+20. pytest_result uses this decision_id/report_id/round_id.
+21. final lint-report ran after report write.
+22. git diff --name-status only contains allowed files.
 ```
 
 If `pytest` reports no tests collected, record it explicitly and do not claim full test coverage.
@@ -549,38 +590,39 @@ If `pytest` reports no tests collected, record it explicitly and do not claim fu
 Stop with `SUCCESS / ACCEPTED_WITH_LIMITATIONS` if:
 
 ```text
-1. readiness artifact is current/READY and sample identity is reverified;
-2. bounded static extraction artifact is produced and registered current;
-3. artifact contains bounded string anchors and xref/reference search summary;
-4. artifact gives clear next bounded recommendation;
-5. no candidate is generated or validated;
-6. no sample execution or forbidden runtime/debugger/search action occurred;
-7. training_status/status_overlay remain unchanged;
-8. tests/lint/report metadata align with this decision/report/round.
+1. source static extraction artifact is current/SUCCESS and sample identity is reverified;
+2. target regions are analyzed with corrected file_offset/RVA/VA mapping;
+3. static proof chain is coherent and, if candidate is produced, it is recorded only as unvalidated_candidate_hypothesis;
+4. artifact is produced and registered current;
+5. no runtime validation or forbidden dynamic/search action occurred;
+6. training_status/status_overlay remain unchanged;
+7. tests/lint/report metadata align with this decision/report/round.
 ```
 
 Stop with `PARTIAL / ACCEPTED_WITH_LIMITATIONS` if:
 
 ```text
-1. identity is verified but xref/reference recovery is incomplete;
-2. artifact records bounded negative results and a next step;
-3. no forbidden action occurred.
+1. identity and mapping are verified;
+2. bounded region analysis recovers partial logic but no complete candidate proof chain;
+3. artifact records blockers and next bounded evidence step;
+4. no forbidden action occurred.
 ```
 
 Stop with `BLOCKED` if:
 
 ```text
-1. source readiness artifact is missing/stale/not READY;
+1. source static extraction artifact is missing/stale/not SUCCESS;
 2. sample file is missing under command-scoped root;
 3. size/sha256 mismatch;
-4. no bounded static extraction path is available.
+4. corrected PE mapping cannot be established;
+5. no bounded static solving path is available.
 ```
 
 Stop with `FAILED / REWORK_REQUIRED` if:
 
 ```text
-1. any forbidden execution/tool action occurs;
-2. candidate is generated or validation attempted;
+1. any forbidden execution/tool/search action occurs;
+2. candidate validation is attempted;
 3. training_status/status_overlay are modified;
 4. artifact_index/report/pytest_result do not align with this decision.
 ```
