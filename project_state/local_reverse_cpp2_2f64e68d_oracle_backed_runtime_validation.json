@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp2_2f64e68d",
+  "mainline": "reverse_solving",
+  "analysis_mode": "oracle_backed_runtime_validation",
+  "source_artifacts": [
+    "local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction",
+    "local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime"
+  ],
+  "source_artifact_freshness": "current",
+  "oracle_artifact": "project_state\\local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json",
+  "runtime_artifact": "project_state\\local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
+  "executed_sample": true,
+  "runtime_validated": true,
+  "validation_status": "VALIDATED_SUCCESS",
+  "candidate_input": "10013",
+  "negative_control_input": "20013",
+  "backend": "winpty",
+  "max_runs": 2,
+  "candidate_run": {
+    "input": "10013",
+    "executed": true,
+    "timed_out": true,
+    "return_code": null,
+    "raw_stdout_tail": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hPlease input a string : \r\n\u001b[2;1H10013\u001b[2;6H\r\nOk, you know it. Just hang on.\r\n\u001b[?7l\u001b[?7h请按任意键继续. . . ",
+    "raw_stderr_tail": "winpty read failed: ",
+    "cleaned_stdout": "Please input a string : \r\n10013\r\nOk, you know it. Just hang on.\r\n请按任意键继续. . . ",
+    "classification": "SUCCESS",
+    "matched_success_signals": [
+      "Ok, you know it. Just hang on."
+    ],
+    "matched_failure_signals": []
+  },
+  "negative_control_run": {
+    "input": "20013",
+    "executed": true,
+    "timed_out": true,
+    "return_code": null,
+    "raw_stdout_tail": "\u001b[1t\u001b[c\u001b[?1004h\u001b[?9001hPlease input a string : \r\n\u001b[2;1H20013\u001b[2;6H\r\nSorry! Hang on!\r\n\u001b[?7l\u001b[?7h请按任意键继续. . . ",
+    "raw_stderr_tail": "winpty read failed: ",
+    "cleaned_stdout": "Please input a string : \r\n20013\r\nSorry! Hang on!\r\n请按任意键继续. . . ",
+    "classification": "FAILURE",
+    "matched_success_signals": [],
+    "matched_failure_signals": [
+      "Sorry! Hang on!"
+    ]
+  },
+  "candidate_accepted": true,
+  "control_rejected": true,
+  "candidate": "10013",
+  "known_candidate": "10013",
+  "solved": true,
+  "blocked_reason": "",
+  "target_sha256": "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
+  "generated_at": "2026-06-07T08:26:33Z"
+}

@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp2_2f64e68d",
+  "mainline": "reverse_solving",
+  "analysis_mode": "raw_input_candidate_from_post_strcmp_oracle",
+  "source_artifact": "project_state\\local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json",
+  "source_artifact_freshness": "current",
+  "executed_sample": false,
+  "runtime_validated": false,
+  "transformed_target": "ippio",
+  "transform": "(7 + 3 * digit_value) % 10 + 105",
+  "transform_full": "Str1[j] = (v10 + v11 * (Str1[j] - 48)) % 10 + 105, where v10=7, v11=3",
+  "inverse_derivation": [
+    {
+      "position": 0,
+      "target_char": "i",
+      "target_ascii": 105,
+      "y": 0,
+      "equation": "(7 + 3*d) % 10 = 0",
+      "solution": "d = 1",
+      "verification": "(7 + 3*1) % 10 + 105 = 10 % 10 + 105 = 0 + 105 = 105 = 'i'"
+    },
+    {
+      "position": 1,
+      "target_char": "p",
+      "target_ascii": 112,
+      "y": 7,
+      "equation": "(7 + 3*d) % 10 = 7",
+      "solution": "d = 0",
+      "verification": "(7 + 3*0) % 10 + 105 = 7 % 10 + 105 = 7 + 105 = 112 = 'p'"
+    },
+    {
+      "position": 2,
+      "target_char": "p",
+      "target_ascii": 112,
+      "y": 7,
+      "equation": "(7 + 3*d) % 10 = 7",
+      "solution": "d = 0",
+      "verification": "(7 + 3*0) % 10 + 105 = 7 % 10 + 105 = 7 + 105 = 112 = 'p'"
+    },
+    {
+      "position": 3,
+      "target_char": "i",
+      "target_ascii": 105,
+      "y": 0,
+      "equation": "(7 + 3*d) % 10 = 0",
+      "solution": "d = 1",
+      "verification": "(7 + 3*1) % 10 + 105 = 10 % 10 + 105 = 0 + 105 = 105 = 'i'"
+    },
+    {
+      "position": 4,
+      "target_char": "o",
+      "target_ascii": 111,
+      "y": 6,
+      "equation": "(7 + 3*d) % 10 = 6",
+      "solution": "d = 3",
+      "verification": "(7 + 3*3) % 10 + 105 = 16 % 10 + 105 = 6 + 105 = 111 = 'o'"
+    }
+  ],
+  "raw_candidate_input": "10013",
+  "negative_control_input": "20013",
+  "negative_control_strategy": "single_digit_mutation_first_position",
+  "candidate": null,
+  "known_candidate": "",
+  "solved": false,
+  "generated_at": "2026-06-07T14:00:00Z"
+}

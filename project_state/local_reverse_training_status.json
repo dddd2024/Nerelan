@@ -129,10 +129,10 @@
         "cpp",
         "pe"
       ],
-      "training_status": "blocked",
-      "known_candidate": "",
-      "blocked_reason": "AMBIGUOUS_OUTPUT",
-      "classification": "post_strcmp_oracle_confirmed_awaiting_runtime_revalidation",
+      "training_status": "solved",
+      "known_candidate": "10013",
+      "blocked_reason": "",
+      "classification": "oracle_backed_runtime_validated",
       "evidence_sources": [
         "source:local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
         "console_mature_backend_probe",
@@ -144,9 +144,16 @@
         "source_run:round_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1",
         "source:local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json",
         "post_strcmp_oracle_confirmed",
-        "source_run:round_20260607_cpp2_2f64e68d_post_strcmp_oracle_extraction_v1"
+        "source_run:round_20260607_cpp2_2f64e68d_post_strcmp_oracle_extraction_v1",
+        "source:local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle.json",
+        "raw_input_candidate_derived",
+        "source_run:round_20260607_cpp2_2f64e68d_raw_input_oracle_backed_revalidation_v1",
+        "source:local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
+        "raw_input_winpty_pair_runtime",
+        "source:local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
+        "oracle_backed_runtime_validation_validated_success"
       ],
-      "next_action": "Oracle confirmed: success=puts('Ok, you know it. Just hang on.'), failure=puts('Sorry! Hang on!'). Next: bounded oracle-backed runtime revalidation with ANSI-stripped output matching. Do NOT mark solved until runtime validation passes."
+      "next_action": "Solved via oracle-backed runtime validation. Raw input=10013, transformed=ippio. Candidate accepted (success signal 'Ok, you know it. Just hang on.'), control rejected (failure signal 'Sorry! Hang on!')."
     },
     {
       "sample_id": "cpp2_4c69f173",
