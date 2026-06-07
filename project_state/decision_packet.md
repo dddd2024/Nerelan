@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_cpp2_32f1713e_targeted_static_solving_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_targeted_static_solving_v1",
+  "decision_id": "decision_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -17,19 +17,27 @@
 
 ## 1. Goal
 
-本轮主线是 **reverse_solving**，但范围限定为 `cpp2_32f1713e` 的 **targeted static solving preparation**。
+本轮主线是 **reverse_solving**，任务是修复上一轮 `cpp2_32f1713e` targeted static solving 的 provenance、schema、artifact key、artifact path 和 report/test 对齐问题。
 
-目标：基于 current 静态提取证据，围绕输入提示、success/failure 字符串、`flag == 0 || flag == 1`、`%.2X `、CompareStringA/W 以及可能的 main/check 逻辑，定位比较点和目标数据来源，判断是否存在可静态证明的候选构造路径。
+上一轮静态分析可能已经给出有价值候选 `KEEP_DREAM`，但上一轮产物不能直接验收，原因是：
 
-本轮可以产出 **static solver handoff** 或 **unvalidated static candidate hypothesis**，但必须明确未经过 runtime validation，不得写入 solved 状态，不得修改 training status。若无法静态证明候选，则必须输出 PARTIAL/BLOCKED，并说明需要下一轮 IDA/Ghidra 反编译或 runtime oracle validation。
+```text
+1. decision_packet 要求的 artifact path/key 是 targeted_static_solving；Codex 实际写成 targeted_static_solve。
+2. 实际 artifact 内部 decision_id/round_id 使用了 targeted_static_solve_v1，未匹配当前 decision。
+3. report 给出 ACCEPTED，但原 decision 要求未 runtime validation 时最多 ACCEPTED_WITH_LIMITATIONS。
+4. pytest_result 检查了错误 artifact key/path，并接受了非 decision 指定的状态枚举。
+5. artifact schema 没有使用原 decision 要求的 static_solving_status、solver_classification、unvalidated_candidate_hypothesis 等字段。
+```
 
-必须产出：
+目标：基于上一轮 `project_state/local_reverse_cpp2_32f1713e_targeted_static_solve.json` 中的静态证据，生成规范化 rework artifact：
 
 ```text
 project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json
 ```
 
-本轮禁止运行样本、禁止调试、禁止 runtime probe、禁止 winpty/console validator、禁止 brute force、禁止 dictionary search、禁止 runtime candidate validation、禁止标记 solved/blocked。若需要验证候选，必须下一轮单独生成 runtime validation 决策。
+本轮只做状态/产物/报告修复和 bounded consistency audit，不重新扩大逆向分析范围，不运行样本，不做 runtime validation，不修改训练状态。
+
+允许产出 `KEEP_DREAM` 作为 **unvalidated_candidate_hypothesis**，但不得写成 validated、solved 或 training known_candidate。
 
 ---
 
@@ -37,80 +45,74 @@ project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json
 
 当前 `project_state/decision_packet.md` 是 Codex 本轮唯一执行权威。`project_state/task_packet.json` 仍是 advisory，不控制本轮。
 
-上一轮静态提取审计结论为 **ACCEPTED_WITH_LIMITATIONS**：它提供 current 静态证据，但不是解题结果，也没有 candidate validation。
+上一轮 Codex report 声明：
 
-Current static extraction artifact:
+```text
+report_id=report_20260607_cpp2_32f1713e_targeted_static_solving_v1
+round_id=round_20260607_cpp2_32f1713e_targeted_static_solving_v1
+based_on_decision_id=decision_20260607_cpp2_32f1713e_targeted_static_solving_v1
+status=SUCCESS
+acceptance_recommendation=ACCEPTED
+candidate=KEEP_DREAM
+candidate_confidence=HIGH
+```
+
+但上一轮实际 generated_artifacts 为：
+
+```text
+project_state/local_reverse_cpp2_32f1713e_targeted_static_solve.json
+```
+
+上一轮 actual artifact 内部写入：
+
+```text
+round_id=round_20260607_cpp2_32f1713e_targeted_static_solve_v1
+decision_id=decision_20260607_cpp2_32f1713e_targeted_static_solve_v1
+solving_status=SOLVED_BY_STATIC_ANALYSIS
+unvalidated_candidate=KEEP_DREAM
+candidate_confidence=HIGH
+```
+
+这与当前 decision/report/pytest_result 的 `targeted_static_solving_v1` 命名不一致，属于 provenance mismatch。
+
+上一轮 artifact_index 当前注册：
+
+```text
+latest_artifacts["local_reverse_cpp2_32f1713e_targeted_static_solve"]
+latest_artifacts_v2["local_reverse_cpp2_32f1713e_targeted_static_solve"]
+artifact_refs["local_reverse_cpp2_32f1713e_targeted_static_solve"]
+```
+
+但本轮必须改为注册：
+
+```text
+latest_artifacts["local_reverse_cpp2_32f1713e_targeted_static_solving"]
+latest_artifacts_v2["local_reverse_cpp2_32f1713e_targeted_static_solving"]
+artifact_refs["local_reverse_cpp2_32f1713e_targeted_static_solving"]
+```
+
+Current source static extraction remains usable if still registered current:
 
 ```text
 project_state/local_reverse_cpp2_32f1713e_bounded_static_extraction.json:
-  decision_id=decision_20260607_cpp2_32f1713e_bounded_static_extraction_v1
-  round_id=round_20260607_cpp2_32f1713e_bounded_static_extraction_v1
   sample_id=cpp2_32f1713e
-  identity_verified=true
   static_extraction_status=SUCCESS
-  file_type=PE
-  architecture=i386
-  bitness=32
-  entry_point_rva=0x1440
-  image_base=0x400000
-  subsystem=Windows CUI (Console)
-  sections=.text/.rdata/.data/.idata/.reloc
-  import_dll_count=1
-  imported_dlls=KERNEL32.dll
-  notable_imports=CompareStringA, CompareStringW
-  selected challenge strings:
-    Plase give me your answer:
-    Congratulations! You are right!
-    Sorry, you are wrong!
-    Sorry,you are wrong!
-    flag == 0 || flag == 1
-    %.2X 
-  solver_profile_hypotheses:
-    direct_string_compare_password_checker
-    hex_encoded_comparison
-  executed_sample=false
-  ran_runtime_tools=false
-  ran_debugger=false
-  ran_bruteforce=false
+  identity_verified=true
   candidate_generated=false
   candidate_validation_attempted=false
-  uploaded_binary=false
 ```
 
-`artifact_index.latest_artifacts_v2` registers the static artifact as current:
-
-```text
-local_reverse_cpp2_32f1713e_bounded_static_extraction:
-  kind=local_reverse_bounded_static_extraction
-  freshness=current
-  source_run=round_20260607_cpp2_32f1713e_bounded_static_extraction_v1
-  sample_id=cpp2_32f1713e
-  static_extraction_status=SUCCESS
-  identity_verified=true
-  source_readiness_artifact=project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json
-```
-
-The readiness artifact remains current and usable as local access precondition:
+Current readiness remains usable if still registered current:
 
 ```text
 project_state/local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json:
+  sample_id=cpp2_32f1713e
   readiness_status=READY
   ready_for_static_extraction=true
   command_scoped_root=E:\reverse
   resolved_sample_path=E:\reverse\逆向课程2023春补考02\Cpp2.exe
   size_bytes=196686
   sha256=32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412
-```
-
-Training queue remains:
-
-```text
-project_state/local_reverse_evaluation_queue.json:
-  items[0].sample_id=cpp2_32f1713e
-  items[0].relative_path=逆向课程2023春补考02/Cpp2.exe
-  items[0].proposed_next_mainline=tool_integration
-  items[0].allowed_actions=[static_triage]
-  items[0].forbidden_actions includes runtime_probe, bruteforce, upload_binary
 ```
 
 Training state must remain unchanged:
@@ -128,20 +130,11 @@ training_materials/local_reverse/status_overlay.json:
   cpp2_32f1713e.blocked_reason=""
 ```
 
-`negative_results.json` mainly concerns old `samplereverse` directions: blind search, budget expansion, compare breakpoint probes, stale function assumptions, and full solve_reports commit. This round must not repeat those directions. For local `cpp2_32f1713e`, the relevant policy is: no runtime probe, no brute force, no upload_binary, no full dumps.
+negative_results mainly concerns old `samplereverse` directions and must remain respected: do not run blind search, do not commit full solve_reports, do not use stale artifacts as current evidence. For this sample, also preserve the training queue constraints: no runtime_probe, no brute force, no upload_binary.
 
-Existing capability evidence from last report:
+Skill profile must remain `reverse-agent-iteration@v2`, which is active in `.codex-skills/registry.json`.
 
-```text
-reverse_agent/local_reverse_single_sample_static_triage.py: IDA-dependent; IDA unavailable in last run
-reverse_agent/tool_runners.py: IDA/ollydbg runners; IDA unavailable in last run
-reverse_agent/evidence.py: StructuredEvidence class available
-reverse_agent/static_feature_extractor.py and simple_static_patterns.py: general static support
-pefile/lief/radare2/objdump unavailable in last run
-Python stdlib PE parser + strings extractor used successfully
-```
-
-Mature tools remain preferred. If IDA/Ghidra becomes available in this Codex environment, use the existing interface only and keep output bounded. If unavailable, do not create a duplicate decompiler/disassembler; either do bounded static reasoning from existing artifact or perform a minimal focused byte/XREF-like scan only around current string/import indicators.
+Mature tools rule still applies, but this rework should not create or modify IDA/Ghidra/debugger/static extraction interfaces. It should only normalize project_state artifacts and report/test metadata.
 
 ---
 
@@ -164,27 +157,23 @@ Strictly forbidden:
 12. Do not modify .codex-skills.
 13. Do not create duplicate IDA/Ghidra/debugger/static extraction interfaces.
 14. Do not use stale artifact evidence as current static evidence.
-15. Do not claim a candidate is valid without a future runtime validation decision.
-16. Do not start runtime oracle validation in this round even if a plausible candidate is recovered.
+15. Do not claim candidate KEEP_DREAM is valid without a future runtime validation decision.
+16. Do not start runtime oracle validation in this round.
+17. Do not keep the previous ACCEPTED recommendation; unvalidated static candidate means at most ACCEPTED_WITH_LIMITATIONS.
+18. Do not register only local_reverse_cpp2_32f1713e_targeted_static_solve as the current artifact for this decision.
 ```
 
 Allowed:
 
 ```text
 1. Read default project_state files and .codex-skills/registry.json.
-2. Read current readiness and bounded static extraction artifacts for cpp2_32f1713e.
-3. Read inventory/training/queue metadata only for cpp2_32f1713e and direct consistency checks.
-4. Use command-scoped LOCAL_REVERSE_ROOT=E:\reverse to access only E:\reverse\逆向课程2023春补考02\Cpp2.exe for bounded static analysis.
-5. Reverify sample identity by size and sha256 before any new local static scan.
-6. Inspect existing IDA/Ghidra/static extraction interfaces before choosing tooling.
-7. If existing IDA/Ghidra static export runner is available, run it only in static mode and cap output.
-8. If mature tools remain unavailable, use only bounded stdlib byte/string/reference scans around known indicators from the current artifact.
-9. Locate string offsets/RVAs for prompt/success/failure/flag/%.2X indicators.
-10. Search bounded code/data references to those string RVAs when possible without full disassembly dump.
-11. Identify likely compare/check region, target constant, transform clue, and whether direct-string or hex-encoded comparison is better supported.
-12. Generate a static solver handoff or unvalidated static candidate hypothesis only if the evidence path is explicit and bounded.
-13. Register artifact in artifact_index.
-14. Write codex_execution_report.md and pytest_result.txt.
+2. Read project_state/local_reverse_cpp2_32f1713e_targeted_static_solve.json as legacy source evidence.
+3. Read current readiness and bounded static extraction artifacts for cpp2_32f1713e.
+4. Read inventory/training/queue metadata only for cpp2_32f1713e and direct consistency checks.
+5. Generate project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json using normalized schema.
+6. Register local_reverse_cpp2_32f1713e_targeted_static_solving in artifact_index latest_artifacts, latest_artifacts_v2 and artifact_refs.
+7. Optionally leave the old targeted_static_solve artifact as legacy source, but do not make it the required current artifact for this decision.
+8. Write codex_execution_report.md and pytest_result.txt for this rework.
 ```
 
 ---
@@ -204,7 +193,7 @@ project_state/pytest_result.txt
 .codex-skills/registry.json
 project_state/local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json
 project_state/local_reverse_cpp2_32f1713e_bounded_static_extraction.json
-project_state/local_reverse_cpp2_32f1713e_static_triage.json
+project_state/local_reverse_cpp2_32f1713e_targeted_static_solve.json
 project_state/local_reverse_training_status.json
 project_state/local_reverse_evaluation_queue.json
 project_state/local_reverse_inventory.json
@@ -213,21 +202,13 @@ reverse_agent/project_state.py
 tests/test_project_state.py
 ```
 
-Must inspect bounded existing capability surface before local static solving:
-
-```text
-Search repository for: ida, ghidra, static_triage, static_extraction, StructuredEvidence, xref, compare, string reference, pefile, lief, r2, radare2, objdump, artifact_index.
-Inspect only directly relevant existing modules/scripts/tests found by that search.
-Prefer existing interfaces; do not create duplicates.
-```
-
 Do not read by default:
 
 ```text
 solve_reports/ full tree
 PROJECT_PROGRESS_LOG.txt full file
 project_state/rounds/ full history
-E:\reverse full tree beyond E:\reverse\逆向课程2023春补考02\Cpp2.exe
+E:\reverse full tree beyond direct identity metadata already established
 ```
 
 ---
@@ -238,44 +219,43 @@ Codex report must answer:
 
 ```text
 1. Did it confirm decision_packet is the sole execution authority?
-2. Did it confirm mainline=reverse_solving?
-3. Did it confirm this is targeted static solving, not runtime validation?
-4. Did it confirm task_packet.task remains advisory?
-5. Did it confirm current bounded static extraction artifact is current/SUCCESS/identity_verified?
-6. Did it confirm current readiness is READY and command-scoped local root is available?
-7. Did it confirm cpp2_32f1713e remains inventory_only / known_candidate=""?
-8. Did it reverify path/size/sha256 before any local static scan?
-9. Did it inspect existing IDA/Ghidra/static extraction/StructuredEvidence interfaces before choosing tools?
-10. Which tools/interfaces were used or unavailable?
-11. Did it avoid creating duplicate mature-tool interfaces?
-12. Did it locate string offsets/RVAs for prompt/success/failure/flag/%.2X indicators?
-13. Did it attempt bounded reference or compare-region recovery without full disassembly dump?
-14. Did it determine whether evidence supports direct_string_compare or hex_encoded_comparison, or remain inconclusive?
-15. Did it generate local_reverse_cpp2_32f1713e_targeted_static_solving.json?
-16. Did it register the artifact in latest_artifacts/latest_artifacts_v2/artifact_refs?
+2. Did it confirm this is a rework of targeted_static_solving metadata/schema/provenance?
+3. Did it confirm mainline=reverse_solving?
+4. Did it confirm no runtime validation is allowed in this round?
+5. Did it inspect previous targeted_static_solve artifact only as legacy source evidence?
+6. Did it create project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json?
+7. Did new artifact decision_id equal decision_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1?
+8. Did new artifact round_id equal round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1?
+9. Did new artifact use static_solving_status instead of SOLVED_BY_STATIC_ANALYSIS?
+10. Did it put KEEP_DREAM only under unvalidated_candidate_hypothesis?
+11. Did it set candidate_validation_attempted=false and candidate_validated=false?
+12. Did it avoid solved/blocked training status changes?
+13. Did it register artifact_index key local_reverse_cpp2_32f1713e_targeted_static_solving as current?
+14. Did latest_artifacts_v2 include kind=local_reverse_targeted_static_solving?
+15. Did latest_artifacts_v2 include source_run=round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1?
+16. Did it record old targeted_static_solve only as legacy_source_artifact if needed?
 17. Did it avoid sample execution?
 18. Did it avoid debugger/hook/emulator/runtime probe/winpty/console validator?
 19. Did it avoid brute force/dictionary/runtime candidate validation?
-20. If a candidate hypothesis was generated, did it mark it unvalidated and keep training state unchanged?
-21. Did it confirm no solved/blocked status was written?
-22. Did it confirm no binary or full dumps were committed?
-23. Did it preserve cpp2_2f64e68d solved facts?
-24. Did it explain negative_results unchanged or non-use?
-25. Did it run required py_compile/pytest/lint/status/git checks?
-26. Did pytest_result.txt use this decision_id/report_id/round_id?
-27. Did final lint-report run after report write?
-28. Did git diff only contain allowed files?
+20. Did it confirm no binary or full dumps were committed?
+21. Did it preserve cpp2_2f64e68d solved facts?
+22. Did it explain negative_results unchanged or non-use?
+23. Did it run required py_compile/pytest/lint/status/git checks?
+24. Did pytest_result.txt use this rework decision_id/report_id/round_id?
+25. Did pytest_result check targeted_static_solving, not targeted_static_solve?
+26. Did final lint-report run after report write?
+27. Did git diff only contain allowed files?
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-Small bounded targeted static solving only.
+Small bounded rework only.
 
-### Phase A — state and artifact preflight
+### Phase A — state and legacy artifact preflight
 
-Use `.venv\\Scripts\\python` for repository Python commands.
+Use `.venv\Scripts\python` for repository Python commands.
 
 Verify:
 
@@ -292,87 +272,26 @@ project_state/local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json:
   ready_for_static_extraction == true
   sample_id == cpp2_32f1713e
 
+project_state/local_reverse_cpp2_32f1713e_targeted_static_solve.json:
+  sample_id == cpp2_32f1713e
+  unvalidated_candidate == KEEP_DREAM
+  candidate_validation_attempted == false
+  executed_sample == false
+  ran_runtime_tools == false
+  ran_debugger == false
+  ran_bruteforce == false
+
 project_state/local_reverse_training_status.json:
   cpp2_32f1713e.training_status == inventory_only
   cpp2_32f1713e.known_candidate == ""
   cpp2_32f1713e.blocked_reason == ""
 ```
 
-Reverify identity under command-scoped root:
+This is a metadata/provenance rework. Do not repeat sample identity hashing unless needed for consistency checks; do not access or run the binary in this round.
 
-```bat
-cmd /c "set LOCAL_REVERSE_ROOT=E:\reverse&& .venv\Scripts\python -c \"import os, pathlib, hashlib; p=pathlib.Path(os.environ['LOCAL_REVERSE_ROOT'])/'逆向课程2023春补考02'/'Cpp2.exe'; b=p.read_bytes(); print(p); print(len(b)); print(hashlib.sha256(b).hexdigest())\""
-```
+### Phase B — generate normalized artifact
 
-This identity check is allowed. Do not print or store raw bytes.
-
-### Phase B — existing capability inspection
-
-Perform bounded repository search/inspection for existing tool interfaces before any additional static scan:
-
-```text
-ida / IDA / idapython
-ghidra
-static_triage / static_extraction
-StructuredEvidence
-xref / string reference / compare
-pefile / lief
-strings / objdump / radare2 / r2
-artifact_index registration helpers
-```
-
-Decision rule:
-
-```text
-1. Prefer existing IDA/Ghidra static export interface if available and bounded.
-2. If IDA/Ghidra unavailable, do not create a duplicate disassembler/decompiler.
-3. Use bounded byte-level/string-RVA/reference heuristics only as a narrow fallback.
-4. Any generated candidate must be labeled unvalidated_static_candidate_hypothesis and must not modify training state.
-```
-
-### Phase C — targeted static solving analysis
-
-Allowed analysis categories:
-
-```text
-indicator anchoring:
-  locate file offsets and RVAs for:
-    Plase give me your answer:
-    Congratulations! You are right!
-    Sorry, you are wrong!
-    Sorry,you are wrong!
-    flag == 0 || flag == 1
-    %.2X 
-  record section membership and encoding type (ASCII/UTF-16 if relevant)
-
-bounded reference search:
-  search for little-endian VA/RVA references to selected string RVAs in .text/.rdata only
-  cap references to 100 total
-  do not dump full section bytes
-
-compare/check recovery:
-  identify likely region(s) referencing input prompt and success/failure strings
-  identify whether CompareStringA/W imports are referenced near those regions if possible
-  identify whether `%.2X` is referenced near comparison/output construction
-  identify any nearby static constants or string literals that look like target values
-  cap snippets to small metadata and at most 40 lines total if disassembly/decompiler output is available
-
-solver classification:
-  classify as one of:
-    direct_string_compare_password_checker
-    hex_encoded_comparison
-    transformed_input_compare
-    inconclusive_static_only
-  include evidence and confidence
-
-candidate handling:
-  if and only if a direct static target literal or complete inverse transform is proven, write unvalidated_candidate_hypothesis with proof chain
-  otherwise keep candidate_hypothesis=null and explain missing evidence
-```
-
-### Phase D — targeted static solving artifact
-
-Generate:
+Create:
 
 ```text
 project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json
@@ -383,22 +302,23 @@ Required top-level fields:
 ```text
 schema_version=1
 mainline=reverse_solving
-round_id=round_20260607_cpp2_32f1713e_targeted_static_solving_v1
-decision_id=decision_20260607_cpp2_32f1713e_targeted_static_solving_v1
+round_id=round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1
+decision_id=decision_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1
 sample_id=cpp2_32f1713e
 relative_path=逆向课程2023春补考02/Cpp2.exe
 command_scoped_root=E:\reverse
 sample_path=E:\reverse\逆向课程2023春补考02\Cpp2.exe
 size_bytes=196686
 sha256=32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412
-identity_verified=true|false
+identity_verified=true
 source_static_artifact=project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json
 source_static_status=SUCCESS
 source_readiness_artifact=project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json
 source_readiness_status=READY
-tools_attempted=[]
-tools_used=[]
-existing_interfaces_inspected=[]
+legacy_source_artifact=project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json
+legacy_source_round_id=round_20260607_cpp2_32f1713e_targeted_static_solve_v1
+legacy_source_decision_id=decision_20260607_cpp2_32f1713e_targeted_static_solve_v1
+rework_reason=provenance_schema_key_alignment
 new_interface_created=false
 static_solving_status=SUCCESS|PARTIAL|BLOCKED|FAILED
 indicator_anchors=[]
@@ -423,23 +343,34 @@ full_decompilation_recorded=false
 full_import_table_recorded=false
 full_section_dump_recorded=false
 training_status_modified=false
-next_recommended_mainline=reverse_solving|tool_integration
-next_recommended_action=<bounded next step>
+next_recommended_mainline=reverse_solving
+next_recommended_action=<bounded runtime validation decision, if candidate hypothesis remains strong>
 generated_at=<timestamp>
 ```
 
-Status rules:
+If carrying forward `KEEP_DREAM`, encode it as:
 
-```text
-SUCCESS if a bounded, evidence-backed static proof chain identifies a comparison target or complete solver handoff.
-PARTIAL if anchors/reference regions are found but candidate/proof chain remains incomplete.
-BLOCKED if required current artifacts are missing/stale or local sample identity cannot be reverified.
-FAILED only for unexpected script/tool/report errors or forbidden actions.
+```json
+"unvalidated_candidate_hypothesis": {
+  "candidate": "KEEP_DREAM",
+  "confidence": "HIGH",
+  "validation_status": "unvalidated",
+  "proof_chain_summary": [
+    "target table NEEP_AXEDG from legacy static artifact",
+    "transform swaps bit positions 1 and 2 in low nibble",
+    "transform is self-inverse for all 256 byte values",
+    "inverse transform yields KEEP_DREAM",
+    "length check requires 10 bytes"
+  ],
+  "requires_future_runtime_validation": true
+}
 ```
 
-### Phase E — artifact_index and optional pointers
+Do not use `solving_status=SOLVED_BY_STATIC_ANALYSIS` in the new artifact. Use `static_solving_status=SUCCESS` if the normalized proof chain is complete, or `PARTIAL` if Codex cannot confidently normalize the previous evidence.
 
-Register the artifact regardless of SUCCESS/PARTIAL/BLOCKED/FAILED:
+### Phase C — artifact_index registration
+
+Register the new artifact regardless of SUCCESS/PARTIAL/BLOCKED/FAILED:
 
 ```text
 artifact_index.latest_artifacts["local_reverse_cpp2_32f1713e_targeted_static_solving"]
@@ -453,17 +384,22 @@ artifact_index.artifact_refs["local_reverse_cpp2_32f1713e_targeted_static_solvin
 kind=local_reverse_targeted_static_solving
 path=project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json
 freshness=current
-source_run=round_20260607_cpp2_32f1713e_targeted_static_solving_v1
+source_run=round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1
 sha256=<actual artifact sha256>
 size_bytes=<actual artifact size>
 modified_at=<artifact generated_at or filesystem mtime>
 sample_id=cpp2_32f1713e
 static_solving_status=SUCCESS|PARTIAL|BLOCKED|FAILED
-identity_verified=true|false
+identity_verified=true
 candidate_generated=true|false
 candidate_validated=false
+candidate_acceptance_status=unvalidated|null
 source_static_artifact=project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json
+legacy_source_artifact=project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json
+rework_of=local_reverse_cpp2_32f1713e_targeted_static_solve
 ```
+
+Do not remove old artifact unless project_state helpers require cleanup. If it remains, it must not be the only current artifact for this rework.
 
 Optional low-token pointers:
 
@@ -474,18 +410,18 @@ task_packet.local_reverse_current_static_solving=project_state\\local_reverse_cp
 
 Do not change `task_packet.task`. Do not alter training_status/status_overlay.
 
-### Phase F — report
+### Phase D — report
 
 `codex_execution_report.md` top block must be:
 
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_32f1713e_targeted_static_solving_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_targeted_static_solving_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_targeted_static_solving_v1",
+  "report_id": "report_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1",
   "status": "SUCCESS|PARTIAL|BLOCKED|FAILED",
-  "acceptance_recommendation": "ACCEPTED|ACCEPTED_WITH_LIMITATIONS|REWORK_REQUIRED|BLOCKED",
+  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS|BLOCKED|REWORK_REQUIRED",
   "files_changed": [],
   "tests_ran": [],
   "generated_artifacts": []
@@ -501,7 +437,7 @@ static_solving_status=BLOCKED -> status=BLOCKED, acceptance_recommendation=BLOCK
 static_solving_status=FAILED  -> status=FAILED, acceptance_recommendation=REWORK_REQUIRED
 ```
 
-Even on SUCCESS, use ACCEPTED_WITH_LIMITATIONS unless a later runtime validation decision confirms the candidate.
+Even on SUCCESS, use `ACCEPTED_WITH_LIMITATIONS` because no runtime validation happened.
 
 ---
 
@@ -523,36 +459,40 @@ git diff --name-status
 `pytest_result.txt` must include:
 
 ```text
-decision_id=decision_20260607_cpp2_32f1713e_targeted_static_solving_v1
-report_id=report_20260607_cpp2_32f1713e_targeted_static_solving_v1
-round_id=round_20260607_cpp2_32f1713e_targeted_static_solving_v1
+decision_id=decision_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1
+report_id=report_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1
+round_id=round_20260607_cpp2_32f1713e_targeted_static_solving_rework_v1
 ```
-
-If `pytest` reports no tests collected, record it explicitly and do not claim full test coverage. Acceptance recommendation must remain at most `ACCEPTED_WITH_LIMITATIONS`.
 
 Content assertions to record:
 
 ```text
 1. source static extraction artifact is current/SUCCESS/identity_verified.
 2. source readiness artifact is current/READY.
-3. sample identity reverified by size and sha256.
-4. targeted static solving artifact exists.
-5. static_solving_status follows SUCCESS/PARTIAL/BLOCKED/FAILED rules.
-6. artifact_index registers local_reverse_cpp2_32f1713e_targeted_static_solving as current.
-7. no sample executable was run.
-8. no debugger/hook/emulator/runtime probe/winpty/console validator was run.
-9. no brute force/dictionary/runtime candidate validation was run.
-10. no candidate was marked validated.
-11. no solved/blocked training status was written.
-12. no binary was uploaded, copied, embedded, or committed.
-13. artifact contains no raw binary, full strings dump, full imports, full sections, full disassembly, full decompilation, screenshots, or dumps.
-14. existing mature-tool interfaces were inspected before choosing analysis path.
-15. no duplicate IDA/Ghidra/debugger/static extraction interface was created.
-16. training_status/status_overlay sample state unchanged.
-17. cpp2_2f64e68d solved facts unchanged.
-18. pytest_result uses this decision_id/report_id/round_id.
-19. git diff --name-status only contains allowed files.
+3. legacy targeted_static_solve artifact is read only as legacy source.
+4. new targeted_static_solving artifact exists.
+5. new artifact decision_id/round_id match this rework decision.
+6. new artifact uses static_solving_status SUCCESS/PARTIAL/BLOCKED/FAILED.
+7. artifact_index registers local_reverse_cpp2_32f1713e_targeted_static_solving as current.
+8. artifact_index latest_artifacts_v2 kind is local_reverse_targeted_static_solving.
+9. old targeted_static_solve is not the only current artifact for this rework.
+10. no sample executable was run.
+11. no debugger/hook/emulator/runtime probe/winpty/console validator was run.
+12. no brute force/dictionary/runtime candidate validation was run.
+13. no candidate was marked validated.
+14. KEEP_DREAM, if present, is only unvalidated_candidate_hypothesis.
+15. no solved/blocked training status was written.
+16. no binary was uploaded, copied, embedded, or committed.
+17. artifact contains no raw binary, full strings dump, full imports, full sections, full disassembly, full decompilation, screenshots, or dumps.
+18. no duplicate IDA/Ghidra/debugger/static extraction interface was created.
+19. training_status/status_overlay sample state unchanged.
+20. cpp2_2f64e68d solved facts unchanged.
+21. pytest_result uses this rework decision_id/report_id/round_id.
+22. final lint-report ran after report write.
+23. git diff --name-status only contains allowed files.
 ```
+
+If `pytest` reports no tests collected, record it explicitly and do not claim full test coverage. Acceptance recommendation must remain at most `ACCEPTED_WITH_LIMITATIONS`.
 
 ---
 
@@ -561,47 +501,26 @@ Content assertions to record:
 Stop with `SUCCESS / ACCEPTED_WITH_LIMITATIONS` only if:
 
 ```text
-1. source static artifact is current/SUCCESS/identity_verified;
-2. sample identity is reverified;
-3. bounded static solving artifact is produced;
-4. artifact records an evidence-backed solver classification or proof chain;
-5. any candidate hypothesis is explicitly unvalidated;
-6. artifact_index registers the artifact as current;
+1. project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json exists;
+2. new artifact decision_id/round_id match this rework decision;
+3. new artifact schema uses required fields and allowed status enums;
+4. KEEP_DREAM, if present, is explicitly unvalidated;
+5. artifact_index registers local_reverse_cpp2_32f1713e_targeted_static_solving as current;
+6. report recommendation is ACCEPTED_WITH_LIMITATIONS, not ACCEPTED;
 7. no forbidden dynamic/runtime/bruteforce action occurred;
-8. tests/lint/report metadata are aligned with this decision/report/round.
+8. training_status/status_overlay remain unchanged for cpp2_32f1713e;
+9. tests/lint/report metadata are aligned with this rework decision/report/round.
 ```
 
 Stop with `PARTIAL / ACCEPTED_WITH_LIMITATIONS` if:
 
 ```text
-1. source artifacts and identity are valid;
-2. anchors/reference summaries are recovered but static proof chain remains incomplete;
+1. provenance/key/schema are corrected;
+2. legacy static evidence cannot be confidently normalized into SUCCESS;
 3. all bounds and prohibitions are respected;
 4. artifact clearly states missing evidence and next bounded step.
 ```
 
-Stop with `BLOCKED / BLOCKED` if:
+Stop with `BLOCKED` if required current source artifacts are missing/stale or the legacy source artifact is unavailable and cannot be normalized without redoing analysis.
 
-```text
-1. source static extraction artifact is missing/stale/not SUCCESS;
-2. source readiness is missing/stale/not READY;
-3. command-scoped root can no longer access the target;
-4. size or sha256 mismatch;
-5. no bounded static solving evidence can be extracted without violating constraints.
-```
-
-Stop with `FAILED / REWORK_REQUIRED` if:
-
-```text
-1. report metadata does not match this decision;
-2. pytest_result is missing or stale;
-3. sample executable is run;
-4. debugger/hook/emulator/runtime probe/winpty/console validator is run;
-5. brute force/dictionary/runtime candidate validation occurs;
-6. candidate is claimed valid without runtime validation;
-7. solved/blocked training status is written;
-8. binary content, full strings dump, full imports, full sections, full disassembly, full decompilation, screenshots, dumps, or local binary data are committed;
-9. artifact_index registration is missing or stale;
-10. .codex-skills are modified;
-11. a duplicate mature-tool interface is created without necessity and tests.
-```
+Stop with `FAILED / REWORK_REQUIRED` if any forbidden action occurs, report/test metadata still refer to `targeted_static_solve` as the required key, or training status is modified.
