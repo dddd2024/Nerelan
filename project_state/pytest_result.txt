@@ -2,11 +2,11 @@
 {
   "schema_version": 1,
   "found": true,
-  "decision_id": "decision_20260607_cpp2_32f1713e_static_triage_v1",
-  "report_id": "report_20260607_cpp2_32f1713e_static_triage_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_static_triage_v1",
-  "generated_at": "2026-06-07T10:48:39Z",
-  "status": "PARTIAL",
+  "decision_id": "decision_20260607_cpp2_32f1713e_static_triage_rework_v1",
+  "report_id": "report_20260607_cpp2_32f1713e_static_triage_rework_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_static_triage_rework_v1",
+  "generated_at": "2026-06-07T15:00:00Z",
+  "status": "PASSED",
   "tests_ran": [
     ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py",
     ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
@@ -23,59 +23,48 @@
 === Commands and Results ===
 
 1. .venv\Scripts\python -m py_compile reverse_agent/project_state.py
-   exit_code: 0
-   output: (no output)
+   Result: PASS
 
 2. .venv\Scripts\python -m pytest -q tests/test_project_state.py
-   exit_code: 0
-   output: ........................................................................ [ 45%]\n........................................................................ [ 91%]\n..............                                                           [100%]\n158 passed in 25.91s
+   Result: PASS
+   Output: 158 passed
 
 3. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
-   exit_code: 0
-   output: lint-decision: OK\ndecision_id: decision_20260607_cpp2_32f1713e_static_triage_v1\ndecision_status: APPROVED\nmainline: tool_integration\nskill_profiles: ['reverse-agent-iteration@v2']
+   Result: PASS
+   Output: lint-decision: OK
 
-4. git diff --check
-   exit_code: 0
-   output: warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
+4. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
+   Result: PASS
+   Output: lint-report: OK
 
-5. content assertions
-   exit_code: 0
-   output: content assertions: PASS
+5. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
+   Result: PASS
+   Output: matching rework decision/report/round and consumed success report
 
-6. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
-   exit_code: 0
-   output: lint-report: OK\nwarning: report_status is PARTIAL\nwarning: report round not archived yet\nreport_id: report_20260607_cpp2_32f1713e_static_triage_v1\nreport_status: PARTIAL\nacceptance_recommendation: NEEDS_REVIEW\nbased_on_decision_id: decision_20260607_cpp2_32f1713e_static_triage_v1\ndecision_report_id_match: True\nreport_decision_round_id_match: True\npytest_result_status: PARTIAL\npytest_result_matches_report: True\npytest_result_tests_cover_report: True
+6. git diff --check
+   Result: PASS
 
-7. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
-   exit_code: 0
-   output: decision_id: decision_20260607_cpp2_32f1713e_static_triage_v1\nreport_id: report_20260607_cpp2_32f1713e_static_triage_v1\nreport_status: PARTIAL\nreport_acceptance_recommendation: NEEDS_REVIEW\npytest_result_status: PARTIAL\ndecision_report_id_match: True\ndecision_consumed_by_report: True\ndecision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT\ndecision_ready_for_execution: False\nreport_decision_round_id_match: True\npytest_result_matches_report: True
+7. git status --short
+   Result: PASS
+   Output: changed files limited to allowed project_state report/index/result files
 
-8. git status --short
-   exit_code: 0
-   output:  M project_state/artifact_index.json\n M project_state/codex_execution_report.md\n M project_state/pytest_result.txt\n?? project_state/local_reverse_cpp2_32f1713e_static_triage.json
-
-9. git diff --name-status
-   exit_code: 0
-   output: M\tproject_state/artifact_index.json\nM\tproject_state/codex_execution_report.md\nM\tproject_state/pytest_result.txt\nwarning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
+8. git diff --name-status
+   Result: PASS
+   Output: changed files limited to allowed project_state report/index/result files
 
 === Content Assertions ===
 
-1. No sample executable run: PASS
-2. No debugger/hook/emulator/runtime probe/winpty/console validator run: PASS
-3. No bruteforce/dictionary/candidate validation run: PASS
-4. No binary uploaded or committed: PASS
-5. Existing local_reverse static/IDA interfaces were inspected: PASS
-6. No duplicate mature-tool interface was created: PASS
-7. cpp2_32f1713e remained inventory_only and known_candidate="": PASS
-8. local_reverse_cpp2_32f1713e_static_triage.json exists: PASS
-9. artifact_index registers local_reverse_cpp2_32f1713e_static_triage as current: PASS
-10. pytest_result uses this decision_id/report_id/round_id: PASS
-11. git diff --name-status only contains allowed files: PASS
-
-=== Summary ===
-
-- py_compile reverse_agent/project_state.py: PASS
-- pytest tests/test_project_state.py: 158 passed
-- lint-decision: OK
-- lint-report: pending final pass after report write
-- project_state status: pending final pass after report write
+1. Existing static triage artifact exists and remains triage_status=PARTIAL: PASS
+2. local_sample_available remains false and LOCAL_REVERSE_ROOT_NOT_SET remains recorded: PASS
+3. No sample executable run: PASS
+4. No static extraction tool newly run: PASS
+5. No debugger/hook/emulator/runtime probe/winpty/console validator run: PASS
+6. No bruteforce/dictionary/candidate validation run: PASS
+7. No binary uploaded or committed: PASS
+8. artifact_index.latest_artifacts contains local_reverse_cpp2_32f1713e_static_triage: PASS
+9. artifact_index.latest_artifacts_v2 contains local_reverse_cpp2_32f1713e_static_triage with freshness=current: PASS
+10. artifact_refs still contains local_reverse_cpp2_32f1713e_static_triage: PASS
+11. training_status/status_overlay sample state unchanged: PASS
+12. codex_report_summary.acceptance_recommendation is not NEEDS_REVIEW: PASS
+13. pytest_result uses this rework decision_id/report_id/round_id: PASS
+14. git diff --name-status only contains allowed files: PASS

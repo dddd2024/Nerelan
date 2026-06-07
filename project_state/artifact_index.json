@@ -872,7 +872,13 @@
       "sha256": "492f04e12cef1a33a8031245d5175e1d45867cb87b79228ade6859d916be5174",
       "size_bytes": 3969,
       "modified_at": "2026-06-07T10:48:39Z",
-      "sample_id": "cpp2_32f1713e"
+      "sample_id": "cpp2_32f1713e",
+      "rework_review": {
+        "rework_round_id": "round_20260607_cpp2_32f1713e_static_triage_rework_v1",
+        "rework_decision_id": "decision_20260607_cpp2_32f1713e_static_triage_rework_v1",
+        "artifact_modified_in_rework": false,
+        "review_note": "Rework only repaired latest_artifacts/latest_artifacts_v2 registration provenance for the existing PARTIAL static triage artifact. Static triage remains partial because LOCAL_REVERSE_ROOT was not set."
+      }
     },
     "local_reverse_cpp2_2f64e68d_training_status_sync": {
       "kind": "local_reverse_training_status_sync",
