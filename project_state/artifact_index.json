@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-07T07:31:23Z",
+  "generated_at": "2026-06-07T13:30:00Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -80,6 +80,7 @@
     "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
     "local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness": "project_state\\local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness.json",
     "local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
+    "local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction": "project_state\\local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json",
     "local_reverse_winpty_backend_lifecycle_hardening": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
     "local_reverse_winpty_synthetic_smoke": "project_state\\local_reverse_winpty_synthetic_smoke.json",
     "local_reverse_winpty_py_target_spawn_fix": "project_state\\local_reverse_winpty_py_target_spawn_fix.json"
@@ -876,6 +877,16 @@
       "modified_at": "2026-06-07T07:28:39Z",
       "sample_id": "cpp2_2f64e68d"
     },
+    "local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction": {
+      "kind": "local_reverse_post_strcmp_oracle_extraction",
+      "path": "project_state\\local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_2f64e68d_post_strcmp_oracle_extraction_v1",
+      "sha256": "f3cf049c4597fb81d84210af4a90b104691240207ea43f6ce42d1390c36e41a0",
+      "size_bytes": 4674,
+      "modified_at": "2026-06-07T13:30:00Z",
+      "sample_id": "cpp2_2f64e68d"
+    },
     "local_reverse_winpty_backend_lifecycle_hardening": {
       "kind": "local_reverse_winpty_backend_lifecycle_hardening",
       "path": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
@@ -1043,6 +1054,7 @@
     "local_reverse_cpp1_2f6fcb63_target_provenance_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json",
     "local_reverse_winpty_py_target_spawn_fix": "project_state\\local_reverse_winpty_py_target_spawn_fix.json",
     "local_reverse_winpty_synthetic_smoke": "project_state\\local_reverse_winpty_synthetic_smoke.json",
-    "local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json"
+    "local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
+    "local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction": "project_state\\local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json"
   }
 }

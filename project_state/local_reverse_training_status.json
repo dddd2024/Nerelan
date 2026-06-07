@@ -132,7 +132,7 @@
       "training_status": "blocked",
       "known_candidate": "",
       "blocked_reason": "AMBIGUOUS_OUTPUT",
-      "classification": "console_winpty_runtime_validation_ambiguous",
+      "classification": "post_strcmp_oracle_confirmed_awaiting_runtime_revalidation",
       "evidence_sources": [
         "source:local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
         "console_mature_backend_probe",
@@ -141,9 +141,12 @@
         "source:local_reverse_winpty_backend_lifecycle_hardening.json",
         "winpty_backend_lifecycle_hardened",
         "winpty_runtime_validation_ambiguous_output",
-        "source_run:round_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1"
+        "source_run:round_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1",
+        "source:local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json",
+        "post_strcmp_oracle_confirmed",
+        "source_run:round_20260607_cpp2_2f64e68d_post_strcmp_oracle_extraction_v1"
       ],
-      "next_action": "Do not mark ippio solved from this winpty output. Open a separate decision only if a stronger acceptance signal or console-output classifier is approved."
+      "next_action": "Oracle confirmed: success=puts('Ok, you know it. Just hang on.'), failure=puts('Sorry! Hang on!'). Next: bounded oracle-backed runtime revalidation with ANSI-stripped output matching. Do NOT mark solved until runtime validation passes."
     },
     {
       "sample_id": "cpp2_4c69f173",

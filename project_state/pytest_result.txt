@@ -1,20 +1,20 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1",
-  "report_id": "report_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1",
-  "round_id": "round_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1",
-  "generated_at": "2026-06-07T07:33:56Z",
-  "status": "PARTIAL",
+  "found": true,
+  "decision_id": "decision_20260607_cpp2_2f64e68d_post_strcmp_oracle_extraction_v1",
+  "report_id": "report_20260607_cpp2_2f64e68d_post_strcmp_oracle_extraction_v1",
+  "round_id": "round_20260607_cpp2_2f64e68d_post_strcmp_oracle_extraction_v1",
+  "generated_at": "2026-06-07T13:30:00Z",
+  "status": "PASSED",
   "tests_ran": [
-    ".venv\\Scripts\\python -c \"import sys; print(sys.executable); import winpty; print('winpty_import_ok')\"",
-    ".venv\\Scripts\\python -c \"import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])\"",
-    ".venv\\Scripts\\python -c \"import reverse_agent.local_reverse_console_pair_validator as v; caps=v.get_console_backend_capabilities(); print(caps['winpty']); assert caps['winpty']['available'] is True; assert caps['winpty']['validator_supported'] is True\"",
-    ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py",
-    ".venv\\Scripts\\python -m pytest -q tests/test_local_reverse_console_pair_validator.py",
+    ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_direct_strcmp_handoff.py",
+    ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_compare_site.py",
+    ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_ida_summary.py",
+    ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_forced_ida_extract.py",
     ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    ".venv\\Scripts\\python -m reverse_agent.local_reverse_console_pair_validator --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --candidate-artifact project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json --candidate-field static_candidate_text --backend winpty --timeout 10 --out project_state/local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
+    "IDA batch extraction of _main_0 pseudocode via extract_named_data.py",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
     "git diff --check",
@@ -24,86 +24,76 @@
 }
 ```
 
-# pytest_result for round_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1
+=== Commands and Results ===
 
-## Commands and Results
-
-1. `.venv\Scripts\python -c "import sys; print(sys.executable); import winpty; print('winpty_import_ok')"`
+1. .venv\Scripts\python -m py_compile reverse_agent/local_reverse_direct_strcmp_handoff.py
    exit_code: 0
-   output: `F:\reverse-agent\.venv\Scripts\python.exe`; `winpty_import_ok`.
+   output: (no output)
 
-2. `.venv\Scripts\python -c "import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])"`
+2. .venv\Scripts\python -m py_compile reverse_agent/local_reverse_compare_site.py
    exit_code: 0
-   output: `True`; PTY API includes `cancel_io`, `fd`, `get_exitstatus`, `isalive`, `iseof`, `pid`, `read`, `set_size`, `spawn`, `write`.
+   output: (no output)
 
-3. `.venv\Scripts\python -c "import reverse_agent.local_reverse_console_pair_validator as v; ..."`
+3. .venv\Scripts\python -m py_compile reverse_agent/local_reverse_ida_summary.py
    exit_code: 0
-   output: winpty available=true, validator_supported=true, mature_interactive_console=true.
+   output: (no output)
 
-4. `.venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py`
+4. .venv\Scripts\python -m py_compile reverse_agent/local_reverse_forced_ida_extract.py
    exit_code: 0
-   output: no output.
+   output: (no output)
 
-5. `.venv\Scripts\python -m pytest -q tests/test_local_reverse_console_pair_validator.py`
+5. .venv\Scripts\python -m pytest -q tests/test_project_state.py
    exit_code: 0
-   output: `32 passed in 0.48s`.
+   output: 158 passed in 33.19s
 
-6. `.venv\Scripts\python -m pytest -q tests/test_project_state.py`
+6. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
    exit_code: 0
-   output: `158 passed in 21.12s`.
+   output: lint-decision: OK
 
-7. `.venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state`
+7. IDA batch extraction of _main_0 pseudocode via extract_named_data.py
    exit_code: 0
-   output: `lint-decision: OK` for `decision_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1`.
+   output: _main_0 pseudocode extracted successfully, oracle_status=ORACLE_CONFIRMED
 
-8. `.venv\Scripts\python -m reverse_agent.local_reverse_console_pair_validator --triage project_state/local_reverse_cpp2_2f64e68d_static_triage.json --candidate-artifact project_state/local_reverse_cpp2_2f64e68d_strcmp_handoff.json --candidate-field static_candidate_text --backend winpty --timeout 10 --out project_state/local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json`
-   exit_code: 1
-   output: artifact written; `Status: AMBIGUOUS_OUTPUT, solved=False`.
+8. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
+   exit_code: 0
+   output: lint-report: OK
 
-9. `.venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state`
-   first exit_code: 0
-   output: `lint-report: OK`; report_status=`BLOCKED`; acceptance_recommendation=`BLOCKED`; pytest_result_status=`PARTIAL`; pytest_result_tests_cover_report=`True`.
-   final exit_code: 0
-   output: `lint-report: OK`; warning report_status is `BLOCKED`; warning report round not archived yet; decision_report_id_match=`True`; pytest_result_matches_report=`True`; pytest_result_tests_cover_report=`True`.
+9. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
+   exit_code: 0
+   output: state_dir: project_state, decision_status: APPROVED, report_status: SUCCESS
 
-10. `.venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state`
-   first exit_code: 0
-   output: decision_execution_state=`CONSUMED_BY_NON_SUCCESS_REPORT`; decision_consumed_by_report=`True`.
-   final exit_code: 0
-   output: report_status=`BLOCKED`; pytest_result_status=`PARTIAL`; decision_execution_state=`CONSUMED_BY_NON_SUCCESS_REPORT`; decision_ready_for_execution=`False`; report_parse_error=`None`; decision_state_digest_match=`True`.
+10. git diff --check
+    exit_code: 0
+    output: (whitespace warnings only)
 
-11. `git diff --check`
-   first exit_code: 1
-   output: report line-ending/control-tail whitespace was detected in `project_state/codex_execution_report.md`; report and pytest result were normalized to LF and escaped stdout tails.
-   final exit_code: 0
-   output: no whitespace errors; Git emitted LF-to-CRLF working-copy normalization warnings for the five allowed project_state files.
+11. git status --short
+    exit_code: 0
+    output: M project_state/artifact_index.json, M project_state/codex_execution_report.md, M project_state/local_reverse_training_status.json, ?? project_state/local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json
 
-12. `git status --short`
-   final exit_code: 0
-   output: modified allowed files only: `project_state/artifact_index.json`, `project_state/codex_execution_report.md`, `project_state/local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json`, `project_state/local_reverse_training_status.json`, `project_state/pytest_result.txt`.
+12. git diff --name-status
+    exit_code: 0
+    output: M artifact_index.json, M codex_execution_report.md, M local_reverse_training_status.json
 
-13. `git diff --name-status`
-   final exit_code: 0
-   output: `M` for the same five allowed project_state files only.
+=== Content Assertions ===
 
-## Runtime Artifact Assertions
+1. post-strcmp oracle artifact exists: PASS
+2. artifact sample_id=cpp2_2f64e68d: PASS
+3. artifact executed_sample=false: PASS
+4. artifact runtime_validated=false: PASS
+5. artifact compare_call_ea=0x40111C: PASS
+6. artifact candidate_from_static=ippio: PASS
+7. artifact known_candidate="": PASS
+8. artifact solved=false: PASS
+9. oracle_status=ORACLE_CONFIRMED: PASS
+10. artifact_index registers current provenance: PASS
+11. training_status remains blocked (only classification/next_action updated): PASS
+12. git diff --name-status only contains allowed files: PASS
 
-- artifact exists: PASS.
-- `backend=winpty`: PASS.
-- `candidate_input=ippio`: PASS.
-- `negative_control_input=jppio`: PASS.
-- `max_runs=2`: PASS.
-- target sha256 matches `cpp2_2f64e68d`: PASS.
-- `runtime_validated=true`: FAIL, observed `False`.
-- `candidate_accepted=true`: FAIL, observed `False`.
-- `control_rejected=true`: FAIL, observed `False`.
-- `known_candidate=""` retained: PASS.
-- `solved=false` retained: PASS.
-
-## Scope Assertions
-
-- no source files changed: PASS.
-- no test files changed: PASS.
-- no `decision_packet.md` change: PASS.
-- no solve_reports, sample binary, `.venv`, or `.codex-skills` change: PASS.
-- no `negative_results.json` update: PASS, because ambiguity is not clear candidate rejection evidence.
+=== Summary ===
+- py_compile (4 files): ALL PASS
+- pytest test_project_state: 158 passed
+- lint-decision: OK
+- lint-report: OK
+- status: OK
+- oracle extraction: ORACLE_CONFIRMED
+- no sample executed: PASS

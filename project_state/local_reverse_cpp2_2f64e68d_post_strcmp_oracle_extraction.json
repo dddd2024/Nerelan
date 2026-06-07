@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp2_2f64e68d",
+  "mainline": "reverse_solving",
+  "analysis_mode": "post_strcmp_oracle_extraction",
+  "source_tool": "mixed",
+  "source_artifact_freshness": "current",
+  "source_artifacts": [
+    "local_reverse_cpp2_2f64e68d_static_triage",
+    "local_reverse_cpp2_2f64e68d_strcmp_handoff",
+    "local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation",
+    "ida_extract_main0_cpp2_2f64e68d"
+  ],
+  "executed_sample": false,
+  "runtime_validated": false,
+  "compare_call_ea": "0x40111C",
+  "compare_callee": "_strcmp",
+  "candidate_from_static": "ippio",
+  "branch_condition": "test eax, eax ; jz (negated strcmp return: zero means equal)",
+  "success_path": {
+    "condition": "strcmp returns 0 (strings equal)",
+    "address_range": "0x40111C+ (post-call jz branch taken)",
+    "action": "puts(\"Ok, you know it. Just hang on.\")",
+    "observable_signals": [
+      {
+        "type": "stdout_string",
+        "value": "Ok, you know it. Just hang on.",
+        "classifier": "exact_string_match"
+      }
+    ],
+    "exit_code_contribution": "falls through to system(\"pause\"); return 0"
+  },
+  "failure_path": {
+    "condition": "strcmp returns non-zero (strings differ)",
+    "address_range": "0x40111C+ (post-call jz branch not taken)",
+    "action": "puts(\"Sorry! Hang on!\")",
+    "observable_signals": [
+      {
+        "type": "stdout_string",
+        "value": "Sorry! Hang on!",
+        "classifier": "exact_string_match"
+      }
+    ],
+    "exit_code_contribution": "falls through to system(\"pause\"); return 0"
+  },
+  "pre_strcmp_transform": {
+    "description": "Input digits are transformed before strcmp comparison",
+    "transform_code": "Str1[j] = (v10 + v11 * (Str1[j] - 48)) % 10 + 105",
+    "transform_parameters": {
+      "v10": 7,
+      "v11": 3,
+      "offset": 48,
+      "modulus": 10,
+      "base_char": 105
+    },
+    "input_constraint": "All characters must be digits 0-9 (ASCII 48-57). Non-digit input causes early return -1 with puts(\"Sorry! Hang on!\").",
+    "transform_verification": {
+      "description": "To produce 'ippio' (0x69,0x70,0x70,0x69,0x6f), solve: (7 + 3*(d-48)) % 10 + 105 = target_char for each position",
+      "note": "ippio chars: i=105, p=112, p=112, i=105, o=111. Since base_char=105 and modulus=10, each output char = 105 + ((7 + 3*(d-48)) % 10). The transform maps digit d to char 105+((7+3*(d-48))%10)."
+    }
+  },
+  "echo_only_runtime_difference_from_previous_validation": true,
+  "echo_only_explanation": "Both success and failure paths produce distinct stdout strings ('Ok, you know it. Just hang on.' vs 'Sorry! Hang on!'), but the previous winpty validation captured ANSI-escaped terminal output that obscured these strings. The raw console output does contain distinguishable text, but the winpty backend captured terminal control sequences mixed with the text, making automated classification unreliable without ANSI stripping.",
+  "can_classify_runtime_output": true,
+  "classification_method": "After ANSI escape sequence stripping, check for presence of 'Ok, you know it' (success) or 'Sorry! Hang on!' (failure) in cleaned stdout. Both success and failure paths end with system(\"pause\") which produces additional terminal output.",
+  "classification_gap": "Current console_pair_validator does not perform ANSI escape stripping. It compares raw stdout tails. The winpty backend captures terminal control sequences (e.g., \\x1b[1t, \\x1b[c, \\x1b[?1004h, cursor positioning) that obscure the actual program output. To safely classify, the validator would need: (1) ANSI escape stripping before comparison, or (2) substring-based matching on cleaned output, or (3) regex matching for the known success/failure strings.",
+  "oracle_status": "ORACLE_CONFIRMED",
+  "blocked_reason": "",
+  "candidate": null,
+  "known_candidate": "",
+  "solved": false,
+  "next_allowed_action": "bounded_oracle_backed_runtime_revalidation",
+  "next_action_detail": "Re-run ippio/jppio winpty validation with ANSI-stripped output matching. Success = stdout contains 'Ok, you know it' after stripping. Failure = stdout contains 'Sorry! Hang on!' after stripping. Do NOT mark solved until runtime validation passes with oracle-backed classifier.",
+  "ida_extraction_details": {
+    "ida_executable": "E:\\Program Files\\ida_pro\\idat64.exe",
+    "ida_script": "reverse_agent/ida_scripts/extract_named_data.py",
+    "target_binary": "E:\\reverse\\逆向课程2025春03\\CPP2.exe",
+    "target_function": "_main_0",
+    "function_address": "0x00401010",
+    "extraction_timestamp": "2026-06-07T13:30:00Z",
+    "decompiled_successfully": true
+  },
+  "generated_at": "2026-06-07T13:30:00Z"
+}
