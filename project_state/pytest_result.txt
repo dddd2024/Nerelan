@@ -2,10 +2,10 @@
 {
   "schema_version": 1,
   "found": true,
-  "decision_id": "decision_20260607_cpp2_32f1713e_static_extraction_v1",
-  "report_id": "report_20260607_cpp2_32f1713e_static_extraction_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_static_extraction_v1",
-  "generated_at": "2026-06-07T19:27:44+08:00",
+  "decision_id": "decision_20260607_cpp2_32f1713e_static_extraction_retry_v1",
+  "report_id": "report_20260607_cpp2_32f1713e_static_extraction_retry_v1",
+  "round_id": "round_20260607_cpp2_32f1713e_static_extraction_retry_v1",
+  "generated_at": "2026-06-07T19:52:33+08:00",
   "status": "PASSED",
   "tests_ran": [
     ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py",
@@ -39,7 +39,7 @@
 
 5. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
    Result: PASS
-   Output: matching static extraction decision/report/round consumed by a BLOCKED report
+   Output: matching retry decision/report/round consumed by a BLOCKED report
 
 6. git diff --check
    Result: PASS
@@ -56,16 +56,17 @@
 
 1. task_packet.task remains advisory: PASS
 2. cpp2_32f1713e remains inventory_only and known_candidate="": PASS
-3. LOCAL_REVERSE_ROOT was checked and is unset: BLOCKED
-4. Local sha256/size were not checked because sample path could not be resolved: BLOCKED_BY_LOCAL_REVERSE_ROOT_UNSET
-5. No sample executable run: PASS
-6. No debugger/hook/emulator/runtime probe/winpty/console validator run: PASS
-7. No bruteforce/dictionary/candidate validation run: PASS
-8. No binary uploaded, copied, embedded, or committed: PASS
-9. Existing static/IDA interfaces were preserved and no duplicate interface was created: PASS
-10. Static extraction artifact does not exist because local sample verification failed: PASS
-11. No raw binary/unbounded dump artifact was created: PASS
-12. artifact_index does not register local_reverse_cpp2_32f1713e_static_extraction while artifact is absent: PASS
-13. training_status/status_overlay sample state unchanged: PASS
-14. pytest_result uses this decision_id/report_id/round_id: PASS
-15. git diff --name-status only contains allowed files: PASS
+3. cmd-style %LOCAL_REVERSE_ROOT% check returned the literal %LOCAL_REVERSE_ROOT%: BLOCKED
+4. Python os.environ LOCAL_REVERSE_ROOT check returned <unset>: BLOCKED
+5. Windows set command scope limitation recorded: PASS
+6. Local sha256/size were not checked because sample path could not be resolved: BLOCKED_BY_LOCAL_REVERSE_ROOT_UNSET
+7. No static extraction artifact was generated: PASS
+8. No sample executable run: PASS
+9. No debugger/hook/emulator/runtime probe/winpty/console validator run: PASS
+10. No bruteforce/dictionary/candidate validation run: PASS
+11. No binary uploaded, copied, embedded, or committed: PASS
+12. Existing static/IDA interfaces were preserved and no duplicate interface was created: PASS
+13. artifact_index does not register local_reverse_cpp2_32f1713e_static_extraction while artifact is absent: PASS
+14. training_status/status_overlay sample state unchanged: PASS
+15. pytest_result uses this decision_id/report_id/round_id: PASS
+16. git diff --name-status only contains allowed files: PASS
