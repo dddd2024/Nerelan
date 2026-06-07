@@ -1,0 +1,115 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "round_id": "round_20260607_cpp2_32f1713e_static_triage_v1",
+  "decision_id": "decision_20260607_cpp2_32f1713e_static_triage_v1",
+  "sample_id": "cpp2_32f1713e",
+  "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+  "training_status_before": "inventory_only",
+  "known_candidate_before": "",
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_debugger": false,
+  "ran_bruteforce": false,
+  "uploaded_binary": false,
+  "local_sample_available": false,
+  "local_sample_unavailable_reason": "LOCAL_REVERSE_ROOT_NOT_SET",
+  "sample_root_hint": "LOCAL_REVERSE_ROOT",
+  "inventory_metadata": {
+    "display_name": "Cpp2.exe",
+    "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+    "sha256": "32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412",
+    "size_bytes": 196686,
+    "extension": ".exe",
+    "guessed_file_type": "pe",
+    "category": "cpp",
+    "tags": [
+      "local",
+      "reverse",
+      "cpp",
+      "pe"
+    ],
+    "inventory_status": "indexed",
+    "github_upload_policy": "metadata_only"
+  },
+  "queue_context": {
+    "rank": 1,
+    "proposed_next_mainline": "tool_integration",
+    "allowed_actions": [
+      "static_triage"
+    ],
+    "forbidden_actions": [
+      "runtime_probe",
+      "bruteforce",
+      "upload_binary"
+    ]
+  },
+  "static_tools_used": [],
+  "static_tools_unavailable": [
+    {
+      "name": "pefile",
+      "reason": "ModuleNotFoundError in .venv"
+    },
+    {
+      "name": "lief",
+      "reason": "ModuleNotFoundError in .venv"
+    },
+    {
+      "name": "capstone",
+      "reason": "ModuleNotFoundError in .venv"
+    }
+  ],
+  "static_tools_available_but_unused": [
+    {
+      "name": "strings.exe",
+      "path": "C:\\msys64\\ucrt64\\bin\\strings.exe",
+      "unused_reason": "local sample path unavailable because LOCAL_REVERSE_ROOT is not set"
+    },
+    {
+      "name": "objdump.exe",
+      "path": "C:\\msys64\\ucrt64\\bin\\objdump.exe",
+      "unused_reason": "local sample path unavailable because LOCAL_REVERSE_ROOT is not set"
+    }
+  ],
+  "existing_tool_interfaces": {
+    "existing_ida_interface": true,
+    "existing_ghidra_interface": false,
+    "existing_strings_or_file_static_path": true,
+    "existing_radare2_or_objdump_static_path": true,
+    "existing_structured_evidence_conversion": true,
+    "existing_solver_templates": true,
+    "existing_harness_or_validation_path": true,
+    "reuse_decision": "Reuse existing local_reverse IDA summary/evidence flow, targeted static reextract, constraint recovery, training status overlay, and project_state artifact-index/report plumbing. Use strings.exe/objdump.exe only after LOCAL_REVERSE_ROOT resolves the local sample path.",
+    "duplicate_interface_created": false
+  },
+  "file_metadata": {
+    "metadata_source": "project_state\\local_reverse_inventory.json",
+    "sha256": "32f1713e236775873176c68f432a8404fdb6fb51e3575792d0e52ca7940cf412",
+    "size_bytes": 196686,
+    "guessed_file_type": "pe",
+    "local_path_checked": "LOCAL_REVERSE_ROOT\\逆向课程2023春补考02\\Cpp2.exe",
+    "local_path_exists": false
+  },
+  "static_evidence": {
+    "strings_summary": {
+      "available": false,
+      "reason": "local sample unavailable"
+    },
+    "imports_summary": {
+      "available": false,
+      "reason": "local sample unavailable"
+    },
+    "sections_summary": {
+      "available": false,
+      "reason": "local sample unavailable"
+    },
+    "compare_clues": [],
+    "crypto_or_transform_hints": [],
+    "candidate_generated": false,
+    "candidate_validation_attempted": false
+  },
+  "triage_status": "PARTIAL",
+  "recommended_next_mainline": "tool_integration",
+  "recommended_next_action": "Set LOCAL_REVERSE_ROOT or rerun on a machine where the local sample root is available, then perform static-only strings/objdump extraction or reuse the existing IDA static export route for cpp2_32f1713e.",
+  "generated_at": "2026-06-07T10:48:39Z"
+}

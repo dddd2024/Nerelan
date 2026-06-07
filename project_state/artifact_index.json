@@ -72,6 +72,7 @@
     "local_reverse_cpp1_7b504c54_xor_handoff": "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json",
     "local_reverse_cpp1_7b504c54_runtime_validation": "project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json",
     "local_reverse_cpp1_7b504c54_training_status_sync": "project_state\\local_reverse_cpp1_7b504c54_training_status_sync.json",
+    "local_reverse_cpp2_32f1713e_static_triage": "project_state\\local_reverse_cpp2_32f1713e_static_triage.json",
     "local_reverse_cpp2_2f64e68d_static_triage": "project_state\\local_reverse_cpp2_2f64e68d_static_triage.json",
     "local_reverse_cpp2_2f64e68d_strcmp_handoff": "project_state\\local_reverse_cpp2_2f64e68d_strcmp_handoff.json",
     "local_reverse_cpp2_2f64e68d_runtime_pair_validation": "project_state\\local_reverse_cpp2_2f64e68d_runtime_pair_validation.json",
@@ -863,6 +864,16 @@
       "modified_at": "2026-06-06T10:15:00Z",
       "sample_id": "cpp2_2f64e68d"
     },
+    "local_reverse_cpp2_32f1713e_static_triage": {
+      "kind": "local_reverse_static_triage",
+      "path": "project_state\\local_reverse_cpp2_32f1713e_static_triage.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_32f1713e_static_triage_v1",
+      "sha256": "492f04e12cef1a33a8031245d5175e1d45867cb87b79228ade6859d916be5174",
+      "size_bytes": 3969,
+      "modified_at": "2026-06-07T10:48:39Z",
+      "sample_id": "cpp2_32f1713e"
+    },
     "local_reverse_cpp2_2f64e68d_training_status_sync": {
       "kind": "local_reverse_training_status_sync",
       "path": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
@@ -1144,6 +1155,7 @@
     "local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime": "project_state\\local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
     "local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
     "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
+    "local_reverse_cpp2_32f1713e_static_triage": "project_state\\local_reverse_cpp2_32f1713e_static_triage.json",
     "local_reverse_post_solve_state_sync": "project_state\\local_reverse_post_solve_state_sync.json",
     "local_reverse_training_status_summary_sync": "project_state\\local_reverse_training_status_summary_sync.json"
   }
