@@ -91,7 +91,8 @@
     "local_reverse_winpty_backend_lifecycle_hardening": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
     "local_reverse_winpty_synthetic_smoke": "project_state\\local_reverse_winpty_synthetic_smoke.json",
     "local_reverse_winpty_py_target_spawn_fix": "project_state\\local_reverse_winpty_py_target_spawn_fix.json",
-    "local_reverse_cpp2_32f1713e_local_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_local_env_readiness.json"
+    "local_reverse_cpp2_32f1713e_local_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_local_env_readiness.json",
+    "local_reverse_cpp2_32f1713e_command_scoped_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1029,6 +1030,18 @@
       "modified_at": "2026-06-07T12:14:45Z",
       "sample_id": "cpp2_32f1713e",
       "readiness_status": "BLOCKED"
+    },
+    "local_reverse_cpp2_32f1713e_command_scoped_env_readiness": {
+      "kind": "local_reverse_command_scoped_env_readiness",
+      "path": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_32f1713e_command_scoped_env_readiness_v1",
+      "sha256": "083a04afd74462ed1bec97efae4151d97116588a6161c0c196baf0cfdf30bfdf",
+      "size_bytes": 2023,
+      "modified_at": "2026-06-07T15:00:00Z",
+      "sample_id": "cpp2_32f1713e",
+      "readiness_status": "READY",
+      "ready_for_static_extraction": true
     }
   },
   "latest_case_results": [
@@ -1176,6 +1189,7 @@
     "local_reverse_cpp2_32f1713e_static_triage": "project_state\\local_reverse_cpp2_32f1713e_static_triage.json",
     "local_reverse_post_solve_state_sync": "project_state\\local_reverse_post_solve_state_sync.json",
     "local_reverse_training_status_summary_sync": "project_state\\local_reverse_training_status_summary_sync.json",
-    "local_reverse_cpp2_32f1713e_local_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_local_env_readiness.json"
+    "local_reverse_cpp2_32f1713e_local_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_local_env_readiness.json",
+    "local_reverse_cpp2_32f1713e_command_scoped_env_readiness": "project_state\\local_reverse_cpp2_32f1713e_command_scoped_env_readiness.json"
   }
 }
