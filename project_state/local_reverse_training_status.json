@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-06T14:26:09Z",
+  "generated_at": "2026-06-07T04:33:56Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
@@ -128,14 +128,16 @@
       ],
       "training_status": "blocked",
       "known_candidate": "",
-      "blocked_reason": "Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)",
-      "classification": "console_mature_backend_availability_probe",
+      "blocked_reason": "WINPTY_VALIDATOR_COMMAND_TIMEOUT_NO_ARTIFACT",
+      "classification": "console_winpty_runtime_validation_blocked",
       "evidence_sources": [
         "source:local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
         "console_mature_backend_probe",
-        "mature_backend_missing"
+        "mature_backend_missing",
+        "source:local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
+        "winpty_runtime_validation_blocked"
       ],
-      "next_action": "resolve: Windows platform but no mature backend available (pywinpty/winpty/wexpect/ConPTY API)"
+      "next_action": "Inspect validator timeout/artifact flushing before repeating bounded ippio/jppio winpty validation."
     },
     {
       "sample_id": "cpp2_4c69f173",
