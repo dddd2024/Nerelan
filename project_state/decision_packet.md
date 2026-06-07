@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260607_cpp2_32f1713e_training_status_sync_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_training_status_sync_v1",
+  "decision_id": "decision_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1",
+  "round_id": "round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -17,130 +17,113 @@
 
 ## 1. Goal
 
-本轮主线是 **training_dataset**，范围限定为把已 runtime validated 的 `cpp2_32f1713e / KEEP_DREAM` 同步进本地训练集状态。
+本轮主线是 **training_dataset**，任务是完成 `cpp2_32f1713e / KEEP_DREAM` 解题同步后的 **队列与低 token 状态刷新**。
 
-目标：基于上一轮 current runtime validation artifact，将 `cpp2_32f1713e` 从 `inventory_only` 更新为 `solved`，写入 `known_candidate=KEEP_DREAM`，并记录验证证据来源。
+上一轮已 ACCEPTED：`cpp2_32f1713e` 已在训练状态中标记为 solved，`known_candidate=KEEP_DREAM`，aggregate counts 已从 `solved=3 / inventory_only=22` 更新为 `solved=4 / inventory_only=21`。
+
+本轮目标：
+
+```text
+1. 修正 project_state/task_packet.json 与 project_state/current_state.json 中仍然残留的旧训练摘要、recent_solved、next_queue_hint。
+2. 生成队列刷新 artifact。
+3. 让下一轮 Codex 能从正确的 next inventory_only 样本继续，而不是重复 cpp2_32f1713e。
+```
 
 必须产出：
 
 ```text
-project_state/local_reverse_cpp2_32f1713e_training_status_sync.json
+project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json
 ```
 
-允许修改：
-
-```text
-project_state/local_reverse_training_status.json
-training_materials/local_reverse/status_overlay.json
-project_state/artifact_index.json
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
-```
-
-本轮不运行样本、不做新求解、不做新的静态提取、不做调试/hook/probe。只做训练状态同步和一致性审计。
+本轮只做状态刷新和队列推进，不运行样本、不分析样本、不做 IDA/Ghidra/static extraction/runtime validation。
 
 ---
 
 ## 2. Current Evidence
 
-当前 `project_state/decision_packet.md` 是 Codex 本轮唯一执行权威。`project_state/task_packet.json` 仍是 advisory，不控制本轮。
+当前 `project_state/decision_packet.md` 是 Codex 本轮唯一执行权威。`project_state/task_packet.json` 仍是 advisory，且当前已知它包含旧摘要，不能直接作为事实源使用。
 
-上一轮审计结论为 **ACCEPTED_WITH_LIMITATIONS**：`KEEP_DREAM` 已通过 bounded runtime validation，但 training status sync 被明确推迟到单独一轮。
-
-Current runtime validation artifact:
+已接受的训练状态同步证据：
 
 ```text
-project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json:
-  decision_id=decision_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1
-  round_id=round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1
+project_state/local_reverse_cpp2_32f1713e_training_status_sync.json:
+  mainline=training_dataset
+  decision_id=decision_20260607_cpp2_32f1713e_training_status_sync_v1
+  round_id=round_20260607_cpp2_32f1713e_training_status_sync_v1
   sample_id=cpp2_32f1713e
   candidate=KEEP_DREAM
-  negative_control=KEEP_DREAN
-  validation_status=VALIDATED
-  candidate_success_signal_captured=true
-  candidate_failure_signal_captured=false
-  control_success_signal_captured=false
-  control_failure_signal_captured=true
-  oracle_verdict_source=stdout_signal
-  executed_sample=true
-  execution_count=2
-  ran_debugger=false
-  ran_hook=false
-  ran_emulator=false
-  ran_probe=false
-  ran_bruteforce=false
-  ran_dictionary_search=false
-  candidate_search_performed=false
-  uploaded_binary=false
-  training_status_modified=false
+  source_runtime_validation_status=VALIDATED
+  pre_sync_status=inventory_only
+  post_sync_status=solved
+  pre_sync_known_candidate=""
+  post_sync_known_candidate=KEEP_DREAM
+  aggregate_counts_before={sample_count:29, solved:3, blocked:4, needs_triage:0, inventory_only:22}
+  aggregate_counts_after={sample_count:29, solved:4, blocked:4, needs_triage:0, inventory_only:21}
+  updated_samples=[cpp2_32f1713e]
+  unrelated_samples_modified=false
+  executed_sample=false
+  ran_runtime_tools=false
 ```
 
-`artifact_index.latest_artifacts_v2` registers the runtime validation artifact as current:
-
-```text
-local_reverse_cpp2_32f1713e_keep_dream_runtime_validation:
-  kind=local_reverse_candidate_runtime_validation
-  path=project_state\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json
-  freshness=current
-  source_run=round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1
-  sample_id=cpp2_32f1713e
-  candidate=KEEP_DREAM
-  validation_status=VALIDATED
-  candidate_success_signal_captured=true
-  control_failure_signal_captured=true
-  source_static_solving_artifact=project_state\local_reverse_cpp2_32f1713e_targeted_static_solving.json
-  training_status_modified=false
-```
-
-Current normalized static solving artifact remains relevant evidence:
-
-```text
-project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json:
-  static_solving_status=SUCCESS
-  unvalidated_candidate_hypothesis.candidate=KEEP_DREAM
-  candidate_acceptance_status=unvalidated
-```
-
-Current training state before this sync must be:
+Current training status file:
 
 ```text
 project_state/local_reverse_training_status.json:
   sample_count=29
-  status_summary.solved=3
+  status_summary.solved=4
+  status_summary.solved_count=4
   status_summary.blocked=4
+  status_summary.blocked_count=4
   status_summary.needs_triage=0
-  status_summary.inventory_only=22
-  cpp2_32f1713e.training_status=inventory_only
-  cpp2_32f1713e.known_candidate=""
-  cpp2_32f1713e.blocked_reason=""
-  cpp2_32f1713e.classification=""
-
-training_materials/local_reverse/status_overlay.json:
-  sample_count=29
-  status_summary.solved=3
-  status_summary.blocked=4
-  status_summary.needs_triage=0
-  status_summary.inventory_only=22
-  cpp2_32f1713e.training_status=inventory_only
-  cpp2_32f1713e.known_candidate=""
-  cpp2_32f1713e.blocked_reason=""
+  status_summary.inventory_only=21
+  status_summary.inventory_only_count=21
+  cpp2_32f1713e.training_status=solved
+  cpp2_32f1713e.known_candidate=KEEP_DREAM
+  cpp2_32f1713e.classification=oracle_backed_runtime_validated
 ```
 
-Expected training state after this sync:
+Current status overlay:
 
 ```text
-sample_count=29
-status_summary.solved=4
-status_summary.blocked=4
-status_summary.needs_triage=0
-status_summary.inventory_only=21
-cpp2_32f1713e.training_status=solved
-cpp2_32f1713e.known_candidate=KEEP_DREAM
-cpp2_32f1713e.blocked_reason=""
-cpp2_32f1713e.classification=runtime_validated_console_password_checker or oracle_backed_runtime_validated
+training_materials/local_reverse/status_overlay.json:
+  sample_count=29
+  status_summary.solved=4
+  status_summary.blocked=4
+  status_summary.needs_triage=0
+  status_summary.inventory_only=21
+  cpp2_32f1713e.training_status=solved
+  cpp2_32f1713e.known_candidate=KEEP_DREAM
+  cpp2_32f1713e.solved_by=bounded_runtime_validation
 ```
 
-negative_results mainly concerns old `samplereverse` directions. This round must not run blind search, not expand budgets, not commit full solve_reports, not use stale artifacts as current evidence. For `cpp2_32f1713e`, do not repeat runtime validation; use only the current runtime validation artifact.
+Observed stale low-token state that must be refreshed:
+
+```text
+project_state/task_packet.json currently still reports:
+  local_reverse_recent_solved.sample_id=cpp2_2f64e68d
+  local_reverse_recent_solved.known_candidate=10013
+  local_reverse_training_summary.solved=3
+  local_reverse_training_summary.inventory_only=22
+  local_reverse_next_queue_hint.sample_id=cpp2_32f1713e
+  local_reverse_next_queue_hint.allowed_actions=[static_triage]
+
+project_state/current_state.json still contains older samplereverse/frontier fields and local_reverse summaries that do not reflect cpp2_32f1713e solved as the most recent accepted sample.
+```
+
+Next queue candidate inferred from current ordered training status / status overlay after `cpp2_32f1713e` is:
+
+```text
+sample_id=cpp2_883e67b9
+relative_path=逆向课程2024春02/CPP2.exe
+training_status=inventory_only
+known_candidate=""
+blocked_reason=""
+category=cpp
+allowed next action for a future decision=static_triage / bounded static extraction readiness, not execution in this round
+forbidden in this round=runtime_probe, brute force, upload_binary, debugger, hook, emulator, sample execution
+```
+
+negative_results mainly concerns old `samplereverse` directions. This round must not use stale artifacts as current evidence, must not commit full solve_reports, and must not repeat blind search or budget expansion.
 
 Skill profile must remain `reverse-agent-iteration@v2`, which is active in `.codex-skills/registry.json`.
 
@@ -152,34 +135,30 @@ Strictly forbidden:
 
 ```text
 1. Do not treat task_packet.task as current execution authority.
-2. Do not run the sample executable.
-3. Do not rerun KEEP_DREAM or KEEP_DREAN validation.
-4. Do not execute any candidate or control input.
-5. Do not generate a new candidate.
-6. Do not run brute force, dictionary search, candidate search, fuzzing, or broad input enumeration.
-7. Do not attach debugger, hook, emulator, instrumentation probe, breakpoint probe, or dynamic trace collector.
-8. Do not use IDA/Ghidra for new analysis in this training sync round.
-9. Do not create duplicate training inventory/status/artifact_index helpers unless strictly required by existing project_state code.
-10. Do not scan full E:\reverse tree, full solve_reports, full PROJECT_PROGRESS_LOG.txt, or full project_state/rounds.
-11. Do not upload, copy into repo, base64-embed, or commit the sample binary.
-12. Do not store raw binary bytes, stdout dumps, memory dumps, screenshots, full disassembly, or full decompilation.
-13. Do not modify .codex-skills.
-14. Do not alter unrelated samples except aggregate solved/inventory counts required by this one-sample status transition.
-15. Do not alter cpp2_2f64e68d / 10013 solved facts.
-16. Do not mark cpp2_32f1713e solved unless the current runtime validation artifact is present, current, and VALIDATED.
+2. Do not run any sample executable.
+3. Do not run runtime validation, winpty, console validation, subprocess execution, debugger, hook, emulator, breakpoint probe, or instrumentation.
+4. Do not run IDA/Ghidra/static extraction for cpp2_883e67b9 in this round.
+5. Do not solve or triage cpp2_883e67b9 in this round.
+6. Do not generate candidates.
+7. Do not run brute force, dictionary search, fuzzing, candidate search, or broad input enumeration.
+8. Do not scan full E:\reverse tree, full solve_reports, full PROJECT_PROGRESS_LOG.txt, or full project_state/rounds.
+9. Do not upload, copy into repo, base64-embed, or commit any sample binary.
+10. Do not modify .codex-skills.
+11. Do not change accepted solved facts for cpp2_2f64e68d / 10013 or cpp2_32f1713e / KEEP_DREAM.
+12. Do not modify local_reverse_training_status.json or status_overlay.json unless only correcting a direct inconsistency discovered against the accepted sync artifact; if such inconsistency exists, stop as BLOCKED instead of silently rewriting.
+13. Do not change task_packet.task semantics except low-token local_reverse status hints if needed.
 ```
 
 Allowed:
 
 ```text
 1. Read default project_state files and .codex-skills/registry.json.
-2. Read current runtime validation artifact for cpp2_32f1713e.
-3. Read current targeted_static_solving artifact for cpp2_32f1713e.
-4. Read and update project_state/local_reverse_training_status.json.
-5. Read and update training_materials/local_reverse/status_overlay.json.
-6. Generate project_state/local_reverse_cpp2_32f1713e_training_status_sync.json.
-7. Register the sync artifact in artifact_index.
-8. Write codex_execution_report.md and pytest_result.txt.
+2. Read current local_reverse_training_status.json and status_overlay.json.
+3. Read current cpp2_32f1713e training_status_sync artifact.
+4. Read artifact_index and register a queue refresh artifact.
+5. Update low-token local_reverse fields in task_packet.json and current_state.json to reflect solved=4 / inventory_only=21 and next_queue_hint=cpp2_883e67b9.
+6. Generate project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json.
+7. Write codex_execution_report.md and pytest_result.txt.
 ```
 
 ---
@@ -197,20 +176,19 @@ project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 .codex-skills/registry.json
-project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json
-project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json
 project_state/local_reverse_training_status.json
 training_materials/local_reverse/status_overlay.json
+project_state/local_reverse_cpp2_32f1713e_training_status_sync.json
 reverse_agent/project_state.py
 tests/test_project_state.py
 ```
 
-May inspect if directly needed:
+May inspect if directly needed and bounded:
 
 ```text
-project_state/local_reverse_training_status_summary_sync.json
-project_state/local_reverse_post_solve_state_sync.json
 project_state/local_reverse_inventory.json
+project_state/local_reverse_evaluation_queue.json
+project_state/local_reverse_training_status_summary_sync.json
 ```
 
 Do not read by default:
@@ -219,7 +197,7 @@ Do not read by default:
 solve_reports/ full tree
 PROJECT_PROGRESS_LOG.txt full file
 project_state/rounds/ full history
-E:\reverse tree or sample binary
+E:\reverse tree or any sample binary
 ```
 
 ---
@@ -231,138 +209,132 @@ Codex report must answer:
 ```text
 1. Did it confirm decision_packet is the sole execution authority?
 2. Did it confirm mainline=training_dataset?
-3. Did it confirm this is training status sync, not runtime validation or solving?
-4. Did it confirm task_packet.task remains advisory?
-5. Did it confirm current runtime validation artifact is current/VALIDATED/KEEP_DREAM?
-6. Did it confirm candidate success signal and control failure signal are recorded in current artifact?
-7. Did it confirm source targeted_static_solving artifact is current/SUCCESS?
-8. Did it confirm pre-sync training status for cpp2_32f1713e was inventory_only / known_candidate=""?
-9. Did it update project_state/local_reverse_training_status.json for only cpp2_32f1713e plus aggregate counts?
-10. Did it update training_materials/local_reverse/status_overlay.json for only cpp2_32f1713e plus aggregate counts?
-11. Did it set cpp2_32f1713e.training_status=solved?
-12. Did it set cpp2_32f1713e.known_candidate=KEEP_DREAM?
-13. Did it clear blocked_reason and set a runtime validation classification?
-14. Did it record evidence source project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json?
-15. Did it keep cpp2_2f64e68d solved facts unchanged?
-16. Did it avoid modifying unrelated sample statuses?
-17. Did it avoid sample execution and runtime tools?
-18. Did it avoid debugger/hook/emulator/probe/instrumentation?
-19. Did it avoid brute force/dictionary/search/fuzzing?
-20. Did it avoid binary upload/copy/embed/full dumps?
-21. Did it generate project_state/local_reverse_cpp2_32f1713e_training_status_sync.json?
-22. Did it register the sync artifact in latest_artifacts/latest_artifacts_v2/artifact_refs?
-23. Did aggregate status summary become solved=4, blocked=4, needs_triage=0, inventory_only=21, sample_count=29?
-24. Did it explain negative_results unchanged or non-use?
-25. Did it run required py_compile/pytest/lint/status/git checks?
-26. Did pytest_result.txt use this decision_id/report_id/round_id?
-27. Did final lint-report run after report write?
-28. Did git diff only contain allowed files?
+3. Did it confirm this is queue/status refresh, not solving or validation?
+4. Did it confirm task_packet is advisory and stale before this refresh?
+5. Did it confirm cpp2_32f1713e training_status_sync artifact is current/accepted evidence?
+6. Did it confirm training_status summary is solved=4, blocked=4, needs_triage=0, inventory_only=21, sample_count=29?
+7. Did it confirm status_overlay has the same counts?
+8. Did it confirm cpp2_32f1713e is solved / KEEP_DREAM?
+9. Did it confirm cpp2_2f64e68d / 10013 solved facts remain unchanged?
+10. Did it identify next inventory_only sample as cpp2_883e67b9 from ordered training/status overlay data?
+11. Did it update task_packet low-token local_reverse summary to solved=4 / inventory_only=21?
+12. Did it update task_packet recent_solved to cpp2_32f1713e / KEEP_DREAM?
+13. Did it update task_packet next_queue_hint to cpp2_883e67b9 with future allowed_actions limited to static_triage / bounded static extraction readiness?
+14. Did it update current_state low-token local_reverse summary/recent_solved/next_queue_hint consistently?
+15. Did it avoid changing task_packet.task as the execution authority?
+16. Did it generate project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json?
+17. Did it register the queue refresh artifact in latest_artifacts/latest_artifacts_v2/artifact_refs?
+18. Did it avoid modifying training_status/status_overlay except not needed?
+19. Did it avoid sample execution and runtime tools?
+20. Did it avoid IDA/Ghidra/static extraction/debugger/hook/emulator/probe?
+21. Did it avoid brute force/dictionary/search/fuzzing?
+22. Did it avoid binary upload/copy/embed/full dumps?
+23. Did it explain negative_results unchanged or non-use?
+24. Did it run required py_compile/pytest/lint/status/git checks?
+25. Did pytest_result.txt use this decision_id/report_id/round_id?
+26. Did final lint-report run after report write?
+27. Did git diff only contain allowed files?
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-Small bounded training status sync only.
+Small bounded low-token state refresh only.
 
 ### Phase A — preflight
 
 Use `.venv\Scripts\python` for repository Python commands.
 
-Verify current runtime validation artifact:
+Verify accepted sync artifact:
 
 ```text
-project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json:
+project_state/local_reverse_cpp2_32f1713e_training_status_sync.json:
   sample_id == cpp2_32f1713e
   candidate == KEEP_DREAM
-  negative_control == KEEP_DREAN
-  validation_status == VALIDATED
-  candidate_success_signal_captured == true
-  control_failure_signal_captured == true
-  training_status_modified == false
+  source_runtime_validation_status == VALIDATED
+  post_sync_status == solved
+  post_sync_known_candidate == KEEP_DREAM
+  aggregate_counts_after.sample_count == 29
+  aggregate_counts_after.solved == 4
+  aggregate_counts_after.blocked == 4
+  aggregate_counts_after.needs_triage == 0
+  aggregate_counts_after.inventory_only == 21
+  unrelated_samples_modified == false
+  executed_sample == false
+  ran_runtime_tools == false
 ```
 
-Verify source static artifact:
-
-```text
-project_state/local_reverse_cpp2_32f1713e_targeted_static_solving.json:
-  sample_id == cpp2_32f1713e
-  static_solving_status == SUCCESS
-  unvalidated_candidate_hypothesis.candidate == KEEP_DREAM
-```
-
-Verify pre-sync training state:
+Verify current training files:
 
 ```text
 project_state/local_reverse_training_status.json:
-  status_summary.solved == 3
-  status_summary.inventory_only == 22
-  cpp2_32f1713e.training_status == inventory_only
-  cpp2_32f1713e.known_candidate == ""
+  sample_count == 29
+  status_summary.solved == 4
+  status_summary.inventory_only == 21
+  cpp2_32f1713e.training_status == solved
+  cpp2_32f1713e.known_candidate == KEEP_DREAM
 
 training_materials/local_reverse/status_overlay.json:
-  status_summary.solved == 3
-  status_summary.inventory_only == 22
-  cpp2_32f1713e.training_status == inventory_only
-  cpp2_32f1713e.known_candidate == ""
+  sample_count == 29
+  status_summary.solved == 4
+  status_summary.inventory_only == 21
+  cpp2_32f1713e.training_status == solved
+  cpp2_32f1713e.known_candidate == KEEP_DREAM
 ```
 
-If pre-sync counts differ only because another accepted sync already updated the same sample, stop as BLOCKED and report state drift rather than double-counting.
-
-### Phase B — update training status files
-
-Update only `cpp2_32f1713e` and aggregate counts.
-
-In `project_state/local_reverse_training_status.json`, set:
+Infer next queue sample from the first `inventory_only` sample after current solved block in current ordered training/status overlay data. Expected:
 
 ```text
-status_summary.solved=4
-status_summary.solved_count=4 if present
-status_summary.inventory_only=21
-status_summary.inventory_only_count=21 if present
-status_summary.blocked=4
-status_summary.blocked_count=4 if present
-status_summary.needs_triage=0
-sample cpp2_32f1713e:
-  training_status=solved
-  known_candidate=KEEP_DREAM
-  blocked_reason=""
-  classification=oracle_backed_runtime_validated
-  evidence_sources includes:
-    source:local_reverse_cpp2_32f1713e_targeted_static_solving.json
-    source:local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json
-    runtime_validation
-    runtime_validated_success
-    positive_candidate:KEEP_DREAM
-    negative_control:KEEP_DREAN
-  next_action=sample solved by bounded runtime validation; no further solving required
+sample_id=cpp2_883e67b9
+relative_path=逆向课程2024春02/CPP2.exe
+category=cpp
+training_status=inventory_only
+known_candidate=""
+blocked_reason=""
 ```
 
-In `training_materials/local_reverse/status_overlay.json`, set:
+If next sample differs due to accepted intervening changes, use the current ordered data and record the reason in the artifact/report.
+
+### Phase B — update low-token state
+
+Update only low-token local_reverse fields in `project_state/task_packet.json` and `project_state/current_state.json`.
+
+Required target values:
 
 ```text
-status_summary.solved=4
-status_summary.inventory_only=21
-status_summary.blocked=4
-status_summary.needs_triage=0
-sample cpp2_32f1713e:
-  training_status=solved
-  known_candidate=KEEP_DREAM
-  blocked_reason=""
-  solved_by=bounded_runtime_validation
-  solved_at=<timestamp>
-  solved_round=round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1
-  evidence_source=project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json
+local_reverse_recent_solved.sample_id=cpp2_32f1713e
+local_reverse_recent_solved.known_candidate=KEEP_DREAM
+local_reverse_recent_solved.validation_artifact=project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json
+local_reverse_recent_solved.accepted_round=round_20260607_cpp2_32f1713e_training_status_sync_v1
+
+local_reverse_training_summary.sample_count=29
+local_reverse_training_summary.solved=4
+local_reverse_training_summary.blocked=4
+local_reverse_training_summary.needs_triage=0
+local_reverse_training_summary.inventory_only=21
+
+local_reverse_current_artifact=project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json
+local_reverse_current_artifact_keys includes local_reverse_cpp2_32f1713e_training_status_sync and local_reverse_queue_refresh_after_cpp2_32f1713e
+
+local_reverse_next_queue_hint.sample_id=cpp2_883e67b9
+local_reverse_next_queue_hint.relative_path=逆向课程2024春02/CPP2.exe
+local_reverse_next_queue_hint.proposed_next_mainline=training_dataset or tool_integration
+local_reverse_next_queue_hint.allowed_actions=[static_triage, bounded_static_extraction_readiness]
+local_reverse_next_queue_hint.forbidden_actions=[runtime_probe, brute_force, debugger, hook, emulator, upload_binary]
+
+local_reverse_next_suggested_task=Advisory next queue hint only: cpp2_883e67b9 needs a future bounded static triage/readiness decision; do not execute from task_packet alone.
+local_reverse_task_packet_authority_note=Advisory only; project_state/decision_packet.md remains the execution authority.
 ```
 
-Do not change other samples except aggregate counts.
+Do not rewrite unrelated samplereverse/frontier fields unless existing project_state tooling requires serialization normalization.
 
-### Phase C — generate sync artifact
+### Phase C — generate queue refresh artifact
 
 Generate:
 
 ```text
-project_state/local_reverse_cpp2_32f1713e_training_status_sync.json
+project_state/local_reverse_queue_refresh_after_cpp2_32f1713e.json
 ```
 
 Required top-level fields:
@@ -370,26 +342,23 @@ Required top-level fields:
 ```text
 schema_version=1
 mainline=training_dataset
-round_id=round_20260607_cpp2_32f1713e_training_status_sync_v1
-decision_id=decision_20260607_cpp2_32f1713e_training_status_sync_v1
-sample_id=cpp2_32f1713e
-relative_path=逆向课程2023春补考02/Cpp2.exe
-candidate=KEEP_DREAM
-source_runtime_validation_artifact=project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json
-source_runtime_validation_status=VALIDATED
-source_static_solving_artifact=project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json
-pre_sync_status=inventory_only
-post_sync_status=solved
-pre_sync_known_candidate=""
-post_sync_known_candidate=KEEP_DREAM
-training_status_file=project_state\\local_reverse_training_status.json
-status_overlay_file=training_materials\\local_reverse\\status_overlay.json
-aggregate_counts_before={sample_count:29, solved:3, blocked:4, needs_triage:0, inventory_only:22}
-aggregate_counts_after={sample_count:29, solved:4, blocked:4, needs_triage:0, inventory_only:21}
-updated_samples=[cpp2_32f1713e]
-unrelated_samples_modified=false
+round_id=round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1
+decision_id=decision_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1
+source_training_status_sync_artifact=project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json
+source_training_status_sync_status=ACCEPTED
+sample_count=29
+status_summary={solved:4, blocked:4, needs_triage:0, inventory_only:21}
+recent_solved={sample_id:cpp2_32f1713e, known_candidate:KEEP_DREAM, validation_artifact:project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json, accepted_round:round_20260607_cpp2_32f1713e_training_status_sync_v1}
+next_queue_hint={sample_id:cpp2_883e67b9, relative_path:逆向课程2024春02/CPP2.exe, training_status:inventory_only, known_candidate:"", blocked_reason:"", proposed_next_mainline:training_dataset, allowed_actions:[static_triage,bounded_static_extraction_readiness], forbidden_actions:[runtime_probe,brute_force,debugger,hook,emulator,upload_binary]}
+task_packet_updated=true|false
+current_state_updated=true|false
+training_status_modified=false
+status_overlay_modified=false
 executed_sample=false
 ran_runtime_tools=false
+ran_ida=false
+ran_ghidra=false
+ran_static_extraction=false
 ran_debugger=false
 ran_hook=false
 ran_emulator=false
@@ -404,54 +373,42 @@ memory_dump_recorded=false
 full_disassembly_recorded=false
 full_decompilation_recorded=false
 next_recommended_mainline=training_dataset
-next_recommended_action=<advance to next inventory_only sample or refresh queue summary>
+next_recommended_action=Generate a bounded static triage/readiness decision for cpp2_883e67b9.
 generated_at=<timestamp>
 ```
 
 ### Phase D — artifact_index registration
 
-Register the sync artifact:
+Register:
 
 ```text
-artifact_index.latest_artifacts["local_reverse_cpp2_32f1713e_training_status_sync"]
-artifact_index.latest_artifacts_v2["local_reverse_cpp2_32f1713e_training_status_sync"]
-artifact_index.artifact_refs["local_reverse_cpp2_32f1713e_training_status_sync"]
+artifact_index.latest_artifacts["local_reverse_queue_refresh_after_cpp2_32f1713e"]
+artifact_index.latest_artifacts_v2["local_reverse_queue_refresh_after_cpp2_32f1713e"]
+artifact_index.artifact_refs["local_reverse_queue_refresh_after_cpp2_32f1713e"]
 ```
 
 `latest_artifacts_v2` must include:
 
 ```text
-kind=local_reverse_training_status_sync
-path=project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json
+kind=local_reverse_queue_refresh
+after_sample_id=cpp2_32f1713e
+path=project_state\\local_reverse_queue_refresh_after_cpp2_32f1713e.json
 freshness=current
-source_run=round_20260607_cpp2_32f1713e_training_status_sync_v1
+source_run=round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1
 sha256=<actual artifact sha256>
 size_bytes=<actual artifact size>
 modified_at=<artifact generated_at or filesystem mtime>
-sample_id=cpp2_32f1713e
-candidate=KEEP_DREAM
-training_status=solved
-known_candidate=KEEP_DREAM
-source_runtime_validation_artifact=project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json
-source_runtime_validation_status=VALIDATED
-aggregate_counts_after={sample_count:29, solved:4, blocked:4, needs_triage:0, inventory_only:21}
+sample_count=29
+solved=4
+blocked=4
+needs_triage=0
+inventory_only=21
+recent_solved_sample_id=cpp2_32f1713e
+next_queue_sample_id=cpp2_883e67b9
+next_queue_relative_path=逆向课程2024春02/CPP2.exe
+training_status_modified=false
+status_overlay_modified=false
 ```
-
-Optional low-token pointers:
-
-```text
-current_state.local_reverse_recent_solved.sample_id=cpp2_32f1713e
-current_state.local_reverse_recent_solved.known_candidate=KEEP_DREAM
-current_state.local_reverse_recent_solved.validation_artifact=project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json
-current_state.local_reverse_training_summary.solved=4
-current_state.local_reverse_training_summary.inventory_only=21
-task_packet.local_reverse_recent_solved.sample_id=cpp2_32f1713e
-task_packet.local_reverse_recent_solved.known_candidate=KEEP_DREAM
-task_packet.local_reverse_training_summary.solved=4
-task_packet.local_reverse_training_summary.inventory_only=21
-```
-
-Do not change `task_packet.task`.
 
 ### Phase E — report
 
@@ -460,9 +417,9 @@ Do not change `task_packet.task`.
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_32f1713e_training_status_sync_v1",
-  "round_id": "round_20260607_cpp2_32f1713e_training_status_sync_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_32f1713e_training_status_sync_v1",
+  "report_id": "report_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1",
+  "round_id": "round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1",
+  "based_on_decision_id": "decision_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1",
   "status": "SUCCESS|BLOCKED|FAILED",
   "acceptance_recommendation": "ACCEPTED|BLOCKED|REWORK_REQUIRED",
   "files_changed": [],
@@ -474,9 +431,9 @@ Do not change `task_packet.task`.
 Recommended mapping:
 
 ```text
-successful one-sample sync -> status=SUCCESS, acceptance_recommendation=ACCEPTED
-state drift before sync -> status=BLOCKED, acceptance_recommendation=BLOCKED
-forbidden action or inconsistent counts -> status=FAILED, acceptance_recommendation=REWORK_REQUIRED
+successful low-token state refresh -> status=SUCCESS, acceptance_recommendation=ACCEPTED
+state drift requiring human decision -> status=BLOCKED, acceptance_recommendation=BLOCKED
+forbidden action or inconsistent metadata -> status=FAILED, acceptance_recommendation=REWORK_REQUIRED
 ```
 
 ---
@@ -499,35 +456,36 @@ git diff --name-status
 `pytest_result.txt` must include:
 
 ```text
-decision_id=decision_20260607_cpp2_32f1713e_training_status_sync_v1
-report_id=report_20260607_cpp2_32f1713e_training_status_sync_v1
-round_id=round_20260607_cpp2_32f1713e_training_status_sync_v1
+decision_id=decision_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1
+report_id=report_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1
+round_id=round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1
 ```
 
 Content assertions to record:
 
 ```text
-1. source runtime validation artifact is current/VALIDATED/KEEP_DREAM.
-2. source targeted_static_solving artifact is current/SUCCESS/KEEP_DREAM.
-3. pre-sync cpp2_32f1713e status was inventory_only/known_candidate="".
-4. post-sync cpp2_32f1713e status is solved/known_candidate=KEEP_DREAM.
-5. project_state/local_reverse_training_status.json aggregate counts are solved=4, blocked=4, needs_triage=0, inventory_only=21, sample_count=29.
-6. training_materials/local_reverse/status_overlay.json aggregate counts are solved=4, blocked=4, needs_triage=0, inventory_only=21, sample_count=29.
-7. evidence sources include runtime validation artifact.
-8. cpp2_2f64e68d solved facts remain unchanged.
-9. unrelated sample statuses remain unchanged.
-10. no sample executable was run.
-11. no runtime tools/debugger/hook/emulator/probe were run.
-12. no brute force/dictionary/search/fuzzing was run.
-13. no binary was uploaded, copied, embedded, or committed.
-14. sync artifact exists.
-15. artifact_index registers local_reverse_cpp2_32f1713e_training_status_sync as current.
-16. pytest_result uses this decision_id/report_id/round_id.
-17. final lint-report ran after report write.
-18. git diff --name-status only contains allowed files.
+1. source training status sync artifact is current/accepted evidence for cpp2_32f1713e solved.
+2. training_status summary is solved=4, blocked=4, needs_triage=0, inventory_only=21, sample_count=29.
+3. status_overlay summary matches solved=4, blocked=4, needs_triage=0, inventory_only=21, sample_count=29.
+4. task_packet local_reverse_training_summary is updated to solved=4/inventory_only=21.
+5. current_state local_reverse_training_summary is updated to solved=4/inventory_only=21.
+6. task_packet local_reverse_recent_solved is cpp2_32f1713e / KEEP_DREAM.
+7. current_state local_reverse_recent_solved is cpp2_32f1713e / KEEP_DREAM.
+8. task_packet next_queue_hint is cpp2_883e67b9 unless current ordered data justifies a different sample.
+9. current_state next_queue_hint is cpp2_883e67b9 unless current ordered data justifies a different sample.
+10. task_packet.task remains advisory and does not become execution authority.
+11. queue refresh artifact exists.
+12. artifact_index registers local_reverse_queue_refresh_after_cpp2_32f1713e as current.
+13. training_status/status_overlay were not modified in this round.
+14. no sample executable was run.
+15. no runtime tools/debugger/hook/emulator/probe were run.
+16. no IDA/Ghidra/static extraction was run.
+17. no brute force/dictionary/search/fuzzing was run.
+18. no binary was uploaded, copied, embedded, or committed.
+19. pytest_result uses this decision_id/report_id/round_id.
+20. final lint-report ran after report write.
+21. git diff --name-status only contains allowed files.
 ```
-
-If `pytest` reports no tests collected, record it explicitly and do not claim full test coverage.
 
 ---
 
@@ -536,30 +494,30 @@ If `pytest` reports no tests collected, record it explicitly and do not claim fu
 Stop with `SUCCESS / ACCEPTED` if:
 
 ```text
-1. source runtime validation artifact is current and VALIDATED;
-2. source static solving artifact is current and SUCCESS;
-3. cpp2_32f1713e is updated to solved with known_candidate=KEEP_DREAM;
-4. aggregate counts are solved=4, blocked=4, needs_triage=0, inventory_only=21, sample_count=29;
-5. status_overlay matches training_status for this sample and counts;
-6. sync artifact is produced and registered current;
-7. no sample execution or forbidden runtime/debugger/search action occurred;
+1. accepted cpp2_32f1713e training sync evidence is current;
+2. task_packet and current_state low-token local_reverse summaries reflect solved=4/inventory_only=21;
+3. recent_solved points to cpp2_32f1713e / KEEP_DREAM;
+4. next_queue_hint points to the next inventory_only sample, expected cpp2_883e67b9;
+5. queue refresh artifact is produced and registered current;
+6. no training_status/status_overlay changes occurred in this round;
+7. no sample execution or forbidden tool action occurred;
 8. tests/lint/report metadata align with this decision/report/round.
 ```
 
 Stop with `BLOCKED` if:
 
 ```text
-1. source runtime validation artifact is missing/stale/not VALIDATED;
-2. source static solving artifact is missing/stale/not SUCCESS;
-3. pre-sync status has already changed and would cause double-counting;
-4. required status files are missing or malformed.
+1. training_status/status_overlay disagree on aggregate counts;
+2. source training sync artifact is missing/stale;
+3. cpp2_32f1713e is not solved/KEEP_DREAM in current training files;
+4. no deterministic next inventory_only sample can be identified.
 ```
 
 Stop with `FAILED / REWORK_REQUIRED` if:
 
 ```text
-1. any forbidden action occurs;
-2. unrelated sample statuses are modified;
-3. aggregate counts are inconsistent;
+1. any forbidden execution/tool action occurs;
+2. training_status/status_overlay are modified without explicit inconsistency justification;
+3. task_packet/current_state still point next_queue_hint to cpp2_32f1713e after refresh;
 4. artifact_index/report/pytest_result do not align with this decision.
 ```
