@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "mainline": "training_dataset",
+  "sync_round_id": "round_20260607_local_reverse_training_status_summary_sync_v1",
+  "sync_decision_id": "decision_20260607_local_reverse_training_status_summary_sync_v1",
+  "executed_sample": false,
+  "ran_static_tools": false,
+  "ran_runtime_tools": false,
+  "updated_file": "project_state\\local_reverse_training_status.json",
+  "updated_sample_statuses": false,
+  "updated_known_candidates": false,
+  "before_summary": {
+    "sample_count": 29,
+    "solved": 2,
+    "blocked": 5,
+    "needs_triage": 0,
+    "inventory_only": 22
+  },
+  "after_summary": {
+    "sample_count": 29,
+    "solved": 3,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 22
+  },
+  "computed_from_samples": true,
+  "status_overlay_summary_agrees": true,
+  "post_solve_sync_summary_agrees": true,
+  "accepted_validation_status": "VALIDATED_SUCCESS",
+  "recent_solved_sample_id": "cpp2_2f64e68d",
+  "known_candidate": "10013",
+  "next_queue_hint_sample_id": "cpp2_32f1713e",
+  "negative_results_updated": false,
+  "negative_results_update_reason": "This round only syncs local_reverse training status aggregate metadata and does not create a new reverse-solving negative result.",
+  "generated_at": "2026-06-07T10:25:00Z"
+}

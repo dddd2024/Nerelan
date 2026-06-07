@@ -2,10 +2,10 @@
 {
   "schema_version": 1,
   "found": true,
-  "decision_id": "decision_20260607_local_reverse_post_solve_state_sync_rework_v1",
-  "report_id": "report_20260607_local_reverse_post_solve_state_sync_rework_v1",
-  "round_id": "round_20260607_local_reverse_post_solve_state_sync_rework_v1",
-  "generated_at": "2026-06-07T15:00:00Z",
+  "decision_id": "decision_20260607_local_reverse_training_status_summary_sync_v1",
+  "report_id": "report_20260607_local_reverse_training_status_summary_sync_v1",
+  "round_id": "round_20260607_local_reverse_training_status_summary_sync_v1",
+  "generated_at": "2026-06-07T10:25:00Z",
   "status": "PASSED",
   "tests_ran": [
     ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py",
@@ -28,58 +28,58 @@
 
 2. .venv\Scripts\python -m pytest -q tests/test_project_state.py
    exit_code: 0
-   output: ........................................................................ [ 45%]\n........................................................................ [ 91%]\n..............                                                           [100%]\n158 passed in 70.09s (0:01:10)
+   output: ........................................................................ [ 45%]\n........................................................................ [ 91%]\n..............                                                           [100%]\n158 passed in 22.59s
 
 3. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
    exit_code: 0
-   output: lint-decision: OK\ndecision_id: decision_20260607_local_reverse_post_solve_state_sync_rework_v1\ndecision_status: APPROVED\nmainline: training_dataset
+   output: lint-decision: OK\ndecision_id: decision_20260607_local_reverse_training_status_summary_sync_v1\ndecision_status: APPROVED\nmainline: training_dataset\nskill_profiles: ['reverse-agent-iteration@v2']
 
-4. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
+4. git diff --check
    exit_code: 0
-   output: lint-report: OK
+   output: warning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/local_reverse_training_status.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
 
-5. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
+5. content assertions
    exit_code: 0
-   output: state_dir: project_state, decision_status: APPROVED, report_status: SUCCESS
+   output: content assertions: PASS\nsamples_hash: 7ae94de85eba2d3ab091cf7a18b9c56326c1bffdecf8a1185287a5e5e98d4a1c\nsummary: {'sample_count': 29, 'solved': 3, 'blocked': 4, 'needs_triage': 0, 'inventory_only': 22}
 
-6. git diff --check
+6. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
    exit_code: 0
-   output: (no output)
+   output: lint-report: OK\nwarning: report round not archived yet\nreport_id: report_20260607_local_reverse_training_status_summary_sync_v1\nreport_status: SUCCESS\nacceptance_recommendation: ACCEPTED\nbased_on_decision_id: decision_20260607_local_reverse_training_status_summary_sync_v1\ndecision_report_id_match: True\nreport_decision_round_id_match: True\npytest_result_matches_report: True\npytest_result_tests_cover_report: True
 
-7. git status --short
+7. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
    exit_code: 0
-   output: M project_state/artifact_index.json, M project_state/codex_execution_report.md, M project_state/current_state.json, M project_state/local_reverse_evaluation_queue.json, M project_state/pytest_result.txt, M project_state/task_packet.json, M training_materials/local_reverse/status_overlay.json, ?? project_state/local_reverse_post_solve_state_sync.json
+   output: decision_id: decision_20260607_local_reverse_training_status_summary_sync_v1\nreport_id: report_20260607_local_reverse_training_status_summary_sync_v1\npytest_result_decision_id: decision_20260607_local_reverse_training_status_summary_sync_v1\ndecision_report_id_match: True\ndecision_state_digest_match: True\ndecision_consumed_by_report: True\ndecision_execution_state: CONSUMED_BY_SUCCESS_REPORT\ndecision_ready_for_execution: False\nreport_decision_round_id_match: True\npytest_result_matches_report: True
 
-8. git diff --name-status
+8. git status --short
    exit_code: 0
-   output: M artifact_index.json, M codex_execution_report.md, M current_state.json, M local_reverse_evaluation_queue.json, M pytest_result.txt, M task_packet.json, M training_materials/local_reverse/status_overlay.json
+   output:  M project_state/artifact_index.json\n M project_state/codex_execution_report.md\n M project_state/local_reverse_training_status.json\n M project_state/pytest_result.txt\n?? project_state/local_reverse_training_status_summary_sync.json
+
+9. git diff --name-status
+   exit_code: 0
+   output: M\tproject_state/artifact_index.json\nM\tproject_state/codex_execution_report.md\nM\tproject_state/local_reverse_training_status.json\nM\tproject_state/pytest_result.txt\nwarning: in the working copy of 'project_state/artifact_index.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/codex_execution_report.md', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/local_reverse_training_status.json', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'project_state/pytest_result.txt', LF will be replaced by CRLF the next time Git touches it
 
 === Content Assertions ===
 
-1. status_overlay generated_at refreshed: PASS
-2. status_overlay cpp2_2f64e68d training_status=solved: PASS
-3. status_overlay cpp2_2f64e68d known_candidate=10013: PASS
-4. evaluation_queue post_solve_sync_round_id set: PASS
-5. evaluation_queue excludes cpp2_2f64e68d: PASS
-6. evaluation_queue first item is cpp2_32f1713e (next_queue_hint only): PASS
-7. current_state local_reverse_recent_solved added: PASS
-8. current_state local_reverse_training_summary added: PASS
-9. current_state local_reverse_next_queue_hint added: PASS
-10. task_packet local_reverse summaries added: PASS
-11. task_packet.task unchanged (advisory): PASS
-12. local_reverse_post_solve_state_sync.json exists: PASS
-13. artifact_index registers local_reverse_post_solve_state_sync: PASS
-14. py_compile reverse_agent/project_state.py: PASS
-15. No sample executed: PASS
-16. No IDA/debugger/solver used: PASS
-17. git diff --name-status only allowed files: PASS
+1. No sample executed in this round: PASS
+2. No IDA/Ghidra/debugger/hook/emulator/solver/bruteforce/runtime probe run in this round: PASS
+3. local_reverse_training_status summary computed from samples[]: PASS
+4. local_reverse_training_status summary updated to solved=3 blocked=4 needs_triage=0 inventory_only=22: PASS
+5. legacy count fields updated: solved_count=3 blocked_count=4 inventory_only_count=22: PASS
+6. No samples[] entry status/candidate/classification was changed: PASS
+7. status_overlay summary agrees with training_status summary: PASS
+8. post_solve_sync summary agrees with training_status summary: PASS
+9. local_reverse_training_status_summary_sync.json exists and records before/after summary: PASS
+10. artifact_index registers local_reverse_training_status_summary_sync current provenance: PASS
+11. task_packet.task remains advisory and unchanged: PASS
+12. cpp2_32f1713e remains next_queue_hint only, not executed: PASS
+13. pytest_result uses this decision_id/report_id/round_id: PASS
+14. git diff --name-status only contains allowed files: PASS
 
 === Summary ===
+
 - py_compile reverse_agent/project_state.py: PASS
-- pytest test_project_state: 158 passed
+- pytest tests/test_project_state.py: 158 passed
 - lint-decision: OK
 - lint-report: OK
-- status: OK
-- git diff --check: OK
-- post-solve state sync rework: SUCCESS
-- All 8 required items completed
+- project_state status: PASS
+- git diff --check: PASS

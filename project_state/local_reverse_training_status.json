@@ -1,17 +1,21 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-07T07:31:23Z",
+  "generated_at": "2026-06-07T10:25:00Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
-    "solved": 2,
-    "blocked": 5,
+    "solved": 3,
+    "blocked": 4,
     "needs_triage": 0,
     "inventory_only": 22,
-    "blocked_count": 5,
+    "blocked_count": 4,
     "inventory_only_count": 22,
-    "solved_count": 2
+    "solved_count": 3
   },
+  "summary_sync_round_id": "round_20260607_local_reverse_training_status_summary_sync_v1",
+  "summary_sync_decision_id": "decision_20260607_local_reverse_training_status_summary_sync_v1",
+  "summary_source_status_overlay": "training_materials\\local_reverse\\status_overlay.json",
+  "summary_source_post_solve_sync": "project_state\\local_reverse_post_solve_state_sync.json",
   "samples": [
     {
       "sample_id": "cpp1_7b504c54",

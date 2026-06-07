@@ -86,6 +86,7 @@
     "local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
     "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
     "local_reverse_post_solve_state_sync": "project_state\\local_reverse_post_solve_state_sync.json",
+    "local_reverse_training_status_summary_sync": "project_state\\local_reverse_training_status_summary_sync.json",
     "local_reverse_winpty_backend_lifecycle_hardening": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
     "local_reverse_winpty_synthetic_smoke": "project_state\\local_reverse_winpty_synthetic_smoke.json",
     "local_reverse_winpty_py_target_spawn_fix": "project_state\\local_reverse_winpty_py_target_spawn_fix.json"
@@ -960,6 +961,16 @@
       "modified_at": "2026-06-07T15:00:00Z",
       "sample_id": "cpp2_2f64e68d"
     },
+    "local_reverse_training_status_summary_sync": {
+      "kind": "local_reverse_training_status_summary_sync",
+      "path": "project_state\\local_reverse_training_status_summary_sync.json",
+      "freshness": "current",
+      "source_run": "round_20260607_local_reverse_training_status_summary_sync_v1",
+      "sha256": "0170214ecc4c579ee95337b7cabb069366eea547798e5a016be501a20b380216",
+      "size_bytes": 1271,
+      "modified_at": "2026-06-07T10:25:00Z",
+      "sample_id": "cpp2_2f64e68d"
+    },
     "local_reverse_winpty_backend_lifecycle_hardening": {
       "kind": "local_reverse_winpty_backend_lifecycle_hardening",
       "path": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
@@ -1133,6 +1144,7 @@
     "local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime": "project_state\\local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
     "local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
     "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
-    "local_reverse_post_solve_state_sync": "project_state\\local_reverse_post_solve_state_sync.json"
+    "local_reverse_post_solve_state_sync": "project_state\\local_reverse_post_solve_state_sync.json",
+    "local_reverse_training_status_summary_sync": "project_state\\local_reverse_training_status_summary_sync.json"
   }
 }
