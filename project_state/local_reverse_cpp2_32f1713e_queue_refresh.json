@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "mainline": "training_dataset",
+  "round_id": "round_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1",
+  "decision_id": "decision_20260607_local_reverse_queue_refresh_after_cpp2_32f1713e_v1",
+  "refresh_type": "post_solve_queue_and_low_token_state_refresh",
+  "solved_sample_id": "cpp2_32f1713e",
+  "solved_candidate": "KEEP_DREAM",
+  "source_sync_artifact": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json",
+  "source_validation_artifact": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+  "files_updated": [
+    "project_state/task_packet.json",
+    "project_state/current_state.json"
+  ],
+  "task_packet_updates": {
+    "local_reverse_recent_solved": {
+      "old_sample_id": "cpp2_2f64e68d",
+      "new_sample_id": "cpp2_32f1713e",
+      "new_known_candidate": "KEEP_DREAM",
+      "new_validation_artifact": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+      "new_accepted_round": "round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1"
+    },
+    "local_reverse_training_summary": {
+      "solved": 3,
+      "inventory_only": 22,
+      "new_solved": 4,
+      "new_inventory_only": 21
+    },
+    "local_reverse_next_queue_hint": {
+      "old_sample_id": "cpp2_32f1713e",
+      "new_sample_id": "cpp2_883e67b9",
+      "new_relative_path": "逆向课程2024春02/CPP2.exe"
+    }
+  },
+  "current_state_updates": {
+    "local_reverse_recent_solved": {
+      "old_sample_id": "cpp2_2f64e68d",
+      "new_sample_id": "cpp2_32f1713e",
+      "new_known_candidate": "KEEP_DREAM"
+    },
+    "local_reverse_training_summary": {
+      "solved": 3,
+      "inventory_only": 22,
+      "new_solved": 4,
+      "new_inventory_only": 21
+    },
+    "local_reverse_next_queue_hint": {
+      "old_sample_id": "cpp2_32f1713e",
+      "new_sample_id": "cpp2_883e67b9",
+      "new_relative_path": "逆向课程2024春02/CPP2.exe"
+    }
+  },
+  "next_queue_hint": {
+    "sample_id": "cpp2_883e67b9",
+    "relative_path": "逆向课程2024春02/CPP2.exe",
+    "proposed_next_mainline": "tool_integration",
+    "allowed_actions": ["static_triage"],
+    "forbidden_actions": ["runtime_probe", "bruteforce", "upload_binary"],
+    "queue_rank": 2
+  },
+  "aggregate_counts_final": {
+    "sample_count": 29,
+    "solved": 4,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 21
+  },
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_debugger": false,
+  "ran_bruteforce": false,
+  "uploaded_binary": false,
+  "training_status_modified_in_this_round": false,
+  "next_recommended_mainline": "tool_integration",
+  "next_recommended_action": "Generate a tool_integration decision for cpp2_883e67b9 (rank 2, inventory_only). Begin with command-scoped env readiness check using LOCAL_REVERSE_ROOT=E:\\reverse.",
+  "generated_at": "2026-06-07T15:00:00Z"
+}

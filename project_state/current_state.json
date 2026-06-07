@@ -9709,21 +9709,21 @@
     "latest_forced_ida_extraction_status": "SUCCESS",
     "latest_forced_ida_extraction_round": "round_20260603_local_reverse_forced_ida_extraction_v1",
     "local_reverse_recent_solved": {
-      "sample_id": "cpp2_2f64e68d",
-      "known_candidate": "10013",
-      "validation_artifact": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
-      "accepted_round": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1"
+      "sample_id": "cpp2_32f1713e",
+      "known_candidate": "KEEP_DREAM",
+      "validation_artifact": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+      "accepted_round": "round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1"
     },
     "local_reverse_training_summary": {
       "sample_count": 29,
-      "solved": 3,
+      "solved": 4,
       "blocked": 4,
       "needs_triage": 0,
-      "inventory_only": 22
+      "inventory_only": 21
     },
     "local_reverse_next_queue_hint": {
-      "sample_id": "cpp2_32f1713e",
-      "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+      "sample_id": "cpp2_883e67b9",
+      "relative_path": "逆向课程2024春02/CPP2.exe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": ["static_triage"],
       "forbidden_actions": ["runtime_probe", "bruteforce", "upload_binary"]

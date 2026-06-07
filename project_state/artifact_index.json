@@ -97,7 +97,8 @@
     "local_reverse_cpp2_32f1713e_targeted_static_solve": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json",
     "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
     "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
-    "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json"
+    "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json",
+    "local_reverse_cpp2_32f1713e_queue_refresh": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1129,6 +1130,18 @@
         "needs_triage": 0,
         "inventory_only": 21
       }
+    },
+    "local_reverse_cpp2_32f1713e_queue_refresh": {
+      "kind": "local_reverse_queue_refresh",
+      "path": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_32f1713e_queue_refresh_v1",
+      "sha256": "3d7c823b0991d5cd96ecf6be06869ae6c9cad1e051dfef0f089c62dfaa4bbaa8",
+      "size_bytes": 2843,
+      "modified_at": "2026-06-07T15:00:00Z",
+      "sample_id": "cpp2_32f1713e",
+      "refresh_type": "post_solve_queue_and_low_token_state_refresh",
+      "next_queue_hint_sample_id": "cpp2_883e67b9"
     }
   },
   "latest_case_results": [
@@ -1282,6 +1295,7 @@
     "local_reverse_cpp2_32f1713e_targeted_static_solve": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json",
     "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
     "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
-    "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json"
+    "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json",
+    "local_reverse_cpp2_32f1713e_queue_refresh": "project_state\\local_reverse_cpp2_32f1713e_queue_refresh.json"
   }
 }
