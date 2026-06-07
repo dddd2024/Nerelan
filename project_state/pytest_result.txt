@@ -1,173 +1,73 @@
-```json pytest_result_summary
-{
-  "schema_version": 1,
-  "decision_id": "decision_20260607_winpty_validator_lifecycle_hardening_v1",
-  "report_id": "report_20260607_winpty_validator_lifecycle_hardening_v1",
-  "round_id": "round_20260607_winpty_validator_lifecycle_hardening_v1",
-  "generated_at": "2026-06-07T05:06:27Z",
-  "status": "PASSED",
-  "tests_ran": [
-    ".venv\\Scripts\\python -c \"import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])\"",
-    ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py",
-    ".venv\\Scripts\\python -m pytest -q tests/test_local_reverse_console_pair_validator.py",
-    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
-    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state status --state-dir project_state",
-    "git diff --check",
-    "git status --short",
-    "git diff --name-status"
-  ]
-}
-```
+pytest_result for round_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1
+report_id: report_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1
+decision_id: decision_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1
 
-## Command Results
+=== Commands and Results ===
 
-### winpty API inspection
+1. .venv\Scripts\python -c "import sys; print(sys.executable); import winpty; print('winpty_import_ok')"
+   exit_code: 0
+   output: F:\reverse-agent\.venv\Scripts\python.exe\nwinpty_import_ok\n
 
-Command:
+2. .venv\Scripts\python -c "import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])"
+   exit_code: 0
+   output: True\n['cancel_io', 'fd', 'get_exitstatus', 'isalive', 'iseof', 'pid', 'read', 'set_size', 'spawn', 'write']\n
 
-`.venv\Scripts\python -c "import winpty; print(hasattr(winpty, 'PTY')); print([name for name in dir(winpty.PTY) if not name.startswith('_')])"`
+3. .venv\Scripts\python -c "import reverse_agent.local_reverse_console_pair_validator as v; caps=v.get_console_backend_capabilities(); print(caps['winpty']); assert caps['winpty']['available'] is True; assert caps['winpty']['validator_supported'] is True"
+   exit_code: 0
+   output: {'available': True, 'validator_supported': True, 'mature_interactive_console': True, 'readiness_policy': 'mature_interactive_console_backend', 'reason': 'winpty/pywinpty provides a mature pseudo-terminal backend for Windows console applications.'}\n
 
-Result: PASS
+4. .venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py
+   exit_code: 0
+   output: (no output)
 
-Output:
 
-```text
-True
-['cancel_io', 'fd', 'get_exitstatus', 'isalive', 'iseof', 'pid', 'read', 'set_size', 'spawn', 'write']
-```
+5. .venv\Scripts\python -m pytest -q tests/test_local_reverse_console_pair_validator.py
+   exit_code: 0
+   output: ...............................\n31 passed in 3.14s\n
 
-### py_compile
+6. .venv\Scripts\python -m pytest -q tests/test_project_state.py
+   exit_code: 0
+   output: ........................................................................ [ 45%]\n........................................................................ [ 91%]\n..............                                                           [100%]\n158 passed in 67.86s (0:01:07)\n
 
-Command:
+7. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
+   exit_code: 0
+   output: lint-decision: OK\n...
 
-`.venv\Scripts\python -m py_compile reverse_agent/local_reverse_console_pair_validator.py`
 
-Result: PASS
+8. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
+   exit_code: 1
+   output: lint-report: FAILED\nerror: based_on_decision_id does not match current decision_id\nerror: report round_id does not match current decision round_id\n...
+   note: Expected failure because previous round report was still present before this report was written.
 
-### validator tests
 
-Command:
+9. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
+   exit_code: 0
+   output: state_dir: project_state\n...
 
-`.venv\Scripts\python -m pytest -q tests/test_local_reverse_console_pair_validator.py`
 
-Result: PASS
+=== Content Assertions ===
 
-Output:
+1. synthetic smoke artifact exists: PASS (project_state/local_reverse_winpty_synthetic_smoke.json)
+2. synthetic smoke artifact uses_training_sample=false: PASS
+3. synthetic smoke artifact candidate=null, known_candidate="", solved=false: PASS
+4. smoke_status != PASS, no CPP2.exe executed: PASS (Phase B skipped)
+5. Phase B runtime artifact exists: N/A (Phase B not executed)
+6. Phase B runtime artifact backend=winpty: N/A
+7. Phase B runtime artifact max_runs=2: N/A
+8. Phase B runtime artifact candidate_input=ippio: N/A
+9. Phase B runtime artifact negative_control_input=jppio: N/A
+10. Phase B runtime artifact target_sha256 matches cpp2_2f64e68d: N/A
+11. validation_status=VALIDATED_SUCCESS -> runtime_validated=true, known_candidate=ippio, solved=true: N/A
+12. validation_status!=VALIDATED_SUCCESS -> known_candidate="", solved=false: PASS (training status unchanged)
+13. artifact_index registers smoke artifact: PASS
+14. git diff --name-status only allowed files: to be verified at commit time
 
-```text
-31 passed in 0.51s
-```
-
-### project_state tests
-
-Command:
-
-`.venv\Scripts\python -m pytest -q tests/test_project_state.py`
-
-Result: PASS
-
-Output:
-
-```text
-158 passed in 18.59s
-```
-
-### lint-decision
-
-Command:
-
-`python -m reverse_agent.project_state lint-decision --state-dir project_state`
-
-Result: PASS
-
-### lint-report
-
-Command:
-
-`python -m reverse_agent.project_state lint-report --state-dir project_state`
-
-Result: PASS
-
-Note: emitted expected warning that `round_20260607_winpty_validator_lifecycle_hardening_v1` is not archived yet.
-
-### status
-
-Command:
-
-`python -m reverse_agent.project_state status --state-dir project_state`
-
-Result: PASS
-
-Key output:
-
-```text
-report_status=SUCCESS
-acceptance_recommendation=ACCEPTED
-decision_execution_state=CONSUMED_BY_SUCCESS_REPORT
-```
-
-### git diff check
-
-Command:
-
-`git diff --check`
-
-Result: PASS
-
-Note: git emitted CRLF replacement warnings only.
-
-### git status
-
-Command:
-
-`git status --short`
-
-Result: PASS
-
-Output:
-
-```text
- M project_state/artifact_index.json
- M project_state/codex_execution_report.md
- M project_state/decision_packet.md
- M project_state/local_reverse_training_status.json
- M project_state/pytest_result.txt
- M reverse_agent/local_reverse_console_pair_validator.py
- M tests/test_local_reverse_console_pair_validator.py
-?? project_state/local_reverse_winpty_backend_lifecycle_hardening.json
-```
-
-### git diff name-status
-
-Command:
-
-`git diff --name-status`
-
-Result: PASS
-
-Output:
-
-```text
-M	project_state/artifact_index.json
-M	project_state/codex_execution_report.md
-M	project_state/decision_packet.md
-M	project_state/local_reverse_training_status.json
-M	project_state/pytest_result.txt
-M	reverse_agent/local_reverse_console_pair_validator.py
-M	tests/test_local_reverse_console_pair_validator.py
-```
-
-### content assertions
-
-Result: PASS
-
-Checked:
-
-- hardening artifact has `executed_real_sample=false`.
-- hardening artifact has `repeated_ippio_jppio_validation=false`.
-- hardening artifact keeps `candidate=null`, `known_candidate=""`, and `solved=false`.
-- artifact index registers `local_reverse_winpty_backend_lifecycle_hardening` as current.
-- `cpp2_2f64e68d` remains `training_status=blocked` with empty `known_candidate`.
-- stale `mature_backend_missing` was removed only from `cpp2_2f64e68d` evidence sources.
+=== Summary ===
+- py_compile: PASS
+- test_local_reverse_console_pair_validator: 31 passed
+- test_project_state: 158 passed
+- lint-decision: PASS
+- lint-report: FAILED (expected: old report mismatch before update)
+- status: PASS
+- synthetic smoke: BLOCKED (infrastructure bug in _run_single_winpty appname for .py targets)
+- Phase B: SKIPPED (smoke blocked)

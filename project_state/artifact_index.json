@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-06T05:01:04Z",
+  "generated_at": "2026-06-07T05:31:31Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -80,7 +80,8 @@
     "local_reverse_cpp2_2f64e68d_training_status_sync": "project_state\\local_reverse_cpp2_2f64e68d_training_status_sync.json",
     "local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness": "project_state\\local_reverse_cpp2_2f64e68d_winpty_validator_adapter_readiness.json",
     "local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation": "project_state\\local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
-    "local_reverse_winpty_backend_lifecycle_hardening": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json"
+    "local_reverse_winpty_backend_lifecycle_hardening": "project_state\\local_reverse_winpty_backend_lifecycle_hardening.json",
+    "local_reverse_winpty_synthetic_smoke": "project_state\\local_reverse_winpty_synthetic_smoke.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -883,6 +884,16 @@
       "size_bytes": 2377,
       "modified_at": "2026-06-07T05:06:27Z",
       "sample_id": "cpp2_2f64e68d"
+    },
+    "local_reverse_winpty_synthetic_smoke": {
+      "kind": "local_reverse_winpty_synthetic_smoke",
+      "path": "project_state\\local_reverse_winpty_synthetic_smoke.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_2f64e68d_winpty_revalidation_after_hardening_v1",
+      "sha256": "cd8af9f9bab2d2f201ba125c3cf40437284894e0aa6fae48d55439d26a1774d8",
+      "size_bytes": 773,
+      "modified_at": "2026-06-07T05:31:31Z",
+      "sample_id": "synthetic"
     }
   },
   "latest_case_results": [
