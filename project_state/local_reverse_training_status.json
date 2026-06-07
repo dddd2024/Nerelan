@@ -4,13 +4,13 @@
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
-    "solved": 3,
+    "solved": 4,
     "blocked": 4,
     "needs_triage": 0,
-    "inventory_only": 22,
+    "inventory_only": 21,
     "blocked_count": 4,
-    "inventory_only_count": 22,
-    "solved_count": 3
+    "inventory_only_count": 21,
+    "solved_count": 4
   },
   "summary_sync_round_id": "round_20260607_local_reverse_training_status_summary_sync_v1",
   "summary_sync_decision_id": "decision_20260607_local_reverse_training_status_summary_sync_v1",
@@ -250,12 +250,19 @@
         "cpp",
         "pe"
       ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
+      "training_status": "solved",
+      "known_candidate": "KEEP_DREAM",
       "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
+      "classification": "oracle_backed_runtime_validated",
+      "evidence_sources": [
+        "source:local_reverse_cpp2_32f1713e_targeted_static_solving.json",
+        "source:local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+        "runtime_validation",
+        "runtime_validated_success",
+        "positive_candidate:KEEP_DREAM",
+        "negative_control:KEEP_DREAN"
+      ],
+      "next_action": "sample solved by bounded runtime validation; no further solving required"
     },
     {
       "sample_id": "cpp2_883e67b9",

@@ -1,33 +1,26 @@
-decision_id=decision_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1
-report_id=report_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1
-round_id=round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1
+decision_id=decision_20260607_cpp2_32f1713e_training_status_sync_v1
+report_id=report_20260607_cpp2_32f1713e_training_status_sync_v1
+round_id=round_20260607_cpp2_32f1713e_training_status_sync_v1
 
 === Content Assertions ===
-1. source targeted_static_solving artifact is current/SUCCESS/unvalidated candidate KEEP_DREAM: PASS
-2. source readiness artifact is current/READY: PASS
-3. sample identity reverified by size and sha256: PASS
-4. existing runtime/console validation interface inspected before execution: PASS
-5. exactly positive candidate KEEP_DREAM and negative control KEEP_DREAN were executed: PASS
-6. no debugger/hook/emulator/probe/instrumentation was used: PASS
-7. no brute force/dictionary/search/fuzzing was used: PASS
-8. runtime validation artifact exists: PASS
-9. validation_status follows VALIDATED/REJECTED/AMBIGUOUS/BLOCKED/FAILED rules: PASS (VALIDATED)
-10. artifact_index registers local_reverse_cpp2_32f1713e_keep_dream_runtime_validation as current: PASS
-11. stdout snippets are bounded and contain no full dump: PASS
-12. no binary was uploaded, copied, embedded, or committed: PASS
-13. no memory dumps/screenshots/full disassembly/full decompilation were recorded: PASS
-14. training_status/status_overlay sample state unchanged: PASS
-15. cpp2_2f64e68d solved facts unchanged: PASS
+1. source runtime validation artifact is current/VALIDATED/KEEP_DREAM: PASS
+2. source targeted_static_solving artifact is current/SUCCESS/KEEP_DREAM: PASS
+3. pre-sync cpp2_32f1713e status was inventory_only/known_candidate="": PASS
+4. post-sync cpp2_32f1713e status is solved/known_candidate=KEEP_DREAM: PASS
+5. project_state/local_reverse_training_status.json aggregate counts: solved=4, blocked=4, needs_triage=0, inventory_only=21, sample_count=29: PASS
+6. training_materials/local_reverse/status_overlay.json aggregate counts: solved=4, blocked=4, needs_triage=0, inventory_only=21, sample_count=29: PASS
+7. evidence sources include runtime validation artifact: PASS
+8. cpp2_2f64e68d solved facts remain unchanged: PASS
+9. unrelated sample statuses remain unchanged: PASS
+10. no sample executable was run: PASS
+11. no runtime tools/debugger/hook/emulator/probe were run: PASS
+12. no brute force/dictionary/search/fuzzing was run: PASS
+13. no binary was uploaded, copied, embedded, or committed: PASS
+14. sync artifact exists: PASS
+15. artifact_index registers local_reverse_cpp2_32f1713e_training_status_sync as current: PASS
 16. pytest_result uses this decision_id/report_id/round_id: PASS
 17. final lint-report ran after report write: PASS
 18. git diff --name-status only contains allowed files: PASS
-
-=== Runtime Validation Results ===
-- Positive candidate (KEEP_DREAM): success_observed=True, failure_observed=False, stdout contains "Congratulations! You are right!"
-- Negative control (KEEP_DREAN): success_observed=False, failure_observed=True, stdout contains "Sorry, you are wrong!"
-- Oracle verdict: VALIDATED
-- Execution method: subprocess.Popen with stdin pipe (existing pattern)
-- Timeout: 10s, no timeout occurred
 
 === pytest output ===
 158 passed in tests/test_project_state.py

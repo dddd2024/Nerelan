@@ -96,7 +96,8 @@
     "local_reverse_cpp2_32f1713e_bounded_static_extraction": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
     "local_reverse_cpp2_32f1713e_targeted_static_solve": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json",
     "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
-    "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json"
+    "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+    "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1106,6 +1107,28 @@
       "control_failure_signal_captured": true,
       "source_static_solving_artifact": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
       "training_status_modified": false
+    },
+    "local_reverse_cpp2_32f1713e_training_status_sync": {
+      "kind": "local_reverse_training_status_sync",
+      "path": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json",
+      "freshness": "current",
+      "source_run": "round_20260607_cpp2_32f1713e_training_status_sync_v1",
+      "sha256": "ab170f42ab89afb01b834edd704d5b22de78cd5b0ea3231fb36eabc2ae957533",
+      "size_bytes": 2347,
+      "modified_at": "2026-06-07T15:00:00Z",
+      "sample_id": "cpp2_32f1713e",
+      "candidate": "KEEP_DREAM",
+      "training_status": "solved",
+      "known_candidate": "KEEP_DREAM",
+      "source_runtime_validation_artifact": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+      "source_runtime_validation_status": "VALIDATED",
+      "aggregate_counts_after": {
+        "sample_count": 29,
+        "solved": 4,
+        "blocked": 4,
+        "needs_triage": 0,
+        "inventory_only": 21
+      }
     }
   },
   "latest_case_results": [
@@ -1258,6 +1281,7 @@
     "local_reverse_cpp2_32f1713e_bounded_static_extraction": "project_state\\local_reverse_cpp2_32f1713e_bounded_static_extraction.json",
     "local_reverse_cpp2_32f1713e_targeted_static_solve": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solve.json",
     "local_reverse_cpp2_32f1713e_targeted_static_solving": "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
-    "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json"
+    "local_reverse_cpp2_32f1713e_keep_dream_runtime_validation": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+    "local_reverse_cpp2_32f1713e_training_status_sync": "project_state\\local_reverse_cpp2_32f1713e_training_status_sync.json"
   }
 }

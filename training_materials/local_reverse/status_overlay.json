@@ -4,10 +4,10 @@
   "source_inventory_hint": "LOCAL_REVERSE_ROOT",
   "sample_count": 29,
   "status_summary": {
-    "solved": 3,
+    "solved": 4,
     "blocked": 4,
     "needs_triage": 0,
-    "inventory_only": 22
+    "inventory_only": 21
   },
   "samples": [
     {
@@ -134,9 +134,13 @@
         "cpp",
         "pe"
       ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": ""
+      "training_status": "solved",
+      "known_candidate": "KEEP_DREAM",
+      "blocked_reason": "",
+      "solved_by": "bounded_runtime_validation",
+      "solved_at": "2026-06-07T15:00:00Z",
+      "solved_round": "round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1",
+      "evidence_source": "project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json"
     },
     {
       "sample_id": "cpp2_883e67b9",
