@@ -1,43 +1,20 @@
-decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_v1
-report_id=report_20260607_cpp2_883e67b9_targeted_static_solving_v1
-round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_v1
+decision_id=decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
+report_id=report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
+round_id=round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1
 
 === Content Assertions ===
-1. source extraction artifact is current/SUCCESS/identity_verified: PASS
-2. training_status remains inventory_only/known_candidate="": PASS
-3. sample identity reverified by size and sha256: PASS
-4. existing static extraction interfaces checked before tool use: PASS
-5. no duplicate tool interface created: PASS
-6. targeted static solving artifact exists: PASS
-7. static_solving_status follows SUCCESS/BLOCKED/FAILED rules: PASS (SUCCESS)
-8. artifact_index registers local_reverse_cpp2_883e67b9_targeted_static_solving as current: PASS
-9. PE mapping re-derived and extraction artifact errors corrected: PASS
-10. bounded window analysis performed on all 3 candidate regions: PASS
-11. constants documented in assert_path (10 constants found): PASS
-12. backward jump loop indicators documented (5 found): PASS
-13. Sorry string indirect ref search performed: PASS
-14. input length inference attempted: PASS
-15. candidate_generated=false: PASS
-16. candidate_validated=false: PASS
-17. unvalidated_candidate_hypothesis.candidate=null: PASS
-18. training_status/status_overlay not modified: PASS
-19. no sample executable was run: PASS
-20. no runtime tools/debugger/hook/emulator/probe: PASS
-21. no brute force/dictionary/search/fuzzing: PASS
-22. no binary was uploaded, copied, embedded, or committed: PASS
-23. artifact contains no raw binary/full disassembly/decompilation: PASS
-24. pytest_result uses this decision_id/report_id/round_id: PASS
-25. git diff --name-status only contains allowed files: PASS
-
-=== Static Solving Results ===
-- PE mapping re-derived: image_base=0x400000, .text vaddr=0x1000
-- Extraction artifact correction: region_rva_start values 0xead/0xce6 corrected to actual anchor RVAs
-- prompt_path (0x4010ad): 5 constants, 7 calls, 22 jcc, 17 mov_imm
-- failure_path (0x4010e6): co-located with prompt_path
-- assert_path (0x4061c3): 10 constants, 11 cmp/test, 27 calls, 72 jcc, 5 backward jump loops
-- Challenge type: multi_phase_console_password_checker_with_loop_comparison
-- Similarity to cpp2_32f1713e: high (same course/name/strings) but different logic
-- No candidate extracted — requires deeper disassembly or runtime tracing
+1. static_solving_status corrected to PARTIAL: PASS
+2. partial_reason field added: PASS
+3. validation_status corrected to no_candidate: PASS
+4. next_recommended_mainline corrected to tool_integration: PASS
+5. decision_id/round_id match this rework decision: PASS
+6. bounded region analysis preserved: PASS
+7. training_status/status_overlay unchanged: PASS
+8. no sample executable was run: PASS
+9. no runtime tools/debugger/hook/emulator: PASS
+10. artifact_index updated with new sha256/status: PASS
+11. pytest_result uses this rework decision_id/report_id/round_id: PASS
+12. git diff --name-status only contains allowed files: PASS
 
 === pytest output ===
 158 passed in tests/test_project_state.py

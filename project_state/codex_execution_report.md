@@ -1,11 +1,11 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260607_cpp2_883e67b9_targeted_static_solving_v1",
-  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_v1",
-  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_v1",
+  "report_id": "report_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1",
+  "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1",
+  "based_on_decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v1",
   "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
     "project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json",
     "project_state/artifact_index.json",
@@ -22,9 +22,7 @@
     "git status --short",
     "git diff --name-status"
   ],
-  "generated_artifacts": [
-    "project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json"
-  ]
+  "generated_artifacts": []
 }
 ```
 
@@ -34,99 +32,49 @@
 
 - **decision_packet is the sole execution authority**: Confirmed.
 - **mainline = tool_integration**: Confirmed.
-- **This is targeted static solving, not runtime validation or training status sync**: Confirmed.
+- **This is a metadata rework of targeted_static_solving artifact**: Confirmed.
 - **task_packet.task remains advisory**: Confirmed.
 
-## 2. State Preflight (Phase A)
+## 2. Issues Fixed
 
-- Source extraction artifact: `local_reverse_cpp2_883e67b9_bounded_static_extraction.json` — extraction_status=SUCCESS, identity_verified=true, expected_sha256=883e67b9... **Confirmed.**
-- Training status: cpp2_883e67b9.training_status=inventory_only, known_candidate="", blocked_reason="". **Confirmed.**
-- Identity reverified: size=196689, sha256=883e67b9... **Match.**
+| Issue | Legacy Value | Fixed Value |
+|-------|-------------|-------------|
+| decision_id/round_id | `...targeted_static_solving_v1` | `...targeted_static_solving_rework_v1` |
+| static_solving_status | SUCCESS | **PARTIAL** |
+| partial_reason | (missing) | **bounded_region_analysis_complete_but_no_candidate_extracted** |
+| unvalidated_candidate_hypothesis.validation_status | unvalidated | **no_candidate** |
+| next_recommended_mainline | reverse_solving | **tool_integration** |
+| next_recommended_action | mentioned specific runtime steps | **neutral status summary** |
 
-## 3. Tool Interface Inspection (Phase B)
+## 3. Bounded Region Analysis (Preserved)
 
-- `local_reverse_xref_disassembly.py`: Available with PEMapping, rva_to_raw, raw_to_rva, va_to_raw. **Reused patterns.**
-- `evidence.py`: StructuredEvidence available. **Not used (structured_evidence_ready=false).**
-- No new interface created. **Confirmed.**
+The valuable bounded window analysis from the prior round is preserved:
+- assert_path: 10 constants, 5 backward jump loops, 72 jcc
+- prompt_path/failure_path: co-located at 0x1000-0x1500
+- Challenge type: multi_phase_console_password_checker_with_loop_comparison
 
-## 4. PE Mapping Re-derivation (Phase C)
+## 4. Artifact Index Updated
 
-- Image base: 0x400000, .text vaddr=0x1000, .rdata vaddr=0x27000
-- **Extraction artifact correction**: region_rva_start values 0xead/0xce6 were below .text vaddr(0x1000). Corrected to actual anchor RVAs: prompt=0x10ad, failure=0x10e6, assert=0x61c3.
-- rdata string raw_offsets (0x2702c etc) confirmed correct.
+- `latest_artifacts_v2.static_solving_status`: SUCCESS → **PARTIAL**
+- `latest_artifacts_v2.source_run`: updated to rework round_id
+- `latest_artifacts_v2.sha256`: updated to new hash
+- `latest_artifacts_v2.next_recommended_mainline`: reverse_solving → **tool_integration**
 
-## 5. Bounded Window Analysis (Phase D)
-
-### prompt_path (0x4010ad, window 0x1000-0x1500)
-- 5 constants, 7 calls, 22 jcc, 17 mov_imm
-- Semantic: input_prompt_and_initial_setup_path
-
-### failure_path (0x4010e6, window 0x1000-0x1500)
-- Same window as prompt_path (co-located)
-- Semantic: initial_phase_failure_handler
-
-### assert_path (0x4061c3, window 0x5f00-0x6500)
-- **10 constants**: cmp_al_imm8(194), cmp_imm8(1), cmp_al_imm8(141), cmp_al_imm8(133), cmp_imm32(0x1102), cmp_imm8(1), cmp_imm32(0x10c), cmp_imm32(0x108), cmp_imm8(255), cmp_imm32(0x100)
-- 11 cmp/test, 27 calls, 72 jcc
-- **5 backward jump loop indicators**
-- Semantic: main_comparison_logic_with_loops_and_constant_checks
-
-### Sorry String
-- No direct or indirect references found in .text
-- Likely referenced via register or function pointer table
-
-### Input Length
-- No obvious buffer size checks found
-- Length likely determined by null-termination or comparison loop
-
-## 6. Artifact Generated (Phase E)
-
-`project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json`:
-- static_solving_status = **SUCCESS**
-- identity_verified = **true**
-- candidate_generated = **false**
-- unvalidated_candidate_hypothesis.candidate = **null**
-- structured_evidence_ready = **false**
-
-## 7. Limitation Note
-
-No candidate was statically extracted. The challenge uses multi-phase comparison with loops and constant checks, which is more complex than cpp2_32f1713e's direct string comparison. Deeper disassembly or runtime tracing would be needed to recover the exact expected input.
-
-## 8. Artifact Index Registration (Phase F)
-
-Registered in all three locations:
-- `latest_artifacts["local_reverse_cpp2_883e67b9_targeted_static_solving"]` ✅
-- `latest_artifacts_v2["local_reverse_cpp2_883e67b9_targeted_static_solving"]` (kind=local_reverse_targeted_static_solving) ✅
-- `artifact_refs["local_reverse_cpp2_883e67b9_targeted_static_solving"]` ✅
-
-## 9. Audit Checklist
+## 5. Audit Checklist
 
 | # | Check | Result |
 |---|-------|--------|
 | 1 | Confirmed decision_packet is sole authority | PASS |
-| 2 | Confirmed mainline=tool_integration | PASS |
-| 3 | Confirmed this is targeted static solving | PASS |
-| 4 | Source extraction artifact current/SUCCESS/identity_verified | PASS |
-| 5 | cpp2_883e67b9 training_status remains inventory_only | PASS |
-| 6 | Sample identity reverified by size and sha256 | PASS |
-| 7 | Existing static extraction interfaces checked before tool use | PASS |
-| 8 | No duplicate tool interface created | PASS |
-| 9 | PE mapping re-derived and extraction artifact errors corrected | PASS |
-| 10 | Bounded window analysis performed on all 3 candidate regions | PASS |
-| 11 | Constants, calls, jcc, loops documented in assert_path | PASS |
-| 12 | Sorry string indirect ref search performed | PASS |
-| 13 | Input length inference attempted | PASS |
-| 14 | candidate_generated=false | PASS |
-| 15 | candidate_validated=false | PASS |
-| 16 | unvalidated_candidate_hypothesis.candidate=null | PASS |
-| 17 | training_status/status_overlay not modified | PASS |
-| 18 | No sample executable run | PASS |
-| 19 | No runtime tools/debugger/hook/emulator/probe | PASS |
-| 20 | No brute force/dictionary/search/fuzzing | PASS |
-| 21 | No binary uploaded/copied/embedded/committed | PASS |
-| 22 | Artifact contains no raw binary/full disassembly/decompilation | PASS |
-| 23 | Generated targeted_static_solving artifact | PASS |
-| 24 | Registered in latest_artifacts/latest_artifacts_v2/artifact_refs | PASS |
-| 25 | Ran py_compile/pytest/lint/status/git checks | PASS |
-| 26 | pytest_result uses this decision_id/report_id/round_id | PASS |
-| 27 | git diff only contains allowed files | PASS |
+| 2 | static_solving_status corrected to PARTIAL | PASS |
+| 3 | partial_reason field added | PASS |
+| 4 | validation_status corrected to no_candidate | PASS |
+| 5 | next_recommended_mainline corrected to tool_integration | PASS |
+| 6 | decision_id/round_id match this rework decision | PASS |
+| 7 | Bounded region analysis preserved | PASS |
+| 8 | training_status/status_overlay unchanged | PASS |
+| 9 | No sample execution | PASS |
+| 10 | No runtime tools/debugger/hook/emulator | PASS |
+| 11 | artifact_index updated with new sha256/status | PASS |
+| 12 | Ran py_compile/pytest/lint/status/git checks | PASS |
+| 13 | pytest_result uses this rework decision_id/report_id/round_id | PASS |
+| 14 | git diff only contains allowed files | PASS |
