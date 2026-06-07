@@ -51,6 +51,16 @@
   "known_candidate": "10013",
   "solved": true,
   "blocked_reason": "",
+  "timeout_after_oracle_signal_captured": true,
+  "timeout_source": "system_pause",
+  "timeout_treated_as_non_blocking_for_oracle_classifier": true,
+  "exit_code_required_for_oracle_verdict": false,
+  "oracle_verdict_source": "ansi_stripped_stdout_substring_match",
+  "candidate_success_signal_captured_before_timeout": true,
+  "control_failure_signal_captured_before_timeout": true,
+  "rework_decision_id": "decision_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+  "rework_round_id": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+  "rework_explanation": "Both candidate and control runs timed out due to system(\"pause\") waiting for keyboard input. However, the oracle success/failure signals ('Ok, you know it. Just hang on.' / 'Sorry! Hang on!') were fully captured in stdout before the timeout occurred. The timeout is therefore non-blocking for oracle-based classification, which relies on ANSI-stripped stdout substring matching rather than exit code or process termination state.",
   "target_sha256": "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
   "generated_at": "2026-06-07T08:26:33Z"
 }

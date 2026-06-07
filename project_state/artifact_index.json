@@ -898,7 +898,13 @@
       "sha256": "96abea1ff73855dd757b4729ee343a726c163c8717943afb627cca9ab54ae9fd",
       "size_bytes": 2068,
       "modified_at": "2026-06-07T14:00:00Z",
-      "sample_id": "cpp2_2f64e68d"
+      "sample_id": "cpp2_2f64e68d",
+      "rework_review": {
+        "rework_round_id": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+        "rework_decision_id": "decision_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+        "artifact_modified_in_rework": false,
+        "review_note": "Artifact content unchanged in rework. Content audited and confirmed correct: raw_candidate_input=10013, negative_control_input=20013, inverse derivation verified."
+      }
     },
     "local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime": {
       "kind": "local_reverse_console_winpty_runtime_validation",
@@ -908,17 +914,29 @@
       "sha256": "5c89010bf81f50edc1cb434fb24e1e4d3cc8c280f1435bd44826008af8a20e9f",
       "size_bytes": 2213,
       "modified_at": "2026-06-07T14:00:00Z",
-      "sample_id": "cpp2_2f64e68d"
+      "sample_id": "cpp2_2f64e68d",
+      "rework_review": {
+        "rework_round_id": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+        "rework_decision_id": "decision_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+        "artifact_modified_in_rework": false,
+        "review_note": "Artifact content unchanged in rework. Content audited and confirmed correct: candidate stdout contains success signal 'Ok, you know it. Just hang on.', control stdout contains failure signal 'Sorry! Hang on!'. Both timed out due to system(\"pause\")."
+      }
     },
     "local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation": {
       "kind": "local_reverse_oracle_backed_runtime_validation",
       "path": "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
       "freshness": "current",
-      "source_run": "round_20260607_cpp2_2f64e68d_raw_input_oracle_backed_revalidation_v1",
-      "sha256": "5b3124297b27026eb4d97731180756e20c3a757e12af682d0f911326dbf1a764",
-      "size_bytes": 2293,
-      "modified_at": "2026-06-07T14:00:00Z",
-      "sample_id": "cpp2_2f64e68d"
+      "source_run": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+      "sha256": "82e3ff1fa0f6f4cf2df83e4f368433213730d466a1a1747e83c73cce5b766213",
+      "size_bytes": 3318,
+      "modified_at": "2026-06-07T15:00:00Z",
+      "sample_id": "cpp2_2f64e68d",
+      "rework_review": {
+        "rework_round_id": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+        "rework_decision_id": "decision_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+        "artifact_modified_in_rework": true,
+        "review_note": "Artifact modified in rework to add timeout semantic explanation fields: timeout_after_oracle_signal_captured, timeout_source=system_pause, timeout_treated_as_non_blocking_for_oracle_classifier, exit_code_required_for_oracle_verdict=false, oracle_verdict_source, candidate_success_signal_captured_before_timeout, control_failure_signal_captured_before_timeout."
+      }
     },
     "local_reverse_winpty_backend_lifecycle_hardening": {
       "kind": "local_reverse_winpty_backend_lifecycle_hardening",

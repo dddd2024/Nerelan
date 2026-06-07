@@ -151,9 +151,16 @@
         "source:local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
         "raw_input_winpty_pair_runtime",
         "source:local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
-        "oracle_backed_runtime_validation_validated_success"
+        "oracle_backed_runtime_validation_validated_success",
+        "source_run:round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+        "rework_audit:timeout_semantics_explained",
+        "rework_audit:system_pause_timeout_non_blocking_for_oracle_classifier",
+        "rework_audit:oracle_signals_captured_before_timeout_confirmed",
+        "rework_audit:provenance_mismatch_resolved",
+        "rework_audit:artifact_index_source_run_corrected",
+        "rework_audit:report_id_round_id_aligned"
       ],
-      "next_action": "Solved via oracle-backed runtime validation. Raw input=10013, transformed=ippio. Candidate accepted (success signal 'Ok, you know it. Just hang on.'), control rejected (failure signal 'Sorry! Hang on!')."
+      "next_action": "Solved via oracle-backed runtime validation (rework audited). Raw input=10013, transformed=ippio. Timeout is non-blocking for oracle classifier because success/failure signals were fully captured in stdout before system('pause') caused timeout. Candidate accepted (success signal), control rejected (failure signal)."
     },
     {
       "sample_id": "cpp2_4c69f173",
