@@ -1,0 +1,248 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "artifact_kind": "local_reverse_input_length_evidence_recovery",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "round_id": "round_20260608_cpp2_883e67b9_input_length_evidence_recovery_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_input_length_evidence_recovery_v1",
+  "generated_at": "2026-06-08T06:00:00Z",
+  "identity": {
+    "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "actual_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "expected_size_bytes": 196689,
+    "actual_size_bytes": 196689,
+    "identity_verified": true
+  },
+  "source_artifacts": [
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_compare_constants_mapping",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_compare_constants_mapping.json",
+      "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_missing_branch_reconciliation",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json",
+      "round_id": "round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_loop_semantics_mapping",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_loop_semantics_mapping.json",
+      "round_id": "round_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_structured_evidence_projection",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_structured_evidence_projection.json",
+      "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
+      "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "status": "PARTIAL",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_static_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    }
+  ],
+  "source_status": {
+    "compare_constants_mapping": "SUCCESS",
+    "missing_branch_reconciliation": "SUCCESS",
+    "loop_semantics_mapping": "SUCCESS",
+    "structured_evidence_projection": "SUCCESS",
+    "targeted_static_solving": "PARTIAL",
+    "bounded_static_extraction": "SUCCESS"
+  },
+  "assert_path_region": {
+    "start_rva": "0x5f00",
+    "end_rva_exclusive": "0x6500",
+    "focus_assert_path_rva": "0x61c3",
+    "focus_assert_path_va": "0x4061c3",
+    "section": ".text",
+    "window_size": 1536,
+    "instruction_count_scanned": 798,
+    "semantic_hypothesis": "main_comparison_logic_with_loops_and_constant_checks"
+  },
+  "length_related_sites": [
+    {
+      "rva": "0x64e5",
+      "type": "cmp_imm32",
+      "value": 256,
+      "value_hex": "0x100",
+      "nearby_loop_cluster": "loop_0x647d_0x62bb",
+      "nearby_branch_sites": ["0x647d"],
+      "source_artifacts": ["compare_constants_mapping", "loop_semantics_mapping", "structured_evidence_projection", "targeted_static_solving"],
+      "length_role_hypothesis": "byte_domain_loop_bound",
+      "confidence": "medium",
+      "supports_input_length": false,
+      "blocks_candidate_construction": true,
+      "reasoning": "cmp with 0x100 (256) near the large outer loop 0x647d->0x62bb (span=0x1c2=450 bytes). 256 is the number of possible byte values (0-255). This is a classic byte-domain iteration bound, commonly used in histogram/frequency counting or byte-distribution analysis loops. However, it does NOT directly indicate input length. The input could be any length; 0x100 is the range of byte values being iterated over, not the count of input characters. Without runtime evidence or deeper disassembly, cannot confirm this as input length."
+    },
+    {
+      "rva": "0x6438",
+      "type": "cmp_imm8",
+      "value": 255,
+      "value_hex": "0xff",
+      "nearby_loop_cluster": "loop_0x647d_0x62bb",
+      "nearby_branch_sites": ["0x647d"],
+      "source_artifacts": ["compare_constants_mapping", "loop_semantics_mapping", "structured_evidence_projection", "targeted_static_solving"],
+      "length_role_hypothesis": "sentinel_or_mask",
+      "confidence": "medium",
+      "supports_input_length": false,
+      "blocks_candidate_construction": true,
+      "reasoning": "cmp with 0xff (255) near the same large outer loop 0x647d->0x62bb. 0xff is a classic sentinel/mask value: (1) byte mask for truncating to low 8 bits, (2) EOF indicator (-1 as unsigned char), (3) maximum byte value in a 0-255 range check. Paired with 0x64e5 (cmp 0x100), this likely represents the upper bound check within a byte-domain loop (0-255 inclusive, exit when >= 256). Not a direct input length indicator."
+    },
+    {
+      "rva": "0x629f",
+      "type": "cmp_imm32",
+      "value": 268,
+      "value_hex": "0x10c",
+      "nearby_loop_cluster": "loop_0x647d_0x62bb",
+      "nearby_branch_sites": ["0x6290", "0x6294", "0x62a7", "0x62b2", "0x647d"],
+      "source_artifacts": ["compare_constants_mapping", "loop_semantics_mapping", "structured_evidence_projection", "targeted_static_solving"],
+      "length_role_hypothesis": "table_or_buffer_offset",
+      "confidence": "low",
+      "supports_input_length": false,
+      "blocks_candidate_construction": false,
+      "reasoning": "cmp with 0x10c (268) within the span of loop_0x647d_0x62bb. This is a 32-bit value that does not correspond to a typical character constant or byte-domain bound. Could be a table offset, buffer index, or structure field accessor. The value 268 is not a power of 2 and does not align with common input length patterns. Very close to 0x62cb (0x108=264), difference of 4, suggesting possible struct field offsets or adjacent table entries."
+    },
+    {
+      "rva": "0x62cb",
+      "type": "cmp_imm32",
+      "value": 264,
+      "value_hex": "0x108",
+      "nearby_loop_cluster": "loop_0x647d_0x62bb",
+      "nearby_branch_sites": ["0x6290", "0x6294", "0x62a7", "0x62b2", "0x647d"],
+      "source_artifacts": ["compare_constants_mapping", "loop_semantics_mapping", "structured_evidence_projection", "targeted_static_solving"],
+      "length_role_hypothesis": "table_or_buffer_offset",
+      "confidence": "low",
+      "supports_input_length": false,
+      "blocks_candidate_construction": false,
+      "reasoning": "cmp with 0x108 (264) within the span of loop_0x647d_0x62bb. Similar to 0x629f (0x10c=268), this is a 32-bit value likely representing a table offset or buffer index rather than input length. The difference of 4 from 0x10c suggests adjacent struct fields or table entries. Not a typical input length value."
+    }
+  ],
+  "loop_0x647d_0x62bb_context": {
+    "backward_jump_rva": "0x647d",
+    "backward_jump_va": "0x40647d",
+    "mnemonic": "jmp",
+    "target_rva": "0x62bb",
+    "span_rva": "0x1c2",
+    "span_bytes": 450,
+    "semantic_hypothesis": "outer_control_flow_or_post_compare_loop",
+    "contains_length_sites": ["0x629f", "0x62cb", "0x6438", "0x64e5"],
+    "branch_count_in_span": 28,
+    "interpretation": "This large loop (450 bytes) contains all 4 length-related compare sites. The loop spans from 0x62bb to 0x647d and includes multiple inner branches. The 0x64e5 (cmp 0x100) and 0x6438 (cmp 0xff) sites are near the loop's backward jump at 0x647d, suggesting they may be part of the loop's exit condition or a late-phase check within the loop body. The 0x629f (cmp 0x10c) and 0x62cb (cmp 0x108) sites are earlier in the loop body, possibly part of table/buffer access logic. The loop's large span and multiple inner branches suggest it is a multi-phase processing loop, not a simple character-by-character comparison."
+  },
+  "input_length_analysis": {
+    "known_input_length": null,
+    "known_input_length_source": "none",
+    "input_length_confirmed": false,
+    "input_length_status": "UNRESOLVED_WITH_HINTS",
+    "input_length_status_reason": "4 length-related sites analyzed. 0x64e5 (cmp 0x100) and 0x6438 (cmp 0xff) are best interpreted as byte-domain loop bound and sentinel/mask respectively, not as direct input length indicators. 0x629f (cmp 0x10c) and 0x62cb (cmp 0x108) are table/buffer offsets. No site provides direct evidence of input length. The assert_path region (0x5f00-0x6500) contains no obvious strlen-like pattern, no explicit length comparison against a small constant (e.g., cmp 0x5, cmp 0x10), and no null-termination check that can be confirmed from bounded annotation alone. Input length may be determined by null-termination (implicit strlen) or by the comparison loop's own termination condition, but neither can be confirmed without runtime evidence or deeper disassembly.",
+    "possible_input_length_mechanisms": [
+      {
+        "mechanism": "null_terminated_string",
+        "likelihood": "medium",
+        "evidence": "Console password checkers typically use null-terminated strings (C string convention). No explicit strlen call found in bounded window, but the comparison loops at 0x6081 and 0x61e8 may implicitly terminate on null byte.",
+        "blocks": "Cannot confirm without knowing loop exit condition"
+      },
+      {
+        "mechanism": "fixed_length_comparison",
+        "likelihood": "low",
+        "evidence": "No small constant length check found (e.g., cmp 0x5, cmp 0x10). The comparison loops use register-based iteration, not counter-based.",
+        "blocks": "If fixed length, the constant is not visible in bounded annotation"
+      },
+      {
+        "mechanism": "loop_terminates_on_compare_mismatch",
+        "likelihood": "medium",
+        "evidence": "Focus comparison loops at 0x6081 and 0x61e8 contain multiple cmp instructions. The loop may iterate until a mismatch is found, making input length equal to the number of successful comparisons before mismatch.",
+        "blocks": "Cannot confirm loop exit condition from bounded annotation"
+      }
+    ]
+  },
+  "evidence_gaps_carried_forward": [
+    {
+      "gap_id": "input_length_unknown",
+      "description": "No direct evidence of input length. Possible mechanisms: null-terminated, fixed-length (hidden), or compare-mismatch-terminated. None confirmed.",
+      "severity": "high",
+      "blocks": "candidate_construction"
+    },
+    {
+      "gap_id": "no_complete_formula_recovered",
+      "description": "Multi-phase loop comparison logic not fully reconstructed. No complete formula recovered.",
+      "severity": "high",
+      "blocks": "reverse_solving"
+    },
+    {
+      "gap_id": "known_compare_constant_count_zero",
+      "description": "Compare constants have semantic hypotheses but none are confirmed as 'known'. All remain unconfirmed pending deeper evidence.",
+      "severity": "medium",
+      "blocks": "solver_profile_normalization"
+    },
+    {
+      "gap_id": "structured_evidence_ready_false",
+      "description": "Source artifacts report structured_evidence_ready=false. Bounded annotation only; no capstone/pefile disassembly.",
+      "severity": "medium",
+      "blocks": "complete_formula_recovery"
+    },
+    {
+      "gap_id": "missing_backward_sites_unresolved",
+      "description": "Missing sites 0x5f68, 0x60a4, 0x60b6 classified as source_only_hint with low confidence from reconciliation.",
+      "severity": "low",
+      "blocks": "none"
+    }
+  ],
+  "formula_recovered": false,
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "recommended_next_mainline": "tool_integration",
+  "recommended_next_mainline_reason": "Input length evidence recovery completed with UNRESOLVED_WITH_HINTS. 4 length-related sites analyzed: 0x64e5 and 0x6438 are byte-domain loop bound/sentinel (not input length), 0x629f and 0x62cb are table/buffer offsets. No direct input length evidence found. Evidence gaps remain: no complete formula, input length unknown, compare constants unconfirmed, structured evidence not ready. reverse_solving would likely fail or require blind search. Continue tool_integration: consider bounded formula-readiness audit or deeper static reconstruction of focus comparison loops (0x6081, 0x61e8) to determine loop exit conditions and implicit length mechanism.",
+  "recommended_next_action": "Bounded formula-readiness audit: analyze focus comparison loops (0x6081->0x6059 and 0x61e8->0x61b7) to determine their exit conditions. If the loops terminate on compare mismatch or null byte, the implicit input length mechanism may become clear. Alternatively, prepare for runtime probe to directly observe input length behavior.",
+  "challenge_type_inferred": "multi_phase_console_password_checker_with_loop_comparison",
+  "similarity_to_cpp2_32f1713e": "high_same_course_same_name_similar_strings_different_logic",
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_ida": false,
+  "ran_ghidra": false,
+  "ran_debugger": false,
+  "ran_hook": false,
+  "ran_emulator": false,
+  "ran_probe": false,
+  "ran_bruteforce": false,
+  "ran_dictionary_search": false,
+  "uploaded_binary": false,
+  "helpers_or_tools_used": [
+    "python_stdlib_pe_parser",
+    "bounded_x86_byte_window_annotation",
+    "local_reverse_xref_disassembly_patterns",
+    "StructuredEvidence_lightweight_schema_reviewed"
+  ],
+  "optional_dependencies": {
+    "capstone_available": false,
+    "pefile_available": false
+  }
+}
