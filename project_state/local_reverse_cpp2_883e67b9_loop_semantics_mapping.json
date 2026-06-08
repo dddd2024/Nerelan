@@ -1,0 +1,335 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "artifact_kind": "local_reverse_loop_semantics_mapping",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "round_id": "round_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+  "generated_at": "2026-06-08T05:05:00Z",
+  "identity": {
+    "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "actual_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "expected_size_bytes": 196689,
+    "actual_size_bytes": 196689,
+    "identity_verified": true
+  },
+  "source_artifacts": [
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_structured_evidence_projection",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_structured_evidence_projection.json",
+      "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+      "decision_id": "decision_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+      "status": "PARTIAL",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_static_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
+      "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "status": "PARTIAL",
+      "identity_verified": true
+    }
+  ],
+  "source_status": {
+    "structured_evidence_projection": "SUCCESS",
+    "bounded_loop_evidence_extraction": "PARTIAL",
+    "bounded_static_extraction": "SUCCESS",
+    "targeted_static_solving": "PARTIAL"
+  },
+  "assert_path_region": {
+    "start_rva": "0x5f00",
+    "end_rva_exclusive": "0x6500",
+    "focus_assert_path_rva": "0x61c3",
+    "focus_assert_path_va": "0x4061c3",
+    "section": ".text",
+    "window_size": 1536,
+    "instruction_count_scanned": 798,
+    "interesting_instruction_count": 300,
+    "branch_count": 65,
+    "backward_branch_count": 5,
+    "semantic_hypothesis": "main_comparison_logic_with_loops_and_constant_checks"
+  },
+  "loop_clusters": [
+    {
+      "cluster_id": "loop_0x6040_0x6014",
+      "backward_jump_rva": "0x6040",
+      "backward_jump_va": "0x406040",
+      "mnemonic": "jmp",
+      "target_rva": "0x6014",
+      "span_rva": "0x2c",
+      "expected_focus_site": false,
+      "semantic_hypothesis": "outer_setup_or_state_init_loop",
+      "nearby_compares": [
+        {
+          "rva": "0x6059",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp+0x8], 0x0",
+          "immediate": 0,
+          "semantic_role": "unknown"
+        },
+        {
+          "rva": "0x6077",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "eax, 0x1",
+          "immediate": 1,
+          "semantic_role": "unknown"
+        }
+      ]
+    },
+    {
+      "cluster_id": "loop_0x6081_0x6059",
+      "backward_jump_rva": "0x6081",
+      "backward_jump_va": "0x406081",
+      "mnemonic": "jnz",
+      "target_rva": "0x6059",
+      "span_rva": "0x28",
+      "expected_focus_site": true,
+      "semantic_hypothesis": "focus_comparison_loop_candidate",
+      "nearby_compares": [
+        {
+          "rva": "0x6077",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "eax, 0x1",
+          "immediate": 1,
+          "semantic_role": "unknown"
+        },
+        {
+          "rva": "0x60a3",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp-0x4], 0x429a70",
+          "immediate": 4364912,
+          "semantic_role": "unknown"
+        },
+        {
+          "rva": "0x6059",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp+0x8], 0x0",
+          "immediate": 0,
+          "semantic_role": "unknown"
+        },
+        {
+          "rva": "0x60b5",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp-0x4], 0x429a90",
+          "immediate": 4364944,
+          "semantic_role": "unknown"
+        }
+      ]
+    },
+    {
+      "cluster_id": "loop_0x61e8_0x61b7",
+      "backward_jump_rva": "0x61e8",
+      "backward_jump_va": "0x4061e8",
+      "mnemonic": "jnz",
+      "target_rva": "0x61b7",
+      "span_rva": "0x31",
+      "expected_focus_site": true,
+      "semantic_hypothesis": "focus_comparison_loop_candidate",
+      "nearby_compares": [
+        {
+          "rva": "0x61f0",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp+0x8], 0x0",
+          "immediate": 0,
+          "semantic_role": "unknown"
+        },
+        {
+          "rva": "0x61de",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "eax, 0x1",
+          "immediate": 1,
+          "semantic_role": "unknown"
+        },
+        {
+          "rva": "0x61bd",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp+0x8], 0x1",
+          "immediate": 1,
+          "semantic_role": "unknown"
+        },
+        {
+          "rva": "0x61b7",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp+0x8], 0x0",
+          "immediate": 0,
+          "semantic_role": "unknown"
+        }
+      ]
+    },
+    {
+      "cluster_id": "loop_0x6390_0x6376",
+      "backward_jump_rva": "0x6390",
+      "backward_jump_va": "0x406390",
+      "mnemonic": "jnz",
+      "target_rva": "0x6376",
+      "span_rva": "0x1a",
+      "expected_focus_site": false,
+      "semantic_hypothesis": "secondary_state_or_cleanup_loop",
+      "nearby_compares": [
+        {
+          "rva": "0x6384",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp-0x1c], 0x0",
+          "immediate": 0,
+          "semantic_role": "unknown"
+        },
+        {
+          "rva": "0x63c2",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp-0x14], -1",
+          "immediate": -1,
+          "semantic_role": "unknown"
+        }
+      ]
+    },
+    {
+      "cluster_id": "loop_0x647d_0x62bb",
+      "backward_jump_rva": "0x647d",
+      "backward_jump_va": "0x40647d",
+      "mnemonic": "jmp",
+      "target_rva": "0x62bb",
+      "span_rva": "0x1c2",
+      "expected_focus_site": false,
+      "semantic_hypothesis": "outer_control_flow_or_post_compare_loop",
+      "nearby_compares": [
+        {
+          "rva": "0x645f",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ecx+0x18], 0x0",
+          "immediate": 0,
+          "semantic_role": "unknown"
+        },
+        {
+          "rva": "0x64b2",
+          "kind": "compare",
+          "mnemonic": "cmp",
+          "operands": "[ebp-0x50], 0x0",
+          "immediate": 0,
+          "semantic_role": "unknown"
+        }
+      ]
+    }
+  ],
+  "focus_backward_sites": {
+    "observed": ["0x6081", "0x61e8"],
+    "missing_from_annotation": ["0x5f68", "0x60a4", "0x60b6"],
+    "note": "Missing sites were identified as backward jumps in targeted_static_solving but not decoded by bounded_loop_evidence_extraction annotator."
+  },
+  "compare_constants_classification": {
+    "known_compare_constant_count": 0,
+    "cmp_test_count": 11,
+    "classification_status": "pending",
+    "assert_path_constants": [
+      {"type": "cmp_al_imm8", "rva": "0x5f38", "value": 194, "value_hex": "0xc2", "semantic_role": "unknown"},
+      {"type": "cmp_imm8", "rva": "0x6077", "value": 1, "value_hex": "0x1", "semantic_role": "unknown"},
+      {"type": "cmp_al_imm8", "rva": "0x60f7", "value": 141, "value_hex": "0x8d", "semantic_role": "unknown"},
+      {"type": "cmp_al_imm8", "rva": "0x6124", "value": 133, "value_hex": "0x85", "semantic_role": "unknown"},
+      {"type": "cmp_imm32", "rva": "0x618f", "value": "0x1102", "value_hex": "0x1102", "semantic_role": "unknown"},
+      {"type": "cmp_imm8", "rva": "0x61de", "value": 1, "value_hex": "0x1", "semantic_role": "unknown"},
+      {"type": "cmp_imm32", "rva": "0x629f", "value": "0x10c", "value_hex": "0x10c", "semantic_role": "unknown"},
+      {"type": "cmp_imm32", "rva": "0x62cb", "value": "0x108", "value_hex": "0x108", "semantic_role": "unknown"},
+      {"type": "cmp_imm8", "rva": "0x6438", "value": 255, "value_hex": "0xff", "semantic_role": "unknown"},
+      {"type": "cmp_imm32", "rva": "0x64e5", "value": "0x100", "value_hex": "0x100", "semantic_role": "unknown"}
+    ],
+    "note": "Constants exist but semantic role in comparison algorithm is not yet determined. Not confirmed as formula."
+  },
+  "evidence_gaps_carried_forward": [
+    {
+      "gap_id": "no_complete_formula_recovered",
+      "description": "Multi-phase loop comparison logic not fully reconstructed. No complete formula recovered.",
+      "severity": "high",
+      "blocks": "reverse_solving"
+    },
+    {
+      "gap_id": "known_compare_constant_count_zero",
+      "description": "Compare constants exist but are not classified as 'known' because their semantic role is undetermined.",
+      "severity": "medium",
+      "blocks": "solver_profile_normalization"
+    },
+    {
+      "gap_id": "input_length_unknown",
+      "description": "No obvious input length check found in bounded windows. Length may be determined by null-termination or comparison loop.",
+      "severity": "medium",
+      "blocks": "candidate_construction"
+    },
+    {
+      "gap_id": "missing_backward_sites_in_annotation",
+      "description": "Expected backward jump sites 0x5f68, 0x60a4, 0x60b6 were not decoded as backward branches by bounded annotator.",
+      "severity": "low",
+      "blocks": "none"
+    },
+    {
+      "gap_id": "structured_evidence_ready_false",
+      "description": "Source artifacts report structured_evidence_ready=false. Bounded annotation only.",
+      "severity": "medium",
+      "blocks": "complete_formula_recovery"
+    }
+  ],
+  "loop_semantics_status": "MAPPED_WITH_LIMITATIONS",
+  "loop_semantics_status_reason": "5 backward branch clusters mapped with nearby compare/state/call hints. Focus sites (0x6081, 0x61e8) identified as candidate comparison loops. Missing sites (0x5f68, 0x60a4, 0x60b6) noted. Compare constants classified as pending/unknown. No complete formula recovered.",
+  "formula_recovered": false,
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "recommended_next_mainline": "tool_integration",
+  "recommended_next_mainline_reason": "Evidence gaps remain: no complete formula, compare constants semantic role unknown, input length unknown, missing backward sites. reverse_solving would likely fail or require blind search. Continue tool_integration to close gaps via deeper static reconstruction or preparation for runtime probe.",
+  "recommended_next_action": "Deeper bounded static reconstruction of assert_path loop semantics, or preparation for runtime probe with known comparison constants once semantic mapping advances.",
+  "challenge_type_inferred": "multi_phase_console_password_checker_with_loop_comparison",
+  "similarity_to_cpp2_32f1713e": "high_same_course_same_name_similar_strings_different_logic",
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_ida": false,
+  "ran_ghidra": false,
+  "ran_debugger": false,
+  "ran_hook": false,
+  "ran_emulator": false,
+  "ran_probe": false,
+  "ran_bruteforce": false,
+  "ran_dictionary_search": false,
+  "uploaded_binary": false,
+  "helpers_or_tools_used": [
+    "python_stdlib_pe_parser",
+    "bounded_x86_byte_window_annotation",
+    "local_reverse_xref_disassembly_patterns",
+    "StructuredEvidence_lightweight_schema_reviewed"
+  ],
+  "optional_dependencies": {
+    "capstone_available": false,
+    "pefile_available": false
+  }
+}
