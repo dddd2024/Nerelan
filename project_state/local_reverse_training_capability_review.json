@@ -122,7 +122,11 @@
       "observed_evidence_sources": [],
       "required_missing_evidence": "Expected ciphertext from challenge statement or another allowed evidence source",
       "next_allowed_action": "Provide expected ciphertext from challenge statement or another allowed evidence source before candidate generation",
-      "not_to_retry": ["blind_search", "budget_expansion", "stale_artifact_treated_as_current"]
+      "not_to_retry": [
+        "blind_search",
+        "budget_expansion",
+        "stale_artifact_treated_as_current"
+      ]
     },
     {
       "sample_id": "cpp1_2f6fcb63",
@@ -133,7 +137,11 @@
       "observed_evidence_sources": [],
       "required_missing_evidence": "Policy decision: target bytes proven to have no complete printable preimage",
       "next_allowed_action": "Re-evaluate policy or accept as non-printable-input sample",
-      "not_to_retry": ["blind_search", "budget_expansion", "printable_preimage_assumption"]
+      "not_to_retry": [
+        "blind_search",
+        "budget_expansion",
+        "printable_preimage_assumption"
+      ]
     },
     {
       "sample_id": "cpp2_4c69f173",
@@ -144,7 +152,11 @@
       "observed_evidence_sources": [],
       "required_missing_evidence": "Recovery of sub_401005 transform function or bounded dictionary",
       "next_allowed_action": "Recover sub_401005 transform or bounded dictionary before inversion",
-      "not_to_retry": ["blind_search", "budget_expansion", "brute_force_without_transform"]
+      "not_to_retry": [
+        "blind_search",
+        "budget_expansion",
+        "brute_force_without_transform"
+      ]
     },
     {
       "sample_id": "sha_256_18019fca",
@@ -155,7 +167,11 @@
       "observed_evidence_sources": [],
       "required_missing_evidence": "Targeted static re-extraction of input length/domain or problem statement hint",
       "next_allowed_action": "Targeted static re-extraction of input length/domain or request problem statement hint",
-      "not_to_retry": ["blind_hash_preimage", "dictionary_search_without_domain", "budget_expansion"]
+      "not_to_retry": [
+        "blind_hash_preimage",
+        "dictionary_search_without_domain",
+        "budget_expansion"
+      ]
     }
   ],
   "inventory_buckets": {
@@ -173,18 +189,25 @@
       ],
       "priority_rationale": "Highest priority: closest to existing solved CPP2/CPP3 patterns"
     },
-    "crypto_cipher_inventory_only": {
-      "count": 5,
-      "description": "Crypto/cipher samples (RC4, DES) awaiting static evidence profile",
+    "crypto_cipher_pe_inventory_only": {
+      "count": 4,
+      "description": "Crypto/cipher PE executables (DES, RC4) awaiting static evidence profile",
       "sample_ids": [
-        "des_interactive_solver_256e1726",
         "desenc_0e0b5203",
         "desenc_14c58fcd",
         "desenc_40cba418",
-        "rc4enc_3480917d",
-        "rc4_add1978d"
+        "rc4enc_3480917d"
       ],
       "priority_rationale": "Medium priority: requires cipher-specific static evidence profile before triage"
+    },
+    "crypto_cipher_python_reference_inventory_only": {
+      "count": 2,
+      "description": "Crypto/cipher Python reference implementations, not primary binary solving targets",
+      "sample_ids": [
+        "des_interactive_solver_256e1726",
+        "rc4_add1978d"
+      ],
+      "priority_rationale": "Low priority: Python solver references, not binary targets"
     },
     "python_solver_like_inventory_only": {
       "count": 3,
@@ -197,15 +220,22 @@
       "priority_rationale": "Low priority: solver reference implementations, not primary solving targets"
     },
     "unknown_pe_inventory_only": {
-      "count": 4,
+      "count": 3,
       "description": "PE executables with unknown category, awaiting classification",
       "sample_ids": [
         "main_36c51ec1",
         "main_fb1f8cc0",
-        "seh_52be8d5c",
-        "pwd_030127ca"
+        "seh_52be8d5c"
       ],
       "priority_rationale": "Variable priority: needs category classification first"
+    },
+    "text_or_support_inventory_only": {
+      "count": 1,
+      "description": "Text/support files, not binary solving targets",
+      "sample_ids": [
+        "pwd_030127ca"
+      ],
+      "priority_rationale": "Lowest priority: text file, not a binary target"
     },
     "other_inventory_only": {
       "count": 0,
@@ -272,7 +302,11 @@
       "category": "cpp",
       "reason": "cpp/pe inventory_only, closest to existing CPP2 success patterns (cpp2_2f64e68d, cpp2_32f1713e, cpp2_883e67b9 all solved)",
       "allowed_next_action": "bounded static triage/readiness only",
-      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+      "not_allowed": [
+        "reverse_solving",
+        "candidate_generation",
+        "runtime_validation"
+      ]
     },
     {
       "rank": 2,
@@ -281,7 +315,11 @@
       "category": "cpp",
       "reason": "cpp/pe inventory_only, second CPP2 queue candidate after cpp2_f2738577",
       "allowed_next_action": "bounded static triage/readiness only",
-      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+      "not_allowed": [
+        "reverse_solving",
+        "candidate_generation",
+        "runtime_validation"
+      ]
     },
     {
       "rank": 3,
@@ -290,7 +328,11 @@
       "category": "cpp",
       "reason": "cpp/pe inventory_only, suitable for expanding to CPP3 after CPP2 queue exhausted",
       "allowed_next_action": "bounded static triage/readiness only",
-      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+      "not_allowed": [
+        "reverse_solving",
+        "candidate_generation",
+        "runtime_validation"
+      ]
     },
     {
       "rank": 4,
@@ -299,7 +341,11 @@
       "category": "cpp",
       "reason": "cpp/pe inventory_only, alternative CPP3 candidate",
       "allowed_next_action": "bounded static triage/readiness only",
-      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+      "not_allowed": [
+        "reverse_solving",
+        "candidate_generation",
+        "runtime_validation"
+      ]
     },
     {
       "rank": 5,
@@ -308,7 +354,11 @@
       "category": "crypto/cipher",
       "reason": "crypto/cipher inventory_only, only after cipher static evidence profile is available",
       "allowed_next_action": "bounded static triage/readiness only, pending cipher evidence profile",
-      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+      "not_allowed": [
+        "reverse_solving",
+        "candidate_generation",
+        "runtime_validation"
+      ]
     }
   ],
   "existing_capabilities": [
@@ -331,5 +381,8 @@
     "emulator_used": false,
     "full_solve_reports_read": false
   },
-  "generated_at": "2026-06-08T16:30:00Z"
+  "generated_at": "2026-06-08T16:30:00Z",
+  "rework_decision_id": "decision_20260608_local_reverse_capability_review_bucket_rework_v1",
+  "rework_round_id": "round_20260608_local_reverse_capability_review_bucket_rework_v1",
+  "updated_at": "2026-06-08T15:57:16Z"
 }

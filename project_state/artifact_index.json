@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-08T15:38:17Z",
+  "generated_at": "2026-06-08T15:57:44Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_breakpoint_probe\\base64_rc4_breakpoint_probe.json",
     "base64_rc4_static_point_discovery": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
@@ -528,10 +528,10 @@
       "kind": "local_reverse_training_capability_review",
       "path": "project_state\\local_reverse_training_capability_review.json",
       "freshness": "current",
-      "source_run": "round_20260608_local_reverse_training_capability_review_v1",
-      "sha256": "b32c5717d39dd7341619da2e0bdd392f9865702bbd82574ec83d1fae7ac7b1b5",
-      "size_bytes": 15231,
-      "modified_at": "2026-06-08T15:38:17Z"
+      "source_run": "round_20260608_local_reverse_capability_review_bucket_rework_v1",
+      "sha256": "57a064ad93add28854ece729551829bdfd34d883f463247ce97b802a777988c5",
+      "size_bytes": 16687,
+      "modified_at": "2026-06-08T15:57:44Z"
     }
   },
   "latest_case_results": [

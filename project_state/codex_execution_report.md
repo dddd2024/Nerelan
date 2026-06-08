@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260608_local_reverse_training_capability_review_v1",
-  "round_id": "round_20260608_local_reverse_training_capability_review_v1",
-  "based_on_decision_id": "decision_20260608_local_reverse_training_capability_review_v1",
+  "report_id": "report_20260608_local_reverse_capability_review_bucket_rework_v1",
+  "round_id": "round_20260608_local_reverse_capability_review_bucket_rework_v1",
+  "based_on_decision_id": "decision_20260608_local_reverse_capability_review_bucket_rework_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "training_dataset",
@@ -25,7 +25,7 @@
   ],
   "tests_ran": [
     "JSON parse validation (6 files)",
-    "JSON content validation (6 checks)",
+    "JSON content validation (11 checks)",
     "py_compile",
     "pytest",
     "lint-decision",
@@ -35,9 +35,7 @@
     "git status --short",
     "git diff --name-status"
   ],
-  "generated_artifacts": [
-    "project_state/local_reverse_training_capability_review.json"
-  ]
+  "generated_artifacts": []
 }
 ```
 
@@ -46,8 +44,8 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the only execution authority for this round.
-- [x] Active decision: `decision_20260608_local_reverse_training_capability_review_v1`.
-- [x] Active round: `round_20260608_local_reverse_training_capability_review_v1`.
+- [x] Active decision: `decision_20260608_local_reverse_capability_review_bucket_rework_v1`.
+- [x] Active round: `round_20260608_local_reverse_capability_review_bucket_rework_v1`.
 - [x] Mainline is `training_dataset`; `task_packet.json` was treated as advisory only.
 - [x] task_packet samplereverse derived_task was NOT executed.
 - [x] No candidate was generated, validated, or re-run.
@@ -59,60 +57,74 @@
 - [x] `local_reverse_training_status.json` was not modified.
 - [x] No model_gate.json or negative_results.json were unnecessarily modified.
 
-## 2. Source Consistency
+## 2. Previous Round Audit
 
-| Check | Result |
-|-------|--------|
-| status_overlay sample_count=29 | PASS |
-| status_overlay solved=5 | PASS |
-| status_overlay blocked=4 | PASS |
-| status_overlay needs_triage=0 | PASS |
-| status_overlay inventory_only=20 | PASS |
-| training_status sample_count=29 | PASS |
-| training_status solved=5 | PASS |
-| training_status blocked=4 | PASS |
-| training_status inventory_only=20 | PASS |
-| Both sources agree | PASS |
+Previous round: `round_20260608_local_reverse_training_capability_review_v1`
+Status: ACCEPTED_WITH_LIMITATIONS
+Limitations identified:
+1. crypto_cipher_inventory_only.count=5 but sample_ids had 6 entries
+2. unknown_pe_inventory_only included pwd_030127ca (.txt/text, not PE)
 
-## 3. Capability Review Artifact
+## 3. Fixes Applied
 
-| Requirement | Result |
-|-------------|--------|
-| Generated project_state/local_reverse_training_capability_review.json | PASS |
-| artifact_kind=local_reverse_training_capability_review | PASS |
-| status_summary.solved=5 | PASS |
-| len(solved_cases)=5 | PASS |
-| len(blocked_cases)=4 | PASS |
-| solved_cases have evidence_sources, validation_class, known_candidate_present, reusable_pattern, reusability_notes | PASS |
-| blocked_cases have blocked_reason, required_missing_evidence, next_allowed_action, not_to_retry | PASS |
-| inventory_buckets: cpp_pe, crypto_cipher, python_solver_like, unknown_pe, other | PASS |
-| capability_gaps derived from existing metadata, not fabricated | PASS |
-| next_queue_candidates advisory only, not execution authorization | PASS |
-| next_queue_candidates exclude solved/blocked samples | PASS |
+| Fix | Before | After |
+|-----|--------|-------|
+| crypto_cipher split into PE + Python reference | crypto_cipher_inventory_only count=5, ids=6 | crypto_cipher_pe_inventory_only count=4, crypto_cipher_python_reference_inventory_only count=2 |
+| unknown_pe corrected | count=4, included pwd_030127ca | count=3, only PE unknowns |
+| text_or_support added | did not exist | count=1, pwd_030127ca |
+
+## 4. Inventory Bucket Verification
+
+| Bucket | Count | Len(sample_ids) | Status |
+|--------|-------|-----------------|--------|
+| cpp_pe_inventory_only | 7 | 7 | PASS |
+| crypto_cipher_pe_inventory_only | 4 | 4 | PASS |
+| crypto_cipher_python_reference_inventory_only | 2 | 2 | PASS |
+| python_solver_like_inventory_only | 3 | 3 | PASS |
+| unknown_pe_inventory_only | 3 | 3 | PASS |
+| text_or_support_inventory_only | 1 | 1 | PASS |
+| other_inventory_only | 0 | 0 | PASS |
+| **Total** | **20** | **20** | **PASS** |
+
+No duplicate sample_ids across all buckets: PASS
+pwd_030127ca not in unknown_pe: PASS
+pwd_030127ca in text_or_support: PASS
+
+## 5. Unchanged Sections
+
+| Section | Status |
+|---------|--------|
+| status_summary (29/5/4/0/20) | PASS |
+| solved_cases (5) | PASS |
+| blocked_cases (4) | PASS |
+| capability_gaps (8) | PASS |
+| next_queue_candidates (5, advisory only) | PASS |
 | guardrails all false | PASS |
 
-## 4. Artifact Index
+## 6. Artifact Index
 
 | Requirement | Result |
 |-------------|--------|
-| latest_artifacts entry added | PASS |
-| latest_artifacts_v2.kind=local_reverse_training_capability_review | PASS |
-| latest_artifacts_v2.freshness=current | PASS |
-| latest_artifacts_v2.source_run=round_20260608_local_reverse_training_capability_review_v1 | PASS |
-| latest_artifacts_v2.sha256=b32c5717d39dd7341619da2e0bdd392f9865702bbd82574ec83d1fae7ac7b1b5 | PASS |
-| latest_artifacts_v2.size_bytes=15231 | PASS |
+| latest_artifacts_v2.sha256 updated | PASS: 57a064ad93add28854ece729551829bdfd34d883f463247ce97b802a777988c5 |
+| latest_artifacts_v2.size_bytes updated | PASS: 16687 |
+| latest_artifacts_v2.source_run updated | PASS: round_20260608_local_reverse_capability_review_bucket_rework_v1 |
+| latest_artifacts_v2.modified_at updated | PASS |
 
-## 5. Tests
+## 7. Tests
 
 | Check | Result |
 |-------|--------|
-| JSON parse (task_packet, current_state, artifact_index, status_overlay, training_status, review) | 6 PASS |
-| JSON content: status_summary.solved==5 | PASS |
-| JSON content: len(solved_cases)==5 | PASS |
-| JSON content: len(blocked_cases)==4 | PASS |
-| JSON content: no solved/blocked in next_queue_candidates | PASS |
-| JSON content: guardrails.runtime_validation_attempted==false | PASS |
-| JSON content: guardrails.ida_ghidra_static_extraction_attempted==false | PASS |
+| JSON parse (6 files) | 6 PASS |
+| JSON content: status_summary.inventory_only==20 | PASS |
+| JSON content: sum(bucket.count)==20 | PASS |
+| JSON content: each bucket.count==len(sample_ids) | PASS (7 buckets) |
+| JSON content: no duplicate sample_ids | PASS |
+| JSON content: crypto_cipher_pe has 4 PE crypto samples | PASS |
+| JSON content: crypto_cipher_python has 2 Python refs | PASS |
+| JSON content: unknown_pe excludes pwd_030127ca | PASS |
+| JSON content: text_or_support includes pwd_030127ca | PASS |
+| JSON content: next_queue excludes solved/blocked | PASS |
+| JSON content: guardrails false | PASS |
 | py_compile | PASS |
 | pytest | 158 passed |
 | lint-decision | OK |
@@ -122,6 +134,6 @@
 | git status --short | RECORDED |
 | git diff --name-status | RECORDED |
 
-## 6. Stop Conditions
+## 8. Stop Conditions
 
-No stop condition triggered. Metadata-only capability review completed successfully. Next round may select an inventory_only sample (e.g., cpp2_f2738577) for bounded static triage/readiness, subject to separate DECISION_PACKET authorization.
+No stop condition triggered. Bucket metadata corrected. Next round may select cpp2_f2738577 for bounded static triage/readiness, subject to separate DECISION_PACKET authorization.
