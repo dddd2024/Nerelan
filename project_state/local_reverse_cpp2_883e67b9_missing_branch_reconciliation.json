@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "artifact_kind": "local_reverse_missing_branch_reconciliation",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "round_id": "round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+  "generated_at": "2026-06-08T05:15:00Z",
+  "identity": {
+    "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "actual_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "expected_size_bytes": 196689,
+    "actual_size_bytes": 196689,
+    "identity_verified": true
+  },
+  "source_artifacts": [
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_loop_semantics_mapping",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_loop_semantics_mapping.json",
+      "round_id": "round_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_structured_evidence_projection",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_structured_evidence_projection.json",
+      "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+      "decision_id": "decision_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+      "status": "PARTIAL",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
+      "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "status": "PARTIAL",
+      "identity_verified": true
+    }
+  ],
+  "source_status": {
+    "loop_semantics_mapping": "SUCCESS",
+    "structured_evidence_projection": "SUCCESS",
+    "bounded_loop_evidence_extraction": "PARTIAL",
+    "targeted_static_solving": "PARTIAL"
+  },
+  "observed_backward_sites": ["0x6040", "0x6081", "0x61e8", "0x6390", "0x647d"],
+  "missing_backward_sites": ["0x5f68", "0x60a4", "0x60b6"],
+  "site_reconciliation": [
+    {
+      "site_rva": "0x5f68",
+      "source_claims": [
+        {
+          "source_artifact": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+          "claim": "backward_jump",
+          "details": {
+            "jcc_rva": "0x5f68",
+            "target_rva": "0x5f66",
+            "type": "backward_jump"
+          }
+        }
+      ],
+      "observed_in_loop_mapping": false,
+      "observed_in_bounded_loop_evidence": false,
+      "observed_in_targeted_static_solving": true,
+      "classification": "source_only_hint",
+      "confidence": "low",
+      "impact": "If real, this is a very short backward jump (span=2 bytes) within early assert_path setup. Could be a micro-loop or decoder artifact. Not observed by bounded annotator; may be a conditional branch that the annotator decoded as forward-only due to span ambiguity.",
+      "reconciliation_notes": "Targeted static solving reports this as backward_jump with target 0x5f66, but bounded_loop_evidence_extraction does not list it in branch_evidence (which covers 0x5f3d, 0x5f50, 0x5f6b, 0x5f73, 0x5faa, 0x5fc9, 0x5ff7, 0x603e, 0x6040, 0x605d, 0x607a, 0x6081, 0x609a, 0x609e, 0x60aa, 0x60b3, 0x60bc, 0x60c5, 0x60c9, 0x60ea, 0x60ee, 0x60fe, 0x612b, 0x6158, 0x61bb, 0x61c1, 0x61e1, 0x61e8, 0x61f4, 0x6203, 0x623d, 0x624c, 0x6290, 0x6294, 0x62a7, 0x62b2, 0x62bf, 0x62d3, 0x62dc, 0x62e7, 0x62ef, 0x634f, 0x6362, 0x6372, 0x637d, 0x637f, 0x6388, 0x6390, 0x639a, 0x63c6, 0x63e0, 0x63e2, 0x63ff, 0x6419, 0x641b, 0x641d, 0x643b, 0x6446, 0x6448, 0x6463, 0x646e, 0x647d, 0x64b6, 0x64d4, 0x64ee). The gap between 0x5f50 (jmp 0x5f67) and 0x5f6b (jz 0x5f75) leaves room for 0x5f68 to be a short branch not decoded by the bounded annotator's instruction-boundary heuristic."
+    },
+    {
+      "site_rva": "0x60a4",
+      "source_claims": [
+        {
+          "source_artifact": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+          "claim": "backward_jump",
+          "details": {
+            "jcc_rva": "0x60a4",
+            "target_rva": "0x60a2",
+            "type": "backward_jump"
+          }
+        }
+      ],
+      "observed_in_loop_mapping": false,
+      "observed_in_bounded_loop_evidence": false,
+      "observed_in_targeted_static_solving": true,
+      "classification": "source_only_hint",
+      "confidence": "low",
+      "impact": "If real, this is a very short backward jump (span=2 bytes) near the focus comparison loop at 0x6081. Could be an inner micro-loop or a conditional branch that the bounded annotator missed due to instruction-boundary ambiguity.",
+      "reconciliation_notes": "Bounded_loop_evidence_extraction branch_evidence lists branches at 0x609a (jnz 0x60a3), 0x60aa (jnz 0x60b5), 0x60b3 (jmp 0x60ce), 0x60bc (jnz 0x60c7), but not 0x60a4. The target 0x60a2 is just before 0x60a3 (which is a compare site in loop_mapping cluster_0x6081). This suggests 0x60a4 may be a conditional branch skipping back to 0x60a2, but the bounded annotator did not decode it as a distinct branch instruction."
+    },
+    {
+      "site_rva": "0x60b6",
+      "source_claims": [
+        {
+          "source_artifact": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+          "claim": "backward_jump",
+          "details": {
+            "jcc_rva": "0x60b6",
+            "target_rva": "0x60b4",
+            "type": "backward_jump"
+          }
+        }
+      ],
+      "observed_in_loop_mapping": false,
+      "observed_in_bounded_loop_evidence": false,
+      "observed_in_targeted_static_solving": true,
+      "classification": "source_only_hint",
+      "confidence": "low",
+      "impact": "If real, this is a very short backward jump (span=2 bytes) near the focus comparison loop at 0x6081. Similar to 0x60a4, could be an inner micro-loop or conditional branch missed by the bounded annotator.",
+      "reconciliation_notes": "Bounded_loop_evidence_extraction branch_evidence lists 0x60b3 (jmp 0x60ce) and 0x60bc (jnz 0x60c7), but not 0x60b6. The target 0x60b4 is just before 0x60b5 (which is a compare site in loop_mapping cluster_0x6081). Like 0x60a4, this may be a conditional branch the bounded annotator did not decode."
+    }
+  ],
+  "reconciliation_summary": {
+    "total_missing_sites": 3,
+    "confirmed_missing_decode": 0,
+    "source_only_hint": 3,
+    "resolved_not_backward": 0,
+    "blocked_insufficient_evidence": 0,
+    "note": "All three missing sites appear only in targeted_static_solving's loop_indicators list. None are observed in bounded_loop_evidence_extraction's detailed branch_evidence array or in loop_semantics_mapping's loop_clusters. The bounded annotator may have missed these due to (a) instruction-boundary ambiguity for very short backward jumps, (b) decoding the bytes as part of a larger instruction, or (c) the sites being conditional branches that the annotator classified as forward-only. Without capstone/pefile or binary re-read, cannot confirm whether these are real backward branches or decoding artifacts."
+  },
+  "reconciliation_status": "RECONCILED_WITH_LIMITATIONS",
+  "reconciliation_status_reason": "All 3 missing sites classified as source_only_hint with low confidence. They exist only in targeted_static_solving's loop_indicators and are not corroborated by bounded_loop_evidence_extraction's branch_evidence or loop_semantics_mapping's clusters. No evidence to confirm them as real backward branches, nor to resolve them as not_backward. Reconciliation is bounded by the lack of a proper disassembler (capstone/pefile unavailable) and the decision not to re-read the binary.",
+  "formula_recovered": false,
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "evidence_gaps_carried_forward": [
+    {
+      "gap_id": "no_complete_formula_recovered",
+      "description": "Multi-phase loop comparison logic not fully reconstructed. No complete formula recovered.",
+      "severity": "high",
+      "blocks": "reverse_solving"
+    },
+    {
+      "gap_id": "known_compare_constant_count_zero",
+      "description": "Compare constants exist but are not classified as 'known' because their semantic role is undetermined.",
+      "severity": "medium",
+      "blocks": "solver_profile_normalization"
+    },
+    {
+      "gap_id": "input_length_unknown",
+      "description": "No obvious input length check found in bounded windows. Length may be determined by null-termination or comparison loop.",
+      "severity": "medium",
+      "blocks": "candidate_construction"
+    },
+    {
+      "gap_id": "missing_backward_sites_unresolved",
+      "description": "Missing sites 0x5f68, 0x60a4, 0x60b6 classified as source_only_hint with low confidence. Cannot confirm as real backward branches without deeper disassembly or binary re-read.",
+      "severity": "low",
+      "blocks": "none"
+    },
+    {
+      "gap_id": "structured_evidence_ready_false",
+      "description": "Source artifacts report structured_evidence_ready=false. Bounded annotation only.",
+      "severity": "medium",
+      "blocks": "complete_formula_recovery"
+    }
+  ],
+  "recommended_next_mainline": "tool_integration",
+  "recommended_next_mainline_reason": "Missing branch reconciliation completed with limitations. All missing sites are source-only hints, not confirmed backward branches. Evidence gaps remain: no complete formula, compare constants semantic role unknown, input length unknown, structured evidence not ready. reverse_solving would likely fail or require blind search. Continue tool_integration to close gaps via deeper static reconstruction or preparation for runtime probe.",
+  "recommended_next_action": "Compare constants semantic mapping or input length evidence recovery. If compare constants can be mapped to a known algorithm, runtime probe may become viable.",
+  "challenge_type_inferred": "multi_phase_console_password_checker_with_loop_comparison",
+  "similarity_to_cpp2_32f1713e": "high_same_course_same_name_similar_strings_different_logic",
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_ida": false,
+  "ran_ghidra": false,
+  "ran_debugger": false,
+  "ran_hook": false,
+  "ran_emulator": false,
+  "ran_probe": false,
+  "ran_bruteforce": false,
+  "ran_dictionary_search": false,
+  "uploaded_binary": false,
+  "helpers_or_tools_used": [
+    "python_stdlib_pe_parser",
+    "bounded_x86_byte_window_annotation",
+    "local_reverse_xref_disassembly_patterns",
+    "StructuredEvidence_lightweight_schema_reviewed"
+  ],
+  "optional_dependencies": {
+    "capstone_available": false,
+    "pefile_available": false
+  }
+}
