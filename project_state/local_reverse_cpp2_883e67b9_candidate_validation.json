@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp2_883e67b9",
+  "analysis_mode": "console_runtime_validation",
+  "mainline": "reverse_solving",
+  "source_artifacts": [
+    "local_reverse_cpp2_883e67b9_candidate"
+  ],
+  "source_artifact_freshness": "current",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "candidate_source_field": "static_candidate_text",
+  "candidate": "KaiJu_YiZhi_PEN",
+  "known_candidate": "KaiJu_YiZhi_PEN",
+  "executed_sample": true,
+  "runtime_validated": true,
+  "validation_status": "VALIDATED_SUCCESS",
+  "success_token": "Good work",
+  "failure_token": "wrong",
+  "length_token": "length",
+  "success_observed": true,
+  "failure_observed": false,
+  "length_error_observed": false,
+  "return_code": 0,
+  "stdout_tail": "Press any key to continue . . . \nPlease input your flag: \n*** Good work! ***\n\n",
+  "stderr_tail": "",
+  "solved": true,
+  "blocked_reason": "",
+  "target_sha256": "",
+  "target_resolved_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "generated_at": "2026-06-08T14:02:32Z"
+}

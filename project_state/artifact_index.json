@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-08T04:50:00Z",
+  "generated_at": "2026-06-08T14:03:02Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -115,7 +115,8 @@
     "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json",
     "local_reverse_solver_profile_dispatch_guardrails_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json",
     "local_reverse_solver_profile_dispatch_guardrails_report_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
-    "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json"
+    "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json",
+    "local_reverse_cpp2_883e67b9_candidate_validation": "project_state\\local_reverse_cpp2_883e67b9_candidate_validation.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1665,5 +1666,21 @@
     "local_reverse_solver_profile_dispatch_guardrails_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json",
     "local_reverse_solver_profile_dispatch_guardrails_report_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
     "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json"
+  },
+  "artifact_metadata": {
+    "local_reverse_cpp2_883e67b9_candidate_validation": {
+      "path": "project_state\\local_reverse_cpp2_883e67b9_candidate_validation.json",
+      "freshness": "current",
+      "source_run": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1",
+      "sample_id": "cpp2_883e67b9",
+      "relative_path": "逆向课程2024春02/CPP2.exe",
+      "candidate_generated": true,
+      "candidate_validation_attempted": true,
+      "runtime_validation_attempted": true,
+      "validation_status": "VALIDATED_SUCCESS",
+      "sha256": "a994b4e7754925447807dedea51a79ddba76de54ca04923e788fa3ea5086bb3d",
+      "size_bytes": 1068,
+      "modified_at": "2026-06-08T14:03:02Z"
+    }
   }
 }

@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-07T10:25:00Z",
+  "generated_at": "2026-06-08T14:03:19Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 29,
   "status_summary": {
-    "solved": 4,
+    "solved": 5,
     "blocked": 4,
     "needs_triage": 0,
-    "inventory_only": 21,
+    "inventory_only": 20,
     "blocked_count": 4,
-    "inventory_only_count": 21,
-    "solved_count": 4
+    "inventory_only_count": 20,
+    "solved_count": 5
   },
   "summary_sync_round_id": "round_20260607_local_reverse_training_status_summary_sync_v1",
   "summary_sync_decision_id": "decision_20260607_local_reverse_training_status_summary_sync_v1",
@@ -278,12 +278,16 @@
         "cpp",
         "pe"
       ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
+      "training_status": "solved",
+      "known_candidate": "KaiJu_YiZhi_PEN",
       "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
+      "classification": "console_runtime_validation",
+      "evidence_sources": [
+        "source:local_reverse_cpp2_883e67b9_candidate_validation.json",
+        "console_runtime_validation",
+        "runtime_validated_success"
+      ],
+      "next_action": "sample solved by console runtime validation; no further solving required"
     },
     {
       "sample_id": "cpp2_f2738577",

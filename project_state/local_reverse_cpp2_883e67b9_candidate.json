@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp2_883e67b9",
+  "static_candidate_text": "KaiJu_YiZhi_PEN",
+  "candidate_hex": "4b61694a755f59695a68695f50454e",
+  "candidate_length": 15,
+  "generated_at": "2026-06-08T13:15:04Z",
+  "source_artifact": "local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit",
+  "formula": "input[i] = byte_429A34[i] ^ 0x78"
+}
