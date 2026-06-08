@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-08T14:43:40Z",
+  "generated_at": "2026-06-08T14:58:52Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -1516,7 +1516,7 @@
       "kind": "local_reverse_training_status_overlay_sync",
       "path": "project_state\\local_reverse_cpp2_883e67b9_training_status_overlay_sync.json",
       "freshness": "current",
-      "source_run": "round_20260608_cpp2_883e67b9_training_status_overlay_sync_v1",
+      "source_run": "round_20260608_cpp2_883e67b9_training_overlay_sync_artifact_rework_v1",
       "sample_id": "cpp2_883e67b9",
       "relative_path": "逆向课程2024春02/CPP2.exe",
       "status_sync_performed": true,
@@ -1524,9 +1524,9 @@
       "status_overlay_modified": true,
       "candidate_generated": false,
       "runtime_validation_attempted": false,
-      "sha256": "0301dc4bd6f82a6fde208171760e545d1240e5668d1944ad7396683db4531460",
-      "size_bytes": 2153,
-      "modified_at": "2026-06-08T14:43:40Z"
+      "sha256": "ef0c44d622381e4c78f368b36a6e3191d868d40138640b4e7153582863df7828",
+      "size_bytes": 2304,
+      "modified_at": "2026-06-08T14:58:52Z"
     }
   },
   "latest_case_results": [
@@ -1700,9 +1700,9 @@
     "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json",
     "local_reverse_cpp2_883e67b9_training_status_overlay_sync": {
       "path": "project_state\\local_reverse_cpp2_883e67b9_training_status_overlay_sync.json",
-      "sha256": "0301dc4bd6f82a6fde208171760e545d1240e5668d1944ad7396683db4531460",
-      "size_bytes": 2153,
-      "source_run": "round_20260608_cpp2_883e67b9_training_status_overlay_sync_v1"
+      "sha256": "ef0c44d622381e4c78f368b36a6e3191d868d40138640b4e7153582863df7828",
+      "size_bytes": 2304,
+      "source_run": "round_20260608_cpp2_883e67b9_training_overlay_sync_artifact_rework_v1"
     }
   },
   "artifact_metadata": {

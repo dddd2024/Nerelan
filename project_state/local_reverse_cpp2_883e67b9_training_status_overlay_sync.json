@@ -4,8 +4,8 @@
   "artifact_kind": "local_reverse_training_status_overlay_sync",
   "sample_id": "cpp2_883e67b9",
   "relative_path": "逆向课程2024春02/CPP2.exe",
-  "round_id": "round_20260608_cpp2_883e67b9_training_status_overlay_sync_v1",
-  "decision_id": "decision_20260608_cpp2_883e67b9_training_status_overlay_sync_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_training_overlay_sync_artifact_rework_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_training_overlay_sync_artifact_rework_v1",
   "source_artifacts": [
     {
       "name": "local_reverse_cpp2_883e67b9_candidate_validation",
@@ -17,7 +17,12 @@
     "sample_id": "cpp2_883e67b9",
     "relative_path": "逆向课程2024春02/CPP2.exe",
     "category": "cpp",
-    "tags": ["local", "reverse", "cpp", "pe"],
+    "tags": [
+      "local",
+      "reverse",
+      "cpp",
+      "pe"
+    ],
     "training_status": "inventory_only",
     "known_candidate": "",
     "blocked_reason": ""
@@ -26,12 +31,17 @@
     "sample_id": "cpp2_883e67b9",
     "relative_path": "逆向课程2024春02/CPP2.exe",
     "category": "cpp",
-    "tags": ["local", "reverse", "cpp", "pe"],
+    "tags": [
+      "local",
+      "reverse",
+      "cpp",
+      "pe"
+    ],
     "training_status": "solved",
     "known_candidate": "KaiJu_YiZhi_PEN",
     "blocked_reason": "",
     "solved_by": "console_runtime_validation",
-    "solved_at": "2026-06-08T15:10:00Z",
+    "solved_at": "2026-06-08T14:42:30Z",
     "solved_round": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1",
     "evidence_source": "project_state/local_reverse_cpp2_883e67b9_candidate_validation.json"
   },
