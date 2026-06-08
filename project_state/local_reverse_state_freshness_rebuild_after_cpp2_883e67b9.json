@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "mainline": "engineering_branch",
+  "artifact_kind": "local_reverse_state_freshness_rebuild",
+  "decision_id": "decision_20260608_local_reverse_state_freshness_rebuild_v1",
+  "round_id": "round_20260608_local_reverse_state_freshness_rebuild_v1",
+  "source_status_overlay": "training_materials/local_reverse/status_overlay.json",
+  "source_training_status": "project_state/local_reverse_training_status.json",
+  "before_task_packet_summary": {
+    "solved": 4,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 21
+  },
+  "before_next_queue_hint": {
+    "sample_id": "cpp2_883e67b9",
+    "relative_path": "逆向课程2024春02/CPP2.exe",
+    "proposed_next_mainline": "tool_integration",
+    "stale_reason": "cpp2_883e67b9 already solved by console_runtime_validation in round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1"
+  },
+  "after_task_packet_summary": {
+    "note": "local_reverse_training_summary and local_reverse_next_queue_hint fields removed by project_state build"
+  },
+  "after_training_status_summary": {
+    "sample_count": 29,
+    "solved": 5,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 20
+  },
+  "after_status_overlay_summary": {
+    "sample_count": 29,
+    "solved": 5,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 20
+  },
+  "latest_solved_sample": {
+    "sample_id": "cpp2_883e67b9",
+    "known_candidate": "KaiJu_YiZhi_PEN",
+    "validation_artifact": "project_state/local_reverse_cpp2_883e67b9_candidate_validation.json",
+    "sync_artifact": "project_state/local_reverse_cpp2_883e67b9_training_status_overlay_sync.json",
+    "solved_by": "console_runtime_validation",
+    "solved_at": "2026-06-08T14:42:30Z"
+  },
+  "stale_fields_removed": [
+    "task_packet.local_reverse_training_summary (solved=4, inventory_only=21)",
+    "task_packet.local_reverse_next_queue_hint (pointing to solved cpp2_883e67b9)"
+  ],
+  "stale_next_queue_hint_removed_or_replaced": true,
+  "build_tool_used": "reverse_agent.project_state build",
+  "build_tool_limitation": "build removes stale local_reverse fields rather than updating them in-place; training status truth remains in local_reverse_training_status.json and status_overlay.json",
+  "candidate_generated": false,
+  "runtime_validation_attempted": false,
+  "ida_ghidra_static_extraction_attempted": false,
+  "debugger_attached": false,
+  "emulator_used": false,
+  "generated_at": "2026-06-08T16:00:00Z"
+}

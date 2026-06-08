@@ -1,11 +1,14 @@
 {
   "active_strategy": "CompareAwareSearchStrategy",
   "artifact_refs": {
-    "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
-    "bridge_search_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_search_result.json",
-    "bridge_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\bridge_validation\\bridge_validation.json",
+    "base64_rc4_breakpoint_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_breakpoint_probe\\base64_rc4_breakpoint_probe.json",
+    "base64_rc4_static_point_discovery": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
+    "bridge_search_result": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_search_result.json",
+    "bridge_validation": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\bridge_validation\\bridge_validation.json",
     "checkpoint": "solve_reports\\tool_artifacts\\samplereverse_optimizer_smoke\\samplereverse_search_checkpoint.json",
-    "compare_aware_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_refine_1\\samplereverse_compare_aware_result.json",
+    "compare_aware_result": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_refine_1\\samplereverse_compare_aware_result.json",
+    "compare_callsite_reanchor_and_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_esi_snapshot_20260515_r3\\reports\\tool_artifacts\\samplereverse\\compare_callsite_reanchor_and_lhs_provenance_audit\\compare_callsite_reanchor_and_lhs_provenance_audit.json",
+    "compare_esi_source_window_audit": "solve_reports\\harness_runs\\sr_esi_source_window_20260515_r1\\reports\\tool_artifacts\\samplereverse\\compare_esi_source_window_audit\\compare_esi_source_window_audit.json",
     "compare_handoff_branch_operand_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_branch_operand_runtime_audit\\compare_handoff_branch_operand_runtime_audit.json",
     "compare_handoff_edge_operand_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_edge_operand_provenance_audit\\compare_handoff_edge_operand_provenance_audit.json",
     "compare_handoff_exit_classifier_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
@@ -13,24 +16,41 @@
     "compare_handoff_narrower_post_entry_breakpoint_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_post_entry_step_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
+    "compare_handoff_probe": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
+    "compare_handoff_slice_probe": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
     "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
-    "compare_probe": "solve_reports\\tool_artifacts\\samplereverse_compare_probe_real\\samplereverse_compare_probe.json",
-    "compare_producer_material_confirmation": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
+    "compare_lhs_producer_audit": "solve_reports\\harness_runs\\sr_lhs_slot_writer_source_20260516_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_producer_audit\\compare_lhs_producer_audit.json",
+    "compare_lhs_slot_writer_predecessor_audit": "solve_reports\\harness_runs\\sr_slot_pred_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_predecessor_audit\\compare_lhs_slot_writer_predecessor_audit.json",
+    "compare_lhs_slot_writer_source_audit": "solve_reports\\harness_runs\\sr_lhs_last_writer_20260518_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_source_audit\\compare_lhs_slot_writer_source_audit.json",
+    "compare_lhs_upstream_writer_audit": "solve_reports\\harness_runs\\sr_esi_snapshot_20260515_r2\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\compare_lhs_upstream_writer_audit.json",
+    "compare_pre_compare_handoff_target_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_pre_compare_handoff_target_probe\\compare_pre_compare_handoff_target_probe.json",
+    "compare_probe": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
+    "compare_probe_log": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
+    "compare_producer_material_confirmation": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
+    "compare_producer_trace_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
     "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-    "frontier_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_frontier_summary.json",
-    "function_semantic_audit": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
-    "guided_pool_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\samplereverse_compare_aware_guided_pool_result.json",
-    "guided_pool_validation": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\frontier_guided_1_788940b49c590770\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
-    "pairscan_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\bridge\\pairscan_summary.json",
+    "compare_stack_pivot_probe": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
+    "dynamic_compare_path_probe": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\dynamic_compare_path_probe\\dynamic_compare_path_probe.json",
+    "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
+    "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
+    "frontier_summary": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_frontier_summary.json",
+    "function_semantic_audit": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+    "guided_pool_result": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_1_5a3e7f46ddd474d0\\samplereverse_compare_aware_guided_pool_result.json",
+    "guided_pool_validation": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\frontier_guided_1_5a3e7f46ddd474d0\\guided_pool_validation\\samplereverse_compare_aware_guided_pool_validation.json",
+    "h1_h3_boundary_validation": "solve_reports\\harness_runs\\samplereverse_h1_h3_boundary_validation_20260504\\reports\\tool_artifacts\\samplereverse\\h1_h3_boundary_validation\\h1_h3_boundary_validation.json",
+    "h1_h3_boundary_validation_runtime": "solve_reports\\harness_runs\\samplereverse_h1_h3_boundary_validation_20260504\\reports\\tool_artifacts\\samplereverse\\h1_h3_boundary_validation\\validation\\h1_h3_boundary_validation.json",
+    "material_hook_runtime_validation": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\reports\\tool_artifacts\\samplereverse\\material_hook_runtime_validation\\material_hook_runtime_validation.json",
+    "pairscan_summary": "solve_reports\\harness_runs\\sr_post_handoff_audit_20260512_r2\\reports\\tool_artifacts\\samplereverse_patched\\bridge\\pairscan_summary.json",
+    "post_handoff_branch_outcome_audit": "solve_reports\\harness_runs\\sr_401b50_outcome_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_branch_outcome_audit\\post_handoff_branch_outcome_audit.json",
+    "post_handoff_exception_unwind_audit": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\post_handoff_exception_unwind_audit.json",
+    "pre_rc4_material_probe": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\pre_rc4_material_probe\\pre_rc4_material_probe.json",
+    "profile_transform_hypothesis_matrix": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\profile_transform_hypothesis_matrix.json",
     "run_manifest": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
-    "smt_result": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\smt\\samplereverse_compare_aware_smt_result.json",
-    "strata_summary": "solve_reports\\tool_artifacts\\samplereverse_frontier_feedback_refresh_20260422\\samplereverse_compare_aware_strata_summary.json",
+    "smt_result": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\smt\\samplereverse_compare_aware_smt_result.json",
+    "strata_summary": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
-    "local_reverse_ida_summary": "project_state\\local_reverse_ida_summary.json",
-    "local_reverse_ida_evidence_18019fca52b389fe": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\18019fca52b389fe\\sha_256_ida_evidence.json",
-    "local_reverse_ida_evidence_4c69f173f2bd0211": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\4c69f173f2bd0211\\CPP2_ida_evidence.json",
-    "local_reverse_ida_evidence_bcbd9979db015bfd": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\bcbd9979db015bfd\\Cpp1_ida_evidence.json"
+    "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
   },
   "best_candidates": {
     "exact1": {
@@ -76,10 +96,28 @@
   "current_mainline": "L15(prefix8)",
   "current_owner": "web_gpt",
   "function_semantics": {
+    "0x233d": {
+      "candidate_dependent": true,
+      "confidence": "medium",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+      "hookable": true,
+      "instruction_confirmed": true,
+      "material_hook_candidate_status": "ready",
+      "semantic_guess": "utf16le_constructor"
+    },
+    "0x2346": {
+      "candidate_dependent": true,
+      "confidence": "medium",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+      "hookable": true,
+      "instruction_confirmed": true,
+      "material_hook_candidate_status": "ready",
+      "semantic_guess": "utf16le_constructor"
+    },
     "0x4018cd": {
       "candidate_dependent": false,
       "confidence": "low",
-      "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
       "hookable": false,
       "instruction_confirmed": true,
       "material_hook_candidate_status": "blocked_unreached_in_current_probe",
@@ -88,7 +126,7 @@
     "0x4019e0": {
       "candidate_dependent": false,
       "confidence": "low",
-      "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
       "hookable": false,
       "instruction_confirmed": true,
       "material_hook_candidate_status": "blocked_missing_candidate_dependent_output",
@@ -96,24 +134,24 @@
     },
     "0x401b50": {
       "candidate_dependent": true,
-      "confidence": "medium",
-      "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
-      "hookable": true,
+      "confidence": "low",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+      "hookable": false,
       "instruction_confirmed": true,
-      "material_hook_candidate_status": "blocked_missing_transform_chain_connection",
+      "material_hook_candidate_status": "blocked_copy_handoff_only",
       "semantic_guess": "copy_or_handoff"
     },
     "0x401be3": {
       "candidate_dependent": false,
       "confidence": "low",
-      "evidence_artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
+      "evidence_artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
       "hookable": false,
       "instruction_confirmed": true,
       "material_hook_candidate_status": "blocked_unreached_in_current_probe",
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-06-02T05:39:48Z",
+  "generated_at": "2026-06-08T15:20:03Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -121,9 +159,33 @@
     "RC4",
     "compare flag{ prefix"
   ],
-  "latest_base64_rc4_breakpoint_probe": {},
+  "latest_base64_rc4_breakpoint_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_breakpoint_probe\\base64_rc4_breakpoint_probe.json",
+    "candidate_count": 3,
+    "classification": "base64_rc4_compare_only",
+    "first_captured_material_kind": "compare_buffer",
+    "hook_event_count": 9,
+    "hook_results": {
+      "base64_input": "unavailable",
+      "base64_output": "unavailable",
+      "compare_buffer": "available",
+      "rc4_input": "unavailable",
+      "rc4_key": "unavailable",
+      "rc4_output": "unavailable",
+      "utf16le_payload": "unavailable"
+    },
+    "next_bottleneck": "compare-only capture",
+    "next_bounded_action": "audit hook placement: compare fired, but Base64/RC4 construction hooks did not",
+    "runtime_backed_count": 3,
+    "static_point_summary": {
+      "utf16le_payload": {
+        "count": 2,
+        "hookable_count": 2
+      }
+    }
+  },
   "latest_base64_rc4_static_point_discovery": {
-    "artifact": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
     "best_points": [
       {
         "classification": "hookable_and_instruction_confirmed",
@@ -171,70 +233,90 @@
         "rva": "0x2559"
       },
       {
+        "candidate_dependent": false,
         "classification": "found_but_not_hookable",
         "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
         "evidence": [
           "standard Base64 alphabet table not found in PE bytes"
         ],
         "function": "",
         "hookable": false,
         "instruction": "",
+        "instruction_confirmed": false,
         "kind": "base64",
         "module_offset": "",
         "name": "standard_base64_alphabet_unavailable",
         "rva": ""
       },
       {
+        "candidate_dependent": false,
         "classification": "found_but_not_hookable",
         "confidence": "low",
-        "evidence": [
-          "no stable RC4 KSA code signature available from current artifacts"
-        ],
-        "function": "",
-        "hookable": false,
-        "instruction": "",
-        "kind": "rc4_ksa",
-        "module_offset": "",
-        "name": "rc4_ksa_site_unresolved",
-        "rva": ""
-      },
-      {
-        "classification": "found_but_not_hookable",
-        "confidence": "low",
-        "evidence": [
-          "no stable RC4 PRGA code signature available from current artifacts"
-        ],
-        "function": "",
-        "hookable": false,
-        "instruction": "",
-        "kind": "rc4_prga",
-        "module_offset": "",
-        "name": "rc4_prga_site_unresolved",
-        "rva": ""
-      },
-      {
-        "classification": "found_but_not_hookable",
-        "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
         "evidence": [
           "modeled encrypted const prefix not found in PE bytes"
         ],
         "function": "",
         "hookable": false,
         "instruction": "",
+        "instruction_confirmed": false,
         "kind": "encrypted_const",
         "module_offset": "",
         "name": "modeled_rc4_encrypted_const_unavailable",
         "rva": ""
       },
       {
+        "candidate_dependent": false,
         "classification": "found_but_not_hookable",
         "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "no stable RC4 KSA code signature available from current artifacts"
+        ],
+        "function": "",
+        "hookable": false,
+        "instruction": "",
+        "instruction_confirmed": false,
+        "kind": "rc4_ksa",
+        "module_offset": "",
+        "name": "rc4_ksa_site_unresolved",
+        "rva": ""
+      },
+      {
+        "candidate_dependent": false,
+        "classification": "found_but_not_hookable",
+        "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "no stable RC4 PRGA code signature available from current artifacts"
+        ],
+        "function": "",
+        "hookable": false,
+        "instruction": "",
+        "instruction_confirmed": false,
+        "kind": "rc4_prga",
+        "module_offset": "",
+        "name": "rc4_prga_site_unresolved",
+        "rva": ""
+      },
+      {
+        "candidate_dependent": false,
+        "classification": "found_but_not_hookable",
+        "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
         "evidence": [
           "no stable UTF-16LE construction instruction signature available from current artifacts"
         ],
         "function": "",
         "hookable": false,
         "instruction": "",
+        "instruction_confirmed": false,
         "kind": "utf16le",
         "module_offset": "",
         "name": "utf16le_expansion_site_unresolved",
@@ -279,8 +361,712 @@
     "instruction_confirmed_count": 3,
     "next_bounded_action": "use compare-producer hook evidence to narrow manual Base64/RC4 disassembly before rerunning breakpoint probe"
   },
-  "latest_compare_callsite_reanchor_and_lhs_provenance_audit": {},
-  "latest_compare_esi_source_window_audit": {},
+  "latest_compare_callsite_reanchor_and_lhs_provenance_audit": {
+    "actual_compare": {
+      "arg0_candidate_dependent": true,
+      "arg0_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93",
+        "78d540b49c59076f41414141414141": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481cfd15ef81092633b4cad6c11c03807ff0",
+        "78d540b49c59077041414141414141": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99"
+      },
+      "arg0_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x489d640",
+        "78d540b49c59076f41414141414141": "0x38fd640",
+        "78d540b49c59077041414141414141": "0x3a8d640"
+      },
+      "arg1_candidate_dependent": false,
+      "arg1_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a89500",
+        "78d540b49c59076f41414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a89500",
+        "78d540b49c59077041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a89500"
+      },
+      "arg1_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x951c4c",
+        "78d540b49c59076f41414141414141": "0x951c4c",
+        "78d540b49c59077041414141414141": "0x951c4c"
+      },
+      "caller_module_offset": "0x258c",
+      "caller_return_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry": "0x258c",
+      "entry_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry_status": "confirmed",
+      "flag_side": "arg1",
+      "lhs_preview_varies_by_candidate": true,
+      "lhs_side": "arg0",
+      "observed_count": 3
+    },
+    "artifact": "solve_reports\\harness_runs\\sr_esi_snapshot_20260515_r3\\reports\\tool_artifacts\\samplereverse\\compare_callsite_reanchor_and_lhs_provenance_audit\\compare_callsite_reanchor_and_lhs_provenance_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "classification": "callsite_reanchored_but_producer_unknown",
+    "frame_anchor": {
+      "actual_lhs_source": "unknown",
+      "actual_lhs_source_detail": "",
+      "old_slot_ebp_minus_1170_status": "inconclusive",
+      "old_slot_ebp_minus_1170_valid": false,
+      "old_slot_match_count": 0,
+      "old_slot_observed_count": 0,
+      "sample_values": {}
+    },
+    "identified_producers": [],
+    "next_bounded_action": "narrow provenance from the confirmed lhs side before any material probe",
+    "provenance": {
+      "candidate_dependent": false,
+      "connects_to_compare_lhs": false,
+      "evidence": [
+        {
+          "candidate_dependent": false,
+          "compare_lhs_match_count": 0,
+          "connects_to_compare_lhs": false,
+          "hook_name": "old_lhs_slot_store",
+          "hookable": false,
+          "instruction": "mov dword ptr [ebp - 0x1170], eax",
+          "instruction_confirmed": true,
+          "module_offset": "0x253a",
+          "observed_count": 0,
+          "role": "old_frame_anchor_store",
+          "runtime_backed_count": 0,
+          "sample_values": {}
+        },
+        {
+          "candidate_dependent": false,
+          "compare_lhs_match_count": 0,
+          "connects_to_compare_lhs": false,
+          "hook_name": "old_lhs_reload",
+          "hookable": false,
+          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+          "instruction_confirmed": true,
+          "module_offset": "0x2559",
+          "observed_count": 0,
+          "role": "old_frame_anchor_reload",
+          "runtime_backed_count": 0,
+          "sample_values": {}
+        },
+        {
+          "candidate_dependent": false,
+          "compare_lhs_match_count": 0,
+          "connects_to_compare_lhs": false,
+          "hook_name": "upstream_candidate_context",
+          "hookable": true,
+          "instruction": "sub eax, dword ptr [edx - 4]",
+          "instruction_confirmed": true,
+          "module_offset": "0x2312",
+          "observed_count": 3,
+          "role": "candidate_dependent_upstream_context",
+          "runtime_backed_count": 3,
+          "sample_values": {
+            "5a3e7f46ddd474d041414141414141": "0x1",
+            "78d540b49c59076f41414141414141": "0x1",
+            "78d540b49c59077041414141414141": "0x1"
+          }
+        },
+        {
+          "candidate_dependent": false,
+          "compare_lhs_match_count": 0,
+          "connects_to_compare_lhs": false,
+          "hook_name": "upstream_slot_1168_reload",
+          "hookable": false,
+          "instruction": "mov edx, dword ptr [ebp - 0x1168]",
+          "instruction_confirmed": true,
+          "module_offset": "0x2325",
+          "observed_count": 0,
+          "role": "slot_1168_after_transform",
+          "runtime_backed_count": 0,
+          "sample_values": {}
+        },
+        {
+          "candidate_dependent": false,
+          "compare_lhs_match_count": 0,
+          "connects_to_compare_lhs": false,
+          "hook_name": "upstream_material_call",
+          "hookable": false,
+          "instruction": "call 0x401b50",
+          "instruction_confirmed": true,
+          "module_offset": "0x2338",
+          "observed_count": 0,
+          "role": "slot_116c_material_call_input",
+          "runtime_backed_count": 0,
+          "sample_values": {}
+        }
+      ],
+      "producer_call": "",
+      "producer_instruction": ""
+    },
+    "relation_table": [
+      {
+        "field": "actual_compare_entry",
+        "status": "confirmed"
+      },
+      {
+        "field": "actual_compare_caller_rva",
+        "status": "0x258c"
+      },
+      {
+        "field": "arg0_candidate_dependent",
+        "status": true
+      },
+      {
+        "field": "arg1_candidate_dependent",
+        "status": false
+      },
+      {
+        "field": "flag_side",
+        "status": "arg1"
+      },
+      {
+        "field": "lhs_side",
+        "status": "arg0"
+      },
+      {
+        "field": "lhs_preview_varies_by_candidate",
+        "status": true
+      }
+    ],
+    "runtime_backed_count": 3
+  },
+  "latest_compare_esi_source_window_audit": {
+    "actual_compare": {
+      "arg0_candidate_dependent": true,
+      "arg0_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93",
+        "78d540b49c59076f41414141414141": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481cfd15ef81092633b4cad6c11c03807ff0",
+        "78d540b49c59077041414141414141": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99"
+      },
+      "arg0_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x3b4ce38",
+        "78d540b49c59076f41414141414141": "0x3a0ce38",
+        "78d540b49c59077041414141414141": "0x4f4ce38"
+      },
+      "arg1_candidate_dependent": false,
+      "arg1_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a89500",
+        "78d540b49c59076f41414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a89500",
+        "78d540b49c59077041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a89500"
+      },
+      "arg1_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x951c4c",
+        "78d540b49c59076f41414141414141": "0x951c4c",
+        "78d540b49c59077041414141414141": "0x951c4c"
+      },
+      "caller_module_offset": "0x258c",
+      "caller_return_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry": "0x258c",
+      "entry_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry_status": "confirmed",
+      "flag_side": "arg1",
+      "lhs_preview_varies_by_candidate": true,
+      "lhs_side": "arg0",
+      "observed_count": 3
+    },
+    "artifact": "solve_reports\\harness_runs\\sr_esi_source_window_20260515_r1\\reports\\tool_artifacts\\samplereverse\\compare_esi_source_window_audit\\compare_esi_source_window_audit.json",
+    "branch_summary": {
+      "pre_compare_branch_observed_count": 0,
+      "repair_call_observed_count": 0,
+      "repair_input_observed_count": 0
+    },
+    "breakpoint_probe_allowed": true,
+    "candidate_count": 3,
+    "classification": "esi_source_identified",
+    "identified_producers": [
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": true,
+          "[ebp-0x1170]": true,
+          "eax": true,
+          "ecx": false,
+          "edi": true,
+          "edx": false,
+          "esi": true
+        },
+        "compare_lhs_match_count": 3,
+        "connects_to_compare_lhs": true,
+        "hook_name": "initial_lhs_reload",
+        "hookable": true,
+        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2559",
+        "observed_count": 3,
+        "role": "initial_esi_source",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
+            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "eax": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "ecx": "0x0",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
+            "edx": "0x73",
+            "esi": "186713e2f4aecb44f8a32a8e7e1a9d60588f300bb075b56489545129eb47cec5"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "eax": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "ecx": "0x0",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
+            "edx": "0x73",
+            "esi": "66f02f1e7efea9c93f82a7348af36198bd2d529dd579413839eccf4b4fede965"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "eax": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "ecx": "0x0",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
+            "edx": "0x73",
+            "esi": "669e09956ff4b99dcaaef19c93b8c6d14ec183d5d3282aeb8b7f6c05186bcd76"
+          }
+        }
+      },
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": true,
+          "[ebp-0x1170]": true,
+          "eax": true,
+          "ecx": false,
+          "edi": true,
+          "edx": false,
+          "esi": true
+        },
+        "compare_lhs_match_count": 3,
+        "connects_to_compare_lhs": true,
+        "hook_name": "esi_length_load",
+        "hookable": true,
+        "instruction": "mov ecx, dword ptr [esi - 8]",
+        "instruction_confirmed": true,
+        "module_offset": "0x255f",
+        "observed_count": 3,
+        "role": "esi_length_check",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
+            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "eax": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "ecx": "0x0",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
+            "edx": "0x73",
+            "esi": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "eax": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "ecx": "0x0",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
+            "edx": "0x73",
+            "esi": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "eax": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "ecx": "0x0",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
+            "edx": "0x73",
+            "esi": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038"
+          }
+        }
+      },
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": true,
+          "[ebp-0x1170]": true,
+          "eax": false,
+          "ecx": false,
+          "edi": true,
+          "edx": false,
+          "esi": true
+        },
+        "compare_lhs_match_count": 3,
+        "connects_to_compare_lhs": true,
+        "hook_name": "esi_length_sub",
+        "hookable": true,
+        "instruction": "sub eax, dword ptr [esi - 4]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2567",
+        "observed_count": 3,
+        "role": "esi_length_check",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
+            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "eax": "0x1",
+            "ecx": "0x31",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
+            "edx": "0x73",
+            "esi": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "eax": "0x1",
+            "ecx": "0x31",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
+            "edx": "0x73",
+            "esi": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "eax": "0x1",
+            "ecx": "0x31",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
+            "edx": "0x73",
+            "esi": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038"
+          }
+        }
+      }
+    ],
+    "next_bounded_action": "promote the identified ESI source as the next bounded material-hook start",
+    "next_producer_window": {
+      "end_rva": "0x258b",
+      "reason": "ESI source remains bounded to the pre-compare window",
+      "start_rva": "0x2559"
+    },
+    "relation_table": [
+      {
+        "field": "actual_compare_entry",
+        "status": "confirmed"
+      },
+      {
+        "field": "actual_compare_caller_rva",
+        "status": "0x258c"
+      },
+      {
+        "field": "lhs_side",
+        "status": "arg0"
+      },
+      {
+        "field": "pre_compare_esi_to_arg0",
+        "status": "inconclusive"
+      },
+      {
+        "field": "initial_reload_to_arg0",
+        "status": "confirmed"
+      },
+      {
+        "field": "final_reload_to_arg0",
+        "status": "inconclusive"
+      },
+      {
+        "field": "repair_path_observed",
+        "status": "rejected"
+      }
+    ],
+    "relations": {
+      "actual_compare_arg0": "confirmed",
+      "final_reload_to_arg0": "inconclusive",
+      "initial_reload_to_arg0": "confirmed",
+      "pre_compare_esi_to_arg0": "inconclusive",
+      "repair_path_observed": "rejected"
+    },
+    "runtime_backed_count": 3,
+    "window_rows": [
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": true,
+          "[ebp-0x1170]": true,
+          "eax": true,
+          "ecx": false,
+          "edi": true,
+          "edx": false,
+          "esi": true
+        },
+        "compare_lhs_match_count": 3,
+        "connects_to_compare_lhs": true,
+        "hook_name": "initial_lhs_reload",
+        "hookable": true,
+        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2559",
+        "observed_count": 3,
+        "role": "initial_esi_source",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
+            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "eax": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "ecx": "0x0",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
+            "edx": "0x73",
+            "esi": "186713e2f4aecb44f8a32a8e7e1a9d60588f300bb075b56489545129eb47cec5"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "eax": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "ecx": "0x0",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
+            "edx": "0x73",
+            "esi": "66f02f1e7efea9c93f82a7348af36198bd2d529dd579413839eccf4b4fede965"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "eax": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "ecx": "0x0",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
+            "edx": "0x73",
+            "esi": "669e09956ff4b99dcaaef19c93b8c6d14ec183d5d3282aeb8b7f6c05186bcd76"
+          }
+        }
+      },
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": true,
+          "[ebp-0x1170]": true,
+          "eax": true,
+          "ecx": false,
+          "edi": true,
+          "edx": false,
+          "esi": true
+        },
+        "compare_lhs_match_count": 3,
+        "connects_to_compare_lhs": true,
+        "hook_name": "esi_length_load",
+        "hookable": true,
+        "instruction": "mov ecx, dword ptr [esi - 8]",
+        "instruction_confirmed": true,
+        "module_offset": "0x255f",
+        "observed_count": 3,
+        "role": "esi_length_check",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
+            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "eax": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "ecx": "0x0",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
+            "edx": "0x73",
+            "esi": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "eax": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "ecx": "0x0",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
+            "edx": "0x73",
+            "esi": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "eax": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "ecx": "0x0",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
+            "edx": "0x73",
+            "esi": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038"
+          }
+        }
+      },
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": true,
+          "[ebp-0x1170]": true,
+          "eax": false,
+          "ecx": false,
+          "edi": true,
+          "edx": false,
+          "esi": true
+        },
+        "compare_lhs_match_count": 3,
+        "connects_to_compare_lhs": true,
+        "hook_name": "esi_length_sub",
+        "hookable": true,
+        "instruction": "sub eax, dword ptr [esi - 4]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2567",
+        "observed_count": 3,
+        "role": "esi_length_check",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400",
+            "[ebp-0x1170]": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed",
+            "eax": "0x1",
+            "ecx": "0x31",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000c049ee00",
+            "edx": "0x73",
+            "esi": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c",
+            "eax": "0x1",
+            "ecx": "0x31",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000070432c01",
+            "edx": "0x73",
+            "esi": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481c"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701",
+            "[ebp-0x1170]": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "eax": "0x1",
+            "ecx": "0x31",
+            "edi": "7c1c950001000000000000000000000000000000010000000000000040421e01",
+            "edx": "0x73",
+            "esi": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038"
+          }
+        }
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "pre_compare_branch",
+        "hookable": false,
+        "instruction": "jge 0x2584",
+        "instruction_confirmed": true,
+        "module_offset": "0x256f",
+        "observed_count": 0,
+        "role": "repair_branch",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "repair_call_input",
+        "hookable": false,
+        "instruction": "lea ecx, [ebp - 0x1170]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2573",
+        "observed_count": 0,
+        "role": "repair_call_slot_input",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "repair_call_site",
+        "hookable": false,
+        "instruction": "call 0x4019e0",
+        "instruction_confirmed": true,
+        "module_offset": "0x2579",
+        "observed_count": 0,
+        "role": "repair_call",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "final_lhs_reload",
+        "hookable": false,
+        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+        "instruction_confirmed": true,
+        "module_offset": "0x257e",
+        "observed_count": 0,
+        "role": "final_esi_source",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "compare_count_push",
+        "hookable": false,
+        "instruction": "push 5",
+        "instruction_confirmed": true,
+        "module_offset": "0x2584",
+        "observed_count": 0,
+        "role": "compare_arg_count",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "compare_flag_push",
+        "hookable": false,
+        "instruction": "push 0x551c4c",
+        "instruction_confirmed": true,
+        "module_offset": "0x2586",
+        "observed_count": 0,
+        "role": "compare_flag_arg",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "pre_compare_lhs_push",
+        "hookable": false,
+        "instruction": "push esi",
+        "instruction_confirmed": true,
+        "module_offset": "0x258b",
+        "observed_count": 0,
+        "role": "esi_to_compare_arg0",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      }
+    ]
+  },
   "latest_compare_handoff_branch_operand_runtime_audit": {
     "artifact": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_branch_operand_runtime_audit\\compare_handoff_branch_operand_runtime_audit.json",
     "breakpoint_probe_allowed": false,
@@ -7820,7 +8606,28 @@
     ],
     "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
   },
-  "latest_compare_handoff_probe": {},
+  "latest_compare_handoff_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
+    "candidate_count": 3,
+    "classification": "handoff_capture_partial",
+    "compare_stack_pivot_audit": {
+      "compare_call_rva": "0x258c",
+      "handoff_helper_rva": "0x1b50",
+      "lhs_slot": "[ebp-0x1170]",
+      "post_handoff_reload_rva": "0x2559",
+      "reason": [],
+      "static_anchor_valid": true
+    },
+    "hook_results": {
+      "compare_lhs_buffer": "available",
+      "handoff_helper_enter": "available",
+      "handoff_helper_return": "available",
+      "lhs_slot": "available",
+      "post_handoff_lhs_reload": "unavailable"
+    },
+    "next_bounded_action": "perform a narrower backward slice from 0x401b50 helper arguments",
+    "runtime_backed_count": 3
+  },
   "latest_compare_handoff_return_site_probe": {
     "artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "call_0x401b50_entered_count": 3,
@@ -7992,7 +8799,89 @@
       ]
     }
   },
-  "latest_compare_handoff_slice_probe": {},
+  "latest_compare_handoff_slice_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
+    "candidate_count": 3,
+    "classification": "helper_arg_slice_partial",
+    "cross_candidate_summary": {
+      "candidate_count": 3,
+      "candidate_dependent_fields": {
+        "compare_lhs.lhs_preview_hex": false,
+        "helper_return.eax_preview_hex": true,
+        "helper_return.lhs_slot_preview_hex": false,
+        "pre_call.esi_ptr": true
+      },
+      "relation_counts": {
+        "helper_return_eax_matches_compare_lhs_ptr": 0,
+        "helper_return_eax_preview_matches_compare_lhs": 0,
+        "helper_return_slot_matches_compare_lhs_ptr": 0,
+        "helper_return_slot_preview_matches_compare_lhs": 0,
+        "pre_call_slot_matches_helper_enter_slot": 0,
+        "pre_compare_esi_matches_compare_lhs_ptr": 0
+      },
+      "runtime_backed_count": 3
+    },
+    "hook_results": {
+      "compare_lhs_buffer": "available",
+      "handoff_helper_enter": "available",
+      "handoff_helper_return": "available",
+      "lhs_slot": "available",
+      "post_handoff_after_reload": "unavailable",
+      "post_handoff_lhs_reload": "unavailable",
+      "pre_compare_push_esi": "unavailable"
+    },
+    "next_bounded_action": "tighten helper argument capture before candidate refinement",
+    "runtime_backed_count": 3,
+    "static_audit": {
+      "backward_slice": [
+        {
+          "instruction": "mov dword ptr [ebp - 0x1170], eax",
+          "operation": "store candidate output pointer into [ebp-0x1170]",
+          "rva": "0x253a"
+        },
+        {
+          "instruction": "call 0x401b50",
+          "operation": "handoff/copy helper before compare buffer reload",
+          "rva": "0x2554"
+        },
+        {
+          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+          "operation": "reload compare lhs pointer from [ebp-0x1170]",
+          "rva": "0x2559"
+        },
+        {
+          "instruction": "push 5",
+          "operation": "set wide compare count",
+          "rva": "0x2584"
+        },
+        {
+          "instruction": "push 0x551c4c",
+          "operation": "push wide flag target",
+          "rva": "0x2586"
+        },
+        {
+          "instruction": "push esi",
+          "operation": "push compare lhs pointer",
+          "rva": "0x258b"
+        },
+        {
+          "instruction": "call 0x5028ac",
+          "operation": "case-insensitive wide compare call",
+          "rva": "0x258c"
+        }
+      ],
+      "classification": "static_anchor_confirmed",
+      "compare_site": {
+        "actual_call_rva": "0x258c",
+        "expected_call_rva": "0x258c",
+        "helper_classification": "case_insensitive_wchar_compare",
+        "helper_rva": "0x1028ac",
+        "helper_va": "0x5028ac"
+      },
+      "corrected_post_helper_probe": "helper onLeave plus module+0x255c fallback",
+      "prior_reload_anchor": "module+0x2559"
+    }
+  },
   "latest_compare_hook_path_reachability_audit": {
     "actual_compare": {
       "arg0_candidate_dependent": false,
@@ -8637,13 +9526,1149 @@
     },
     "runtime_backed_count": 3
   },
-  "latest_compare_lhs_producer_audit": {},
-  "latest_compare_lhs_slot_writer_predecessor_audit": {},
-  "latest_compare_lhs_slot_writer_source_audit": {},
-  "latest_compare_lhs_upstream_writer_audit": {},
-  "latest_compare_pre_compare_handoff_target_probe": {},
+  "latest_compare_lhs_producer_audit": {
+    "artifact": "solve_reports\\harness_runs\\sr_lhs_slot_writer_source_20260516_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_producer_audit\\compare_lhs_producer_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "checked_windows": [
+      {
+        "candidate_dependent": false,
+        "connects_to_compare_lhs": false,
+        "hook_name": "pre_lhs_slot_store",
+        "hookable": true,
+        "instruction": "mov dword ptr [ebp - 0x1170], eax",
+        "instruction_confirmed": true,
+        "module_offset": "0x253a",
+        "observed_count": 3,
+        "relation_match_count": 0,
+        "role": "eax_to_lhs_slot",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": "00000000f8d2eb00000000002e504156435265736f7572636545786365707469",
+          "78d540b49c59076f41414141414141": "00000000f8d2eb00000000002e504156435265736f7572636545786365707469",
+          "78d540b49c59077041414141414141": "00000000f8d2eb00000000002e504156435265736f7572636545786365707469"
+        }
+      },
+      {
+        "candidate_dependent": false,
+        "connects_to_compare_lhs": false,
+        "hook_name": "pre_handoff_call",
+        "hookable": true,
+        "instruction": "call 0x401b50",
+        "instruction_confirmed": true,
+        "module_offset": "0x2554",
+        "observed_count": 3,
+        "relation_match_count": 0,
+        "role": "slot_before_handoff",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": "00000000f8d2eb00000000002e504156435265736f7572636545786365707469",
+          "78d540b49c59076f41414141414141": "00000000f8d2eb00000000002e504156435265736f7572636545786365707469",
+          "78d540b49c59077041414141414141": "00000000f8d2eb00000000002e504156435265736f7572636545786365707469"
+        }
+      },
+      {
+        "candidate_dependent": false,
+        "connects_to_compare_lhs": false,
+        "hook_name": "post_handoff_lhs_reload",
+        "hookable": false,
+        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2559",
+        "observed_count": 0,
+        "relation_match_count": 0,
+        "role": "slot_after_handoff",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "connects_to_compare_lhs": false,
+        "hook_name": "pre_compare_lhs_push",
+        "hookable": false,
+        "instruction": "push esi",
+        "instruction_confirmed": true,
+        "module_offset": "0x258b",
+        "observed_count": 0,
+        "relation_match_count": 0,
+        "role": "esi_to_compare_arg",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "connects_to_compare_lhs": false,
+        "hook_name": "compare_helper_entry",
+        "hookable": false,
+        "instruction": "compare helper entry",
+        "instruction_confirmed": true,
+        "module_offset": "0x1028ac",
+        "observed_count": 0,
+        "relation_match_count": 0,
+        "role": "compare_arg_capture",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      }
+    ],
+    "classification": "producer_window_rejected",
+    "identified_producers": [],
+    "next_bounded_action": "move earlier than 0x253a..0x258b to locate the producer feeding compare lhs",
+    "relations": {
+      "eax_to_slot": "inconclusive",
+      "esi_to_compare_arg": "inconclusive",
+      "helper_return_to_lhs": "inconclusive",
+      "slot_to_compare_arg": "inconclusive"
+    },
+    "runtime_backed_count": 3
+  },
+  "latest_compare_lhs_slot_writer_predecessor_audit": {
+    "actual_compare": {
+      "arg0_candidate_dependent": true,
+      "arg0_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93",
+        "78d540b49c59076f41414141414141": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481cfd15ef81092633b4cad6c11c03807ff0",
+        "78d540b49c59077041414141414141": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99"
+      },
+      "arg0_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x346ce68",
+        "78d540b49c59076f41414141414141": "0x40fd670",
+        "78d540b49c59077041414141414141": "0x413ce68"
+      },
+      "arg1_candidate_dependent": false,
+      "arg1_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a8fb00",
+        "78d540b49c59076f41414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a8fb00",
+        "78d540b49c59077041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a8fb00"
+      },
+      "arg1_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0xfb1c4c",
+        "78d540b49c59076f41414141414141": "0xfb1c4c",
+        "78d540b49c59077041414141414141": "0xfb1c4c"
+      },
+      "caller_module_offset": "0x258c",
+      "caller_return_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry": "0x258c",
+      "entry_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry_status": "confirmed",
+      "flag_side": "arg1",
+      "lhs_preview_varies_by_candidate": true,
+      "lhs_side": "arg0",
+      "observed_count": 3
+    },
+    "artifact": "solve_reports\\harness_runs\\sr_slot_pred_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_predecessor_audit\\compare_lhs_slot_writer_predecessor_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "classification": "handoff_call_does_not_return_to_linear_path",
+    "identified_sources": [],
+    "next_bounded_action": "trace 0x401b50 return, branch, or exception outcome before any Base64/RC4 probe",
+    "path_observed_counts": {
+      "predecessor_after_second_call": 0,
+      "predecessor_candidate_push": 0,
+      "predecessor_handoff_call": 1,
+      "predecessor_handoff_return": 0,
+      "predecessor_output_call": 0,
+      "predecessor_output_return": 0,
+      "predecessor_output_setup": 0,
+      "predecessor_second_call": 0,
+      "predecessor_stack_cleanup": 0
+    },
+    "predecessor_rows": [
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": false,
+          "[ebp-0x116c]": false,
+          "[ebp-0x1170]": false,
+          "eax": false,
+          "ecx": false,
+          "edi": false,
+          "edx": false,
+          "esi": false
+        },
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "predecessor_handoff_call",
+        "hookable": true,
+        "instruction": "call 0x401b50",
+        "instruction_confirmed": true,
+        "module_offset": "0x2338",
+        "observed_count": 1,
+        "role": "handoff_call_before_slot_writer",
+        "runtime_backed_count": 1,
+        "sample_values": {
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d2fa00000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "8bc68b4df064890d00000000595f5e5b8be55dc210008b75e48b7de085ff7405",
+            "eax": "0x0",
+            "ecx": "50d7fc0048a70b04c0a7ff01b4e0e20001000000630010000000000001000000",
+            "edi": "7c1cfb00010000000000000000000000000000000100000000000000b04b5b01",
+            "edx": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "esi": "bc92f8003cd7fc0000000000000000001700000000000000f8d2fa0000000000"
+          }
+        }
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "predecessor_handoff_return",
+        "hookable": false,
+        "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+        "instruction_confirmed": true,
+        "module_offset": "0x233d",
+        "observed_count": 0,
+        "role": "linear_return_after_handoff",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "predecessor_stack_cleanup",
+        "hookable": false,
+        "instruction": "add esp, 0xc",
+        "instruction_confirmed": true,
+        "module_offset": "0x2343",
+        "observed_count": 0,
+        "role": "linear_path_after_handoff",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "predecessor_candidate_push",
+        "hookable": false,
+        "instruction": "push edx",
+        "instruction_confirmed": true,
+        "module_offset": "0x2346",
+        "observed_count": 0,
+        "role": "candidate_buffer_push",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "predecessor_output_setup",
+        "hookable": false,
+        "instruction": "mov ecx, edi",
+        "instruction_confirmed": true,
+        "module_offset": "0x234c",
+        "observed_count": 0,
+        "role": "output_call_setup",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "predecessor_output_call",
+        "hookable": false,
+        "instruction": "call 0x4018cd",
+        "instruction_confirmed": true,
+        "module_offset": "0x234e",
+        "observed_count": 0,
+        "role": "output_call",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "predecessor_output_return",
+        "hookable": false,
+        "instruction": "mov ecx, eax",
+        "instruction_confirmed": true,
+        "module_offset": "0x2353",
+        "observed_count": 0,
+        "role": "output_return",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "predecessor_second_call",
+        "hookable": false,
+        "instruction": "call 0x401be3",
+        "instruction_confirmed": true,
+        "module_offset": "0x2355",
+        "observed_count": 0,
+        "role": "second_call",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "predecessor_after_second_call",
+        "hookable": false,
+        "instruction": "push 2",
+        "instruction_confirmed": true,
+        "module_offset": "0x235a",
+        "observed_count": 0,
+        "role": "after_second_call",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      }
+    ],
+    "relations": {
+      "actual_compare_arg0": "confirmed",
+      "handoff_return_to_linear_path": "rejected",
+      "pre_slot_source_to_compare_arg0": "inconclusive"
+    },
+    "runtime_backed_count": 3
+  },
+  "latest_compare_lhs_slot_writer_source_audit": {
+    "actual_compare": {
+      "arg0_candidate_dependent": true,
+      "arg0_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93",
+        "78d540b49c59076f41414141414141": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481cfd15ef81092633b4cad6c11c03807ff0",
+        "78d540b49c59077041414141414141": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99"
+      },
+      "arg0_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x3e0d018",
+        "78d540b49c59076f41414141414141": "0x4a5d018",
+        "78d540b49c59077041414141414141": "0x3c3d018"
+      },
+      "arg1_candidate_dependent": false,
+      "arg1_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a8c900",
+        "78d540b49c59076f41414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a8c900",
+        "78d540b49c59077041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a8c900"
+      },
+      "arg1_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0xc91c4c",
+        "78d540b49c59076f41414141414141": "0xc91c4c",
+        "78d540b49c59077041414141414141": "0xc91c4c"
+      },
+      "caller_module_offset": "0x258c",
+      "caller_return_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry": "0x258c",
+      "entry_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry_status": "confirmed",
+      "flag_side": "arg1",
+      "lhs_preview_varies_by_candidate": true,
+      "lhs_side": "arg0",
+      "observed_count": 3
+    },
+    "artifact": "solve_reports\\harness_runs\\sr_lhs_last_writer_20260518_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_lhs_slot_writer_source_audit\\compare_lhs_slot_writer_source_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "classification": "writer_hook_not_reached",
+    "eax_source": {},
+    "identified_sources": [],
+    "identified_writers": [],
+    "next_bounded_action": "move one step earlier than module+0x253a because the slot writer hook was not reached",
+    "relations": {
+      "actual_compare_arg0": "confirmed",
+      "slot_writer_candidate_dependent": "inconclusive",
+      "slot_writer_to_compare_arg0": "inconclusive",
+      "upstream_source_to_compare_arg0": "inconclusive"
+    },
+    "runtime_backed_count": 3,
+    "slot_writer": {
+      "candidate_dependent": false,
+      "candidate_dependent_fields": {},
+      "compare_lhs_match_count": 0,
+      "connects_to_compare_lhs": false,
+      "hook_name": "slot_writer",
+      "hookable": false,
+      "instruction": "mov dword ptr [ebp - 0x1170], eax",
+      "instruction_confirmed": true,
+      "module_offset": "0x253a",
+      "observed_count": 0,
+      "role": "primary_slot_writer",
+      "runtime_backed_count": 0,
+      "sample_values": {}
+    },
+    "writer_rows": [
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "slot_writer",
+        "hookable": false,
+        "instruction": "mov dword ptr [ebp - 0x1170], eax",
+        "instruction_confirmed": true,
+        "module_offset": "0x253a",
+        "observed_count": 0,
+        "role": "primary_slot_writer",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": false,
+          "[ebp-0x1170]": true,
+          "eax": false,
+          "ecx": false,
+          "edi": true,
+          "edx": true,
+          "esi": false
+        },
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "upstream_candidate_context",
+        "hookable": true,
+        "instruction": "sub eax, dword ptr [edx - 4]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2312",
+        "observed_count": 3,
+        "role": "context_only_candidate_dependent_upstream",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d2c800000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "0xdc",
+            "eax": "0x1",
+            "ecx": "0xf",
+            "edi": "7c1cc900010000000000000000000000000000000100000000000000986c7701",
+            "edx": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "esi": "bc92c6003cd7ca0000000000000000001700000000000000f8d2c80000000000"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d2c800000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "030002000400030005000400060005000700060008000700090008000a000900",
+            "eax": "0x1",
+            "ecx": "0xf",
+            "edi": "7c1cc900010000000000000000000000000000000100000000000000c8179700",
+            "edx": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "esi": "bc92c6003cd7ca0000000000000000001700000000000000f8d2c80000000000"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d2c800000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "8bc68b4df064890d00000000595f5e5b8be55dc210008b75e48b7de085ff7405",
+            "eax": "0x1",
+            "ecx": "0xf",
+            "edi": "7c1cc900010000000000000000000000000000000100000000000000884e9a00",
+            "edx": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "esi": "bc92c6003cd7ca0000000000000000001700000000000000f8d2c80000000000"
+          }
+        }
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "upstream_slot_1168_reload",
+        "hookable": false,
+        "instruction": "mov edx, dword ptr [ebp - 0x1168]",
+        "instruction_confirmed": true,
+        "module_offset": "0x2325",
+        "observed_count": 0,
+        "role": "context_only_slot_1168_after_transform",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": false,
+          "[ebp-0x1170]": true,
+          "eax": false,
+          "ecx": true,
+          "edi": true,
+          "edx": true,
+          "esi": false
+        },
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "upstream_material_call",
+        "hookable": true,
+        "instruction": "call 0x401b50",
+        "instruction_confirmed": true,
+        "module_offset": "0x2338",
+        "observed_count": 3,
+        "role": "context_only_slot_116c_material_call_input",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d2c800000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "0xdc",
+            "eax": "0x0",
+            "ecx": "50d7ca0058cf2e050000000000006101000000000000000020000000c0257f01",
+            "edi": "7c1cc900010000000000000000000000000000000100000000000000986c7701",
+            "edx": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "esi": "bc92c6003cd7ca0000000000000000001700000000000000f8d2c80000000000"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d2c800000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "030002000400030005000400060005000700060008000700090008000a000900",
+            "eax": "0x0",
+            "ecx": "50d7ca0058cf5103000000000c00000020000000205d9e000000850000000000",
+            "edi": "7c1cc900010000000000000000000000000000000100000000000000c8179700",
+            "edx": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "esi": "bc92c6003cd7ca0000000000000000001700000000000000f8d2c80000000000"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d2c800000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "8bc68b4df064890d00000000595f5e5b8be55dc210008b75e48b7de085ff7405",
+            "eax": "0x0",
+            "ecx": "50d7ca0018cf3b03105a550144de4f0001000000630010000000000001000000",
+            "edi": "7c1cc900010000000000000000000000000000000100000000000000884e9a00",
+            "edx": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "esi": "bc92c6003cd7ca0000000000000000001700000000000000f8d2c80000000000"
+          }
+        }
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "upstream_output_call",
+        "hookable": false,
+        "instruction": "call 0x4018cd",
+        "instruction_confirmed": true,
+        "module_offset": "0x234e",
+        "observed_count": 0,
+        "role": "context_only_output_call",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "upstream_output_return",
+        "hookable": false,
+        "instruction": "mov ecx, eax",
+        "instruction_confirmed": true,
+        "module_offset": "0x2353",
+        "observed_count": 0,
+        "role": "context_only_output_return",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_lhs_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "hook_name": "upstream_second_call",
+        "hookable": false,
+        "instruction": "call 0x401be3",
+        "instruction_confirmed": true,
+        "module_offset": "0x2355",
+        "observed_count": 0,
+        "role": "context_only_second_call",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      }
+    ]
+  },
+  "latest_compare_lhs_upstream_writer_audit": {
+    "artifact": "solve_reports\\harness_runs\\sr_esi_snapshot_20260515_r2\\reports\\tool_artifacts\\samplereverse\\compare_lhs_upstream_writer_audit\\compare_lhs_upstream_writer_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "candidate_dependent_writers": [
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": false,
+          "[ebp-0x1170]": true,
+          "eax": false,
+          "ecx": false,
+          "edi": true,
+          "edx": true,
+          "esi": false
+        },
+        "compare_arg_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "connects_to_lhs_store": false,
+        "hook_name": "producer_window_entry",
+        "hookable": true,
+        "instruction": "sub eax, dword ptr [edx - 4]",
+        "instruction_confirmed": true,
+        "lhs_store_match_count": 0,
+        "module_offset": "0x2312",
+        "observed_count": 3,
+        "role": "upstream_context",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d29400000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "030002010400030005000400060005000700060008000700090008000a000900",
+            "eax": "0x1",
+            "ecx": "0xf",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000b84f1101",
+            "edx": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "esi": "bc9292003cd7960000000000000000001700000000000000f8d2940000000000"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d29400000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "0xf1",
+            "eax": "0x1",
+            "ecx": "0xf",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000e845d700",
+            "edx": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "esi": "bc9292003cd7960000000000000000001700000000000000f8d2940000000000"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d29400000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "0xf5",
+            "eax": "0x1",
+            "ecx": "0xf",
+            "edi": "7c1c95000100000000000000000000000000000001000000000000008040f100",
+            "edx": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "esi": "bc9292003cd7960000000000000000001700000000000000f8d2940000000000"
+          }
+        }
+      }
+    ],
+    "checked_writers": [
+      {
+        "candidate_dependent": true,
+        "candidate_dependent_fields": {
+          "[ebp-0x1168]": true,
+          "[ebp-0x116c]": false,
+          "[ebp-0x1170]": true,
+          "eax": false,
+          "ecx": false,
+          "edi": true,
+          "edx": true,
+          "esi": false
+        },
+        "compare_arg_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "connects_to_lhs_store": false,
+        "hook_name": "producer_window_entry",
+        "hookable": true,
+        "instruction": "sub eax, dword ptr [edx - 4]",
+        "instruction_confirmed": true,
+        "lhs_store_match_count": 0,
+        "module_offset": "0x2312",
+        "observed_count": 3,
+        "role": "upstream_context",
+        "runtime_backed_count": 3,
+        "sample_values": {
+          "5a3e7f46ddd474d041414141414141": {
+            "[ebp-0x1168]": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d29400000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "030002010400030005000400060005000700060008000700090008000a000900",
+            "eax": "0x1",
+            "ecx": "0xf",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000b84f1101",
+            "edx": "5a003e007f014600dd01d4017400d00141004100410041004100410041000000",
+            "esi": "bc9292003cd7960000000000000000001700000000000000f8d2940000000000"
+          },
+          "78d540b49c59076f41414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d29400000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "0xf1",
+            "eax": "0x1",
+            "ecx": "0xf",
+            "edi": "7c1c9500010000000000000000000000000000000100000000000000e845d700",
+            "edx": "7800d5014000b4019c01590007016f0041004100410041004100410041000000",
+            "esi": "bc9292003cd7960000000000000000001700000000000000f8d2940000000000"
+          },
+          "78d540b49c59077041414141414141": {
+            "[ebp-0x1168]": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "[ebp-0x116c]": "00000000f8d29400000000002e504156435265736f7572636545786365707469",
+            "[ebp-0x1170]": "0xf5",
+            "eax": "0x1",
+            "ecx": "0xf",
+            "edi": "7c1c95000100000000000000000000000000000001000000000000008040f100",
+            "edx": "7800d5014000b4019c0159000701700041004100410041004100410041000000",
+            "esi": "bc9292003cd7960000000000000000001700000000000000f8d2940000000000"
+          }
+        }
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_arg_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "connects_to_lhs_store": false,
+        "hook_name": "producer_pre_transform_call",
+        "hookable": false,
+        "instruction": "call 0x4019e0",
+        "instruction_confirmed": true,
+        "lhs_store_match_count": 0,
+        "module_offset": "0x2320",
+        "observed_count": 0,
+        "role": "slot_1168_writer_call_input",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_arg_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "connects_to_lhs_store": false,
+        "hook_name": "producer_post_transform_slot_reload",
+        "hookable": false,
+        "instruction": "mov edx, dword ptr [ebp - 0x1168]",
+        "instruction_confirmed": true,
+        "lhs_store_match_count": 0,
+        "module_offset": "0x2325",
+        "observed_count": 0,
+        "role": "slot_1168_after_transform",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_arg_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "connects_to_lhs_store": false,
+        "hook_name": "producer_pre_material_call",
+        "hookable": false,
+        "instruction": "call 0x401b50",
+        "instruction_confirmed": true,
+        "lhs_store_match_count": 0,
+        "module_offset": "0x2338",
+        "observed_count": 0,
+        "role": "slot_116c_writer_call_input",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_arg_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "connects_to_lhs_store": false,
+        "hook_name": "downstream_lhs_store_sentinel",
+        "hookable": false,
+        "instruction": "mov dword ptr [ebp - 0x1170], eax",
+        "instruction_confirmed": true,
+        "lhs_store_match_count": 0,
+        "module_offset": "0x253a",
+        "observed_count": 0,
+        "role": "downstream_lhs_store_sentinel",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      },
+      {
+        "candidate_dependent": false,
+        "candidate_dependent_fields": {},
+        "compare_arg_match_count": 0,
+        "connects_to_compare_lhs": false,
+        "connects_to_lhs_store": false,
+        "hook_name": "compare_helper_entry",
+        "hookable": false,
+        "instruction": "compare helper entry",
+        "instruction_confirmed": true,
+        "lhs_store_match_count": 0,
+        "module_offset": "0x1028ac",
+        "observed_count": 0,
+        "role": "compare_arg_capture",
+        "runtime_backed_count": 0,
+        "sample_values": {}
+      }
+    ],
+    "classification": "candidate_dependent_upstream_observed",
+    "identified_writers": [],
+    "next_bounded_action": "add a narrow relation audit from the candidate-dependent upstream writer to [ebp-0x1170]/compare arg",
+    "relations": {
+      "slot_1168_to_lhs_store": "inconclusive",
+      "slot_116c_to_lhs_store": "inconclusive",
+      "upstream_to_compare_arg": "rejected"
+    },
+    "runtime_backed_count": 3
+  },
+  "latest_compare_pre_compare_handoff_target_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_pre_compare_handoff_target_probe\\compare_pre_compare_handoff_target_probe.json",
+    "breakpoint_probe_allowed": true,
+    "candidate_count": 3,
+    "candidate_dependent_fields": {
+      "producer_pre_candidate_push.eax_preview_hex": true,
+      "producer_pre_candidate_push.ecx_preview_hex": false,
+      "producer_pre_candidate_push.edi_preview_hex": true,
+      "producer_pre_candidate_push.edx_preview_hex": true,
+      "producer_pre_candidate_push.esi_preview_hex": false,
+      "producer_return_site.eax_preview_hex": true,
+      "producer_return_site.ecx_preview_hex": false,
+      "producer_return_site.edi_preview_hex": true,
+      "producer_return_site.edx_preview_hex": false,
+      "producer_return_site.esi_preview_hex": false
+    },
+    "classification": "next_handoff_target_identified",
+    "hit_summary": {
+      "hit_compare_helper_entry_count": 0,
+      "hit_producer_after_second_call_count": 0,
+      "hit_producer_post_output_call_count": 0,
+      "hit_producer_pre_candidate_push_count": 3,
+      "hit_producer_pre_output_call_count": 0,
+      "hit_producer_pre_second_call_count": 0,
+      "hit_producer_return_site_count": 3
+    },
+    "hook_miss_classification": "branch_exits_before_output_calls",
+    "material_hook_candidate_count": 2,
+    "material_hook_candidates": [
+      {
+        "address": "module+0x233d",
+        "candidate_dependent": true,
+        "confidence": "medium",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": true,
+        "evidence": [
+          "candidate-dependent EAX observed in bounded pre-compare handoff window",
+          "hook connects to compare lhs or expected producer material"
+        ],
+        "hook_kind": "interceptor",
+        "hookable": true,
+        "instruction": "mov edx, dword ptr [ebp - 0x116c]",
+        "instruction_confirmed": true,
+        "kind": "utf16le_payload",
+        "module_offset": "0x233d",
+        "name": "pre_compare_producer_return_site_utf16le_payload",
+        "rva": "0x233d",
+        "source": "compare_pre_compare_handoff_target_probe"
+      },
+      {
+        "address": "module+0x2346",
+        "candidate_dependent": true,
+        "confidence": "medium",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": true,
+        "evidence": [
+          "candidate-dependent EAX observed in bounded pre-compare handoff window",
+          "hook connects to compare lhs or expected producer material"
+        ],
+        "hook_kind": "interceptor",
+        "hookable": true,
+        "instruction": "push edx",
+        "instruction_confirmed": true,
+        "kind": "utf16le_payload",
+        "module_offset": "0x2346",
+        "name": "pre_compare_producer_pre_candidate_push_utf16le_payload",
+        "rva": "0x2346",
+        "source": "compare_pre_compare_handoff_target_probe"
+      }
+    ],
+    "next_bounded_action": "rerun bounded Base64/RC4 breakpoint probe with pre-compare handoff material hooks",
+    "relation_counts": {
+      "producer_pre_candidate_push.eax_to_arg0.preview_matches": 0,
+      "producer_pre_candidate_push.eax_to_arg0.ptr_matches": 0,
+      "producer_pre_candidate_push.eax_to_arg1.preview_matches": 0,
+      "producer_pre_candidate_push.eax_to_arg1.ptr_matches": 0,
+      "producer_pre_candidate_push.edi_to_arg0.preview_matches": 0,
+      "producer_pre_candidate_push.edi_to_arg0.ptr_matches": 0,
+      "producer_pre_candidate_push.edi_to_arg1.preview_matches": 0,
+      "producer_pre_candidate_push.edi_to_arg1.ptr_matches": 0,
+      "producer_pre_candidate_push.edx_to_arg0.preview_matches": 0,
+      "producer_pre_candidate_push.edx_to_arg0.ptr_matches": 0,
+      "producer_pre_candidate_push.edx_to_arg1.preview_matches": 0,
+      "producer_pre_candidate_push.edx_to_arg1.ptr_matches": 0,
+      "producer_pre_candidate_push.esi_to_arg0.preview_matches": 0,
+      "producer_pre_candidate_push.esi_to_arg0.ptr_matches": 0,
+      "producer_pre_candidate_push.esi_to_arg1.preview_matches": 0,
+      "producer_pre_candidate_push.esi_to_arg1.ptr_matches": 0,
+      "producer_return_site.eax_to_arg0.preview_matches": 0,
+      "producer_return_site.eax_to_arg0.ptr_matches": 0,
+      "producer_return_site.eax_to_arg1.preview_matches": 0,
+      "producer_return_site.eax_to_arg1.ptr_matches": 0,
+      "producer_return_site.edi_to_arg0.preview_matches": 0,
+      "producer_return_site.edi_to_arg0.ptr_matches": 0,
+      "producer_return_site.edi_to_arg1.preview_matches": 0,
+      "producer_return_site.edi_to_arg1.ptr_matches": 0,
+      "producer_return_site.edx_to_arg0.preview_matches": 0,
+      "producer_return_site.edx_to_arg0.ptr_matches": 0,
+      "producer_return_site.edx_to_arg1.preview_matches": 0,
+      "producer_return_site.edx_to_arg1.ptr_matches": 0,
+      "producer_return_site.esi_to_arg0.preview_matches": 0,
+      "producer_return_site.esi_to_arg0.ptr_matches": 0,
+      "producer_return_site.esi_to_arg1.preview_matches": 0,
+      "producer_return_site.esi_to_arg1.ptr_matches": 0
+    },
+    "relation_table": [
+      {
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "compare_args": [],
+        "compare_observed": false,
+        "hook_relations": [
+          {
+            "eax_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "eax_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "hook_name": "producer_return_site",
+            "module_offset": "0x233d"
+          },
+          {
+            "eax_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "eax_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "hook_name": "producer_pre_candidate_push",
+            "module_offset": "0x2346"
+          }
+        ]
+      },
+      {
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "compare_args": [],
+        "compare_observed": false,
+        "hook_relations": [
+          {
+            "eax_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "eax_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "hook_name": "producer_return_site",
+            "module_offset": "0x233d"
+          },
+          {
+            "eax_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "eax_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "hook_name": "producer_pre_candidate_push",
+            "module_offset": "0x2346"
+          }
+        ]
+      },
+      {
+        "candidate_hex": "78d540b49c59077141414141414141",
+        "compare_args": [],
+        "compare_observed": false,
+        "hook_relations": [
+          {
+            "eax_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "eax_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "hook_name": "producer_return_site",
+            "module_offset": "0x233d"
+          },
+          {
+            "eax_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "eax_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "edx_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg0": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "esi_to_arg1": {
+              "preview_matches": false,
+              "ptr_matches": false
+            },
+            "hook_name": "producer_pre_candidate_push",
+            "module_offset": "0x2346"
+          }
+        ]
+      }
+    ],
+    "runtime_backed_count": 3
+  },
   "latest_compare_producer_material_confirmation": {
-    "artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
+    "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "breakpoint_probe_allowed": false,
     "candidate_count": 3,
     "classification": "material_confirmation_inconclusive",
@@ -8688,11 +10713,11 @@
         "candidate_previews": {},
         "expected_eax_match_count": 0,
         "hook_name": "producer_pre_material_call",
-        "hookable": true,
+        "hookable": false,
         "instruction": "call 0x401b50",
         "instruction_confirmed": true,
         "module_offset": "0x2338",
-        "observed_count": 3
+        "observed_count": 0
       },
       {
         "candidate_dependent_eax": false,
@@ -8765,7 +10790,332 @@
     "next_bounded_action": "manually inspect producer offsets 0x2320, 0x2338, 0x234e, and 0x2355 before expanding search",
     "runtime_backed_count": 3
   },
-  "latest_compare_producer_trace_probe": {},
+  "latest_compare_producer_trace_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
+    "best_material_candidates": [
+      {
+        "address": "0x3bed550",
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "evidence": [
+          "captured in bounded producer context",
+          "not promoted to material hook without instruction-level evidence"
+        ],
+        "hookable": false,
+        "instruction_confirmed": false,
+        "kind": "unknown_buffer",
+        "preview_ascii": "..eQ.v.[../f .:. .x...@.....Y...p.A.A.A.A.A.A.A......................y..........",
+        "preview_hex": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701700041004100410041004100410041000000000000000000e91a19c2abae0000c000be038879be030000000000000000",
+        "preview_utf16le": "",
+        "size": 128,
+        "source_hook": "producer_return_site",
+        "source_register": "eax"
+      },
+      {
+        "address": "0xa4d73c",
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "evidence": [
+          "captured in bounded producer context",
+          "not promoted to material hook without instruction-level evidence"
+        ],
+        "hookable": false,
+        "instruction_confirmed": false,
+        "kind": "unknown_buffer",
+        "preview_ascii": "....<............................PAVCResourceException@@.............PAVCUserExc",
+        "preview_hex": "bc92a0003cd7a40000000000000000001600000000000000f8d2a200000000002e504156435265736f75726365457863657074696f6e404000000000f8d2a200000000002e5041564355736572457863",
+        "preview_utf16le": "",
+        "size": 128,
+        "source_hook": "producer_return_site",
+        "source_register": "esi"
+      },
+      {
+        "address": "0xeff918",
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "evidence": [
+          "captured in bounded producer context",
+          "not promoted to material hook without instruction-level evidence"
+        ],
+        "hookable": false,
+        "instruction_confirmed": false,
+        "kind": "unknown_buffer",
+        "preview_ascii": "|............................RB.....................@...........................",
+        "preview_hex": "7c1ca30001000000000000000000000000000000010000000000000008524201f40d1700000000000000000000000000cc9ea000409fa00000000000ffffffffffffffff000000000000000000000000",
+        "preview_utf16le": "",
+        "size": 128,
+        "source_hook": "producer_return_site",
+        "source_register": "edi"
+      },
+      {
+        "address": "0x12501c4",
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "evidence": [
+          "captured in bounded producer context",
+          "not promoted to material hook without instruction-level evidence"
+        ],
+        "hookable": false,
+        "instruction_confirmed": false,
+        "kind": "unknown_buffer",
+        "preview_ascii": "................................................................................",
+        "preview_hex": "030002010400030005000400060005000700060008000700090008000a0009000b000a000c000b000d000c000e000d000f000e0010000f00110010001200110013001200140013001500140016001500",
+        "preview_utf16le": "",
+        "size": 128,
+        "source_hook": "producer_return_site",
+        "source_register": "lhs_slot"
+      },
+      {
+        "address": "",
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "evidence": [
+          "captured in bounded producer context",
+          "not promoted to material hook without instruction-level evidence"
+        ],
+        "hookable": false,
+        "instruction_confirmed": false,
+        "kind": "possible_base64_output",
+        "preview_ascii": ".............PAVCResourceExcepti",
+        "preview_hex": "00000000f8d2a200000000002e504156435265736f7572636545786365707469",
+        "preview_utf16le": "",
+        "size": 32,
+        "source_hook": "module+0x253a",
+        "source_register": "eax"
+      },
+      {
+        "address": "",
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "evidence": [
+          "captured in bounded producer context",
+          "not promoted to material hook without instruction-level evidence"
+        ],
+        "hookable": false,
+        "instruction_confirmed": false,
+        "kind": "unknown_buffer",
+        "preview_ascii": "f...o...........N....(*...l..k.v",
+        "preview_hex": "669e09956ff4b99dcaaef19c93b8c6d14ec183d5d3282aeb8b7f6c05186bcd76",
+        "preview_utf16le": "",
+        "size": 32,
+        "source_hook": "module+0x253a",
+        "source_register": "esi"
+      },
+      {
+        "address": "0x3c9d550",
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "evidence": [
+          "captured in bounded producer context",
+          "not promoted to material hook without instruction-level evidence"
+        ],
+        "hookable": false,
+        "instruction_confirmed": false,
+        "kind": "unknown_buffer",
+        "preview_ascii": "..eQ.v.[../f .:. .Z.>...F.....t...A.A.A.A.A.A.A.........Ja...........y..........",
+        "preview_hex": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400d001410041004100410041004100410000000000000000004a61d380f6030000c000c9038879c9030000000000000000",
+        "preview_utf16le": "",
+        "size": 128,
+        "source_hook": "producer_return_site",
+        "source_register": "eax"
+      },
+      {
+        "address": "0xa4d73c",
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "evidence": [
+          "captured in bounded producer context",
+          "not promoted to material hook without instruction-level evidence"
+        ],
+        "hookable": false,
+        "instruction_confirmed": false,
+        "kind": "unknown_buffer",
+        "preview_ascii": "....<............................PAVCResourceException@@.............PAVCUserExc",
+        "preview_hex": "bc92a0003cd7a40000000000000000001600000000000000f8d2a200000000002e504156435265736f75726365457863657074696f6e404000000000f8d2a200000000002e5041564355736572457863",
+        "preview_utf16le": "",
+        "size": 128,
+        "source_hook": "producer_return_site",
+        "source_register": "esi"
+      }
+    ],
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "candidate_material_count": 16,
+    "classification": "upstream_material_candidate_found",
+    "cross_candidate_summary": {
+      "candidate_count": 3,
+      "candidate_dependent_fields": {
+        "compare_entry.arg0.preview_hex": false,
+        "compare_entry.arg0.value": false,
+        "compare_entry.arg1.preview_hex": false,
+        "compare_entry.arg1.value": false,
+        "compare_entry.caller_return_module_offset": false,
+        "producer.eax_preview_hex": true,
+        "producer.edi_preview_hex": false,
+        "producer.esi_preview_hex": false,
+        "producer.lhs_slot_preview_hex": false,
+        "static_call_site.arg0.preview_hex": false,
+        "static_call_site.arg1.preview_hex": false
+      },
+      "relation_counts": {
+        "compare_entry_arg0_is_flag_target": 0,
+        "compare_entry_arg1_is_flag_target": 0,
+        "pre_compare_esi_matches_compare_arg_ptr": 0,
+        "pre_store_eax_matches_compare_arg_ptr": 0,
+        "producer_eax_matches_compare_arg_ptr": 0,
+        "producer_eax_preview_matches_compare_arg": 0,
+        "producer_edi_matches_compare_arg_ptr": 0,
+        "producer_edi_preview_matches_compare_arg": 0,
+        "producer_esi_matches_compare_arg_ptr": 0,
+        "producer_esi_preview_matches_compare_arg": 0,
+        "producer_lhs_slot_matches_compare_arg_ptr": 0,
+        "producer_lhs_slot_preview_matches_compare_arg": 0
+      },
+      "runtime_backed_count": 3,
+      "target_flag_side_counts": {
+        "call_arg0": 0,
+        "call_arg1": 0,
+        "entry_arg0": 0,
+        "entry_arg1": 0
+      }
+    },
+    "hook_miss_classification": {
+      "classification": "control-flow skipped",
+      "missed_hooks": "post_handoff_lhs_reload, pre_compare_push_esi, wide_flag_prefix_compare"
+    },
+    "hook_results": {
+      "compare_call_args": "unavailable",
+      "compare_entry_args": "unavailable",
+      "compare_helper_entry": "unavailable",
+      "lhs_slot": "available",
+      "post_handoff_lhs_reload": "unavailable",
+      "pre_compare_push_esi": "unavailable",
+      "pre_handoff_call": "available",
+      "pre_lhs_slot_store": "available",
+      "producer_return_site": "available",
+      "wide_flag_prefix_compare": "unavailable"
+    },
+    "material_hook_candidate_count": 0,
+    "material_hook_candidates": [],
+    "next_bounded_action": "confirm the upstream material candidate at instruction level before enabling breakpoint capture",
+    "runtime_backed_count": 3,
+    "static_audit": {
+      "classification": "static_producer_trace_audit_complete",
+      "compare_window": {
+        "bytes_hex": "898590eeffff8d4d9c518d9590eeffff68441c550052c645fc02e8f7f5ffff8bb590eeffff8b4ef8b8010000002b46fc83c40c0bc87d136a008d8d90eeffffe862f4ffff8bb590eeffff6a05684c1c550056e81b031000",
+        "end_rva": "0x2591",
+        "start_rva": "0x253a"
+      },
+      "hook_point_audit": [
+        {
+          "address": "module+0x233d",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x233d",
+          "name": "producer_return_site",
+          "reason": "hook point is a bounded producer/compare audit target"
+        },
+        {
+          "address": "module+0x253a",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x253a",
+          "name": "pre_lhs_slot_store",
+          "reason": "hook point is a bounded producer/compare audit target"
+        },
+        {
+          "address": "module+0x2554",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x2554",
+          "name": "pre_handoff_call",
+          "reason": "hook point is a bounded producer/compare audit target"
+        },
+        {
+          "address": "module+0x2559",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x2559",
+          "name": "post_handoff_lhs_reload",
+          "reason": "hook point is a bounded producer/compare audit target"
+        },
+        {
+          "address": "module+0x258b",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x258b",
+          "name": "pre_compare_push_esi",
+          "reason": "hook point is a bounded producer/compare audit target"
+        },
+        {
+          "address": "module+0x258c",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x258c",
+          "name": "wide_flag_prefix_compare",
+          "reason": "hook point is a bounded producer/compare audit target"
+        },
+        {
+          "address": "module+0x1028ac",
+          "boundary_status": "instruction_confirmed",
+          "module_offset": "0x1028ac",
+          "name": "compare_helper_entry",
+          "reason": "hook point is a bounded producer/compare audit target"
+        }
+      ],
+      "instruction_boundaries": [
+        {
+          "bytes_hex": "8b",
+          "end_rva": "0x233e",
+          "instruction": "dynamic return site after observed 0x401b50 helper call",
+          "operation": "audit producer-side continuation after helper return",
+          "rva": "0x233d",
+          "size": 1
+        },
+        {
+          "bytes_hex": "898590eeffff",
+          "end_rva": "0x2540",
+          "instruction": "mov dword ptr [ebp - 0x1170], eax",
+          "operation": "store candidate output pointer into [ebp-0x1170]",
+          "rva": "0x253a",
+          "size": 6
+        },
+        {
+          "bytes_hex": "e8f7f5ffff",
+          "end_rva": "0x2559",
+          "instruction": "call 0x401b50",
+          "operation": "previously suspected handoff helper",
+          "rva": "0x2554",
+          "size": 5
+        },
+        {
+          "bytes_hex": "8bb590eeffff",
+          "end_rva": "0x255f",
+          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+          "operation": "reload compare lhs pointer from [ebp-0x1170]",
+          "rva": "0x2559",
+          "size": 6
+        },
+        {
+          "bytes_hex": "56",
+          "end_rva": "0x258c",
+          "instruction": "push esi",
+          "operation": "push compare lhs pointer",
+          "rva": "0x258b",
+          "size": 1
+        },
+        {
+          "bytes_hex": "e81b031000",
+          "end_rva": "0x2591",
+          "instruction": "call 0x5028ac",
+          "operation": "static wide compare call site",
+          "rva": "0x258c",
+          "size": 5
+        },
+        {
+          "bytes_hex": "8b",
+          "end_rva": "0x1028ad",
+          "instruction": "case-insensitive wide compare helper entry",
+          "operation": "actual compare helper entry hook target",
+          "rva": "0x1028ac",
+          "size": 1
+        }
+      ],
+      "producer_window": {
+        "bytes_hex": "00002b42fc0bc87d12538d8d98eeffffe8bbf6ffff8b9598eeffff528d8d94eeffff68081c550051e813f8ffff8b9594eeffff83c40c5268ea0300008bcfe87af500008bc8e889f600006a0268201c55008d8d94ee",
+        "end_rva": "0x2365",
+        "start_rva": "0x2310"
+      }
+    },
+    "write_source_trace": [],
+    "write_source_trace_count": 0
+  },
   "latest_compare_real_lhs_provenance_audit": {
     "actual_compare": {
       "arg0_candidate_dependent": false,
@@ -9431,15 +11781,155 @@
       "selected_thread_ids": []
     }
   },
-  "latest_compare_stack_pivot_probe": {},
-  "latest_dynamic_compare_path_probe": {},
+  "latest_compare_stack_pivot_probe": {
+    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
+    "candidate_count": 3,
+    "classification": "compare_stack_pivot_complete",
+    "hook_results": {
+      "base64_input": "unavailable",
+      "base64_output": "unavailable",
+      "compare_buffer": "available",
+      "rc4_input": "unavailable",
+      "rc4_key": "unavailable",
+      "rc4_output": "unavailable",
+      "utf16le_payload": "available_from_compare_stack"
+    },
+    "next_bounded_action": "hook module+0x1b50 enter/return and module+0x2559 to capture the handoff into [ebp-0x1170]",
+    "next_hook_points": [
+      {
+        "address": "module+0x2559",
+        "module_offset": 9561,
+        "name": "post_handoff_lhs_reload",
+        "reason": "first instruction after call 0x401b50 reloads [ebp-0x1170] into esi"
+      },
+      {
+        "address": "module+0x1b50",
+        "module_offset": 6992,
+        "name": "handoff_helper_enter",
+        "reason": "captures arguments to the helper that runs before the compare buffer is reloaded"
+      },
+      {
+        "address": "module+0x2559",
+        "module_offset": 9561,
+        "name": "handoff_helper_return",
+        "reason": "captures [ebp-0x1170], esi, and stack payload immediately after helper return"
+      }
+    ],
+    "runtime_backed_count": 3,
+    "static_audit": {
+      "backward_slice": [
+        {
+          "instruction": "mov dword ptr [ebp - 0x1170], eax",
+          "operation": "store candidate output pointer into [ebp-0x1170]",
+          "rva": "0x253a"
+        },
+        {
+          "instruction": "call 0x401b50",
+          "operation": "handoff/copy helper before compare buffer reload",
+          "rva": "0x2554"
+        },
+        {
+          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+          "operation": "reload compare lhs pointer from [ebp-0x1170]",
+          "rva": "0x2559"
+        },
+        {
+          "instruction": "push 5",
+          "operation": "set wide compare count",
+          "rva": "0x2584"
+        },
+        {
+          "instruction": "push 0x551c4c",
+          "operation": "push wide flag target",
+          "rva": "0x2586"
+        },
+        {
+          "instruction": "push esi",
+          "operation": "push compare lhs pointer",
+          "rva": "0x258b"
+        },
+        {
+          "instruction": "call 0x5028ac",
+          "operation": "case-insensitive wide compare call",
+          "rva": "0x258c"
+        }
+      ],
+      "classification": "static_anchor_confirmed",
+      "compare_site": {
+        "actual_call_rva": "0x258c",
+        "expected_call_rva": "0x258c",
+        "helper_classification": "case_insensitive_wchar_compare",
+        "helper_rva": "0x1028ac",
+        "helper_va": "0x5028ac"
+      },
+      "errors": [],
+      "next_hook_points": [
+        {
+          "address": "module+0x2559",
+          "module_offset": 9561,
+          "name": "post_handoff_lhs_reload",
+          "reason": "first instruction after call 0x401b50 reloads [ebp-0x1170] into esi"
+        },
+        {
+          "address": "module+0x1b50",
+          "module_offset": 6992,
+          "name": "handoff_helper_enter",
+          "reason": "captures arguments to the helper that runs before the compare buffer is reloaded"
+        },
+        {
+          "address": "module+0x2559",
+          "module_offset": 9561,
+          "name": "handoff_helper_return",
+          "reason": "captures [ebp-0x1170], esi, and stack payload immediately after helper return"
+        }
+      ],
+      "wide_flag": {
+        "expected_rva": "0x151c4c",
+        "expected_va": "0x551c4c",
+        "hits": [
+          {
+            "file_offset": "0x15044c",
+            "rva": "0x151c4c",
+            "va": "0x551c4c"
+          }
+        ]
+      },
+      "wide_flag_xrefs": [
+        {
+          "file_offset": "0x1987",
+          "instruction_rva": "0x2586",
+          "rva": "0x2587"
+        }
+      ]
+    },
+    "utf16le_payload_available_count": 3
+  },
+  "latest_dynamic_compare_path_probe": {
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\dynamic_compare_path_probe\\dynamic_compare_path_probe.json",
+    "candidate_count": 3,
+    "classification": "dynamic_probe_complete",
+    "next_bounded_action": "move to lower-level dynamic instrumentation/manual reversing for pre-RC4 or key material",
+    "probe_points": {
+      "base64_material": "inferred",
+      "compare_length": "available",
+      "compare_target": "available",
+      "compare_unit": "available",
+      "post_rc4_compare_buffer": "available",
+      "pre_rc4_runtime_material": "unavailable",
+      "raw_input": "available",
+      "rc4_input": "inferred",
+      "rc4_key": "inferred",
+      "utf16le_payload": "inferred"
+    },
+    "runtime_backed_count": 3
+  },
   "latest_function_semantic_audit": {
-    "artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\function_semantic_audit\\function_semantic_audit.json",
-    "breakpoint_probe_allowed": false,
-    "classification": "runtime_instrumentation_required",
-    "function_count": 4,
-    "material_hook_candidate_count": 0,
-    "next_bounded_action": "confirm the 0x401b50 return or branch outcome after the 0x2338 call before rerunning Base64/RC4 breakpoint capture",
+    "artifact": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\function_semantic_audit\\function_semantic_audit.json",
+    "breakpoint_probe_allowed": true,
+    "classification": "material_hook_ready",
+    "function_count": 6,
+    "material_hook_candidate_count": 2,
+    "next_bounded_action": "rerun bounded Base64/RC4 breakpoint probe with pre-compare handoff material hooks",
     "top_semantic_guesses": [
       {
         "candidate_dependent": false,
@@ -9450,9 +11940,9 @@
       },
       {
         "candidate_dependent": true,
-        "confidence": "medium",
+        "confidence": "low",
         "function": "0x401b50",
-        "material_hook_candidate_status": "blocked_missing_transform_chain_connection",
+        "material_hook_candidate_status": "blocked_copy_handoff_only",
         "semantic_guess": "copy_or_handoff"
       },
       {
@@ -9468,15 +11958,476 @@
         "function": "0x401be3",
         "material_hook_candidate_status": "blocked_unreached_in_current_probe",
         "semantic_guess": "unknown_but_bounded"
+      },
+      {
+        "candidate_dependent": true,
+        "confidence": "medium",
+        "function": "0x233d",
+        "material_hook_candidate_status": "ready",
+        "semantic_guess": "utf16le_constructor"
+      },
+      {
+        "candidate_dependent": true,
+        "confidence": "medium",
+        "function": "0x2346",
+        "material_hook_candidate_status": "ready",
+        "semantic_guess": "utf16le_constructor"
       }
     ]
   },
-  "latest_material_hook_runtime_validation": {},
-  "latest_post_handoff_branch_outcome_audit": {},
-  "latest_post_handoff_exception_unwind_audit": {},
-  "latest_pre_rc4_material_probe": {},
+  "latest_material_hook_runtime_validation": {
+    "artifact": "solve_reports\\harness_runs\\sr_esi_material_hook_20260515_r3\\reports\\tool_artifacts\\samplereverse\\material_hook_runtime_validation\\material_hook_runtime_validation.json",
+    "blocked_hook_count": 1,
+    "blocked_hooks": [
+      {
+        "address": "module+0x2559",
+        "candidate_dependent": false,
+        "classification": "not_reached",
+        "confidence": "low",
+        "connects_to_compare_lhs": true,
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "observed_count=0",
+          "readable_count=0",
+          "expected_rc4_output_match_count=0"
+        ],
+        "function": "0x2559",
+        "hit_count": 0,
+        "hook_kind": "interceptor",
+        "hook_name": "initial_lhs_reload",
+        "hookable": false,
+        "instruction": "mov esi, dword ptr [ebp - 0x1170]",
+        "instruction_confirmed": true,
+        "kind": "rc4_output",
+        "material_kind": "rc4_output",
+        "module_offset": "0x2559",
+        "name": "material_hook_runtime_initial_lhs_reload",
+        "per_candidate": [
+          {
+            "candidate_hex": "78d540b49c59077041414141414141",
+            "expected_rc4_output_prefix_hex": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038",
+            "frame_slots": [],
+            "matched_expected_registers": [],
+            "observed": false,
+            "pointers": {
+              "eax": "",
+              "ecx": "",
+              "edi": "",
+              "edx": "",
+              "esi": ""
+            },
+            "preview_hex": {},
+            "registers": {},
+            "stack_words": []
+          }
+        ],
+        "readable_count": 0,
+        "rva": "0x2559"
+      }
+    ],
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "classification": "REJECTED",
+    "material_kind": "rc4_output",
+    "next_bounded_action": "reject 0x2559 material-hook hypothesis and trace writer/source before 0x2559 / [ebp-0x1170]",
+    "runtime_backed_count": 0,
+    "source_compare_esi_source_window_classification": "esi_source_identified",
+    "validated_hook_count": 0,
+    "validated_hooks": []
+  },
+  "latest_post_handoff_branch_outcome_audit": {
+    "actual_compare": {
+      "arg0_candidate_dependent": true,
+      "arg0_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93",
+        "78d540b49c59076f41414141414141": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481cfd15ef81092633b4cad6c11c03807ff0",
+        "78d540b49c59077041414141414141": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99"
+      },
+      "arg0_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x34ace90",
+        "78d540b49c59076f41414141414141": "0x349ce90",
+        "78d540b49c59077041414141414141": "0x38fce90"
+      },
+      "arg1_candidate_dependent": false,
+      "arg1_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a87100",
+        "78d540b49c59076f41414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a87100",
+        "78d540b49c59077041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a87100"
+      },
+      "arg1_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x711c4c",
+        "78d540b49c59076f41414141414141": "0x711c4c",
+        "78d540b49c59077041414141414141": "0x711c4c"
+      },
+      "caller_module_offset": "0x258c",
+      "caller_return_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry": "0x258c",
+      "entry_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry_status": "confirmed",
+      "flag_side": "arg1",
+      "lhs_preview_varies_by_candidate": true,
+      "lhs_side": "arg0",
+      "observed_count": 3
+    },
+    "artifact": "solve_reports\\harness_runs\\sr_401b50_outcome_20260517_r1\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_branch_outcome_audit\\post_handoff_branch_outcome_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "classification": "handoff_exception_or_unwind",
+    "downstream_transform_calls_reached": false,
+    "exit_summary": {
+      "callee_entered_count": 3,
+      "callee_leave_count": 0,
+      "exception_candidates": [
+        "78d540b49c59077041414141414141",
+        "5a3e7f46ddd474d041414141414141",
+        "78d540b49c59076f41414141414141"
+      ],
+      "leave_current_module_offsets": {},
+      "return_address_module_offsets": {}
+    },
+    "failed_material_hook_hypotheses": [
+      {
+        "candidate_dependent": true,
+        "classification": "runtime_validation_rejected_material_hook",
+        "connects_to_transform_chain": false,
+        "hit_count": 3,
+        "hook_name": "producer_return_site",
+        "module_offset": "0x233d",
+        "source": "post_handoff_branch_window"
+      },
+      {
+        "candidate_dependent": true,
+        "classification": "runtime_validation_rejected_material_hook",
+        "connects_to_transform_chain": false,
+        "hit_count": 3,
+        "hook_name": "producer_pre_candidate_push",
+        "module_offset": "0x2346",
+        "source": "post_handoff_branch_window"
+      }
+    ],
+    "next_bounded_action": "trace 0x401b50 exception or unwind handler before any Base64/RC4 probe",
+    "path_observed_counts": {
+      "handoff_helper_entry": 3,
+      "predecessor_candidate_push": 0,
+      "predecessor_handoff_call": 3,
+      "predecessor_handoff_return": 0,
+      "predecessor_output_call": 0,
+      "predecessor_second_call": 0,
+      "predecessor_stack_cleanup": 0,
+      "process_exception": 3,
+      "static_compare_callsite": 3
+    },
+    "runtime_backed_count": 3,
+    "source_material_hook_runtime_classification": "REJECTED",
+    "source_pre_compare_handoff_classification": "next_handoff_target_identified",
+    "source_pre_compare_handoff_hook_miss_classification": "branch_exits_before_output_calls",
+    "source_predecessor_classification": "handoff_call_does_not_return_to_linear_path"
+  },
+  "latest_post_handoff_exception_unwind_audit": {
+    "actual_compare": {
+      "arg0_candidate_dependent": true,
+      "arg0_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93",
+        "78d540b49c59076f41414141414141": "d6707f3ad7f8bb0e0fd64fcb26994378ccf8ab7b78afab8e2aa5675732c7481cfd15ef81092633b4cad6c11c03807ff0",
+        "78d540b49c59077041414141414141": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99"
+      },
+      "arg0_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x368d018",
+        "78d540b49c59076f41414141414141": "0x423d018",
+        "78d540b49c59077041414141414141": "0x412cfd8"
+      },
+      "arg1_candidate_dependent": false,
+      "arg1_preview_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a81401",
+        "78d540b49c59076f41414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a81401",
+        "78d540b49c59077041414141414141": "66006c00610067007b00000046006c006100670020003a0020000000c65ba5940d4e636b6e7800000000000010a81401"
+      },
+      "arg1_value_by_candidate": {
+        "5a3e7f46ddd474d041414141414141": "0x1141c4c",
+        "78d540b49c59076f41414141414141": "0x1141c4c",
+        "78d540b49c59077041414141414141": "0x1141c4c"
+      },
+      "caller_module_offset": "0x258c",
+      "caller_return_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry": "0x258c",
+      "entry_module_offsets": {
+        "5a3e7f46ddd474d041414141414141": "0x258c",
+        "78d540b49c59076f41414141414141": "0x258c",
+        "78d540b49c59077041414141414141": "0x258c"
+      },
+      "entry_status": "confirmed",
+      "flag_side": "arg1",
+      "lhs_preview_varies_by_candidate": true,
+      "lhs_side": "arg0",
+      "observed_count": 3
+    },
+    "artifact": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\post_handoff_exception_unwind_audit.json",
+    "breakpoint_probe_allowed": false,
+    "candidate_count": 3,
+    "classification": "seh_unwind_to_compare_path",
+    "evidence_gate": {
+      "actual_compare_lhs_runtime_backed": true,
+      "candidate_dependent_transform_material_runtime_backed": false,
+      "compare_args_captured": true,
+      "compare_entry_observed": true,
+      "connected_producer_runtime_backed": false,
+      "exception_evidence": true,
+      "handler_unwind_evidence": true,
+      "path_observed_counts": {
+        "handoff_helper_entry": 0,
+        "predecessor_candidate_push": 0,
+        "predecessor_handoff_call": 0,
+        "predecessor_handoff_return": 0,
+        "predecessor_output_call": 0,
+        "predecessor_second_call": 0,
+        "predecessor_stack_cleanup": 0,
+        "process_exception": 0,
+        "static_compare_callsite": 3
+      },
+      "upstream_hits": false
+    },
+    "exception_path": {
+      "handler_resume_candidates": {
+        "5a3e7f46ddd474d041414141414141": [
+          "0x19fe"
+        ],
+        "78d540b49c59076f41414141414141": [
+          "0x19fe"
+        ],
+        "78d540b49c59077041414141414141": [
+          "0x19fe"
+        ]
+      },
+      "last_observed_offset_before_compare": {
+        "5a3e7f46ddd474d041414141414141": "0x1913",
+        "78d540b49c59076f41414141414141": "0x1913",
+        "78d540b49c59077041414141414141": "0x1913"
+      },
+      "observed_exception_offsets": {
+        "5a3e7f46ddd474d041414141414141": [
+          "0x1913"
+        ],
+        "78d540b49c59076f41414141414141": [
+          "0x1913"
+        ],
+        "78d540b49c59077041414141414141": [
+          "0x1913"
+        ]
+      }
+    },
+    "next_bounded_action": "trace SEH/unwind handler to compare lhs dataflow",
+    "post_classification_route": "handler_to_lhs_dataflow",
+    "runtime_backed_count": 3,
+    "source_post_handoff_branch_outcome_classification": "handoff_exception_or_unwind",
+    "tentative_hook_candidates": [
+      {
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "event": "enter",
+        "evidence_ref": {
+          "artifact": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_1\\post_handoff_exception_unwind_audit.json",
+          "field": "hook_observations[0]"
+        },
+        "exception": {},
+        "hook_name": "tentative_exception_site_1913",
+        "module_offset": "0x1913",
+        "status": "runtime_observed"
+      },
+      {
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "event": "enter",
+        "evidence_ref": {
+          "artifact": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_1\\post_handoff_exception_unwind_audit.json",
+          "field": "hook_observations[1]"
+        },
+        "exception": {},
+        "hook_name": "tentative_resume_19fe",
+        "module_offset": "0x19fe",
+        "status": "runtime_observed"
+      },
+      {
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "event": "enter",
+        "evidence_ref": {
+          "artifact": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_1\\post_handoff_exception_unwind_audit.json",
+          "field": "hook_observations[2]"
+        },
+        "exception": {},
+        "hook_name": "tentative_exception_site_1913",
+        "module_offset": "0x1913",
+        "status": "runtime_observed"
+      },
+      {
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "event": "enter",
+        "evidence_ref": {
+          "artifact": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_2\\post_handoff_exception_unwind_audit.json",
+          "field": "hook_observations[0]"
+        },
+        "exception": {},
+        "hook_name": "tentative_exception_site_1913",
+        "module_offset": "0x1913",
+        "status": "runtime_observed"
+      },
+      {
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "event": "enter",
+        "evidence_ref": {
+          "artifact": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_2\\post_handoff_exception_unwind_audit.json",
+          "field": "hook_observations[1]"
+        },
+        "exception": {},
+        "hook_name": "tentative_resume_19fe",
+        "module_offset": "0x19fe",
+        "status": "runtime_observed"
+      },
+      {
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "event": "enter",
+        "evidence_ref": {
+          "artifact": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_2\\post_handoff_exception_unwind_audit.json",
+          "field": "hook_observations[2]"
+        },
+        "exception": {},
+        "hook_name": "tentative_exception_site_1913",
+        "module_offset": "0x1913",
+        "status": "runtime_observed"
+      },
+      {
+        "candidate_hex": "78d540b49c59076f41414141414141",
+        "event": "enter",
+        "evidence_ref": {
+          "artifact": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_3\\post_handoff_exception_unwind_audit.json",
+          "field": "hook_observations[0]"
+        },
+        "exception": {},
+        "hook_name": "tentative_exception_site_1913",
+        "module_offset": "0x1913",
+        "status": "runtime_observed"
+      },
+      {
+        "candidate_hex": "78d540b49c59076f41414141414141",
+        "event": "enter",
+        "evidence_ref": {
+          "artifact": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_3\\post_handoff_exception_unwind_audit.json",
+          "field": "hook_observations[1]"
+        },
+        "exception": {},
+        "hook_name": "tentative_resume_19fe",
+        "module_offset": "0x19fe",
+        "status": "runtime_observed"
+      }
+    ]
+  },
+  "latest_pre_rc4_material_probe": {
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\pre_rc4_material_probe\\pre_rc4_material_probe.json",
+    "candidate_count": 3,
+    "classification": "material_capture_partial",
+    "first_divergence_stage": "unknown",
+    "next_bounded_action": "add a narrower material hook or bounded Base64/RC4 breakpoint fallback",
+    "offline_runtime_agreement_table": [
+      {
+        "base64_agree": null,
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "first_divergence_stage": "unknown",
+        "offline_base64_ascii": "fwCCAIUAfwB8AHoAgwB+AIEAhgB9AIMAeACBAH8AegB8AHsAfAB7AHwAewB8AHsAfAB7AHwAewB8AHsA",
+        "offline_rc4_hex": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99ba4173702e4f23659def4313aa338f64",
+        "offline_utf16_hex": "7f00820085007f007c007a0083007e00810086007d008300780081007f007a007c007b007c007b007c007b007c007b007c007b007c007b007c007b00",
+        "rc4_agree": null,
+        "runtime_base64_ascii": "",
+        "runtime_rc4_hex": "",
+        "runtime_utf16_hex": "",
+        "utf16_agree": null
+      },
+      {
+        "base64_agree": null,
+        "candidate_hex": "78d540b49c59077040414141414141",
+        "first_divergence_stage": "unknown",
+        "offline_base64_ascii": "fwCCAIUAfwB8AHoAgwB+AIEAhgB9AIMAeACBAH8AegB8AHoAfAB7AHwAewB8AHsAfAB7AHwAewB8AHsA",
+        "offline_rc4_hex": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99ba4173702e4f23659def4313aa338f64",
+        "offline_utf16_hex": "7f00820085007f007c007a0083007e00810086007d008300780081007f007a007c007a007c007b007c007b007c007b007c007b007c007b007c007b00",
+        "rc4_agree": null,
+        "runtime_base64_ascii": "",
+        "runtime_rc4_hex": "",
+        "runtime_utf16_hex": "",
+        "utf16_agree": null
+      },
+      {
+        "base64_agree": null,
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "first_divergence_stage": "unknown",
+        "offline_base64_ascii": "fQCEAHsAiAB/AIkAfACAAIUAhwCFAH4AfwB+AIUAegB8AHsAfAB7AHwAewB8AHsAfAB7AHwAewB8AHsA",
+        "offline_rc4_hex": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93dd8ecaf3dfac4cc4b129de67cfb9c91b",
+        "offline_utf16_hex": "7d0084007b0088007f0089007c0080008500870085007e007f007e0085007a007c007b007c007b007c007b007c007b007c007b007c007b007c007b00",
+        "rc4_agree": null,
+        "runtime_base64_ascii": "",
+        "runtime_rc4_hex": "",
+        "runtime_utf16_hex": "",
+        "utf16_agree": null
+      }
+    ],
+    "probe_points": {
+      "base64_material": "unavailable",
+      "compare_buffer": "unavailable",
+      "expanded_bytes": "unavailable",
+      "raw_input": "unavailable",
+      "rc4_encrypted_const": "unavailable",
+      "rc4_ksa_key": "unavailable",
+      "rc4_output": "unavailable",
+      "utf16le_payload": "unavailable"
+    },
+    "producer_material_relation_table": [
+      {
+        "base64_output": "",
+        "candidate_hex": "78d540b49c59077041414141414141",
+        "producer_eax": "938f65518476c65ba5942f6620003a0020007800d5014000b4019c0159000701700041004100410041004100410041000000000000000000e91a19c2abae0000c000be038879be030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "producer_lhs_slot": "030002010400030005000400060005000700060008000700090008000a0009000b000a000c000b000d000c000e000d000f000e0010000f001100100012001100130012001400130015001400160015001700160018001700190018001a0019001b001a001c001b001d001c001e001d001f001e0020001f002100200023002100",
+        "rc4_output": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99ba4173702e4f23659def4313aa338f64",
+        "rc4_to_producer_eax_relation": "no_match",
+        "rc4_to_producer_lhs_slot_relation": "no_match",
+        "rc4_to_producer_relation": "no_match",
+        "utf16_material": ""
+      },
+      {
+        "base64_output": "",
+        "candidate_hex": "78d540b49c59077040414141414141",
+        "producer_eax": "",
+        "producer_lhs_slot": "",
+        "rc4_output": "46006c004464830d311c701038525b853072ee18c26f2b523688e43ab9670038ac3d9da73cee402b95cf8934602bfb99ba4173702e4f23659def4313aa338f64",
+        "rc4_to_producer_eax_relation": "no_match",
+        "rc4_to_producer_lhs_slot_relation": "no_match",
+        "rc4_to_producer_relation": "no_match",
+        "utf16_material": ""
+      },
+      {
+        "base64_output": "",
+        "candidate_hex": "5a3e7f46ddd474d041414141414141",
+        "producer_eax": "938f65518476c65ba5942f6620003a0020005a003e007f014600dd01d4017400d001410041004100410041004100410000000000000000004a61d380f6030000c000c9038879c9030000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+        "producer_lhs_slot": "",
+        "rc4_output": "460061357f0b8c688502de328c19e0294596105e8db9c096f5c95525c671d3ed1c075ab55ae016b969520142e20aae93dd8ecaf3dfac4cc4b129de67cfb9c91b",
+        "rc4_to_producer_eax_relation": "no_match",
+        "rc4_to_producer_lhs_slot_relation": "no_match",
+        "rc4_to_producer_relation": "no_match",
+        "utf16_material": ""
+      }
+    ],
+    "rc4_input_status": "unknown",
+    "rc4_key_status": "unknown",
+    "runtime_backed_count": 3
+  },
   "latest_static_point_discovery": {
-    "artifact": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
     "best_points": [
       {
         "classification": "hookable_and_instruction_confirmed",
@@ -9524,70 +12475,90 @@
         "rva": "0x2559"
       },
       {
+        "candidate_dependent": false,
         "classification": "found_but_not_hookable",
         "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
         "evidence": [
           "standard Base64 alphabet table not found in PE bytes"
         ],
         "function": "",
         "hookable": false,
         "instruction": "",
+        "instruction_confirmed": false,
         "kind": "base64",
         "module_offset": "",
         "name": "standard_base64_alphabet_unavailable",
         "rva": ""
       },
       {
+        "candidate_dependent": false,
         "classification": "found_but_not_hookable",
         "confidence": "low",
-        "evidence": [
-          "no stable RC4 KSA code signature available from current artifacts"
-        ],
-        "function": "",
-        "hookable": false,
-        "instruction": "",
-        "kind": "rc4_ksa",
-        "module_offset": "",
-        "name": "rc4_ksa_site_unresolved",
-        "rva": ""
-      },
-      {
-        "classification": "found_but_not_hookable",
-        "confidence": "low",
-        "evidence": [
-          "no stable RC4 PRGA code signature available from current artifacts"
-        ],
-        "function": "",
-        "hookable": false,
-        "instruction": "",
-        "kind": "rc4_prga",
-        "module_offset": "",
-        "name": "rc4_prga_site_unresolved",
-        "rva": ""
-      },
-      {
-        "classification": "found_but_not_hookable",
-        "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
         "evidence": [
           "modeled encrypted const prefix not found in PE bytes"
         ],
         "function": "",
         "hookable": false,
         "instruction": "",
+        "instruction_confirmed": false,
         "kind": "encrypted_const",
         "module_offset": "",
         "name": "modeled_rc4_encrypted_const_unavailable",
         "rva": ""
       },
       {
+        "candidate_dependent": false,
         "classification": "found_but_not_hookable",
         "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "no stable RC4 KSA code signature available from current artifacts"
+        ],
+        "function": "",
+        "hookable": false,
+        "instruction": "",
+        "instruction_confirmed": false,
+        "kind": "rc4_ksa",
+        "module_offset": "",
+        "name": "rc4_ksa_site_unresolved",
+        "rva": ""
+      },
+      {
+        "candidate_dependent": false,
+        "classification": "found_but_not_hookable",
+        "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
+        "evidence": [
+          "no stable RC4 PRGA code signature available from current artifacts"
+        ],
+        "function": "",
+        "hookable": false,
+        "instruction": "",
+        "instruction_confirmed": false,
+        "kind": "rc4_prga",
+        "module_offset": "",
+        "name": "rc4_prga_site_unresolved",
+        "rva": ""
+      },
+      {
+        "candidate_dependent": false,
+        "classification": "found_but_not_hookable",
+        "confidence": "low",
+        "connects_to_compare_lhs": false,
+        "connects_to_transform_chain": false,
         "evidence": [
           "no stable UTF-16LE construction instruction signature available from current artifacts"
         ],
         "function": "",
         "hookable": false,
         "instruction": "",
+        "instruction_confirmed": false,
         "kind": "utf16le",
         "module_offset": "",
         "name": "utf16le_expansion_site_unresolved",
@@ -9632,102 +12603,23 @@
     "instruction_confirmed_count": 3,
     "next_bounded_action": "use compare-producer hook evidence to narrow manual Base64/RC4 disassembly before rerunning breakpoint probe"
   },
-  "latest_transform_trace_consistency": {},
+  "latest_transform_trace_consistency": {
+    "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json",
+    "candidate_count": 5,
+    "classification": "evidence_insufficient",
+    "next_bounded_action": "capture pre-RC4/Base64 runtime buffers with a bounded dynamic probe",
+    "runtime_backed_count": 2,
+    "stop_reason": "not enough runtime-backed candidates to confirm transform consistency"
+  },
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260602_053948",
+  "round_id": "round_20260608_152003",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "cdd2be5cf02d",
+  "source_git_commit": "7b2c79ba27ed",
   "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260602_053948_4e3984041cd7",
-  "state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
+  "state_build_id": "state_20260608_152003_e6fc7ab3ce85",
+  "state_digest": "e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067",
   "uncertainty": [],
-  "workflow_status": "REPORT_AVAILABLE",
-  "local_reverse_training": {
-    "stage": "ida_evidence_ready",
-    "latest_summary": "project_state\\local_reverse_ida_summary.json",
-    "summary_status": "SUCCESS",
-    "target_count": 3,
-    "success_count": 3,
-    "ida_available": true,
-    "hexrays_available_any": true,
-    "source_summary_generated_at": "2026-06-03T11:53:49Z",
-    "source_run": "round_20260603_local_reverse_ida_path_rerun_v1",
-    "state_refresh_round": "round_20260603_local_reverse_current_state_rework_v1",
-    "current_ida_evidence": [
-      {
-        "sample_id": "18019fca52b389fe",
-        "relative_path": "逆向课程2024春01/sha_256.exe",
-        "ida_status": "success",
-        "hexrays_available": true,
-        "ida_output_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\18019fca52b389fe\\sha_256_ida_evidence.json",
-        "artifact_key": "local_reverse_ida_evidence_18019fca52b389fe",
-        "next_action": "ida_summary_guided_solver_v1"
-      },
-      {
-        "sample_id": "4c69f173f2bd0211",
-        "relative_path": "逆向课程2022春02/CPP2.exe",
-        "ida_status": "success",
-        "hexrays_available": true,
-        "ida_output_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\4c69f173f2bd0211\\CPP2_ida_evidence.json",
-        "artifact_key": "local_reverse_ida_evidence_4c69f173f2bd0211",
-        "next_action": "ida_summary_guided_solver_v1"
-      },
-      {
-        "sample_id": "bcbd9979db015bfd",
-        "relative_path": "逆向课程2022春补考01/Cpp1.exe",
-        "ida_status": "success",
-        "hexrays_available": true,
-        "ida_output_path": "solve_reports\\tool_artifacts\\local_reverse_ida_evidence_integration_v1\\bcbd9979db015bfd\\Cpp1_ida_evidence.json",
-        "artifact_key": "local_reverse_ida_evidence_bcbd9979db015bfd",
-        "next_action": "ida_summary_guided_solver_v1"
-      }
-    ],
-    "solver_stage": "ida_summary_guided_solver_v1",
-    "latest_solver_result": "project_state\\local_reverse_ida_solver_result.json",
-    "solver_result_status": "PARTIAL",
-    "solver_result_round": "round_20260603_ida_summary_guided_solver_v1",
-    "solver_result_artifact_key": "local_reverse_ida_solver_result",
-    "next_recommended_decision": "local_reverse_static_constraint_refinement_v1",
-    "latest_constraint_recovery": "project_state\\local_reverse_constraint_recovery_result.json",
-    "latest_constraint_recovery_status": "PARTIAL",
-    "latest_constraint_recovery_round": "round_20260603_local_reverse_constraint_recovery_delivery_rework_v1",
-    "latest_validated_candidates": [
-      {
-        "sample_id": "bcbd9979db015bfd",
-        "relative_path": "逆向课程2022春补考01/Cpp1.exe",
-        "candidate": "hookapi",
-        "source_artifact": "project_state\\local_reverse_validated_candidate_handoff.json",
-        "validation_status": "validated"
-      }
-    ],
-    "latest_targeted_static_reextraction": "project_state\\local_reverse_targeted_static_reextraction_result.json",
-    "latest_targeted_static_reextraction_status": "PARTIAL",
-    "latest_targeted_static_reextraction_round": "round_20260603_local_reverse_targeted_static_reextraction_v1",
-    "latest_forced_ida_extraction": "project_state\\local_reverse_forced_ida_extraction_result.json",
-    "latest_forced_ida_extraction_status": "SUCCESS",
-    "latest_forced_ida_extraction_round": "round_20260603_local_reverse_forced_ida_extraction_v1",
-    "local_reverse_recent_solved": {
-      "sample_id": "cpp2_32f1713e",
-      "known_candidate": "KEEP_DREAM",
-      "validation_artifact": "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
-      "accepted_round": "round_20260607_cpp2_32f1713e_training_status_sync_v1"
-    },
-    "local_reverse_training_summary": {
-      "sample_count": 29,
-      "solved": 4,
-      "blocked": 4,
-      "needs_triage": 0,
-      "inventory_only": 21
-    },
-    "local_reverse_next_queue_hint": {
-      "sample_id": "cpp2_883e67b9",
-      "relative_path": "逆向课程2024春02/CPP2.exe",
-      "proposed_next_mainline": "tool_integration",
-      "allowed_actions": ["static_triage", "bounded_static_extraction_readiness"],
-      "forbidden_actions": ["runtime_probe", "brute_force", "debugger", "hook", "emulator", "upload_binary"]
-    },
-    "scope_note": "samplereverse fields are retained as compatibility/background; this local_reverse_training block is the current local_reverse evidence entrypoint."
-  }
+  "workflow_status": "REPORT_AVAILABLE"
 }
