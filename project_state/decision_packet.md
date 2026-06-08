@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_cleanup_lint_report_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_cleanup_lint_report_rework_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -19,27 +19,25 @@
 
 本轮主线是 **tool_integration**。
 
-目标：清理上一轮错误提交的根目录工具输出 JSON，并修正 report 的实际变更文件列表。本轮只处理提交卫生和 project_state 报告一致性，不重新分析样本，不运行样本，不生成 candidate，不做 runtime validation，不继续 IDA/Ghidra 分析。
+目标：修复 cleanup 轮的测试记录矛盾。上一轮已经正确删除根目录工具 dump，但 `pytest_result.txt` 和 `codex_execution_report.md` 中同时出现 `status=PASSED / All checks passed` 与 `lint-report: FAILED`，违反审计规则。本轮只重新运行并记录通过的 lint-report/status 结果，不重新分析样本，不运行 IDA/Ghidra，不生成 candidate，不做 runtime validation。
 
-必须删除或撤回提交中的根目录工具 dump：
-
-```text
-ida_evidence.json
-sub_401014_key_init_analysis.json
-sub_401120_analysis.json
-xref_boundary_audit.json
-```
-
-这些文件不应作为根目录产物提交。若确需长期保存，必须在后续单独设计受控 project_state artifact，并登记到 artifact_index；本轮默认删除，不做新 artifact 设计。
-
-必须更新：
+必须完成：
 
 ```text
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
+1. 保持 4 个根目录 JSON 工具 dump 已删除：
+   - ida_evidence.json
+   - sub_401014_key_init_analysis.json
+   - sub_401120_analysis.json
+   - xref_boundary_audit.json
+
+2. 重新运行 lint-report，必须得到 OK / PASS。
+3. 更新 project_state/pytest_result.txt，使其不再出现 lint-report FAILED。
+4. 更新 project_state/codex_execution_report.md，使 Tests 表不再记录 lint-report FAILED。
+5. 确认 codex_report_summary.files_changed 与实际 git diff --name-status 一致。
+6. 保持 candidate_generated=false、candidate_validation_attempted=false、runtime_validation_attempted=false。
 ```
 
-如果删除这些文件不影响 `project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json` 内容，则不要无意义修改 artifact 或 artifact_index。
+本轮不得进入 reverse_solving。不得生成 candidate、不得验证 candidate、不得运行样本交互逻辑、不得 attach debugger/hook/probe/winpty/emulator、不得 brute force、不得 runtime validation、不得继续 IDA/Ghidra/static extraction。
 
 ---
 
@@ -50,23 +48,29 @@ project_state/pytest_result.txt
 上一轮审计结论为 REWORK_REQUIRED，原因是：
 
 ```text
-1. artifact 明文 redaction、pytest_result round、artifact_index.source_run 已基本修复。
-2. 但实际提交包含根目录 JSON 工具输出：
-   - ida_evidence.json
-   - sub_401014_key_init_analysis.json
-   - sub_401120_analysis.json
-   - xref_boundary_audit.json
-3. codex_execution_report.md 中 files_changed 只列出 project_state 4 个文件，没有如实列出上述根目录 JSON。
-4. report 把这些根目录 JSON 说成 pre-existing untracked environment noise，但 GitHub compare 显示它们已经被提交。
+1. 根目录 JSON 工具 dump 删除方向正确。
+2. codex_execution_report.md 已绑定 cleanup decision。
+3. pytest_result.txt 已绑定 cleanup decision。
+4. 但 report/pytest_result 均记录 lint-report FAILED。
+5. 同时 pytest_result 顶部写 status=PASSED，底部写 All checks passed，形成测试记录自相矛盾。
+6. 没有 GitHub Actions 可作为外部通过佐证。
 ```
 
-当前允许保留的静态证据仍只应存在于已登记 project_state artifact：
+已完成且应保持：
 
 ```text
-project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json
-project_state/artifact_index.json
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
+1. 根目录 JSON 工具 dump 已从仓库中删除。
+2. project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json 无需修改。
+3. project_state/artifact_index.json 无需修改。
+4. 不生成 candidate，不 runtime validation。
+```
+
+需要修复：
+
+```text
+1. lint-report 必须重新运行并通过。
+2. codex_execution_report.md 和 pytest_result.txt 必须记录通过结果。
+3. 不得再出现 FAILED 与 PASSED 并存的矛盾记录。
 ```
 
 `negative_results.json` 仍必须遵守：不回到 blind search，不扩大预算，不提交 full solve_reports，不把 stale/missing artifact 当 current，不重复旧 samplereverse 失败方向。
@@ -105,11 +109,10 @@ project_state/pytest_result.txt
 ```text
 1. 读取默认 project_state 文件。
 2. 读取与 cpp2_883e67b9 直接相关的 current project_state artifacts。
-3. 删除根目录 JSON 工具输出文件。
-4. 修正 project_state/codex_execution_report.md。
-5. 修正 project_state/pytest_result.txt。
-6. 执行 JSON parse、py_compile、pytest、lint、git diff check。
-7. 使用 git diff --name-status / git status --short 核对实际变更文件。
+3. 修正 project_state/codex_execution_report.md。
+4. 修正 project_state/pytest_result.txt。
+5. 执行 JSON parse、py_compile、pytest、lint、git diff check。
+6. 使用 git diff --name-status / git status --short 核对实际变更文件。
 ```
 
 ---
@@ -130,7 +133,7 @@ project_state/pytest_result.txt
 project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json
 ```
 
-必须检查并删除或撤回：
+必须确认以下文件不再出现在仓库根目录或 git diff 中：
 
 ```text
 ida_evidence.json
@@ -166,39 +169,39 @@ Codex 报告必须回答：
 2. mainline 是否为 tool_integration？
 3. task_packet 是否仅为 advisory？
 4. 是否确认本轮不是 reverse_solving，不生成/验证 candidate？
-5. 实际 git diff --name-status 文件列表是什么？
-6. 根目录 JSON 工具输出是否已删除？
-7. codex_report_summary.files_changed 是否与实际 diff 一致？
-8. 是否仍保持 candidate_generated=false？
-9. 是否仍保持 candidate_validation_attempted=false？
-10. 是否仍保持 runtime_validation_attempted=false？
-11. 是否没有运行样本交互逻辑、runtime validation、debugger、hook、emulator、probe、winpty？
-12. 是否没有修改 training_status/status_overlay？
-13. 是否没有新增 artifact 或 artifact_index 噪声登记？
-14. 是否运行 JSON parse 校验？
-15. 是否运行 py_compile？
-16. 是否运行相关 pytest？结果是多少？
-17. 是否运行 lint-decision、lint-report、project_state status？
-18. 是否运行 git diff --check、git status --short、git diff --name-status？
-19. git diff 是否只包含允许文件？
+5. 根目录 JSON 工具输出是否仍已删除？
+6. lint-report 是否重新运行且结果为 OK/PASS？
+7. pytest_result.txt 中是否仍出现 lint-report FAILED？必须为否。
+8. codex_execution_report.md 中是否仍出现 lint-report FAILED？必须为否。
+9. pytest_result.txt 是否仍存在 FAILED 与 PASSED 并存矛盾？必须为否。
+10. codex_report_summary.files_changed 是否与实际 diff 一致？
+11. 是否仍保持 candidate_generated=false？
+12. 是否仍保持 candidate_validation_attempted=false？
+13. 是否仍保持 runtime_validation_attempted=false？
+14. 是否没有运行样本交互逻辑、runtime validation、debugger、hook、emulator、probe、winpty？
+15. 是否没有修改 training_status/status_overlay？
+16. 是否没有新增 artifact 或 artifact_index 噪声登记？
+17. 是否运行 JSON parse 校验？
+18. 是否运行 py_compile？
+19. 是否运行相关 pytest？结果是多少？
+20. 是否运行 lint-decision、lint-report、project_state status？
+21. 是否运行 git diff --check、git status --short、git diff --name-status？
+22. git diff 是否只包含允许文件？
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-### Phase A — Remove root tool dumps
+### Phase A — Re-run lint-report and required checks
 
-删除或撤回以下文件：
+重新运行并记录：
 
 ```text
-ida_evidence.json
-sub_401014_key_init_analysis.json
-sub_401120_analysis.json
-xref_boundary_audit.json
+.venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
 ```
 
-不得把这些文件移动到其他目录作为本轮新 artifact。不得重新登记 artifact_index。
+结果必须为 OK/PASS，不允许记录为 FAILED 后解释为 expected。
 
 ### Phase B — Fix report and pytest_result
 
@@ -212,19 +215,20 @@ project_state/pytest_result.txt
 必须绑定：
 
 ```text
-decision_id=decision_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1
-report_id=report_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1
-round_id=round_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1
+decision_id=decision_20260608_cpp2_883e67b9_cleanup_lint_report_rework_v1
+report_id=report_20260608_cpp2_883e67b9_cleanup_lint_report_rework_v1
+round_id=round_20260608_cpp2_883e67b9_cleanup_lint_report_rework_v1
 ```
 
 report 必须说明：
 
 ```text
-1. 已删除根目录工具 dump。
-2. files_changed 与实际 diff 一致。
-3. 本轮未运行样本、未运行 IDA/Ghidra、未 runtime validation。
-4. 本轮未生成 candidate。
-5. artifact_index 若未修改，说明原因；若修改，必须解释必要性。
+1. 已重新运行 lint-report，结果 OK/PASS。
+2. pytest_result 中不再出现 FAILED 与 PASSED 并存。
+3. 根目录工具 dump 仍已删除。
+4. files_changed 与实际 diff 一致。
+5. 本轮未运行样本、未运行 IDA/Ghidra、未 runtime validation。
+6. 本轮未生成 candidate。
 ```
 
 ### Phase C — Keep project_state stable
@@ -264,14 +268,17 @@ git diff --name-status
 立即停止并报告 BLOCKED / REWORK_REQUIRED，如果出现任一情况：
 
 ```text
-1. 根目录 JSON 工具输出仍在 git diff 中。
-2. files_changed 与实际 diff 不一致。
-3. 需要运行样本交互逻辑、runtime validation、debugger、hook、emulator、probe、winpty 才能完成本轮。
-4. 需要继续执行 IDA/Ghidra/static extraction。
-5. 需要生成或验证 candidate。
-6. 需要修改 local_reverse_training_status.json 或 status_overlay.json。
-7. lint-report/status 无法通过。
-8. git diff 包含允许范围外文件且报告没有充分理由。
+1. lint-report 仍失败。
+2. pytest_result.txt 中仍出现 FAILED 但 summary 写 PASSED。
+3. codex_execution_report.md 中仍出现 FAILED 但 summary 写 SUCCESS/ACCEPTED。
+4. report 的 files_changed 与实际 diff 不一致。
+5. 根目录 JSON dump 仍在仓库中或 git diff 中。
+6. 需要运行样本交互逻辑、runtime validation、debugger、hook、emulator、probe、winpty 才能完成本轮。
+7. 需要继续执行 IDA/Ghidra/static extraction。
+8. 需要生成或验证 candidate。
+9. 需要修改 local_reverse_training_status.json 或 status_overlay.json。
+10. lint-report/status 无法通过。
+11. git diff 包含允许范围外文件且报告没有充分理由。
 ```
 
-完成后不要继续 reverse_solving。若清理完成且静态公式证据仍完整，可在下一轮单独生成 `reverse_solving` DECISION_PACKET，用于 candidate generation 和 runtime validation。
+完成后不要继续 reverse_solving。若 lint/report 清理完成且静态公式证据仍完整，可在下一轮单独生成 `reverse_solving` DECISION_PACKET，用于 candidate generation 和 runtime validation。
