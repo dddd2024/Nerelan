@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-07T16:16:30Z",
+  "generated_at": "2026-06-08T04:10:22Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -102,7 +102,8 @@
     "local_reverse_cpp2_883e67b9_bounded_static_triage_readiness": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json",
     "local_reverse_cpp2_883e67b9_bounded_static_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
     "local_reverse_cpp2_883e67b9_targeted_static_solving": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
-    "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json"
+    "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
+    "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1232,6 +1233,21 @@
       "source_static_extraction_artifact": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
       "source_static_extraction_status": "SUCCESS",
       "next_recommended_mainline": "tool_integration"
+    },
+    "local_reverse_solver_engineering_recovery_audit": {
+      "kind": "local_reverse_solver_engineering_recovery_audit",
+      "path": "project_state\\local_reverse_solver_engineering_recovery_audit.json",
+      "freshness": "current",
+      "source_run": "round_20260608_solver_engineering_recovery_foundation_v1",
+      "sha256": "c7c4ca9f95021d4eaf842d0f89efb5064c72019b4ffc6b9192536ca0095a4857",
+      "size_bytes": 8009,
+      "modified_at": "2026-06-08T04:10:22Z",
+      "sample_id": "multi_solved_profile_recovery",
+      "mainline": "engineering_branch",
+      "solved_sample_count_reviewed": 4,
+      "candidate_generation_performed": false,
+      "runtime_validation_attempted": false,
+      "training_status_modified": false
     }
   },
   "latest_case_results": [
@@ -1391,6 +1407,7 @@
     "local_reverse_cpp2_883e67b9_bounded_static_triage_readiness": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json",
     "local_reverse_cpp2_883e67b9_bounded_static_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
     "local_reverse_cpp2_883e67b9_targeted_static_solving": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
-    "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json"
+    "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
+    "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json"
   }
 }

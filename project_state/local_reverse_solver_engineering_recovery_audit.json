@@ -1,0 +1,178 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-08T04:10:22Z",
+  "mainline": "engineering_branch",
+  "round_id": "round_20260608_solver_engineering_recovery_foundation_v1",
+  "decision_id": "decision_20260608_solver_engineering_recovery_foundation_v1",
+  "source_decision_packet": "project_state\\decision_packet.md",
+  "task_packet_authority": "advisory_only",
+  "solved_sample_count_before": 4,
+  "solved_samples_reviewed": [
+    {
+      "sample_id": "cpp1_bcbd9979",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "training_status": "solved",
+      "known_candidate_recorded_in_training_status": true,
+      "classification": "",
+      "evidence_sources": [
+        "ida_solver_classification",
+        "runtime_validation",
+        "source:local_reverse_validated_candidate_handoff.json",
+        "source:local_reverse_constraint_recovery_result.json"
+      ]
+    },
+    {
+      "sample_id": "cpp1_7b504c54",
+      "relative_path": "逆向课程2023春补考01/Cpp1.exe",
+      "training_status": "solved",
+      "known_candidate_recorded_in_training_status": true,
+      "classification": "console_runtime_validation",
+      "evidence_sources": [
+        "source:local_reverse_cpp1_7b504c54_runtime_validation.json",
+        "console_runtime_validation",
+        "runtime_validated_success"
+      ]
+    },
+    {
+      "sample_id": "cpp2_2f64e68d",
+      "relative_path": "逆向课程2025春03/CPP2.exe",
+      "training_status": "solved",
+      "known_candidate_recorded_in_training_status": true,
+      "classification": "oracle_backed_runtime_validated",
+      "evidence_sources": [
+        "source:local_reverse_cpp2_2f64e68d_console_mature_backend_probe.json",
+        "console_mature_backend_probe",
+        "source:local_reverse_cpp2_2f64e68d_pywinpty_runtime_validation.json",
+        "winpty_runtime_validation_blocked",
+        "source:local_reverse_winpty_backend_lifecycle_hardening.json",
+        "winpty_backend_lifecycle_hardened",
+        "winpty_runtime_validation_ambiguous_output",
+        "source_run:round_20260607_cpp2_2f64e68d_final_bounded_winpty_validation_v1",
+        "source:local_reverse_cpp2_2f64e68d_post_strcmp_oracle_extraction.json",
+        "post_strcmp_oracle_confirmed",
+        "source_run:round_20260607_cpp2_2f64e68d_post_strcmp_oracle_extraction_v1",
+        "source:local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle.json",
+        "raw_input_candidate_derived",
+        "source_run:round_20260607_cpp2_2f64e68d_raw_input_oracle_backed_revalidation_v1",
+        "source:local_reverse_cpp2_2f64e68d_raw_input_winpty_pair_runtime.json",
+        "raw_input_winpty_pair_runtime",
+        "source:local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json",
+        "oracle_backed_runtime_validation_validated_success",
+        "source_run:round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
+        "rework_audit:timeout_semantics_explained",
+        "rework_audit:system_pause_timeout_non_blocking_for_oracle_classifier",
+        "rework_audit:oracle_signals_captured_before_timeout_confirmed",
+        "rework_audit:provenance_mismatch_resolved",
+        "rework_audit:artifact_index_source_run_corrected",
+        "rework_audit:report_id_round_id_aligned"
+      ]
+    },
+    {
+      "sample_id": "cpp2_32f1713e",
+      "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+      "training_status": "solved",
+      "known_candidate_recorded_in_training_status": true,
+      "classification": "oracle_backed_runtime_validated",
+      "evidence_sources": [
+        "source:local_reverse_cpp2_32f1713e_targeted_static_solving.json",
+        "source:local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json",
+        "runtime_validation",
+        "runtime_validated_success",
+        "positive_candidate:KEEP_DREAM",
+        "negative_control:KEEP_DREAN"
+      ]
+    }
+  ],
+  "existing_engineered_profiles": [
+    {
+      "profile": "api_assisted_password_write_and_compare",
+      "status": "existing_initial_solver",
+      "source": "reverse_agent/local_reverse_constraint_recovery.py",
+      "dispatch_entry": "recover_constraints -> recover_cpp1_constraints",
+      "evidence_sources": [
+        "project_state\\local_reverse_constraint_recovery_result.json",
+        "project_state\\local_reverse_validated_candidate_handoff.json"
+      ]
+    }
+  ],
+  "missing_engineered_profiles": [
+    {
+      "profile": "xor_array_table_compare",
+      "status": "missing_solver_profile_before_this_round",
+      "source_sample": "cpp1_7b504c54",
+      "evidence": "three arrays plus reverse-index XOR relation",
+      "recovery_contract": "invert_xor_array_table(array_a, array_b, target, reverse_a=True)",
+      "evidence_sources": [
+        "project_state\\local_reverse_cpp1_7b504c54_xor_handoff.json",
+        "project_state\\local_reverse_cpp1_7b504c54_runtime_validation.json"
+      ]
+    },
+    {
+      "profile": "digit_mod_affine_transform_compare",
+      "status": "missing_solver_profile_before_this_round",
+      "source_sample": "cpp2_2f64e68d",
+      "evidence": "digit domain plus modular affine inverse",
+      "recovery_contract": "invert_digit_mod_affine_table(target, a, b, modulus, offset, domain)",
+      "evidence_sources": [
+        "project_state\\local_reverse_cpp2_2f64e68d_raw_input_candidate_from_oracle.json",
+        "project_state\\local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json"
+      ]
+    },
+    {
+      "profile": "bytewise_reversible_transform_table_compare",
+      "status": "missing_solver_profile_before_this_round",
+      "source_sample": "cpp2_32f1713e",
+      "evidence": "target table plus reversible byte transform",
+      "recovery_contract": "invert_bytewise_transform_table(target, transform, domain)",
+      "evidence_sources": [
+        "project_state\\local_reverse_cpp2_32f1713e_targeted_static_solving.json",
+        "project_state\\local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json"
+      ]
+    }
+  ],
+  "profile_recovery_candidates": [
+    {
+      "profile": "xor_array_table_compare",
+      "engineering_status_after_round": "pure_helper_added",
+      "helper": "reverse_agent.local_reverse_solver_profiles.invert_xor_array_table",
+      "candidate_generation_performed": false,
+      "fixture_type": "synthetic_unit_test"
+    },
+    {
+      "profile": "digit_mod_affine_transform_compare",
+      "engineering_status_after_round": "pure_helper_added",
+      "helper": "reverse_agent.local_reverse_solver_profiles.invert_digit_mod_affine_table",
+      "candidate_generation_performed": false,
+      "fixture_type": "synthetic_unit_test"
+    },
+    {
+      "profile": "bytewise_reversible_transform_table_compare",
+      "engineering_status_after_round": "pure_helper_added",
+      "helper": "reverse_agent.local_reverse_solver_profiles.invert_bytewise_transform_table",
+      "candidate_generation_performed": false,
+      "fixture_type": "synthetic_unit_test"
+    }
+  ],
+  "production_hardcode_check": {
+    "production_module": "reverse_agent/local_reverse_solver_profiles.py",
+    "forbidden_real_candidates_checked_by_test": [
+      "KEEP_DREAM",
+      "WeKnowItOk",
+      "10013",
+      "hookapi"
+    ],
+    "hardcoded_real_candidates_in_production": false
+  },
+  "runtime_actions_performed": false,
+  "candidate_generation_performed": false,
+  "candidate_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "full_solve_reports_read": false,
+  "new_runtime_or_debugger_interface_created": false,
+  "tests_added": [
+    "tests/test_local_reverse_solver_profiles.py"
+  ],
+  "next_recommended_mainline": "engineering_branch",
+  "next_recommended_action": "Wire pure solver profiles into local_reverse_constraint_recovery dispatch once static extractors emit profile-normalized evidence."
+}
