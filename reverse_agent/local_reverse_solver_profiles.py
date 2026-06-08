@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Iterable, Sequence
+from typing import Any, Callable, Iterable, Mapping, Sequence
 
 
 SOLVED = "SOLVED"
 PARTIAL = "PARTIAL"
 BLOCKED = "BLOCKED"
+
+XOR_ARRAY_TABLE_COMPARE = "xor_array_table_compare"
+BYTEWISE_REVERSIBLE_TRANSFORM_TABLE_COMPARE = "bytewise_reversible_transform_table_compare"
+DIGIT_MOD_AFFINE_TRANSFORM_COMPARE = "digit_mod_affine_transform_compare"
+SWAP_LOW_BITS_1_2 = "swap_low_bits_1_2"
+SUPPORTED_NORMALIZED_PROFILES = {
+    XOR_ARRAY_TABLE_COMPARE,
+    BYTEWISE_REVERSIBLE_TRANSFORM_TABLE_COMPARE,
+    DIGIT_MOD_AFFINE_TRANSFORM_COMPARE,
+}
 
 
 @dataclass(frozen=True)
@@ -27,6 +37,79 @@ class SolverProfileResult:
             "proof_chain_summary": list(self.proof_chain_summary),
             "unsupported_reason": self.unsupported_reason,
         }
+
+
+@dataclass(frozen=True)
+class ProfileNormalizedEvidence:
+    profile: str
+    profile_evidence: Mapping[str, Any]
+    source_artifact: str = ""
+    source_run: str = ""
+    freshness: str = "unknown"
+    provenance_notes: tuple[str, ...] = ()
+
+    @classmethod
+    def from_mapping(
+        cls,
+        payload: Mapping[str, Any],
+        *,
+        default_profile: str = "",
+    ) -> "ProfileNormalizedEvidence | None":
+        evidence = payload.get("profile_evidence")
+        if not isinstance(evidence, Mapping):
+            return None
+        notes = payload.get("provenance_notes", ())
+        if isinstance(notes, str):
+            provenance_notes = (notes,)
+        else:
+            provenance_notes = tuple(str(item) for item in notes or ())
+        return cls(
+            profile=str(payload.get("profile") or default_profile),
+            profile_evidence=evidence,
+            source_artifact=str(payload.get("source_artifact") or ""),
+            source_run=str(payload.get("source_run") or ""),
+            freshness=str(payload.get("freshness") or "unknown"),
+            provenance_notes=provenance_notes,
+        )
+
+
+def solve_normalized_profile(payload: Mapping[str, Any], *, default_profile: str = "") -> SolverProfileResult:
+    normalized = ProfileNormalizedEvidence.from_mapping(payload, default_profile=default_profile)
+    if normalized is None:
+        return _blocked(
+            "MISSING_PROFILE_NORMALIZED_EVIDENCE",
+            "profile-normalized evidence must include a profile_evidence mapping",
+        )
+    if normalized.profile not in SUPPORTED_NORMALIZED_PROFILES:
+        return _blocked("UNSUPPORTED_PROFILE", f"unsupported normalized profile: {normalized.profile}")
+    evidence = normalized.profile_evidence
+    if normalized.profile == XOR_ARRAY_TABLE_COMPARE:
+        return invert_xor_array_table(
+            _required_sequence(evidence, "array_a"),
+            _required_sequence(evidence, "array_b"),
+            _required_sequence(evidence, "target"),
+            reverse_a=bool(evidence.get("reverse_a", True)),
+            encoding=str(evidence.get("encoding") or "latin-1"),
+        )
+    if normalized.profile == DIGIT_MOD_AFFINE_TRANSFORM_COMPARE:
+        return invert_digit_mod_affine_table(
+            _required_sequence(evidence, "target"),
+            a=int(evidence.get("a", 0)),
+            b=int(evidence.get("b", 0)),
+            modulus=int(evidence.get("modulus", 0)),
+            offset=int(evidence.get("offset", 0)),
+            domain=_domain_values(evidence.get("domain"), default=range(10)),
+        )
+    transform_kind = str(evidence.get("transform_kind") or "")
+    transform = _bytewise_transform(transform_kind, evidence.get("transform_params"))
+    if transform is None:
+        return _blocked("UNSUPPORTED_TRANSFORM_KIND", f"unsupported transform_kind: {transform_kind}")
+    return invert_bytewise_transform_table(
+        _required_sequence(evidence, "target"),
+        transform,
+        domain=_domain_values(evidence.get("domain"), default=range(256)),
+        encoding=str(evidence.get("encoding") or "latin-1"),
+    )
 
 
 def invert_xor_array_table(
@@ -206,6 +289,49 @@ def _blocked(reason: str, summary: str) -> SolverProfileResult:
         proof_chain_summary=(summary,),
         unsupported_reason=reason,
     )
+
+
+def _required_sequence(evidence: Mapping[str, Any], key: str) -> Sequence[Any]:
+    value = evidence.get(key)
+    if not isinstance(value, Sequence) or isinstance(value, (str, bytes, bytearray)):
+        raise ValueError(f"profile_evidence.{key} must be a sequence")
+    return value
+
+
+def _domain_values(value: Any, *, default: Iterable[int]) -> Iterable[int]:
+    if value in (None, ""):
+        return default
+    if value == "byte":
+        return range(256)
+    if value == "digit":
+        return range(10)
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [int(item) for item in value]
+    raise ValueError(f"unsupported domain value: {value!r}")
+
+
+def _bytewise_transform(
+    transform_kind: str,
+    transform_params: Any,
+) -> Callable[[int], int] | None:
+    if transform_kind != SWAP_LOW_BITS_1_2:
+        return None
+    params = transform_params if isinstance(transform_params, Mapping) else {}
+    bit_a = int(params.get("bit_a", 1))
+    bit_b = int(params.get("bit_b", 2))
+    if bit_a < 0 or bit_b < 0 or bit_a > 7 or bit_b > 7:
+        raise ValueError("bit swap positions must be in 0..7")
+    mask_a = 1 << bit_a
+    mask_b = 1 << bit_b
+    keep_mask = 0xFF ^ mask_a ^ mask_b
+
+    def swap_bits(value: int) -> int:
+        byte = _byte(value)
+        bit_a_value = (byte & mask_a) >> bit_a
+        bit_b_value = (byte & mask_b) >> bit_b
+        return (byte & keep_mask) | (bit_a_value << bit_b) | (bit_b_value << bit_a)
+
+    return swap_bits
 
 
 def _byte(value: int) -> int:

@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-08T04:44:56Z",
+  "mainline": "engineering_branch",
+  "round_id": "round_20260608_solver_profile_dispatch_integration_v1",
+  "decision_id": "decision_20260608_solver_profile_dispatch_integration_v1",
+  "report_id": "report_20260608_solver_profile_dispatch_integration_v1",
+  "source_previous_report": "report_20260608_solver_engineering_recovery_foundation_v1",
+  "source_previous_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json",
+  "task_packet_authority": "advisory_only",
+  "profiles_integrated": [
+    "xor_array_table_compare",
+    "bytewise_reversible_transform_table_compare",
+    "digit_mod_affine_transform_compare"
+  ],
+  "normalized_evidence_contract": {
+    "common_fields": [
+      "profile",
+      "profile_evidence",
+      "source_artifact",
+      "source_run",
+      "freshness",
+      "provenance_notes"
+    ],
+    "profiles": {
+      "xor_array_table_compare": [
+        "array_a",
+        "array_b",
+        "target",
+        "reverse_a",
+        "encoding"
+      ],
+      "bytewise_reversible_transform_table_compare": [
+        "target",
+        "transform_kind",
+        "transform_params",
+        "domain",
+        "encoding"
+      ],
+      "digit_mod_affine_transform_compare": [
+        "target",
+        "a",
+        "b",
+        "modulus",
+        "offset",
+        "domain"
+      ]
+    },
+    "safe_transform_kinds": [
+      "swap_low_bits_1_2"
+    ],
+    "unknown_transform_kind_behavior": "BLOCKED:UNSUPPORTED_TRANSFORM_KIND",
+    "missing_profile_evidence_behavior": "MISSING_PROFILE_NORMALIZED_EVIDENCE"
+  },
+  "unsupported_profile_behavior": {
+    "missing_normalized_evidence": "blocked_without_candidate",
+    "unknown_transform_kind": "blocked_without_expression_execution",
+    "partial_or_blocked_helper_result": "no_candidate_record"
+  },
+  "legacy_profile_regression_check": {
+    "api_assisted_password_write_and_compare": "covered_by_synthetic_regression_test",
+    "bounded_input_range_hash_output_increment_compare": "dispatch_order_unchanged",
+    "sha256_hex_compare_with_post_hash_character_adjustment": "dispatch_order_unchanged"
+  },
+  "dispatch_integration": {
+    "module": "reverse_agent/local_reverse_constraint_recovery.py",
+    "entrypoint": "recover_constraints",
+    "adapter_module_created": false,
+    "candidate_record_status_for_solved_helpers": "unverified"
+  },
+  "runtime_actions_performed": false,
+  "candidate_generation_performed": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "full_solve_reports_read": false,
+  "sample_binary_read": false,
+  "ida_or_ghidra_invoked": false,
+  "debugger_hook_emulator_probe_winpty_used": false,
+  "new_runtime_or_debugger_interface_created": false,
+  "production_hardcode_check": {
+    "modules_checked": [
+      "reverse_agent/local_reverse_solver_profiles.py",
+      "reverse_agent/local_reverse_constraint_recovery.py"
+    ],
+    "forbidden_real_candidates_checked_by_test": [
+      "KEEP_DREAM",
+      "WeKnowItOk",
+      "10013",
+      "hookapi"
+    ],
+    "hardcoded_real_candidates_in_production": false
+  },
+  "tests_added_or_updated": [
+    "tests/test_local_reverse_solver_profile_dispatch.py",
+    "tests/test_local_reverse_solver_profiles.py"
+  ],
+  "next_recommended_mainline": "engineering_branch",
+  "next_recommended_action": "Add profile-normalized evidence emitters in trusted static extractors when a future decision opens that scope."
+}

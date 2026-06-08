@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-08T04:10:22Z",
+  "generated_at": "2026-06-08T04:44:56Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -103,7 +103,8 @@
     "local_reverse_cpp2_883e67b9_bounded_static_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
     "local_reverse_cpp2_883e67b9_targeted_static_solving": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
     "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
-    "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json"
+    "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json",
+    "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1248,6 +1249,21 @@
       "candidate_generation_performed": false,
       "runtime_validation_attempted": false,
       "training_status_modified": false
+    },
+    "local_reverse_solver_profile_dispatch_integration_audit": {
+      "kind": "local_reverse_solver_profile_dispatch_integration_audit",
+      "path": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json",
+      "freshness": "current",
+      "source_run": "round_20260608_solver_profile_dispatch_integration_v1",
+      "sha256": "5d73f2df03474d2de2ab66aa09ac4eee82f01c426926ffc3cde59e6b89eef6c4",
+      "size_bytes": 3661,
+      "modified_at": "2026-06-08T04:44:56Z",
+      "sample_id": "multi_solved_profile_dispatch_integration",
+      "mainline": "engineering_branch",
+      "candidate_generation_performed": false,
+      "runtime_validation_attempted": false,
+      "training_status_modified": false,
+      "status_overlay_modified": false
     }
   },
   "latest_case_results": [
@@ -1408,6 +1424,7 @@
     "local_reverse_cpp2_883e67b9_bounded_static_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
     "local_reverse_cpp2_883e67b9_targeted_static_solving": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
     "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
-    "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json"
+    "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json",
+    "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json"
   }
 }

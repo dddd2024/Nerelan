@@ -17,12 +17,25 @@ from reverse_agent.local_reverse_ida_guided_solver import (
     resolve_current_artifact,
 )
 from reverse_agent.local_reverse_runtime import PREVIEW_LIMIT, run_probe
+from reverse_agent.local_reverse_solver_profiles import (
+    BLOCKED,
+    BYTEWISE_REVERSIBLE_TRANSFORM_TABLE_COMPARE,
+    DIGIT_MOD_AFFINE_TRANSFORM_COMPARE,
+    SOLVED,
+    XOR_ARRAY_TABLE_COMPARE,
+    solve_normalized_profile,
+)
 
 STAGE = "local_reverse_constraint_recovery_sprint_v1"
 DEFAULT_RESULT = "project_state/local_reverse_constraint_recovery_result.json"
 MAX_CANDIDATES_PER_TARGET = 64
 MAX_VALIDATIONS_TOTAL = 192
 TARGET_RE = re.compile(r'"([0-9A-Za-z:]{32,80})"')
+PROFILE_NORMALIZED_CLASSIFICATIONS = {
+    XOR_ARRAY_TABLE_COMPARE,
+    BYTEWISE_REVERSIBLE_TRANSFORM_TABLE_COMPARE,
+    DIGIT_MOD_AFFINE_TRANSFORM_COMPARE,
+}
 
 ProbeRunner = Callable[..., dict[str, Any]]
 
@@ -218,6 +231,12 @@ def recover_constraints(
     evidence: dict[str, Any],
     max_candidates: int,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], str, str]:
+    if classification in PROFILE_NORMALIZED_CLASSIFICATIONS:
+        return recover_profile_normalized_constraints(
+            sample_id=sample_id,
+            classification=classification,
+            evidence=evidence,
+        )
     if classification == "api_assisted_password_write_and_compare":
         return recover_cpp1_constraints(evidence, max_candidates)
     if classification == "bounded_input_range_hash_output_increment_compare":
@@ -230,6 +249,84 @@ def recover_constraints(
         {"strategy": "none", "count": 0, "bounded_reason": "unsupported classification"},
         "UNSUPPORTED_CLASSIFICATION",
         "add classification-specific constraint recovery",
+    )
+
+
+def recover_profile_normalized_constraints(
+    *,
+    sample_id: str,
+    classification: str,
+    evidence: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], str, str]:
+    normalized_payload = _normalized_profile_payload(classification, evidence)
+    constraints = [
+        {
+            "kind": "profile_normalized_evidence",
+            "profile": classification,
+            "source_artifact": normalized_payload.get("source_artifact", ""),
+            "source_run": normalized_payload.get("source_run", ""),
+            "freshness": normalized_payload.get("freshness", "unknown"),
+            "provenance_notes": normalized_payload.get("provenance_notes", []),
+        }
+    ]
+    try:
+        result = solve_normalized_profile(normalized_payload, default_profile=classification)
+    except (TypeError, ValueError) as exc:
+        result = {
+            "status": BLOCKED,
+            "candidate": "",
+            "candidate_generated": False,
+            "confidence": "none",
+            "proof_chain_summary": [f"invalid profile-normalized evidence: {exc}"],
+            "unsupported_reason": "INVALID_PROFILE_NORMALIZED_EVIDENCE",
+        }
+    else:
+        result = result.as_dict()
+    constraints.append({"kind": "solver_profile_result", "value": result})
+
+    if result.get("status") == SOLVED and result.get("candidate_generated"):
+        candidate = str(result.get("candidate") or "")
+        candidates = [
+            {
+                "candidate": candidate,
+                "source_relation": f"{classification}_normalized_profile",
+                "profile": classification,
+                "sample_id": sample_id,
+                "confidence": result.get("confidence", ""),
+                "proof_chain_summary": result.get("proof_chain_summary", []),
+                "why_bounded": "candidate derived from profile-normalized synthetic/static evidence",
+                "validation_status": "unverified",
+            }
+        ]
+        return (
+            constraints,
+            candidates,
+            {
+                "strategy": f"{classification}_normalized_profile",
+                "count": 1,
+                "bounded_reason": "profile-normalized evidence supplied all helper inputs",
+            },
+            "",
+            "optionally wire profile-normalized evidence extraction from trusted static artifacts",
+        )
+
+    reason = str(result.get("unsupported_reason") or f"{classification}_NOT_SOLVED")
+    status = str(result.get("status") or BLOCKED)
+    blocked_reason = (
+        "MISSING_PROFILE_NORMALIZED_EVIDENCE"
+        if reason == "MISSING_PROFILE_NORMALIZED_EVIDENCE"
+        else f"{status}:{reason}"
+    )
+    return (
+        constraints,
+        [],
+        {
+            "strategy": "none",
+            "count": 0,
+            "bounded_reason": blocked_reason,
+        },
+        blocked_reason,
+        "supply profile-normalized evidence for solver profile dispatch",
     )
 
 
@@ -429,6 +526,24 @@ def _extract_compare_target(evidence: dict[str, Any]) -> str:
             if match:
                 return match.group(1)
     return ""
+
+
+def _normalized_profile_payload(classification: str, evidence: dict[str, Any]) -> dict[str, Any]:
+    if evidence.get("profile") == classification and isinstance(evidence.get("profile_evidence"), dict):
+        return evidence
+    payload = {
+        "profile": classification,
+        "profile_evidence": evidence.get("profile_evidence"),
+        "source_artifact": evidence.get("source_artifact", ""),
+        "source_run": evidence.get("source_run", ""),
+        "freshness": evidence.get("freshness", "unknown"),
+        "provenance_notes": evidence.get("provenance_notes", []),
+    }
+    if "normalized_profile_evidence" in evidence and isinstance(evidence["normalized_profile_evidence"], dict):
+        nested = dict(evidence["normalized_profile_evidence"])
+        nested.setdefault("profile", classification)
+        return nested
+    return payload
 
 
 def _extract_snippet(evidence: dict[str, Any], function_name: str) -> str:

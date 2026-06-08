@@ -1,14 +1,14 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260608_solver_engineering_recovery_foundation_v1",
-  "report_id": "report_20260608_solver_engineering_recovery_foundation_v1",
-  "round_id": "round_20260608_solver_engineering_recovery_foundation_v1",
-  "generated_at": "2026-06-08T04:10:22Z",
+  "decision_id": "decision_20260608_solver_profile_dispatch_integration_v1",
+  "report_id": "report_20260608_solver_profile_dispatch_integration_v1",
+  "round_id": "round_20260608_solver_profile_dispatch_integration_v1",
+  "generated_at": "2026-06-08T04:20:00Z",
   "status": "PASSED",
   "tests_ran": [
     ".venv\\Scripts\\python -m py_compile reverse_agent/local_reverse_solver_profiles.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/project_state.py",
-    ".venv\\Scripts\\python -m pytest -q tests/test_local_reverse_solver_profiles.py tests/test_project_state.py",
+    ".venv\\Scripts\\python -m pytest -q tests/test_local_reverse_solver_profile_dispatch.py tests/test_local_reverse_solver_profiles.py tests/test_project_state.py",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
@@ -19,27 +19,29 @@
 }
 ```
 
-decision_id=decision_20260608_solver_engineering_recovery_foundation_v1
-report_id=report_20260608_solver_engineering_recovery_foundation_v1
-round_id=round_20260608_solver_engineering_recovery_foundation_v1
+decision_id=decision_20260608_solver_profile_dispatch_integration_v1
+report_id=report_20260608_solver_profile_dispatch_integration_v1
+round_id=round_20260608_solver_profile_dispatch_integration_v1
 
 Command results:
 - PASS `.venv\Scripts\python -m py_compile reverse_agent/local_reverse_solver_profiles.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/project_state.py` (exit 0).
-- PASS `.venv\Scripts\python -m pytest -q tests/test_local_reverse_solver_profiles.py tests/test_project_state.py` (`164 passed in 17.00s`).
-- PASS `.venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state` (exit 0; decision_id=decision_20260608_solver_engineering_recovery_foundation_v1).
+- PASS `.venv\Scripts\python -m pytest -q tests/test_local_reverse_solver_profile_dispatch.py tests/test_local_reverse_solver_profiles.py tests/test_project_state.py` (`172 passed in 17.00s`).
+- PASS `.venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state` (exit 0; decision_id=decision_20260608_solver_profile_dispatch_integration_v1).
 - PASS `.venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state` (exit 0; report_status=SUCCESS, acceptance_recommendation=ACCEPTED, pytest_result_matches_report=True). Warning: report round not archived yet.
 - PASS `.venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state` (exit 0; decision_execution_state=CONSUMED_BY_SUCCESS_REPORT, decision_ready_for_execution=False).
-- PASS `git diff --check` (exit 0; no whitespace errors; CRLF replacement warnings for report/result files only).
+- PASS `git diff --check` (exit 0; no whitespace errors).
 - PASS `git status --short` (exit 0; dirty set limited to allowed files and new solver profile/test/audit artifact).
-- PASS `git diff --name-status` (exit 0; tracked diff limited to artifact_index.json, codex_execution_report.md, and pytest_result.txt; untracked allowed new files are shown by git status).
+- PASS `git diff --name-status` (exit 0; tracked diff plus untracked allowed new files shown by git status).
 
 Content assertions:
 - PASS decision authority: decision_packet is APPROVED and mainline=engineering_branch.
 - PASS task_packet authority: advisory only.
-- PASS solved sample audit: 4 solved samples reviewed.
-- PASS profile coverage: existing api-assisted profile recorded; three missing profile contracts added as pure helpers.
-- PASS artifact registration: local_reverse_solver_engineering_recovery_audit is present in latest_artifacts, latest_artifacts_v2, and artifact_refs.
-- PASS project_state status alignment: decision_report_id_match=true, decision_consumed_by_report=true, decision_state_digest_match=true.
-- PASS no runtime/search actions: sample/runtime/debugger/hook/probe/emulator/bruteforce/dictionary/fuzz actions were not performed.
+- PASS previous helper base: solver engineering recovery foundation report was SUCCESS/ACCEPTED.
+- PASS normalized evidence contract: common fields and three profile evidence shapes are recorded in the dispatch integration audit.
+- PASS dispatch integration: three recovered profile classifications route through normalized evidence to solver helpers.
+- PASS unsupported behavior: missing normalized evidence and unknown transform kinds block without candidate generation.
+- PASS legacy behavior: api-assisted profile regression test still produces the expected synthetic legacy candidate.
+- PASS artifact registration: local_reverse_solver_profile_dispatch_integration_audit is present in latest_artifacts, latest_artifacts_v2, and artifact_refs.
+- PASS no runtime/search actions: sample/runtime/debugger/hook/probe/emulator/winpty/IDA/Ghidra/bruteforce/dictionary/fuzz actions were not performed.
 - PASS no training or overlay edit: local_reverse_training_status.json and training_materials/local_reverse/status_overlay.json were not modified.
-- PASS production hardcode guard: production helper module does not contain the real solved candidates.
+- PASS production hardcode guard: production helper and dispatch modules do not contain the real solved candidates.
