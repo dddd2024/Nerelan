@@ -1,0 +1,322 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "artifact_kind": "local_reverse_formula_readiness_audit",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "round_id": "round_20260608_cpp2_883e67b9_formula_readiness_audit_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_formula_readiness_audit_v1",
+  "generated_at": "2026-06-08T06:15:00Z",
+  "identity": {
+    "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "actual_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "expected_size_bytes": 196689,
+    "actual_size_bytes": 196689,
+    "identity_verified": true
+  },
+  "source_artifacts": [
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_input_length_evidence_recovery",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_input_length_evidence_recovery.json",
+      "round_id": "round_20260608_cpp2_883e67b9_input_length_evidence_recovery_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_input_length_evidence_recovery_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_compare_constants_mapping",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_compare_constants_mapping.json",
+      "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_missing_branch_reconciliation",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json",
+      "round_id": "round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_loop_semantics_mapping",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_loop_semantics_mapping.json",
+      "round_id": "round_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_structured_evidence_projection",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_structured_evidence_projection.json",
+      "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
+      "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "status": "PARTIAL",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_static_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    }
+  ],
+  "source_status": {
+    "input_length_evidence_recovery": "SUCCESS",
+    "compare_constants_mapping": "SUCCESS",
+    "missing_branch_reconciliation": "SUCCESS",
+    "loop_semantics_mapping": "SUCCESS",
+    "structured_evidence_projection": "SUCCESS",
+    "targeted_static_solving": "PARTIAL",
+    "bounded_static_extraction": "SUCCESS"
+  },
+  "assert_path_region": {
+    "start_rva": "0x5f00",
+    "end_rva_exclusive": "0x6500",
+    "focus_assert_path_rva": "0x61c3",
+    "focus_assert_path_va": "0x4061c3",
+    "section": ".text",
+    "window_size": 1536,
+    "instruction_count_scanned": 798,
+    "semantic_hypothesis": "main_comparison_logic_with_loops_and_constant_checks"
+  },
+  "focus_loops": [
+    {
+      "loop_id": "loop_0x6081_0x6059",
+      "backward_jump_rva": "0x6081",
+      "backward_jump_va": "0x406081",
+      "target_rva": "0x6059",
+      "mnemonic": "jnz",
+      "span_rva": "0x28",
+      "span_bytes": 40,
+      "semantic_hypothesis": "focus_comparison_loop_candidate",
+      "nearby_compare_constants": [
+        {"rva": "0x6077", "type": "cmp_imm8", "value": 1, "value_hex": "0x1", "semantic_role": "control_state_flag", "confidence": "medium"},
+        {"rva": "0x60a3", "type": "cmp", "operands": "[ebp-0x4], 0x429a70", "semantic_role": "unknown", "confidence": "low"},
+        {"rva": "0x60b5", "type": "cmp", "operands": "[ebp-0x4], 0x429a90", "semantic_role": "unknown", "confidence": "low"},
+        {"rva": "0x6059", "type": "cmp", "operands": "[ebp+0x8], 0x0", "semantic_role": "unknown", "confidence": "low"}
+      ],
+      "known_branch_sites": [
+        {"rva": "0x6059", "type": "cmp", "target_unknown": true},
+        {"rva": "0x607a", "type": "branch", "details": "conditional after cmp eax,1"},
+        {"rva": "0x6081", "type": "backward_jnz", "target": "0x6059"}
+      ],
+      "known_exit_condition_evidence": [
+        "jnz at 0x6081 suggests loop continues while ZF=0 (condition not met)",
+        "cmp eax,1 at 0x6077 before loop entry may set up loop control",
+        "cmp [ebp+0x8], 0x0 at 0x6059 may be a null-check or parameter check"
+      ],
+      "known_operand_evidence": [
+        "Register eax used in cmp eax,1 (control flag)",
+        "Memory [ebp+0x8] used in cmp (parameter or input pointer)",
+        "Memory [ebp-0x4] compared against large constants 0x429a70 and 0x429a90 (possible address comparisons)"
+      ],
+      "known_transform_evidence": [],
+      "missing_evidence": [
+        "Exact loop exit condition not determined: does jnz at 0x6081 exit on match or mismatch?",
+        "Role of cmp [ebp-0x4], 0x429a70 and 0x429a90 not understood: are these pointer comparisons, state checks, or part of the comparison algorithm?",
+        "No evidence of what register/memory holds the current input character being compared",
+        "No evidence of XOR/ADD/SUB transform applied to input before comparison",
+        "Missing backward sites 0x60a4, 0x60b6 may indicate inner micro-loops not decoded"
+      ],
+      "formula_recovery_readiness": "not_ready_static_gaps",
+      "confidence": "low",
+      "reasoning": "Loop identified as focus comparison candidate with nearby compare constants, but exit condition is ambiguous (jnz could mean continue-on-not-equal or continue-on-equal depending on preceding instruction context). The large memory constants 0x429a70/0x429a90 suggest pointer/state comparisons rather than direct character comparisons. No transform evidence found. Missing inner micro-loops (0x60a4, 0x60b6) could indicate multi-phase comparison within this loop. Cannot reconstruct formula without knowing: (1) what is being compared, (2) how the comparison result drives loop exit, (3) whether any transform is applied."
+    },
+    {
+      "loop_id": "loop_0x61e8_0x61b7",
+      "backward_jump_rva": "0x61e8",
+      "backward_jump_va": "0x4061e8",
+      "target_rva": "0x61b7",
+      "mnemonic": "jnz",
+      "span_rva": "0x31",
+      "span_bytes": 49,
+      "semantic_hypothesis": "focus_comparison_loop_candidate",
+      "nearby_compare_constants": [
+        {"rva": "0x61de", "type": "cmp_imm8", "value": 1, "value_hex": "0x1", "semantic_role": "control_state_flag", "confidence": "medium"},
+        {"rva": "0x61f0", "type": "cmp", "operands": "[ebp+0x8], 0x0", "semantic_role": "unknown", "confidence": "low"},
+        {"rva": "0x61bd", "type": "cmp", "operands": "[ebp+0x8], 0x1", "semantic_role": "unknown", "confidence": "low"},
+        {"rva": "0x61b7", "type": "cmp", "operands": "[ebp+0x8], 0x0", "semantic_role": "unknown", "confidence": "low"}
+      ],
+      "known_branch_sites": [
+        {"rva": "0x61b7", "type": "cmp", "target_unknown": true},
+        {"rva": "0x61bd", "type": "cmp", "target_unknown": true},
+        {"rva": "0x61e1", "type": "branch", "details": "conditional before backward jump"},
+        {"rva": "0x61e8", "type": "backward_jnz", "target": "0x61b7"}
+      ],
+      "known_exit_condition_evidence": [
+        "jnz at 0x61e8 suggests loop continues while ZF=0 (condition not met)",
+        "cmp eax,1 at 0x61de before loop entry mirrors 0x6077 pattern from loop_0x6081",
+        "cmp [ebp+0x8], 0x0 at 0x61b7 and cmp [ebp+0x8], 0x1 at 0x61bd suggest parameter/state checks"
+      ],
+      "known_operand_evidence": [
+        "Register eax used in cmp eax,1 (control flag, same pattern as loop_0x6081)",
+        "Memory [ebp+0x8] used in multiple cmp instructions (parameter or input pointer)",
+        "No direct character comparison constants (like cmp al, 0xXX) observed in this loop's immediate vicinity"
+      ],
+      "known_transform_evidence": [],
+      "missing_evidence": [
+        "Exact loop exit condition not determined: same ambiguity as loop_0x6081",
+        "No character-level comparison constants in immediate loop vicinity (nearest are 0x60f7=0x8d and 0x6124=0x85, which are in loop_0x6081 region)",
+        "No evidence of what register/memory holds the current input character",
+        "No evidence of XOR/ADD/SUB transform applied to input before comparison",
+        "Relationship between this loop and loop_0x6081 unclear: are they sequential phases, parallel checks, or nested?"
+      ],
+      "formula_recovery_readiness": "not_ready_static_gaps",
+      "confidence": "low",
+      "reasoning": "Second focus comparison loop with similar structure to loop_0x6081 (jnz backward, cmp eax,1 control flag, [ebp+0x8] parameter checks). However, no character-level comparison constants in its immediate vicinity. The loop may operate on different data or represent a different comparison phase. Without knowing the relationship between the two focus loops and what data they process, cannot reconstruct formula."
+    },
+    {
+      "loop_id": "loop_0x647d_0x62bb",
+      "backward_jump_rva": "0x647d",
+      "backward_jump_va": "0x40647d",
+      "target_rva": "0x62bb",
+      "mnemonic": "jmp",
+      "span_rva": "0x1c2",
+      "span_bytes": 450,
+      "semantic_hypothesis": "outer_control_flow_or_post_compare_loop",
+      "nearby_compare_constants": [
+        {"rva": "0x629f", "type": "cmp_imm32", "value": 268, "value_hex": "0x10c", "semantic_role": "table_or_buffer_offset", "confidence": "low"},
+        {"rva": "0x62cb", "type": "cmp_imm32", "value": 264, "value_hex": "0x108", "semantic_role": "table_or_buffer_offset", "confidence": "low"},
+        {"rva": "0x6438", "type": "cmp_imm8", "value": 255, "value_hex": "0xff", "semantic_role": "sentinel_or_mask", "confidence": "medium"},
+        {"rva": "0x64e5", "type": "cmp_imm32", "value": 256, "value_hex": "0x100", "semantic_role": "loop_index_or_bound", "confidence": "medium"},
+        {"rva": "0x645f", "type": "cmp", "operands": "[ecx+0x18], 0x0", "semantic_role": "unknown", "confidence": "low"},
+        {"rva": "0x64b2", "type": "cmp", "operands": "[ebp-0x50], 0x0", "semantic_role": "unknown", "confidence": "low"}
+      ],
+      "known_branch_sites": [
+        {"rva": "0x6290", "type": "branch"},
+        {"rva": "0x6294", "type": "branch"},
+        {"rva": "0x62a7", "type": "branch"},
+        {"rva": "0x62b2", "type": "branch"},
+        {"rva": "0x647d", "type": "backward_jmp", "target": "0x62bb"}
+      ],
+      "known_exit_condition_evidence": [
+        "Unconditional jmp at 0x647d (not conditional) means this loop always returns to 0x62bb",
+        "Exit must occur via a conditional branch inside the loop body that jumps past 0x647d",
+        "cmp 0x100 at 0x64e5 and cmp 0xff at 0x6438 near the backward jump suggest byte-domain iteration bound"
+      ],
+      "known_operand_evidence": [
+        "32-bit constants 0x10c (268) and 0x108 (264) suggest table/buffer offset access",
+        "0xff (255) and 0x100 (256) suggest byte-domain iteration (0-255 range)",
+        "[ecx+0x18] and [ebp-0x50] suggest struct field access or local variable checks"
+      ],
+      "known_transform_evidence": [],
+      "missing_evidence": [
+        "Exact exit branch not identified: which conditional branch inside the loop body jumps past 0x647d?",
+        "Role of 0x10c/0x108 table offsets not understood: what table is being accessed?",
+        "Whether this loop processes input characters or performs post-comparison processing unclear",
+        "No character-level comparison constants in this loop"
+      ],
+      "formula_recovery_readiness": "not_ready_static_gaps",
+      "confidence": "low",
+      "reasoning": "Large outer loop containing byte-domain iteration (0x100/0xff) and table/buffer access (0x10c/0x108). Unconditional backward jmp means exit is via internal conditional branch. This loop likely performs post-comparison processing or byte-distribution analysis rather than direct password comparison. Its relationship to the focus comparison loops (0x6081, 0x61e8) is unclear. Cannot determine formula contribution without understanding the loop's data flow and exit condition."
+    }
+  ],
+  "readiness_summary": {
+    "overall_formula_readiness": "not_ready_static_gaps",
+    "known_formula_components": [
+      "2 focus comparison loops identified (0x6081->0x6059, 0x61e8->0x61b7) with jnz backward jumps",
+      "1 outer/post-compare loop (0x647d->0x62bb) with unconditional jmp",
+      "10 compare constants mapped with semantic hypotheses (2 control_state_flag, 2 algorithm_constant_candidate, 1 sentinel_or_mask, 1 loop_index_or_bound, 2 table_or_address_constant, 2 unknown)",
+      "cmp eax,1 pattern repeated at 0x6077 and 0x61de (control state flag)",
+      "Byte-domain iteration bound 0x100/0xff in outer loop",
+      "Assert path region 0x5f00-0x6500 with focus at 0x61c3"
+    ],
+    "missing_formula_components": [
+      "Focus loop exit conditions not determined (jnz semantics ambiguous without full disassembly)",
+      "No character-level comparison formula identified (what is compared against what)",
+      "No input transform evidence (no XOR/ADD/SUB key detected)",
+      "Input length/termination mechanism unknown (null-terminated, fixed-length, or compare-mismatch-terminated)",
+      "Relationship between loop_0x6081 and loop_0x61e8 unclear (sequential phases, parallel, or nested)",
+      "Role of outer loop_0x647d_0x62bb in comparison algorithm unclear",
+      "Compare constants 0x60f7 (0x8d) and 0x6124 (0x85) not confirmed as formula constants",
+      "Memory operands [ebp-0x4], [ebp+0x8], [ecx+0x18], [ebp-0x50] not mapped to data roles",
+      "Missing backward sites 0x5f68, 0x60a4, 0x60b6 not resolved"
+    ],
+    "solver_profile_normalization_ready": false,
+    "reverse_solving_ready": false
+  },
+  "evidence_gaps_carried_forward": [
+    {
+      "gap_id": "focus_loop_exit_condition_unknown",
+      "description": "Exit conditions for focus comparison loops (0x6081, 0x61e8) not determined. jnz semantics ambiguous without full disassembly. Cannot determine whether loop exits on match or mismatch.",
+      "severity": "high",
+      "blocks": "formula_reconstruction, implicit_length_mechanism"
+    },
+    {
+      "gap_id": "input_length_unknown",
+      "description": "No direct evidence of input length. Possible mechanisms: null-terminated, fixed-length (hidden), or compare-mismatch-terminated. None confirmed.",
+      "severity": "high",
+      "blocks": "candidate_construction"
+    },
+    {
+      "gap_id": "no_complete_formula_recovered",
+      "description": "No comparison formula identified. Unknown what is compared against what, whether any transform is applied, and how comparison results drive program logic.",
+      "severity": "high",
+      "blocks": "reverse_solving"
+    },
+    {
+      "gap_id": "known_compare_constant_count_zero",
+      "description": "Compare constants have semantic hypotheses but none are confirmed as 'known'. All remain unconfirmed pending deeper evidence.",
+      "severity": "medium",
+      "blocks": "solver_profile_normalization"
+    },
+    {
+      "gap_id": "structured_evidence_ready_false",
+      "description": "Source artifacts report structured_evidence_ready=false. Bounded annotation only; no capstone/pefile disassembly.",
+      "severity": "medium",
+      "blocks": "complete_formula_recovery"
+    },
+    {
+      "gap_id": "missing_backward_sites_unresolved",
+      "description": "Missing sites 0x5f68, 0x60a4, 0x60b6 classified as source_only_hint with low confidence from reconciliation.",
+      "severity": "low",
+      "blocks": "none"
+    }
+  ],
+  "formula_recovered": false,
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "recommended_next_mainline": "tool_integration",
+  "recommended_next_mainline_reason": "Formula readiness audit confirms overall_formula_readiness=not_ready_static_gaps. All 3 focus loops have not_ready_static_gaps status. Critical gaps: (1) focus loop exit conditions unknown, (2) no comparison formula identified, (3) input length unknown, (4) no transform evidence, (5) compare constants unconfirmed. Current bounded static annotation is insufficient for formula recovery. reverse_solving would fail or require blind search. Continue tool_integration: consider generating IDA/Ghidra evidence extraction decision for proper disassembly of focus loops, or focused static re-extraction with capstone/pefile if available.",
+  "recommended_next_action": "Generate IDA/Ghidra evidence extraction decision for proper disassembly of focus comparison loops (0x6081->0x6059 and 0x61e8->0x61b7). Proper disassembly would resolve: (1) exact exit conditions, (2) operand data roles, (3) transform evidence, (4) relationship between loops. Alternatively, if capstone/pefile can be installed, perform focused static re-extraction of the focus loop regions.",
+  "challenge_type_inferred": "multi_phase_console_password_checker_with_loop_comparison",
+  "similarity_to_cpp2_32f1713e": "high_same_course_same_name_similar_strings_different_logic",
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_ida": false,
+  "ran_ghidra": false,
+  "ran_debugger": false,
+  "ran_hook": false,
+  "ran_emulator": false,
+  "ran_probe": false,
+  "ran_bruteforce": false,
+  "ran_dictionary_search": false,
+  "uploaded_binary": false,
+  "helpers_or_tools_used": [
+    "python_stdlib_pe_parser",
+    "bounded_x86_byte_window_annotation",
+    "local_reverse_xref_disassembly_patterns",
+    "StructuredEvidence_lightweight_schema_reviewed"
+  ],
+  "optional_dependencies": {
+    "capstone_available": false,
+    "pefile_available": false
+  }
+}
