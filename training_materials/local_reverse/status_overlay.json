@@ -1,13 +1,15 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-07T15:00:00Z",
+  "generated_at": "2026-06-08T14:42:30Z",
   "source_inventory_hint": "LOCAL_REVERSE_ROOT",
   "sample_count": 29,
   "status_summary": {
-    "solved": 4,
+    "solved": 5,
     "blocked": 4,
     "needs_triage": 0,
-    "inventory_only": 21
+    "inventory_only": 20,
+    "solved_count": 5,
+    "inventory_only_count": 20
   },
   "samples": [
     {
@@ -152,9 +154,13 @@
         "cpp",
         "pe"
       ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": ""
+      "training_status": "solved",
+      "known_candidate": "KaiJu_YiZhi_PEN",
+      "blocked_reason": "",
+      "solved_by": "console_runtime_validation",
+      "solved_at": "2026-06-08T14:42:30Z",
+      "solved_round": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1",
+      "evidence_source": "project_state/local_reverse_cpp2_883e67b9_candidate_validation.json"
     },
     {
       "sample_id": "cpp2_f2738577",

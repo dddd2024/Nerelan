@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "mainline": "training_dataset",
+  "artifact_kind": "local_reverse_training_status_overlay_sync",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "round_id": "round_20260608_cpp2_883e67b9_training_status_overlay_sync_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_training_status_overlay_sync_v1",
+  "source_artifacts": [
+    {
+      "name": "local_reverse_cpp2_883e67b9_candidate_validation",
+      "freshness": "current",
+      "source_run": "round_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1"
+    }
+  ],
+  "before_overlay_entry": {
+    "sample_id": "cpp2_883e67b9",
+    "relative_path": "逆向课程2024春02/CPP2.exe",
+    "category": "cpp",
+    "tags": ["local", "reverse", "cpp", "pe"],
+    "training_status": "inventory_only",
+    "known_candidate": "",
+    "blocked_reason": ""
+  },
+  "after_overlay_entry": {
+    "sample_id": "cpp2_883e67b9",
+    "relative_path": "逆向课程2024春02/CPP2.exe",
+    "category": "cpp",
+    "tags": ["local", "reverse", "cpp", "pe"],
+    "training_status": "solved",
+    "known_candidate": "KaiJu_YiZhi_PEN",
+    "blocked_reason": "",
+    "solved_by": "console_runtime_validation",
+    "solved_at": "2026-06-08T15:10:00Z",
+    "solved_round": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1",
+    "evidence_source": "project_state/local_reverse_cpp2_883e67b9_candidate_validation.json"
+  },
+  "before_status_summary": {
+    "solved": 4,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 21
+  },
+  "after_status_summary": {
+    "solved": 5,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 20
+  },
+  "summary_delta": {
+    "solved": "+1",
+    "inventory_only": "-1",
+    "blocked": "0",
+    "needs_triage": "0"
+  },
+  "candidate_plaintext": "KaiJu_YiZhi_PEN",
+  "validation_status": "VALIDATED_SUCCESS",
+  "status_sync_performed": true,
+  "candidate_generated": false,
+  "runtime_validation_attempted": false,
+  "ida_ghidra_static_extraction_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": true,
+  "generated_at": "2026-06-08T15:10:00Z"
+}

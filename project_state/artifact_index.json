@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-08T14:25:07Z",
+  "generated_at": "2026-06-08T14:43:40Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -116,7 +116,8 @@
     "local_reverse_solver_profile_dispatch_guardrails_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json",
     "local_reverse_solver_profile_dispatch_guardrails_report_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
     "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json",
-    "local_reverse_cpp2_883e67b9_candidate_validation": "project_state\\local_reverse_cpp2_883e67b9_candidate_validation.json"
+    "local_reverse_cpp2_883e67b9_candidate_validation": "project_state\\local_reverse_cpp2_883e67b9_candidate_validation.json",
+    "local_reverse_cpp2_883e67b9_training_status_overlay_sync": "project_state\\local_reverse_cpp2_883e67b9_training_status_overlay_sync.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1510,6 +1511,22 @@
       "sha256": "bafe5956afb3f584f99cdd8716bbf3a3b83581edde39c73ceb4b615b31774b9e",
       "size_bytes": 3124,
       "modified_at": "2026-06-08T14:25:07Z"
+    },
+    "local_reverse_cpp2_883e67b9_training_status_overlay_sync": {
+      "kind": "local_reverse_training_status_overlay_sync",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_training_status_overlay_sync.json",
+      "freshness": "current",
+      "source_run": "round_20260608_cpp2_883e67b9_training_status_overlay_sync_v1",
+      "sample_id": "cpp2_883e67b9",
+      "relative_path": "逆向课程2024春02/CPP2.exe",
+      "status_sync_performed": true,
+      "training_status_modified": false,
+      "status_overlay_modified": true,
+      "candidate_generated": false,
+      "runtime_validation_attempted": false,
+      "sha256": "0301dc4bd6f82a6fde208171760e545d1240e5668d1944ad7396683db4531460",
+      "size_bytes": 2153,
+      "modified_at": "2026-06-08T14:43:40Z"
     }
   },
   "latest_case_results": [
@@ -1680,7 +1697,13 @@
     "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json",
     "local_reverse_solver_profile_dispatch_guardrails_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json",
     "local_reverse_solver_profile_dispatch_guardrails_report_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
-    "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json"
+    "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json",
+    "local_reverse_cpp2_883e67b9_training_status_overlay_sync": {
+      "path": "project_state\\local_reverse_cpp2_883e67b9_training_status_overlay_sync.json",
+      "sha256": "0301dc4bd6f82a6fde208171760e545d1240e5668d1944ad7396683db4531460",
+      "size_bytes": 2153,
+      "source_run": "round_20260608_cpp2_883e67b9_training_status_overlay_sync_v1"
+    }
   },
   "artifact_metadata": {
     "local_reverse_cpp2_883e67b9_candidate_validation": {
