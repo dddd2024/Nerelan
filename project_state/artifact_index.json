@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-08T14:03:02Z",
+  "generated_at": "2026-06-08T14:16:42Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -1495,6 +1495,15 @@
       "runtime_validation_attempted": false,
       "training_status_modified": false,
       "status_overlay_modified": false
+    },
+    "local_reverse_cpp2_883e67b9_candidate_validation": {
+      "freshness": "current",
+      "kind": "candidate_validation",
+      "modified_at": "2026-06-08T14:16:42Z",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_candidate_validation.json",
+      "sha256": "79cc6afb43c5228850c83fe1462123f7058e345dcdf2d2fb4f1bf4ef77455225",
+      "size_bytes": 1952,
+      "source_run": "round_20260608_cpp2_883e67b9_reverse_solving_artifact_index_rework_v1"
     }
   },
   "latest_case_results": [

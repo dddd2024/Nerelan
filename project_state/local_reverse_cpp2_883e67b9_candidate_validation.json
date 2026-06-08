@@ -25,7 +25,23 @@
   "stderr_tail": "",
   "solved": true,
   "blocked_reason": "",
-  "target_sha256": "",
+  "target_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
   "target_resolved_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
-  "generated_at": "2026-06-08T14:02:32Z"
+  "generated_at": "2026-06-08T14:02:32Z",
+  "artifact_kind": "candidate_validation",
+  "decision_id": "decision_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
+  "formula_evidence_summary": {
+    "formula": "input[i] = byte_429A34[i] ^ 0x78",
+    "target_array_start_va": "0x429A34",
+    "xor_key_runtime": "0x78",
+    "input_length": 15,
+    "target_array_bytes_hex": "33 19 11 32 0D 27 21 11 22 10 11 27 28 3D 36"
+  },
+  "validation_method": "console_runtime_validation",
+  "validation_tool": "local_reverse_console_validator",
+  "revalidated_in_this_round": false,
+  "revalidation_result": "not_revalidated",
+  "updated_at": "2026-06-08T14:16:24Z"
 }
