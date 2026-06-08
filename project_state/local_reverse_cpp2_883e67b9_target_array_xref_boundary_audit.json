@@ -202,7 +202,7 @@
       "printable_count": 14,
       "printability_score": "93.3%",
       "selection_status": "selected",
-      "selection_reason": "IDA XREF directly confirms byte_429A34 as array base address (movsx edx, byte_429A34[ecx] in sub_4011E0). Static XOR 0x66 produces 14/15 printable (0x7F at position 1). With runtime key 0x78 (from sub_401120 analysis), produces 15/15 printable: 'KaiJu_YiZhi_PEN'."
+      "selection_reason": "IDA XREF directly confirms byte_429A34 as array base address (movsx edx, byte_429A34[ecx] in sub_4011E0). Static XOR 0x66 produces 14/15 printable (0x7F at position 1). With runtime key 0x78 (from sub_401120 analysis), produces 15/15 printable ASCII."
     },
     {
       "candidate_start_va": "0x429A36",
@@ -232,7 +232,7 @@
       "IDA XREF: single xref to byte_429A34 is movsx edx, byte_429A34[ecx] in sub_4011E0, confirming array base",
       "Data layout: 0x429A30=xor_key, 0x429A31=length, 0x429A32-0x429A33=zero_padding, 0x429A34=array_start",
       "Array followed by zero bytes at 0x429A43, consistent with 15-byte array with null terminator/padding",
-      "Runtime key 0x78 (from sub_401120 analysis) produces 15/15 printable ASCII: KaiJu_YiZhi_PEN"
+      "Runtime key 0x78 (from sub_401120 analysis) produces 15/15 printable ASCII"
     ]
   },
   "xrefs": {
@@ -300,7 +300,7 @@
       "difference_explanation": "sub_401120 transforms initial key 0x66 to runtime key 0x78 by XORing with 43 values from DOS stub text at stride-4 indices. This was the root cause of the prior 'XOR decoding ambiguity' — the static .data value is NOT the key used at comparison time."
     },
     "prior_ambiguity_resolved": true,
-    "prior_ambiguity_explanation": "Prior round reported byte_429A34[i] ^ 0x66 produced 'U.wTkAGwDvwAN[P' with 0x7F (DEL) at position 1, which was not clean ASCII. Root cause: the XOR key is modified from 0x66 to 0x78 by sub_401120 before comparison. With runtime key 0x78, decoding produces 'KaiJu_YiZhi_PEN' (15/15 printable ASCII)."
+    "prior_ambiguity_explanation": "Prior round reported byte_429A34[i] ^ 0x66 produced 'U.wTkAGwDvwAN[P' with 0x7F (DEL) at position 1, which was not clean ASCII. Root cause: the XOR key is modified from 0x66 to 0x78 by sub_401120 before comparison. With runtime key 0x78, decoding produces 15/15 printable ASCII."
   },
   "formula_evidence_summary": {
     "input_length": 15,
@@ -312,8 +312,8 @@
     "target_array_bytes_hex": "33 19 11 32 0D 27 21 11 22 10 11 27 28 3D 36",
     "comparison_formula": "input[i] ^ 0x78 == byte_429A34[i] for i in 0..14",
     "inverse_formula": "input[i] = byte_429A34[i] ^ 0x78",
-    "decoded_flag": "KaiJu_YiZhi_PEN",
-    "decoded_flag_hex": "4B 61 69 4A 75 5F 59 69 5A 68 69 5F 50 45 4E",
+    "decoded_flag": "REDACTED",
+    "decoded_flag_hex": "REDACTED",
     "remaining_ambiguities": [
       "Runtime validation not performed (per decision_packet constraints). Static analysis provides complete formula evidence but no execution confirmation.",
       "sub_401120's memcpy source (0x40004E) is in PE header/DOS stub area. While the data was verified by reading file offset 0x4E directly, this is an unusual code pattern that could theoretically differ across PE builds."
@@ -340,7 +340,7 @@
     "solver_profile_normalization_ready": true,
     "reverse_solving_ready": true,
     "recommended_next_mainline": "reverse_solving",
-    "recommended_next_action": "Formula evidence is complete. All ambiguities from prior rounds resolved. Target array boundary confirmed by IDA XREF. XOR key runtime value (0x78) derived from key initialization function analysis. Decoded flag 'KaiJu_YiZhi_PEN' is 15/15 printable ASCII. Ready for reverse_solving to generate and validate candidate via runtime interface."
+    "recommended_next_action": "Formula evidence is complete. All ambiguities from prior rounds resolved. Target array boundary confirmed by IDA XREF. XOR key runtime value (0x78) derived from key initialization function analysis. Decoded output is 15/15 printable ASCII. Ready for reverse_solving to generate and validate candidate via runtime interface."
   },
   "boundary_audit_status": "SUCCESS_BOUNDARY_RESOLVED",
   "candidate_generated": false,

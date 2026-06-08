@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260608_cpp2_883e67b9_target_array_xref_boundary_audit_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_target_array_xref_boundary_audit_v1",
-  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_target_array_xref_boundary_audit_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_target_array_audit_report_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_target_array_audit_report_rework_v1",
+  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_target_array_audit_report_rework_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -19,7 +19,10 @@
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json"
+    "project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json",
+    "reverse_agent/ida_scripts/xref_boundary_audit.py",
+    "reverse_agent/ida_scripts/decompile_sub_401120.py",
+    "reverse_agent/ida_scripts/decompile_sub_401014.py"
   ],
   "tests_ran": [
     ".venv\\Scripts\\python -c \"import json; json.load(open('project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json', encoding='utf-8'))\"",
@@ -113,7 +116,7 @@ _main_0 → sub_401005 → sub_401090 (input + length check)
 | Candidate | XOR 0x66 | XOR 0x78 | Printable | Status |
 |-----------|----------|----------|-----------|--------|
 | 0x429A32 | ffU.wTkAGwDvwAN (14/15) | — | — | Rejected (not XREF confirmed) |
-| **0x429A34** | **U.wTkAGwDvwAN[P (14/15)** | **KaiJu_YiZhi_PEN (15/15)** | **15/15** | **Selected (XREF confirmed)** |
+| **0x429A34** | **U.wTkAGwDvwAN[P (14/15)** | **15/15 printable ASCII** | **15/15** | **Selected (XREF confirmed)** |
 | 0x429A36 | wTkAGwDvwAN[Pff (15/15) | — | — | Rejected (not XREF confirmed) |
 
 ## 6. Formula Evidence Summary
@@ -127,7 +130,7 @@ _main_0 → sub_401005 → sub_401090 (input + length check)
 | Target array bytes | 33 19 11 32 0D 27 21 11 22 10 11 27 28 3D 36 |
 | Formula | input[i] ^ 0x78 == byte_429A34[i] |
 | Inverse | input[i] = byte_429A34[i] ^ 0x78 |
-| **Decoded flag** | **KaiJu_YiZhi_PEN** |
+| **Decoded output** | **REDACTED (15/15 printable ASCII)** |
 
 ## 7. XREF Audit
 
@@ -169,4 +172,4 @@ _main_0 → sub_401005 → sub_401090 (input + length check)
 - 本轮 target_array_xref_boundary_audit 确认 `SUCCESS_BOUNDARY_RESOLVED`
 - 公式证据完整：input_length=15, xor_key=0x78 (runtime), target_array=byte_429A34[0..14]
 - 所有先前方轮的歧义已解决（XOR key 初始化函数 sub_401120 发现）
-- 推荐下一轮切换到 `reverse_solving` 主线，生成 candidate `KaiJu_YiZhi_PEN` 并进行 runtime validation
+- 推荐下一轮切换到 `reverse_solving` 主线，生成 candidate 并进行 runtime validation
