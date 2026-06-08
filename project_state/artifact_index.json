@@ -104,7 +104,8 @@
     "local_reverse_cpp2_883e67b9_targeted_static_solving": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
     "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
     "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json",
-    "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json"
+    "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json",
+    "local_reverse_solver_profile_dispatch_guardrails_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1264,6 +1265,21 @@
       "runtime_validation_attempted": false,
       "training_status_modified": false,
       "status_overlay_modified": false
+    },
+    "local_reverse_solver_profile_dispatch_guardrails_audit": {
+      "kind": "local_reverse_solver_profile_dispatch_guardrails_audit",
+      "path": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json",
+      "freshness": "current",
+      "source_run": "round_20260608_solver_profile_dispatch_guardrails_v1",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 1789,
+      "modified_at": "2026-06-08T05:31:37Z",
+      "sample_id": "multi_solved_profile_dispatch_guardrails",
+      "mainline": "engineering_branch",
+      "candidate_generation_performed": false,
+      "runtime_validation_attempted": false,
+      "training_status_modified": false,
+      "status_overlay_modified": false
     }
   },
   "latest_case_results": [
@@ -1425,6 +1441,7 @@
     "local_reverse_cpp2_883e67b9_targeted_static_solving": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
     "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
     "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json",
-    "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json"
+    "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json",
+    "local_reverse_solver_profile_dispatch_guardrails_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json"
   }
 }

@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-08T05:31:37Z",
+  "mainline": "engineering_branch",
+  "round_id": "round_20260608_solver_profile_dispatch_guardrails_v1",
+  "decision_id": "decision_20260608_solver_profile_dispatch_guardrails_v1",
+  "source_previous_report": "report_20260608_solver_profile_dispatch_integration_v1",
+  "source_previous_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json",
+  "task_packet_authority": "advisory_only",
+  "guardrails_added": [
+    "profile_classification_mismatch_blocks_without_candidate",
+    "non_current_freshness_blocks_without_candidate"
+  ],
+  "mismatch_blocked_reason": "BLOCKED:PROFILE_CLASSIFICATION_MISMATCH",
+  "non_current_freshness_blocked_reason": "BLOCKED:NON_CURRENT_PROFILE_EVIDENCE",
+  "profiles_regression_checked": [
+    "xor_array_table_compare",
+    "bytewise_reversible_transform_table_compare",
+    "digit_mod_affine_transform_compare"
+  ],
+  "legacy_profile_regression_check": [
+    "api_assisted_password_write_and_compare",
+    "bounded_input_range_hash_output_increment_compare",
+    "sha256_hex_compare_with_post_hash_character_adjustment"
+  ],
+  "runtime_actions_performed": false,
+  "candidate_generation_performed": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "full_solve_reports_read": false,
+  "sample_binary_read": false,
+  "ida_or_ghidra_invoked": false,
+  "debugger_hook_emulator_probe_winpty_used": false,
+  "new_runtime_or_debugger_interface_created": false,
+  "production_hardcode_check": {
+    "KEEP_DREAM": false,
+    "WeKnowItOk": false,
+    "10013": false,
+    "hookapi": false
+  },
+  "tests_added_or_updated": [
+    "test_top_level_profile_mismatch_blocks_without_candidate",
+    "test_nested_profile_mismatch_blocks_without_candidate",
+    "test_stale_freshness_blocks_without_candidate",
+    "test_missing_freshness_blocks_without_candidate",
+    "test_unknown_freshness_blocks_without_candidate",
+    "test_empty_string_freshness_blocks_without_candidate",
+    "test_current_freshness_and_matching_profile_happy_path"
+  ],
+  "next_recommended_mainline": "engineering_branch",
+  "next_recommended_action": "Continue engineering_branch guardrail hardening or transition to tool_integration when new static evidence is available"
+}

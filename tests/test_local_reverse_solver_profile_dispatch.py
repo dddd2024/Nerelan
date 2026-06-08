@@ -110,7 +110,7 @@ def test_missing_profile_evidence_blocks_without_candidate() -> None:
     _, candidates, generation, blocked_reason, next_action = recover_constraints(
         sample_id="synthetic_missing",
         classification="xor_array_table_compare",
-        evidence={"profile": "xor_array_table_compare"},
+        evidence={"profile": "xor_array_table_compare", "freshness": "current"},
         max_candidates=64,
     )
 
@@ -227,6 +227,163 @@ def test_legacy_api_assisted_profile_still_generates_expected_candidate() -> Non
     assert blocked_reason == ""
     assert generation["strategy"] == "xor_constants_against_evidence_strings"
     assert "hookapi" in {item["candidate"] for item in candidates}
+
+
+def test_top_level_profile_mismatch_blocks_without_candidate() -> None:
+    _, candidates, generation, blocked_reason, _ = recover_constraints(
+        sample_id="synthetic_mismatch",
+        classification="xor_array_table_compare",
+        evidence={
+            "profile": "bytewise_reversible_transform_table_compare",
+            "profile_evidence": {
+                "target": [65],
+                "transform_kind": "swap_low_bits_1_2",
+                "transform_params": {"bit_a": 1, "bit_b": 2},
+                "domain": "byte",
+            },
+            "freshness": "current",
+        },
+        max_candidates=64,
+    )
+    assert candidates == []
+    assert generation["count"] == 0
+    assert blocked_reason == "BLOCKED:PROFILE_CLASSIFICATION_MISMATCH"
+
+
+def test_nested_profile_mismatch_blocks_without_candidate() -> None:
+    _, candidates, generation, blocked_reason, _ = recover_constraints(
+        sample_id="synthetic_nested_mismatch",
+        classification="xor_array_table_compare",
+        evidence={
+            "profile": "xor_array_table_compare",
+            "profile_evidence": {},
+            "freshness": "current",
+            "normalized_profile_evidence": {
+                "profile": "bytewise_reversible_transform_table_compare",
+                "profile_evidence": {
+                    "target": [65],
+                    "transform_kind": "swap_low_bits_1_2",
+                    "transform_params": {"bit_a": 1, "bit_b": 2},
+                    "domain": "byte",
+                },
+                "freshness": "current",
+            },
+        },
+        max_candidates=64,
+    )
+    assert candidates == []
+    assert generation["count"] == 0
+    assert blocked_reason == "BLOCKED:PROFILE_CLASSIFICATION_MISMATCH"
+
+
+def test_stale_freshness_blocks_without_candidate() -> None:
+    _, candidates, generation, blocked_reason, _ = recover_constraints(
+        sample_id="synthetic_stale",
+        classification="xor_array_table_compare",
+        evidence={
+            "profile": "xor_array_table_compare",
+            "profile_evidence": {
+                "array_a": [0x11, 0x22, 0x33],
+                "array_b": [0x01, 0x02, 0x03],
+                "target": [0x10, 0x20, 0x30],
+            },
+            "freshness": "stale",
+        },
+        max_candidates=64,
+    )
+    assert candidates == []
+    assert generation["count"] == 0
+    assert blocked_reason == "BLOCKED:NON_CURRENT_PROFILE_EVIDENCE"
+
+
+def test_missing_freshness_blocks_without_candidate() -> None:
+    _, candidates, generation, blocked_reason, _ = recover_constraints(
+        sample_id="synthetic_missing_freshness",
+        classification="xor_array_table_compare",
+        evidence={
+            "profile": "xor_array_table_compare",
+            "profile_evidence": {
+                "array_a": [0x11, 0x22, 0x33],
+                "array_b": [0x01, 0x02, 0x03],
+                "target": [0x10, 0x20, 0x30],
+            },
+        },
+        max_candidates=64,
+    )
+    assert candidates == []
+    assert generation["count"] == 0
+    assert blocked_reason == "BLOCKED:NON_CURRENT_PROFILE_EVIDENCE"
+
+
+def test_unknown_freshness_blocks_without_candidate() -> None:
+    _, candidates, generation, blocked_reason, _ = recover_constraints(
+        sample_id="synthetic_unknown",
+        classification="xor_array_table_compare",
+        evidence={
+            "profile": "xor_array_table_compare",
+            "profile_evidence": {
+                "array_a": [0x11, 0x22, 0x33],
+                "array_b": [0x01, 0x02, 0x03],
+                "target": [0x10, 0x20, 0x30],
+            },
+            "freshness": "unknown",
+        },
+        max_candidates=64,
+    )
+    assert candidates == []
+    assert generation["count"] == 0
+    assert blocked_reason == "BLOCKED:NON_CURRENT_PROFILE_EVIDENCE"
+
+
+def test_empty_string_freshness_blocks_without_candidate() -> None:
+    _, candidates, generation, blocked_reason, _ = recover_constraints(
+        sample_id="synthetic_empty_freshness",
+        classification="xor_array_table_compare",
+        evidence={
+            "profile": "xor_array_table_compare",
+            "profile_evidence": {
+                "array_a": [0x11, 0x22, 0x33],
+                "array_b": [0x01, 0x02, 0x03],
+                "target": [0x10, 0x20, 0x30],
+            },
+            "freshness": "",
+        },
+        max_candidates=64,
+    )
+    assert candidates == []
+    assert generation["count"] == 0
+    assert blocked_reason == "BLOCKED:NON_CURRENT_PROFILE_EVIDENCE"
+
+
+def test_current_freshness_and_matching_profile_happy_path() -> None:
+    candidate = b"HappyPath"
+    array_a = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99]
+    array_b = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09]
+    target = [
+        candidate[index] ^ array_a[len(candidate) - 1 - index] ^ array_b[index]
+        for index in range(len(candidate))
+    ]
+
+    _, candidates, generation, blocked_reason, _ = recover_constraints(
+        sample_id="synthetic_happy",
+        classification="xor_array_table_compare",
+        evidence={
+            "profile": "xor_array_table_compare",
+            "profile_evidence": {
+                "array_a": array_a,
+                "array_b": array_b,
+                "target": target,
+                "reverse_a": True,
+                "encoding": "latin-1",
+            },
+            "freshness": "current",
+        },
+        max_candidates=64,
+    )
+    assert blocked_reason == ""
+    assert generation["count"] == 1
+    assert candidates[0]["candidate"] == candidate.decode("ascii")
+    assert candidates[0]["validation_status"] == "unverified"
 
 
 def test_dispatch_production_modules_have_no_real_solved_candidates_hardcoded() -> None:

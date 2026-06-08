@@ -252,20 +252,94 @@ def recover_constraints(
     )
 
 
+PROFILE_CLASSIFICATION_MISMATCH = "PROFILE_CLASSIFICATION_MISMATCH"
+NON_CURRENT_PROFILE_EVIDENCE = "NON_CURRENT_PROFILE_EVIDENCE"
+
+
 def recover_profile_normalized_constraints(
     *,
     sample_id: str,
     classification: str,
     evidence: dict[str, Any],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any], str, str]:
+    # Guardrail 1: profile/classification mismatch check (before _normalized_profile_payload normalizes)
+    top_level_profile = str(evidence.get("profile") or "")
+    if top_level_profile and top_level_profile != classification:
+        blocked_reason = f"BLOCKED:{PROFILE_CLASSIFICATION_MISMATCH}"
+        return (
+            [
+                {
+                    "kind": "profile_normalized_evidence",
+                    "profile": top_level_profile,
+                    "classification": classification,
+                    "source_artifact": str(evidence.get("source_artifact", "")),
+                    "source_run": str(evidence.get("source_run", "")),
+                    "freshness": str(evidence.get("freshness") or "unknown"),
+                    "provenance_notes": evidence.get("provenance_notes", []),
+                },
+                {"kind": "guardrail", "reason": PROFILE_CLASSIFICATION_MISMATCH, "detail": "top-level profile does not match classification"},
+            ],
+            [],
+            {"strategy": "none", "count": 0, "bounded_reason": blocked_reason},
+            blocked_reason,
+            "repair profile/classification alignment before dispatch",
+        )
+
+    nested_profile = ""
+    if "normalized_profile_evidence" in evidence and isinstance(evidence["normalized_profile_evidence"], dict):
+        nested_profile = str(evidence["normalized_profile_evidence"].get("profile") or "")
+    if nested_profile and nested_profile != classification:
+        blocked_reason = f"BLOCKED:{PROFILE_CLASSIFICATION_MISMATCH}"
+        return (
+            [
+                {
+                    "kind": "profile_normalized_evidence",
+                    "profile": nested_profile,
+                    "classification": classification,
+                    "source_artifact": str(evidence.get("source_artifact", "")),
+                    "source_run": str(evidence.get("source_run", "")),
+                    "freshness": str(evidence.get("freshness") or "unknown"),
+                    "provenance_notes": evidence.get("provenance_notes", []),
+                },
+                {"kind": "guardrail", "reason": PROFILE_CLASSIFICATION_MISMATCH, "detail": "nested normalized_profile_evidence profile does not match classification"},
+            ],
+            [],
+            {"strategy": "none", "count": 0, "bounded_reason": blocked_reason},
+            blocked_reason,
+            "repair nested profile/classification alignment before dispatch",
+        )
+
     normalized_payload = _normalized_profile_payload(classification, evidence)
+
+    # Guardrail 2: freshness=current check
+    freshness = str(normalized_payload.get("freshness") or "unknown")
+    if freshness != "current":
+        blocked_reason = f"BLOCKED:{NON_CURRENT_PROFILE_EVIDENCE}"
+        return (
+            [
+                {
+                    "kind": "profile_normalized_evidence",
+                    "profile": classification,
+                    "source_artifact": normalized_payload.get("source_artifact", ""),
+                    "source_run": normalized_payload.get("source_run", ""),
+                    "freshness": freshness,
+                    "provenance_notes": normalized_payload.get("provenance_notes", []),
+                },
+                {"kind": "guardrail", "reason": NON_CURRENT_PROFILE_EVIDENCE, "detail": f"freshness={freshness} is not current"},
+            ],
+            [],
+            {"strategy": "none", "count": 0, "bounded_reason": blocked_reason},
+            blocked_reason,
+            "refresh profile-normalized evidence to current before candidate generation",
+        )
+
     constraints = [
         {
             "kind": "profile_normalized_evidence",
             "profile": classification,
             "source_artifact": normalized_payload.get("source_artifact", ""),
             "source_run": normalized_payload.get("source_run", ""),
-            "freshness": normalized_payload.get("freshness", "unknown"),
+            "freshness": freshness,
             "provenance_notes": normalized_payload.get("provenance_notes", []),
         }
     ]
