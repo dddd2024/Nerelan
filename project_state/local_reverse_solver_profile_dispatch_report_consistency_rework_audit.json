@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-08T06:38:42Z",
+  "mainline": "engineering_branch",
+  "round_id": "round_20260608_solver_profile_dispatch_report_consistency_rework_v1",
+  "decision_id": "decision_20260608_solver_profile_dispatch_report_consistency_rework_v1",
+  "source_failed_report": "report_20260608_solver_profile_dispatch_guardrails_report_rework_v1",
+  "source_failed_commit": "9e2a92a3fd7cad753452330abe310e3bbca7a9fe",
+  "issues_repaired": [
+    "codex_report_summary.files_changed was missing project_state/local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
+    "codex_report_summary.generated_artifacts was empty but project_state/local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json was actually generated",
+    "codex_execution_report.md body retained stale lint-report FAILED statements conflicting with SUCCESS/ACCEPTED summary and pytest_result PASS"
+  ],
+  "files_changed_repaired": [
+    "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt",
+    "project_state/artifact_index.json",
+    "project_state/local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json"
+  ],
+  "generated_artifacts_repaired": [
+    "project_state/local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
+    "project_state/local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json"
+  ],
+  "stale_lint_report_failed_removed": true,
+  "runtime_actions_performed": false,
+  "candidate_generation_performed": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "full_solve_reports_read": false,
+  "sample_binary_read": false,
+  "ida_or_ghidra_invoked": false,
+  "debugger_hook_emulator_probe_winpty_used": false,
+  "production_code_modified": false
+}

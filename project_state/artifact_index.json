@@ -106,7 +106,8 @@
     "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json",
     "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json",
     "local_reverse_solver_profile_dispatch_guardrails_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json",
-    "local_reverse_solver_profile_dispatch_guardrails_report_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json"
+    "local_reverse_solver_profile_dispatch_guardrails_report_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
+    "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -1296,6 +1297,21 @@
       "runtime_validation_attempted": false,
       "training_status_modified": false,
       "status_overlay_modified": false
+    },
+    "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": {
+      "kind": "local_reverse_solver_profile_dispatch_report_consistency_rework_audit",
+      "path": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json",
+      "freshness": "current",
+      "source_run": "round_20260608_solver_profile_dispatch_report_consistency_rework_v1",
+      "sha256": "b276de7ddf0461dd45d6eb0c32c823c79959273fe07e1efd2c2da5168ef5e2ac",
+      "size_bytes": 1898,
+      "modified_at": "2026-06-08T06:38:42Z",
+      "sample_id": "multi_solved_profile_dispatch_report_consistency_rework",
+      "mainline": "engineering_branch",
+      "candidate_generation_performed": false,
+      "runtime_validation_attempted": false,
+      "training_status_modified": false,
+      "status_overlay_modified": false
     }
   },
   "latest_case_results": [
@@ -1459,6 +1475,7 @@
     "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json",
     "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json",
     "local_reverse_solver_profile_dispatch_guardrails_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json",
-    "local_reverse_solver_profile_dispatch_guardrails_report_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json"
+    "local_reverse_solver_profile_dispatch_guardrails_report_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
+    "local_reverse_solver_profile_dispatch_report_consistency_rework_audit": "project_state\\local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json"
   }
 }
