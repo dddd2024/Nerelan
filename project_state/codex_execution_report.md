@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260608_local_reverse_capability_review_bucket_rework_v1",
-  "round_id": "round_20260608_local_reverse_capability_review_bucket_rework_v1",
-  "based_on_decision_id": "decision_20260608_local_reverse_capability_review_bucket_rework_v1",
+  "report_id": "report_20260608_local_reverse_capability_gap_text_cleanup_v1",
+  "round_id": "round_20260608_local_reverse_capability_gap_text_cleanup_v1",
+  "based_on_decision_id": "decision_20260608_local_reverse_capability_gap_text_cleanup_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "training_dataset",
@@ -25,7 +25,7 @@
   ],
   "tests_ran": [
     "JSON parse validation (6 files)",
-    "JSON content validation (11 checks)",
+    "JSON content validation (10 checks)",
     "py_compile",
     "pytest",
     "lint-decision",
@@ -44,8 +44,8 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the only execution authority for this round.
-- [x] Active decision: `decision_20260608_local_reverse_capability_review_bucket_rework_v1`.
-- [x] Active round: `round_20260608_local_reverse_capability_review_bucket_rework_v1`.
+- [x] Active decision: `decision_20260608_local_reverse_capability_gap_text_cleanup_v1`.
+- [x] Active round: `round_20260608_local_reverse_capability_gap_text_cleanup_v1`.
 - [x] Mainline is `training_dataset`; `task_packet.json` was treated as advisory only.
 - [x] task_packet samplereverse derived_task was NOT executed.
 - [x] No candidate was generated, validated, or re-run.
@@ -57,57 +57,49 @@
 - [x] `local_reverse_training_status.json` was not modified.
 - [x] No model_gate.json or negative_results.json were unnecessarily modified.
 
-## 2. Previous Round Audit
+## 2. Scope
 
-Previous round: `round_20260608_local_reverse_training_capability_review_v1`
-Status: ACCEPTED_WITH_LIMITATIONS
-Limitations identified:
-1. crypto_cipher_inventory_only.count=5 but sample_ids had 6 entries
-2. unknown_pe_inventory_only included pwd_030127ca (.txt/text, not PE)
+This round performed **minimal metadata cleanup** only:
+- Modified exactly 1 gap in capability_gaps (crypto_cipher_static_evidence_requirements_for_DES_RC4_samples)
+- Updated 3 text fields: description, current_state, evidence_basis
+- Updated cleanup metadata: rework_decision_id, rework_round_id, updated_at
 
-## 3. Fixes Applied
+## 3. Gap Text Fix
 
-| Fix | Before | After |
-|-----|--------|-------|
-| crypto_cipher split into PE + Python reference | crypto_cipher_inventory_only count=5, ids=6 | crypto_cipher_pe_inventory_only count=4, crypto_cipher_python_reference_inventory_only count=2 |
-| unknown_pe corrected | count=4, included pwd_030127ca | count=3, only PE unknowns |
-| text_or_support added | did not exist | count=1, pwd_030127ca |
+| Field | Before (stale) | After (corrected) |
+|-------|----------------|-------------------|
+| description | "No cipher-specific static evidence profile for DES/RC4 samples" | "No cipher-specific static evidence profile for DES/RC4 PE samples; Python crypto/cipher files should be treated as references, not primary binary targets." |
+| current_state | "5 crypto/cipher inventory_only samples await static evidence requirements definition" | "4 crypto/cipher PE samples await static evidence profile; 2 crypto/cipher Python files are reference material." |
+| evidence_basis | "crypto_cipher_inventory_only bucket has 5-6 samples, all inventory_only" | "crypto_cipher_pe_inventory_only.count=4 and crypto_cipher_python_reference_inventory_only.count=2 in local_reverse_training_capability_review.json." |
 
-## 4. Inventory Bucket Verification
-
-| Bucket | Count | Len(sample_ids) | Status |
-|--------|-------|-----------------|--------|
-| cpp_pe_inventory_only | 7 | 7 | PASS |
-| crypto_cipher_pe_inventory_only | 4 | 4 | PASS |
-| crypto_cipher_python_reference_inventory_only | 2 | 2 | PASS |
-| python_solver_like_inventory_only | 3 | 3 | PASS |
-| unknown_pe_inventory_only | 3 | 3 | PASS |
-| text_or_support_inventory_only | 1 | 1 | PASS |
-| other_inventory_only | 0 | 0 | PASS |
-| **Total** | **20** | **20** | **PASS** |
-
-No duplicate sample_ids across all buckets: PASS
-pwd_030127ca not in unknown_pe: PASS
-pwd_030127ca in text_or_support: PASS
-
-## 5. Unchanged Sections
+## 4. Unchanged Sections Verification
 
 | Section | Status |
 |---------|--------|
 | status_summary (29/5/4/0/20) | PASS |
+| inventory_buckets (7+4+2+3+3+1+0=20) | PASS |
 | solved_cases (5) | PASS |
 | blocked_cases (4) | PASS |
-| capability_gaps (8) | PASS |
 | next_queue_candidates (5, advisory only) | PASS |
 | guardrails all false | PASS |
+| capability_gaps count (8, no add/delete) | PASS |
+
+## 5. Stale Text Elimination
+
+| Check | Result |
+|-------|--------|
+| No "crypto_cipher_inventory_only" in capability_gaps | PASS |
+| No "5-6 samples" in capability_gaps | PASS |
+| No "5 crypto/cipher inventory_only samples" in capability_gaps | PASS |
+| Crypto cipher gap distinguishes 4 PE + 2 Python | PASS |
 
 ## 6. Artifact Index
 
 | Requirement | Result |
 |-------------|--------|
-| latest_artifacts_v2.sha256 updated | PASS: 57a064ad93add28854ece729551829bdfd34d883f463247ce97b802a777988c5 |
-| latest_artifacts_v2.size_bytes updated | PASS: 16687 |
-| latest_artifacts_v2.source_run updated | PASS: round_20260608_local_reverse_capability_review_bucket_rework_v1 |
+| latest_artifacts_v2.sha256 updated | PASS: e14849efe507c21b20f906e841c69387a70c77f1540188a1808bc7d8fd029e4a |
+| latest_artifacts_v2.size_bytes updated | PASS: 16873 |
+| latest_artifacts_v2.source_run updated | PASS: round_20260608_local_reverse_capability_gap_text_cleanup_v1 |
 | latest_artifacts_v2.modified_at updated | PASS |
 
 ## 7. Tests
@@ -118,11 +110,10 @@ pwd_030127ca in text_or_support: PASS
 | JSON content: status_summary.inventory_only==20 | PASS |
 | JSON content: sum(bucket.count)==20 | PASS |
 | JSON content: each bucket.count==len(sample_ids) | PASS (7 buckets) |
-| JSON content: no duplicate sample_ids | PASS |
-| JSON content: crypto_cipher_pe has 4 PE crypto samples | PASS |
-| JSON content: crypto_cipher_python has 2 Python refs | PASS |
-| JSON content: unknown_pe excludes pwd_030127ca | PASS |
-| JSON content: text_or_support includes pwd_030127ca | PASS |
+| JSON content: no "crypto_cipher_inventory_only" in gaps | PASS |
+| JSON content: no "5-6 samples" in gaps | PASS |
+| JSON content: no "5 crypto/cipher inventory_only samples" in gaps | PASS |
+| JSON content: crypto gap has PE=4 + Python=2 | PASS |
 | JSON content: next_queue excludes solved/blocked | PASS |
 | JSON content: guardrails false | PASS |
 | py_compile | PASS |
@@ -136,4 +127,4 @@ pwd_030127ca in text_or_support: PASS
 
 ## 8. Stop Conditions
 
-No stop condition triggered. Bucket metadata corrected. Next round may select cpp2_f2738577 for bounded static triage/readiness, subject to separate DECISION_PACKET authorization.
+No stop condition triggered. Stale gap text corrected. Next round may select cpp2_f2738577 for bounded static triage/readiness, subject to separate DECISION_PACKET authorization.

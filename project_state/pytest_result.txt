@@ -1,14 +1,14 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260608_local_reverse_capability_review_bucket_rework_v1",
-  "report_id": "report_20260608_local_reverse_capability_review_bucket_rework_v1",
-  "round_id": "round_20260608_local_reverse_capability_review_bucket_rework_v1",
-  "generated_at": "2026-06-08T17:00:00Z",
+  "decision_id": "decision_20260608_local_reverse_capability_gap_text_cleanup_v1",
+  "report_id": "report_20260608_local_reverse_capability_gap_text_cleanup_v1",
+  "round_id": "round_20260608_local_reverse_capability_gap_text_cleanup_v1",
+  "generated_at": "2026-06-08T17:30:00Z",
   "status": "PASSED",
   "tests_ran": [
     "JSON parse validation (6 files)",
-    "JSON content validation (11 checks)",
+    "JSON content validation (10 checks)",
     "py_compile",
     "pytest",
     "lint-decision",
@@ -21,12 +21,12 @@
 }
 ```
 
-pytest_result for round_20260608_local_reverse_capability_review_bucket_rework_v1
+pytest_result for round_20260608_local_reverse_capability_gap_text_cleanup_v1
 =========================================================================================
 
-decision_id: decision_20260608_local_reverse_capability_review_bucket_rework_v1
-report_id: report_20260608_local_reverse_capability_review_bucket_rework_v1
-round_id: round_20260608_local_reverse_capability_review_bucket_rework_v1
+decision_id: decision_20260608_local_reverse_capability_gap_text_cleanup_v1
+report_id: report_20260608_local_reverse_capability_gap_text_cleanup_v1
+round_id: round_20260608_local_reverse_capability_gap_text_cleanup_v1
 
 JSON parse validation (6 files):
   task_packet.json: PASS
@@ -36,15 +36,14 @@ JSON parse validation (6 files):
   local_reverse_training_status.json: PASS
   local_reverse_training_capability_review.json: PASS
 
-JSON content validation (11 checks):
+JSON content validation (10 checks):
   status_summary.inventory_only == 20: PASS
   sum(bucket.count) == 20: PASS
   each bucket.count == len(sample_ids): PASS (7 buckets)
-  no duplicate sample_ids: PASS
-  crypto_cipher_pe has 4 PE crypto samples: PASS
-  crypto_cipher_python has 2 Python refs: PASS
-  unknown_pe excludes pwd_030127ca: PASS
-  text_or_support includes pwd_030127ca: PASS
+  no "crypto_cipher_inventory_only" in capability_gaps: PASS
+  no "5-6 samples" in capability_gaps: PASS
+  no "5 crypto/cipher inventory_only samples" in capability_gaps: PASS
+  crypto cipher gap has PE=4 + Python=2: PASS
   next_queue excludes solved/blocked: PASS
   guardrails.runtime_validation_attempted == false: PASS
   guardrails.ida_ghidra_static_extraction_attempted == false: PASS

@@ -289,9 +289,9 @@
     },
     {
       "gap_id": "crypto_cipher_static_evidence_requirements_for_DES_RC4_samples",
-      "description": "No cipher-specific static evidence profile for DES/RC4 samples",
-      "current_state": "5 crypto/cipher inventory_only samples await static evidence requirements definition",
-      "evidence_basis": "crypto_cipher_inventory_only bucket has 5-6 samples, all inventory_only"
+      "description": "No cipher-specific static evidence profile for DES/RC4 PE samples; Python crypto/cipher files should be treated as references, not primary binary targets.",
+      "current_state": "4 crypto/cipher PE samples await static evidence profile; 2 crypto/cipher Python files are reference material.",
+      "evidence_basis": "crypto_cipher_pe_inventory_only.count=4 and crypto_cipher_python_reference_inventory_only.count=2 in local_reverse_training_capability_review.json."
     }
   ],
   "next_queue_candidates": [
@@ -382,7 +382,7 @@
     "full_solve_reports_read": false
   },
   "generated_at": "2026-06-08T16:30:00Z",
-  "rework_decision_id": "decision_20260608_local_reverse_capability_review_bucket_rework_v1",
-  "rework_round_id": "round_20260608_local_reverse_capability_review_bucket_rework_v1",
-  "updated_at": "2026-06-08T15:57:16Z"
+  "rework_decision_id": "decision_20260608_local_reverse_capability_gap_text_cleanup_v1",
+  "rework_round_id": "round_20260608_local_reverse_capability_gap_text_cleanup_v1",
+  "updated_at": "2026-06-08T16:15:00Z"
 }
