@@ -195,7 +195,7 @@
       "semantic_role_hypothesis": "table_or_address_constant",
       "confidence": "low",
       "candidate_formula_role": "none",
-      "confirmed_formula_constant", false,
+      "confirmed_formula_constant": false,
       "reasoning": "cmp with 32-bit immediate 0x108 (264 decimal). Located within the span of the large outer loop 0x647d->0x62bb. Very close to 0x629f (0x10c=268), difference of 4. Could be related address offsets or table indices. Not a typical ASCII character constant."
     },
     {

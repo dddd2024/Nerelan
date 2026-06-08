@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
-  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -16,12 +16,13 @@
   "training_status_modified": false,
   "status_overlay_modified": false,
   "files_changed": [
+    "project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json",
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt",
-    "project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json"
+    "project_state/pytest_result.txt"
   ],
   "tests_ran": [
+    ".venv\\Scripts\\python -c \"import json; json.load(open('project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json', encoding='utf-8'))\"",
     ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py",
     ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
@@ -31,9 +32,7 @@
     "git status --short",
     "git diff --name-status"
   ],
-  "generated_artifacts": [
-    "project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json"
-  ]
+  "generated_artifacts": []
 }
 ```
 
@@ -45,113 +44,58 @@
 - [x] mainline 为 tool_integration
 - [x] task_packet 仅为 advisory
 - [x] 确认本轮不是 reverse_solving，不生成/验证 candidate
-- [x] 确认没有运行样本、runtime validation、debugger、hook、emulator、probe、winpty
-- [x] 确认没有调用 IDA/Ghidra 或重新读取样本二进制
-- [x] 检查了已有 StructuredEvidence / solver profile / project_state / artifact_index 接口
-- [x] 复用了已有接口/格式，未新建重复框架
-- [x] 读取并只使用 current 的 cpp2_883e67b9 source artifacts
-- [x] 新 artifact 记录 source artifacts/source_run/freshness
-- [x] 新 artifact 记录 10 个 compare constants 与 per-constant semantic_role_hypothesis
-- [x] 新 artifact 避免把任何 constant 标成 confirmed_formula_constant 或 candidate source
-- [x] 新 artifact 保持 known_compare_constant_count=0
-- [x] 新 artifact 明确 constants_mapping_status=MAPPED_WITH_LIMITATIONS 与 recommended_next_mainline=tool_integration
-- [x] artifact_index 登记新 artifact，freshness=current、source_run 为当前 round、sha256/size_bytes 为真实值
+- [x] 确认修复了 compare_constants_mapping.json 的 JSON 语法错误
+- [x] 用 python json.load 成功解析该 artifact
+- [x] artifact_index 中 sha256/size_bytes 按修复后文件重新计算
+- [x] 保持 known_compare_constant_count=0
+- [x] 保持 constants_mapping_status=MAPPED_WITH_LIMITATIONS
+- [x] 保持 formula_recovered=false、candidate_generated=false
 - [x] 没有修改 training_status/status_overlay
-- [x] 没有读取 full solve_reports 或 PROJECT_PROGRESS_LOG
+- [x] 没有运行样本、runtime validation、debugger、hook、emulator、probe、winpty
+- [x] 没有调用 IDA/Ghidra 或重新读取样本二进制
 - [x] 没有修改 solver production code
-- [x] 运行 py_compile
-- [x] 运行相关 pytest
-- [x] 运行 lint-decision、lint-report、project_state status
+- [x] 运行 py_compile、pytest、lint-decision、lint-report、status
 - [x] 运行 git diff --check、git status --short、git diff --name-status
 - [x] git diff 只包含允许文件
 
-## 2. Source Artifacts Audited
+## 2. JSON Syntax Fix
 
-读取并审计了以下 current artifacts：
+**文件**: `project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json`
+**位置**: constant_semantic_mapping entry for rva=0x62cb
+**错误**: `"confirmed_formula_constant", false`（逗号分隔，非合法 JSON key-value）
+**修复**: `"confirmed_formula_constant": false`（冒号分隔）
 
-| Artifact | Status | Identity Verified |
-|----------|--------|-------------------|
-| local_reverse_cpp2_883e67b9_missing_branch_reconciliation | SUCCESS | true |
-| local_reverse_cpp2_883e67b9_loop_semantics_mapping | SUCCESS | true |
-| local_reverse_cpp2_883e67b9_structured_evidence_projection | SUCCESS | true |
-| local_reverse_cpp2_883e67b9_targeted_static_solving | PARTIAL | true |
-| local_reverse_cpp2_883e67b9_bounded_static_extraction | SUCCESS | true |
+修复后 JSON parse 验证：✅ OK（46 keys, 10 constant_semantic_mapping entries）
 
-所有 source artifacts 均为 current，identity 一致，sample_id=cpp2_883e67b9。
+## 3. Provenance Update
 
-## 3. Existing Interfaces Checked
+| 字段 | 旧值 | 新值 |
+|------|------|------|
+| sha256 | b8a453d490687fa2fccce61b6218d911eefba9311a83e0508016104d7d0406c1 | eccd63a9ad96b29f0e4ad97826d745617742133c23420825079d9b1ad0b3953a |
+| size_bytes | 16824 | 16824（未变，仅修复 1 字符） |
+| source_run | round_20260608_cpp2_883e67b9_compare_constants_mapping_v1 | round_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1 |
+| modified_at | 2026-06-08T05:30:00Z | 2026-06-08T05:45:00Z |
 
-检查了以下已有接口：
+其他字段保持不变：kind, path, freshness, sample_id, relative_path, constants_mapping_status, known_compare_constant_count, candidate_generated, training_status_modified, status_overlay_modified。
 
-- `reverse_agent/project_state.py` — artifact_index 注册约定
-- `reverse_agent/local_reverse_solver_profiles.py` — SolverProfileResult、ProfileNormalizedEvidence
-- `reverse_agent/local_reverse_constraint_recovery.py` — 约束恢复接口（未修改）
-- `reverse_agent/local_reverse_ida_guided_solver.py` — IDA solver 接口（未修改）
-- `reverse_agent/local_reverse_string_solver.py` — 字符串 solver 接口（未修改）
+## 4. Tests
 
-结论：已有接口足以表达 compare_constants_mapping schema，无需修改 production code。
+| 测试 | 结果 |
+|------|------|
+| JSON parse validation | ✅ PASS |
+| py_compile | ✅ PASS |
+| pytest | ✅ PASS |
+| lint-decision | ✅ OK |
+| lint-report | ✅ OK |
+| project_state status | ✅ OK |
+| git diff --check | ✅ PASS |
 
-## 4. New Artifact Summary
+## 5. Stop Conditions
 
-生成：`project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json`
+无停止条件触发。JSON 修复后 artifact 可正常解析，provenance 已更新。
 
-### Compare Constants Semantic Mapping
+## 6. Next Steps
 
-| RVA | Type | Value | Semantic Role | Confidence | Formula Role |
-|-----|------|-------|---------------|------------|-------------|
-| 0x5f38 | cmp_al_imm8 | 0xc2 (194) | unknown | low | none |
-| 0x6077 | cmp_imm8 | 0x1 (1) | control_state_flag | medium | pending |
-| 0x60f7 | cmp_al_imm8 | 0x8d (141) | algorithm_constant_candidate | low | pending |
-| 0x6124 | cmp_al_imm8 | 0x85 (133) | algorithm_constant_candidate | low | pending |
-| 0x618f | cmp_imm32 | 0x1102 (4354) | table_or_address_constant | low | none |
-| 0x61de | cmp_imm8 | 0x1 (1) | control_state_flag | medium | pending |
-| 0x629f | cmp_imm32 | 0x10c (268) | table_or_address_constant | low | none |
-| 0x62cb | cmp_imm32 | 0x108 (264) | table_or_address_constant | low | none |
-| 0x6438 | cmp_imm8 | 0xff (255) | sentinel_or_mask | medium | pending |
-| 0x64e5 | cmp_imm32 | 0x100 (256) | loop_index_or_bound | medium | pending |
-
-### Key Observations
-
-- **control_state_flag** (0x6077, 0x61de): 两个 `cmp eax, 1` 分别位于两个 focus comparison loop 附近，形成重复的控制流模式
-- **algorithm_constant_candidate** (0x60f7, 0x6124): 两个 `cmp al` 位于 focus loop 0x6081 内，可能是逐字符比较常量
-- **sentinel_or_mask** (0x6438): `cmp 0xff` 是经典的 EOF/掩码值
-- **loop_index_or_bound** (0x64e5): `cmp 0x100` 是字节迭代的经典循环上界
-- **table_or_address_constant** (0x618f, 0x629f, 0x62cb): 32位大值，可能是地址偏移或表索引
-
-### Status
-
-- known_compare_constant_count = 0（无 current source artifact 支持升级）
-- constants_mapping_status = MAPPED_WITH_LIMITATIONS
-- formula_recovered = false
-- candidate_generated = false
-- recommended_next_mainline = tool_integration（优先 input length evidence recovery）
-
-## 5. Tests
-
-### py_compile
-```
-.venv\Scripts\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py
-```
-结果：PASS
-
-### pytest
-```
-.venv\Scripts\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py
-```
-结果：见 pytest_result.txt
-
-### lint-decision / lint-report / status
-结果：PASS
-
-### git checks
-结果：PASS
-
-## 6. Stop Conditions
-
-无停止条件触发。
-
-## 7. Next Steps
-
-- 本轮 compare constants mapping 为 MAPPED_WITH_LIMITATIONS，推荐下一轮继续 tool_integration
-- 优先方向：input length evidence recovery，利用 0x64e5 (cmp 0x100) 和 0x6438 (cmp 0xff) 作为循环上界/输入长度线索
-- 不推进 candidate generation 或 runtime validation，直到 evidence gaps 显著缩小
+- 本轮 JSON rework 完成，compare_constants_mapping artifact 现为合法 JSON 且 provenance 已更新
+- constants_mapping_status 仍为 MAPPED_WITH_LIMITATIONS
+- 下一轮可考虑 input length evidence recovery
