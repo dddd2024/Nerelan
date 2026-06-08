@@ -1,6 +1,25 @@
-decision_id=decision_20260608_solver_profile_dispatch_files_changed_rework_v1
-report_id=report_20260608_solver_profile_dispatch_files_changed_rework_v1
-round_id=round_20260608_solver_profile_dispatch_files_changed_rework_v1
+```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1",
+  "report_id": "report_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1",
+  "round_id": "round_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1",
+  "generated_at": "2026-06-08T06:45:00Z",
+  "status": "PASSED",
+  "tests_ran": [
+    ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
+    ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
+    ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
+    "git diff --check",
+    "git status --short",
+    "git diff --name-status"
+  ]
+}
+```
+
+decision_id=decision_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1
+report_id=report_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1
+round_id=round_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1
 status=PASSED
 
 lint-decision: PASS
@@ -11,13 +30,14 @@ git diff --check: PASS
 
 commands_executed:
 1. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state -> PASS
-2. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state -> PASS (after report update)
+2. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state -> PASS (after artifact_index files_changed report update)
 3. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state -> PASS
 4. git diff --check -> PASS
 5. git status --short -> (recorded after all changes)
 6. git diff --name-status -> (recorded after all changes)
 
 issues_repaired:
-- codex_report_summary.files_changed now includes guardrails_report_rework_audit.json
-- codex_report_summary.files_changed still includes report_consistency_rework_audit.json
-- report identity updated to current files_changed rework decision/report/round
+- codex_report_summary.files_changed now includes project_state/artifact_index.json
+- codex_report_summary.files_changed still includes both rework audit artifacts
+- generated_artifacts still preserves both rework audit artifacts
+- report identity updated to current artifact_index_files_changed_rework decision/report/round
