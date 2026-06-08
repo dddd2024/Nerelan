@@ -1,0 +1,218 @@
+{
+  "image_base": "0x400000",
+  "target_symbol_xrefs": [
+    {
+      "symbol": "byte_429A30",
+      "ea": "0x429A30",
+      "xrefs": [
+        {
+          "from_ea": "0x40116E",
+          "from_func": "sub_401120",
+          "from_func_start": "0x401120",
+          "disasm": "mov     dl, byte_429A30",
+          "xref_type": "type_3",
+          "xref_type_int": 3
+        },
+        {
+          "from_ea": "0x40117B",
+          "from_func": "sub_401120",
+          "from_func_start": "0x401120",
+          "disasm": "mov     byte_429A30, dl",
+          "xref_type": "type_2",
+          "xref_type_int": 2
+        },
+        {
+          "from_ea": "0x401226",
+          "from_func": "sub_4011E0",
+          "from_func_start": "0x4011E0",
+          "disasm": "xor     al, byte_429A30",
+          "xref_type": "type_3",
+          "xref_type_int": 3
+        }
+      ]
+    },
+    {
+      "symbol": "byte_429A31",
+      "ea": "0x429A31",
+      "xrefs": [
+        {
+          "from_ea": "0x4010D9",
+          "from_func": "sub_401090",
+          "from_func_start": "0x401090",
+          "disasm": "movsx   ecx, byte_429A31",
+          "xref_type": "type_3",
+          "xref_type_int": 3
+        },
+        {
+          "from_ea": "0x401211",
+          "from_func": "sub_4011E0",
+          "from_func_start": "0x4011E0",
+          "disasm": "movsx   ecx, byte_429A31",
+          "xref_type": "type_3",
+          "xref_type_int": 3
+        }
+      ]
+    },
+    {
+      "symbol": "byte_429A34",
+      "ea": "0x429A34",
+      "xrefs": [
+        {
+          "from_ea": "0x401242",
+          "from_func": "sub_4011E0",
+          "from_func_start": "0x4011E0",
+          "disasm": "movsx   edx, byte_429A34[ecx]",
+          "xref_type": "type_3",
+          "xref_type_int": 3
+        }
+      ]
+    },
+    {
+      "symbol": "Str",
+      "ea": "0x42CD58",
+      "xrefs": [
+        {
+          "from_ea": "0x4010BA",
+          "from_func": "sub_401090",
+          "from_func_start": "0x401090",
+          "disasm": "push    offset Str",
+          "xref_type": "type_1",
+          "xref_type_int": 1
+        },
+        {
+          "from_ea": "0x4010CC",
+          "from_func": "sub_401090",
+          "from_func_start": "0x401090",
+          "disasm": "push    offset Str; Str",
+          "xref_type": "type_1",
+          "xref_type_int": 1
+        },
+        {
+          "from_ea": "0x401220",
+          "from_func": "sub_4011E0",
+          "from_func_start": "0x4011E0",
+          "disasm": "mov     al, Str[edx]",
+          "xref_type": "type_3",
+          "xref_type_int": 3
+        },
+        {
+          "from_ea": "0x40122F",
+          "from_func": "sub_4011E0",
+          "from_func_start": "0x4011E0",
+          "disasm": "mov     Str[ecx], al",
+          "xref_type": "type_2",
+          "xref_type_int": 2
+        },
+        {
+          "from_ea": "0x401238",
+          "from_func": "sub_4011E0",
+          "from_func_start": "0x4011E0",
+          "disasm": "movsx   eax, Str[edx]",
+          "xref_type": "type_3",
+          "xref_type_int": 3
+        }
+      ]
+    }
+  ],
+  "data_window": {
+    "start_va": "0x429A20",
+    "end_va": "0x429A60",
+    "bytes_hex": "00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 66 0F 00 00 33 19 11 32 0D 27 21 11 22 10 11 27 28 3D 36 00 00 00 00 00 00 00 00 00 00 00 00 00 40 D7 42 00 00 00 00 00 40 D7 42 00 01 01 00 00",
+    "bytes_decimal": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      102,
+      15,
+      0,
+      0,
+      51,
+      25,
+      17,
+      50,
+      13,
+      39,
+      33,
+      17,
+      34,
+      16,
+      17,
+      39,
+      40,
+      61,
+      54,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      64,
+      215,
+      66,
+      0,
+      0,
+      0,
+      0,
+      0,
+      64,
+      215,
+      66,
+      0,
+      1,
+      1,
+      0,
+      0
+    ]
+  },
+  "decompiled_functions": [
+    {
+      "function": "sub_401090",
+      "entry_ea": "0x401090",
+      "pseudocode": "int sub_401090()\n{\n  int result; // eax\n\n  fputs(\"Please input your flag: \", &Stream);\n  scanf(\"%s\", Str);\n  result = strlen(Str) - byte_429A31;\n  if ( result )\n  {\n    printf(\"You are wrong in the initial phase!\");\n    return system(\"pause\");\n  }\n  return result;\n}\n"
+    },
+    {
+      "function": "sub_4011E0",
+      "entry_ea": "0x4011E0",
+      "pseudocode": "int sub_4011E0()\n{\n  int i; // [esp+4Ch] [ebp-4h]\n\n  for ( i = 0; i < byte_429A31; ++i )\n  {\n    Str[i] ^= byte_429A30;\n    if ( Str[i] != byte_429A34[i] )\n    {\n      fputs(\"\\n--- Sorry, but try it again! ---\\n\\n\", &Stream);\n      system(\"pause\");\n      return 0;\n    }\n  }\n  fputs(\"\\n*** Good work! ***\\n\\n\", &Stream);\n  return 0;\n}\n"
+    }
+  ],
+  "nearby_byte_429A34_xrefs": [
+    {
+      "ea": "0x429A34",
+      "name": "byte_429A34",
+      "xrefs": [
+        {
+          "from_ea": "0x401242",
+          "from_func": "sub_4011E0",
+          "disasm": "movsx   edx, byte_429A34[ecx]"
+        }
+      ]
+    }
+  ],
+  "data_segment_info": {
+    "start_va": "0x429000",
+    "end_va": "0x42F000",
+    "name": ".data"
+  }
+}

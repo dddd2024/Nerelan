@@ -1,0 +1,290 @@
+{
+  "sub_401120": {
+    "entry_ea": "0x401120",
+    "end_ea": "0x401194",
+    "instructions": [
+      {
+        "ea": "0x401120",
+        "disasm": "push    ebp"
+      },
+      {
+        "ea": "0x401121",
+        "disasm": "mov     ebp, esp"
+      },
+      {
+        "ea": "0x401123",
+        "disasm": "sub     esp, 44h"
+      },
+      {
+        "ea": "0x401126",
+        "disasm": "push    ebx"
+      },
+      {
+        "ea": "0x401127",
+        "disasm": "push    esi"
+      },
+      {
+        "ea": "0x401128",
+        "disasm": "push    edi"
+      },
+      {
+        "ea": "0x401129",
+        "disasm": "lea     edi, [ebp+var_44]"
+      },
+      {
+        "ea": "0x40112C",
+        "disasm": "mov     ecx, 11h"
+      },
+      {
+        "ea": "0x401131",
+        "disasm": "mov     eax, 0CCCCCCCCh"
+      },
+      {
+        "ea": "0x401136",
+        "disasm": "rep stosd"
+      },
+      {
+        "ea": "0x401138",
+        "disasm": "mov     [ebp+var_4], 0"
+      },
+      {
+        "ea": "0x40113F",
+        "disasm": "push    2Bh ; '+'; Size"
+      },
+      {
+        "ea": "0x401141",
+        "disasm": "push    40004Eh; Src"
+      },
+      {
+        "ea": "0x401146",
+        "disasm": "push    offset byte_42CCAC; void *"
+      },
+      {
+        "ea": "0x40114B",
+        "disasm": "call    _memcpy"
+      },
+      {
+        "ea": "0x401150",
+        "disasm": "add     esp, 0Ch"
+      },
+      {
+        "ea": "0x401153",
+        "disasm": "mov     [ebp+var_4], 0"
+      },
+      {
+        "ea": "0x40115A",
+        "disasm": "jmp     short loc_401165"
+      },
+      {
+        "ea": "0x40115C",
+        "disasm": "mov     eax, [ebp+var_4]"
+      },
+      {
+        "ea": "0x40115F",
+        "disasm": "add     eax, 1"
+      },
+      {
+        "ea": "0x401162",
+        "disasm": "mov     [ebp+var_4], eax"
+      },
+      {
+        "ea": "0x401165",
+        "disasm": "cmp     [ebp+var_4], 2Bh ; '+'"
+      },
+      {
+        "ea": "0x401169",
+        "disasm": "jge     short loc_401183"
+      },
+      {
+        "ea": "0x40116B",
+        "disasm": "mov     ecx, [ebp+var_4]"
+      },
+      {
+        "ea": "0x40116E",
+        "disasm": "mov     dl, byte_429A30"
+      },
+      {
+        "ea": "0x401174",
+        "disasm": "xor     dl, byte_42CCAC[ecx*4]"
+      },
+      {
+        "ea": "0x40117B",
+        "disasm": "mov     byte_429A30, dl"
+      },
+      {
+        "ea": "0x401181",
+        "disasm": "jmp     short loc_40115C"
+      },
+      {
+        "ea": "0x401183",
+        "disasm": "pop     edi"
+      },
+      {
+        "ea": "0x401184",
+        "disasm": "pop     esi"
+      },
+      {
+        "ea": "0x401185",
+        "disasm": "pop     ebx"
+      },
+      {
+        "ea": "0x401186",
+        "disasm": "add     esp, 44h"
+      },
+      {
+        "ea": "0x401189",
+        "disasm": "cmp     ebp, esp"
+      },
+      {
+        "ea": "0x40118B",
+        "disasm": "call    __chkesp"
+      },
+      {
+        "ea": "0x401190",
+        "disasm": "mov     esp, ebp"
+      },
+      {
+        "ea": "0x401192",
+        "disasm": "pop     ebp"
+      },
+      {
+        "ea": "0x401193",
+        "disasm": "retn"
+      }
+    ],
+    "pseudocode": "void *sub_401120()\n{\n  void *result; // eax\n  int i; // [esp+4Ch] [ebp-4h]\n\n  result = memcpy(byte_42CCAC, (const void *)0x40004E, 0x2Bu);\n  for ( i = 0; i < 43; ++i )\n  {\n    byte_429A30 ^= byte_42CCAC[4 * i];\n    result = (void *)(i + 1);\n  }\n  return result;\n}\n"
+  },
+  "sub_401005": {
+    "entry_ea": "0x401005",
+    "end_ea": "0x40100A",
+    "instructions": [
+      {
+        "ea": "0x401005",
+        "disasm": "jmp     sub_401090"
+      }
+    ],
+    "pseudocode": "// attributes: thunk\nint __thiscall sub_401005(void *this)\n{\n  return sub_401090(this);\n}\n"
+  },
+  "sub_40100A": {
+    "entry_ea": "0x40100A",
+    "end_ea": "0x40100F",
+    "instructions": [
+      {
+        "ea": "0x40100A",
+        "disasm": "jmp     sub_4011E0"
+      }
+    ],
+    "pseudocode": "// attributes: thunk\nint sub_40100A(void)\n{\n  return sub_4011E0();\n}\n"
+  },
+  "_main_0": {
+    "entry_ea": "0x401030",
+    "end_ea": "0x401077",
+    "instructions": [
+      {
+        "ea": "0x401030",
+        "disasm": "push    ebp"
+      },
+      {
+        "ea": "0x401031",
+        "disasm": "mov     ebp, esp"
+      },
+      {
+        "ea": "0x401033",
+        "disasm": "sub     esp, 40h"
+      },
+      {
+        "ea": "0x401036",
+        "disasm": "push    ebx"
+      },
+      {
+        "ea": "0x401037",
+        "disasm": "push    esi"
+      },
+      {
+        "ea": "0x401038",
+        "disasm": "push    edi"
+      },
+      {
+        "ea": "0x401039",
+        "disasm": "lea     edi, [ebp+var_40]"
+      },
+      {
+        "ea": "0x40103C",
+        "disasm": "mov     ecx, 10h"
+      },
+      {
+        "ea": "0x401041",
+        "disasm": "mov     eax, 0CCCCCCCCh"
+      },
+      {
+        "ea": "0x401046",
+        "disasm": "rep stosd"
+      },
+      {
+        "ea": "0x401048",
+        "disasm": "call    sub_401005"
+      },
+      {
+        "ea": "0x40104D",
+        "disasm": "call    sub_401014"
+      },
+      {
+        "ea": "0x401052",
+        "disasm": "call    sub_40100A"
+      },
+      {
+        "ea": "0x401057",
+        "disasm": "push    offset Command; \"pause\""
+      },
+      {
+        "ea": "0x40105C",
+        "disasm": "call    _system"
+      },
+      {
+        "ea": "0x401061",
+        "disasm": "add     esp, 4"
+      },
+      {
+        "ea": "0x401064",
+        "disasm": "xor     eax, eax"
+      },
+      {
+        "ea": "0x401066",
+        "disasm": "pop     edi"
+      },
+      {
+        "ea": "0x401067",
+        "disasm": "pop     esi"
+      },
+      {
+        "ea": "0x401068",
+        "disasm": "pop     ebx"
+      },
+      {
+        "ea": "0x401069",
+        "disasm": "add     esp, 40h"
+      },
+      {
+        "ea": "0x40106C",
+        "disasm": "cmp     ebp, esp"
+      },
+      {
+        "ea": "0x40106E",
+        "disasm": "call    __chkesp"
+      },
+      {
+        "ea": "0x401073",
+        "disasm": "mov     esp, ebp"
+      },
+      {
+        "ea": "0x401075",
+        "disasm": "pop     ebp"
+      },
+      {
+        "ea": "0x401076",
+        "disasm": "retn"
+      }
+    ],
+    "pseudocode": "int __cdecl main_0(int argc, const char **argv, const char **envp)\n{\n  void *v3; // ecx\n\n  sub_401005(v3);\n  sub_401014();\n  sub_40100A();\n  system(\"pause\");\n  return 0;\n}\n"
+  }
+}

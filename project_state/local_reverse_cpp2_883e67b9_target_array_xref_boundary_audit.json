@@ -226,7 +226,7 @@
     "xor_key_static": "0x66",
     "xor_key_runtime": "0x78",
     "decoded_preview_static_key": "U.wTkAGwDvwAN[P",
-    "decoded_preview_runtime_key": "KaiJu_YiZhi_PEN",
+    "decoded_preview_runtime_key": "REDACTED",
     "selection_confidence": "high",
     "selection_evidence": [
       "IDA XREF: single xref to byte_429A34 is movsx edx, byte_429A34[ecx] in sub_4011E0, confirming array base",
