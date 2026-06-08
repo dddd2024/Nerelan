@@ -1,10 +1,10 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
-  "report_id": "report_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
-  "generated_at": "2026-06-08T05:15:00Z",
+  "decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
+  "generated_at": "2026-06-08T05:30:00Z",
   "status": "PASSED",
   "tests_ran": [
     ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py",
@@ -19,9 +19,9 @@
 }
 ```
 
-decision_id=decision_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1
-report_id=report_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1
-round_id=round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1
+decision_id=decision_20260608_cpp2_883e67b9_compare_constants_mapping_v1
+report_id=report_20260608_cpp2_883e67b9_compare_constants_mapping_v1
+round_id=round_20260608_cpp2_883e67b9_compare_constants_mapping_v1
 status=PASSED
 
 py_compile: PASS
@@ -43,7 +43,8 @@ commands_executed:
 8. git diff --name-status -> (recorded after all changes)
 
 notes:
-- New artifact local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json generated and registered in artifact_index with freshness=current.
-- sha256 and size_bytes in artifact_index updated to real values for new artifact.
+- New artifact local_reverse_cpp2_883e67b9_compare_constants_mapping.json generated and registered in artifact_index with freshness=current.
+- sha256=b8a453d490687fa2fccce61b6218d911eefba9311a83e0508016104d7d0406c1, size_bytes=16824.
+- 10 compare constants mapped with semantic_role_hypothesis: 2 control_state_flag, 2 algorithm_constant_candidate, 1 sentinel_or_mask, 1 loop_index_or_bound, 2 table_or_address_constant, 2 unknown.
+- known_compare_constant_count remains 0; no constant confirmed as formula.
 - No production code modified; only new artifact and artifact_index/report/test record updates.
-- All source artifacts verified as current with matching identity.

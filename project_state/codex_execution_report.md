@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
-  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
+  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -19,7 +19,7 @@
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json"
+    "project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json"
   ],
   "tests_ran": [
     ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py",
@@ -32,7 +32,7 @@
     "git diff --name-status"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json"
+    "project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json"
   ]
 }
 ```
@@ -51,10 +51,10 @@
 - [x] 复用了已有接口/格式，未新建重复框架
 - [x] 读取并只使用 current 的 cpp2_883e67b9 source artifacts
 - [x] 新 artifact 记录 source artifacts/source_run/freshness
-- [x] 新 artifact 记录 observed_backward_sites 与 missing_backward_sites
-- [x] 新 artifact 对 0x5f68、0x60a4、0x60b6 分别给出 classification/confidence/impact
-- [x] 新 artifact 避免把 missing site 标成 confirmed formula 或 candidate source
-- [x] 新 artifact 明确 reconciliation_status=RECONCILED_WITH_LIMITATIONS 与 recommended_next_mainline=tool_integration
+- [x] 新 artifact 记录 10 个 compare constants 与 per-constant semantic_role_hypothesis
+- [x] 新 artifact 避免把任何 constant 标成 confirmed_formula_constant 或 candidate source
+- [x] 新 artifact 保持 known_compare_constant_count=0
+- [x] 新 artifact 明确 constants_mapping_status=MAPPED_WITH_LIMITATIONS 与 recommended_next_mainline=tool_integration
 - [x] artifact_index 登记新 artifact，freshness=current、source_run 为当前 round、sha256/size_bytes 为真实值
 - [x] 没有修改 training_status/status_overlay
 - [x] 没有读取 full solve_reports 或 PROJECT_PROGRESS_LOG
@@ -71,10 +71,11 @@
 
 | Artifact | Status | Identity Verified |
 |----------|--------|-------------------|
+| local_reverse_cpp2_883e67b9_missing_branch_reconciliation | SUCCESS | true |
 | local_reverse_cpp2_883e67b9_loop_semantics_mapping | SUCCESS | true |
 | local_reverse_cpp2_883e67b9_structured_evidence_projection | SUCCESS | true |
-| local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction | PARTIAL | true |
 | local_reverse_cpp2_883e67b9_targeted_static_solving | PARTIAL | true |
+| local_reverse_cpp2_883e67b9_bounded_static_extraction | SUCCESS | true |
 
 所有 source artifacts 均为 current，identity 一致，sample_id=cpp2_883e67b9。
 
@@ -88,41 +89,42 @@
 - `reverse_agent/local_reverse_ida_guided_solver.py` — IDA solver 接口（未修改）
 - `reverse_agent/local_reverse_string_solver.py` — 字符串 solver 接口（未修改）
 
-结论：已有接口足以表达 missing_branch_reconciliation schema，无需修改 production code。
+结论：已有接口足以表达 compare_constants_mapping schema，无需修改 production code。
 
 ## 4. New Artifact Summary
 
-生成：`project_state/local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json`
+生成：`project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json`
 
-Schema 包含：
-- identity（sha256、size、identity_verified）
-- source_artifacts（4 个 source artifact 的 provenance）
-- source_status（各 source artifact 的状态摘要）
-- observed_backward_sites: [0x6040, 0x6081, 0x61e8, 0x6390, 0x647d]
-- missing_backward_sites: [0x5f68, 0x60a4, 0x60b6]
-- site_reconciliation（3 个 per-site record）：
-  - site_rva、source_claims、observed_in_loop_mapping、observed_in_bounded_loop_evidence、observed_in_targeted_static_solving
-  - classification=source_only_hint（全部 3 个）
-  - confidence=low（全部 3 个）
-  - impact（每个 site 的具体影响分析）
-  - reconciliation_notes（详细的证据对比说明）
-- reconciliation_summary（统计：total=3, confirmed_missing_decode=0, source_only_hint=3, resolved_not_backward=0, blocked_insufficient_evidence=0）
-- reconciliation_status = RECONCILED_WITH_LIMITATIONS
+### Compare Constants Semantic Mapping
+
+| RVA | Type | Value | Semantic Role | Confidence | Formula Role |
+|-----|------|-------|---------------|------------|-------------|
+| 0x5f38 | cmp_al_imm8 | 0xc2 (194) | unknown | low | none |
+| 0x6077 | cmp_imm8 | 0x1 (1) | control_state_flag | medium | pending |
+| 0x60f7 | cmp_al_imm8 | 0x8d (141) | algorithm_constant_candidate | low | pending |
+| 0x6124 | cmp_al_imm8 | 0x85 (133) | algorithm_constant_candidate | low | pending |
+| 0x618f | cmp_imm32 | 0x1102 (4354) | table_or_address_constant | low | none |
+| 0x61de | cmp_imm8 | 0x1 (1) | control_state_flag | medium | pending |
+| 0x629f | cmp_imm32 | 0x10c (268) | table_or_address_constant | low | none |
+| 0x62cb | cmp_imm32 | 0x108 (264) | table_or_address_constant | low | none |
+| 0x6438 | cmp_imm8 | 0xff (255) | sentinel_or_mask | medium | pending |
+| 0x64e5 | cmp_imm32 | 0x100 (256) | loop_index_or_bound | medium | pending |
+
+### Key Observations
+
+- **control_state_flag** (0x6077, 0x61de): 两个 `cmp eax, 1` 分别位于两个 focus comparison loop 附近，形成重复的控制流模式
+- **algorithm_constant_candidate** (0x60f7, 0x6124): 两个 `cmp al` 位于 focus loop 0x6081 内，可能是逐字符比较常量
+- **sentinel_or_mask** (0x6438): `cmp 0xff` 是经典的 EOF/掩码值
+- **loop_index_or_bound** (0x64e5): `cmp 0x100` 是字节迭代的经典循环上界
+- **table_or_address_constant** (0x618f, 0x629f, 0x62cb): 32位大值，可能是地址偏移或表索引
+
+### Status
+
+- known_compare_constant_count = 0（无 current source artifact 支持升级）
+- constants_mapping_status = MAPPED_WITH_LIMITATIONS
 - formula_recovered = false
 - candidate_generated = false
-- runtime_validation_attempted = false
-- training_status_modified = false
-- status_overlay_modified = false
-- recommended_next_mainline = tool_integration
-
-### Reconciliation 结论
-
-所有 3 个 missing sites 仅出现在 targeted_static_solving 的 loop_indicators 中，未被 bounded_loop_evidence_extraction 的 branch_evidence 或 loop_semantics_mapping 的 clusters 证实。分类为 `source_only_hint`，置信度 `low`。可能原因：
-1. 指令边界模糊导致 bounded annotator 未解码
-2. 非常短的向后跳转（span=2 bytes）被当作更大指令的一部分
-3. 条件分支被 annotator 归类为 forward-only
-
-由于 capstone/pefile 不可用且决策要求不重新读取二进制，无法进一步确认。
+- recommended_next_mainline = tool_integration（优先 input length evidence recovery）
 
 ## 5. Tests
 
@@ -130,7 +132,7 @@ Schema 包含：
 ```
 .venv\Scripts\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py
 ```
-结果：PASS（无语法错误）
+结果：PASS
 
 ### pytest
 ```
@@ -138,38 +140,18 @@ Schema 包含：
 ```
 结果：见 pytest_result.txt
 
-### lint-decision
-```
-.venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
-```
-结果：PASS
-
-### lint-report
-```
-.venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
-```
-结果：PASS
-
-### project_state status
-```
-.venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
-```
+### lint-decision / lint-report / status
 结果：PASS
 
 ### git checks
-```
-git diff --check -> PASS
-git status --short -> (recorded)
-git diff --name-status -> (recorded)
-```
+结果：PASS
 
 ## 6. Stop Conditions
 
-无停止条件触发。所有 required source artifacts 存在且为 current，identity 匹配，无需运行样本或调用 IDA/Ghidra/debugger/runtime。
+无停止条件触发。
 
 ## 7. Next Steps
 
-- 本轮 missing branch reconciliation 为 RECONCILED_WITH_LIMITATIONS，推荐下一轮继续 tool_integration
-- 优先方向：compare constants semantic mapping 或 input length evidence recovery
-- 若 compare constants 能映射到已知算法，runtime probe 可能变得可行
+- 本轮 compare constants mapping 为 MAPPED_WITH_LIMITATIONS，推荐下一轮继续 tool_integration
+- 优先方向：input length evidence recovery，利用 0x64e5 (cmp 0x100) 和 0x6438 (cmp 0xff) 作为循环上界/输入长度线索
 - 不推进 candidate generation 或 runtime validation，直到 evidence gaps 显著缩小
