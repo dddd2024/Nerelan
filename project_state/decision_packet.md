@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260608_cpp2_883e67b9_target_array_redaction_provenance_rework_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_target_array_redaction_provenance_rework_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -19,20 +19,27 @@
 
 本轮主线是 **tool_integration**。
 
-目标：修复上一轮返工仍残留的问题，只做二次返工，不重新分析样本，不生成 candidate，不运行样本，不做 runtime validation。
+目标：清理上一轮错误提交的根目录工具输出 JSON，并修正 report 的实际变更文件列表。本轮只处理提交卫生和 project_state 报告一致性，不重新分析样本，不运行样本，不生成 candidate，不做 runtime validation，不继续 IDA/Ghidra 分析。
 
-必须完成：
+必须删除或撤回提交中的根目录工具 dump：
 
 ```text
-1. 从 project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json 中彻底移除完整明文 candidate。
-2. 将 project_state/artifact_index.json 中 target_array_xref_boundary_audit 的 source_run 更新为当前返工 round。
-3. 将 project_state/pytest_result.txt 绑定当前 decision/report/round。
-4. 如果保留新增 IDA scripts，补充并记录 py_compile 覆盖。
-5. 更新 project_state/codex_execution_report.md，绑定当前 decision/report/round，并记录上述修复。
-6. 重新计算 target_array_xref_boundary_audit artifact 的 sha256 与 size_bytes，并同步 artifact_index。
+ida_evidence.json
+sub_401014_key_init_analysis.json
+sub_401120_analysis.json
+xref_boundary_audit.json
 ```
 
-本轮不得进入 reverse_solving。不得生成 candidate、不得验证 candidate、不得运行样本交互逻辑、不得 attach debugger/hook/probe/winpty/emulator、不得 brute force、不得 runtime validation。
+这些文件不应作为根目录产物提交。若确需长期保存，必须在后续单独设计受控 project_state artifact，并登记到 artifact_index；本轮默认删除，不做新 artifact 设计。
+
+必须更新：
+
+```text
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
+```
+
+如果删除这些文件不影响 `project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json` 内容，则不要无意义修改 artifact 或 artifact_index。
 
 ---
 
@@ -40,33 +47,26 @@
 
 当前 `project_state/decision_packet.md` 是 Codex 本轮唯一执行权威。`project_state/task_packet.json` 仍是 advisory，不控制本轮。
 
-上一轮返工审计结论仍为 REWORK_REQUIRED，原因是：
+上一轮审计结论为 REWORK_REQUIRED，原因是：
 
 ```text
-1. artifact 中 selected_target_array_boundary.decoded_preview_runtime_key 仍保留完整明文 candidate。
-2. artifact_index.latest_artifacts_v2.local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.source_run 仍指向旧 round。
-3. pytest_result.txt 仍绑定旧 round。
-4. 保留新增 IDA scripts，但 pytest_result/report 未记录新增脚本 py_compile。
+1. artifact 明文 redaction、pytest_result round、artifact_index.source_run 已基本修复。
+2. 但实际提交包含根目录 JSON 工具输出：
+   - ida_evidence.json
+   - sub_401014_key_init_analysis.json
+   - sub_401120_analysis.json
+   - xref_boundary_audit.json
+3. codex_execution_report.md 中 files_changed 只列出 project_state 4 个文件，没有如实列出上述根目录 JSON。
+4. report 把这些根目录 JSON 说成 pre-existing untracked environment noise，但 GitHub compare 显示它们已经被提交。
 ```
 
-已经修复过、可以保留的内容：
+当前允许保留的静态证据仍只应存在于已登记 project_state artifact：
 
 ```text
-1. codex_execution_report.md 的 files_changed 已包含 7 个文件，包括 3 个新增 IDA scripts。
-2. report 主体中的 decoded output 已改为 REDACTED。
-3. formula_evidence_summary.decoded_flag 与 decoded_flag_hex 已改为 REDACTED。
-4. 静态公式证据可以保留：input_length=15、runtime xor key=0x78、target_array_bytes_hex、comparison_formula、inverse_formula、XREF evidence。
-5. reverse_solving_ready=true 可以保留为下一轮主线建议，但本轮不能生成 candidate。
-```
-
-需要继续修复：
-
-```text
-1. decoded_preview_runtime_key 必须改为 REDACTED 或 omitted。
-2. 任何字段中不得包含完整 candidate 明文。
-3. artifact_index.source_run 必须改为当前 round。
-4. pytest_result.txt 必须改为当前 round，并列出新增 IDA scripts 的 py_compile。
-5. codex_execution_report.md 必须记录这些修复和测试。
+project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json
+project_state/artifact_index.json
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
 ```
 
 `negative_results.json` 仍必须遵守：不回到 blind search，不扩大预算，不提交 full solve_reports，不把 stale/missing artifact 当 current，不重复旧 samplereverse 失败方向。
@@ -85,18 +85,19 @@
 3. 不要运行样本交互逻辑。
 4. 不要 attach debugger / hook / emulator / probe / winpty。
 5. 不要 brute force、dictionary search、fuzz、扩大枚举预算。
-6. 不要继续扩展 IDA 分析范围。
+6. 不要继续执行 IDA/Ghidra/static extraction。
 7. 不要新增更多 IDA/Ghidra/debugger/runtime/probe 接口。
-8. 不要把 decoded input / flag / candidate 明文写入 project_state artifact 或 report。
-9. 不要修改 local_reverse_training_status.json。
-10. 不要修改 training_materials/local_reverse/status_overlay.json。
-11. 不要把本地路径、candidate、单样本结论写入 .codex-skills。
-12. 不要读取完整 solve_reports。
-13. 不要读取完整 PROJECT_PROGRESS_LOG.txt。
-14. 不要提交 full solve_reports。
-15. 不要把 task_packet.task 当执行权威。
-16. 不要把 stale/missing/unknown artifact 当 current。
-17. 不要把本轮变成训练状态同步或 runtime probe 轮。
+8. 不要提交根目录工具 dump。
+9. 不要把 decoded input / flag / candidate 明文写入 project_state artifact 或 report。
+10. 不要修改 local_reverse_training_status.json。
+11. 不要修改 training_materials/local_reverse/status_overlay.json。
+12. 不要把本地路径、candidate、单样本结论写入 .codex-skills。
+13. 不要读取完整 solve_reports。
+14. 不要读取完整 PROJECT_PROGRESS_LOG.txt。
+15. 不要提交 full solve_reports。
+16. 不要把 task_packet.task 当执行权威。
+17. 不要把 stale/missing/unknown artifact 当 current。
+18. 不要把本轮变成训练状态同步或 runtime probe 轮。
 ```
 
 允许：
@@ -104,12 +105,11 @@
 ```text
 1. 读取默认 project_state 文件。
 2. 读取与 cpp2_883e67b9 直接相关的 current project_state artifacts。
-3. 搜索并移除 artifact/report 中的完整 candidate 明文残留。
-4. 修正 project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json。
-5. 修正 project_state/artifact_index.json 中该 artifact 的 sha256/size_bytes/source_run。
-6. 修正 project_state/codex_execution_report.md 和 project_state/pytest_result.txt。
-7. 对保留的新增 IDA scripts 运行 py_compile。
-8. 执行 JSON parse、py_compile、pytest、lint、git diff check。
+3. 删除根目录 JSON 工具输出文件。
+4. 修正 project_state/codex_execution_report.md。
+5. 修正 project_state/pytest_result.txt。
+6. 执行 JSON parse、py_compile、pytest、lint、git diff check。
+7. 使用 git diff --name-status / git status --short 核对实际变更文件。
 ```
 
 ---
@@ -130,12 +130,13 @@ project_state/pytest_result.txt
 project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json
 ```
 
-必须检查新增脚本：
+必须检查并删除或撤回：
 
 ```text
-reverse_agent/ida_scripts/xref_boundary_audit.py
-reverse_agent/ida_scripts/decompile_sub_401120.py
-reverse_agent/ida_scripts/decompile_sub_401014.py
+ida_evidence.json
+sub_401014_key_init_analysis.json
+sub_401120_analysis.json
+xref_boundary_audit.json
 ```
 
 必须运行并记录：
@@ -165,95 +166,41 @@ Codex 报告必须回答：
 2. mainline 是否为 tool_integration？
 3. task_packet 是否仅为 advisory？
 4. 是否确认本轮不是 reverse_solving，不生成/验证 candidate？
-5. artifact 中是否仍存在完整明文 candidate？必须明确搜索结果。
-6. decoded_preview_runtime_key 是否已 REDACTED 或 omitted？
-7. formula_evidence_summary.decoded_flag / decoded_flag_hex 是否仍为 REDACTED 或删除？
-8. artifact_index.source_run 是否已更新为当前 round？
-9. artifact_index sha256/size_bytes 是否重新计算并同步？
-10. pytest_result.txt 是否绑定当前 decision/report/round？
-11. 是否记录新增 IDA scripts 的 py_compile？
-12. candidate_generated 是否仍为 false？
-13. candidate_validation_attempted 是否仍为 false？
-14. runtime_validation_attempted 是否仍为 false？
-15. 是否没有运行样本交互逻辑、runtime validation、debugger、hook、emulator、probe、winpty？
-16. 是否没有修改 training_status/status_overlay？
-17. 是否运行 JSON parse 校验？
-18. 是否运行 py_compile？
-19. 是否运行相关 pytest？结果是多少？
-20. 是否运行 lint-decision、lint-report、project_state status？
-21. 是否运行 git diff --check、git status --short、git diff --name-status？
-22. git diff 是否只包含允许文件？
+5. 实际 git diff --name-status 文件列表是什么？
+6. 根目录 JSON 工具输出是否已删除？
+7. codex_report_summary.files_changed 是否与实际 diff 一致？
+8. 是否仍保持 candidate_generated=false？
+9. 是否仍保持 candidate_validation_attempted=false？
+10. 是否仍保持 runtime_validation_attempted=false？
+11. 是否没有运行样本交互逻辑、runtime validation、debugger、hook、emulator、probe、winpty？
+12. 是否没有修改 training_status/status_overlay？
+13. 是否没有新增 artifact 或 artifact_index 噪声登记？
+14. 是否运行 JSON parse 校验？
+15. 是否运行 py_compile？
+16. 是否运行相关 pytest？结果是多少？
+17. 是否运行 lint-decision、lint-report、project_state status？
+18. 是否运行 git diff --check、git status --short、git diff --name-status？
+19. git diff 是否只包含允许文件？
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-### Phase A — Redact remaining plaintext
+### Phase A — Remove root tool dumps
 
-在 `project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json` 中：
-
-```text
-1. selected_target_array_boundary.decoded_preview_runtime_key 必须改为 REDACTED 或删除。
-2. formula_evidence_summary.decoded_flag 必须保持 REDACTED 或删除。
-3. formula_evidence_summary.decoded_flag_hex 必须保持 REDACTED 或删除。
-4. selected_target_array_boundary.selection_evidence 不得包含完整 candidate 明文。
-5. transform_chain_hypothesis.prior_ambiguity_explanation 不得包含完整 candidate 明文。
-6. structured_evidence_projection_update.reason 不得包含完整 candidate 明文。
-7. readiness_update.recommended_next_action 不得包含完整 candidate 明文。
-```
-
-允许保留：
+删除或撤回以下文件：
 
 ```text
-input_length=15
-xor_key_runtime=0x78
-target_array_bytes_hex
-comparison_formula
-inverse_formula
-15/15 printable ASCII
-candidate generation deferred to reverse_solving
+ida_evidence.json
+sub_401014_key_init_analysis.json
+sub_401120_analysis.json
+xref_boundary_audit.json
 ```
 
-### Phase B — Fix artifact_index provenance
+不得把这些文件移动到其他目录作为本轮新 artifact。不得重新登记 artifact_index。
 
-修复 artifact 后，重新计算并更新：
-
-```text
-sha256
-size_bytes
-modified_at
-```
-
-目标 entry：
-
-```text
-latest_artifacts_v2.local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit
-```
-
-必须设置：
-
-```text
-source_run=round_20260608_cpp2_883e67b9_target_array_redaction_provenance_rework_v1
-```
-
-必须保持：
-
-```text
-kind=local_reverse_target_array_xref_boundary_audit
-path=project_state\local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json
-freshness=current
-sample_id=cpp2_883e67b9
-relative_path=逆向课程2024春02/CPP2.exe
-boundary_audit_status=SUCCESS_BOUNDARY_RESOLVED
-candidate_generated=false
-candidate_validation_attempted=false
-runtime_validation_attempted=false
-training_status_modified=false
-status_overlay_modified=false
-```
-
-### Phase C — Fix report and pytest_result
+### Phase B — Fix report and pytest_result
 
 更新：
 
@@ -265,20 +212,31 @@ project_state/pytest_result.txt
 必须绑定：
 
 ```text
-decision_id=decision_20260608_cpp2_883e67b9_target_array_redaction_provenance_rework_v1
-report_id=report_20260608_cpp2_883e67b9_target_array_redaction_provenance_rework_v1
-round_id=round_20260608_cpp2_883e67b9_target_array_redaction_provenance_rework_v1
+decision_id=decision_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1
+report_id=report_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1
+round_id=round_20260608_cpp2_883e67b9_untracked_tool_outputs_cleanup_v1
 ```
 
 report 必须说明：
 
 ```text
-1. 已修复 decoded_preview_runtime_key 残留明文。
-2. 已修复 artifact_index.source_run。
-3. 已修复 pytest_result stale/mismatch。
-4. 已对新增 IDA scripts 运行 py_compile。
-5. 本轮仍未生成 candidate，未 runtime validation。
+1. 已删除根目录工具 dump。
+2. files_changed 与实际 diff 一致。
+3. 本轮未运行样本、未运行 IDA/Ghidra、未 runtime validation。
+4. 本轮未生成 candidate。
+5. artifact_index 若未修改，说明原因；若修改，必须解释必要性。
 ```
+
+### Phase C — Keep project_state stable
+
+除非必要，不修改：
+
+```text
+project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json
+project_state/artifact_index.json
+```
+
+如果被修改，必须说明原因并重新计算 sha/size/provenance。
 
 ---
 
@@ -306,17 +264,14 @@ git diff --name-status
 立即停止并报告 BLOCKED / REWORK_REQUIRED，如果出现任一情况：
 
 ```text
-1. artifact 任意字段仍保留完整明文 candidate。
-2. pytest_result.txt 没有绑定当前 round。
-3. artifact_index.source_run 仍指向旧 round。
-4. 保留新增 IDA scripts 但没有 py_compile 记录。
-5. 需要运行样本交互逻辑、runtime validation、debugger、hook、emulator、probe、winpty 才能完成本轮。
+1. 根目录 JSON 工具输出仍在 git diff 中。
+2. files_changed 与实际 diff 不一致。
+3. 需要运行样本交互逻辑、runtime validation、debugger、hook、emulator、probe、winpty 才能完成本轮。
+4. 需要继续执行 IDA/Ghidra/static extraction。
+5. 需要生成或验证 candidate。
 6. 需要修改 local_reverse_training_status.json 或 status_overlay.json。
-7. 需要生成或验证 candidate。
-8. artifact_index 无法登记修复后 artifact 的 current provenance、真实 sha256 或真实 size_bytes。
-9. 新 artifact JSON parse 失败。
-10. lint-report/status 无法通过。
-11. git diff 包含允许范围外文件且报告没有充分理由。
+7. lint-report/status 无法通过。
+8. git diff 包含允许范围外文件且报告没有充分理由。
 ```
 
-完成后不要继续 reverse_solving。若修复后静态公式证据仍完整，可在下一轮单独生成 `reverse_solving` DECISION_PACKET，用于 candidate generation 和 runtime validation。
+完成后不要继续 reverse_solving。若清理完成且静态公式证据仍完整，可在下一轮单独生成 `reverse_solving` DECISION_PACKET，用于 candidate generation 和 runtime validation。
