@@ -109,6 +109,7 @@
     "local_reverse_cpp2_883e67b9_compare_constants_mapping": "project_state\\local_reverse_cpp2_883e67b9_compare_constants_mapping.json",
     "local_reverse_cpp2_883e67b9_input_length_evidence_recovery": "project_state\\local_reverse_cpp2_883e67b9_input_length_evidence_recovery.json",
     "local_reverse_cpp2_883e67b9_formula_readiness_audit": "project_state\\local_reverse_cpp2_883e67b9_formula_readiness_audit.json",
+    "local_reverse_cpp2_883e67b9_ida_ghidra_focus_loop_extraction": "project_state\\local_reverse_cpp2_883e67b9_ida_ghidra_focus_loop_extraction.json",
     "local_reverse_solver_engineering_recovery_audit": "project_state\\local_reverse_solver_engineering_recovery_audit.json",
     "local_reverse_solver_profile_dispatch_integration_audit": "project_state\\local_reverse_solver_profile_dispatch_integration_audit.json",
     "local_reverse_solver_profile_dispatch_guardrails_audit": "project_state\\local_reverse_solver_profile_dispatch_guardrails_audit.json",
@@ -1380,6 +1381,25 @@
       "training_status_modified": false,
       "status_overlay_modified": false,
       "next_recommended_mainline": "tool_integration"
+    },
+    "local_reverse_cpp2_883e67b9_ida_ghidra_focus_loop_extraction": {
+      "kind": "local_reverse_ida_ghidra_focus_loop_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_ida_ghidra_focus_loop_extraction.json",
+      "freshness": "current",
+      "source_run": "round_20260608_cpp2_883e67b9_ida_ghidra_focus_loop_extraction_v1",
+      "sha256": "51aadf6bf6bdd0bba86b9ebc02a3a962253a26e44213b5a3d6b3453d294eb0c9",
+      "size_bytes": 18273,
+      "modified_at": "2026-06-08T07:00:00Z",
+      "sample_id": "cpp2_883e67b9",
+      "relative_path": "逆向课程2024春02/CPP2.exe",
+      "extraction_status": "SUCCESS_STATIC_EVIDENCE_EXTRACTED",
+      "selected_static_extraction_path": "ida",
+      "reverse_solving_ready": false,
+      "candidate_generated": false,
+      "candidate_validation_attempted": false,
+      "runtime_validation_attempted": false,
+      "training_status_modified": false,
+      "status_overlay_modified": false
     },
     "local_reverse_solver_engineering_recovery_audit": {
       "kind": "local_reverse_solver_engineering_recovery_audit",

@@ -1,0 +1,296 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "artifact_kind": "local_reverse_ida_ghidra_focus_loop_extraction",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "round_id": "round_20260608_cpp2_883e67b9_ida_ghidra_focus_loop_extraction_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_ida_ghidra_focus_loop_extraction_v1",
+  "generated_at": "2026-06-08T07:00:00Z",
+  "identity": {
+    "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "actual_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "expected_size_bytes": 196689,
+    "actual_size_bytes": 196689,
+    "identity_verified": true
+  },
+  "source_artifacts": [
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_formula_readiness_audit",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_formula_readiness_audit.json",
+      "round_id": "round_20260608_cpp2_883e67b9_formula_readiness_audit_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_formula_readiness_audit_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_input_length_evidence_recovery",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_input_length_evidence_recovery.json",
+      "round_id": "round_20260608_cpp2_883e67b9_input_length_evidence_recovery_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_input_length_evidence_recovery_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_compare_constants_mapping",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_compare_constants_mapping.json",
+      "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_missing_branch_reconciliation",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json",
+      "round_id": "round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_loop_semantics_mapping",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_loop_semantics_mapping.json",
+      "round_id": "round_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_structured_evidence_projection",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_structured_evidence_projection.json",
+      "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "decision_id": "decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
+      "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "status": "PARTIAL",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_static_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    }
+  ],
+  "tool_capability_check": {
+    "ida_interface_found": true,
+    "ida_interface_path": "reverse_agent\\ida_scripts\\collect_evidence.py",
+    "ida_executable_configured": true,
+    "ida_executable_path": "E:\\Program Files\\ida_pro\\idat64.exe",
+    "ghidra_interface_found": false,
+    "ghidra_headless_configured": false,
+    "fallback_static_tools": {
+      "objdump": "not_checked",
+      "radare2": "not_checked",
+      "capstone": "not_checked",
+      "pefile": "not_checked"
+    },
+    "selected_static_extraction_path": "ida",
+    "reasoning": "IDA Pro idat64.exe found at E:\\Program Files\\ida_pro\\idat64.exe. Existing IDAPython script reverse_agent\\ida_scripts\\collect_evidence.py available and executed successfully with REVERSE_AGENT_IDA_FORCE_FUNCS environment variable to force decompilation of focus functions. Ghidra headless not found. Fallback static tools not checked because IDA extraction succeeded.",
+    "execution_summary": {
+      "command": "set REVERSE_AGENT_IDA_FORCE_FUNCS=sub_401014,sub_40100A,sub_401005 && \"E:\\Program Files\\ida_pro\\idat64.exe\" -A -S\"reverse_agent/ida_scripts/collect_evidence.py\" \"E:\\reverse\\逆向课程2024春02\\CPP2.exe\"",
+      "working_directory": "F:\\reverse-agent",
+      "output_artifact": "ida_evidence.json",
+      "exit_code": 0,
+      "hexrays_available": true,
+      "forced_decompilation_targets": ["sub_401014", "sub_40100A", "sub_401005"],
+      "forced_export_errors": []
+    }
+  },
+  "extracted_focus_ranges": {
+    "focus_range_start_rva": "0x5f00",
+    "focus_range_end_rva_exclusive": "0x6500",
+    "focus_rvas": [
+      "0x6059", "0x6077", "0x6081", "0x60a3", "0x60b5",
+      "0x61b7", "0x61bd", "0x61de", "0x61e8", "0x61f0",
+      "0x6290", "0x6294", "0x629f", "0x62a7", "0x62b2", "0x62cb",
+      "0x6438", "0x645f", "0x647d", "0x64b2", "0x64e5"
+    ]
+  },
+  "call_chain_discovered": {
+    "main_entry": "_main_0",
+    "chain": [
+      {"caller": "_main_0", "callee": "sub_401005", "type": "direct_call"},
+      {"caller": "sub_401005", "callee": "sub_401090", "type": "thunk"},
+      {"caller": "_main_0", "callee": "sub_40100A", "type": "direct_call"},
+      {"caller": "sub_40100A", "callee": "sub_4011E0", "type": "thunk"}
+    ],
+    "semantic_roles": {
+      "sub_401090": "input_acquisition_and_length_check",
+      "sub_4011E0": "character_by_character_comparison_loop"
+    }
+  },
+  "per_loop_extraction": [
+    {
+      "loop_id": "loop_0x6081_0x6059",
+      "function_name": "sub_4011E0",
+      "function_start_va": "0x4011E0",
+      "status": "REMAPPED_TO_IDA_DECOMPILED_FUNCTION",
+      "note": "This bounded-static loop (0x6081->0x6059) was identified in prior static analysis. IDA decompilation of sub_4011E0 reveals the actual comparison logic is a single for-loop inside sub_4011E0, not multiple separate loops as hypothesized from bounded static extraction. The loop spans approximately 0x4011E0-0x401270 in disassembly.",
+      "basic_blocks": [
+        {"start_va": "0x4011E0", "end_va": "0x4011F5", "description": "loop_initialization_i=0"},
+        {"start_va": "0x4011F5", "end_va": "0x40120D", "description": "loop_condition_i_lt_byte_429A31"},
+        {"start_va": "0x40120D", "end_va": "0x40123E", "description": "body_Str_i_xor_byte_429A30"},
+        {"start_va": "0x40123E", "end_va": "0x401257", "description": "cmp_Str_i_vs_byte_429A34_i"},
+        {"start_va": "0x401257", "end_va": "0x401270", "description": "branch_mismatch_fail"},
+        {"start_va": "0x401270", "end_va": "0x40127A", "description": "increment_i_and_continue"}
+      ],
+      "instructions_summary": "movsx eax, Str[edx]; xor al, byte_429A30; movsx ecx, byte_429A34[edx]; cmp eax, ecx; jnz fail",
+      "branch_targets": [
+        {"rva": "0x6081", "va": "0x406081", "type": "backward_jnz", "target_va": "0x406059", "note": "Prior static hypothesis; actual decompiled loop is inside sub_4011E0 at 0x401270 (jnz to 0x401257 on mismatch)"}
+      ],
+      "xref_in": [
+        {"from": "sub_40100A", "type": "call", "note": "thunk to sub_4011E0"}
+      ],
+      "xref_out": [
+        {"to": "_fputs", "type": "call", "note": "failure message output"},
+        {"to": "_system", "type": "call", "note": "system(pause) on failure"}
+      ],
+      "decompiler_pseudocode_if_available": "int sub_4011E0() { int i; for (i = 0; i < byte_429A31; ++i) { Str[i] ^= byte_429A30; if (Str[i] != byte_429A34[i]) { fputs(\"\\n--- Sorry, but try it again! ---\\n\\n\", &Stream); system(\"pause\"); return 0; } } fputs(\"\\n*** Good work! ***\\n\\n\", &Stream); return 0; }",
+      "operands": [
+        {"operand": "Str[edx]", "role": "input_buffer_access", "confidence": "high"},
+        {"operand": "byte_429A30", "role": "xor_key", "confidence": "high", "value_hex": "0x66"},
+        {"operand": "byte_429A31", "role": "input_length_constant", "confidence": "high", "value_hex": "0x0f", "value_decimal": 15},
+        {"operand": "byte_429A34[ecx]", "role": "target_comparison_array", "confidence": "high"}
+      ],
+      "stack_vars_registers": [
+        {"name": "i", "location": "[ebp+var_4]", "type": "loop_counter"},
+        {"name": "edx", "location": "register", "type": "loop_counter_alias"}
+      ],
+      "calls_inside_loop": [
+        {"call_ea": "0x401257", "callee": "_fputs", "condition": "on_mismatch"},
+        {"call_ea": "0x401264", "callee": "_system", "condition": "on_mismatch"}
+      ],
+      "constants_inside_loop": [
+        {"value": "0x66", "role": "xor_key", "location": "byte_429A30"},
+        {"value": "0x0f", "role": "loop_bound", "location": "byte_429A31"}
+      ],
+      "exit_condition_hypothesis": "Loop exits normally when i >= byte_429A31 (15). Early exit via jnz on mismatch: if (Str[i]^0x66) != byte_429A34[i], loop aborts to failure path.",
+      "data_role_hypothesis": "Input string is XORed with 0x66 and compared byte-by-byte against embedded target array. Length is fixed at 15 bytes.",
+      "confidence": "high",
+      "evidence_source": "IDA_HexRays_decompiler_sub_4011E0"
+    },
+    {
+      "loop_id": "loop_0x61e8_0x61b7",
+      "function_name": "sub_401090",
+      "function_start_va": "0x401090",
+      "status": "REMAPPED_TO_IDA_DECOMPILED_FUNCTION",
+      "note": "Prior static analysis identified loop_0x61e8_0x61b7 as a focus comparison loop. IDA decompilation reveals this region is part of sub_401090 (input acquisition and length check), not a character comparison loop. The actual comparison loop is sub_4011E0.",
+      "basic_blocks": [
+        {"start_va": "0x401090", "end_va": "0x4010AD", "description": "prologue_and_fputs_prompt"},
+        {"start_va": "0x4010AD", "end_va": "0x4010D1", "description": "scanf_input"},
+        {"start_va": "0x4010D1", "end_va": "0x4010E6", "description": "strlen_and_length_check"},
+        {"start_va": "0x4010E6", "end_va": "0x401100", "description": "length_mismatch_fail"},
+        {"start_va": "0x401100", "end_va": "0x40110A", "description": "return_on_success"}
+      ],
+      "instructions_summary": "fputs(prompt); scanf(\"%s\", Str); result = strlen(Str) - byte_429A31; if (result) { printf(fail_msg); system(\"pause\"); }",
+      "branch_targets": [
+        {"rva": "0x61e8", "va": "0x4061e8", "type": "backward_jnz", "target_va": "0x4061b7", "note": "Prior static hypothesis; this region is not a loop in decompiled view"}
+      ],
+      "xref_in": [
+        {"from": "sub_401005", "type": "call", "note": "thunk from sub_401005"}
+      ],
+      "xref_out": [
+        {"to": "_fputs", "type": "call"},
+        {"to": "_scanf", "type": "call"},
+        {"to": "_strlen", "type": "call"},
+        {"to": "_printf", "type": "call"},
+        {"to": "_system", "type": "call"}
+      ],
+      "decompiler_pseudocode_if_available": "int sub_401090() { int result; fputs(\"Please input your flag: \", &Stream); scanf(\"%s\", Str); result = strlen(Str) - byte_429A31; if (result) { printf(\"You are wrong in the initial phase!\"); return system(\"pause\"); } return result; }",
+      "operands": [
+        {"operand": "Str", "role": "input_buffer", "confidence": "high"},
+        {"operand": "byte_429A31", "role": "expected_input_length", "confidence": "high", "value_hex": "0x0f", "value_decimal": 15}
+      ],
+      "stack_vars_registers": [],
+      "calls_inside_loop": [],
+      "constants_inside_loop": [
+        {"value": "0x0f", "role": "expected_length", "location": "byte_429A31"}
+      ],
+      "exit_condition_hypothesis": "Function returns 0 if strlen(Str) == byte_429A31 (15). Otherwise prints failure and calls system(\"pause\").",
+      "data_role_hypothesis": "Input acquisition function. Reads user input via scanf, verifies length equals 15 bytes before passing to comparison function.",
+      "confidence": "high",
+      "evidence_source": "IDA_HexRays_decompiler_sub_401090"
+    },
+    {
+      "loop_id": "loop_0x647d_0x62bb",
+      "function_name": "unknown",
+      "function_start_va": null,
+      "status": "NOT_IN_FOCUS_FUNCTIONS",
+      "note": "This large outer loop (0x647d->0x62bb, span 0x1c2 bytes) was not covered by forced decompilation targets. The forced targets (sub_401014, sub_40100A, sub_401005) are thunks. The actual algorithm functions are sub_401090 and sub_4011E0. This loop may be part of CRT runtime initialization or other non-password-checking code. Not analyzed by IDA in this extraction.",
+      "basic_blocks": [],
+      "instructions_summary": "Not extracted by IDA forced decompilation",
+      "branch_targets": [
+        {"rva": "0x647d", "va": "0x40647d", "type": "backward_jmp", "target_va": "0x4062bb", "note": "Unconditional backward jmp in prior static analysis"}
+      ],
+      "xref_in": [],
+      "xref_out": [],
+      "decompiler_pseudocode_if_available": null,
+      "operands": [],
+      "stack_vars_registers": [],
+      "calls_inside_loop": [],
+      "constants_inside_loop": [],
+      "exit_condition_hypothesis": null,
+      "data_role_hypothesis": null,
+      "confidence": "none",
+      "evidence_source": "not_extracted"
+    }
+  ],
+  "structured_evidence_projection": {
+    "projection_status": "PARTIAL",
+    "reason": "IDA decompilation directly revealed complete algorithm for sub_401090 and sub_4011E0. However, the decompiled pseudocode uses IDA variable names (Str, byte_429A30, byte_429A31, byte_429A34) that require data section resolution for full StructuredEvidence normalization. The target array byte_429A34 values were extracted from binary but XOR decoding with key 0x66 produced ambiguous results (not a clear ASCII flag), suggesting possible array offset misalignment or additional transform.",
+    "algorithm_summary": {
+      "input_acquisition": "sub_401090: scanf(\"%s\", Str)",
+      "length_check": "strlen(Str) == 15 (byte_429A31)",
+      "transform": "Str[i] ^= 0x66 (byte_429A30)",
+      "comparison": "Str[i] == byte_429A34[i] for i in 0..14",
+      "success_output": "\\n*** Good work! ***\\n\\n",
+      "failure_output": "\\n--- Sorry, but try it again! ---\\n\\n"
+    },
+    "data_section_values_extracted": {
+      "byte_429A30": {"va": "0x429A30", "file_offset": "0x29A30", "value_hex": "0x66", "value_decimal": 102, "role": "xor_key"},
+      "byte_429A31": {"va": "0x429A31", "file_offset": "0x29A31", "value_hex": "0x0f", "value_decimal": 15, "role": "input_length"},
+      "byte_429A34": {"va": "0x429A34", "file_offset": "0x29A34", "length": 15, "role": "target_comparison_array", "note": "Array values extracted from .data section. XOR decoding with 0x66 does not yield clear printable ASCII flag. Possible offset misalignment or additional transform not visible in decompilation."}
+    }
+  },
+  "formula_readiness_update": {
+    "overall_formula_readiness": "partial_formula_recovered",
+    "prior_overall_formula_readiness": "not_ready_static_gaps",
+    "solver_profile_normalization_ready": false,
+    "reverse_solving_ready": false,
+    "missing_evidence_after_extraction": [
+      "Target array byte_429A34 XOR decoding ambiguity: input[i] = byte_429A34[i] ^ 0x66 does not produce clear ASCII flag. Need to verify correct array offset or identify additional transform.",
+      "Loop_0x647d_0x62bb not analyzed by IDA forced decompilation. Role in algorithm unclear but likely not part of password check.",
+      "No runtime validation performed to confirm candidate construction formula.",
+      "Data section array may start at a different offset than 0x429A34 (e.g., 0x429A36 tested, still ambiguous)."
+    ],
+    "new_evidence_from_extraction": [
+      "Complete decompiled algorithm for sub_401090 (input/length check) and sub_4011E0 (XOR comparison loop)",
+      "Confirmed input length = 15 bytes (byte_429A31 = 0x0f)",
+      "Confirmed XOR key = 0x66 (byte_429A30)",
+      "Confirmed comparison is byte-by-byte against embedded array byte_429A34[i]",
+      "Call chain discovered: _main_0 -> sub_401005 -> sub_401090 (input) then sub_40100A -> sub_4011E0 (comparison)"
+    ],
+    "improvement_over_prior": "Prior static analysis had not_ready_static_gaps for all 3 focus loops with ambiguous exit conditions. IDA decompilation resolved the actual algorithm structure: only one comparison loop (sub_4011E0) with clear exit condition, and a separate input function (sub_401090). Prior hypothesis of multiple focus comparison loops was incorrect; the bounded static extraction misidentified CRT/runtime code regions as comparison loops."
+  },
+  "extraction_status": "SUCCESS_STATIC_EVIDENCE_EXTRACTED",
+  "selected_static_extraction_path": "ida",
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "no_tool_execution_performed": false,
+  "next_recommended_mainline": "tool_integration",
+  "next_recommended_action": "Resolve target array decoding ambiguity by: (1) verifying exact byte_429A34 offset in .data section, (2) checking if additional transform exists beyond XOR 0x66, (3) performing runtime validation with candidate inputs if runtime interface available, or (4) using IDA to inspect byte_429A34 cross-references to confirm array bounds."
+}

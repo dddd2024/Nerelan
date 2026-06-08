@@ -1,52 +1,33 @@
-```json pytest_result_summary
-{
-  "schema_version": 1,
-  "decision_id": "decision_20260608_cpp2_883e67b9_formula_readiness_audit_v1",
-  "report_id": "report_20260608_cpp2_883e67b9_formula_readiness_audit_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_formula_readiness_audit_v1",
-  "generated_at": "2026-06-08T06:15:00Z",
-  "status": "PASSED",
-  "tests_ran": [
-    ".venv\\Scripts\\python -c \"import json; json.load(open('project_state/local_reverse_cpp2_883e67b9_formula_readiness_audit.json', encoding='utf-8'))\"",
-    ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py",
-    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py",
-    ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
-    ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
-    ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
-    "git diff --check",
-    "git status --short",
-    "git diff --name-status"
-  ]
-}
-```
+pytest_result for round_20260608_cpp2_883e67b9_ida_ghidra_focus_loop_extraction_v1
+================================================================================
 
-decision_id=decision_20260608_cpp2_883e67b9_formula_readiness_audit_v1
-report_id=report_20260608_cpp2_883e67b9_formula_readiness_audit_v1
-round_id=round_20260608_cpp2_883e67b9_formula_readiness_audit_v1
-status=PASSED
+JSON parse validation:
+  project_state/local_reverse_cpp2_883e67b9_ida_ghidra_focus_loop_extraction.json
+  Result: PASS
 
-json_parse_validation: PASS
-py_compile: PASS
-pytest: PASS (see output below)
-lint-decision: OK
-lint-report: OK
-project_state status: OK
-git diff --check: PASS
+py_compile:
+  reverse_agent/project_state.py
+  reverse_agent/local_reverse_constraint_recovery.py
+  reverse_agent/local_reverse_solver_profiles.py
+  reverse_agent/local_reverse_ida_guided_solver.py
+  Result: PASS
 
-commands_executed:
-1. .venv\Scripts\python -c "import json; json.load(open('project_state/local_reverse_cpp2_883e67b9_formula_readiness_audit.json', encoding='utf-8'))" -> PASS
-2. .venv\Scripts\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py -> PASS
-3. .venv\Scripts\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py -> PASS
-4. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state -> OK
-5. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state -> OK
-6. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state -> OK
-7. git diff --check -> PASS
-8. git status --short -> (recorded after all changes)
-9. git diff --name-status -> (recorded after all changes)
+pytest:
+  tests/test_project_state.py
+  tests/test_local_reverse_solver_profiles.py
+  tests/test_local_reverse_solver_profile_dispatch.py
+  Result: 179 passed
 
-notes:
-- New artifact local_reverse_cpp2_883e67b9_formula_readiness_audit.json generated and registered in artifact_index with freshness=current.
-- sha256=00de417b4038a95dd27a7fc2edde3ff87b2f6c095697d79a75e209956bc0357a, size_bytes=19181.
-- 3 focus loops audited: all formula_recovery_readiness=not_ready_static_gaps, confidence=low.
-- overall_formula_readiness=not_ready_static_gaps, solver_profile_normalization_ready=false, reverse_solving_ready=false.
-- No production code modified; no sample execution; no IDA/Ghidra/debugger/hook.
+lint-decision:
+  Result: OK
+
+lint-report:
+  Result: OK
+
+project_state status:
+  Result: OK
+
+git diff --check:
+  Result: PASS
+
+All checks passed.
