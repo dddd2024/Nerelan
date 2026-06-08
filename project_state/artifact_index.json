@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-08T14:16:42Z",
+  "generated_at": "2026-06-08T14:25:07Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": "solve_reports\\tool_artifacts\\samplereverse_base64_rc4_static_point_discovery_20260508\\base64_rc4_static_point_discovery.json",
@@ -1497,13 +1497,19 @@
       "status_overlay_modified": false
     },
     "local_reverse_cpp2_883e67b9_candidate_validation": {
-      "freshness": "current",
-      "kind": "candidate_validation",
-      "modified_at": "2026-06-08T14:16:42Z",
+      "kind": "local_reverse_candidate_validation",
       "path": "project_state\\local_reverse_cpp2_883e67b9_candidate_validation.json",
-      "sha256": "79cc6afb43c5228850c83fe1462123f7058e345dcdf2d2fb4f1bf4ef77455225",
-      "size_bytes": 1952,
-      "source_run": "round_20260608_cpp2_883e67b9_reverse_solving_artifact_index_rework_v1"
+      "freshness": "current",
+      "source_run": "round_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1",
+      "sample_id": "cpp2_883e67b9",
+      "relative_path": "逆向课程2024春02/CPP2.exe",
+      "candidate_generated": true,
+      "candidate_validation_attempted": true,
+      "runtime_validation_attempted": true,
+      "validation_status": "VALIDATED_SUCCESS",
+      "sha256": "bafe5956afb3f584f99cdd8716bbf3a3b83581edde39c73ceb4b615b31774b9e",
+      "size_bytes": 3124,
+      "modified_at": "2026-06-08T14:25:07Z"
     }
   },
   "latest_case_results": [

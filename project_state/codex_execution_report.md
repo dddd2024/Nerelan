@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
-  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1",
+  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "reverse_solving",
@@ -41,44 +41,64 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the only execution authority for this round.
-- [x] Active decision: `decision_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1`.
-- [x] Active round: `round_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1`.
-- [x] Mainline is `reverse_solving`; `task_packet.json` was treated as advisory only.
-- [x] This round did **not** generate, validate, or re-run any candidate.
+- [x] Active decision: `decision_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1`.
+- [x] Active round: `round_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1`.
+- [x] Mainline is `reverse_solving`, but this round only performs exact schema rework.
+- [x] `task_packet.json` was treated as advisory only.
+- [x] No candidate was generated, validated, or re-run.
 - [x] No sample interaction, runtime validation, debugger, hook, emulator, probe, or winpty path was run.
-- [x] `local_reverse_training_status.json` and `training_materials/local_reverse/status_overlay.json` were not modified.
+- [x] No IDA/Ghidra/static extraction was performed.
+- [x] No brute force, dictionary search, fuzz, beam/topN, or budget expansion.
+- [x] `local_reverse_training_status.json` was not modified.
+- [x] `training_materials/local_reverse/status_overlay.json` was not modified.
+- [x] `.codex-skills` was not modified.
 
-## 2. Artifact Schema Fixes
+## 2. Candidate Validation Artifact Schema Fixes
 
 | Requirement | Result |
 |-------------|--------|
-| candidate_validation.json: add artifact_kind | PASS: set to "candidate_validation" |
-| candidate_validation.json: add decision_id | PASS: bound to current decision |
-| candidate_validation.json: add report_id | PASS: bound to current report |
-| candidate_validation.json: add round_id | PASS: bound to current round |
-| candidate_validation.json: add formula_evidence_summary | PASS: includes formula, target_array_start_va, xor_key_runtime, input_length, target_array_bytes_hex |
-| candidate_validation.json: add validation_method | PASS: "console_runtime_validation" |
-| candidate_validation.json: add validation_tool | PASS: "local_reverse_console_validator" |
-| candidate_validation.json: add revalidated_in_this_round | PASS: false |
-| candidate_validation.json: add revalidation_result | PASS: "not_revalidated" |
-| candidate_validation.json: fix target_sha256 | PASS: set to 883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8 |
-| candidate_validation.json: add updated_at | PASS: current timestamp |
+| artifact_kind = local_reverse_candidate_validation | PASS |
+| identity_verified = true | PASS |
+| source_artifacts includes target_array_xref_boundary_audit with freshness/source_run | PASS |
+| source_artifacts includes candidate with freshness/source_run | PASS |
+| candidate_generation object (method, formula, generated_in_round, regenerated_in_this_round) | PASS |
+| candidate_plaintext = KaiJu_YiZhi_PEN | PASS |
+| candidate_hex = 4b61694a755f59695a68695f50454e | PASS |
+| candidate_length = 15 | PASS |
+| validation object (method, tool, status, success_token, return_code, stdout_tail, stderr_tail, reused_from_round, rerun_in_this_round) | PASS |
+| negative_results_checked object (checked, repeated_forbidden_direction, notes) | PASS |
+| capability_check object (existing_validator_used, new_runtime_interface_created, ida_ghidra_static_extraction_rerun) | PASS |
+| status_update_recommendation object (training_status_already_updated, status_overlay_update_needed, next_action) | PASS |
+| candidate_generated = true | PASS |
+| candidate_validation_attempted = true | PASS |
+| runtime_validation_attempted = true | PASS |
+| training_status_modified = true | PASS |
+| status_overlay_modified = false | PASS |
+| validation_reused_from_round | PASS |
+| runtime_validation_not_rerun_in_this_rework = true | PASS |
 
 ## 3. Artifact Index Fixes
 
 | Requirement | Result |
 |-------------|--------|
-| latest_artifacts_v2 entry for candidate_validation | PASS: added with freshness=current, kind=candidate_validation, sha256, size_bytes, source_run |
-| latest_artifacts_v2 sha256 matches actual file | PASS: 79cc6afb43c5228850c83fe1462123f7058e345dcdf2d2fb4f1bf4ef77455225 |
-| latest_artifacts_v2 size_bytes matches actual file | PASS: 1952 |
-| artifact_index.generated_at updated | PASS |
+| kind = local_reverse_candidate_validation | PASS |
+| source_run = round_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1 | PASS |
+| sample_id = cpp2_883e67b9 | PASS |
+| relative_path = 逆向课程2024春02/CPP2.exe | PASS |
+| candidate_generated = true | PASS |
+| candidate_validation_attempted = true | PASS |
+| runtime_validation_attempted = true | PASS |
+| validation_status = VALIDATED_SUCCESS | PASS |
+| sha256 = bafe5956afb3f584f99cdd8716bbf3a3b83581edde39c73ceb4b615b31774b9e | PASS |
+| size_bytes = 3124 | PASS |
+| modified_at = current timestamp | PASS |
 
 ## 4. Scope Guardrails
 
 - No candidate was generated in this round.
 - No runtime validation was re-run in this round.
 - The previous round's candidate (KaiJu_YiZhi_PEN) and validation result (VALIDATED_SUCCESS) remain unchanged.
-- Only the artifact schema and index registration were fixed.
+- Only the artifact schema and index registration were precisely reworked.
 
 ## 5. Tests
 
@@ -96,4 +116,4 @@
 
 ## 6. Stop Conditions
 
-No stop condition triggered. Artifact schema and index are now correctly structured for future reverse_solving rounds.
+No stop condition triggered. All required fields are present and correctly valued. cpp2_883e67b9 is now runtime validated solved with a complete, correctly structured candidate_validation artifact.

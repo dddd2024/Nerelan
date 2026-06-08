@@ -1,10 +1,10 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
-  "report_id": "report_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
-  "generated_at": "2026-06-08T14:02:32Z",
+  "decision_id": "decision_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1",
+  "generated_at": "2026-06-08T14:30:00Z",
   "status": "PASSED",
   "tests_ran": [
     "F:\\reverse-agent\\.venv\\Scripts\\python.exe -c \"import json; json.load(open('project_state/local_reverse_cpp2_883e67b9_candidate_validation.json', encoding='utf-8'))\"",
@@ -20,12 +20,12 @@
 }
 ```
 
-pytest_result for round_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1
+pytest_result for round_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1
 =========================================================================================
 
-decision_id: decision_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1
-report_id: report_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1
-round_id: round_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1
+decision_id: decision_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1
+report_id: report_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1
+round_id: round_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1
 
 JSON parse validation:
   F:\reverse-agent\.venv\Scripts\python.exe -c "import json; json.load(open('project_state/local_reverse_cpp2_883e67b9_candidate_validation.json', encoding='utf-8'))"

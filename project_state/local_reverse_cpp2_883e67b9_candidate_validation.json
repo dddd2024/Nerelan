@@ -1,37 +1,35 @@
 {
   "schema_version": 1,
-  "sample_id": "cpp2_883e67b9",
-  "analysis_mode": "console_runtime_validation",
   "mainline": "reverse_solving",
-  "source_artifacts": [
-    "local_reverse_cpp2_883e67b9_candidate"
-  ],
-  "source_artifact_freshness": "current",
+  "artifact_kind": "local_reverse_candidate_validation",
+  "sample_id": "cpp2_883e67b9",
   "relative_path": "逆向课程2024春02/CPP2.exe",
-  "candidate_source_field": "static_candidate_text",
-  "candidate": "KaiJu_YiZhi_PEN",
-  "known_candidate": "KaiJu_YiZhi_PEN",
-  "executed_sample": true,
-  "runtime_validated": true,
-  "validation_status": "VALIDATED_SUCCESS",
-  "success_token": "Good work",
-  "failure_token": "wrong",
-  "length_token": "length",
-  "success_observed": true,
-  "failure_observed": false,
-  "length_error_observed": false,
-  "return_code": 0,
-  "stdout_tail": "Press any key to continue . . . \nPlease input your flag: \n*** Good work! ***\n\n",
-  "stderr_tail": "",
-  "solved": true,
-  "blocked_reason": "",
+  "identity_verified": true,
   "target_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
-  "target_resolved_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
-  "generated_at": "2026-06-08T14:02:32Z",
-  "artifact_kind": "candidate_validation",
-  "decision_id": "decision_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
-  "report_id": "report_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_candidate_artifact_index_rework_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_candidate_schema_exact_rework_v1",
+  "validation_reused_from_round": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1",
+  "runtime_validation_not_rerun_in_this_rework": true,
+  "candidate_plaintext": "KaiJu_YiZhi_PEN",
+  "candidate_hex": "4b61694a755f59695a68695f50454e",
+  "candidate_length": 15,
+  "candidate_generated": true,
+  "candidate_validation_attempted": true,
+  "runtime_validation_attempted": true,
+  "training_status_modified": true,
+  "status_overlay_modified": false,
+  "source_artifacts": [
+    {
+      "name": "local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit",
+      "freshness": "current",
+      "source_run": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1"
+    },
+    {
+      "name": "local_reverse_cpp2_883e67b9_candidate",
+      "freshness": "current",
+      "source_run": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1"
+    }
+  ],
   "formula_evidence_summary": {
     "formula": "input[i] = byte_429A34[i] ^ 0x78",
     "target_array_start_va": "0x429A34",
@@ -39,9 +37,38 @@
     "input_length": 15,
     "target_array_bytes_hex": "33 19 11 32 0D 27 21 11 22 10 11 27 28 3D 36"
   },
-  "validation_method": "console_runtime_validation",
-  "validation_tool": "local_reverse_console_validator",
-  "revalidated_in_this_round": false,
-  "revalidation_result": "not_revalidated",
-  "updated_at": "2026-06-08T14:16:24Z"
+  "candidate_generation": {
+    "method": "current_formula_inverse",
+    "formula": "input[i] = byte_429A34[i] ^ 0x78",
+    "generated_in_round": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1",
+    "regenerated_in_this_round": false
+  },
+  "validation": {
+    "method": "console_runtime_validation",
+    "tool": "local_reverse_console_validator",
+    "status": "VALIDATED_SUCCESS",
+    "success_token": "Good work",
+    "return_code": 0,
+    "stdout_tail": "Press any key to continue . . . \nPlease input your flag: \n*** Good work! ***\n\n",
+    "stderr_tail": "",
+    "reused_from_round": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1",
+    "rerun_in_this_round": false
+  },
+  "negative_results_checked": {
+    "checked": true,
+    "repeated_forbidden_direction": false,
+    "notes": "Verified: no blind search, no budget expansion, no stale artifact treated as current, no repeated old samplereverse failure direction."
+  },
+  "capability_check": {
+    "existing_validator_used": true,
+    "new_runtime_interface_created": false,
+    "ida_ghidra_static_extraction_rerun": false
+  },
+  "status_update_recommendation": {
+    "training_status_already_updated": true,
+    "status_overlay_update_needed": false,
+    "next_action": "cpp2_883e67b9 is runtime validated solved; next round may plan training set summary/status sync or capability review."
+  },
+  "generated_at": "2026-06-08T14:02:32Z",
+  "updated_at": "2026-06-08T14:30:00Z"
 }
