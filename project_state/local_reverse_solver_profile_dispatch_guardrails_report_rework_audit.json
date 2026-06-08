@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-08T06:12:22Z",
+  "mainline": "engineering_branch",
+  "round_id": "round_20260608_solver_profile_dispatch_guardrails_report_rework_v1",
+  "decision_id": "decision_20260608_solver_profile_dispatch_guardrails_report_rework_v1",
+  "source_failed_report": "report_20260608_solver_profile_dispatch_guardrails_v1",
+  "source_failed_commit": "bf0329aa06fa94ffa3ac64515534e2ccf4ed8ae7",
+  "issues_repaired": [
+    "artifact_index sha256 was e3b0c442 (empty file hash) but size_bytes=1789; corrected to real sha256 e7f467c16b46fb33c06447179bb6b9476767fc4d0f97276933a4ff6ca2b05cd9 and size_bytes=2382",
+    "codex_report_summary.tests_ran only listed test filenames instead of full commands; corrected to list all 8 full commands",
+    "pytest_result was bound to old decision/report/round; corrected to current rework identity"
+  ],
+  "artifact_sha256_before": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "audit_artifact_sha256_after": "e7f467c16b46fb33c06447179bb6b9476767fc4d0f97276933a4ff6ca2b05cd9",
+  "audit_artifact_size_bytes_after": 2382,
+  "report_tests_ran_repaired": true,
+  "runtime_actions_performed": false,
+  "candidate_generation_performed": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "full_solve_reports_read": false,
+  "sample_binary_read": false,
+  "ida_or_ghidra_invoked": false,
+  "debugger_hook_emulator_probe_winpty_used": false,
+  "production_code_modified": false
+}

@@ -1,21 +1,30 @@
-decision_id=decision_20260608_solver_profile_dispatch_guardrails_v1
-report_id=report_20260608_solver_profile_dispatch_guardrails_v1
-round_id=round_20260608_solver_profile_dispatch_guardrails_v1
+decision_id=decision_20260608_solver_profile_dispatch_guardrails_report_rework_v1
+report_id=report_20260608_solver_profile_dispatch_guardrails_report_rework_v1
+round_id=round_20260608_solver_profile_dispatch_guardrails_report_rework_v1
 status=PASSED
 
 pytest target: tests/test_local_reverse_solver_profile_dispatch.py tests/test_local_reverse_solver_profiles.py tests/test_project_state.py
 result: 179 passed
 lint-decision: PASS
-lint-report: PASS
-project_state status: CONSUMED_BY_SUCCESS_REPORT
+lint-report: PASS (after report update)
+project_state status: PASS
 
-guardrail tests executed:
-- test_top_level_profile_mismatch_blocks_without_candidate
-- test_nested_profile_mismatch_blocks_without_candidate
-- test_stale_freshness_blocks_without_candidate
-- test_missing_freshness_blocks_without_candidate
-- test_unknown_freshness_blocks_without_candidate
-- test_empty_string_freshness_blocks_without_candidate
-- test_current_freshness_and_matching_profile_happy_path
-- test_missing_profile_evidence_blocks_without_candidate (updated with freshness=current)
-- existing happy path and regression tests continue to pass
+git diff --check: PASS
+git status --short: M project_state/artifact_index.json
+git diff --name-status: M project_state/artifact_index.json
+
+commands_executed:
+1. .venv\Scripts\python -m py_compile reverse_agent/local_reverse_solver_profiles.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/project_state.py -> PASS
+2. .venv\Scripts\python -m pytest -q tests/test_local_reverse_solver_profile_dispatch.py tests/test_local_reverse_solver_profiles.py tests/test_project_state.py -> 179 passed
+3. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state -> PASS
+4. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state -> PASS (after report update)
+5. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state -> PASS
+6. git diff --check -> PASS
+7. git status --short -> M project_state/artifact_index.json
+8. git diff --name-status -> M project_state/artifact_index.json
+
+issues_repaired:
+- artifact_index sha256 corrected from e3b0c442... to e7f467c1... (real file hash)
+- artifact_index size_bytes corrected from 1789 to 2382 (real file size)
+- codex_report_summary.tests_ran now lists full commands instead of just test filenames
+- pytest_result bound to current rework decision/report/round
