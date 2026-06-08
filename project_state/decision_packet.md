@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
   "based_on_state_build_id": "state_20260602_053948_4e3984041cd7",
   "based_on_state_digest": "4e3984041cd78e5a412e28a53fa3441957ea87f43f62a9688c3e80ca4413678c",
   "status": "APPROVED",
@@ -19,46 +19,34 @@
 
 本轮主线是 **tool_integration**。
 
-目标：基于已 ACCEPTED 的 `cpp2_883e67b9_missing_branch_reconciliation`、`loop_semantics_mapping` 和 `StructuredEvidence projection`，生成一个有界的 `compare constants semantic mapping` artifact。该 artifact 只对 assert_path 中已收集的 compare constants 做语义分类草图，明确哪些常量可能是 control/state/index/length/sentinel 线索，哪些仍为 unknown，不恢复完整公式，不生成 candidate。
+目标：修复 `project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json` 的 JSON 语法错误，并补充最小校验，确保该 artifact 可被解析后再继续登记为 current。
 
-本轮不是 reverse_solving。不要生成 candidate，不要验证 candidate，不运行样本，不调用 IDA/Ghidra/debugger/hook/probe/winpty，不重新读取样本二进制，不扩张静态窗口。
+本轮不是 reverse_solving。不要生成 candidate，不要验证 candidate，不运行样本，不调用 IDA/Ghidra/debugger/hook/probe/winpty/emulator，不重新读取样本二进制，不扩张静态窗口。
 
 必须完成：
 
 ```text
-1. 读取 current source artifacts：
-   - project_state/local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json
-   - project_state/local_reverse_cpp2_883e67b9_loop_semantics_mapping.json
-   - project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json
-   - project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json
-   - project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json
+1. 读取并确认当前失败点：
+   - project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json
+   - project_state/artifact_index.json
+   - project_state/codex_execution_report.md
+   - project_state/pytest_result.txt
+   - project_state/decision_packet.md
 
-2. 检查现有 project_state / StructuredEvidence / solver profile / artifact_index 接口，复用已有格式，不新建重复框架。
+2. 修复 compare_constants_mapping artifact 中 0x62cb record 的 JSON 语法错误：
+   当前错误："confirmed_formula_constant", false
+   正确字段："confirmed_formula_constant": false
 
-3. 产出新 artifact：
-   project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json
+3. 用显式 JSON parse 命令验证该 artifact 可解析。
 
-4. 新 artifact 必须至少包含：
-   - sample_id / relative_path / identity_verified
-   - source_artifacts 与 source_run / source decision
-   - assert_path region: 0x5f00-0x6500，focus_assert_path_rva=0x61c3
-   - compare_constants_source：来自 projection / loop_semantics_mapping 的 10 个 constants
-   - per-constant record：rva、type、value/value_hex、nearby_loop_cluster、nearby_branch_sites、source_artifacts、semantic_role_hypothesis、confidence、candidate_formula_role
-   - allowed semantic_role_hypothesis：control_state_flag | loop_index_or_bound | table_or_address_constant | sentinel_or_mask | algorithm_constant_candidate | unknown
-   - allowed candidate_formula_role：none | pending | possible_input_transform_constant，默认 pending/none
-   - 不允许将任何 constant 标为 confirmed_formula_constant，除非 source artifact 已有证明；当前证据下应保持 unconfirmed
-   - known_compare_constant_count 仍应为 0，除非有 current source artifact 支持升级
-   - constants_mapping_status: MAPPED_WITH_LIMITATIONS | BLOCKED
-   - evidence_gaps_carried_forward：no_complete_formula_recovered、input_length_unknown、known_compare_constant_count_zero、structured_evidence_ready_false
-   - recommended_next_mainline：tool_integration，并解释理由
-   - candidate_generated=false、candidate_validation_attempted=false、runtime_validation_attempted=false、training_status_modified=false、status_overlay_modified=false
+4. 重新计算 compare_constants_mapping artifact 的真实 sha256 与 size_bytes。
 
-5. 更新 project_state/artifact_index.json，将新 artifact 登记到 latest_artifacts、latest_artifacts_v2、artifact_refs，freshness=current，source_run 为本轮 round，并写入真实 sha256 与 size_bytes。
+5. 更新 project_state/artifact_index.json 中 local_reverse_cpp2_883e67b9_compare_constants_mapping 的 sha256/size_bytes，并保持 freshness=current、source_run 为本轮 round。
 
-6. 更新 project_state/codex_execution_report.md 和 project_state/pytest_result.txt，绑定当前 decision/report/round。
+6. 更新 project_state/codex_execution_report.md 和 project_state/pytest_result.txt，绑定当前 decision/report/round，并记录 JSON parse 校验。
 ```
 
-本轮不要求修改 solver 逻辑；除非现有接口无法表达 compare_constants_mapping schema，否则不要改 production code。
+本轮不要求修改 solver 逻辑；除非现有 project_state lint 无法覆盖 artifact JSON parse，否则不要改 production code。若必须补测试，只允许小范围补充 project_state/artifact JSON parse 校验。
 
 ---
 
@@ -66,87 +54,44 @@
 
 当前 `project_state/decision_packet.md` 是 Codex 本轮唯一执行权威。`project_state/task_packet.json` 仍是 advisory，不控制本轮。
 
-上一轮 `missing_branch_reconciliation` 已 ACCEPTED。当前 report/pytest 已绑定：
+上一轮 compare constants mapping 已提交，但审计发现新 artifact 自身不是合法 JSON。
+
+失败点：
 
 ```text
-report_id=report_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1
-round_id=round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1
-decision_id=decision_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1
-status=SUCCESS / PASSED
+file: project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json
+record: constant_semantic_mapping entry for rva=0x62cb
+bad field: "confirmed_formula_constant", false
+expected:  "confirmed_formula_constant": false
 ```
 
-`artifact_index.latest_artifacts_v2.local_reverse_cpp2_883e67b9_missing_branch_reconciliation` 当前 provenance 已可核验：
+影响：
 
 ```text
-path=project_state\local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json
-freshness=current
-source_run=round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1
-sha256=6965a835e480aa7163c1b05f994a7115d39f97b9d31fae53ad016bf558363006
-size_bytes=11500
+1. artifact 不能被 json.load/json.loads 解析。
+2. artifact_index 已登记该 artifact 为 current，但对应文件不可解析。
+3. codex_execution_report.md 与 pytest_result.txt 声称 PASS，但未捕获该 artifact parse failure。
+4. 因此上一轮结论为 REWORK_REQUIRED，不能 ACCEPTED。
+```
+
+需要保持的事实：
+
+```text
 sample_id=cpp2_883e67b9
-reconciliation_status=RECONCILED_WITH_LIMITATIONS
+relative_path=逆向课程2024春02/CPP2.exe
+mainline=tool_integration
+known_compare_constant_count=0
+constants_mapping_status=MAPPED_WITH_LIMITATIONS
+formula_recovered=false
 candidate_generated=false
 candidate_validation_attempted=false
 runtime_validation_attempted=false
 training_status_modified=false
 status_overlay_modified=false
-next_recommended_mainline=tool_integration
-```
-
-Current source evidence summary：
-
-```text
-assert_path region: 0x5f00-0x6500
-focus_assert_path_rva=0x61c3
-observed backward branches:
-  0x6040 -> 0x6014
-  0x6081 -> 0x6059
-  0x61e8 -> 0x61b7
-  0x6390 -> 0x6376
-  0x647d -> 0x62bb
-missing branches:
-  0x5f68, 0x60a4, 0x60b6 are source_only_hint / low confidence
-compare constants from current projection / loop mapping:
-  0x5f38 cmp_al_imm8 0xc2
-  0x6077 cmp_imm8 0x1
-  0x60f7 cmp_al_imm8 0x8d
-  0x6124 cmp_al_imm8 0x85
-  0x618f cmp_imm32 0x1102
-  0x61de cmp_imm8 0x1
-  0x629f cmp_imm32 0x10c
-  0x62cb cmp_imm32 0x108
-  0x6438 cmp_imm8 0xff
-  0x64e5 cmp_imm32 0x100
-known_compare_constant_count=0
-formula_recovered=false
-candidate_generated=false
-runtime_validation_attempted=false
 recommended_next_mainline=tool_integration
 ```
 
-Current unresolved gaps：
-
-```text
-no_complete_formula_recovered: blocks reverse_solving
-known_compare_constant_count_zero: blocks solver_profile_normalization
-input_length_unknown: blocks candidate_construction
-structured_evidence_ready_false: blocks complete_formula_recovery
-missing_backward_sites_unresolved: low severity; source-only hints only
-```
-
-Current training summary 保持：
-
-```text
-sample_count=29
-solved=4
-blocked=4
-needs_triage=0
-inventory_only=21
-```
-
-`task_packet.json` 中的 queue hint 仍只作建议：`cpp2_883e67b9` proposed_next_mainline=tool_integration，allowed_actions=static_triage / bounded_static_extraction_readiness，forbidden_actions=runtime_probe / brute_force / debugger / hook / emulator / upload_binary。
-
-`negative_results.json` 主要约束旧 samplereverse 路线；本轮仍必须遵守：不回到 blind search，不扩大预算，不提交 full solve_reports，不把 stale/missing artifact 当 current。
+`negative_results.json` 仍必须遵守：不回到 blind search，不扩大预算，不提交 full solve_reports，不把 stale/missing artifact 当 current。
 
 `.codex-skills/registry.json` 中 `reverse-agent-iteration@v2` 为 active skill，本轮只使用该 profile。
 
@@ -164,32 +109,29 @@ inventory_only=21
 5. 不要重新读取样本二进制或扩张静态窗口。
 6. 不要 brute force、dictionary search、fuzz、扩大枚举预算。
 7. 不要把 cpp2_883e67b9 推进到 candidate 层。
-8. 不要把 compare constant 标成 confirmed formula 或 candidate source。
-9. 不要把 missing branch site 当作 confirmed formula 或 candidate source。
-10. 不要把 KEEP_DREAM、WeKnowItOk、10013、hookapi 或任何单样本 candidate 写死进 solver/dispatch。
-11. 不要修改 local_reverse_training_status.json。
-12. 不要修改 training_materials/local_reverse/status_overlay.json。
-13. 不要把本地路径、candidate、单样本结论写入 .codex-skills。
-14. 不要新建重复 IDA/Ghidra/debugger/runtime interface。
-15. 不要重写成熟工具已有的反汇编/反编译能力。
-16. 不要读取完整 solve_reports。
-17. 不要读取完整 PROJECT_PROGRESS_LOG.txt。
-18. 不要提交 full solve_reports。
-19. 不要把 task_packet.task 当执行权威。
-20. 不要把 stale/missing/unknown artifact 当 current。
-21. 不要把本轮变成 reverse_solving、训练状态同步或 runtime validation 轮。
+8. 不要把任何 compare constant 标成 confirmed formula 或 candidate source。
+9. 不要修改 local_reverse_training_status.json。
+10. 不要修改 training_materials/local_reverse/status_overlay.json。
+11. 不要把本地路径、candidate、单样本结论写入 .codex-skills。
+12. 不要新建重复 IDA/Ghidra/debugger/runtime interface。
+13. 不要重写成熟工具已有的反汇编/反编译能力。
+14. 不要读取完整 solve_reports。
+15. 不要读取完整 PROJECT_PROGRESS_LOG.txt。
+16. 不要提交 full solve_reports。
+17. 不要把 task_packet.task 当执行权威。
+18. 不要把 stale/missing/unknown artifact 当 current。
+19. 不要把本轮变成 reverse_solving、训练状态同步或 runtime validation 轮。
 ```
 
 允许：
 
 ```text
 1. 读取默认 project_state 文件。
-2. 读取与 cpp2_883e67b9 直接相关的 current project_state artifacts。
-3. 有界读取相关源码以复用现有 StructuredEvidence / project_state / artifact_index / solver profile 接口。
-4. 新增 project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json。
-5. 更新 artifact_index.json 登记新 artifact，包含真实 sha256/size_bytes。
-6. 更新 codex_execution_report.md 和 pytest_result.txt。
-7. 如确有必要，为 compare constants mapping 增加小型 schema/helper，但必须复用现有模式并有测试。
+2. 读取并修复 project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json。
+3. 更新 project_state/artifact_index.json 中该 artifact 的 sha256/size_bytes 与本轮 provenance。
+4. 更新 project_state/codex_execution_report.md 和 project_state/pytest_result.txt。
+5. 执行显式 JSON parse 校验。
+6. 如确有必要，补充小范围测试以防 artifact JSON parse regression。
 ```
 
 ---
@@ -207,37 +149,14 @@ project_state/decision_packet.md
 project_state/codex_execution_report.md
 project_state/pytest_result.txt
 .codex-skills/registry.json
-
-project_state/local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json
-project_state/local_reverse_cpp2_883e67b9_loop_semantics_mapping.json
-project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json
-project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json
-project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json
+project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json
 ```
 
-必须检查已有能力，避免重复造轮子：
+必要时检查：
 
 ```text
 reverse_agent/project_state.py
-reverse_agent/local_reverse_constraint_recovery.py
-reverse_agent/local_reverse_solver_profiles.py
-reverse_agent/local_reverse_ida_guided_solver.py
-reverse_agent/local_reverse_string_solver.py
 tests/test_project_state.py
-tests/test_local_reverse_solver_profiles.py
-tests/test_local_reverse_solver_profile_dispatch.py
-```
-
-必要时搜索：
-
-```text
-StructuredEvidence
-normalized_profile_evidence
-profile_evidence
-artifact_index
-local_reverse_cpp2_883e67b9
-compare_constants
-semantic_role
 ```
 
 不要默认读取：
@@ -260,149 +179,113 @@ Codex 报告必须回答：
 2. mainline 是否为 tool_integration？
 3. task_packet 是否仅为 advisory？
 4. 是否确认本轮不是 reverse_solving，不生成/验证 candidate？
-5. 是否确认没有运行样本、runtime validation、debugger、hook、emulator、probe、winpty？
-6. 是否确认没有调用 IDA/Ghidra 或重新读取样本二进制？
-7. 是否检查了已有 StructuredEvidence / solver profile / project_state / artifact_index 接口？
-8. 是否复用了已有接口/格式，而非新建重复框架？
-9. 是否读取并只使用 current 的 cpp2_883e67b9 source artifacts？
-10. 新 artifact 是否记录 source artifacts/source_run/freshness？
-11. 新 artifact 是否记录 10 个 compare constants 与 per-constant semantic_role_hypothesis？
-12. 新 artifact 是否避免把任何 constant 标成 confirmed_formula_constant 或 candidate source？
-13. 新 artifact 是否保持 known_compare_constant_count=0，除非有 current source artifact 支持升级？
-14. 新 artifact 是否明确 constants_mapping_status 与 recommended_next_mainline？
-15. artifact_index 是否登记新 artifact，且 freshness=current、source_run 为当前 round、sha256/size_bytes 为真实值？
-16. 是否没有修改 training_status/status_overlay？
-17. 是否没有读取 full solve_reports 或 PROJECT_PROGRESS_LOG？
-18. 是否没有修改 solver production code？如果修改了，为什么必须修改？
-19. 是否运行 py_compile？
-20. 是否运行相关 pytest？结果是多少？
-21. 是否运行 lint-decision、lint-report、project_state status？
-22. 是否运行 git diff --check、git status --short、git diff --name-status？
-23. git diff 是否只包含允许文件？
+5. 是否修复 compare_constants_mapping.json 的 JSON 语法错误？
+6. 是否用 python json.load/json.loads 成功解析该 artifact？
+7. artifact_index 中登记的 sha256 与 size_bytes 是否按修复后的文件重新计算？
+8. 是否保持 known_compare_constant_count=0？
+9. 是否保持 constants_mapping_status=MAPPED_WITH_LIMITATIONS？
+10. 是否保持 formula_recovered=false、candidate_generated=false、candidate_validation_attempted=false、runtime_validation_attempted=false？
+11. 是否没有修改 training_status/status_overlay？
+12. 是否没有运行样本、runtime validation、debugger、hook、emulator、probe、winpty？
+13. 是否没有调用 IDA/Ghidra 或重新读取样本二进制？
+14. 是否没有修改 solver production code？如果修改了，为什么必须修改？
+15. 是否运行 py_compile？
+16. 是否运行相关 pytest？结果是多少？
+17. 是否运行 lint-decision、lint-report、project_state status？
+18. 是否运行 git diff --check、git status --short、git diff --name-status？
+19. git diff 是否只包含允许文件？
 ```
 
 ---
 
 ## 6. Implementation Scope
 
-### Phase A — Inspect source artifacts only
+### Phase A — Repair artifact syntax only
 
-读取并摘要：
-
-```text
-project_state/local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json
-project_state/local_reverse_cpp2_883e67b9_loop_semantics_mapping.json
-project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json
-project_state/local_reverse_cpp2_883e67b9_targeted_static_solving.json
-project_state/local_reverse_cpp2_883e67b9_bounded_static_extraction.json
-```
-
-只使用 artifact 内已有证据，不重新跑样本、不重新跑 IDA/Ghidra、不扩张静态窗口、不读取本地二进制。
-
-### Phase B — Inspect existing interfaces
-
-有界检查：
-
-```text
-reverse_agent/project_state.py
-reverse_agent/local_reverse_constraint_recovery.py
-reverse_agent/local_reverse_solver_profiles.py
-reverse_agent/local_reverse_ida_guided_solver.py
-reverse_agent/local_reverse_string_solver.py
-```
-
-目标是复用已有 schema/字段/注册方式，不新建重复 IDA/Ghidra/debugger/runtime 接口。
-
-### Phase C — Create compare constants mapping artifact
-
-生成：
+修复：
 
 ```text
 project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json
 ```
 
-建议 schema：
+将错误字段：
 
-```json
-{
-  "schema_version": 1,
-  "mainline": "tool_integration",
-  "artifact_kind": "local_reverse_compare_constants_mapping",
-  "sample_id": "cpp2_883e67b9",
-  "relative_path": "逆向课程2024春02/CPP2.exe",
-  "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
-  "decision_id": "decision_20260608_cpp2_883e67b9_compare_constants_mapping_v1",
-  "source_artifacts": [...],
-  "identity_verified": true,
-  "assert_path_region": {
-    "start_rva": "0x5f00",
-    "end_rva_exclusive": "0x6500",
-    "focus_assert_path_rva": "0x61c3"
-  },
-  "compare_constants_source": [...],
-  "constant_semantic_mapping": [
-    {
-      "rva": "0x6077",
-      "type": "cmp_imm8",
-      "value": 1,
-      "value_hex": "0x1",
-      "nearby_loop_cluster": "loop_0x6081_0x6059",
-      "nearby_branch_sites": ["0x6081"],
-      "semantic_role_hypothesis": "control_state_flag|loop_index_or_bound|table_or_address_constant|sentinel_or_mask|algorithm_constant_candidate|unknown",
-      "confidence": "low|medium|high",
-      "candidate_formula_role": "none|pending|possible_input_transform_constant",
-      "confirmed_formula_constant": false
-    }
-  ],
-  "known_compare_constant_count": 0,
-  "constants_mapping_status": "MAPPED_WITH_LIMITATIONS",
-  "formula_recovered": false,
-  "candidate_generated": false,
-  "candidate_validation_attempted": false,
-  "runtime_validation_attempted": false,
-  "training_status_modified": false,
-  "status_overlay_modified": false,
-  "recommended_next_mainline": "tool_integration",
-  "recommended_next_action": "..."
-}
+```text
+"confirmed_formula_constant", false
 ```
 
-若 evidence 不足以 classify a constant, 使用 `semantic_role_hypothesis=unknown`、`confidence=low`、`candidate_formula_role=none`。
+改为：
 
-### Phase D — Update artifact_index and report
+```text
+"confirmed_formula_constant": false
+```
+
+不要改变语义分类，不要新增 candidate，不要把任何常量升级为 confirmed。
+
+### Phase B — Validate artifact parse
+
+必须运行：
+
+```text
+.venv\Scripts\python -c "import json; json.load(open('project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json', encoding='utf-8'))"
+```
+
+如果失败，立即停止。
+
+### Phase C — Update artifact_index provenance
+
+修复 artifact 后，重新计算：
+
+```text
+sha256
+size_bytes
+```
 
 更新：
 
 ```text
 project_state/artifact_index.json
-project_state/codex_execution_report.md
-project_state/pytest_result.txt
 ```
 
-artifact_index 必须加入：
+目标 entry：
 
 ```text
-local_reverse_cpp2_883e67b9_compare_constants_mapping
+latest_artifacts_v2.local_reverse_cpp2_883e67b9_compare_constants_mapping
 ```
 
-并在 latest_artifacts、latest_artifacts_v2、artifact_refs 中登记。latest_artifacts_v2 必须包含：
+必须保持：
 
 ```text
 kind=local_reverse_compare_constants_mapping
 path=project_state\local_reverse_cpp2_883e67b9_compare_constants_mapping.json
 freshness=current
-source_run=round_20260608_cpp2_883e67b9_compare_constants_mapping_v1
+source_run=round_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1
 sample_id=cpp2_883e67b9
 relative_path=逆向课程2024春02/CPP2.exe
-sha256=<真实值>
-size_bytes=<真实值>
-constants_mapping_status=MAPPED_WITH_LIMITATIONS|BLOCKED
+constants_mapping_status=MAPPED_WITH_LIMITATIONS
 known_compare_constant_count=0
 candidate_generated=false
 candidate_validation_attempted=false
 runtime_validation_attempted=false
 training_status_modified=false
 status_overlay_modified=false
+```
+
+### Phase D — Update report and pytest record
+
+更新：
+
+```text
+project_state/codex_execution_report.md
+project_state/pytest_result.txt
+```
+
+必须绑定：
+
+```text
+report_id=report_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1
+round_id=round_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1
+decision_id=decision_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1
 ```
 
 ---
@@ -412,6 +295,7 @@ status_overlay_modified=false
 必须运行并记录：
 
 ```text
+.venv\Scripts\python -c "import json; json.load(open('project_state/local_reverse_cpp2_883e67b9_compare_constants_mapping.json', encoding='utf-8'))"
 .venv\Scripts\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py
 .venv\Scripts\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py
 .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
@@ -432,17 +316,16 @@ git diff --name-status
 
 ```text
 1. decision_packet meta 缺失、不合法，或 active skill profile 不存在。
-2. 任一 required source artifact 缺失、stale、unknown，或 sample identity 不匹配。
-3. 需要运行样本、runtime validation、debugger、hook、emulator、probe、winpty、IDA/Ghidra 才能完成本轮。
-4. 需要读取完整 solve_reports 或 PROJECT_PROGRESS_LOG。
-5. 需要修改 local_reverse_training_status.json 或 status_overlay.json。
-6. 需要生成或验证 candidate。
-7. 需要扩大静态窗口、预算、枚举空间或重新做二进制分析。
-8. 需要新建重复 IDA/Ghidra/debugger/runtime interface。
+2. compare_constants_mapping.json 修复后仍不能被 json.load 解析。
+3. artifact_index 无法登记修复后 artifact 的 current provenance、真实 sha256 或真实 size_bytes。
+4. 需要运行样本、runtime validation、debugger、hook、emulator、probe、winpty、IDA/Ghidra 才能完成本轮。
+5. 需要读取完整 solve_reports 或 PROJECT_PROGRESS_LOG。
+6. 需要修改 local_reverse_training_status.json 或 status_overlay.json。
+7. 需要生成或验证 candidate。
+8. 需要扩大静态窗口、预算、枚举空间或重新做二进制分析。
 9. 新 artifact 把任何 constant 标为 confirmed formula / candidate source，但没有 current source artifact 支持。
-10. artifact_index 无法登记新 artifact 的 current provenance、真实 sha256 或真实 size_bytes。
-11. lint-report/status 无法通过。
-12. git diff 包含允许范围外文件且报告没有充分理由。
+10. lint-report/status 无法通过。
+11. git diff 包含允许范围外文件且报告没有充分理由。
 ```
 
-完成后不要继续 reverse_solving。若 constants_mapping_status 为 MAPPED_WITH_LIMITATIONS 且仍推荐 tool_integration，下一轮优先做 input length evidence recovery；若 BLOCKED，下一轮先修证据源一致性。
+完成后不要继续 reverse_solving。若 JSON 修复成功且 constants_mapping_status 仍为 MAPPED_WITH_LIMITATIONS，下一轮再考虑 input length evidence recovery。
