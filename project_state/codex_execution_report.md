@@ -1,12 +1,12 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
-  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_projection_provenance_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_projection_provenance_rework_v1",
+  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_projection_provenance_rework_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
-  "mainline": "tool_integration",
+  "mainline": "engineering_branch",
   "sample_id": "cpp2_883e67b9",
   "candidate_generated": false,
   "candidate_validation_attempted": false,
@@ -16,22 +16,22 @@
   "training_status_modified": false,
   "status_overlay_modified": false,
   "files_changed": [
-    "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt",
     "project_state/artifact_index.json",
-    "project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json"
+    "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt"
   ],
   "tests_ran": [
-    ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py",
-    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
+    ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py",
+    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
   ],
-  "generated_artifacts": [
+  "generated_artifacts": [],
+  "referenced_artifacts": [
     "project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json"
   ]
 }
@@ -42,83 +42,56 @@
 ## 1. Decision Authority Check
 
 - [x] decision_packet 是唯一执行权威
-- [x] mainline 为 tool_integration
+- [x] mainline 为 engineering_branch
 - [x] task_packet 仅为 advisory
-- [x] 确认本轮不是 reverse_solving，不生成/验证 candidate
+- [x] 本轮只修 artifact provenance / report / test record，不改 projection 内容、不改 solver、不推进样本求解
 - [x] 确认没有运行样本、runtime validation、debugger、hook、emulator、probe、winpty
 - [x] 确认没有调用 IDA/Ghidra 或重新读取样本二进制
-- [x] 检查了已有 StructuredEvidence / solver profile / project_state / artifact_index 接口
-- [x] 复用了已有接口/格式，未新建重复框架
-- [x] 读取并只使用 current 的 cpp2_883e67b9 source artifacts
-- [x] 新 artifact 记录 source artifacts/source_run/freshness
-- [x] 新 artifact 记录 identity_verified 与 sha256/size 事实
-- [x] 新 artifact 区分可结构化证据和证据缺口
-- [x] 新 artifact 明确 solver_profile_readiness 与 recommended_next_mainline
-- [x] artifact_index 登记新 artifact，freshness=current、source_run 为当前 round
-- [x] 没有修改 training_status/status_overlay
-- [x] 没有读取 full solve_reports 或 PROJECT_PROGRESS_LOG
 - [x] 没有修改 solver production code
-- [x] 运行 py_compile
-- [x] 运行相关 pytest
-- [x] 运行 lint-decision、lint-report、project_state status
+- [x] 没有修改 tests
+- [x] 没有修改 local_reverse_training_status.json
+- [x] 没有修改 training_materials/local_reverse/status_overlay.json
+- [x] 没有读取 full solve_reports 或 PROJECT_PROGRESS_LOG
+- [x] 运行 lint-decision
+- [x] 运行 lint-report
+- [x] 运行 project_state status
 - [x] 运行 git diff --check、git status --short、git diff --name-status
 - [x] git diff 只包含允许文件
 
-## 2. Source Artifacts Audited
+## 2. Artifact Provenance Fix
 
-读取并审计了以下 current artifacts：
+### 计算结果
 
-| Artifact | Status | Identity Verified |
-|----------|--------|-------------------|
-| local_reverse_cpp2_883e67b9_bounded_static_triage_readiness | READY | true |
-| local_reverse_cpp2_883e67b9_bounded_static_extraction | SUCCESS | true |
-| local_reverse_cpp2_883e67b9_targeted_static_solving | PARTIAL | true |
-| local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction | PARTIAL | true |
+对 `project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json` 计算真实 provenance：
 
-所有 source artifacts 均为 current，identity 一致，sample_id=cpp2_883e67b9。
+| 字段 | 旧值 | 新值 |
+|------|------|------|
+| sha256 | "" | `c5e7497de490be4944880908bec8b42e761a5fa4b6831e1aa9763899d9312f62` |
+| size_bytes | 0 | 11835 |
 
-## 3. Existing Interfaces Checked
+### 更新内容
 
-检查了以下已有接口：
+- `project_state/artifact_index.json` 中 `latest_artifacts_v2.local_reverse_cpp2_883e67b9_structured_evidence_projection` 的 sha256 和 size_bytes 已更新为真实值。
+- 其他字段保持不变：
+  - kind=local_reverse_structured_evidence_projection
+  - path=project_state\local_reverse_cpp2_883e67b9_structured_evidence_projection.json
+  - freshness=current
+  - source_run=round_20260608_cpp2_883e67b9_structured_evidence_projection_v1（artifact 内容未变，仅修正 index provenance）
+  - sample_id=cpp2_883e67b9
+  - relative_path=逆向课程2024春02/CPP2.exe
+  - projection_status=READY_WITH_LIMITATIONS
+  - candidate_generated=false
+  - candidate_validation_attempted=false
+  - runtime_validation_attempted=false
+  - training_status_modified=false
+  - status_overlay_modified=false
 
-- `reverse_agent/project_state.py` — artifact_index 注册约定、IMPORTANT_ARTIFACTS、LATEST_ARTIFACT_KEYS
-- `reverse_agent/local_reverse_solver_profiles.py` — SolverProfileResult、ProfileNormalizedEvidence、SUPPORTED_NORMALIZED_PROFILES
-- `reverse_agent/local_reverse_constraint_recovery.py` — 约束恢复接口（未修改）
-- `reverse_agent/local_reverse_ida_guided_solver.py` — IDA solver 接口（未修改）
-- `reverse_agent/local_reverse_string_solver.py` — 字符串 solver 接口（未修改）
+### 内容一致性确认
 
-结论：已有接口足以表达 projection schema，无需修改 production code。
+- projection artifact 文件内容未被修改。
+- artifact_index 中 latest_artifacts 与 artifact_refs 仍指向同一 artifact path。
 
-## 4. New Artifact Summary
-
-生成：`project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json`
-
-Schema 包含：
-- identity（sha256、size、identity_verified）
-- source_artifacts（4 个 source artifact 的 provenance）
-- source_status（各 source artifact 的状态摘要）
-- structured_evidence（pe_mapping、string_anchors、bounded_regions、branch_summary、compare_constants）
-- evidence_gaps（7 个明确缺口，含 severity 和 blocks 字段）
-- solver_profile_readiness = READY_WITH_LIMITATIONS
-- recommended_next_mainline = tool_integration
-- candidate_generated = false
-- runtime_validation_attempted = false
-- training_status_modified = false
-- status_overlay_modified = false
-
-## 5. Tests
-
-### py_compile
-```
-.venv\Scripts\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py
-```
-结果：PASS（无语法错误）
-
-### pytest
-```
-.venv\Scripts\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py
-```
-结果：见 pytest_result.txt
+## 3. Tests
 
 ### lint-decision
 ```
@@ -138,6 +111,18 @@ Schema 包含：
 ```
 结果：PASS
 
+### py_compile
+```
+.venv\Scripts\python -m py_compile reverse_agent/project_state.py
+```
+结果：PASS（无语法错误）
+
+### pytest
+```
+.venv\Scripts\python -m pytest -q tests/test_project_state.py
+```
+结果：PASS
+
 ### git checks
 ```
 git diff --check -> PASS
@@ -145,12 +130,11 @@ git status --short -> (recorded)
 git diff --name-status -> (recorded)
 ```
 
-## 6. Stop Conditions
+## 4. Stop Conditions
 
-无停止条件触发。所有 required source artifacts 存在且为 current，identity 匹配，无需运行样本或调用 IDA/Ghidra/debugger/runtime。
+无停止条件触发。sha256 和 size_bytes 已更新为真实值，artifact_index 与实际 artifact 文件一致，未修改 solver/tests/training status/status overlay，git diff 只包含允许文件。
 
-## 7. Next Steps
+## 5. Next Steps
 
-- 本轮 projection 为 READY_WITH_LIMITATIONS，推荐下一轮继续 tool_integration
-- 若后续能补全 compare constants 的语义映射并恢复完整公式，可再决策是否进入 reverse_solving
-- 不推进 candidate generation 或 runtime validation，直到 evidence gaps 显著缩小
+- 本轮 provenance rework 完成，artifact_index 中该 artifact 的 provenance 现已可核验。
+- 不推进 candidate generation 或 runtime validation，不进入 reverse_solving。

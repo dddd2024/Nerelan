@@ -1,17 +1,17 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
-  "report_id": "report_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
-  "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
-  "generated_at": "2026-06-08T04:50:00Z",
+  "decision_id": "decision_20260608_cpp2_883e67b9_projection_provenance_rework_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_projection_provenance_rework_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_projection_provenance_rework_v1",
+  "generated_at": "2026-06-08T05:00:00Z",
   "status": "PASSED",
   "tests_ran": [
-    ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py",
-    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
+    ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py",
+    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
@@ -19,30 +19,29 @@
 }
 ```
 
-decision_id=decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1
-report_id=report_20260608_cpp2_883e67b9_structured_evidence_projection_v1
-round_id=round_20260608_cpp2_883e67b9_structured_evidence_projection_v1
+decision_id=decision_20260608_cpp2_883e67b9_projection_provenance_rework_v1
+report_id=report_20260608_cpp2_883e67b9_projection_provenance_rework_v1
+round_id=round_20260608_cpp2_883e67b9_projection_provenance_rework_v1
 status=PASSED
 
-py_compile: PASS
-pytest: PASS (see output below)
 lint-decision: PASS
 lint-report: PASS
 project_state status: PASS
-
+py_compile: PASS
+pytest: PASS (see output below)
 git diff --check: PASS
 
 commands_executed:
-1. .venv\Scripts\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py -> PASS
-2. .venv\Scripts\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py -> PASS
-3. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state -> PASS
-4. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state -> PASS
-5. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state -> PASS
+1. .venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state -> PASS
+2. .venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state -> PASS
+3. .venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state -> PASS
+4. .venv\Scripts\python -m py_compile reverse_agent/project_state.py -> PASS
+5. .venv\Scripts\python -m pytest -q tests/test_project_state.py -> PASS
 6. git diff --check -> PASS
 7. git status --short -> (recorded after all changes)
 8. git diff --name-status -> (recorded after all changes)
 
 notes:
-- No production code modified; only new artifact and artifact_index updates.
-- All source artifacts verified as current with matching identity.
-- New artifact local_reverse_cpp2_883e67b9_structured_evidence_projection.json registered in artifact_index with freshness=current.
+- No production code modified; only artifact_index provenance fix and report/test record updates.
+- Artifact local_reverse_cpp2_883e67b9_structured_evidence_projection.json content unchanged.
+- sha256 and size_bytes in artifact_index updated to real values for current artifact.
