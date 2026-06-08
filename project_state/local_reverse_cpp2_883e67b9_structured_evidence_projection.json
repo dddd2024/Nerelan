@@ -1,0 +1,237 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "artifact_kind": "local_reverse_structured_evidence_projection",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+  "generated_at": "2026-06-08T04:50:00Z",
+  "identity": {
+    "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "actual_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "expected_size_bytes": 196689,
+    "actual_size_bytes": 196689,
+    "identity_verified": true
+  },
+  "source_artifacts": [
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_static_triage_readiness",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_triage_readiness.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
+      "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_triage_readiness_v1",
+      "status": "READY",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_static_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "decision_id": "decision_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
+      "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "decision_id": "decision_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "status": "PARTIAL",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+      "decision_id": "decision_20260607_cpp2_883e67b9_bounded_loop_evidence_extraction_v1",
+      "status": "PARTIAL",
+      "identity_verified": true
+    }
+  ],
+  "source_status": {
+    "bounded_static_triage_readiness": "READY",
+    "bounded_static_extraction": "SUCCESS",
+    "targeted_static_solving": "PARTIAL",
+    "bounded_loop_evidence_extraction": "PARTIAL"
+  },
+  "structured_evidence": {
+    "pe_mapping": {
+      "file_type": "PE32",
+      "architecture": "i386",
+      "bitness": 32,
+      "image_base": "0x400000",
+      "entry_point_rva": "0x1c10",
+      "num_sections": 5,
+      "sections": [
+        {"name": ".text", "vaddr": "0x1000", "vsize": "0x25b20", "rawptr": "0x400", "rawsize": "0x26000", "executable": true},
+        {"name": ".rdata", "vaddr": "0x27000", "vsize": "0x1667", "rawptr": "0x26400", "rawsize": "0x2000", "executable": false},
+        {"name": ".data", "vaddr": "0x29000", "vsize": "0x5764", "rawptr": "0x28400", "rawsize": "0x4000", "executable": false},
+        {"name": ".idata", "vaddr": "0x2f000", "vsize": "0x851", "rawptr": "0x2c400", "rawsize": "0x1000", "executable": false},
+        {"name": ".reloc", "vaddr": "0x30000", "vsize": "0x10af", "rawptr": "0x2d400", "rawsize": "0x2000", "executable": false}
+      ],
+      "import_table_present": false,
+      "note": "Statically linked CRT"
+    },
+    "string_anchors": [
+      {"string": "Please input your flag:", "category": "input_prompt", "rva": "0x2702c", "va": "0x42702c", "section": ".rdata", "direct_push_ref_rva": "0x10ad"},
+      {"string": "--- Sorry, but try it again! ---", "category": "failure_message", "rva": "0x27069", "va": "0x427069", "section": ".rdata", "direct_push_ref_rva": null},
+      {"string": "flag == 0 || flag == 1", "category": "debug_assert", "rva": "0x27c44", "va": "0x427c44", "section": ".rdata", "direct_push_ref_rva": "0x61c3"},
+      {"string": "You are wrong in the initial phase!", "category": "initial_phase_failure", "rva": "0x281e8", "va": "0x4281e8", "section": ".rdata", "direct_push_ref_rva": "0x10e6"}
+    ],
+    "bounded_regions": [
+      {
+        "region_id": "prompt_path",
+        "anchor_string": "Please input your flag:",
+        "anchor_ref_va": "0x4010ad",
+        "anchor_rva": "0x10ad",
+        "window_rva_start": "0x1000",
+        "window_rva_end": "0x1500",
+        "window_size": 1280,
+        "semantic_hypothesis": "input_prompt_and_initial_setup_path",
+        "constants_count": 5,
+        "call_patterns_count": 7,
+        "jcc_patterns_count": 22
+      },
+      {
+        "region_id": "failure_path",
+        "anchor_string": "You are wrong in the initial phase!",
+        "anchor_ref_va": "0x4010e6",
+        "anchor_rva": "0x10e6",
+        "window_rva_start": "0x1000",
+        "window_rva_end": "0x1500",
+        "window_size": 1280,
+        "semantic_hypothesis": "initial_phase_failure_handler",
+        "constants_count": 5,
+        "call_patterns_count": 7,
+        "jcc_patterns_count": 22
+      },
+      {
+        "region_id": "assert_path_local_loop_window",
+        "anchor_string": "flag == 0 || flag == 1",
+        "anchor_ref_va": "0x4061c3",
+        "anchor_rva": "0x61c3",
+        "section": ".text",
+        "start_rva": "0x5f00",
+        "end_rva_exclusive": "0x6500",
+        "window_size": 1536,
+        "semantic_hypothesis": "main_comparison_logic_with_loops_and_constant_checks",
+        "instruction_count_scanned": 798,
+        "interesting_instruction_count": 300,
+        "branch_count": 65,
+        "backward_branch_count": 5
+      }
+    ],
+    "branch_summary": {
+      "total_branches_in_assert_path": 65,
+      "backward_branches": 5,
+      "backward_branch_sites": [
+        {"rva": "0x6040", "mnemonic": "jmp", "target_rva": "0x6014", "span_rva": "0x2c", "expected_focus_site": false},
+        {"rva": "0x6081", "mnemonic": "jnz", "target_rva": "0x6059", "span_rva": "0x28", "expected_focus_site": true},
+        {"rva": "0x61e8", "mnemonic": "jnz", "target_rva": "0x61b7", "span_rva": "0x31", "expected_focus_site": true},
+        {"rva": "0x6390", "mnemonic": "jnz", "target_rva": "0x6376", "span_rva": "0x1a", "expected_focus_site": false},
+        {"rva": "0x647d", "mnemonic": "jmp", "target_rva": "0x62bb", "span_rva": "0x1c2", "expected_focus_site": false}
+      ],
+      "focus_backward_sites_observed": ["0x6081", "0x61e8"],
+      "focus_backward_sites_missing_from_annotation": ["0x5f68", "0x60a4", "0x60b6"]
+    },
+    "compare_constants": {
+      "known_compare_constant_count": 0,
+      "cmp_test_count": 11,
+      "assert_path_constants": [
+        {"type": "cmp_al_imm8", "rva": "0x5f38", "value": 194, "value_hex": "0xc2"},
+        {"type": "cmp_imm8", "rva": "0x6077", "value": 1, "value_hex": "0x1"},
+        {"type": "cmp_al_imm8", "rva": "0x60f7", "value": 141, "value_hex": "0x8d"},
+        {"type": "cmp_al_imm8", "rva": "0x6124", "value": 133, "value_hex": "0x85"},
+        {"type": "cmp_imm32", "rva": "0x618f", "value": "0x1102", "value_hex": "0x1102"},
+        {"type": "cmp_imm8", "rva": "0x61de", "value": 1, "value_hex": "0x1"},
+        {"type": "cmp_imm32", "rva": "0x629f", "value": "0x10c", "value_hex": "0x10c"},
+        {"type": "cmp_imm32", "rva": "0x62cb", "value": "0x108", "value_hex": "0x108"},
+        {"type": "cmp_imm8", "rva": "0x6438", "value": 255, "value_hex": "0xff"},
+        {"type": "cmp_imm32", "rva": "0x64e5", "value": "0x100", "value_hex": "0x100"}
+      ],
+      "note": "Constants exist but are not yet mapped to a known comparison algorithm or expected input table. No complete formula recovered."
+    }
+  },
+  "evidence_gaps": [
+    {
+      "gap_id": "structured_evidence_ready_false",
+      "description": "Source artifacts report structured_evidence_ready=false. Bounded annotation only; no capstone/pefile disassembly.",
+      "severity": "medium",
+      "blocks": "complete_formula_recovery"
+    },
+    {
+      "gap_id": "known_compare_constant_count_zero",
+      "description": "Compare constants exist in assert_path but are not classified as 'known' because their semantic role in the comparison algorithm is not yet determined.",
+      "severity": "medium",
+      "blocks": "solver_profile_normalization"
+    },
+    {
+      "gap_id": "candidate_generated_false",
+      "description": "No candidate string or formula has been generated or validated.",
+      "severity": "high",
+      "blocks": "reverse_solving"
+    },
+    {
+      "gap_id": "no_complete_formula_recovered",
+      "description": "Targeted static solving reports no_complete_formula_recovered=true. Multi-phase loop comparison logic not fully reconstructed.",
+      "severity": "high",
+      "blocks": "reverse_solving"
+    },
+    {
+      "gap_id": "sorry_string_no_refs",
+      "description": "Failure message '--- Sorry, but try it again! ---' has no direct or indirect push refs found in .text.",
+      "severity": "low",
+      "blocks": "none"
+    },
+    {
+      "gap_id": "input_length_unknown",
+      "description": "No obvious input length check found in bounded windows. Length may be determined by null-termination or comparison loop.",
+      "severity": "medium",
+      "blocks": "candidate_construction"
+    },
+    {
+      "gap_id": "missing_backward_sites_in_annotation",
+      "description": "Expected backward jump sites 0x5f68, 0x60a4, 0x60b6 were not decoded as backward branches by bounded annotator.",
+      "severity": "low",
+      "blocks": "none"
+    }
+  ],
+  "solver_profile_readiness": "READY_WITH_LIMITATIONS",
+  "solver_profile_readiness_reason": "Bounded static evidence is sufficient to identify the assert_path region (0x5f00-0x6500) as the primary comparison logic with loops and constant checks. However, no complete formula or candidate has been recovered, and compare constants are not yet semantically mapped. A solver dispatch can consume this projection to decide whether to attempt deeper static reconstruction or runtime validation.",
+  "recommended_next_mainline": "tool_integration",
+  "recommended_next_mainline_reason": "Evidence gaps (no complete formula, candidate_generated=false, known_compare_constant_count=0) indicate reverse_solving would likely fail or require blind search. Next step should continue tool_integration to close gaps: either deeper bounded static reconstruction of assert_path loop semantics, or preparation for runtime probe with known comparison constants.",
+  "challenge_type_inferred": "multi_phase_console_password_checker_with_loop_comparison",
+  "similarity_to_cpp2_32f1713e": "high_same_course_same_name_similar_strings_different_logic",
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "candidate_validated": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_ida": false,
+  "ran_ghidra": false,
+  "ran_debugger": false,
+  "ran_hook": false,
+  "ran_emulator": false,
+  "ran_probe": false,
+  "ran_bruteforce": false,
+  "ran_dictionary_search": false,
+  "uploaded_binary": false,
+  "helpers_or_tools_used": [
+    "python_stdlib_pe_parser",
+    "bounded_strings_extractor",
+    "push_imm32_xref_searcher",
+    "bounded_static_window_analysis",
+    "local_reverse_xref_disassembly_patterns",
+    "bounded_x86_byte_window_annotation",
+    "StructuredEvidence_lightweight_schema_reviewed"
+  ],
+  "optional_dependencies": {
+    "capstone_available": false,
+    "pefile_available": false
+  }
+}

@@ -1,13 +1,13 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1",
-  "round_id": "round_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1",
-  "based_on_decision_id": "decision_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1",
+  "report_id": "report_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+  "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+  "based_on_decision_id": "decision_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
-  "mainline": "engineering_branch",
-  "sample_id": "multi_solved_profile_dispatch_artifact_index_files_changed_rework",
+  "mainline": "tool_integration",
+  "sample_id": "cpp2_883e67b9",
   "candidate_generated": false,
   "candidate_validation_attempted": false,
   "runtime_validation_attempted": false,
@@ -19,10 +19,11 @@
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
     "project_state/artifact_index.json",
-    "project_state/local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
-    "project_state/local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json"
+    "project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json"
   ],
   "tests_ran": [
+    ".venv\\Scripts\\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py",
+    ".venv\\Scripts\\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-decision --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state lint-report --state-dir project_state",
     ".venv\\Scripts\\python -m reverse_agent.project_state status --state-dir project_state",
@@ -31,8 +32,7 @@
     "git diff --name-status"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_solver_profile_dispatch_guardrails_report_rework_audit.json",
-    "project_state/local_reverse_solver_profile_dispatch_report_consistency_rework_audit.json"
+    "project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json"
   ]
 }
 ```
@@ -42,74 +42,115 @@
 ## 1. Decision Authority Check
 
 - [x] decision_packet 是唯一执行权威
-- [x] mainline 为 engineering_branch
+- [x] mainline 为 tool_integration
 - [x] task_packet 仅为 advisory
-- [x] 确认本轮不是 reverse_solving，不解新题
-- [x] 确认未推进 cpp2_883e67b9
-- [x] 确认本轮只修 report metadata / files_changed / pytest_result
+- [x] 确认本轮不是 reverse_solving，不生成/验证 candidate
+- [x] 确认没有运行样本、runtime validation、debugger、hook、emulator、probe、winpty
+- [x] 确认没有调用 IDA/Ghidra 或重新读取样本二进制
+- [x] 检查了已有 StructuredEvidence / solver profile / project_state / artifact_index 接口
+- [x] 复用了已有接口/格式，未新建重复框架
+- [x] 读取并只使用 current 的 cpp2_883e67b9 source artifacts
+- [x] 新 artifact 记录 source artifacts/source_run/freshness
+- [x] 新 artifact 记录 identity_verified 与 sha256/size 事实
+- [x] 新 artifact 区分可结构化证据和证据缺口
+- [x] 新 artifact 明确 solver_profile_readiness 与 recommended_next_mainline
+- [x] artifact_index 登记新 artifact，freshness=current、source_run 为当前 round
+- [x] 没有修改 training_status/status_overlay
+- [x] 没有读取 full solve_reports 或 PROJECT_PROGRESS_LOG
+- [x] 没有修改 solver production code
+- [x] 运行 py_compile
+- [x] 运行相关 pytest
+- [x] 运行 lint-decision、lint-report、project_state status
+- [x] 运行 git diff --check、git status --short、git diff --name-status
+- [x] git diff 只包含允许文件
 
-## 2. Previous Round Baseline
+## 2. Source Artifacts Audited
 
-- [x] 上一轮 report: report_20260608_solver_profile_dispatch_files_changed_rework_v1
-- [x] 上一轮 round: round_20260608_solver_profile_dispatch_files_changed_rework_v1
-- [x] 上一轮 decision: decision_20260608_solver_profile_dispatch_files_changed_rework_v1
-- [x] 审计结论: REWORK_REQUIRED（codex_report_summary.files_changed 漏列 project_state/artifact_index.json）
+读取并审计了以下 current artifacts：
 
-## 3. Issues Repaired
+| Artifact | Status | Identity Verified |
+|----------|--------|-------------------|
+| local_reverse_cpp2_883e67b9_bounded_static_triage_readiness | READY | true |
+| local_reverse_cpp2_883e67b9_bounded_static_extraction | SUCCESS | true |
+| local_reverse_cpp2_883e67b9_targeted_static_solving | PARTIAL | true |
+| local_reverse_cpp2_883e67b9_bounded_loop_evidence_extraction | PARTIAL | true |
 
-### Issue 1 — codex_report_summary.files_changed 漏列 artifact_index.json
+所有 source artifacts 均为 current，identity 一致，sample_id=cpp2_883e67b9。
 
-- **问题**: 上一轮 `files_changed` 已包含两个 rework audit artifact，但漏列了 `project_state/artifact_index.json`。
-- **修复**: `files_changed` 现在包含 `project_state/artifact_index.json`，并保留两个 rework audit artifact。`artifact_index.json` 是上一轮已修改/当前审计要求列入的路径，本轮未修改该文件本体。
+## 3. Existing Interfaces Checked
 
-### Issue 2 — report identity 未切到当前 artifact_index_files_changed_rework
+检查了以下已有接口：
 
-- **问题**: 现有 report_id/round_id/based_on_decision_id 仍绑定 `files_changed_rework`，而当前 approved decision 是 `artifact_index_files_changed_rework`。
-- **修复**: 所有 identity 已更新为当前 `artifact_index_files_changed_rework`。
+- `reverse_agent/project_state.py` — artifact_index 注册约定、IMPORTANT_ARTIFACTS、LATEST_ARTIFACT_KEYS
+- `reverse_agent/local_reverse_solver_profiles.py` — SolverProfileResult、ProfileNormalizedEvidence、SUPPORTED_NORMALIZED_PROFILES
+- `reverse_agent/local_reverse_constraint_recovery.py` — 约束恢复接口（未修改）
+- `reverse_agent/local_reverse_ida_guided_solver.py` — IDA solver 接口（未修改）
+- `reverse_agent/local_reverse_string_solver.py` — 字符串 solver 接口（未修改）
 
-## 4. Required Audit Answers
+结论：已有接口足以表达 projection schema，无需修改 production code。
 
-| # | Question | Answer |
-|---|----------|--------|
-| 1 | decision_packet 是否是唯一执行权威？ | YES |
-| 2 | mainline 是否为 engineering_branch？ | YES |
-| 3 | task_packet 是否仅为 advisory？ | YES |
-| 4 | 是否确认本轮不是 reverse_solving，不解新题？ | YES |
-| 5 | 是否确认未推进 cpp2_883e67b9？ | YES |
-| 6 | 是否只修 codex_execution_report / pytest_result？ | YES |
-| 7 | codex_report_summary.files_changed 是否已包含 project_state/artifact_index.json？ | YES |
-| 8 | files_changed 是否仍包含两个 rework audit artifact？ | YES |
-| 9 | generated_artifacts 是否仍保留两个 rework artifact？ | YES |
-| 10 | pytest_result 是否绑定当前 artifact_index_files_changed_rework identity？ | YES |
-| 11 | 是否重新运行 lint-decision？ | YES，PASS |
-| 12 | 是否重新运行 lint-report？ | YES，PASS |
-| 13 | 是否重新运行 project_state status？ | YES，PASS |
-| 14 | 是否重新运行 git diff --check？ | YES，PASS |
-| 15 | 是否记录 git status --short 和 git diff --name-status？ | YES |
-| 16 | 是否没有运行样本、IDA/Ghidra、debugger、hook、probe、winpty？ | YES |
-| 17 | 是否没有修改 solver / tests / training status / status overlay / artifact_index？ | YES |
-| 18 | git diff 是否只包含允许文件？ | YES |
+## 4. New Artifact Summary
 
-## 5. Test Results
+生成：`project_state/local_reverse_cpp2_883e67b9_structured_evidence_projection.json`
 
+Schema 包含：
+- identity（sha256、size、identity_verified）
+- source_artifacts（4 个 source artifact 的 provenance）
+- source_status（各 source artifact 的状态摘要）
+- structured_evidence（pe_mapping、string_anchors、bounded_regions、branch_summary、compare_constants）
+- evidence_gaps（7 个明确缺口，含 severity 和 blocks 字段）
+- solver_profile_readiness = READY_WITH_LIMITATIONS
+- recommended_next_mainline = tool_integration
+- candidate_generated = false
+- runtime_validation_attempted = false
+- training_status_modified = false
+- status_overlay_modified = false
+
+## 5. Tests
+
+### py_compile
 ```
-lint-decision: PASS (decision_id=decision_20260608_solver_profile_dispatch_artifact_index_files_changed_rework_v1)
-lint-report: PASS (after report update with current artifact_index_files_changed_rework identity)
-project_state status: PASS
-git diff --check: PASS
-git status --short: recorded
-git diff --name-status: recorded
+.venv\Scripts\python -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_constraint_recovery.py reverse_agent/local_reverse_solver_profiles.py
+```
+结果：PASS（无语法错误）
+
+### pytest
+```
+.venv\Scripts\python -m pytest -q tests/test_project_state.py tests/test_local_reverse_solver_profiles.py tests/test_local_reverse_solver_profile_dispatch.py
+```
+结果：见 pytest_result.txt
+
+### lint-decision
+```
+.venv\Scripts\python -m reverse_agent.project_state lint-decision --state-dir project_state
+```
+结果：PASS
+
+### lint-report
+```
+.venv\Scripts\python -m reverse_agent.project_state lint-report --state-dir project_state
+```
+结果：PASS
+
+### project_state status
+```
+.venv\Scripts\python -m reverse_agent.project_state status --state-dir project_state
+```
+结果：PASS
+
+### git checks
+```
+git diff --check -> PASS
+git status --short -> (recorded)
+git diff --name-status -> (recorded)
 ```
 
-## 6. Lint / Status Checks
+## 6. Stop Conditions
 
-- lint-decision: PASS
-- lint-report: PASS（更新报告 identity 和 files_changed 后重新验证通过）
-- project_state status: PASS
-- git diff --check: PASS
-- git status --short: recorded
-- git diff --name-status: recorded
+无停止条件触发。所有 required source artifacts 存在且为 current，identity 匹配，无需运行样本或调用 IDA/Ghidra/debugger/runtime。
 
-## 7. Next Recommended Action
+## 7. Next Steps
 
-停止本轮，不继续下一轮样本求解。
+- 本轮 projection 为 READY_WITH_LIMITATIONS，推荐下一轮继续 tool_integration
+- 若后续能补全 compare constants 的语义映射并恢复完整公式，可再决策是否进入 reverse_solving
+- 不推进 candidate generation 或 runtime validation，直到 evidence gaps 显著缩小
