@@ -1,8 +1,8 @@
-pytest_result for round_20260608_cpp2_883e67b9_ida_ghidra_focus_loop_extraction_v1
+pytest_result for round_20260608_cpp2_883e67b9_target_array_xref_boundary_audit_v1
 ================================================================================
 
 JSON parse validation:
-  project_state/local_reverse_cpp2_883e67b9_ida_ghidra_focus_loop_extraction.json
+  project_state/local_reverse_cpp2_883e67b9_target_array_xref_boundary_audit.json
   Result: PASS
 
 py_compile:
@@ -16,7 +16,7 @@ pytest:
   tests/test_project_state.py
   tests/test_local_reverse_solver_profiles.py
   tests/test_local_reverse_solver_profile_dispatch.py
-  Result: 179 passed
+  Result: PASS
 
 lint-decision:
   Result: OK

@@ -1,0 +1,352 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "artifact_kind": "local_reverse_target_array_xref_boundary_audit",
+  "sample_id": "cpp2_883e67b9",
+  "relative_path": "逆向课程2024春02/CPP2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2024春02\\CPP2.exe",
+  "round_id": "round_20260608_cpp2_883e67b9_target_array_xref_boundary_audit_v1",
+  "decision_id": "decision_20260608_cpp2_883e67b9_target_array_xref_boundary_audit_v1",
+  "generated_at": "2026-06-08T08:30:00Z",
+  "identity": {
+    "expected_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "actual_sha256": "883e67b92321ce10780e5a80f431a5784e9d91bcfb19642798c57e07006299e8",
+    "expected_size_bytes": 196689,
+    "actual_size_bytes": 196689,
+    "identity_verified": true
+  },
+  "source_artifacts": [
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_ida_ghidra_focus_loop_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_ida_ghidra_focus_loop_extraction.json",
+      "round_id": "round_20260608_cpp2_883e67b9_ida_ghidra_focus_loop_extraction_v1",
+      "status": "ACCEPTED_WITH_LIMITATIONS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_formula_readiness_audit",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_formula_readiness_audit.json",
+      "round_id": "round_20260608_cpp2_883e67b9_formula_readiness_audit_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_input_length_evidence_recovery",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_input_length_evidence_recovery.json",
+      "round_id": "round_20260608_cpp2_883e67b9_input_length_evidence_recovery_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_compare_constants_mapping",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_compare_constants_mapping.json",
+      "round_id": "round_20260608_cpp2_883e67b9_compare_constants_mapping_json_rework_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_structured_evidence_projection",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_structured_evidence_projection.json",
+      "round_id": "round_20260608_cpp2_883e67b9_structured_evidence_projection_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_loop_semantics_mapping",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_loop_semantics_mapping.json",
+      "round_id": "round_20260608_cpp2_883e67b9_loop_semantics_mapping_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_missing_branch_reconciliation",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_missing_branch_reconciliation.json",
+      "round_id": "round_20260608_cpp2_883e67b9_missing_branch_reconciliation_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_bounded_static_extraction",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_bounded_static_extraction.json",
+      "round_id": "round_20260607_cpp2_883e67b9_bounded_static_extraction_v1",
+      "status": "SUCCESS",
+      "identity_verified": true
+    },
+    {
+      "artifact_name": "local_reverse_cpp2_883e67b9_targeted_static_solving",
+      "path": "project_state\\local_reverse_cpp2_883e67b9_targeted_static_solving.json",
+      "round_id": "round_20260607_cpp2_883e67b9_targeted_static_solving_rework_v2",
+      "status": "PARTIAL",
+      "identity_verified": true
+    }
+  ],
+  "tool_capability_check": {
+    "ida_interface_found": true,
+    "ida_interface_path": "reverse_agent\\ida_scripts\\xref_boundary_audit.py",
+    "ida_executable_configured": true,
+    "ida_executable_path": "E:\\Program Files\\ida_pro\\idat64.exe",
+    "ghidra_interface_found": false,
+    "selected_static_extraction_path": "ida",
+    "reasoning": "IDA Pro idat64.exe used with custom xref_boundary_audit.py script to extract XREFs for target symbols and data window. Also ran decompile_sub_401120.py and decompile_sub_401014.py for key initialization function analysis.",
+    "execution_summaries": [
+      {
+        "purpose": "xref_and_data_window_extraction",
+        "script": "reverse_agent/ida_scripts/xref_boundary_audit.py",
+        "command": "\"E:\\Program Files\\ida_pro\\idat64.exe\" -A -S\"reverse_agent/ida_scripts/xref_boundary_audit.py\" \"E:\\reverse\\逆向课程2024春02\\CPP2.exe\"",
+        "working_directory": "F:\\reverse-agent",
+        "output_artifact": "xref_boundary_audit.json",
+        "exit_code": 0,
+        "hexrays_available": true
+      },
+      {
+        "purpose": "decompile_key_init_and_call_chain",
+        "script": "reverse_agent/ida_scripts/decompile_sub_401120.py",
+        "command": "\"E:\\Program Files\\ida_pro\\idat64.exe\" -A -S\"reverse_agent/ida_scripts/decompile_sub_401120.py\" \"E:\\reverse\\逆向课程2024春02\\CPP2.exe\"",
+        "working_directory": "F:\\reverse-agent",
+        "output_artifact": "sub_401120_analysis.json",
+        "exit_code": 0,
+        "hexrays_available": true
+      },
+      {
+        "purpose": "decompile_sub_401014_and_key_init_data",
+        "script": "reverse_agent/ida_scripts/decompile_sub_401014.py",
+        "command": "\"E:\\Program Files\\ida_pro\\idat64.exe\" -A -S\"reverse_agent/ida_scripts/decompile_sub_401014.py\" \"E:\\reverse\\逆向课程2024春02\\CPP2.exe\"",
+        "working_directory": "F:\\reverse-agent",
+        "output_artifact": "sub_401014_key_init_analysis.json",
+        "exit_code": 0,
+        "hexrays_available": true
+      }
+    ]
+  },
+  "target_symbols": {
+    "byte_429A30": {
+      "va": "0x429A30",
+      "rva": "0x29A30",
+      "file_offset": "0x29A30",
+      "size": 1,
+      "static_value_hex": "0x66",
+      "static_value_decimal": 102,
+      "role": "xor_key_initial",
+      "runtime_value_hex": "0x78",
+      "runtime_value_decimal": 120,
+      "runtime_value_source": "computed_from_sub_401120_analysis",
+      "xrefs": [
+        {"from_ea": "0x40116E", "from_func": "sub_401120", "disasm": "mov dl, byte_429A30", "type": "read", "note": "key init: read current key into dl"},
+        {"from_ea": "0x40117B", "from_func": "sub_401120", "disasm": "mov byte_429A30, dl", "type": "write", "note": "key init: write modified key back"},
+        {"from_ea": "0x401226", "from_func": "sub_4011E0", "disasm": "xor al, byte_429A30", "type": "read", "note": "comparison: XOR input byte with key"}
+      ]
+    },
+    "byte_429A31": {
+      "va": "0x429A31",
+      "rva": "0x29A31",
+      "file_offset": "0x29A31",
+      "size": 1,
+      "static_value_hex": "0x0f",
+      "static_value_decimal": 15,
+      "role": "input_length",
+      "xrefs": [
+        {"from_ea": "0x4010D9", "from_func": "sub_401090", "disasm": "movsx ecx, byte_429A31", "type": "read", "note": "length check: strlen(Str) - byte_429A31"},
+        {"from_ea": "0x401211", "from_func": "sub_4011E0", "disasm": "movsx ecx, byte_429A31", "type": "read", "note": "loop bound: i < byte_429A31"}
+      ]
+    },
+    "byte_429A34": {
+      "va": "0x429A34",
+      "rva": "0x29A34",
+      "file_offset": "0x29A34",
+      "size": 15,
+      "role": "target_comparison_array",
+      "bytes_hex": "33 19 11 32 0D 27 21 11 22 10 11 27 28 3D 36",
+      "bytes_decimal": [51, 25, 17, 50, 13, 39, 33, 17, 34, 16, 17, 39, 40, 61, 54],
+      "xrefs": [
+        {"from_ea": "0x401242", "from_func": "sub_4011E0", "disasm": "movsx edx, byte_429A34[ecx]", "type": "read", "note": "comparison: load target byte at index ecx (loop counter)"}
+      ]
+    },
+    "Str": {
+      "va": "0x42CD58",
+      "rva": "0x2CD58",
+      "file_offset": null,
+      "size": null,
+      "role": "input_buffer_bss",
+      "xrefs": [
+        {"from_ea": "0x4010BA", "from_func": "sub_401090", "disasm": "push offset Str", "type": "read", "note": "scanf: push Str as buffer"},
+        {"from_ea": "0x4010CC", "from_func": "sub_401090", "disasm": "push offset Str; Str", "type": "read", "note": "strlen: push Str for length check"},
+        {"from_ea": "0x401220", "from_func": "sub_4011E0", "disasm": "mov al, Str[edx]", "type": "read", "note": "comparison: load input byte"},
+        {"from_ea": "0x40122F", "from_func": "sub_4011E0", "disasm": "mov Str[ecx], al", "type": "write", "note": "comparison: store XOR result back (in-place transform)"},
+        {"from_ea": "0x401238", "from_func": "sub_4011E0", "disasm": "movsx eax, Str[edx]", "type": "read", "note": "comparison: reload for compare instruction"}
+      ]
+    }
+  },
+  "byte_429A34_boundary_candidates": [
+    {
+      "candidate_start_va": "0x429A32",
+      "file_offset": "0x29A32",
+      "length": 15,
+      "xor_key_static": "0x66",
+      "bytes_hex": "00 00 33 19 11 32 0D 27 21 11 22 10 11 27 28",
+      "xor_0x66_hex": "66 66 55 7F 77 54 6B 41 47 77 44 76 77 41 4E",
+      "xor_0x66_ascii_preview": "ffU.wTkAGwDvwAN",
+      "printable_count": 14,
+      "printability_score": "93.3%",
+      "selection_status": "rejected",
+      "selection_reason": "IDA XREF confirms byte_429A34 as array base (movsx edx, byte_429A34[ecx]). Offset 0x429A32 includes two zero padding bytes before the actual array."
+    },
+    {
+      "candidate_start_va": "0x429A34",
+      "file_offset": "0x29A34",
+      "length": 15,
+      "xor_key_static": "0x66",
+      "bytes_hex": "33 19 11 32 0D 27 21 11 22 10 11 27 28 3D 36",
+      "xor_0x66_hex": "55 7F 77 54 6B 41 47 77 44 76 77 41 4E 5B 50",
+      "xor_0x66_ascii_preview": "U.wTkAGwDvwAN[P",
+      "printable_count": 14,
+      "printability_score": "93.3%",
+      "selection_status": "selected",
+      "selection_reason": "IDA XREF directly confirms byte_429A34 as array base address (movsx edx, byte_429A34[ecx] in sub_4011E0). Static XOR 0x66 produces 14/15 printable (0x7F at position 1). With runtime key 0x78 (from sub_401120 analysis), produces 15/15 printable: 'KaiJu_YiZhi_PEN'."
+    },
+    {
+      "candidate_start_va": "0x429A36",
+      "file_offset": "0x29A36",
+      "length": 15,
+      "xor_key_static": "0x66",
+      "bytes_hex": "11 32 0D 27 21 11 22 10 11 27 28 3D 36 00 00",
+      "xor_0x66_hex": "77 54 6B 41 47 77 44 76 77 41 4E 5B 50 66 66",
+      "xor_0x66_ascii_preview": "wTkAGwDvwAN[Pff",
+      "printable_count": 15,
+      "printability_score": "100.0%",
+      "selection_status": "rejected",
+      "selection_reason": "Although 15/15 printable with static key 0x66, this offset is NOT confirmed by IDA XREF. The array base is byte_429A34 per disasm. Offset 0x429A36 would skip the first two array elements and include trailing zeros as array data."
+    }
+  ],
+  "selected_target_array_boundary": {
+    "start_va": "0x429A34",
+    "file_offset": "0x29A34",
+    "length": 15,
+    "bytes_hex": "33 19 11 32 0D 27 21 11 22 10 11 27 28 3D 36",
+    "xor_key_static": "0x66",
+    "xor_key_runtime": "0x78",
+    "decoded_preview_static_key": "U.wTkAGwDvwAN[P",
+    "decoded_preview_runtime_key": "KaiJu_YiZhi_PEN",
+    "selection_confidence": "high",
+    "selection_evidence": [
+      "IDA XREF: single xref to byte_429A34 is movsx edx, byte_429A34[ecx] in sub_4011E0, confirming array base",
+      "Data layout: 0x429A30=xor_key, 0x429A31=length, 0x429A32-0x429A33=zero_padding, 0x429A34=array_start",
+      "Array followed by zero bytes at 0x429A43, consistent with 15-byte array with null terminator/padding",
+      "Runtime key 0x78 (from sub_401120 analysis) produces 15/15 printable ASCII: KaiJu_YiZhi_PEN"
+    ]
+  },
+  "xrefs": {
+    "byte_429A34": [
+      {"from_function": "sub_4011E0", "instruction": "movsx edx, byte_429A34[ecx]", "access_type": "read", "index_expression": "ecx (loop counter i)", "note": "Load target byte for comparison"}
+    ],
+    "byte_429A30": [
+      {"from_function": "sub_401120", "instruction": "mov dl, byte_429A30", "access_type": "read", "index_expression": "none", "note": "Key init: read current key"},
+      {"from_function": "sub_401120", "instruction": "mov byte_429A30, dl", "access_type": "write", "index_expression": "none", "note": "Key init: write modified key"},
+      {"from_function": "sub_4011E0", "instruction": "xor al, byte_429A30", "access_type": "read", "index_expression": "none", "note": "XOR input byte with runtime key"}
+    ],
+    "byte_429A31": [
+      {"from_function": "sub_401090", "instruction": "movsx ecx, byte_429A31", "access_type": "read", "index_expression": "none", "note": "Length check: strlen(Str) - byte_429A31"},
+      {"from_function": "sub_4011E0", "instruction": "movsx ecx, byte_429A31", "access_type": "read", "index_expression": "none", "note": "Loop bound: i < byte_429A31"}
+    ],
+    "Str": [
+      {"from_function": "sub_401090", "instruction": "push offset Str", "access_type": "read", "index_expression": "none", "note": "scanf buffer"},
+      {"from_function": "sub_401090", "instruction": "push offset Str", "access_type": "read", "index_expression": "none", "note": "strlen argument"},
+      {"from_function": "sub_4011E0", "instruction": "mov al, Str[edx]", "access_type": "read", "index_expression": "edx (loop counter i)", "note": "Load input byte"},
+      {"from_function": "sub_4011E0", "instruction": "mov Str[ecx], al", "access_type": "write", "index_expression": "ecx (loop counter i)", "note": "Store XOR result (in-place)"},
+      {"from_function": "sub_4011E0", "instruction": "movsx eax, Str[edx]", "access_type": "read", "index_expression": "edx (loop counter i)", "note": "Reload for comparison"}
+    ]
+  },
+  "key_initialization_discovery": {
+    "function": "sub_401120",
+    "called_via": "sub_401014 (thunk) from _main_0",
+    "call_position": "between sub_401005 (input) and sub_40100A (comparison)",
+    "pseudocode": "void sub_401120() { memcpy(byte_42CCAC, 0x40004E, 0x2B); for (i = 0; i < 43; ++i) { byte_429A30 ^= byte_42CCAC[4 * i]; } }",
+    "memcpy_source_va": "0x40004E",
+    "memcpy_source_content": "This program cannot be run in DOS mode.\\r\\r\\n$",
+    "memcpy_size": 43,
+    "key_transform_loop": "for i in 0..42: byte_429A30 ^= byte_42CCAC[4*i]",
+    "key_transform_bytes_used": [
+      {"i": 0, "index": 0, "byte_hex": "0x54", "char": "T"},
+      {"i": 1, "index": 4, "byte_hex": "0x20", "char": " "},
+      {"i": 2, "index": 8, "byte_hex": "0x67", "char": "g"},
+      {"i": 3, "index": 12, "byte_hex": "0x20", "char": " "},
+      {"i": 4, "index": 16, "byte_hex": "0x6E", "char": "n"},
+      {"i": 5, "index": 20, "byte_hex": "0x62", "char": "b"},
+      {"i": 6, "index": 24, "byte_hex": "0x75", "char": "u"},
+      {"i": 7, "index": 28, "byte_hex": "0x6E", "char": "n"},
+      {"i": 8, "index": 32, "byte_hex": "0x53", "char": "S"},
+      {"i": 9, "index": 36, "byte_hex": "0x64", "char": "d"},
+      {"i": 10, "index": 40, "byte_hex": "0x0D", "char": "CR"},
+      {"i": "11-42", "index": "44-168", "byte_hex": "0x00", "char": "NUL", "note": "Beyond memcpy range, BSS zero"}
+    ],
+    "initial_key": "0x66",
+    "computed_runtime_key": "0x78",
+    "computation_trace": "0x66 ^ 0x54 ^ 0x20 ^ 0x67 ^ 0x20 ^ 0x6E ^ 0x62 ^ 0x75 ^ 0x6E ^ 0x53 ^ 0x64 ^ 0x0D ^ (32 zeros) = 0x78",
+    "confidence": "high",
+    "evidence_source": "IDA_HexRays_decompiler_sub_401120 + binary_file_offset_0x4E_verification"
+  },
+  "transform_chain_hypothesis": {
+    "has_additional_transform_beyond_xor": false,
+    "has_index_offset": false,
+    "has_wide_char_encoding": false,
+    "has_sign_zero_extension": true,
+    "sign_zero_extension_detail": "movsx (move with sign extension) used for both loop counter and array accesses in sub_4011E0, but operates on byte-sized values so no practical effect on 8-bit XOR comparison",
+    "key_is_modified_before_comparison": true,
+    "key_modification_function": "sub_401120 (called via sub_401014)",
+    "key_modification_mechanism": "XOR accumulation over DOS stub text bytes at stride 4",
+    "static_key_vs_runtime_key": {
+      "static_value": "0x66",
+      "runtime_value": "0x78",
+      "difference_explanation": "sub_401120 transforms initial key 0x66 to runtime key 0x78 by XORing with 43 values from DOS stub text at stride-4 indices. This was the root cause of the prior 'XOR decoding ambiguity' — the static .data value is NOT the key used at comparison time."
+    },
+    "prior_ambiguity_resolved": true,
+    "prior_ambiguity_explanation": "Prior round reported byte_429A34[i] ^ 0x66 produced 'U.wTkAGwDvwAN[P' with 0x7F (DEL) at position 1, which was not clean ASCII. Root cause: the XOR key is modified from 0x66 to 0x78 by sub_401120 before comparison. With runtime key 0x78, decoding produces 'KaiJu_YiZhi_PEN' (15/15 printable ASCII)."
+  },
+  "formula_evidence_summary": {
+    "input_length": 15,
+    "xor_key_static": "0x66",
+    "xor_key_runtime": "0x78",
+    "target_array_start_va": "0x429A34",
+    "target_array_file_offset": "0x29A34",
+    "target_array_length": 15,
+    "target_array_bytes_hex": "33 19 11 32 0D 27 21 11 22 10 11 27 28 3D 36",
+    "comparison_formula": "input[i] ^ 0x78 == byte_429A34[i] for i in 0..14",
+    "inverse_formula": "input[i] = byte_429A34[i] ^ 0x78",
+    "decoded_flag": "KaiJu_YiZhi_PEN",
+    "decoded_flag_hex": "4B 61 69 4A 75 5F 59 69 5A 68 69 5F 50 45 4E",
+    "remaining_ambiguities": [
+      "Runtime validation not performed (per decision_packet constraints). Static analysis provides complete formula evidence but no execution confirmation.",
+      "sub_401120's memcpy source (0x40004E) is in PE header/DOS stub area. While the data was verified by reading file offset 0x4E directly, this is an unusual code pattern that could theoretically differ across PE builds."
+    ]
+  },
+  "structured_evidence_projection_update": {
+    "status": "CONVERTED",
+    "prior_status": "PARTIAL",
+    "reason": "Complete formula evidence now available from IDA XREF audit and key initialization analysis. All target symbols have confirmed VA/RVA/file_offset/values. XOR key runtime value resolved. Target array boundary confirmed by XREF. Decoded flag is 15/15 printable ASCII.",
+    "structured_evidence": {
+      "algorithm_type": "xor_single_key_compare",
+      "input_length": 15,
+      "transform": "xor",
+      "xor_key": "0x78",
+      "comparison_target_va": "0x429A34",
+      "comparison_target_length": 15,
+      "key_initialization": "sub_401120 via sub_401014, XOR accumulation from DOS stub text",
+      "call_chain": "_main_0 -> sub_401005 -> sub_401090 (input/length) -> sub_401014 -> sub_401120 (key init) -> sub_40100A -> sub_4011E0 (compare)"
+    }
+  },
+  "readiness_update": {
+    "formula_boundary_resolved": true,
+    "target_array_boundary_confidence": "high",
+    "solver_profile_normalization_ready": true,
+    "reverse_solving_ready": true,
+    "recommended_next_mainline": "reverse_solving",
+    "recommended_next_action": "Formula evidence is complete. All ambiguities from prior rounds resolved. Target array boundary confirmed by IDA XREF. XOR key runtime value (0x78) derived from key initialization function analysis. Decoded flag 'KaiJu_YiZhi_PEN' is 15/15 printable ASCII. Ready for reverse_solving to generate and validate candidate via runtime interface."
+  },
+  "boundary_audit_status": "SUCCESS_BOUNDARY_RESOLVED",
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "runtime_validation_attempted": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "next_recommended_mainline": "reverse_solving"
+}
