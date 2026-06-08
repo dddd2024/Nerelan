@@ -1,23 +1,19 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260608_local_reverse_state_freshness_rebuild_v1",
-  "report_id": "report_20260608_local_reverse_state_freshness_rebuild_v1",
-  "round_id": "round_20260608_local_reverse_state_freshness_rebuild_v1",
-  "generated_at": "2026-06-08T16:00:00Z",
+  "decision_id": "decision_20260608_local_reverse_training_capability_review_v1",
+  "report_id": "report_20260608_local_reverse_training_capability_review_v1",
+  "round_id": "round_20260608_local_reverse_training_capability_review_v1",
+  "generated_at": "2026-06-08T16:30:00Z",
   "status": "PASSED",
   "tests_ran": [
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -c \"import json; json.load(open('project_state/task_packet.json', encoding='utf-8'))\"",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -c \"import json; json.load(open('project_state/current_state.json', encoding='utf-8'))\"",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -c \"import json; json.load(open('project_state/artifact_index.json', encoding='utf-8'))\"",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -c \"import json; json.load(open('training_materials/local_reverse/status_overlay.json', encoding='utf-8'))\"",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -c \"import json; json.load(open('project_state/local_reverse_training_status.json', encoding='utf-8'))\"",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -c \"import json; json.load(open('project_state/local_reverse_state_freshness_rebuild_after_cpp2_883e67b9.json', encoding='utf-8'))\"",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_training.py reverse_agent/local_reverse_training_status.py reverse_agent/sample_metadata.py",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -m pytest -q tests/test_project_state.py",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -m reverse_agent.project_state lint-decision --state-dir project_state",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -m reverse_agent.project_state lint-report --state-dir project_state",
-    "F:\\reverse-agent\\.venv\\Scripts\\python.exe -m reverse_agent.project_state status --state-dir project_state",
+    "JSON parse validation (6 files)",
+    "JSON content validation (6 checks)",
+    "py_compile",
+    "pytest",
+    "lint-decision",
+    "lint-report",
+    "project_state status",
     "git diff --check",
     "git status --short",
     "git diff --name-status"
@@ -25,64 +21,39 @@
 }
 ```
 
-pytest_result for round_20260608_local_reverse_state_freshness_rebuild_v1
+pytest_result for round_20260608_local_reverse_training_capability_review_v1
 =========================================================================================
 
-decision_id: decision_20260608_local_reverse_state_freshness_rebuild_v1
-report_id: report_20260608_local_reverse_state_freshness_rebuild_v1
-round_id: round_20260608_local_reverse_state_freshness_rebuild_v1
+decision_id: decision_20260608_local_reverse_training_capability_review_v1
+report_id: report_20260608_local_reverse_training_capability_review_v1
+round_id: round_20260608_local_reverse_training_capability_review_v1
 
-JSON parse validation (task_packet):
-  F:\reverse-agent\.venv\Scripts\python.exe -c "import json; json.load(open('project_state/task_packet.json', encoding='utf-8'))"
-  Result: PASS
+JSON parse validation (6 files):
+  task_packet.json: PASS
+  current_state.json: PASS
+  artifact_index.json: PASS
+  status_overlay.json: PASS
+  local_reverse_training_status.json: PASS
+  local_reverse_training_capability_review.json: PASS
 
-JSON parse validation (current_state):
-  F:\reverse-agent\.venv\Scripts\python.exe -c "import json; json.load(open('project_state/current_state.json', encoding='utf-8'))"
-  Result: PASS
+JSON content validation (6 checks):
+  status_summary.solved == 5: PASS
+  len(solved_cases) == 5: PASS
+  len(blocked_cases) == 4: PASS
+  next_queue_candidates excludes solved/blocked: PASS
+  guardrails.runtime_validation_attempted == false: PASS
+  guardrails.ida_ghidra_static_extraction_attempted == false: PASS
 
-JSON parse validation (artifact_index):
-  F:\reverse-agent\.venv\Scripts\python.exe -c "import json; json.load(open('project_state/artifact_index.json', encoding='utf-8'))"
-  Result: PASS
+py_compile: PASS
 
-JSON parse validation (status_overlay):
-  F:\reverse-agent\.venv\Scripts\python.exe -c "import json; json.load(open('training_materials/local_reverse/status_overlay.json', encoding='utf-8'))"
-  Result: PASS
+pytest: 158 passed
 
-JSON parse validation (training_status):
-  F:\reverse-agent\.venv\Scripts\python.exe -c "import json; json.load(open('project_state/local_reverse_training_status.json', encoding='utf-8'))"
-  Result: PASS
+lint-decision: OK
+lint-report: OK
+project_state status: OK
 
-JSON parse validation (refresh artifact):
-  F:\reverse-agent\.venv\Scripts\python.exe -c "import json; json.load(open('project_state/local_reverse_state_freshness_rebuild_after_cpp2_883e67b9.json', encoding='utf-8'))"
-  Result: PASS
-
-py_compile:
-  F:\reverse-agent\.venv\Scripts\python.exe -m py_compile reverse_agent/project_state.py reverse_agent/local_reverse_training.py reverse_agent/local_reverse_training_status.py reverse_agent/sample_metadata.py
-  Result: PASS
-
-pytest:
-  F:\reverse-agent\.venv\Scripts\python.exe -m pytest -q tests/test_project_state.py
-  Result: 158 passed
-
-lint-decision:
-  F:\reverse-agent\.venv\Scripts\python.exe -m reverse_agent.project_state lint-decision --state-dir project_state
-  Result: OK
-
-lint-report:
-  F:\reverse-agent\.venv\Scripts\python.exe -m reverse_agent.project_state lint-report --state-dir project_state
-  Result: OK
-
-project_state status:
-  F:\reverse-agent\.venv\Scripts\python.exe -m reverse_agent.project_state status --state-dir project_state
-  Result: OK
-
-git diff --check:
-  Result: PASS
-
-git status --short:
-  Result: RECORDED
-
-git diff --name-status:
-  Result: RECORDED
+git diff --check: PASS
+git status --short: RECORDED
+git diff --name-status: RECORDED
 
 All checks passed.

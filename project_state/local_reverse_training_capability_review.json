@@ -1,0 +1,335 @@
+{
+  "schema_version": 1,
+  "mainline": "training_dataset",
+  "artifact_kind": "local_reverse_training_capability_review",
+  "decision_id": "decision_20260608_local_reverse_training_capability_review_v1",
+  "round_id": "round_20260608_local_reverse_training_capability_review_v1",
+  "source_files": [
+    "project_state/local_reverse_training_status.json",
+    "training_materials/local_reverse/status_overlay.json",
+    "project_state/artifact_index.json",
+    "training_materials/local_reverse/README.md",
+    "project_state/local_reverse_state_freshness_rebuild_after_cpp2_883e67b9.json"
+  ],
+  "status_summary": {
+    "sample_count": 29,
+    "solved": 5,
+    "blocked": 4,
+    "needs_triage": 0,
+    "inventory_only": 20
+  },
+  "solved_cases": [
+    {
+      "sample_id": "cpp1_7b504c54",
+      "relative_path": "逆向课程2023春补考01/Cpp1.exe",
+      "category": "cpp",
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "known_candidate_present": true,
+      "classification": "console_runtime_validation",
+      "solved_by": "console_runtime_validation",
+      "validation_class": "console_runtime_validation",
+      "evidence_sources": [
+        "source:local_reverse_cpp1_7b504c54_runtime_validation.json"
+      ],
+      "reusable_pattern": "console_runtime_validation",
+      "reusability_notes": "Standard console input -> success/failure token pattern. Reusable for similar console-based PE crackmes."
+    },
+    {
+      "sample_id": "cpp1_bcbd9979",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "category": "cpp",
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "known_candidate_present": true,
+      "classification": "ida_solver_classification",
+      "solved_by": "ida_static_plus_runtime",
+      "validation_class": "runtime_validation",
+      "evidence_sources": [
+        "ida_solver_classification",
+        "runtime_validation",
+        "local_reverse_validated_candidate_handoff",
+        "local_reverse_constraint_recovery_result"
+      ],
+      "reusable_pattern": "ida_static_plus_runtime",
+      "reusability_notes": "IDA-guided solver classification followed by runtime validation. Pattern requires IDA static extraction capability."
+    },
+    {
+      "sample_id": "cpp2_2f64e68d",
+      "relative_path": "逆向课程2025春03/CPP2.exe",
+      "category": "cpp",
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "known_candidate_present": true,
+      "classification": "oracle_backed_runtime_validated",
+      "solved_by": "oracle_backed_runtime_validated",
+      "validation_class": "oracle_backed_runtime_validated",
+      "evidence_sources": [
+        "console mature backend",
+        "winpty lifecycle hardening",
+        "post strcmp oracle extraction",
+        "raw input candidate",
+        "oracle-backed runtime validation"
+      ],
+      "reusable_pattern": "oracle_backed_runtime_validated",
+      "reusability_notes": "Post-strcmp oracle extraction with winpty lifecycle. Requires oracle detection and bounded input domain."
+    },
+    {
+      "sample_id": "cpp2_32f1713e",
+      "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+      "category": "cpp",
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "known_candidate_present": true,
+      "classification": "oracle_backed_runtime_validated",
+      "solved_by": "targeted_static_solving_plus_runtime",
+      "validation_class": "oracle_backed_runtime_validated",
+      "evidence_sources": [
+        "targeted_static_solving",
+        "keep_dream_runtime_validation",
+        "runtime_validation",
+        "positive/negative controls"
+      ],
+      "reusable_pattern": "targeted_static_solving_plus_runtime",
+      "reusability_notes": "Targeted static solving followed by runtime validation with positive/negative controls."
+    },
+    {
+      "sample_id": "cpp2_883e67b9",
+      "relative_path": "逆向课程2024春02/CPP2.exe",
+      "category": "cpp",
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "known_candidate_present": true,
+      "classification": "console_runtime_validation",
+      "solved_by": "console_runtime_validation",
+      "validation_class": "console_runtime_validation",
+      "evidence_sources": [
+        "source:local_reverse_cpp2_883e67b9_candidate_validation.json",
+        "console_runtime_validation",
+        "runtime_validated_success"
+      ],
+      "reusable_pattern": "formula_inverse_plus_console_validation",
+      "reusability_notes": "XOR formula inverse (input[i] = byte[target_va][i] ^ key) computed from static evidence, validated via console validator. Highly reusable for similar XOR-based crackmes."
+    }
+  ],
+  "blocked_cases": [
+    {
+      "sample_id": "affine_8cfebe03",
+      "relative_path": "逆向课程2024春补考03/affine.exe",
+      "category": "unknown",
+      "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT",
+      "classification": "affine_cipher affine inverse handoff static only missing_expected_ciphertext",
+      "observed_evidence_sources": [],
+      "required_missing_evidence": "Expected ciphertext from challenge statement or another allowed evidence source",
+      "next_allowed_action": "Provide expected ciphertext from challenge statement or another allowed evidence source before candidate generation",
+      "not_to_retry": ["blind_search", "budget_expansion", "stale_artifact_treated_as_current"]
+    },
+    {
+      "sample_id": "cpp1_2f6fcb63",
+      "relative_path": "逆向课程2023春01/CPP1.exe",
+      "category": "cpp",
+      "blocked_reason": "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE",
+      "classification": "target byte provenance recheck confirmed_no_printable_preimage",
+      "observed_evidence_sources": [],
+      "required_missing_evidence": "Policy decision: target bytes proven to have no complete printable preimage",
+      "next_allowed_action": "Re-evaluate policy or accept as non-printable-input sample",
+      "not_to_retry": ["blind_search", "budget_expansion", "printable_preimage_assumption"]
+    },
+    {
+      "sample_id": "cpp2_4c69f173",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "category": "cpp",
+      "blocked_reason": "MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005",
+      "classification": "bounded_input_range_hash_output_increment_compare",
+      "observed_evidence_sources": [],
+      "required_missing_evidence": "Recovery of sub_401005 transform function or bounded dictionary",
+      "next_allowed_action": "Recover sub_401005 transform or bounded dictionary before inversion",
+      "not_to_retry": ["blind_search", "budget_expansion", "brute_force_without_transform"]
+    },
+    {
+      "sample_id": "sha_256_18019fca",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "category": "crypto/hash",
+      "blocked_reason": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN",
+      "classification": "sha256_hex_compare_with_post_hash_character_adjustment",
+      "observed_evidence_sources": [],
+      "required_missing_evidence": "Targeted static re-extraction of input length/domain or problem statement hint",
+      "next_allowed_action": "Targeted static re-extraction of input length/domain or request problem statement hint",
+      "not_to_retry": ["blind_hash_preimage", "dictionary_search_without_domain", "budget_expansion"]
+    }
+  ],
+  "inventory_buckets": {
+    "cpp_pe_inventory_only": {
+      "count": 7,
+      "description": "C++ PE executables awaiting static triage",
+      "sample_ids": [
+        "cpp2_f2738577",
+        "cpp2_fc735338",
+        "cpp3_019fcdc8",
+        "cpp3_e5a33e0b",
+        "cpp4_ab1b6104",
+        "cpp5_2ea076a7",
+        "cpp_6af7c7f1"
+      ],
+      "priority_rationale": "Highest priority: closest to existing solved CPP2/CPP3 patterns"
+    },
+    "crypto_cipher_inventory_only": {
+      "count": 5,
+      "description": "Crypto/cipher samples (RC4, DES) awaiting static evidence profile",
+      "sample_ids": [
+        "des_interactive_solver_256e1726",
+        "desenc_0e0b5203",
+        "desenc_14c58fcd",
+        "desenc_40cba418",
+        "rc4enc_3480917d",
+        "rc4_add1978d"
+      ],
+      "priority_rationale": "Medium priority: requires cipher-specific static evidence profile before triage"
+    },
+    "python_solver_like_inventory_only": {
+      "count": 3,
+      "description": "Python solver-like artifacts, not immediate binary solving targets",
+      "sample_ids": [
+        "byte_shift_transform_solver_3718a6fa",
+        "sha_cd947414",
+        "xor_array_solver_4e6d25f0"
+      ],
+      "priority_rationale": "Low priority: solver reference implementations, not primary solving targets"
+    },
+    "unknown_pe_inventory_only": {
+      "count": 4,
+      "description": "PE executables with unknown category, awaiting classification",
+      "sample_ids": [
+        "main_36c51ec1",
+        "main_fb1f8cc0",
+        "seh_52be8d5c",
+        "pwd_030127ca"
+      ],
+      "priority_rationale": "Variable priority: needs category classification first"
+    },
+    "other_inventory_only": {
+      "count": 0,
+      "description": "Samples not fitting other buckets",
+      "sample_ids": [],
+      "priority_rationale": "N/A"
+    }
+  },
+  "capability_gaps": [
+    {
+      "gap_id": "bounded_static_triage_profile_for_inventory_cpp_pe",
+      "description": "No automated bounded static triage profile for inventory_only cpp/pe samples",
+      "current_state": "Manual evaluation required per sample",
+      "evidence_basis": "All 7 cpp_pe inventory_only samples have next_action=static triage and manual evaluation required"
+    },
+    {
+      "gap_id": "solver_profile_dispatch_from_training_status_and_artifact_index",
+      "description": "Solver profile dispatch exists but is not yet driven by training_status classification and artifact_index evidence metadata",
+      "current_state": "Solver profiles exist in source code but dispatch requires manual selection",
+      "evidence_basis": "reverse_agent/local_reverse_solver_profiles.py exists; dispatch not automated from training status"
+    },
+    {
+      "gap_id": "blocked_reason_to_next_action_rules",
+      "description": "Blocked reason to next action mapping exists per-sample but is not rule-automated",
+      "current_state": "Each blocked sample has next_action but no systematic rule engine",
+      "evidence_basis": "4 blocked samples each have individual next_action strings"
+    },
+    {
+      "gap_id": "hash_preimage_domain_recovery_or_problem_statement_hint_gate",
+      "description": "No gate for hash preimage domain recovery or problem statement hint",
+      "current_state": "sha_256_18019fca blocked due to NO_BOUNDED_HASH_PREIMAGE_DOMAIN",
+      "evidence_basis": "sha_256_18019fca.blocked_reason=NO_BOUNDED_HASH_PREIMAGE_DOMAIN"
+    },
+    {
+      "gap_id": "upstream_transform_recovery_gate_for_cpp2_4c69f173",
+      "description": "No capability to recover upstream transform function sub_401005",
+      "current_state": "cpp2_4c69f173 blocked due to MISSING_UPSTREAM_TRANSFORM_FUNCTION",
+      "evidence_basis": "cpp2_4c69f173.blocked_reason=MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005"
+    },
+    {
+      "gap_id": "expected_ciphertext_provenance_gate_for_affine",
+      "description": "No gate for expected ciphertext provenance from challenge statement",
+      "current_state": "affine_8cfebe03 blocked due to MISSING_EXPECTED_CIPHERTEXT",
+      "evidence_basis": "affine_8cfebe03.blocked_reason=MISSING_EXPECTED_CIPHERTEXT"
+    },
+    {
+      "gap_id": "printable_preimage_vs_nonprintable_input_policy_for_cpp1_2f6fcb63",
+      "description": "No policy for handling confirmed non-printable preimage targets",
+      "current_state": "cpp1_2f6fcb63 confirmed no complete printable preimage exists",
+      "evidence_basis": "cpp1_2f6fcb63.blocked_reason=CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE"
+    },
+    {
+      "gap_id": "crypto_cipher_static_evidence_requirements_for_DES_RC4_samples",
+      "description": "No cipher-specific static evidence profile for DES/RC4 samples",
+      "current_state": "5 crypto/cipher inventory_only samples await static evidence requirements definition",
+      "evidence_basis": "crypto_cipher_inventory_only bucket has 5-6 samples, all inventory_only"
+    }
+  ],
+  "next_queue_candidates": [
+    {
+      "rank": 1,
+      "sample_id": "cpp2_f2738577",
+      "relative_path": "逆向课程2021春02/Cpp2.exe",
+      "category": "cpp",
+      "reason": "cpp/pe inventory_only, closest to existing CPP2 success patterns (cpp2_2f64e68d, cpp2_32f1713e, cpp2_883e67b9 all solved)",
+      "allowed_next_action": "bounded static triage/readiness only",
+      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+    },
+    {
+      "rank": 2,
+      "sample_id": "cpp2_fc735338",
+      "relative_path": "Cpp2.exe",
+      "category": "cpp",
+      "reason": "cpp/pe inventory_only, second CPP2 queue candidate after cpp2_f2738577",
+      "allowed_next_action": "bounded static triage/readiness only",
+      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+    },
+    {
+      "rank": 3,
+      "sample_id": "cpp3_019fcdc8",
+      "relative_path": "逆向课程2023春03/CPP3.exe",
+      "category": "cpp",
+      "reason": "cpp/pe inventory_only, suitable for expanding to CPP3 after CPP2 queue exhausted",
+      "allowed_next_action": "bounded static triage/readiness only",
+      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+    },
+    {
+      "rank": 4,
+      "sample_id": "cpp3_e5a33e0b",
+      "relative_path": "逆向课程2024春补考03/cpp3.exe",
+      "category": "cpp",
+      "reason": "cpp/pe inventory_only, alternative CPP3 candidate",
+      "allowed_next_action": "bounded static triage/readiness only",
+      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+    },
+    {
+      "rank": 5,
+      "sample_id": "rc4enc_3480917d",
+      "relative_path": "逆向课程2019秋03/rc4enc.exe",
+      "category": "crypto/cipher",
+      "reason": "crypto/cipher inventory_only, only after cipher static evidence profile is available",
+      "allowed_next_action": "bounded static triage/readiness only, pending cipher evidence profile",
+      "not_allowed": ["reverse_solving", "candidate_generation", "runtime_validation"]
+    }
+  ],
+  "existing_capabilities": [
+    "inventory/status/overlay management",
+    "artifact_index with freshness tracking (current/stale/missing)",
+    "console_runtime_validation via local_reverse_console_validator",
+    "runtime_validation artifact schema (candidate_validation)",
+    "IDA/Ghidra/static evidence artifact (historical, not re-run)",
+    "solver_profile_dispatch and guardrail artifact",
+    "project_state build/status/lint pipeline",
+    "training_status_overlay_sync artifact",
+    "state_freshness_rebuild artifact",
+    "negative_results guardrails (no blind search, no budget expansion)"
+  ],
+  "guardrails": {
+    "candidate_generated": false,
+    "runtime_validation_attempted": false,
+    "ida_ghidra_static_extraction_attempted": false,
+    "debugger_attached": false,
+    "emulator_used": false,
+    "full_solve_reports_read": false
+  },
+  "generated_at": "2026-06-08T16:30:00Z"
+}
