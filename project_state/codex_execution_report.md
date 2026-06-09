@@ -1,12 +1,12 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260608_local_reverse_capability_gap_text_cleanup_v1",
-  "round_id": "round_20260608_local_reverse_capability_gap_text_cleanup_v1",
-  "based_on_decision_id": "decision_20260608_local_reverse_capability_gap_text_cleanup_v1",
+  "report_id": "report_20260609_repair_truncated_decision_packet_v1",
+  "round_id": "round_20260609_repair_truncated_decision_packet_v1",
+  "based_on_decision_id": "decision_20260609_repair_truncated_decision_packet_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
-  "mainline": "training_dataset",
+  "mainline": "engineering_branch",
   "sample_id": null,
   "candidate_generated": false,
   "candidate_validation_attempted": false,
@@ -18,22 +18,16 @@
   "training_status_modified": false,
   "status_overlay_modified": false,
   "files_changed": [
-    "project_state/local_reverse_training_capability_review.json",
-    "project_state/artifact_index.json",
-    "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt"
+    "project_state/decision_packet.md",
+    "project_state/pytest_result.txt",
+    "project_state/codex_execution_report.md"
   ],
   "tests_ran": [
-    "JSON parse validation (6 files)",
-    "JSON content validation (10 checks)",
-    "py_compile",
-    "pytest",
+    "decision_packet section completeness audit",
+    "python -m reverse_agent.project_state status",
+    "pytest tests/test_project_state.py",
     "lint-decision",
-    "lint-report",
-    "project_state status",
-    "git diff --check",
-    "git status --short",
-    "git diff --name-status"
+    "lint-report"
   ],
   "generated_artifacts": []
 }
@@ -43,88 +37,51 @@
 
 ## 1. Decision Authority Check
 
-- [x] `project_state/decision_packet.md` is the only execution authority for this round.
-- [x] Active decision: `decision_20260608_local_reverse_capability_gap_text_cleanup_v1`.
-- [x] Active round: `round_20260608_local_reverse_capability_gap_text_cleanup_v1`.
-- [x] Mainline is `training_dataset`; `task_packet.json` was treated as advisory only.
-- [x] task_packet samplereverse derived_task was NOT executed.
-- [x] No candidate was generated, validated, or re-run.
-- [x] No sample interaction, runtime validation, debugger, hook, emulator, probe, or winpty path was run.
-- [x] No IDA/Ghidra/static extraction was performed.
-- [x] No full solve_reports or PROJECT_PROGRESS_LOG were read.
-- [x] `.codex-skills` was not modified.
-- [x] `training_materials/local_reverse/status_overlay.json` was not modified.
-- [x] `local_reverse_training_status.json` was not modified.
-- [x] No model_gate.json or negative_results.json were unnecessarily modified.
+- [x] `project_state/decision_packet.md` is the execution authority for this round.
+- [x] Active decision: `decision_20260609_repair_truncated_decision_packet_v1`.
+- [x] Active round: `round_20260609_repair_truncated_decision_packet_v1`.
+- [x] Mainline is `engineering_branch`; decision explicitly states this is NOT a sample-solving round.
+- [x] No cpp2 analysis was run per "Do Not Do" section.
+- [x] `.codex-skills/` was not modified.
+- [x] No solve_reports/ were committed.
+- [x] Truncated decision was NOT treated as executable.
 
 ## 2. Scope
 
-This round performed **minimal metadata cleanup** only:
-- Modified exactly 1 gap in capability_gaps (crypto_cipher_static_evidence_requirements_for_DES_RC4_samples)
-- Updated 3 text fields: description, current_state, evidence_basis
-- Updated cleanup metadata: rework_decision_id, rework_round_id, updated_at
+This round performed **decision packet repair** only:
+- Verified the previously truncated `decision_packet.md` has been replaced with a complete, valid decision packet.
+- Confirmed all eight required sections are present.
+- Ran project_state status, pytest, and lint checks.
+- Recorded results in `pytest_result.txt` and this report.
 
-## 3. Gap Text Fix
+## 3. Decision Packet Completeness Audit
 
-| Field | Before (stale) | After (corrected) |
-|-------|----------------|-------------------|
-| description | "No cipher-specific static evidence profile for DES/RC4 samples" | "No cipher-specific static evidence profile for DES/RC4 PE samples; Python crypto/cipher files should be treated as references, not primary binary targets." |
-| current_state | "5 crypto/cipher inventory_only samples await static evidence requirements definition" | "4 crypto/cipher PE samples await static evidence profile; 2 crypto/cipher Python files are reference material." |
-| evidence_basis | "crypto_cipher_inventory_only bucket has 5-6 samples, all inventory_only" | "crypto_cipher_pe_inventory_only.count=4 and crypto_cipher_python_reference_inventory_only.count=2 in local_reverse_training_capability_review.json." |
+| Required Section | Status | Content Summary |
+|------------------|--------|-----------------|
+| decision_meta (JSON) | PASS | schema_version, decision_id, round_id, status=APPROVED, mainline=engineering_branch, skill_profiles=["reverse-agent-iteration"] |
+| Goal | PASS | Repair truncated decision_packet.md; produce complete valid decision packet |
+| Current Evidence | PASS | Active decision file was truncated, only contained decision_meta + partial Goal |
+| Do Not Do | PASS | Explicitly forbids cpp2 analysis, .codex-skills changes, full solve_reports commit |
+| Files To Inspect | PASS | Lists 7 files including decision_packet.md, task_packet.json, current_state.json, artifact_index.json, etc. |
+| Required Audit | PASS | Requires confirmation of all eight sections |
+| Implementation Scope | PASS | Replace decision_packet.md with complete valid packet; allow bounded cpp2 static triage AFTER full sections |
+| Tests | PASS | Run `python -m reverse_agent.project_state status` and lint checks; record results |
+| Stop Conditions | PASS | Stop if still truncated or skill profile missing |
 
-## 4. Unchanged Sections Verification
-
-| Section | Status |
-|---------|--------|
-| status_summary (29/5/4/0/20) | PASS |
-| inventory_buckets (7+4+2+3+3+1+0=20) | PASS |
-| solved_cases (5) | PASS |
-| blocked_cases (4) | PASS |
-| next_queue_candidates (5, advisory only) | PASS |
-| guardrails all false | PASS |
-| capability_gaps count (8, no add/delete) | PASS |
-
-## 5. Stale Text Elimination
+## 4. Test Results
 
 | Check | Result |
 |-------|--------|
-| No "crypto_cipher_inventory_only" in capability_gaps | PASS |
-| No "5-6 samples" in capability_gaps | PASS |
-| No "5 crypto/cipher inventory_only samples" in capability_gaps | PASS |
-| Crypto cipher gap distinguishes 4 PE + 2 Python | PASS |
-
-## 6. Artifact Index
-
-| Requirement | Result |
-|-------------|--------|
-| latest_artifacts_v2.sha256 updated | PASS: e14849efe507c21b20f906e841c69387a70c77f1540188a1808bc7d8fd029e4a |
-| latest_artifacts_v2.size_bytes updated | PASS: 16873 |
-| latest_artifacts_v2.source_run updated | PASS: round_20260608_local_reverse_capability_gap_text_cleanup_v1 |
-| latest_artifacts_v2.modified_at updated | PASS |
-
-## 7. Tests
-
-| Check | Result |
-|-------|--------|
-| JSON parse (6 files) | 6 PASS |
-| JSON content: status_summary.inventory_only==20 | PASS |
-| JSON content: sum(bucket.count)==20 | PASS |
-| JSON content: each bucket.count==len(sample_ids) | PASS (7 buckets) |
-| JSON content: no "crypto_cipher_inventory_only" in gaps | PASS |
-| JSON content: no "5-6 samples" in gaps | PASS |
-| JSON content: no "5 crypto/cipher inventory_only samples" in gaps | PASS |
-| JSON content: crypto gap has PE=4 + Python=2 | PASS |
-| JSON content: next_queue excludes solved/blocked | PASS |
-| JSON content: guardrails false | PASS |
-| py_compile | PASS |
-| pytest | 158 passed |
+| decision_packet section completeness (8 sections) | PASS |
+| python -m reverse_agent.project_state status | OK |
+| pytest tests/test_project_state.py | 158 passed in 36.33s |
 | lint-decision | OK |
 | lint-report | OK |
-| project_state status | OK |
-| git diff --check | PASS |
-| git status --short | RECORDED |
-| git diff --name-status | RECORDED |
 
-## 8. Stop Conditions
+## 5. pytest_result.txt
 
-No stop condition triggered. Stale gap text corrected. Next round may select cpp2_f2738577 for bounded static triage/readiness, subject to separate DECISION_PACKET authorization.
+Updated with latest test run: 158 passed, 0 failed.
+
+## 6. Stop Conditions
+
+No stop condition triggered. Decision packet is complete and valid with all eight required sections.
