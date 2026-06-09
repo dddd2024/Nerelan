@@ -1,0 +1,397 @@
+{
+  "schema_version": 1,
+  "mainline": "tool_integration",
+  "round_id": "round_20260609_cpp2_f2738577_bounded_static_triage_readiness_v1",
+  "decision_id": "decision_20260609_cpp2_f2738577_bounded_static_triage_readiness_v1",
+  "sample_id": "cpp2_f2738577",
+  "relative_path": "逆向课程2021春02/Cpp2.exe",
+  "command_scoped_root": "E:\\reverse",
+  "resolved_sample_path": "E:\\reverse\\逆向课程2021春02\\Cpp2.exe",
+  "expected_sha256": "f2738577f6d38a499eeaf24e6d7c04668f591b89b751f38dda88bdb069d34564",
+  "expected_size_bytes": 196689,
+  "actual_sha256": "f2738577f6d38a499eeaf24e6d7c04668f591b89b751f38dda88bdb069d34564",
+  "actual_size_bytes": 196689,
+  "identity_verified": true,
+  "readiness_status": "READY",
+  "training_status_before": "inventory_only",
+  "known_candidate_before": "",
+  "source_queue_refresh_artifact": "project_state\\local_reverse_evaluation_queue.json",
+  "existing_tool_interfaces_checked": true,
+  "existing_tool_interfaces": {
+    "local_reverse_single_sample_static_triage": {
+      "available": true,
+      "path": "reverse_agent/local_reverse_single_sample_static_triage.py",
+      "description": "Single-sample static triage adapter using IDA evidence collection",
+      "requires_ida": true
+    },
+    "tool_runners": {
+      "available": true,
+      "path": "reverse_agent/tool_runners.py",
+      "description": "Tool automation config and runner with IDA/OLLY support"
+    },
+    "local_reverse_console_validator": {
+      "available": true,
+      "path": "reverse_agent/local_reverse_console_validator.py",
+      "description": "Subprocess-based console validation for runtime testing"
+    },
+    "ida_scripts": {
+      "available": true,
+      "path": "reverse_agent/ida_scripts/",
+      "scripts": [
+        "collect_evidence.py",
+        "extract_named_data.py",
+        "forced_function_extract.py"
+      ]
+    },
+    "ida_direct": {
+      "available": false,
+      "reason": "IDA Pro executable not found in PATH or default locations"
+    },
+    "ghidra": {
+      "available": false,
+      "reason": "No Ghidra project wrapper or headless analyzer found"
+    },
+    "radare2": {
+      "available": false,
+      "reason": "r2 not found in PATH"
+    },
+    "objdump": {
+      "available": false,
+      "reason": "MinGW/cross-compiler objdump not found; PE format not natively supported"
+    }
+  },
+  "static_tools_used": [
+    "python_stdlib_pe_parser",
+    "bounded_strings_extractor",
+    "entropy_analyzer"
+  ],
+  "static_triage_summary": {
+    "file_format": "PE32",
+    "platform": "Windows",
+    "architecture": "i386",
+    "bitness": 32,
+    "entry_point_rva": "0x1440",
+    "image_base": "0x400000",
+    "num_sections": 5,
+    "section_names": [
+      ".text",
+      ".rdata",
+      ".data",
+      ".idata",
+      ".reloc"
+    ],
+    "section_summary": {
+      ".text": {
+        "vaddr": "0x1000",
+        "vsize": "0x25700",
+        "rawsize": "0x26000"
+      },
+      ".rdata": {
+        "vaddr": "0x27000",
+        "vsize": "0x1687",
+        "rawsize": "0x2000"
+      },
+      ".data": {
+        "vaddr": "0x29000",
+        "vsize": "0x563c",
+        "rawsize": "0x4000"
+      },
+      ".idata": {
+        "vaddr": "0x2f000",
+        "vsize": "0x851",
+        "rawsize": "0x1000"
+      },
+      ".reloc": {
+        "vaddr": "0x30000",
+        "vsize": "0x1090",
+        "rawsize": "0x2000"
+      }
+    },
+    "import_table": {
+      "present": true,
+      "import_directory_size": 40,
+      "note": "Import directory found"
+    },
+    "key_strings": [
+      {
+        "offset": "0x2701c",
+        "string": "2 Sorry, you are wrong!",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x2703c",
+        "string": "Congratulations! You are right!",
+        "category": "success_message"
+      },
+      {
+        "offset": "0x2706c",
+        "string": "1 Sorry,you are wrong!",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x272bc",
+        "string": "Assertion Failed",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x272d0",
+        "string": "Error",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x272f4",
+        "string": "Assertion failed!",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27308",
+        "string": "Assertion failed: ",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x2731c",
+        "string": "_CrtDbgReport: String too long or IO Error",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27348",
+        "string": "Second Chance Assertion Failed: File %s, Line %d",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27394",
+        "string": "Microsoft Visual C++ Debug Library",
+        "category": "debug_assert"
+      },
+      {
+        "offset": "0x273b8",
+        "string": "Debug %s!",
+        "category": "debug_assert"
+      },
+      {
+        "offset": "0x273e4",
+        "string": "(Press Retry to debug the application)",
+        "category": "debug_assert"
+      },
+      {
+        "offset": "0x2742c",
+        "string": "Expression: ",
+        "category": "crt_debug"
+      },
+      {
+        "offset": "0x2743e",
+        "string": "For information on how your program can cause an assertion",
+        "category": "debug_assert"
+      },
+      {
+        "offset": "0x27479",
+        "string": "failure, see the Visual C++ documentation on asserts.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27500",
+        "string": "input.c",
+        "category": "input_prompt"
+      },
+      {
+        "offset": "0x27528",
+        "string": "flag == 0 || flag == 1",
+        "category": "input_prompt"
+      },
+      {
+        "offset": "0x2762c",
+        "string": "runtime error ",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27640",
+        "string": "TLOSS error",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27650",
+        "string": "SING error",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27660",
+        "string": "DOMAIN error",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x2779b",
+        "string": "- unexpected heap error",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x277bf",
+        "string": "- unexpected multithread lock error",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x278b8",
+        "string": "Microsoft Visual C++ Runtime Library",
+        "category": "crt_debug"
+      },
+      {
+        "offset": "0x278e0",
+        "string": "Runtime Error!",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27920",
+        "string": "Error: memory allocation: bad memory block type.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27978",
+        "string": "Client hook allocation failure.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x2799c",
+        "string": "Client hook allocation failure at file %hs line %d.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27b38",
+        "string": "Client hook re-allocation failure.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27b5c",
+        "string": "Client hook re-allocation failure at file %hs line %d.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27ca4",
+        "string": "Client hook free failure.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27cc0",
+        "string": "memory check error at 0x%08X = 0x%02X, should be 0x%02X.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27d7c",
+        "string": "_heapchk fails with unknown return value!",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27da8",
+        "string": "_heapchk fails with _HEAPBADPTR.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27dcc",
+        "string": "_heapchk fails with _HEAPBADEND.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27df0",
+        "string": "_heapchk fails with _HEAPBADNODE.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27e14",
+        "string": "_heapchk fails with _HEAPBADBEGIN.",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x27f68",
+        "string": "#File Error#(%d) : ",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x2d308",
+        "string": "DebugBreak",
+        "category": "debug_assert"
+      },
+      {
+        "offset": "0x2d34a",
+        "string": "OutputDebugStringA",
+        "category": "debug_assert"
+      },
+      {
+        "offset": "0x2d3b0",
+        "string": "GetLastError",
+        "category": "failure_message"
+      },
+      {
+        "offset": "0x2d4de",
+        "string": "HeapDestroy",
+        "category": "crt_debug"
+      },
+      {
+        "offset": "0x2d616",
+        "string": "CompareStringA",
+        "category": "compare_hint"
+      },
+      {
+        "offset": "0x2d628",
+        "string": "CompareStringW",
+        "category": "compare_hint"
+      },
+      {
+        "offset": "0x3003c",
+        "string": "\\Cpp2\\Debug\\Cpp2.pdb",
+        "category": "debug_assert"
+      }
+    ],
+    "total_strings_found": 482,
+    "entropy_analysis": {
+      "max_block_entropy": 6.6192,
+      "avg_block_entropy": 2.3068,
+      "high_entropy_block_count": 0,
+      "total_blocks": 193,
+      "high_entropy_ratio": 0.0
+    },
+    "compiler_clues": [
+      "Visual C++ CRT debug strings present"
+    ],
+    "challenge_type_hypothesis": "console_password_checker_with_flag_assert",
+    "challenge_type_hypotheses": [
+      "console_password_checker_with_flag_assert",
+      "crypto_transform_based",
+      "string_compare_password_checker"
+    ],
+    "similarity_to_cpp2_883e67b9": "high_same_course_same_name_similar_size",
+    "similarity_to_cpp2_32f1713e": "high_same_course_same_name_similar_size",
+    "similarity_to_cpp2_2f64e68d": "high_same_course_same_name_similar_size",
+    "packed_or_obfuscated": false,
+    "notes": "Static analysis using Python stdlib only. IDA/Ghidra unavailable for deeper analysis."
+  },
+  "structured_evidence_ready": false,
+  "candidate_generated": false,
+  "candidate_validation_attempted": false,
+  "candidate_validated": false,
+  "training_status_modified": false,
+  "status_overlay_modified": false,
+  "executed_sample": false,
+  "ran_runtime_tools": false,
+  "ran_ida": false,
+  "ran_ghidra": false,
+  "ran_strings": true,
+  "ran_file": false,
+  "ran_objdump": false,
+  "ran_radare2": false,
+  "ran_static_extraction": true,
+  "ran_debugger": false,
+  "ran_hook": false,
+  "ran_emulator": false,
+  "ran_probe": false,
+  "ran_bruteforce": false,
+  "ran_dictionary_search": false,
+  "candidate_search_performed": false,
+  "uploaded_binary": false,
+  "binary_content_recorded": false,
+  "full_strings_dump_recorded": false,
+  "full_import_table_recorded": false,
+  "full_section_dump_recorded": false,
+  "full_disassembly_recorded": false,
+  "full_decompilation_recorded": false,
+  "next_recommended_mainline": "tool_integration",
+  "next_recommended_action": "Generate a bounded static extraction decision for cpp2_f2738577. Crypto/transform hints detected in strings. Use Python stdlib PE parser + strings extractor to locate transform-related RVAs, identify the crypto algorithm, and attempt to recover the comparison logic. Challenge appears to involve crypto transforms.",
+  "generated_at": "2026-06-09T05:21:49Z"
+}
