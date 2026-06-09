@@ -10,7 +10,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from .evidence import StructuredEvidence
+from .evidence import (
+    StructuredEvidence,
+    base64_material_evidence,
+    rc4_material_evidence,
+    utf16le_material_evidence,
+)
 
 LogFn = Callable[[str], None]
 
@@ -142,7 +147,80 @@ def _structured_evidence_from_json(tool_name: str, data: dict[str, object]) -> l
                 },
             )
         )
+
+    # Material evidence ingestion for Base64/RC4/UTF-16LE probes
+    # Only ingest when explicit material fields are present; do not promote
+    # compare capture alone to material proof.
+    _ingest_material_evidence(tool_name, data, items)
+
     return items
+
+
+def _ingest_material_evidence(
+    tool_name: str,
+    data: dict[str, object],
+    items: list[StructuredEvidence],
+) -> None:
+    """Ingest Base64/RC4/UTF-16LE material evidence from JSON probe output.
+
+    This helper looks for explicit material-probe fields and converts them
+    to StructuredEvidence records. It does NOT treat compare capture or
+    candidate lists alone as material proof.
+    """
+    # Base64 material evidence
+    base64_fields = ("base64_construction_point", "base64_input_bytes_hex", "base64_output_chars")
+    if any(key in data for key in base64_fields):
+        chunk_boundary = data.get("base64_chunk_boundary_info")
+        items.append(
+            base64_material_evidence(
+                source_tool=tool_name,
+                construction_point=str(data.get("base64_construction_point", "")).strip(),
+                input_bytes_hex=str(data.get("base64_input_bytes_hex", "")).strip(),
+                output_chars=str(data.get("base64_output_chars", "")).strip(),
+                chunk_boundary_info=chunk_boundary if isinstance(chunk_boundary, dict) else None,
+                instruction_address=str(data.get("base64_instruction_address", "")).strip(),
+                confidence=_maybe_float(data.get("base64_confidence")),
+                derived_candidates=[
+                    str(data.get("base64_derived_candidate", "")).strip()
+                ] if data.get("base64_derived_candidate") else [],
+            )
+        )
+
+    # RC4 material evidence
+    rc4_fields = ("rc4_ksa_point", "rc4_prga_point", "rc4_key_material_hex")
+    if any(key in data for key in rc4_fields):
+        items.append(
+            rc4_material_evidence(
+                source_tool=tool_name,
+                ksa_point=str(data.get("rc4_ksa_point", "")).strip(),
+                prga_point=str(data.get("rc4_prga_point", "")).strip(),
+                key_material_hex=str(data.get("rc4_key_material_hex", "")).strip(),
+                input_bytes_hex=str(data.get("rc4_input_bytes_hex", "")).strip(),
+                output_bytes_hex=str(data.get("rc4_output_bytes_hex", "")).strip(),
+                instruction_address=str(data.get("rc4_instruction_address", "")).strip(),
+                confidence=_maybe_float(data.get("rc4_confidence")),
+                derived_candidates=[
+                    str(data.get("rc4_derived_candidate", "")).strip()
+                ] if data.get("rc4_derived_candidate") else [],
+            )
+        )
+
+    # UTF-16LE material evidence
+    utf16le_fields = ("utf16le_expansion_point", "utf16le_source_bytes_hex", "utf16le_wide_chars")
+    if any(key in data for key in utf16le_fields):
+        items.append(
+            utf16le_material_evidence(
+                source_tool=tool_name,
+                expansion_point=str(data.get("utf16le_expansion_point", "")).strip(),
+                source_bytes_hex=str(data.get("utf16le_source_bytes_hex", "")).strip(),
+                wide_chars=str(data.get("utf16le_wide_chars", "")).strip(),
+                instruction_address=str(data.get("utf16le_instruction_address", "")).strip(),
+                confidence=_maybe_float(data.get("utf16le_confidence")),
+                derived_candidates=[
+                    str(data.get("utf16le_derived_candidate", "")).strip()
+                ] if data.get("utf16le_derived_candidate") else [],
+            )
+        )
 
 
 def _resolve_ida_executable(user_path: str) -> str:

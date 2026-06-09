@@ -464,3 +464,183 @@ def test_public_ida_evidence_runner_reuses_ida_automation(tmp_path: Path, monkey
     assert "字符串引用 1 条" in artifact.summary
     assert "校验函数候选 1 个" in artifact.summary
     assert any("IDA字符串引用" in line for line in artifact.evidence)
+
+
+# ---------------------------------------------------------------------------
+# Material evidence ingestion tests (synthetic JSON only)
+# ---------------------------------------------------------------------------
+
+
+def test_structured_evidence_from_json_ingests_base64_material() -> None:
+    from reverse_agent.tool_runners import _structured_evidence_from_json
+
+    data = {
+        "base64_construction_point": "encode_loop",
+        "base64_input_bytes_hex": "666c61677b",
+        "base64_output_chars": "ZmxhZ3s=",
+        "base64_chunk_boundary_info": {"prefix_ends_on_boundary": True, "chunk_index": 2},
+        "base64_instruction_address": "0x403120",
+        "base64_confidence": 0.92,
+        "base64_derived_candidate": "flag{test}",
+    }
+    items = _structured_evidence_from_json(tool_name="OllyDbg", data=data)
+
+    base64_ev = next(item for item in items if item.kind == "Base64MaterialEvidence")
+    assert base64_ev.source_tool == "OllyDbg"
+    assert base64_ev.payload["construction_point"] == "encode_loop"
+    assert base64_ev.payload["input_bytes_hex"] == "666c61677b"
+    assert base64_ev.payload["output_chars"] == "ZmxhZ3s="
+    assert base64_ev.payload["instruction_address"] == "0x403120"
+    assert base64_ev.payload["chunk_boundary_info"]["chunk_index"] == 2
+    assert base64_ev.confidence == 0.92
+    assert base64_ev.derived_candidates == ["flag{test}"]
+    assert "Base64 encode_loop" in base64_ev.summary
+
+
+def test_structured_evidence_from_json_ingests_rc4_material() -> None:
+    from reverse_agent.tool_runners import _structured_evidence_from_json
+
+    data = {
+        "rc4_ksa_point": "ksa_init",
+        "rc4_prga_point": "prga_stream",
+        "rc4_key_material_hex": "5a6d7863",
+        "rc4_input_bytes_hex": "deadbeef",
+        "rc4_output_bytes_hex": "cafebabe",
+        "rc4_instruction_address": "0x402a00",
+        "rc4_confidence": 0.88,
+    }
+    items = _structured_evidence_from_json(tool_name="OllyDbg", data=data)
+
+    rc4_ev = next(item for item in items if item.kind == "RC4MaterialEvidence")
+    assert rc4_ev.source_tool == "OllyDbg"
+    assert rc4_ev.payload["ksa_point"] == "ksa_init"
+    assert rc4_ev.payload["prga_point"] == "prga_stream"
+    assert rc4_ev.payload["key_material_hex"] == "5a6d7863"
+    assert rc4_ev.payload["input_bytes_hex"] == "deadbeef"
+    assert rc4_ev.payload["output_bytes_hex"] == "cafebabe"
+    assert rc4_ev.payload["instruction_address"] == "0x402a00"
+    assert rc4_ev.confidence == 0.88
+    assert rc4_ev.derived_candidates == []
+    assert "RC4 KSA ksa_init" in rc4_ev.summary
+
+
+def test_structured_evidence_from_json_ingests_utf16le_material() -> None:
+    from reverse_agent.tool_runners import _structured_evidence_from_json
+
+    data = {
+        "utf16le_expansion_point": "mbstowcs",
+        "utf16le_source_bytes_hex": "666c6167",
+        "utf16le_wide_chars": "f.l.a.g.",
+        "utf16le_instruction_address": "0x401b50",
+        "utf16le_confidence": 0.85,
+        "utf16le_derived_candidate": "flag{wide}",
+    }
+    items = _structured_evidence_from_json(tool_name="OllyDbg", data=data)
+
+    utf_ev = next(item for item in items if item.kind == "UTF16LEMaterialEvidence")
+    assert utf_ev.source_tool == "OllyDbg"
+    assert utf_ev.payload["expansion_point"] == "mbstowcs"
+    assert utf_ev.payload["source_bytes_hex"] == "666c6167"
+    assert utf_ev.payload["wide_chars"] == "f.l.a.g."
+    assert utf_ev.payload["instruction_address"] == "0x401b50"
+    assert utf_ev.confidence == 0.85
+    assert utf_ev.derived_candidates == ["flag{wide}"]
+    assert "UTF-16LE mbstowcs" in utf_ev.summary
+
+
+def test_structured_evidence_from_json_mixed_preserves_existing_evidence() -> None:
+    from reverse_agent.tool_runners import _structured_evidence_from_json
+
+    data = {
+        "candidates": [{"value": "AAAAAAA", "source": "runtime_probe", "confidence": 0.9}],
+        "compare_site": "0x40258c",
+        "lhs_wide_hex": "66006c00",
+        "rhs_wide_hex": "66006c00",
+        "input_text": "AAAAAAA",
+        "strings": ["flag{"],
+        "compare_contexts": [{"call_ea": "0x402584", "callee": "lstrcmpA"}],
+        "base64_construction_point": "encode_loop",
+        "base64_instruction_address": "0x403120",
+        "rc4_ksa_point": "ksa_init",
+        "rc4_instruction_address": "0x402a00",
+        "utf16le_expansion_point": "mbstowcs",
+        "utf16le_instruction_address": "0x401b50",
+    }
+    items = _structured_evidence_from_json(tool_name="IDA", data=data)
+
+    kinds = [item.kind for item in items]
+    assert "CandidateEvidence" in kinds
+    assert "RuntimeCompareEvidence" in kinds
+    assert "StaticStringEvidence" in kinds
+    assert "ConstraintEvidence" in kinds
+    assert "Base64MaterialEvidence" in kinds
+    assert "RC4MaterialEvidence" in kinds
+    assert "UTF16LEMaterialEvidence" in kinds
+
+    candidate = next(item for item in items if item.kind == "CandidateEvidence")
+    assert candidate.derived_candidates == ["AAAAAAA"]
+
+    compare = next(item for item in items if item.kind == "RuntimeCompareEvidence")
+    assert compare.payload["compare_site"] == "0x40258c"
+
+    base64 = next(item for item in items if item.kind == "Base64MaterialEvidence")
+    assert base64.payload["instruction_address"] == "0x403120"
+
+    rc4 = next(item for item in items if item.kind == "RC4MaterialEvidence")
+    assert rc4.payload["instruction_address"] == "0x402a00"
+
+    utf = next(item for item in items if item.kind == "UTF16LEMaterialEvidence")
+    assert utf.payload["instruction_address"] == "0x401b50"
+
+
+def test_structured_evidence_from_json_unknown_material_fields_no_crash() -> None:
+    from reverse_agent.tool_runners import _structured_evidence_from_json
+
+    data = {
+        "base64_construction_point": "",
+        "rc4_ksa_point": "",
+        "utf16le_expansion_point": "",
+        "some_unknown_field": 123,
+    }
+    items = _structured_evidence_from_json(tool_name="TestTool", data=data)
+
+    # Empty-string fields should still trigger ingestion because the keys are present
+    base64 = next((item for item in items if item.kind == "Base64MaterialEvidence"), None)
+    rc4 = next((item for item in items if item.kind == "RC4MaterialEvidence"), None)
+    utf = next((item for item in items if item.kind == "UTF16LEMaterialEvidence"), None)
+
+    # All three should be created even with empty values
+    assert base64 is not None
+    assert rc4 is not None
+    assert utf is not None
+    assert base64.payload["construction_point"] == ""
+    assert rc4.payload["ksa_point"] == ""
+    assert utf.payload["expansion_point"] == ""
+
+
+def test_structured_evidence_from_json_partial_material_fields_no_crash() -> None:
+    from reverse_agent.tool_runners import _structured_evidence_from_json
+
+    data = {
+        "base64_output_chars": "ZmxhZ3s=",
+        "rc4_key_material_hex": "5a6d",
+        "utf16le_wide_chars": "fg",
+    }
+    items = _structured_evidence_from_json(tool_name="TestTool", data=data)
+
+    kinds = [item.kind for item in items]
+    assert "Base64MaterialEvidence" in kinds
+    assert "RC4MaterialEvidence" in kinds
+    assert "UTF16LEMaterialEvidence" in kinds
+
+    base64 = next(item for item in items if item.kind == "Base64MaterialEvidence")
+    assert base64.payload["output_chars"] == "ZmxhZ3s="
+    assert base64.payload["construction_point"] == ""
+
+    rc4 = next(item for item in items if item.kind == "RC4MaterialEvidence")
+    assert rc4.payload["key_material_hex"] == "5a6d"
+    assert rc4.payload["ksa_point"] == ""
+
+    utf = next(item for item in items if item.kind == "UTF16LEMaterialEvidence")
+    assert utf.payload["wide_chars"] == "fg"
+    assert utf.payload["expansion_point"] == ""
