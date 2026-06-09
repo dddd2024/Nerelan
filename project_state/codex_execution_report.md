@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260609_ollydbg_env_setup_contract_v1",
-  "round_id": "round_20260609_ollydbg_env_setup_contract_v1",
-  "based_on_decision_id": "decision_20260609_ollydbg_env_setup_contract_v1",
+  "report_id": "report_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1",
+  "round_id": "round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1",
+  "based_on_decision_id": "decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -18,9 +18,6 @@
   "training_status_modified": false,
   "status_overlay_modified": false,
   "files_changed": [
-    "docs/tooling/ollydbg_backend_setup.md",
-    ".env.example",
-    "project_state/ollydbg_preflight_result.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
@@ -32,16 +29,13 @@
     "python -m reverse_agent.ollydbg_preflight --out project_state/ollydbg_preflight_result.json",
     "python -m json.tool project_state/ollydbg_preflight_result.json > NUL"
   ],
-  "generated_artifacts": [
-    "docs/tooling/ollydbg_backend_setup.md",
-    ".env.example",
-    "project_state/ollydbg_preflight_result.json"
-  ],
+  "generated_artifacts": [],
   "preflight_result": {
     "ready": false,
     "backend_ready": false,
     "runtime_ready": false,
-    "recommendation": "blocked_waiting_for_user_ollydbg_env_config"
+    "preflight_recommendation": "preflight_not_configured_user_env_needed",
+    "next_decision_recommendation": "blocked_waiting_for_user_ollydbg_env_config"
   }
 }
 ```
@@ -51,76 +45,56 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the execution authority for this round.
-- [x] Active decision: `decision_20260609_ollydbg_env_setup_contract_v1`.
-- [x] Active round: `round_20260609_ollydbg_env_setup_contract_v1`.
-- [x] Mainline is `tool_integration`; this is a documentation/config-contract round.
+- [x] Active decision: `decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1`.
+- [x] Active round: `round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1`.
+- [x] Mainline is `tool_integration`; this is a bounded recommendation-field repair round.
 - [x] No sample binary was executed.
 - [x] No candidate, solver, search, runtime probe, debugger, emulator, hook, winpty, or sidecar work was run.
 - [x] `.codex-skills/` was not modified.
 - [x] `training_status`, status overlay, sample metadata, and archive directories were not modified.
-- [x] No changes outside allowed scope (documentation, config example, report, pytest_result, preflight JSON).
+- [x] No changes outside allowed scope (report and pytest_result wording only).
 - [x] Full `solve_reports/` and full `PROJECT_PROGRESS_LOG.txt` were not read.
 
 ## 2. Scope
 
-Turn the accepted OllyDbg backend preflight result into a clear user-environment setup contract. This round:
+Repair recommendation-field consistency for the OllyDbg environment setup contract round. The previous round (`decision_20260609_ollydbg_env_setup_contract_v1`) had a mismatch:
 
-1. Created `docs/tooling/ollydbg_backend_setup.md` — focused setup document
-2. Created `.env.example` — environment variable template
-3. Regenerated `project_state/ollydbg_preflight_result.json`
-4. Updated this report and `pytest_result.txt`
+- **Actual preflight JSON** (`project_state/ollydbg_preflight_result.json`): `recommendation: preflight_not_configured_user_env_needed`
+- **Previous report summary**: `preflight_result.recommendation: blocked_waiting_for_user_ollydbg_env_config`
+- **Previous pytest_result summary**: same mismatch
 
-No external reverse tool or sample was launched. No full `solve_reports/` or `PROJECT_PROGRESS_LOG.txt` inspection occurred.
+This round corrects the mismatch by separating:
+- `preflight_recommendation` — the actual preflight tool output
+- `next_decision_recommendation` — the recommended next action for the decision system
 
-## 3. Why `preflight_not_configured_user_env_needed` Is an Environment Blocker
+No preflight behavior, readiness semantics, source code, docs, or `.env.example` were modified.
 
-The current preflight reports `ready=false` because:
+## 3. Field Semantics
 
-- `ollydbg_executable_found: false` — OllyDbg is not installed or not at a common path
-- `olly_script_module_importable: false` — the OllyDbg Python scripting bridge is not installed
-- `sample_path_resolvable: false` — the sample binary is not at the expected location
+| Field | Value | Meaning |
+|-------|-------|---------|
+| `preflight_recommendation` | `preflight_not_configured_user_env_needed` | What the preflight tool itself reports |
+| `next_decision_recommendation` | `blocked_waiting_for_user_ollydbg_env_config` | What the decision system should do next |
 
-This is an **environment/configuration blocker**, not a solver or sample-analysis blocker. The code infrastructure (OllyDbg scripts, Python caller/aggregator, search strategy integration) is complete and intact. The gap is purely in the runtime environment: the user needs to install OllyDbg, configure its Python module, and place the sample binary.
+The preflight tool's recommendation is a **diagnostic output** describing the current environment state. The next-decision recommendation is a **workflow directive** telling the system to wait for user configuration before proceeding to bounded runtime probing.
 
-## 4. User-Facing Setup Inputs
+## 4. Verification
 
-The following inputs are required for the preflight to become runtime-ready:
+- `project_state/ollydbg_preflight_result.json` remains unchanged from the previous round.
+- Its `recommendation` field is `preflight_not_configured_user_env_needed`.
+- This report and `pytest_result.txt` now correctly use `preflight_recommendation` for the tool output and `next_decision_recommendation` for the workflow directive.
+- `docs/tooling/ollydbg_backend_setup.md` and `.env.example` remain unchanged and consistent with `ollydbg_preflight.py`.
 
-| Input | Environment Variable | Description |
-|-------|---------------------|-------------|
-| OllyDbg executable | `REVERSE_AGENT_OLLYDBG_PATH` | Absolute path to `ollydbg.exe` |
-| Sample binary | `REVERSE_AGENT_SAMPLE_PATH` | Absolute path to target sample |
-| OllyDbg Python module | (pip install) | `olly.ollyscript` or equivalent |
-| Scripts directory | (built-in) | `reverse_agent/olly_scripts/` — already exists |
-| Step audit script | (built-in) | `compare_handoff_post_entry_step_audit.py` — already exists |
+## 5. negative_results.json Cross-Check
 
-## 5. Setup Documentation
-
-Created `docs/tooling/ollydbg_backend_setup.md` covering:
-- Prerequisites (OllyDbg 1.10, Python scripting bridge, sample binary)
-- Environment variable definitions with examples
-- Auto-discovery fallback paths
-- Preflight execution and JSON validation commands
-- Readiness flag interpretation (`backend_ready`, `runtime_ready`, `ready`)
-- Readiness matrix (4 states)
-- Recommendation category meanings
-- Existing script inventory
-- When runtime probing is allowed (only after `ready=true` or explicit manual blocker acceptance)
-- Full setup workflow example
-
-Created `.env.example` as a minimal config template with both variables.
-
-## 6. negative_results.json Cross-Check
-
-This setup-contract work does not repeat any blocked solver/probe direction:
+This recommendation-field repair does not repeat any blocked solver/probe direction:
 - No compare-aware search executed
 - No candidate validation performed
 - No runtime probe launched
 - No full solve_reports commit attempted
-- No Base64/RC4/material-hook directions repeated
 - All negative-result prohibitions respected
 
-## 7. Required Audit Checklist
+## 6. Required Audit Checklist
 
 | # | Check | Result |
 |---|-------|--------|
@@ -129,20 +103,19 @@ This setup-contract work does not repeat any blocked solver/probe direction:
 | 3 | decision_meta.mainline == tool_integration | PASS |
 | 4 | Both skill profiles active in registry | PASS |
 | 5 | decision_packet.md is execution authority; task_packet.json advisory | PASS |
-| 6 | Preflight is `preflight_not_configured_user_env_needed` — env blocker explained | PASS |
-| 7 | User-facing setup inputs inventoried | PASS |
-| 8 | Setup document created at `docs/tooling/ollydbg_backend_setup.md` | PASS |
-| 9 | Document covers env vars, preflight rerun, readiness interpretation | PASS |
-| 10 | Document covers when runtime probing is allowed | PASS |
-| 11 | Document aligned with existing preflight field names | PASS |
-| 12 | No inaccurate wording ("source modules not modified") | PASS — used "no changes outside allowed scope" |
+| 6 | Actual preflight JSON recommendation preserved | PASS (`preflight_not_configured_user_env_needed`) |
+| 7 | Report summary matches actual preflight JSON recommendation | PASS (via `preflight_recommendation` field) |
+| 8 | pytest_result summary matches actual preflight JSON recommendation | PASS (via `preflight_recommendation` field) |
+| 9 | Next-step recommendation in separate field | PASS (`next_decision_recommendation`) |
+| 10 | No preflight behavior/semantic changes | PASS |
+| 11 | No source code changes | PASS |
+| 12 | docs and .env.example remain consistent | PASS |
 | 13 | negative_results.json cross-checked | PASS |
 | 14 | No full solve_reports/PROJECT_PROGRESS_LOG read | PASS |
 | 15 | No external reverse tool/sample launched | PASS |
 | 16 | Report and pytest_result match this decision/round ID | PASS |
-| 17 | Generated JSON, report summary, pytest_result summary use same recommendation | PASS |
-| 18 | Recommendation is one of 3 allowed values | PASS |
+| 17 | No stale old IDs in pytest_result.txt | PASS |
 
-## 8. Stop Conditions
+## 7. Stop Conditions
 
-No stop condition triggered. This setup-contract round is complete and accepted.
+No stop condition triggered. This recommendation-field repair round is complete and accepted.
