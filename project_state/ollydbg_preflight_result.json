@@ -1,7 +1,9 @@
 {
   "preflight_name": "ollydbg_backend_preflight",
-  "preflight_version": 1,
+  "preflight_version": 2,
   "ready": false,
+  "backend_ready": false,
+  "runtime_ready": false,
   "checks": {
     "ollydbg_executable_found": false,
     "ollydbg_executable_path": null,

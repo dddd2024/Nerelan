@@ -1,4 +1,4 @@
-"""Focused tests for ollydbg_preflight — mocked, no external tool startup."""
+"""Focused tests for ollydbg_preflight — hermetic, no external tool dependency."""
 from __future__ import annotations
 
 import json
@@ -16,7 +16,7 @@ from reverse_agent.ollydbg_preflight import (
 
 
 class TestOllydbgPreflight:
-    """Non-invasive preflight tests — no OllyDbg process started."""
+    """Hermetic preflight tests — no dependency on real OllyDbg/ollyscript/sample installation."""
 
     def test_step_audit_script_exists(self) -> None:
         """The compare_handoff_post_entry_step_audit.py script must exist."""
@@ -29,20 +29,55 @@ class TestOllydbgPreflight:
     def test_preflight_all_false_when_nothing_configured(self, tmp_path: Path) -> None:
         """Preflight returns ready=False when no backend is configured."""
         out = tmp_path / "preflight.json"
-        result = run_ollydbg_preflight(output_path=out)
+
+        with (
+            patch("reverse_agent.ollydbg_preflight._ollydbg_exe_path", return_value=None),
+            patch("reverse_agent.ollydbg_preflight._olly_script_module_available", return_value=False),
+            patch("reverse_agent.ollydbg_preflight._sample_path", return_value=None),
+        ):
+            result = run_ollydbg_preflight(output_path=out)
 
         assert result["preflight_name"] == "ollydbg_backend_preflight"
+        assert result["preflight_version"] == 2
         assert result["ready"] is False
+        assert result["backend_ready"] is False
+        assert result["runtime_ready"] is False
         assert result["checks"]["olly_scripts_directory_exists"] is True
         assert result["checks"]["step_audit_script_exists"] is True
         assert result["checks"]["ollydbg_executable_found"] is False
         assert result["checks"]["olly_script_module_importable"] is False
+        assert result["checks"]["sample_path_resolvable"] is False
         assert result["recommendation"] == "preflight_not_configured_user_env_needed"
         assert out.exists()
 
-    def test_preflight_ready_when_all_mocked(self, tmp_path: Path) -> None:
-        """Preflight returns ready=True when all critical checks are mocked to pass."""
+    def test_preflight_backend_ready_but_sample_missing(self, tmp_path: Path) -> None:
+        """Backend ready but missing sample produces backend_ready=true, runtime_ready=false."""
         out = tmp_path / "preflight.json"
+
+        with (
+            patch(
+                "reverse_agent.ollydbg_preflight._ollydbg_exe_path",
+                return_value=tmp_path / "ollydbg.exe",
+            ),
+            patch(
+                "reverse_agent.ollydbg_preflight._olly_script_module_available",
+                return_value=True,
+            ),
+            patch("reverse_agent.ollydbg_preflight._sample_path", return_value=None),
+        ):
+            result = run_ollydbg_preflight(output_path=out)
+
+        assert result["backend_ready"] is True
+        assert result["runtime_ready"] is False
+        assert result["ready"] is False
+        assert result["checks"]["sample_path_resolvable"] is False
+        assert result["recommendation"] == "preflight_not_configured_user_env_needed"
+
+    def test_preflight_fully_ready_when_all_mocked(self, tmp_path: Path) -> None:
+        """Preflight returns ready=True when backend and sample are both available."""
+        out = tmp_path / "preflight.json"
+        fake_sample = tmp_path / "samplereverse.exe"
+        fake_sample.write_text("", encoding="utf-8")
 
         with (
             patch(
@@ -55,12 +90,14 @@ class TestOllydbgPreflight:
             ),
             patch(
                 "reverse_agent.ollydbg_preflight._sample_path",
-                return_value=tmp_path / "samplereverse.exe",
+                return_value=fake_sample,
             ),
         ):
             result = run_ollydbg_preflight(output_path=out)
 
         assert result["ready"] is True
+        assert result["backend_ready"] is True
+        assert result["runtime_ready"] is True
         assert result["checks"]["ollydbg_executable_found"] is True
         assert result["checks"]["olly_script_module_importable"] is True
         assert result["checks"]["olly_scripts_directory_exists"] is True
@@ -72,7 +109,9 @@ class TestOllydbgPreflight:
         # Verify JSON is valid and round-trips
         data = json.loads(out.read_text(encoding="utf-8"))
         assert data["ready"] is True
-        assert data["preflight_version"] == 1
+        assert data["backend_ready"] is True
+        assert data["runtime_ready"] is True
+        assert data["preflight_version"] == 2
 
     def test_preflight_respects_explicit_paths(self, tmp_path: Path) -> None:
         """Explicit ollydbg_path and sample_path override discovery."""
@@ -88,6 +127,8 @@ class TestOllydbgPreflight:
 
         assert result["checks"]["ollydbg_executable_path"] == str(fake_olly)
         assert result["checks"]["sample_path"] == str(fake_sample)
+        # With explicit paths, backend_ready depends on olly + module
+        # Since module is not mocked here, backend_ready may be false
 
     def test_preflight_main_cli_exit_code(self, tmp_path: Path) -> None:
         """CLI returns exit code 1 when not ready."""
@@ -103,3 +144,5 @@ class TestOllydbgPreflight:
         assert proc.returncode == 1
         data = json.loads(proc.stdout)
         assert data["ready"] is False
+        assert data["backend_ready"] is False
+        assert data["runtime_ready"] is False

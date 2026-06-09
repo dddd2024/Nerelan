@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260609_ollydbg_backend_preflight_config_v1",
-  "round_id": "round_20260609_ollydbg_backend_preflight_config_v1",
-  "based_on_decision_id": "decision_20260609_ollydbg_backend_preflight_config_v1",
+  "report_id": "report_20260609_fix_ollydbg_preflight_validation_v1",
+  "round_id": "round_20260609_fix_ollydbg_preflight_validation_v1",
+  "based_on_decision_id": "decision_20260609_fix_ollydbg_preflight_validation_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -29,19 +29,17 @@
     "python -m reverse_agent.project_state lint-decision",
     "python -m reverse_agent.project_state lint-report",
     "python -m pytest tests/test_project_state.py tests/test_ollydbg_preflight.py",
-    "python -m reverse_agent.ollydbg_preflight --out project_state/ollydbg_preflight_result.json"
+    "python -m reverse_agent.ollydbg_preflight --out project_state/ollydbg_preflight_result.json",
+    "python -m json.tool project_state/ollydbg_preflight_result.json > NUL"
   ],
   "generated_artifacts": [
     "project_state/ollydbg_preflight_result.json"
   ],
   "preflight_result": {
     "ready": false,
-    "recommendation": "preflight_not_configured_user_env_needed",
-    "olly_scripts_directory_exists": true,
-    "step_audit_script_exists": true,
-    "ollydbg_executable_found": false,
-    "olly_script_module_importable": false,
-    "sample_path_resolvable": false
+    "backend_ready": false,
+    "runtime_ready": false,
+    "recommendation": "preflight_not_configured_user_env_needed"
   }
 }
 ```
@@ -51,9 +49,9 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the execution authority for this round.
-- [x] Active decision: `decision_20260609_ollydbg_backend_preflight_config_v1`.
-- [x] Active round: `round_20260609_ollydbg_backend_preflight_config_v1`.
-- [x] Mainline is `tool_integration`; this is a preflight implementation round.
+- [x] Active decision: `decision_20260609_fix_ollydbg_preflight_validation_v1`.
+- [x] Active round: `round_20260609_fix_ollydbg_preflight_validation_v1`.
+- [x] Mainline is `tool_integration`; this is a bounded repair round.
 - [x] No sample binary was executed.
 - [x] No candidate, solver, search, runtime probe, debugger, emulator, hook, winpty, or sidecar work was run.
 - [x] `.codex-skills/` was not modified.
@@ -62,32 +60,61 @@
 
 ## 2. Scope
 
-Tool-integration preflight implementation round. Based on the previous audit conclusion to "reuse existing debugger step interface," this round implements a non-invasive preflight check that reports whether the OllyDbg backend is configured and ready — without starting OllyDbg, attaching to any process, or executing the sample.
+Repair the OllyDbg backend preflight implementation and evidence record. Two defects were fixed:
+
+1. **Readiness ignored sample path**: The previous `ready` flag only checked backend tooling (OllyDbg exe, Python module, scripts) but not whether the sample was available. This could incorrectly mark the backend as ready for runtime probing when the sample was missing.
+
+2. **JSON validation not recorded**: `pytest_result.txt` did not include the `python -m json.tool` validation command output.
+
+3. **Tests not hermetic**: Tests depended on the local machine not having OllyDbg/ollyscript installed.
 
 Changes made:
-- Added `reverse_agent/ollydbg_preflight.py` — minimal preflight module
-- Added `tests/test_ollydbg_preflight.py` — focused mocked tests (no external tool startup)
-- Generated `project_state/ollydbg_preflight_result.json` — compact JSON artifact
-- Updated this report and `pytest_result.txt`
+- Repaired `reverse_agent/ollydbg_preflight.py` — split readiness into `backend_ready` and `runtime_ready`
+- Repaired `tests/test_ollydbg_preflight.py` — all tests now mock environment discovery
+- Regenerated `project_state/ollydbg_preflight_result.json` from repaired preflight
+- Updated this report and `pytest_result.txt` with real command outputs including JSON validation
 
-## 3. Preflight Implementation
+## 3. Readiness Semantics Repair
 
-### 3.1 Module: `reverse_agent/ollydbg_preflight.py`
+### 3.1 Previous (Defective)
 
-Non-invasive checks (no process startup):
-- `ollydbg_executable_found` — checks `REVERSE_AGENT_OLLYDBG_PATH` env var and common Windows paths
-- `olly_script_module_importable` — checks if `olly.ollyscript` or equivalent Python module is importable
-- `olly_scripts_directory_exists` — verifies `reverse_agent/olly_scripts/` directory exists
-- `step_audit_script_exists` — verifies `compare_handoff_post_entry_step_audit.py` exists
-- `sample_path_resolvable` — checks `REVERSE_AGENT_SAMPLE_PATH` env var and default location
+```python
+ready = all([
+    ollydbg_executable_found,
+    olly_script_module_importable,
+    olly_scripts_directory_exists,
+    step_audit_script_exists,
+])
+# sample_path_resolvable was CHECKED but NOT included in ready logic
+```
 
-### 3.2 Preflight Result
+### 3.2 Repaired
+
+```python
+backend_ready = (
+    ollydbg_executable_found
+    and olly_script_module_importable
+    and olly_scripts_directory_exists
+    and step_audit_script_exists
+)
+runtime_ready = backend_ready and sample_path_resolvable
+ready = runtime_ready  # Overall ready requires both backend and sample
+```
+
+**New fields in output:**
+- `backend_ready`: true when OllyDbg tooling is complete
+- `runtime_ready`: true when backend AND sample are both available
+- `ready`: alias for `runtime_ready` (cannot be true without sample)
+
+### 3.3 Preflight Result (Repaired)
 
 ```json
 {
   "preflight_name": "ollydbg_backend_preflight",
-  "preflight_version": 1,
+  "preflight_version": 2,
   "ready": false,
+  "backend_ready": false,
+  "runtime_ready": false,
   "checks": {
     "ollydbg_executable_found": false,
     "ollydbg_executable_path": null,
@@ -101,48 +128,44 @@ Non-invasive checks (no process startup):
 }
 ```
 
-**Interpretation:**
-- ✅ OllyDbg scripts infrastructure exists (scripts directory + step audit script)
-- ❌ OllyDbg executable not found (not installed or not in PATH/common locations)
-- ❌ OllyDbg Python module not importable (`olly.ollyscript` not installed)
-- ❌ Sample path not resolvable (`samples/samplereverse.exe` not found)
-
 ## 4. Tests
 
 ### 4.1 Focused Preflight Tests
 
-`tests/test_ollydbg_preflight.py` — 6 tests, all mocked, no external tool startup:
+`tests/test_ollydbg_preflight.py` — 7 tests, all hermetic (mocked):
 
 | Test | Purpose |
 |------|---------|
-| `test_step_audit_script_exists` | Verify the step audit script is present |
-| `test_olly_script_module_not_available_by_default` | Confirm module not installed in test env |
-| `test_preflight_all_false_when_nothing_configured` | Default state returns `ready=false` |
-| `test_preflight_ready_when_all_mocked` | Mocked state returns `ready=true` |
+| `test_step_audit_script_exists` | Verify script presence |
+| `test_olly_script_module_not_available_by_default` | Confirm module not in test env |
+| `test_preflight_all_false_when_nothing_configured` | Default state: all false |
+| `test_preflight_backend_ready_but_sample_missing` | **NEW**: backend_ready=true, runtime_ready=false |
+| `test_preflight_fully_ready_when_all_mocked` | Full readiness with mocked backend + sample |
 | `test_preflight_respects_explicit_paths` | Explicit paths override discovery |
-| `test_preflight_main_cli_exit_code` | CLI returns exit code 1 when not ready |
+| `test_preflight_main_cli_exit_code` | CLI returns 1 when not ready |
 
-**Result: 6/6 passed**
+**Result: 7/7 passed**
 
 ### 4.2 Full Test Suite
 
-`tests/test_project_state.py` + `tests/test_ollydbg_preflight.py` — **164/164 passed** (158 existing + 6 new)
+`tests/test_project_state.py` + `tests/test_ollydbg_preflight.py` — **165/165 passed** (158 existing + 7 preflight)
 
-## 5. Recommendation
+## 5. JSON Validation
 
-**Category: `preflight_not_configured_user_env_needed`**
+Command: `python -m json.tool project_state/ollydbg_preflight_result.json > NUL`
 
-The preflight confirms that:
-1. The OllyDbg single-step code infrastructure is present and intact
-2. The runtime backend (OllyDbg executable + Python module) is not configured
-3. The sample binary is not present at the expected location
+Result: PASSED (exit code 0) — JSON is well-formed and valid.
 
-Next steps (for a future decision):
-- Install OllyDbg and configure `REVERSE_AGENT_OLLYDBG_PATH`
-- Install the OllyDbg Python scripting module (`olly.ollyscript`)
-- Place `samplereverse.exe` at `samples/samplereverse.exe` or set `REVERSE_AGENT_SAMPLE_PATH`
+## 6. negative_results.json Cross-Check
 
-## 6. Required Audit Checklist
+This configuration/preflight work does not repeat any blocked solver/probe direction:
+- No compare-aware search executed
+- No candidate validation performed
+- No runtime probe launched
+- No full solve_reports commit attempted
+- All negative-result prohibitions respected
+
+## 7. Required Audit Checklist
 
 | # | Check | Result |
 |---|-------|--------|
@@ -151,17 +174,18 @@ Next steps (for a future decision):
 | 3 | decision_meta.mainline == tool_integration | PASS |
 | 4 | skill_profiles active in registry | PASS |
 | 5 | decision_packet.md is execution authority | PASS |
-| 6 | Preflight is non-invasive (no OllyDbg start, no attach, no sample execution) | PASS |
-| 7 | Source change is minimal and focused | PASS (1 module + 1 test file) |
-| 8 | Tests are mocked, no external tool startup | PASS |
-| 9 | Full test suite passes | PASS (164/164) |
-| 10 | Compact JSON artifact generated | PASS |
-| 11 | Artifact does not duplicate existing audit JSONs | PASS |
-| 12 | Recommendation category is one of 4 allowed values | PASS |
-| 13 | Category matches preflight result | PASS |
-| 14 | codex_execution_report.md matches this decision/round ID | PASS |
-| 15 | pytest_result.txt records this round's real command outputs | PASS |
+| 6 | Preflight non-invasive (no tool start, no attach, no sample execution) | PASS |
+| 7 | Source change bounded to preflight module and tests | PASS |
+| 8 | Tests hermetic (mock env vars, paths, module availability) | PASS |
+| 9 | sample_path_resolvable included in readiness logic | PASS |
+| 10 | backend_ready and runtime_ready distinguished | PASS |
+| 11 | Missing sample path cannot produce runtime-ready status | PASS |
+| 12 | Full test suite passes | PASS (165/165) |
+| 13 | JSON validation recorded in pytest_result.txt | PASS |
+| 14 | Generated JSON, report summary, pytest_result summary use same recommendation | PASS |
+| 15 | no stale old IDs in pytest_result.txt | PASS |
+| 16 | codex_execution_report.md matches this decision/round ID | PASS |
 
-## 7. Stop Conditions
+## 8. Stop Conditions
 
-No stop condition triggered. This preflight implementation round is complete and accepted.
+No stop condition triggered. This preflight repair round is complete and accepted.

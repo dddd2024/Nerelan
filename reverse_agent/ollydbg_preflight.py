@@ -81,6 +81,8 @@ def run_ollydbg_preflight(
     """Run non-invasive OllyDbg backend preflight check.
 
     Returns a compact JSON-serializable dict with configuration status.
+    Separates backend readiness (OllyDbg tooling) from runtime readiness
+    (sample available for actual probing).
     """
     sample = sample_path or _sample_path()
     ollydbg = ollydbg_path or _ollydbg_exe_path()
@@ -96,25 +98,35 @@ def run_ollydbg_preflight(
         "sample_path": str(sample) if sample else None,
     }
 
-    # Overall readiness: all critical checks must pass
-    critical_checks = [
-        checks["ollydbg_executable_found"],
-        checks["olly_script_module_importable"],
-        checks["olly_scripts_directory_exists"],
-        checks["step_audit_script_exists"],
-    ]
-    ready = all(critical_checks)
+    # Backend readiness: OllyDbg tooling must be complete
+    backend_ready = (
+        checks["ollydbg_executable_found"]
+        and checks["olly_script_module_importable"]
+        and checks["olly_scripts_directory_exists"]
+        and checks["step_audit_script_exists"]
+    )
+
+    # Runtime readiness: backend + sample must both be available
+    runtime_ready = backend_ready and checks["sample_path_resolvable"]
+
+    # Overall ready flag: requires runtime readiness for any actual probing
+    ready = runtime_ready
+
+    if backend_ready and not checks["sample_path_resolvable"]:
+        recommendation = "preflight_not_configured_user_env_needed"
+    elif ready:
+        recommendation = "preflight_ready_for_bounded_ollydbg_runtime_decision"
+    else:
+        recommendation = "preflight_not_configured_user_env_needed"
 
     result = {
         "preflight_name": "ollydbg_backend_preflight",
-        "preflight_version": 1,
+        "preflight_version": 2,
         "ready": ready,
+        "backend_ready": backend_ready,
+        "runtime_ready": runtime_ready,
         "checks": checks,
-        "recommendation": (
-            "preflight_ready_for_bounded_ollydbg_runtime_decision"
-            if ready
-            else "preflight_not_configured_user_env_needed"
-        ),
+        "recommendation": recommendation,
     }
 
     if output_path is not None:
