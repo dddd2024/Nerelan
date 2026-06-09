@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-09T16:10:39Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260609_reconcile_material_schema_report_ids_v1\\codex_execution_report.md",
+      "sha256": "ee8f1a2539bc0f6765bbb83fb3df5172f4cd2ff98c4f2adfa9c095ce8f84edda",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260609_reconcile_material_schema_report_ids_v1\\decision_packet.md",
+      "sha256": "c687ec9c97c728e7d647f78db10b04006515f02037bdf200eeddbf27c86309a9",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260609_reconcile_material_schema_report_ids_v1\\pytest_result.txt",
+      "sha256": "c0ed52cbdd6bf0ddcb11349868000cf75f5d37cf08fbc5fbd89929716f972eeb",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260609_reconcile_material_schema_report_ids_v1",
+  "schema_version": 1,
+  "source_git_commit": "8251e60a2d56",
+  "source_harness_run": "samplereverse_exact1_projected_vs_neighbor_20260424",
+  "state_build_id": "state_20260609_145049_7ee702d3b2b6",
+  "state_digest": "7ee702d3b2b6e31ff52b17c9d74ecc21ccb6ee0a81c88a8d526458985b4b0153",
+  "workflow_status": "REPORT_AVAILABLE"
+}
