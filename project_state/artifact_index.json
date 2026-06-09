@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-08T16:15:10Z",
+  "generated_at": "2026-06-09T14:50:43Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_breakpoint_probe\\base64_rc4_breakpoint_probe.json",
     "base64_rc4_static_point_discovery": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
@@ -16,7 +16,7 @@
     "compare_handoff_narrower_post_entry_breakpoint_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_post_entry_step_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
-    "compare_handoff_probe": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
+    "compare_handoff_probe": null,
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_handoff_slice_probe": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
     "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
@@ -30,7 +30,7 @@
     "compare_producer_material_confirmation": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "compare_producer_trace_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
     "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-    "compare_stack_pivot_probe": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
+    "compare_stack_pivot_probe": null,
     "dynamic_compare_path_probe": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\dynamic_compare_path_probe\\dynamic_compare_path_probe.json",
     "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
     "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
@@ -51,9 +51,7 @@
     "smt_validation": null,
     "strata_summary": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
-    "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json",
-    "local_reverse_state_freshness_rebuild_after_cpp2_883e67b9": "project_state\\local_reverse_state_freshness_rebuild_after_cpp2_883e67b9.json",
-    "local_reverse_training_capability_review": "project_state\\local_reverse_training_capability_review.json"
+    "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -129,7 +127,7 @@
       "source_run": "sr_esi_source_window_20260515_r1"
     },
     "compare_handoff_branch_operand_runtime_audit": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "compare_handoff_branch_operand_runtime_audit",
       "modified_at": "2026-06-01T05:32:40Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_branch_operand_runtime_audit\\compare_handoff_branch_operand_runtime_audit.json",
@@ -138,7 +136,7 @@
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_edge_operand_provenance_audit": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "compare_handoff_edge_operand_provenance_audit",
       "modified_at": "2026-06-01T04:36:16Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_edge_operand_provenance_audit\\compare_handoff_edge_operand_provenance_audit.json",
@@ -147,7 +145,7 @@
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_exit_classifier_audit": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "compare_handoff_exit_classifier_audit",
       "modified_at": "2026-05-31T14:06:29Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_exit_classifier_audit\\compare_handoff_exit_classifier_audit.json",
@@ -156,7 +154,7 @@
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_hook_surface_repair_audit": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "compare_handoff_hook_surface_repair_audit",
       "modified_at": "2026-06-01T06:18:22Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_hook_surface_repair_audit\\compare_handoff_hook_surface_repair_audit.json",
@@ -165,7 +163,7 @@
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_narrower_post_entry_breakpoint_audit": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
       "modified_at": "2026-06-02T05:39:38Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
@@ -174,7 +172,7 @@
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_path_divergence_audit": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "compare_handoff_path_divergence_audit",
       "modified_at": "2026-05-31T14:43:56Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
@@ -183,7 +181,7 @@
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_post_entry_step_runtime_audit": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "compare_handoff_post_entry_step_runtime_audit",
       "modified_at": "2026-06-01T10:12:15Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
@@ -192,13 +190,13 @@
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_handoff_probe": {
-      "freshness": "stale",
+      "freshness": "missing",
       "kind": "compare_handoff_probe",
-      "modified_at": "2026-05-05T14:17:37Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
-      "sha256": "b11cdcbfe3fa2eab361b908193b61999a3d2441b4d4775db183c3e1a80efec9a",
-      "size_bytes": 58601,
-      "source_run": "samplereverse_compare_handoff_probe_20260505"
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
     },
     "compare_handoff_return_site_probe": {
       "freshness": "stale",
@@ -219,7 +217,7 @@
       "source_run": "samplereverse_helper_arg_slice_probe_20260505"
     },
     "compare_hook_path_reachability_audit": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "compare_hook_path_reachability_audit",
       "modified_at": "2026-05-27T15:29:40Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
@@ -309,7 +307,7 @@
       "source_run": "samplereverse_pre_compare_handoff_target_20260512"
     },
     "compare_real_lhs_provenance_audit": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "compare_real_lhs_provenance_audit",
       "modified_at": "2026-05-27T08:40:17Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
@@ -318,13 +316,13 @@
       "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
     },
     "compare_stack_pivot_probe": {
-      "freshness": "stale",
+      "freshness": "missing",
       "kind": "compare_stack_pivot_probe",
-      "modified_at": "2026-05-05T03:56:07Z",
-      "path": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
-      "sha256": "ebc99340646da4f9c1407c3f6506981c7040a85af522a4373004d6c0c09a2f27",
-      "size_bytes": 10015,
-      "source_run": "samplereverse_compare_stack_pivot_probe_20260505"
+      "modified_at": null,
+      "path": null,
+      "sha256": null,
+      "size_bytes": null,
+      "source_run": ""
     },
     "dynamic_compare_path_probe": {
       "freshness": "stale",
@@ -462,7 +460,7 @@
       "source_run": "sr_mhrv_20260512_r7"
     },
     "run_manifest": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "run_manifest",
       "modified_at": "2026-05-27T08:48:10Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
@@ -498,7 +496,7 @@
       "source_run": "sr_mhrv_20260512_r7"
     },
     "summary": {
-      "freshness": "current",
+      "freshness": "stale",
       "kind": "summary",
       "modified_at": "2026-05-27T08:48:10Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
@@ -514,32 +512,14 @@
       "sha256": "9a0d39b1d183ff69ae98a656e24c6e6f7f0b5bf80ac3cb4a8112d714b9ddf385",
       "size_bytes": 60793,
       "source_run": "sr_mhrv_20260512_r7"
-    },
-    "local_reverse_state_freshness_rebuild_after_cpp2_883e67b9": {
-      "kind": "local_reverse_state_freshness_rebuild",
-      "path": "project_state\\local_reverse_state_freshness_rebuild_after_cpp2_883e67b9.json",
-      "freshness": "current",
-      "source_run": "round_20260608_local_reverse_state_freshness_rebuild_v1",
-      "sha256": "02a96373e26c76e8c25405c722014d4b5e8af72cb851bc3acfefd49b792abecb",
-      "size_bytes": 2460,
-      "modified_at": "2026-06-08T15:20:45Z"
-    },
-    "local_reverse_training_capability_review": {
-      "kind": "local_reverse_training_capability_review",
-      "path": "project_state\\local_reverse_training_capability_review.json",
-      "freshness": "current",
-      "source_run": "round_20260608_local_reverse_capability_gap_text_cleanup_v1",
-      "sha256": "e14849efe507c21b20f906e841c69387a70c77f1540188a1808bc7d8fd029e4a",
-      "size_bytes": 16873,
-      "modified_at": "2026-06-08T16:15:10Z"
     }
   },
-  "latest_case_results": [
-    "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\case_results\\samplereverse-compare-producer-backtrace.json"
+  "latest_case_results": [],
+  "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424",
+  "latest_summary": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424\\summary.json",
+  "missing": [
+    "case_results"
   ],
-  "latest_harness_run": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1",
-  "latest_summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
-  "missing": [],
   "recent_artifacts": [
     {
       "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
@@ -660,188 +640,6 @@
       "modified_at": "2026-05-27T15:29:23Z",
       "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\candidate_1\\compare_hook_path_reachability_audit.json",
       "size_bytes": 41979
-    },
-    {
-      "kind": "summary",
-      "modified_at": "2026-05-27T08:48:10Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
-      "size_bytes": 954
-    },
-    {
-      "kind": "run_manifest",
-      "modified_at": "2026-05-27T08:48:10Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
-      "size_bytes": 1580
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-27T08:40:17Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 76124
-    },
-    {
-      "freshness": "current",
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-27T08:40:17Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 76124,
-      "source": "case_result.artifact_manifest"
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-27T08:39:54Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_3\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 7804
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-27T08:39:30Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_2\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 7804
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-27T08:39:05Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_1\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 7804
-    },
-    {
-      "kind": "summary",
-      "modified_at": "2026-05-25T15:09:03Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\summary.json",
-      "size_bytes": 937
-    },
-    {
-      "kind": "run_manifest",
-      "modified_at": "2026-05-25T15:09:03Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\run_manifest.json",
-      "size_bytes": 1570
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-25T15:05:33Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 56254
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-25T15:05:10Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_3\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 7193
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-25T15:04:26Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_2\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 7193
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-25T15:04:13Z",
-      "path": "solve_reports\\harness_runs\\sr_arg0_bounded_writer_trace_20260525_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_1\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 7195
-    },
-    {
-      "kind": "summary",
-      "modified_at": "2026-05-24T04:23:31Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\summary.json",
-      "size_bytes": 977
-    },
-    {
-      "kind": "run_manifest",
-      "modified_at": "2026-05-24T04:23:31Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\run_manifest.json",
-      "size_bytes": 2689
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-24T04:23:30Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 173220
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-24T04:23:24Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_3\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 51085
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-24T04:23:17Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_2\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 48663
-    },
-    {
-      "kind": "compare_real_lhs_provenance_audit",
-      "modified_at": "2026-05-24T04:23:02Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\candidate_1\\compare_real_lhs_provenance_audit.json",
-      "size_bytes": 49249
-    },
-    {
-      "kind": "compare_probe",
-      "modified_at": "2026-05-24T04:22:51Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-      "size_bytes": 2433
-    },
-    {
-      "kind": "compare_probe_log",
-      "modified_at": "2026-05-24T04:22:51Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r4\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
-      "size_bytes": 22
-    },
-    {
-      "kind": "summary",
-      "modified_at": "2026-05-24T04:22:01Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\summary.json",
-      "size_bytes": 977
-    },
-    {
-      "kind": "run_manifest",
-      "modified_at": "2026-05-24T04:22:01Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\run_manifest.json",
-      "size_bytes": 2689
-    },
-    {
-      "kind": "post_handoff_exception_unwind_audit",
-      "modified_at": "2026-05-24T04:22:01Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\post_handoff_exception_unwind_audit.json",
-      "size_bytes": 95283
-    },
-    {
-      "kind": "post_handoff_exception_unwind_audit",
-      "modified_at": "2026-05-24T04:21:55Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_3\\post_handoff_exception_unwind_audit.json",
-      "size_bytes": 39867
-    },
-    {
-      "kind": "post_handoff_exception_unwind_audit",
-      "modified_at": "2026-05-24T04:21:41Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_2\\post_handoff_exception_unwind_audit.json",
-      "size_bytes": 38318
-    },
-    {
-      "kind": "post_handoff_exception_unwind_audit",
-      "modified_at": "2026-05-24T04:21:32Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\post_handoff_exception_unwind_audit\\candidate_1\\post_handoff_exception_unwind_audit.json",
-      "size_bytes": 38303
-    },
-    {
-      "kind": "compare_probe",
-      "modified_at": "2026-05-24T04:21:23Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.json",
-      "size_bytes": 2433
-    },
-    {
-      "kind": "compare_probe_log",
-      "modified_at": "2026-05-24T04:21:23Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r3\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_patched_compare_probe.log",
-      "size_bytes": 22
-    },
-    {
-      "kind": "summary",
-      "modified_at": "2026-05-24T04:15:28Z",
-      "path": "solve_reports\\harness_runs\\sr_lhs_hook_observation_reliability_20260524_r2\\summary.json",
-      "size_bytes": 977
     }
   ],
   "reports_dir": "solve_reports",

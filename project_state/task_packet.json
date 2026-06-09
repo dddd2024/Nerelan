@@ -17,7 +17,6 @@
     "compare_handoff_narrower_post_entry_breakpoint_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_post_entry_step_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
-    "compare_handoff_probe": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_handoff_slice_probe": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
     "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
@@ -31,7 +30,6 @@
     "compare_producer_material_confirmation": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "compare_producer_trace_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
     "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-    "compare_stack_pivot_probe": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
     "dynamic_compare_path_probe": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\dynamic_compare_path_probe\\dynamic_compare_path_probe.json",
     "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
     "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
@@ -53,7 +51,7 @@
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
     "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
   },
-  "based_on_state_digest": "e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067",
+  "based_on_state_digest": "7ee702d3b2b6e31ff52b17c9d74ecc21ccb6ee0a81c88a8d526458985b4b0153",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -95,7 +93,7 @@
     "reason": "window_lifecycle_no_window_created",
     "stage": "compare_handoff_narrower_post_entry_breakpoint_audit"
   },
-  "derived_task": "Review bounded window discovery diagnostics",
+  "derived_task": "collect_missing_evidence",
   "do_not_do": [
     "do not return to old sample_solver blind search",
     "do not only increase beam or budget",
@@ -108,8 +106,6 @@
     "do not repeat: memory-scan lower-level pre-RC4/key material probe with current automatic harness",
     "do not repeat: scripted Base64/RC4 breakpoint probe with current static access points",
     "do not repeat: rerun Base64/RC4 breakpoint probe before confirming a Base64/RC4 instruction hook",
-    "do not repeat: repeat scripted Base64/RC4 breakpoint probe before using compare stack pivot hook points",
-    "do not repeat: repeat compare handoff probe without narrowing the 0x401b50 helper slice",
     "do not repeat: expand candidate search after partial helper argument slice",
     "do not repeat: repeat compare return-site audit without using its classification",
     "do not repeat: repeat compare producer trace without using its classification",
@@ -135,19 +131,14 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-06-08T15:20:03Z",
+  "generated_at": "2026-06-09T14:50:49Z",
   "included": [
-    "current state",
-    "best candidates",
-    "stall reason",
-    "negative results",
-    "artifact references"
+    "artifact references",
+    "missing evidence",
+    "model gate reason"
   ],
-  "model_gate": {
-    "context_level": 2,
-    "reason": "window_lifecycle_no_window_created",
-    "should_call_model": true
-  },
+  "missing_evidence": [],
+  "next_local_action": "inspect_failed_case_result",
   "omitted": [
     {
       "name": "full PROJECT_PROGRESS_LOG.txt",
@@ -159,16 +150,17 @@
     }
   ],
   "profile": "samplereverse",
+  "reason": "latest harness case has errors",
   "relevant_files": [
     "reverse_agent/function_semantics.py",
     "reverse_agent/strategies/compare_aware_search.py",
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260608_152003",
+  "round_id": "round_20260609_145049",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260608_152003_e6fc7ab3ce85",
+  "state_build_id": "state_20260609_145049_7ee702d3b2b6",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,
@@ -177,6 +169,6 @@
     "has_runtime_validation": true,
     "has_stall_stage": true
   },
-  "task": "Review bounded window discovery diagnostics",
+  "task": "collect_missing_evidence",
   "task_source": "derived_from_sample_artifacts"
 }

@@ -16,7 +16,6 @@
     "compare_handoff_narrower_post_entry_breakpoint_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_narrower_post_entry_breakpoint_audit\\compare_handoff_narrower_post_entry_breakpoint_audit.json",
     "compare_handoff_path_divergence_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_path_divergence_audit\\compare_handoff_path_divergence_audit.json",
     "compare_handoff_post_entry_step_runtime_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_handoff_post_entry_step_runtime_audit\\compare_handoff_post_entry_step_runtime_audit.json",
-    "compare_handoff_probe": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
     "compare_handoff_return_site_probe": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "compare_handoff_slice_probe": "solve_reports\\harness_runs\\samplereverse_helper_arg_slice_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_slice_probe\\compare_handoff_slice_probe.json",
     "compare_hook_path_reachability_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_hook_path_reachability_audit\\compare_hook_path_reachability_audit.json",
@@ -30,7 +29,6 @@
     "compare_producer_material_confirmation": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_material_confirmation\\compare_producer_material_confirmation.json",
     "compare_producer_trace_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\compare_producer_trace_probe\\compare_producer_trace_probe.json",
     "compare_real_lhs_provenance_audit": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\reports\\tool_artifacts\\samplereverse_patched\\compare_real_lhs_provenance_audit\\compare_real_lhs_provenance_audit.json",
-    "compare_stack_pivot_probe": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
     "dynamic_compare_path_probe": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\dynamic_compare_path_probe\\dynamic_compare_path_probe.json",
     "exact2_basin_value_pool_result": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\samplereverse_exact2_basin_value_pool_result.json",
     "exact2_basin_value_pool_validation": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\exact2_basin_value_pool\\value_pool_validation\\samplereverse_exact2_basin_value_pool_validation.json",
@@ -151,7 +149,7 @@
       "semantic_guess": "unknown_but_bounded"
     }
   },
-  "generated_at": "2026-06-08T15:20:03Z",
+  "generated_at": "2026-06-09T14:50:49Z",
   "known_transform": [
     "input",
     "UTF-16LE",
@@ -8606,28 +8604,7 @@
     ],
     "source_run": "sr_arg0_hook_readiness_ordering_20260526_r1"
   },
-  "latest_compare_handoff_probe": {
-    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_handoff_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_handoff_probe\\compare_handoff_probe.json",
-    "candidate_count": 3,
-    "classification": "handoff_capture_partial",
-    "compare_stack_pivot_audit": {
-      "compare_call_rva": "0x258c",
-      "handoff_helper_rva": "0x1b50",
-      "lhs_slot": "[ebp-0x1170]",
-      "post_handoff_reload_rva": "0x2559",
-      "reason": [],
-      "static_anchor_valid": true
-    },
-    "hook_results": {
-      "compare_lhs_buffer": "available",
-      "handoff_helper_enter": "available",
-      "handoff_helper_return": "available",
-      "lhs_slot": "available",
-      "post_handoff_lhs_reload": "unavailable"
-    },
-    "next_bounded_action": "perform a narrower backward slice from 0x401b50 helper arguments",
-    "runtime_backed_count": 3
-  },
+  "latest_compare_handoff_probe": {},
   "latest_compare_handoff_return_site_probe": {
     "artifact": "solve_reports\\tool_artifacts\\samplereverse_handoff_return_outcome_manual_20260510\\compare_handoff_return_site_probe\\compare_handoff_return_site_probe.json",
     "call_0x401b50_entered_count": 3,
@@ -11781,129 +11758,7 @@
       "selected_thread_ids": []
     }
   },
-  "latest_compare_stack_pivot_probe": {
-    "artifact": "solve_reports\\harness_runs\\samplereverse_compare_stack_pivot_probe_20260505\\reports\\tool_artifacts\\samplereverse\\compare_stack_pivot_probe\\compare_stack_pivot_probe.json",
-    "candidate_count": 3,
-    "classification": "compare_stack_pivot_complete",
-    "hook_results": {
-      "base64_input": "unavailable",
-      "base64_output": "unavailable",
-      "compare_buffer": "available",
-      "rc4_input": "unavailable",
-      "rc4_key": "unavailable",
-      "rc4_output": "unavailable",
-      "utf16le_payload": "available_from_compare_stack"
-    },
-    "next_bounded_action": "hook module+0x1b50 enter/return and module+0x2559 to capture the handoff into [ebp-0x1170]",
-    "next_hook_points": [
-      {
-        "address": "module+0x2559",
-        "module_offset": 9561,
-        "name": "post_handoff_lhs_reload",
-        "reason": "first instruction after call 0x401b50 reloads [ebp-0x1170] into esi"
-      },
-      {
-        "address": "module+0x1b50",
-        "module_offset": 6992,
-        "name": "handoff_helper_enter",
-        "reason": "captures arguments to the helper that runs before the compare buffer is reloaded"
-      },
-      {
-        "address": "module+0x2559",
-        "module_offset": 9561,
-        "name": "handoff_helper_return",
-        "reason": "captures [ebp-0x1170], esi, and stack payload immediately after helper return"
-      }
-    ],
-    "runtime_backed_count": 3,
-    "static_audit": {
-      "backward_slice": [
-        {
-          "instruction": "mov dword ptr [ebp - 0x1170], eax",
-          "operation": "store candidate output pointer into [ebp-0x1170]",
-          "rva": "0x253a"
-        },
-        {
-          "instruction": "call 0x401b50",
-          "operation": "handoff/copy helper before compare buffer reload",
-          "rva": "0x2554"
-        },
-        {
-          "instruction": "mov esi, dword ptr [ebp - 0x1170]",
-          "operation": "reload compare lhs pointer from [ebp-0x1170]",
-          "rva": "0x2559"
-        },
-        {
-          "instruction": "push 5",
-          "operation": "set wide compare count",
-          "rva": "0x2584"
-        },
-        {
-          "instruction": "push 0x551c4c",
-          "operation": "push wide flag target",
-          "rva": "0x2586"
-        },
-        {
-          "instruction": "push esi",
-          "operation": "push compare lhs pointer",
-          "rva": "0x258b"
-        },
-        {
-          "instruction": "call 0x5028ac",
-          "operation": "case-insensitive wide compare call",
-          "rva": "0x258c"
-        }
-      ],
-      "classification": "static_anchor_confirmed",
-      "compare_site": {
-        "actual_call_rva": "0x258c",
-        "expected_call_rva": "0x258c",
-        "helper_classification": "case_insensitive_wchar_compare",
-        "helper_rva": "0x1028ac",
-        "helper_va": "0x5028ac"
-      },
-      "errors": [],
-      "next_hook_points": [
-        {
-          "address": "module+0x2559",
-          "module_offset": 9561,
-          "name": "post_handoff_lhs_reload",
-          "reason": "first instruction after call 0x401b50 reloads [ebp-0x1170] into esi"
-        },
-        {
-          "address": "module+0x1b50",
-          "module_offset": 6992,
-          "name": "handoff_helper_enter",
-          "reason": "captures arguments to the helper that runs before the compare buffer is reloaded"
-        },
-        {
-          "address": "module+0x2559",
-          "module_offset": 9561,
-          "name": "handoff_helper_return",
-          "reason": "captures [ebp-0x1170], esi, and stack payload immediately after helper return"
-        }
-      ],
-      "wide_flag": {
-        "expected_rva": "0x151c4c",
-        "expected_va": "0x551c4c",
-        "hits": [
-          {
-            "file_offset": "0x15044c",
-            "rva": "0x151c4c",
-            "va": "0x551c4c"
-          }
-        ]
-      },
-      "wide_flag_xrefs": [
-        {
-          "file_offset": "0x1987",
-          "instruction_rva": "0x2586",
-          "rva": "0x2587"
-        }
-      ]
-    },
-    "utf16le_payload_available_count": 3
-  },
+  "latest_compare_stack_pivot_probe": {},
   "latest_dynamic_compare_path_probe": {
     "artifact": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\dynamic_compare_path_probe\\dynamic_compare_path_probe.json",
     "candidate_count": 3,
@@ -12613,13 +12468,15 @@
   },
   "profile": "samplereverse",
   "review_status": "PENDING_REVIEW",
-  "round_id": "round_20260608_152003",
+  "round_id": "round_20260609_145049",
   "sample": "samplereverse",
   "schema_version": 2,
-  "source_git_commit": "7b2c79ba27ed",
-  "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
-  "state_build_id": "state_20260608_152003_e6fc7ab3ce85",
-  "state_digest": "e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067",
-  "uncertainty": [],
+  "source_git_commit": "6887cd23d737",
+  "source_harness_run": "samplereverse_exact1_projected_vs_neighbor_20260424",
+  "state_build_id": "state_20260609_145049_7ee702d3b2b6",
+  "state_digest": "7ee702d3b2b6e31ff52b17c9d74ecc21ccb6ee0a81c88a8d526458985b4b0153",
+  "uncertainty": [
+    "missing:case_results"
+  ],
   "workflow_status": "REPORT_AVAILABLE"
 }
