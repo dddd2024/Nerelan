@@ -1,30 +1,34 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1",
-  "report_id": "report_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1",
-  "round_id": "round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1",
+  "decision_id": "decision_20260609_ollydbg_user_path_preflight_validation_v1",
+  "report_id": "report_20260609_ollydbg_user_path_preflight_validation_v1",
+  "round_id": "round_20260609_ollydbg_user_path_preflight_validation_v1",
   "generated_at": "2026-06-09",
   "status": "PASSED",
   "preflight_result": {
     "ready": false,
     "backend_ready": false,
     "runtime_ready": false,
+    "ollydbg_executable_found": true,
+    "ollydbg_executable_path": "E:\\Program Files\\ollydbg\\ollydbg.exe",
+    "olly_script_module_importable": false,
+    "sample_path_resolvable": false,
     "preflight_recommendation": "preflight_not_configured_user_env_needed",
-    "next_decision_recommendation": "blocked_waiting_for_user_ollydbg_env_config"
+    "next_decision_recommendation": "blocked_waiting_for_user_sample_or_ollyscript_config"
   },
   "tests_ran": [
     "python -m reverse_agent.project_state status",
     "python -m reverse_agent.project_state lint-decision",
     "python -m reverse_agent.project_state lint-report",
     "python -m pytest tests/test_project_state.py tests/test_ollydbg_preflight.py",
-    "python -m reverse_agent.ollydbg_preflight --out project_state/ollydbg_preflight_result.json",
+    "$env:REVERSE_AGENT_OLLYDBG_PATH = 'E:\\Program Files\\ollydbg'; python -m reverse_agent.ollydbg_preflight --out project_state/ollydbg_preflight_result.json",
     "python -m json.tool project_state/ollydbg_preflight_result.json > NUL"
   ]
 }
 ```
 
-# pytest_result.txt - Round: round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+# pytest_result.txt - Round: round_20260609_ollydbg_user_path_preflight_validation_v1
 
 ## Command: python -m reverse_agent.project_state status
 
@@ -44,18 +48,18 @@ active_decision_packet: project_state/decision_packet.md
 execution_scope: decision_packet_controls_current_round
 expected_gpt_output: project_state/decision_packet.md
 decision_status: APPROVED
-decision_id: decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+decision_id: decision_20260609_ollydbg_user_path_preflight_validation_v1
 decision_based_on_state_digest: e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067
 decision_parse_error: None
 report_status: SUCCESS
 report_acceptance_recommendation: ACCEPTED
-report_id: report_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
-report_based_on_decision_id: decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+report_id: report_20260609_ollydbg_user_path_preflight_validation_v1
+report_based_on_decision_id: decision_20260609_ollydbg_user_path_preflight_validation_v1
 report_parse_error: None
 pytest_result_status: PASSED
-pytest_result_decision_id: decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
-pytest_result_report_id: report_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
-pytest_result_round_id: round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+pytest_result_decision_id: decision_20260609_ollydbg_user_path_preflight_validation_v1
+pytest_result_report_id: report_20260609_ollydbg_user_path_preflight_validation_v1
+pytest_result_round_id: round_20260609_ollydbg_user_path_preflight_validation_v1
 pytest_result_matches_report: True
 report_tests_ran_count: 6
 pytest_result_tests_ran_count: 6
@@ -66,15 +70,15 @@ decision_state_digest_match: True
 decision_consumed_by_report: True
 decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
 decision_ready_for_execution: False
-report_round_id: round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
-decision_round_id: round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+report_round_id: round_20260609_ollydbg_user_path_preflight_validation_v1
+decision_round_id: round_20260609_ollydbg_user_path_preflight_validation_v1
 current_state_round_id: round_20260608_152003
 current_state_scope: sample_state
 report_decision_round_id_match: True
 report_current_state_round_relation: different_but_allowed_sample_state
 round_manifest_present: False
 archive_status: not_archived
-round_manifest_path: project_state\rounds\round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1\round_manifest.json
+round_manifest_path: project_state\rounds\round_20260609_ollydbg_user_path_preflight_validation_v1\round_manifest.json
 round_manifest_files: []
 round_manifest_forbidden_files: []
 round_manifest_required_files_missing: []
@@ -86,7 +90,7 @@ Status: PASSED (exit code 0)
 
 ```
 lint-decision: OK
-decision_id: decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+decision_id: decision_20260609_ollydbg_user_path_preflight_validation_v1
 decision_status: APPROVED
 mainline: tool_integration
 skill_profiles: ['reverse-agent-iteration@v2', 'samplereverse-frontier@v2']
@@ -105,32 +109,32 @@ Status: PASSED (exit code 0)
 ```
 lint-report: OK
 warning: report round not archived yet
-report_id: report_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+report_id: report_20260609_ollydbg_user_path_preflight_validation_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
-decision_id: decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+based_on_decision_id: decision_20260609_ollydbg_user_path_preflight_validation_v1
+decision_id: decision_20260609_ollydbg_user_path_preflight_validation_v1
 decision_report_id_match: True
-round_id: round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
-report_round_id: round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
-decision_round_id: round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+round_id: round_20260609_ollydbg_user_path_preflight_validation_v1
+report_round_id: round_20260609_ollydbg_user_path_preflight_validation_v1
+decision_round_id: round_20260609_ollydbg_user_path_preflight_validation_v1
 current_state_round_id: round_20260608_152003
 current_state_scope: sample_state
 report_decision_round_id_match: True
 report_current_state_round_relation: different_but_allowed_sample_state
 round_manifest_present: False
 archive_status: not_archived
-round_manifest_path: project_state\rounds\round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1\round_manifest.json
+round_manifest_path: project_state\rounds\round_20260609_ollydbg_user_path_preflight_validation_v1\round_manifest.json
 round_manifest_files: []
 round_manifest_forbidden_files: []
 round_manifest_required_files_missing: []
 tests_ran_count: 6
-generated_artifacts_count: 0
+generated_artifacts_count: 1
 pytest_result_present: True
 pytest_result_status: PASSED
-pytest_result_decision_id: decision_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
-pytest_result_report_id: report_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
-pytest_result_round_id: round_20260609_fix_ollydbg_env_contract_recommendation_consistency_v1
+pytest_result_decision_id: decision_20260609_ollydbg_user_path_preflight_validation_v1
+pytest_result_report_id: report_20260609_ollydbg_user_path_preflight_validation_v1
+pytest_result_round_id: round_20260609_ollydbg_user_path_preflight_validation_v1
 pytest_result_matches_report: True
 report_tests_ran_count: 6
 pytest_result_tests_ran_count: 6
@@ -148,19 +152,19 @@ Status: PASSED (exit code 0)
 platform win32 -- Python 3.10.11, pytest-9.0.3, pluggy-1.6.0
 rootdir: F:\reverse-agent
 plugins: anyio-4.13.0
-collected 166 items
+collected 171 items
 
 tests\test_project_state.py ............................................ [ 26%]
 ........................................................................ [ 69%]
 ..........................................                               [ 95%]
-tests\test_ollydbg_preflight.py ........                                 [100%]
+tests\test_ollydbg_preflight.py .............                            [100%]
 
-======================= 166 passed in 71.48s (0:01:11) ========================
+======================= 171 passed in 88.55s (0:01:28) ========================
 ```
 
 Status: PASSED (exit code 0)
 
-## Command: python -m reverse_agent.ollydbg_preflight --out project_state/ollydbg_preflight_result.json
+## Command: $env:REVERSE_AGENT_OLLYDBG_PATH = 'E:\Program Files\ollydbg'; python -m reverse_agent.ollydbg_preflight --out project_state/ollydbg_preflight_result.json
 
 ```
 {
@@ -170,8 +174,8 @@ Status: PASSED (exit code 0)
   "backend_ready": false,
   "runtime_ready": false,
   "checks": {
-    "ollydbg_executable_found": false,
-    "ollydbg_executable_path": null,
+    "ollydbg_executable_found": true,
+    "ollydbg_executable_path": "E:\\Program Files\\ollydbg\\ollydbg.exe",
     "olly_script_module_importable": false,
     "olly_scripts_directory_exists": true,
     "step_audit_script_exists": true,
@@ -197,8 +201,8 @@ Status: PASSED (exit code 0 — JSON is well-formed and valid)
 - status: PASSED
 - lint-decision: PASSED
 - lint-report: PASSED
-- pytest: PASSED (166/166 = 158 existing + 8 preflight tests)
-- ollydbg_preflight: PASSED (ready=false, backend_ready=false, runtime_ready=false)
+- pytest: PASSED (171/171 = 158 existing + 13 preflight tests)
+- ollydbg_preflight with user path: PASSED (executable found at E:\Program Files\ollydbg\ollydbg.exe)
 - json.tool validation: PASSED
 - preflight_recommendation: `preflight_not_configured_user_env_needed` (matches actual preflight JSON)
-- next_decision_recommendation: `blocked_waiting_for_user_ollydbg_env_config` (separate workflow directive)
+- next_decision_recommendation: `blocked_waiting_for_user_sample_or_ollyscript_config` (separate workflow directive)

@@ -5,8 +5,8 @@
   "backend_ready": false,
   "runtime_ready": false,
   "checks": {
-    "ollydbg_executable_found": false,
-    "ollydbg_executable_path": null,
+    "ollydbg_executable_found": true,
+    "ollydbg_executable_path": "E:\\Program Files\\ollydbg\\ollydbg.exe",
     "olly_script_module_importable": false,
     "olly_scripts_directory_exists": true,
     "step_audit_script_exists": true,

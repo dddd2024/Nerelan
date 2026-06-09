@@ -28,12 +28,32 @@ def _sample_path() -> Path | None:
     return default if default.exists() else None
 
 
+def _resolve_ollydbg_exe(p: Path) -> Path | None:
+    """Resolve a path to the OllyDbg executable.
+
+    If p is a file, return it only if it exists and its name looks like an
+    executable (ends with .exe on Windows). If p is a directory, look for
+    ollydbg.exe inside it. Otherwise return None.
+    """
+    if not p.exists():
+        return None
+    if p.is_file():
+        if p.suffix.lower() == ".exe":
+            return p
+        return None
+    if p.is_dir():
+        candidate = p / "ollydbg.exe"
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    return None
+
+
 def _ollydbg_exe_path() -> Path | None:
     """Return OllyDbg executable path from environment or common locations."""
     env = os.environ.get("REVERSE_AGENT_OLLYDBG_PATH", "")
     if env:
-        p = Path(env)
-        if p.exists():
+        p = _resolve_ollydbg_exe(Path(env))
+        if p is not None:
             return p
     # Common Windows locations
     candidates = [
@@ -43,7 +63,7 @@ def _ollydbg_exe_path() -> Path | None:
         Path.home() / "Tools" / "OllyDbg" / "ollydbg.exe",
     ]
     for c in candidates:
-        if c.exists():
+        if c.exists() and c.is_file():
             return c
     return None
 

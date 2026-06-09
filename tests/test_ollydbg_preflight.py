@@ -10,6 +10,7 @@ import pytest
 
 from reverse_agent.ollydbg_preflight import (
     _olly_script_module_available,
+    _resolve_ollydbg_exe,
     _step_audit_script_exists,
     run_ollydbg_preflight,
 )
@@ -26,6 +27,43 @@ class TestOllydbgPreflight:
         """_olly_script_module_available returns False when importlib.util.find_spec finds nothing."""
         with patch("importlib.util.find_spec", return_value=None):
             assert _olly_script_module_available() is False
+
+    # ------------------------------------------------------------------
+    # _resolve_ollydbg_exe path validation tests
+    # ------------------------------------------------------------------
+
+    def test_resolve_ollydbg_exe_direct_file(self, tmp_path: Path) -> None:
+        """Env var pointing directly to ollydbg.exe resolves correctly."""
+        exe = tmp_path / "ollydbg.exe"
+        exe.write_text("", encoding="utf-8")
+        result = _resolve_ollydbg_exe(exe)
+        assert result == exe
+
+    def test_resolve_ollydbg_exe_directory_with_exe(self, tmp_path: Path) -> None:
+        """Env var pointing to a directory containing ollydbg.exe resolves correctly."""
+        exe = tmp_path / "ollydbg.exe"
+        exe.write_text("", encoding="utf-8")
+        result = _resolve_ollydbg_exe(tmp_path)
+        assert result == exe
+
+    def test_resolve_ollydbg_exe_directory_without_exe(self, tmp_path: Path) -> None:
+        """Env var pointing to a directory without ollydbg.exe returns None."""
+        result = _resolve_ollydbg_exe(tmp_path)
+        assert result is None
+
+    def test_resolve_ollydbg_exe_nonexistent_path(self, tmp_path: Path) -> None:
+        """Env var pointing to a non-existent path returns None."""
+        result = _resolve_ollydbg_exe(tmp_path / "does_not_exist")
+        assert result is None
+
+    def test_resolve_ollydbg_exe_directory_not_marked_executable(self, tmp_path: Path) -> None:
+        """A directory path must not be misclassified as an executable."""
+        result = _resolve_ollydbg_exe(tmp_path)
+        assert result is None
+
+    # ------------------------------------------------------------------
+    # Preflight readiness tests
+    # ------------------------------------------------------------------
 
     def test_preflight_all_false_when_nothing_configured(self, tmp_path: Path) -> None:
         """Preflight returns ready=False when no backend is configured."""
