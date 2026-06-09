@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260609_fix_ollydbg_preflight_validation_v1",
-  "round_id": "round_20260609_fix_ollydbg_preflight_validation_v1",
-  "based_on_decision_id": "decision_20260609_fix_ollydbg_preflight_validation_v1",
+  "report_id": "report_20260609_fix_ollydbg_preflight_hermetic_tests_v1",
+  "round_id": "round_20260609_fix_ollydbg_preflight_hermetic_tests_v1",
+  "based_on_decision_id": "decision_20260609_fix_ollydbg_preflight_hermetic_tests_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -49,9 +49,9 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the execution authority for this round.
-- [x] Active decision: `decision_20260609_fix_ollydbg_preflight_validation_v1`.
-- [x] Active round: `round_20260609_fix_ollydbg_preflight_validation_v1`.
-- [x] Mainline is `tool_integration`; this is a bounded repair round.
+- [x] Active decision: `decision_20260609_fix_ollydbg_preflight_hermetic_tests_v1`.
+- [x] Active round: `round_20260609_fix_ollydbg_preflight_hermetic_tests_v1`.
+- [x] Mainline is `tool_integration`; this is a bounded test repair round.
 - [x] No sample binary was executed.
 - [x] No candidate, solver, search, runtime probe, debugger, emulator, hook, winpty, or sidecar work was run.
 - [x] `.codex-skills/` was not modified.
@@ -60,95 +60,92 @@
 
 ## 2. Scope
 
-Repair the OllyDbg backend preflight implementation and evidence record. Two defects were fixed:
+Repair the remaining non-hermetic tests in `tests/test_ollydbg_preflight.py`. The previous round fixed JSON validation and readiness semantics, but two tests still depended on the local machine's environment:
 
-1. **Readiness ignored sample path**: The previous `ready` flag only checked backend tooling (OllyDbg exe, Python module, scripts) but not whether the sample was available. This could incorrectly mark the backend as ready for runtime probing when the sample was missing.
-
-2. **JSON validation not recorded**: `pytest_result.txt` did not include the `python -m json.tool` validation command output.
-
-3. **Tests not hermetic**: Tests depended on the local machine not having OllyDbg/ollyscript installed.
+1. `test_olly_script_module_not_available_by_default` — directly called `_olly_script_module_available()` without mocking `importlib.util.find_spec`
+2. `test_preflight_main_cli_exit_code` — ran a subprocess that inherited local env vars, common paths, and Python module state
 
 Changes made:
-- Repaired `reverse_agent/ollydbg_preflight.py` — split readiness into `backend_ready` and `runtime_ready`
-- Repaired `tests/test_ollydbg_preflight.py` — all tests now mock environment discovery
-- Regenerated `project_state/ollydbg_preflight_result.json` from repaired preflight
-- Updated this report and `pytest_result.txt` with real command outputs including JSON validation
+- Repaired `tests/test_ollydbg_preflight.py` — all 8 tests now fully hermetic
+- Repaired `reverse_agent/ollydbg_preflight.py` — `main()` accepts optional `argv` parameter for testability
+- Regenerated `project_state/ollydbg_preflight_result.json`
+- Updated this report and `pytest_result.txt`
 
-## 3. Readiness Semantics Repair
+## 3. Test Repairs
 
-### 3.1 Previous (Defective)
+### 3.1 `test_olly_script_module_not_available_by_default` → `test_olly_script_module_not_available_when_spec_missing`
 
+**Before (non-hermetic):**
 ```python
-ready = all([
-    ollydbg_executable_found,
-    olly_script_module_importable,
-    olly_scripts_directory_exists,
-    step_audit_script_exists,
-])
-# sample_path_resolvable was CHECKED but NOT included in ready logic
+def test_olly_script_module_not_available_by_default(self):
+    assert _olly_script_module_available() is False
 ```
+This assumed the local machine does not have `olly.ollyscript` installed.
 
-### 3.2 Repaired
-
+**After (hermetic):**
 ```python
-backend_ready = (
-    ollydbg_executable_found
-    and olly_script_module_importable
-    and olly_scripts_directory_exists
-    and step_audit_script_exists
-)
-runtime_ready = backend_ready and sample_path_resolvable
-ready = runtime_ready  # Overall ready requires both backend and sample
+def test_olly_script_module_not_available_when_spec_missing(self):
+    with patch("importlib.util.find_spec", return_value=None):
+        assert _olly_script_module_available() is False
+```
+Now mocks `importlib.util.find_spec` to return `None`, making the test deterministic regardless of local module installation.
+
+### 3.2 `test_preflight_main_cli_exit_code` → Two hermetic tests
+
+**Before (non-hermetic):**
+```python
+def test_preflight_main_cli_exit_code(self):
+    proc = subprocess.run(
+        [sys.executable, "-m", "reverse_agent.ollydbg_preflight"],
+        ...
+    )
+    assert proc.returncode == 1
+```
+This subprocess inherited `sys.argv` from pytest (causing argparse errors) and local environment state.
+
+**After (hermetic):**
+```python
+def test_preflight_main_cli_exit_code_when_not_ready(self):
+    with patch(...):
+        exit_code = main([])
+    assert exit_code == 1
+
+def test_preflight_main_cli_exit_code_when_ready(self):
+    with patch(...):
+        exit_code = main([])
+    assert exit_code == 0
 ```
 
-**New fields in output:**
-- `backend_ready`: true when OllyDbg tooling is complete
-- `runtime_ready`: true when backend AND sample are both available
-- `ready`: alias for `runtime_ready` (cannot be true without sample)
-
-### 3.3 Preflight Result (Repaired)
-
-```json
-{
-  "preflight_name": "ollydbg_backend_preflight",
-  "preflight_version": 2,
-  "ready": false,
-  "backend_ready": false,
-  "runtime_ready": false,
-  "checks": {
-    "ollydbg_executable_found": false,
-    "ollydbg_executable_path": null,
-    "olly_script_module_importable": false,
-    "olly_scripts_directory_exists": true,
-    "step_audit_script_exists": true,
-    "sample_path_resolvable": false,
-    "sample_path": null
-  },
-  "recommendation": "preflight_not_configured_user_env_needed"
-}
+**Supporting change in `ollydbg_preflight.py`:**
+```python
+def main(argv: list[str] | None = None) -> int:
+    ...
+    args = parser.parse_args(argv)
 ```
+`main()` now accepts an optional `argv` parameter, allowing tests to pass `[]` instead of inheriting `sys.argv` from pytest.
 
 ## 4. Tests
 
 ### 4.1 Focused Preflight Tests
 
-`tests/test_ollydbg_preflight.py` — 7 tests, all hermetic (mocked):
+`tests/test_ollydbg_preflight.py` — 8 tests, all hermetic:
 
-| Test | Purpose |
-|------|---------|
-| `test_step_audit_script_exists` | Verify script presence |
-| `test_olly_script_module_not_available_by_default` | Confirm module not in test env |
-| `test_preflight_all_false_when_nothing_configured` | Default state: all false |
-| `test_preflight_backend_ready_but_sample_missing` | **NEW**: backend_ready=true, runtime_ready=false |
-| `test_preflight_fully_ready_when_all_mocked` | Full readiness with mocked backend + sample |
-| `test_preflight_respects_explicit_paths` | Explicit paths override discovery |
-| `test_preflight_main_cli_exit_code` | CLI returns 1 when not ready |
+| Test | Mocked Dependencies |
+|------|---------------------|
+| `test_step_audit_script_exists` | None (filesystem check only) |
+| `test_olly_script_module_not_available_when_spec_missing` | `importlib.util.find_spec` |
+| `test_preflight_all_false_when_nothing_configured` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
+| `test_preflight_backend_ready_but_sample_missing` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
+| `test_preflight_fully_ready_when_all_mocked` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
+| `test_preflight_respects_explicit_paths` | None (explicit args) |
+| `test_preflight_main_cli_exit_code_when_not_ready` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
+| `test_preflight_main_cli_exit_code_when_ready` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
 
-**Result: 7/7 passed**
+**Result: 8/8 passed**
 
 ### 4.2 Full Test Suite
 
-`tests/test_project_state.py` + `tests/test_ollydbg_preflight.py` — **165/165 passed** (158 existing + 7 preflight)
+`tests/test_project_state.py` + `tests/test_ollydbg_preflight.py` — **166/166 passed** (158 existing + 8 preflight)
 
 ## 5. JSON Validation
 
@@ -158,7 +155,7 @@ Result: PASSED (exit code 0) — JSON is well-formed and valid.
 
 ## 6. negative_results.json Cross-Check
 
-This configuration/preflight work does not repeat any blocked solver/probe direction:
+This test repair round does not repeat any blocked solver/probe direction:
 - No compare-aware search executed
 - No candidate validation performed
 - No runtime probe launched
@@ -174,18 +171,19 @@ This configuration/preflight work does not repeat any blocked solver/probe direc
 | 3 | decision_meta.mainline == tool_integration | PASS |
 | 4 | skill_profiles active in registry | PASS |
 | 5 | decision_packet.md is execution authority | PASS |
-| 6 | Preflight non-invasive (no tool start, no attach, no sample execution) | PASS |
-| 7 | Source change bounded to preflight module and tests | PASS |
-| 8 | Tests hermetic (mock env vars, paths, module availability) | PASS |
-| 9 | sample_path_resolvable included in readiness logic | PASS |
-| 10 | backend_ready and runtime_ready distinguished | PASS |
-| 11 | Missing sample path cannot produce runtime-ready status | PASS |
-| 12 | Full test suite passes | PASS (165/165) |
-| 13 | JSON validation recorded in pytest_result.txt | PASS |
-| 14 | Generated JSON, report summary, pytest_result summary use same recommendation | PASS |
-| 15 | no stale old IDs in pytest_result.txt | PASS |
-| 16 | codex_execution_report.md matches this decision/round ID | PASS |
+| 6 | No external tool/sample execution | PASS |
+| 7 | `test_olly_script_module_not_available_by_default` removed/rewritten | PASS |
+| 8 | New test mocks `importlib.util.find_spec` | PASS |
+| 9 | CLI test does not use subprocess with inherited env | PASS |
+| 10 | CLI test uses `main([])` with mocked dependencies | PASS |
+| 11 | `main()` accepts optional `argv` for testability | PASS |
+| 12 | No test depends on real local OllyDbg/ollyscript/sample | PASS |
+| 13 | Readiness semantics preserved | PASS |
+| 14 | Full test suite passes | PASS (166/166) |
+| 15 | JSON validation recorded | PASS |
+| 16 | no stale old IDs in pytest_result.txt | PASS |
+| 17 | codex_execution_report.md matches this decision/round ID | PASS |
 
 ## 8. Stop Conditions
 
-No stop condition triggered. This preflight repair round is complete and accepted.
+No stop condition triggered. This test repair round is complete and accepted.

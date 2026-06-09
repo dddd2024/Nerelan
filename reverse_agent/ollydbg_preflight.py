@@ -139,14 +139,14 @@ def run_ollydbg_preflight(
     return result
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     import argparse
 
     parser = argparse.ArgumentParser(description="OllyDbg backend preflight check")
     parser.add_argument("--sample-path", type=Path, default=None)
     parser.add_argument("--ollydbg-path", type=Path, default=None)
     parser.add_argument("--out", type=Path, default=None)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     result = run_ollydbg_preflight(
         sample_path=args.sample_path,

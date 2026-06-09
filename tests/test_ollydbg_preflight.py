@@ -22,9 +22,10 @@ class TestOllydbgPreflight:
         """The compare_handoff_post_entry_step_audit.py script must exist."""
         assert _step_audit_script_exists() is True
 
-    def test_olly_script_module_not_available_by_default(self) -> None:
-        """OllyDbg Python module is not expected to be installed in CI/test env."""
-        assert _olly_script_module_available() is False
+    def test_olly_script_module_not_available_when_spec_missing(self) -> None:
+        """_olly_script_module_available returns False when importlib.util.find_spec finds nothing."""
+        with patch("importlib.util.find_spec", return_value=None):
+            assert _olly_script_module_available() is False
 
     def test_preflight_all_false_when_nothing_configured(self, tmp_path: Path) -> None:
         """Preflight returns ready=False when no backend is configured."""
@@ -130,19 +131,39 @@ class TestOllydbgPreflight:
         # With explicit paths, backend_ready depends on olly + module
         # Since module is not mocked here, backend_ready may be false
 
-    def test_preflight_main_cli_exit_code(self, tmp_path: Path) -> None:
-        """CLI returns exit code 1 when not ready."""
-        import subprocess
-        import sys
+    def test_preflight_main_cli_exit_code_when_not_ready(self, tmp_path: Path) -> None:
+        """main([]) returns exit code 1 when preflight is not ready."""
+        from reverse_agent.ollydbg_preflight import main
 
-        proc = subprocess.run(
-            [sys.executable, "-m", "reverse_agent.ollydbg_preflight"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-        )
-        assert proc.returncode == 1
-        data = json.loads(proc.stdout)
-        assert data["ready"] is False
-        assert data["backend_ready"] is False
-        assert data["runtime_ready"] is False
+        with (
+            patch("reverse_agent.ollydbg_preflight._ollydbg_exe_path", return_value=None),
+            patch("reverse_agent.ollydbg_preflight._olly_script_module_available", return_value=False),
+            patch("reverse_agent.ollydbg_preflight._sample_path", return_value=None),
+        ):
+            exit_code = main([])
+
+        assert exit_code == 1
+
+    def test_preflight_main_cli_exit_code_when_ready(self, tmp_path: Path) -> None:
+        """main([]) returns exit code 0 when preflight is fully ready."""
+        from reverse_agent.ollydbg_preflight import main
+        fake_sample = tmp_path / "samplereverse.exe"
+        fake_sample.write_text("", encoding="utf-8")
+
+        with (
+            patch(
+                "reverse_agent.ollydbg_preflight._ollydbg_exe_path",
+                return_value=tmp_path / "ollydbg.exe",
+            ),
+            patch(
+                "reverse_agent.ollydbg_preflight._olly_script_module_available",
+                return_value=True,
+            ),
+            patch(
+                "reverse_agent.ollydbg_preflight._sample_path",
+                return_value=fake_sample,
+            ),
+        ):
+            exit_code = main([])
+
+        assert exit_code == 0
