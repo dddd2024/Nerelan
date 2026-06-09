@@ -1,48 +1,46 @@
 ```json decision_meta
-{"schema_version":"1.0","decision_id":"decision_20260609_fix_archive_evidence_lint_report_record_v1","round_id":"round_20260609_fix_archive_evidence_lint_report_record_v1","based_on_state_build_id":"state_20260608_152003_e6fc7ab3ce85","based_on_state_digest":"e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}
+{"schema_version":"1.0","decision_id":"decision_20260609_samplereverse_current_window_diagnostic_review_v1","round_id":"round_20260609_samplereverse_current_window_diagnostic_review_v1","based_on_state_build_id":"state_20260608_152003_e6fc7ab3ce85","based_on_state_digest":"e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067","status":"APPROVED","mainline":"reverse_solving","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
 ```
 
 # DECISION_PACKET
 
 ## 1. Goal
 
-Repair the current evidence record mismatch: `project_state/pytest_result.txt` says `PASSED` while the recorded `lint-report` command failed. This round must produce a clean final `lint-report` after updating the report, or mark the round failed. Do not change archive contents.
+Resume the `samplereverse` reverse-solving mainline with a bounded diagnostic review of the current window-lifecycle stall evidence. The goal is to determine, from already indexed current artifacts only, what the next evidence-producing action should be for the `window_lifecycle_no_window_created` bottleneck.
 
-This is an `engineering_branch` report/test-record repair round only. It must not advance `samplereverse`, `cpp2`, training samples, candidate generation, solver work, static extraction, runtime validation, or tool integration.
+This round is evidence review and planning, not execution of a new probe. It must not run the sample, debugger, emulator, IDA/Ghidra, sidecars, solvers, or candidate search. It must produce a clear, auditable recommendation for the next round, grounded in current artifact freshness and negative-results constraints.
 
 ## 2. Current Evidence
 
-- Active execution authority is `project_state/decision_packet.md`; `task_packet.json` remains advisory and still carries old sample-derived text such as `derived_task: Review bounded window discovery diagnostics`.
-- Current report `report_20260609_archive_command_evidence_repair_v1` claims `SUCCESS` and `ACCEPTED`, but `project_state/pytest_result.txt` contains a failed `lint-report` output.
-- The failed `lint-report` output reports `based_on_decision_id does not match current decision_id` and `report round_id does not match current decision round_id`; it was noted as expected before report update, but no final post-update `lint-report` success output was recorded.
-- `pytest_result.txt` top summary says `status: PASSED`, which conflicts with the recorded failed `lint-report`. This is not acceptable evidence for a SUCCESS report.
-- The previous archive-command safety classification is acceptable: `archive-round` was classified as `unsafe_may_overwrite_existing_archive`, and the mutating archive command was deliberately not rerun.
-- `archive_round()` in `reverse_agent/project_state.py` returns no-op only when the existing manifest matches the new manifest; otherwise it raises `FileExistsError` and refuses overwrite. This supports not rerunning the mutating archive command against the already archived prior round.
-- The prior repair archive manifest still exists at `project_state/rounds/round_20260609_fix_repair_round_lint_and_report_v1/round_manifest.json`; it is minimal and must remain unchanged.
-- `artifact_index.json` still contains many stale reverse-solving artifacts, plus some current artifacts from `sr_arg0_hook_readiness_ordering_20260526_r1`; none of these are current evidence for this engineering round.
-- `negative_results.json` continues to prohibit repeated blind solver/search/probe directions and full `solve_reports` commits.
-- Existing project-state status/lint tooling is the only relevant capability for this round. IDA, Ghidra, OllyDbg, x64dbg, debugger, emulator, sidecars, solvers, and sample binaries are not relevant and must not be run.
-- `.codex-skills/registry.json` shows `reverse-agent-iteration` is active with version 2, so `reverse-agent-iteration@v2` is the valid skill profile.
+- The immediately preceding engineering repair round was accepted: `decision_20260609_fix_archive_evidence_lint_report_record_v1` / `report_20260609_fix_archive_evidence_lint_report_record_v1` / `round_20260609_fix_archive_evidence_lint_report_record_v1` now have matching IDs and recorded `lint-report: OK` plus `pytest tests/test_project_state.py` passing with 158 tests.
+- `project_state/decision_packet.md` remains the execution authority. `task_packet.json` is advisory only and still carries the sample-derived task `Review bounded window discovery diagnostics`.
+- `current_state.json` is still a `sample_state` for `samplereverse`, with `current_bottleneck.reason = window_lifecycle_no_window_created` and `current_bottleneck.stage = compare_handoff_narrower_post_entry_breakpoint_audit`.
+- Current best candidates remain partial and are not solution evidence: exact2 has prefix `78d540b49c590770`, exact1/frontier has prefix `5a3e7f46ddd474d0`, and both are only search-frontier context. Do not generate or validate new candidates in this round.
+- `artifact_index.json` contains many stale reverse-solving artifacts and a smaller set of current artifacts from `sr_arg0_hook_readiness_ordering_20260526_r1`. Only artifacts marked `freshness: current` in `latest_artifacts_v2` may be used as current evidence.
+- Relevant current artifact families to verify in `artifact_index.json` before reading include, if marked current: `compare_handoff_narrower_post_entry_breakpoint_audit`, `compare_handoff_post_entry_step_runtime_audit`, `compare_handoff_path_divergence_audit`, `compare_handoff_branch_operand_runtime_audit`, `compare_handoff_edge_operand_provenance_audit`, `compare_handoff_exit_classifier_audit`, `compare_hook_path_reachability_audit`, `compare_real_lhs_provenance_audit`, `run_manifest`, and `summary`.
+- Stale artifacts such as old Base64/RC4 probes, old compare probes, old pairscan/guided results, and legacy tool artifacts may be used only as historical context if explicitly labeled stale; they must not drive a new claim.
+- `negative_results.json` prohibits returning to old `sample_solver` blind search, only increasing beam/budget, using `compare_semantics_agree=false` candidates as primary frontier, committing full `solve_reports/`, repeating prior fixed candidate sets, repeating current transform trace consistency without new runtime evidence, and several blocked Base64/RC4/material-hook directions.
+- Existing relevant capabilities include project-state status/lint/report tooling, artifact indexing, compare-aware strategy code, harness-generated runtime artifacts, solver templates, and mature reverse tools such as IDA/Ghidra/debuggers. Mature reverse tools are not to be run in this review round; if the evidence points to manual IDA/x64dbg work, that must be proposed as a separate future decision.
+- No current IDA/Ghidra artifact is available for this round unless `artifact_index.json` explicitly marks one current; do not claim IDA/Ghidra has proven anything without current provenance.
 
 ## 3. Do Not Do
 
-- Do not rerun the mutating `archive-round` command.
-- Do not overwrite, regenerate, or hand-edit anything under `project_state/rounds/round_20260609_fix_repair_round_lint_and_report_v1/`.
-- Do not execute any sample binary, including `Cpp2.exe` or any `samplereverse` executable.
+- Do not execute any sample binary, including `samplereverse` or `Cpp2.exe`.
 - Do not run IDA, Ghidra, OllyDbg, x64dbg, debugger, emulator, runtime probe, hook, sidecar, winpty, console validator, or binary instrumentation.
 - Do not generate, mutate, rank, validate, or report candidate inputs or flags.
-- Do not run compare-aware search, old `sample_solver` blind search, brute force, beam expansion, budget expansion, topN expansion, Base64/RC4/DES/XOR solver work, or any reverse-solving action.
+- Do not run compare-aware search, old `sample_solver` blind search, brute force, beam expansion, budget expansion, topN expansion, Base64/RC4/DES/XOR solver work, or any solver action.
+- Do not rerun previous failed directions from `negative_results.json` unless this report documents a specific new current artifact that justifies a future override; even then, do not execute the override in this round.
 - Do not inspect or commit full `solve_reports/`.
 - Do not read full `PROJECT_PROGRESS_LOG.txt`.
 - Do not modify `.codex-skills/`.
 - Do not modify source modules.
+- Do not modify training status, sample metadata, status overlay, archive directories, or runtime artifacts.
 - Do not treat `task_packet.task` or `derived_task` as execution authority.
-- Do not treat stale or mismatched artifacts as current evidence.
-- Do not overwrite training status, status overlay, sample metadata, or runtime artifacts as part of this bookkeeping round.
+- Do not promote stale or unknown-freshness artifacts to current evidence.
 
 ## 4. Files To Inspect
 
-Required files:
+Required project-state files:
 
 - `project_state/decision_packet.md`
 - `project_state/codex_execution_report.md`
@@ -52,11 +50,25 @@ Required files:
 - `project_state/artifact_index.json`
 - `project_state/negative_results.json`
 - `.codex-skills/registry.json`
-- `project_state/rounds/round_20260609_fix_repair_round_lint_and_report_v1/round_manifest.json`
 
-Optional bounded file, only to verify the already-accepted archive-command safety classification if needed:
+Required bounded artifact inspection, only after confirming `freshness: current` in `artifact_index.json`:
 
-- the small `archive_round()` implementation region in `reverse_agent/project_state.py`
+- current `compare_handoff_narrower_post_entry_breakpoint_audit` artifact
+- current `compare_handoff_post_entry_step_runtime_audit` artifact, if present
+- current `compare_handoff_path_divergence_audit` artifact, if present
+- current `compare_handoff_branch_operand_runtime_audit` artifact, if present
+- current `compare_handoff_edge_operand_provenance_audit` artifact, if present
+- current `compare_handoff_exit_classifier_audit` artifact, if present
+- current `compare_hook_path_reachability_audit` artifact, if present
+- current `compare_real_lhs_provenance_audit` artifact, if present
+- current `run_manifest` and `summary`, if present
+
+Optional bounded source/test inspection, only to understand artifact schema or report existing fields:
+
+- `reverse_agent/strategies/compare_aware_search.py`
+- `reverse_agent/function_semantics.py`
+- `tests/test_compare_aware_search_strategy.py`
+- `tests/test_project_state.py`
 
 Do not inspect full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -66,27 +78,34 @@ Codex must perform and record these checks:
 
 1. Confirm this decision packet has a fenced JSON block tagged `decision_meta`.
 2. Confirm `decision_meta.status == APPROVED`.
-3. Confirm `decision_meta.mainline == engineering_branch`.
-4. Confirm `decision_meta.skill_profiles == ["reverse-agent-iteration@v2"]` and the skill is active in `.codex-skills/registry.json`.
+3. Confirm `decision_meta.mainline == reverse_solving`.
+4. Confirm `decision_meta.skill_profiles == ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]` and both profiles resolve to active registry skills.
 5. Confirm `project_state/decision_packet.md` is the execution authority and `task_packet.json` is advisory only.
-6. Confirm the prior archive manifest remains present and unchanged.
-7. Confirm `archive-round` is not rerun and no archive files are modified.
-8. Update `project_state/codex_execution_report.md` for this round only after generating the new test outputs.
-9. Update `project_state/pytest_result.txt` so it does not claim `PASSED` if any required final command failed.
-10. Run final `lint-report` after report/test update and record the exact final output.
-11. Confirm `codex_execution_report.md` for this round matches this decision id and round id.
-12. Confirm `pytest_result.txt` records this round's real command outputs and matches this round's report.
-13. Confirm no reverse-solving, runtime, debugger, solver, sample execution, or static extraction occurred.
-14. Confirm stale artifacts in `artifact_index.json` remain stale and are not promoted as current evidence.
+6. Confirm the prior engineering repair state is clean before this reverse-solving review begins: report/test IDs match and `lint-report` is OK.
+7. Confirm each artifact inspected for diagnostic conclusions is marked `freshness: current` in `latest_artifacts_v2`; list any relevant stale artifacts separately as stale-only context.
+8. Extract from current artifacts the precise reason the narrower post-entry breakpoint/window lifecycle did not create a window, including any hook miss, reachability, branch outcome, operand provenance, edge classification, or path divergence facts present in the artifacts.
+9. Cross-check the extracted facts against `negative_results.json`; explicitly state which blocked directions must remain blocked.
+10. Identify the next evidence-producing action as one of these categories, with a justification:
+    - `bounded_static_artifact_review_complete_next_decision_needed`
+    - `needs_manual_ida_or_x64dbg_tool_integration_decision`
+    - `needs_new_bounded_runtime_probe_decision`
+    - `needs_project_state_or_artifact_index_repair_decision`
+    - `blocked_insufficient_current_artifacts`
+11. If proposing a future runtime/debugger/IDA/Ghidra/tool action, define only the future decision's minimal goal, required current evidence, and stop conditions. Do not run it here.
+12. Confirm no reverse execution, runtime probing, debugger, emulator, sidecar, solver, candidate validation, or source-code change occurred.
+13. Confirm stale artifacts remain stale and are not promoted as current evidence.
+14. Confirm `codex_execution_report.md` for this round matches this decision id and round id.
+15. Confirm `pytest_result.txt` records this round's real command outputs and matches this round's report.
 
 ## 6. Implementation Scope
 
-Allowed changes are limited to engineering state files:
+Allowed changes are limited to current state/report bookkeeping:
 
-1. `project_state/codex_execution_report.md`, updated to report the real outcome of this lint-report record repair round.
+1. `project_state/codex_execution_report.md`, updated with the diagnostic review outcome, artifact freshness table, negative-results cross-check, and recommended next decision category.
 2. `project_state/pytest_result.txt`, updated with this round's command outputs.
+3. Optionally, one compact JSON diagnostic artifact under `project_state/`, named `samplereverse_current_window_diagnostic_review_20260609.json`, if Codex needs a machine-readable summary. If created, list it in `generated_artifacts` and keep it small; do not place it under `solve_reports/`.
 
-Do not modify source modules, `.codex-skills/`, training status, sample metadata, status overlay, runtime artifacts, solver code, or archive files.
+Do not modify source modules, `.codex-skills/`, training status, sample metadata, status overlay, archive files, runtime artifacts, solver code, or full `solve_reports/`.
 
 ## 7. Tests
 
@@ -99,29 +118,35 @@ python -m reverse_agent.project_state lint-report
 python -m pytest tests/test_project_state.py
 ```
 
-Required final state for `SUCCESS`:
+If an optional JSON diagnostic artifact is created, also run and record:
+
+```bash
+python -m json.tool project_state/samplereverse_current_window_diagnostic_review_20260609.json > NUL
+```
+
+Use the platform-appropriate null sink if not on Windows, and record the actual command used.
+
+Acceptance requirements:
 
 - `lint-decision: OK`
 - `lint-report: OK`
 - `pytest tests/test_project_state.py` passes
-- `pytest_result.txt` has this round's `decision_id`, `report_id`, and `round_id`
-- `pytest_result.txt` matches the current report
-- no failed command is hidden under `status: PASSED`
-- prior archive manifest remains present and unchanged
-- no reverse-solving or runtime action occurred
-
-If final `lint-report` fails, report `FAILED` or `BLOCKED`; do not mark `SUCCESS`.
+- optional diagnostic JSON validates if created
+- report/test IDs match this decision and round
+- every diagnostic conclusion cites a current artifact or is explicitly labeled stale/unknown
+- no sample execution, debugger, emulator, solver, sidecar, candidate validation, IDA/Ghidra run, or source modification occurred
 
 ## 8. Stop Conditions
 
-Stop and report `FAILED` or `BLOCKED` if any of the following occurs:
+Stop and report `BLOCKED` or `FAILED` if any of the following occurs:
 
+- relevant current artifacts are missing or only stale artifacts are available for the diagnostic question
+- `artifact_index.json` cannot distinguish current from stale for the artifacts needed
+- any required conclusion would depend on full `solve_reports/` scanning
+- any required conclusion would require executing samples, running a debugger/emulator/IDA/Ghidra, probing runtime, or validating candidates in this round
+- `lint-decision` fails
 - final `lint-report` fails
-- final `lint-decision` fails
 - pytest fails
 - `pytest_result.txt` cannot be updated with real outputs from this round
 - report/test IDs mismatch
-- any archive file would need to be overwritten
-- any command requires rerunning mutating `archive-round`
-- any test output is copied from a prior round rather than generated in this round
-- any task requires executing samples, using reverse tools, running solvers, promoting stale artifacts, or shifting this round from `engineering_branch` into `tool_integration`, `reverse_solving`, or `training_dataset`
+- any task shifts this round into `engineering_branch`, `tool_integration`, or `training_dataset` implementation rather than bounded reverse-solving evidence review
