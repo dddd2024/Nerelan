@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260609_fix_single_step_interface_audit_category_v1",
-  "round_id": "round_20260609_fix_single_step_interface_audit_category_v1",
-  "based_on_decision_id": "decision_20260609_fix_single_step_interface_audit_category_v1",
+  "report_id": "report_20260609_fix_single_step_audit_pytest_record_v1",
+  "round_id": "round_20260609_fix_single_step_audit_pytest_record_v1",
+  "based_on_decision_id": "decision_20260609_fix_single_step_audit_pytest_record_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -42,8 +42,8 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the execution authority for this round.
-- [x] Active decision: `decision_20260609_fix_single_step_interface_audit_category_v1`.
-- [x] Active round: `round_20260609_fix_single_step_interface_audit_category_v1`.
+- [x] Active decision: `decision_20260609_fix_single_step_audit_pytest_record_v1`.
+- [x] Active round: `round_20260609_fix_single_step_audit_pytest_record_v1`.
 - [x] Mainline is `tool_integration`; this is a code-audit and design round only.
 - [x] No sample binary was executed.
 - [x] No candidate, solver, search, runtime probe, debugger, emulator, hook, winpty, or sidecar work was run.

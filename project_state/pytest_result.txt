@@ -1,9 +1,9 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260609_fix_single_step_interface_audit_category_v1",
-  "report_id": "report_20260609_fix_single_step_interface_audit_category_v1",
-  "round_id": "round_20260609_fix_single_step_interface_audit_category_v1",
+  "decision_id": "decision_20260609_fix_single_step_audit_pytest_record_v1",
+  "report_id": "report_20260609_fix_single_step_audit_pytest_record_v1",
+  "round_id": "round_20260609_fix_single_step_audit_pytest_record_v1",
   "generated_at": "2026-06-09",
   "status": "PASSED",
   "tool_integration_audit": {
@@ -21,7 +21,7 @@
 }
 ```
 
-# pytest_result.txt - Round: round_20260609_fix_single_step_interface_audit_category_v1
+# pytest_result.txt - Round: round_20260609_fix_single_step_audit_pytest_record_v1
 
 ## Command: python -m reverse_agent.project_state status
 
@@ -41,18 +41,18 @@ active_decision_packet: project_state/decision_packet.md
 execution_scope: decision_packet_controls_current_round
 expected_gpt_output: project_state/decision_packet.md
 decision_status: APPROVED
-decision_id: decision_20260609_audit_existing_single_step_tool_interfaces_v1
+decision_id: decision_20260609_fix_single_step_audit_pytest_record_v1
 decision_based_on_state_digest: e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067
 decision_parse_error: None
 report_status: SUCCESS
 report_acceptance_recommendation: ACCEPTED
-report_id: report_20260609_audit_existing_single_step_tool_interfaces_v1
-report_based_on_decision_id: decision_20260609_audit_existing_single_step_tool_interfaces_v1
+report_id: report_20260609_fix_single_step_audit_pytest_record_v1
+report_based_on_decision_id: decision_20260609_fix_single_step_audit_pytest_record_v1
 report_parse_error: None
 pytest_result_status: PASSED
-pytest_result_decision_id: decision_20260609_fix_single_step_interface_audit_category_v1
-pytest_result_report_id: report_20260609_fix_single_step_interface_audit_category_v1
-pytest_result_round_id: round_20260609_fix_single_step_interface_audit_category_v1
+pytest_result_decision_id: decision_20260609_fix_single_step_audit_pytest_record_v1
+pytest_result_report_id: report_20260609_fix_single_step_audit_pytest_record_v1
+pytest_result_round_id: round_20260609_fix_single_step_audit_pytest_record_v1
 pytest_result_matches_report: True
 report_tests_ran_count: 4
 pytest_result_tests_ran_count: 4
@@ -63,15 +63,15 @@ decision_state_digest_match: True
 decision_consumed_by_report: True
 decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
 decision_ready_for_execution: False
-report_round_id: round_20260609_audit_existing_single_step_tool_interfaces_v1
-decision_round_id: round_20260609_audit_existing_single_step_tool_interfaces_v1
+report_round_id: round_20260609_fix_single_step_audit_pytest_record_v1
+decision_round_id: round_20260609_fix_single_step_audit_pytest_record_v1
 current_state_round_id: round_20260608_152003
 current_state_scope: sample_state
 report_decision_round_id_match: True
 report_current_state_round_relation: different_but_allowed_sample_state
 round_manifest_present: False
 archive_status: not_archived
-round_manifest_path: project_state\rounds\round_20260609_samplereverse_current_window_diagnostic_review_v1\round_manifest.json
+round_manifest_path: project_state\rounds\round_20260609_fix_single_step_audit_pytest_record_v1\round_manifest.json
 round_manifest_files: []
 round_manifest_forbidden_files: []
 round_manifest_required_files_missing: []
@@ -83,7 +83,7 @@ Status: PASSED (exit code 0)
 
 ```
 lint-decision: OK
-decision_id: decision_20260609_fix_single_step_interface_audit_category_v1
+decision_id: decision_20260609_fix_single_step_audit_pytest_record_v1
 decision_status: APPROVED
 mainline: tool_integration
 skill_profiles: ['reverse-agent-iteration@v2', 'samplereverse-frontier@v2']
@@ -101,22 +101,23 @@ Status: PASSED (exit code 0)
 
 ```
 lint-report: OK
-report_id: report_20260609_fix_single_step_interface_audit_category_v1
+warning: report round not archived yet
+report_id: report_20260609_fix_single_step_audit_pytest_record_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260609_fix_single_step_interface_audit_category_v1
-decision_id: decision_20260609_fix_single_step_interface_audit_category_v1
+based_on_decision_id: decision_20260609_fix_single_step_audit_pytest_record_v1
+decision_id: decision_20260609_fix_single_step_audit_pytest_record_v1
 decision_report_id_match: True
-round_id: round_20260609_fix_single_step_interface_audit_category_v1
-report_round_id: round_20260609_fix_single_step_interface_audit_category_v1
-decision_round_id: round_20260609_fix_single_step_interface_audit_category_v1
+round_id: round_20260609_fix_single_step_audit_pytest_record_v1
+report_round_id: round_20260609_fix_single_step_audit_pytest_record_v1
+decision_round_id: round_20260609_fix_single_step_audit_pytest_record_v1
 current_state_round_id: round_20260608_152003
 current_state_scope: sample_state
 report_decision_round_id_match: True
 report_current_state_round_relation: different_but_allowed_sample_state
 round_manifest_present: False
 archive_status: not_archived
-round_manifest_path: project_state\rounds\round_20260609_samplereverse_current_window_diagnostic_review_v1\round_manifest.json
+round_manifest_path: project_state\rounds\round_20260609_fix_single_step_audit_pytest_record_v1\round_manifest.json
 round_manifest_files: []
 round_manifest_forbidden_files: []
 round_manifest_required_files_missing: []
@@ -124,9 +125,9 @@ tests_ran_count: 4
 generated_artifacts_count: 0
 pytest_result_present: True
 pytest_result_status: PASSED
-pytest_result_decision_id: decision_20260609_audit_existing_single_step_tool_interfaces_v1
-pytest_result_report_id: report_20260609_audit_existing_single_step_tool_interfaces_v1
-pytest_result_round_id: round_20260609_audit_existing_single_step_tool_interfaces_v1
+pytest_result_decision_id: decision_20260609_fix_single_step_audit_pytest_record_v1
+pytest_result_report_id: report_20260609_fix_single_step_audit_pytest_record_v1
+pytest_result_round_id: round_20260609_fix_single_step_audit_pytest_record_v1
 pytest_result_matches_report: True
 report_tests_ran_count: 4
 pytest_result_tests_ran_count: 4
@@ -150,7 +151,7 @@ tests\test_project_state.py ............................................ [ 27%]
 ........................................................................ [ 73%]
 ..........................................                               [100%]
 
-======================= 158 passed in 50.84s (0:00:50) ========================
+======================= 158 passed in 77.39s (0:01:17) ========================
 ```
 
 Status: PASSED (exit code 0)
