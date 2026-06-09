@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260609_fix_ollydbg_preflight_hermetic_tests_v1",
-  "round_id": "round_20260609_fix_ollydbg_preflight_hermetic_tests_v1",
-  "based_on_decision_id": "decision_20260609_fix_ollydbg_preflight_hermetic_tests_v1",
+  "report_id": "report_20260609_ollydbg_env_setup_contract_v1",
+  "round_id": "round_20260609_ollydbg_env_setup_contract_v1",
+  "based_on_decision_id": "decision_20260609_ollydbg_env_setup_contract_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -18,8 +18,8 @@
   "training_status_modified": false,
   "status_overlay_modified": false,
   "files_changed": [
-    "reverse_agent/ollydbg_preflight.py",
-    "tests/test_ollydbg_preflight.py",
+    "docs/tooling/ollydbg_backend_setup.md",
+    ".env.example",
     "project_state/ollydbg_preflight_result.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
@@ -33,13 +33,15 @@
     "python -m json.tool project_state/ollydbg_preflight_result.json > NUL"
   ],
   "generated_artifacts": [
+    "docs/tooling/ollydbg_backend_setup.md",
+    ".env.example",
     "project_state/ollydbg_preflight_result.json"
   ],
   "preflight_result": {
     "ready": false,
     "backend_ready": false,
     "runtime_ready": false,
-    "recommendation": "preflight_not_configured_user_env_needed"
+    "recommendation": "blocked_waiting_for_user_ollydbg_env_config"
   }
 }
 ```
@@ -49,117 +51,73 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the execution authority for this round.
-- [x] Active decision: `decision_20260609_fix_ollydbg_preflight_hermetic_tests_v1`.
-- [x] Active round: `round_20260609_fix_ollydbg_preflight_hermetic_tests_v1`.
-- [x] Mainline is `tool_integration`; this is a bounded test repair round.
+- [x] Active decision: `decision_20260609_ollydbg_env_setup_contract_v1`.
+- [x] Active round: `round_20260609_ollydbg_env_setup_contract_v1`.
+- [x] Mainline is `tool_integration`; this is a documentation/config-contract round.
 - [x] No sample binary was executed.
 - [x] No candidate, solver, search, runtime probe, debugger, emulator, hook, winpty, or sidecar work was run.
 - [x] `.codex-skills/` was not modified.
-- [x] `training_status`, status overlay, sample metadata, and source modules were not modified.
+- [x] `training_status`, status overlay, sample metadata, and archive directories were not modified.
+- [x] No changes outside allowed scope (documentation, config example, report, pytest_result, preflight JSON).
 - [x] Full `solve_reports/` and full `PROJECT_PROGRESS_LOG.txt` were not read.
 
 ## 2. Scope
 
-Repair the remaining non-hermetic tests in `tests/test_ollydbg_preflight.py`. The previous round fixed JSON validation and readiness semantics, but two tests still depended on the local machine's environment:
+Turn the accepted OllyDbg backend preflight result into a clear user-environment setup contract. This round:
 
-1. `test_olly_script_module_not_available_by_default` — directly called `_olly_script_module_available()` without mocking `importlib.util.find_spec`
-2. `test_preflight_main_cli_exit_code` — ran a subprocess that inherited local env vars, common paths, and Python module state
+1. Created `docs/tooling/ollydbg_backend_setup.md` — focused setup document
+2. Created `.env.example` — environment variable template
+3. Regenerated `project_state/ollydbg_preflight_result.json`
+4. Updated this report and `pytest_result.txt`
 
-Changes made:
-- Repaired `tests/test_ollydbg_preflight.py` — all 8 tests now fully hermetic
-- Repaired `reverse_agent/ollydbg_preflight.py` — `main()` accepts optional `argv` parameter for testability
-- Regenerated `project_state/ollydbg_preflight_result.json`
-- Updated this report and `pytest_result.txt`
+No external reverse tool or sample was launched. No full `solve_reports/` or `PROJECT_PROGRESS_LOG.txt` inspection occurred.
 
-## 3. Test Repairs
+## 3. Why `preflight_not_configured_user_env_needed` Is an Environment Blocker
 
-### 3.1 `test_olly_script_module_not_available_by_default` → `test_olly_script_module_not_available_when_spec_missing`
+The current preflight reports `ready=false` because:
 
-**Before (non-hermetic):**
-```python
-def test_olly_script_module_not_available_by_default(self):
-    assert _olly_script_module_available() is False
-```
-This assumed the local machine does not have `olly.ollyscript` installed.
+- `ollydbg_executable_found: false` — OllyDbg is not installed or not at a common path
+- `olly_script_module_importable: false` — the OllyDbg Python scripting bridge is not installed
+- `sample_path_resolvable: false` — the sample binary is not at the expected location
 
-**After (hermetic):**
-```python
-def test_olly_script_module_not_available_when_spec_missing(self):
-    with patch("importlib.util.find_spec", return_value=None):
-        assert _olly_script_module_available() is False
-```
-Now mocks `importlib.util.find_spec` to return `None`, making the test deterministic regardless of local module installation.
+This is an **environment/configuration blocker**, not a solver or sample-analysis blocker. The code infrastructure (OllyDbg scripts, Python caller/aggregator, search strategy integration) is complete and intact. The gap is purely in the runtime environment: the user needs to install OllyDbg, configure its Python module, and place the sample binary.
 
-### 3.2 `test_preflight_main_cli_exit_code` → Two hermetic tests
+## 4. User-Facing Setup Inputs
 
-**Before (non-hermetic):**
-```python
-def test_preflight_main_cli_exit_code(self):
-    proc = subprocess.run(
-        [sys.executable, "-m", "reverse_agent.ollydbg_preflight"],
-        ...
-    )
-    assert proc.returncode == 1
-```
-This subprocess inherited `sys.argv` from pytest (causing argparse errors) and local environment state.
+The following inputs are required for the preflight to become runtime-ready:
 
-**After (hermetic):**
-```python
-def test_preflight_main_cli_exit_code_when_not_ready(self):
-    with patch(...):
-        exit_code = main([])
-    assert exit_code == 1
+| Input | Environment Variable | Description |
+|-------|---------------------|-------------|
+| OllyDbg executable | `REVERSE_AGENT_OLLYDBG_PATH` | Absolute path to `ollydbg.exe` |
+| Sample binary | `REVERSE_AGENT_SAMPLE_PATH` | Absolute path to target sample |
+| OllyDbg Python module | (pip install) | `olly.ollyscript` or equivalent |
+| Scripts directory | (built-in) | `reverse_agent/olly_scripts/` — already exists |
+| Step audit script | (built-in) | `compare_handoff_post_entry_step_audit.py` — already exists |
 
-def test_preflight_main_cli_exit_code_when_ready(self):
-    with patch(...):
-        exit_code = main([])
-    assert exit_code == 0
-```
+## 5. Setup Documentation
 
-**Supporting change in `ollydbg_preflight.py`:**
-```python
-def main(argv: list[str] | None = None) -> int:
-    ...
-    args = parser.parse_args(argv)
-```
-`main()` now accepts an optional `argv` parameter, allowing tests to pass `[]` instead of inheriting `sys.argv` from pytest.
+Created `docs/tooling/ollydbg_backend_setup.md` covering:
+- Prerequisites (OllyDbg 1.10, Python scripting bridge, sample binary)
+- Environment variable definitions with examples
+- Auto-discovery fallback paths
+- Preflight execution and JSON validation commands
+- Readiness flag interpretation (`backend_ready`, `runtime_ready`, `ready`)
+- Readiness matrix (4 states)
+- Recommendation category meanings
+- Existing script inventory
+- When runtime probing is allowed (only after `ready=true` or explicit manual blocker acceptance)
+- Full setup workflow example
 
-## 4. Tests
-
-### 4.1 Focused Preflight Tests
-
-`tests/test_ollydbg_preflight.py` — 8 tests, all hermetic:
-
-| Test | Mocked Dependencies |
-|------|---------------------|
-| `test_step_audit_script_exists` | None (filesystem check only) |
-| `test_olly_script_module_not_available_when_spec_missing` | `importlib.util.find_spec` |
-| `test_preflight_all_false_when_nothing_configured` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
-| `test_preflight_backend_ready_but_sample_missing` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
-| `test_preflight_fully_ready_when_all_mocked` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
-| `test_preflight_respects_explicit_paths` | None (explicit args) |
-| `test_preflight_main_cli_exit_code_when_not_ready` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
-| `test_preflight_main_cli_exit_code_when_ready` | `_ollydbg_exe_path`, `_olly_script_module_available`, `_sample_path` |
-
-**Result: 8/8 passed**
-
-### 4.2 Full Test Suite
-
-`tests/test_project_state.py` + `tests/test_ollydbg_preflight.py` — **166/166 passed** (158 existing + 8 preflight)
-
-## 5. JSON Validation
-
-Command: `python -m json.tool project_state/ollydbg_preflight_result.json > NUL`
-
-Result: PASSED (exit code 0) — JSON is well-formed and valid.
+Created `.env.example` as a minimal config template with both variables.
 
 ## 6. negative_results.json Cross-Check
 
-This test repair round does not repeat any blocked solver/probe direction:
+This setup-contract work does not repeat any blocked solver/probe direction:
 - No compare-aware search executed
 - No candidate validation performed
 - No runtime probe launched
 - No full solve_reports commit attempted
+- No Base64/RC4/material-hook directions repeated
 - All negative-result prohibitions respected
 
 ## 7. Required Audit Checklist
@@ -169,21 +127,22 @@ This test repair round does not repeat any blocked solver/probe direction:
 | 1 | decision_packet.md has fenced JSON decision_meta block | PASS |
 | 2 | decision_meta.status == APPROVED | PASS |
 | 3 | decision_meta.mainline == tool_integration | PASS |
-| 4 | skill_profiles active in registry | PASS |
-| 5 | decision_packet.md is execution authority | PASS |
-| 6 | No external tool/sample execution | PASS |
-| 7 | `test_olly_script_module_not_available_by_default` removed/rewritten | PASS |
-| 8 | New test mocks `importlib.util.find_spec` | PASS |
-| 9 | CLI test does not use subprocess with inherited env | PASS |
-| 10 | CLI test uses `main([])` with mocked dependencies | PASS |
-| 11 | `main()` accepts optional `argv` for testability | PASS |
-| 12 | No test depends on real local OllyDbg/ollyscript/sample | PASS |
-| 13 | Readiness semantics preserved | PASS |
-| 14 | Full test suite passes | PASS (166/166) |
-| 15 | JSON validation recorded | PASS |
-| 16 | no stale old IDs in pytest_result.txt | PASS |
-| 17 | codex_execution_report.md matches this decision/round ID | PASS |
+| 4 | Both skill profiles active in registry | PASS |
+| 5 | decision_packet.md is execution authority; task_packet.json advisory | PASS |
+| 6 | Preflight is `preflight_not_configured_user_env_needed` — env blocker explained | PASS |
+| 7 | User-facing setup inputs inventoried | PASS |
+| 8 | Setup document created at `docs/tooling/ollydbg_backend_setup.md` | PASS |
+| 9 | Document covers env vars, preflight rerun, readiness interpretation | PASS |
+| 10 | Document covers when runtime probing is allowed | PASS |
+| 11 | Document aligned with existing preflight field names | PASS |
+| 12 | No inaccurate wording ("source modules not modified") | PASS — used "no changes outside allowed scope" |
+| 13 | negative_results.json cross-checked | PASS |
+| 14 | No full solve_reports/PROJECT_PROGRESS_LOG read | PASS |
+| 15 | No external reverse tool/sample launched | PASS |
+| 16 | Report and pytest_result match this decision/round ID | PASS |
+| 17 | Generated JSON, report summary, pytest_result summary use same recommendation | PASS |
+| 18 | Recommendation is one of 3 allowed values | PASS |
 
 ## 8. Stop Conditions
 
-No stop condition triggered. This test repair round is complete and accepted.
+No stop condition triggered. This setup-contract round is complete and accepted.
