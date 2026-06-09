@@ -7,9 +7,7 @@
   "based_on_state_digest": "e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067",
   "status": "APPROVED",
   "mainline": "training_dataset",
-  "skill_profiles": [
-    "reverse-agent-iteration"
-  ]
+  "skill_profiles": ["reverse-agent-iteration"]
 }
 ```
 
