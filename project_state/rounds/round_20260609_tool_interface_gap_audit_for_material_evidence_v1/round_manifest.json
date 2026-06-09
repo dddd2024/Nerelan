@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-09T15:26:21Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260609_tool_interface_gap_audit_for_material_evidence_v1\\codex_execution_report.md",
+      "sha256": "72487b74680fc82dac5dd2e7443f38f59b486f3b448e733901411104d32d2c42",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260609_tool_interface_gap_audit_for_material_evidence_v1\\decision_packet.md",
+      "sha256": "b8a97f17e1d576de24d11bd114d3f4a78c92d763c75c54fe828fad06724ec557",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260609_tool_interface_gap_audit_for_material_evidence_v1\\pytest_result.txt",
+      "sha256": "730ed60ac1e89c6f37dd4aeeab10560ddc48ba6145663215c5482a179d5136ca",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260609_tool_interface_gap_audit_for_material_evidence_v1",
+  "schema_version": 1,
+  "source_git_commit": "1113f5410c42",
+  "source_harness_run": "samplereverse_exact1_projected_vs_neighbor_20260424",
+  "state_build_id": "state_20260609_145049_7ee702d3b2b6",
+  "state_digest": "7ee702d3b2b6e31ff52b17c9d74ecc21ccb6ee0a81c88a8d526458985b4b0153",
+  "workflow_status": "REPORT_AVAILABLE"
+}

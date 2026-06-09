@@ -1,0 +1,224 @@
+{
+  "schema_version": 1,
+  "audit_id": "tool_interface_gap_audit_material_evidence_v1",
+  "based_on_decision_id": "decision_20260609_tool_interface_gap_audit_for_material_evidence_v1",
+  "based_on_state_build_id": "state_20260609_145049_7ee702d3b2b6",
+  "based_on_state_digest": "7ee702d3b2b6e31ff52b17c9d74ecc21ccb6ee0a81c88a8d526458985b4b0153",
+  "mainline": "tool_integration",
+  "generated_at": "2026-06-09",
+  "no_external_tools_run": true,
+  "stale_artifacts_promoted": false,
+  "inspected_files": [
+    "reverse_agent/evidence.py",
+    "reverse_agent/tool_runners.py",
+    "reverse_agent/ollydbg_preflight.py",
+    "reverse_agent/profiles/samplereverse.py",
+    "reverse_agent/pipeline.py",
+    "reverse_agent/transforms/samplereverse.py",
+    "reverse_agent/strategies/compare_aware_search.py",
+    "docs/tooling/ollydbg_backend_setup.md",
+    "tests/test_tool_runners.py",
+    "tests/test_ollydbg_preflight.py",
+    "tests/test_pipeline.py",
+    "tests/test_harness_artifact_manifest.py",
+    "tests/test_project_state.py"
+  ],
+  "existing_capabilities": {
+    "IDA_IDAPython": {
+      "status": "implemented",
+      "description": "IDA automation via idat64/idat/ida64/ida.exe with configurable script path. Supports .py/.ps1/.bat/.cmd/.exe scripts. Evidence output as JSON with strings, candidates, compare contexts, constraint contexts.",
+      "entry_point": "reverse_agent/tool_runners.py::run_ida_evidence() / _run_ida()",
+      "config_class": "ToolAutomationConfig.ida_enabled / ida_executable / ida_script_path / ida_timeout_seconds",
+      "evidence_kinds_supported": ["CandidateEvidence", "RuntimeCompareEvidence", "StaticStringEvidence", "ConstraintEvidence"],
+      "material_evidence_support": {
+        "instruction_confirmed_base64": "partial — can extract strings and candidates, but no dedicated Base64 construction point evidence kind",
+        "instruction_confirmed_rc4": "partial — same as above, no dedicated RC4 KSA/PRGA evidence kind",
+        "utf16le_expansion": "not_applicable — IDA static extraction does not produce UTF-16LE constructor evidence"
+      }
+    },
+    "Ghidra": {
+      "status": "missing",
+      "description": "No Ghidra integration found in codebase. No Ghidra script directory, no Ghidra executable resolver, no Ghidra evidence converter.",
+      "entry_point": null,
+      "config_class": null,
+      "evidence_kinds_supported": [],
+      "material_evidence_support": {
+        "instruction_confirmed_base64": "missing",
+        "instruction_confirmed_rc4": "missing",
+        "utf16le_expansion": "missing"
+      }
+    },
+    "OllyDbg": {
+      "status": "partial",
+      "description": "OllyDbg integration exists with executable/script resolution, subprocess execution, and JSON evidence ingestion. Preflight check separates backend_ready from runtime_ready. Two audit scripts documented: compare_handoff_post_entry_step_audit.py and compare_handoff_narrower_post_entry_breakpoint_audit.py.",
+      "entry_point": "reverse_agent/tool_runners.py::_run_ollydbg() / reverse_agent/ollydbg_preflight.py::run_ollydbg_preflight()",
+      "config_class": "ToolAutomationConfig.ollydbg_enabled / ollydbg_executable / ollydbg_script_path / ollydbg_timeout_seconds",
+      "evidence_kinds_supported": ["CandidateEvidence", "RuntimeCompareEvidence", "StaticStringEvidence", "ConstraintEvidence"],
+      "material_evidence_support": {
+        "instruction_confirmed_base64": "partial — compare_aware_search.py references pre_rc4_material_probe.py, base64_rc4_breakpoint_probe.py, base64_rc4_static_point_discovery.json, but these are strategy-level orchestration, not direct evidence kinds in tool_runners",
+        "instruction_confirmed_rc4": "partial — same as Base64, strategy has RC4-specific probe scripts but tool_runners evidence converter does not have dedicated RC4 KSA/PRGA kind",
+        "utf16le_expansion": "partial — transforms/samplereverse.py handles UTF-16LE encoding/decoding, but no dedicated UTF-16LE constructor evidence kind in StructuredEvidence"
+      }
+    },
+    "x64dbg_debugger": {
+      "status": "missing",
+      "description": "No x64dbg integration found. Only OllyDbg is supported for Windows dynamic debugging.",
+      "entry_point": null,
+      "config_class": null,
+      "evidence_kinds_supported": [],
+      "material_evidence_support": {
+        "instruction_confirmed_base64": "missing",
+        "instruction_confirmed_rc4": "missing",
+        "utf16le_expansion": "missing"
+      }
+    },
+    "strings_file_objdump_radare2": {
+      "status": "partial",
+      "description": "Static string extraction is supported within IDA evidence output (strings field). No standalone strings/objdump/radare2 tool runner exists.",
+      "entry_point": "reverse_agent/tool_runners.py::_structured_evidence_from_json() handles 'strings' key",
+      "config_class": null,
+      "evidence_kinds_supported": ["StaticStringEvidence"],
+      "material_evidence_support": {
+        "instruction_confirmed_base64": "not_applicable",
+        "instruction_confirmed_rc4": "not_applicable",
+        "utf16le_expansion": "not_applicable"
+      }
+    },
+    "tool_runners": {
+      "status": "implemented",
+      "description": "Centralized tool automation with ToolAutomationConfig, ToolRunArtifact, run_tool_automation(), run_ida_evidence(), run_compare_probe(), and OllyDbg execution. Evidence conversion from JSON to StructuredEvidence is unified.",
+      "entry_point": "reverse_agent/tool_runners.py",
+      "config_class": "ToolAutomationConfig",
+      "evidence_kinds_supported": ["CandidateEvidence", "RuntimeCompareEvidence", "StaticStringEvidence", "ConstraintEvidence"],
+      "material_evidence_support": {
+        "instruction_confirmed_base64": "partial — unified converter lacks dedicated Base64/RC4/UTF-16LE material kinds",
+        "instruction_confirmed_rc4": "partial",
+        "utf16le_expansion": "partial"
+      }
+    },
+    "StructuredEvidence": {
+      "status": "implemented",
+      "description": "Single evidence dataclass with kind, source_tool, summary, payload, confidence, derived_candidates. Kinds are string-based, not enum-based, allowing extension.",
+      "entry_point": "reverse_agent/evidence.py::StructuredEvidence",
+      "config_class": null,
+      "evidence_kinds_supported": ["CandidateEvidence", "RuntimeCompareEvidence", "StaticStringEvidence", "ConstraintEvidence"],
+      "material_evidence_support": {
+        "instruction_confirmed_base64": "partial — kind is extensible but no 'Base64MaterialEvidence' or 'RC4MaterialEvidence' kind exists yet",
+        "instruction_confirmed_rc4": "partial",
+        "utf16le_expansion": "partial"
+      }
+    },
+    "artifact_registration_provenance_freshness": {
+      "status": "implemented",
+      "description": "project_state.py handles artifact indexing, freshness tracking, provenance, and round manifest archiving. artifact_index.json tracks current/missing/stale artifacts.",
+      "entry_point": "reverse_agent/project_state.py",
+      "config_class": null,
+      "evidence_kinds_supported": [],
+      "material_evidence_support": {
+        "instruction_confirmed_base64": "not_applicable — metadata layer, not evidence kind",
+        "instruction_confirmed_rc4": "not_applicable",
+        "utf16le_expansion": "not_applicable"
+      }
+    }
+  },
+  "gaps_found": [
+    {
+      "gap_id": "gap_001_no_dedicated_base64_material_evidence_kind",
+      "severity": "medium",
+      "description": "StructuredEvidence has no dedicated kind for instruction-confirmed Base64 construction points. Current workaround: Base64/RC4 material is stored in RuntimeCompareEvidence or CandidateEvidence payload, losing semantic specificity.",
+      "affected_files": ["reverse_agent/evidence.py", "reverse_agent/tool_runners.py"],
+      "proposed_kind": "Base64MaterialEvidence",
+      "proposed_fields": ["construction_point", "input_bytes_hex", "output_chars", "chunk_boundary_info", "instruction_address"]
+    },
+    {
+      "gap_id": "gap_002_no_dedicated_rc4_material_evidence_kind",
+      "severity": "medium",
+      "description": "StructuredEvidence has no dedicated kind for instruction-confirmed RC4 KSA/PRGA points. compare_aware_search.py orchestrates RC4 probes but the evidence converter does not ingest them as first-class structured evidence.",
+      "affected_files": ["reverse_agent/evidence.py", "reverse_agent/tool_runners.py", "reverse_agent/strategies/compare_aware_search.py"],
+      "proposed_kind": "RC4MaterialEvidence",
+      "proposed_fields": ["ksa_point", "prga_point", "key_material_hex", "input_bytes_hex", "output_bytes_hex", "instruction_address"]
+    },
+    {
+      "gap_id": "gap_003_no_dedicated_utf16le_constructor_evidence_kind",
+      "severity": "medium",
+      "description": "transforms/samplereverse.py handles UTF-16LE encoding but no evidence kind captures UTF-16LE expansion or constructor points from runtime.",
+      "affected_files": ["reverse_agent/evidence.py", "reverse_agent/transforms/samplereverse.py"],
+      "proposed_kind": "UTF16LEMaterialEvidence",
+      "proposed_fields": ["expansion_point", "source_bytes_hex", "wide_chars", "instruction_address"]
+    },
+    {
+      "gap_id": "gap_004_no_ghidra_integration",
+      "severity": "low",
+      "description": "No Ghidra integration exists. For samplereverse, IDA + OllyDbg + CompareProbe are the primary tools. Ghidra would be useful for cross-platform or headless automation but is not critical for the current Windows GUI sample.",
+      "affected_files": [],
+      "proposed_action": "Defer until non-Windows sample or headless SRE need arises"
+    },
+    {
+      "gap_id": "gap_005_no_x64dbg_integration",
+      "severity": "low",
+      "description": "Only OllyDbg is supported for Windows dynamic debugging. x64dbg is a modern alternative but not required for current samplereverse workflow.",
+      "affected_files": [],
+      "proposed_action": "Defer until OllyDbg compatibility issue or modern debugger feature need arises"
+    },
+    {
+      "gap_id": "gap_006_ollydbg_material_probe_scripts_exist_but_not_unified_in_tool_runners",
+      "severity": "medium",
+      "description": "compare_aware_search.py references pre_rc4_material_probe.py, base64_rc4_breakpoint_probe.py, compare_producer_material_confirmation.py, material_hook_runtime_validation.py in olly_scripts/, but tool_runners.py only has generic _run_ollydbg() and compare_probe(). The material-specific probe orchestration lives in the strategy, not in the tool runner layer.",
+      "affected_files": ["reverse_agent/tool_runners.py", "reverse_agent/strategies/compare_aware_search.py"],
+      "proposed_action": "Consider moving material-probe orchestration to a dedicated MaterialProbeRunner or extending ToolAutomationConfig with material_probe_enabled flag"
+    },
+    {
+      "gap_id": "gap_007_compare_probe_has_no_instruction_level_confirmation",
+      "severity": "high",
+      "description": "run_compare_probe() captures runtime compare data (lhs_wide_hex, rhs_wide_hex, input_text) but does not confirm which instructions perform Base64/RC4/UTF-16LE operations. It is a black-box runtime probe, not an instruction-level material probe.",
+      "affected_files": ["reverse_agent/tool_runners.py::run_compare_probe()"],
+      "proposed_action": "Combine compare_probe with OllyDbg single-step material probe to get instruction-level confirmation"
+    }
+  ],
+  "duplicate_interface_risks": [
+    {
+      "risk_id": "risk_001_duplicate_ida_runner",
+      "description": "Low risk. IDA runner is centralized in tool_runners.py. No duplicate IDA interfaces found.",
+      "mitigation": "Already centralized"
+    },
+    {
+      "risk_id": "risk_002_duplicate_ollydbg_runner",
+      "description": "Low risk. OllyDbg runner is centralized in tool_runners.py::_run_ollydbg(). Preflight is separate but complementary (configuration probe vs execution).",
+      "mitigation": "Already centralized"
+    },
+    {
+      "risk_id": "risk_003_duplicate_compare_probe",
+      "description": "Low risk. run_compare_probe() is the single CompareProbe entry point. compare_aware_search.py calls it directly.",
+      "mitigation": "Already centralized"
+    },
+    {
+      "risk_id": "risk_004_evidence_converter_could_duplicate",
+      "description": "Medium risk. _structured_evidence_from_json() is the single converter, but material-specific probe scripts may produce JSON schemas it does not recognize, leading to ad-hoc parsing in compare_aware_search.py.",
+      "mitigation": "Extend _structured_evidence_from_json() with material-specific branches or create dedicated material evidence converters"
+    }
+  ],
+  "material_evidence_bottleneck_mapping": {
+    "current_bottleneck": "Base64/RC4/UTF-16LE material construction evidence is missing or unresolved",
+    "existing_interface_coverage": {
+      "instruction_confirmed_base64_construction_points": "partial — IDA can find strings and candidates; OllyDbg can step through; but no unified evidence kind captures 'this instruction at 0xXXXX is a Base64 encode step'",
+      "instruction_confirmed_rc4_ksa_prga_points": "partial — OllyDbg scripts exist for material probing but evidence is not converted to StructuredEvidence",
+      "utf16le_expansion_or_constructor_evidence": "partial — transforms/samplereverse.py models the encoding but runtime constructor evidence is not captured",
+      "compare_producer_hooks_as_leads": "implemented — CompareProbe captures compare sites and inputs; these are used as leads for material hook candidates in compare_aware_search.py"
+    },
+    "recommended_next_integration_step": "Extend StructuredEvidence with Base64MaterialEvidence, RC4MaterialEvidence, and UTF16LEMaterialEvidence kinds, and update _structured_evidence_from_json() to ingest material probe JSON outputs from OllyDbg scripts. Do not add new tool runners (IDA/OllyDbg already exist). Do not add Ghidra/x64dbg yet."
+  },
+  "recommended_next_decision_type": "tool_integration_schema_extension",
+  "recommended_next_decision_scope": "Add dedicated material evidence kinds to StructuredEvidence and update the JSON evidence converter in tool_runners.py to support Base64/RC4/UTF-16LE material probe outputs from existing OllyDbg scripts. No new external tools. No sample execution.",
+  "audit_constraints_respected": {
+    "no_sample_executed": true,
+    "no_debugger_attached": true,
+    "no_runtime_probe_launched": true,
+    "no_solver_run": true,
+    "no_candidate_generated": true,
+    "no_codex_skills_modified": true,
+    "no_source_code_modified": true,
+    "no_stale_artifacts_promoted": true,
+    "no_full_solve_reports_read": true,
+    "no_full_project_progress_log_read": true
+  }
+}
