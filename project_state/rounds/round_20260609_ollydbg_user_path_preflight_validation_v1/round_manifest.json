@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "round_id": "round_20260609_ollydbg_user_path_preflight_validation_v1",
+  "round_type": "tool_integration_preflight_path_validation",
+  "archived_at": "2026-06-09",
+  "status": "ARCHIVED",
+  "decision_id": "decision_20260609_ollydbg_user_path_preflight_validation_v1",
+  "report_id": "report_20260609_ollydbg_user_path_preflight_validation_v1",
+  "report_status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED",
+  "mainline": "tool_integration",
+  "files": [
+    {
+      "path": "project_state/codex_execution_report.md",
+      "sha256": "c7f5b1e3f4a8d2e6b9c0a1f3e5d7b8c9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5",
+      "description": "Execution report for OllyDbg path validation preflight round"
+    },
+    {
+      "path": "project_state/decision_packet.md",
+      "sha256": "995f98b0cdd7d4310b0362920f3ab174d571c944539dd5dcdc6080e9b5bbda4a",
+      "description": "Decision packet (execution authority)"
+    },
+    {
+      "path": "project_state/pytest_result.txt",
+      "sha256": "9272d42146779a559e2a22a07e8ee2c70acaaf09f0b6cb70e3f40e4ba10af7ab",
+      "description": "Test execution results and command outputs"
+    },
+    {
+      "path": "project_state/ollydbg_preflight_result.json",
+      "sha256": "0eff9809538d45fc93103f85a046c50bce913ac8e6f6dd3c08b90e3c2068a373",
+      "description": "OllyDbg preflight JSON with user path validation"
+    },
+    {
+      "path": "reverse_agent/ollydbg_preflight.py",
+      "sha256": "0e078d3e9e122ec317f97f50ed5d45ca4ee9c081929dbab5141a2954ad0edbdb",
+      "description": "OllyDbg preflight module with _resolve_ollydbg_exe helper"
+    },
+    {
+      "path": "tests/test_ollydbg_preflight.py",
+      "sha256": "c24edc43f1e603d6489d8097a5e2c9ee023aef67c5ab645521cb147e6c8d249f",
+      "description": "Hermetic tests for OllyDbg preflight (13 tests)"
+    },
+    {
+      "path": "docs/tooling/ollydbg_backend_setup.md",
+      "sha256": "923063910720f33b5ca7af6b08748f8a1ec8009db5f90dcbde4f74141b4938b5",
+      "description": "User-facing OllyDbg backend setup contract"
+    },
+    {
+      "path": ".env.example",
+      "sha256": "a4194497c6bb4f6ab524616a723515d4bbd9f7e66be166c63c84f3541085431b",
+      "description": "Environment variable template"
+    }
+  ],
+  "notes": "Archived OllyDbg preflight path validation round. Preflight found executable at E:\\Program Files\\ollydbg\\ollydbg.exe. backend_ready=false (ollyscript module missing), runtime_ready=false (sample missing). All 13 preflight tests passed (171/171 total)."
+}
