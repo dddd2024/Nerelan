@@ -12,3 +12,4 @@
 ```
 
 # Goal
+Run the next Codex round as `training_dataset`, not one-off
