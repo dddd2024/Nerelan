@@ -1,30 +1,25 @@
 ```json decision_meta
-{"schema_version":"1.0","decision_id":"decision_20260609_fix_single_step_interface_audit_category_v1","round_id":"round_20260609_fix_single_step_interface_audit_category_v1","based_on_state_build_id":"state_20260608_152003_e6fc7ab3ce85","based_on_state_digest":"e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067","status":"APPROVED","mainline":"tool_integration","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
+{"schema_version":"1.0","decision_id":"decision_20260609_fix_single_step_audit_pytest_record_v1","round_id":"round_20260609_fix_single_step_audit_pytest_record_v1","based_on_state_build_id":"state_20260608_152003_e6fc7ab3ce85","based_on_state_digest":"e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067","status":"APPROVED","mainline":"tool_integration","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
 ```
 
 # DECISION_PACKET
 
 ## 1. Goal
 
-Repair the single-step tool-interface audit report category. The current report uses an invalid final recommendation category, `needs_manual_ida_or_x64dbg_tool_integration_decision`. Replace it with exactly one category allowed by the active decision, and make the report conclusion consistent with that category.
+Repair the evidence record for the single-step interface audit category repair. The current `pytest_result.txt` top summary says it belongs to `decision_20260609_fix_single_step_interface_audit_category_v1`, but the recorded `status` and `lint-report` command outputs still contain old IDs from `decision_20260609_audit_existing_single_step_tool_interfaces_v1`.
 
-This is a `tool_integration` report-schema repair round only. Do not rerun interface discovery unless needed to preserve already recorded wording. Do not run samples, debuggers, IDA/Ghidra, Frida, OllyDbg, x64dbg, sidecars, runtime probes, solvers, or candidate validation.
+This round must regenerate or correctly record final command outputs after the current report and pytest_result have been updated. Do not merely edit the summary block.
+
+This is a `tool_integration` evidence-record repair round only. Do not run samples, debuggers, IDA/Ghidra, Frida, OllyDbg, x64dbg, sidecars, runtime probes, solvers, or candidate validation.
 
 ## 2. Current Evidence
 
-- Current report is `report_20260609_audit_existing_single_step_tool_interfaces_v1`.
-- The report/test IDs match the current decision/round and lint/pytest passed.
-- The report says existing OllyDbg single-step infrastructure exists and should be reused.
-- The report also says the backend is not configured.
-- The report uses invalid category `needs_manual_ida_or_x64dbg_tool_integration_decision`.
-- The governing decision only allowed:
-  - `reuse_existing_debugger_step_interface`
-  - `reuse_existing_static_tool_interface`
-  - `need_minimal_single_step_adapter`
-  - `need_manual_ida_x64dbg_decision`
-  - `blocked_no_interface_evidence`
-- If preserving the current “reuse existing OllyDbg infrastructure” conclusion, the likely corrected category is `reuse_existing_debugger_step_interface`.
-- If Codex instead concludes a human/tool-selection decision is still required, use the exact allowed category `need_manual_ida_x64dbg_decision`, not a newly invented variant.
+- `codex_execution_report.md` now uses valid category `reuse_existing_debugger_step_interface`.
+- The report conclusion and selected category are consistent.
+- `pytest_result.txt` top summary uses the current repair IDs from `decision_20260609_fix_single_step_interface_audit_category_v1`.
+- But the recorded `status` command output still reports old IDs from `decision_20260609_audit_existing_single_step_tool_interfaces_v1`.
+- The recorded `lint-report` command output also still includes old `pytest_result_decision_id`, `pytest_result_report_id`, and `pytest_result_round_id` values from `decision_20260609_audit_existing_single_step_tool_interfaces_v1`.
+- Therefore the current testing evidence is internally inconsistent and cannot be accepted.
 - `project_state/decision_packet.md` remains the execution authority. `task_packet.json` remains advisory only.
 - `negative_results.json` continues to prohibit repeated blind solver/search/probe directions and full `solve_reports` commits; this repair round must not execute any of those directions.
 
@@ -41,6 +36,7 @@ This is a `tool_integration` report-schema repair round only. Do not rerun inter
 - Do not read full `PROJECT_PROGRESS_LOG.txt`.
 - Do not modify artifact freshness, training status, sample metadata, archive directories, status overlay, runtime artifacts, or solver code.
 - Do not treat `task_packet.task` or `derived_task` as execution authority.
+- Do not only hand-edit the top summary of `pytest_result.txt` while leaving stale command outputs below.
 
 ## 4. Files To Inspect
 
@@ -71,32 +67,29 @@ Codex must:
    - `reverse-agent-iteration@v2`
    - `samplereverse-frontier@v2`
 5. Confirm `project_state/decision_packet.md` is the execution authority and `task_packet.json` is advisory only.
-6. Replace invalid `needs_manual_ida_or_x64dbg_tool_integration_decision` with exactly one allowed category:
-   - `reuse_existing_debugger_step_interface`
-   - `reuse_existing_static_tool_interface`
-   - `need_minimal_single_step_adapter`
-   - `need_manual_ida_x64dbg_decision`
-   - `blocked_no_interface_evidence`
-7. Ensure `project_state/codex_execution_report.md` and `project_state/pytest_result.txt` use the same corrected category.
-8. Ensure report conclusion and selected category are consistent.
-9. Confirm no runtime/debugger/tool/sample execution occurred.
-10. Confirm no source, skill, artifact, archive, training, status overlay, or runtime changes occurred.
-11. Confirm stale artifacts remain stale and are not promoted as current evidence.
-12. Confirm `codex_execution_report.md` for this round matches this decision id and round id.
-13. Confirm `pytest_result.txt` records this round's real command outputs and matches this round's report.
+6. Confirm `codex_execution_report.md` uses this decision ID and round ID.
+7. Confirm `pytest_result.txt` does not contain stale previous-round IDs in any command output.
+8. Regenerate or correctly record final command outputs after report/test updates.
+9. Ensure `status`, `lint-decision`, `lint-report`, and pytest outputs all correspond to this round.
+10. Ensure `pytest_result.txt` summary and command bodies agree.
+11. Confirm no runtime/debugger/tool/sample execution occurred.
+12. Confirm no source, skill, artifact, archive, training, status overlay, or runtime changes occurred.
+13. Confirm stale artifacts remain stale and are not promoted as current evidence.
+14. Confirm `codex_execution_report.md` for this round matches this decision id and round id.
+15. Confirm `pytest_result.txt` records this round's real command outputs and matches this round's report.
 
 ## 6. Implementation Scope
 
 Allowed changes only:
 
-1. `project_state/codex_execution_report.md`, updated to correct the final recommendation category and align the conclusion with that category.
-2. `project_state/pytest_result.txt`, updated with this round's command outputs and the corrected matching recommendation category.
+1. `project_state/codex_execution_report.md`, updated for this evidence-record repair round.
+2. `project_state/pytest_result.txt`, updated with real final command outputs for this round, with no stale previous-round IDs remaining.
 
-No source changes. No artifact changes. No optional JSON needed unless existing tooling requires it.
+No source changes. No artifact changes. No optional JSON needed.
 
 ## 7. Tests
 
-Run and record exact outputs in `project_state/pytest_result.txt`:
+Run and record final outputs after updating the report:
 
 ```bash
 python -m reverse_agent.project_state status
@@ -110,19 +103,18 @@ Acceptance requires:
 - `lint-decision: OK`
 - `lint-report: OK`
 - pytest passes
+- all recorded command outputs reference `decision_20260609_fix_single_step_audit_pytest_record_v1`
 - report/test IDs match this decision/round
-- final recommendation category is exactly one allowed value
-- report and `pytest_result.txt` category match
-- report conclusion and selected category are consistent
+- no stale previous-round IDs remain in `pytest_result.txt`
+- `pytest_result.txt` summary and command bodies agree
 - no reverse/tool execution occurred
 
 ## 8. Stop Conditions
 
 Stop and report `FAILED` if any of the following occurs:
 
-- final category is still outside the allowed list
-- report and `pytest_result.txt` disagree on category
-- report conclusion contradicts the selected category
+- final `pytest_result.txt` still contains stale old decision/report/round IDs
+- report and `pytest_result.txt` disagree
 - final `lint-decision` fails
 - final `lint-report` fails
 - pytest fails
