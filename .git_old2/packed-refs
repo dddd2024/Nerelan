@@ -1,0 +1,8 @@
+# pack-refs with: peeled fully-peeled sorted 
+1be2bd05d9f1ab5915a8bc4835f41765b782cd9e refs/heads/codex/add-codex-skills
+889cd42ba6b8b256bacc38051d3818ede2d4c195 refs/heads/codex/gui-dynamic-model
+d689c28f9d8ee33073164e05fad8c51392c05fd2 refs/heads/codex/material-hook-runtime-validation
+59640843faa4eddc7c2b2c763f502be62f484c60 refs/heads/codex/merge-dynamic-model
+867fc70ead15de0b17ecdbbb6dad3f15baaf65ee refs/heads/feature/training-materials-corpus
+b26a510c1080ade4920f88df2253b37f0916c669 refs/heads/gui
+46bbd5cccf7057add56161dd42d35e9a17a940bd refs/heads/main
