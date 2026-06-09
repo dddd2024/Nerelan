@@ -1,0 +1,15 @@
+{
+  "preflight_name": "ollydbg_backend_preflight",
+  "preflight_version": 1,
+  "ready": false,
+  "checks": {
+    "ollydbg_executable_found": false,
+    "ollydbg_executable_path": null,
+    "olly_script_module_importable": false,
+    "olly_scripts_directory_exists": true,
+    "step_audit_script_exists": true,
+    "sample_path_resolvable": false,
+    "sample_path": null
+  },
+  "recommendation": "preflight_not_configured_user_env_needed"
+}

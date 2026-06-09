@@ -1,0 +1,150 @@
+"""OllyDbg backend preflight check — non-invasive configuration probe.
+
+Does NOT start OllyDbg, attach to any process, or execute the sample.
+Only checks whether the OllyDbg backend is configured and reachable.
+"""
+from __future__ import annotations
+
+import importlib.util
+import json
+import os
+import sys
+from pathlib import Path
+
+
+def _olly_script_dir() -> Path:
+    return Path(__file__).resolve().parent / "olly_scripts"
+
+
+def _sample_path() -> Path | None:
+    """Return the expected sample path from environment or default location."""
+    env = os.environ.get("REVERSE_AGENT_SAMPLE_PATH", "")
+    if env:
+        p = Path(env)
+        if p.exists():
+            return p
+    # Default location used by harness
+    default = Path(__file__).resolve().parents[1] / "samples" / "samplereverse.exe"
+    return default if default.exists() else None
+
+
+def _ollydbg_exe_path() -> Path | None:
+    """Return OllyDbg executable path from environment or common locations."""
+    env = os.environ.get("REVERSE_AGENT_OLLYDBG_PATH", "")
+    if env:
+        p = Path(env)
+        if p.exists():
+            return p
+    # Common Windows locations
+    candidates = [
+        Path(r"C:\Program Files\OllyDbg\ollydbg.exe"),
+        Path(r"C:\Program Files (x86)\OllyDbg\ollydbg.exe"),
+        Path(r"C:\Tools\OllyDbg\ollydbg.exe"),
+        Path.home() / "Tools" / "OllyDbg" / "ollydbg.exe",
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    return None
+
+
+def _olly_script_module_available() -> bool:
+    """Check if olly.ollyscript (or equivalent) Python module is importable."""
+    try:
+        spec = importlib.util.find_spec("olly.ollyscript")
+        if spec is not None:
+            return True
+    except (ModuleNotFoundError, ImportError):
+        pass
+    # Also check for alternative module names used by OllyDbg Python scripting
+    for name in ("ollyscript", "OllyScript", "olly"):
+        try:
+            if importlib.util.find_spec(name) is not None:
+                return True
+        except (ModuleNotFoundError, ImportError):
+            pass
+    return False
+
+
+def _step_audit_script_exists() -> bool:
+    """Check if the compare_handoff_post_entry_step_audit.py script exists."""
+    script = _olly_script_dir() / "compare_handoff_post_entry_step_audit.py"
+    return script.exists()
+
+
+def run_ollydbg_preflight(
+    *,
+    sample_path: Path | None = None,
+    ollydbg_path: Path | None = None,
+    output_path: Path | None = None,
+) -> dict[str, object]:
+    """Run non-invasive OllyDbg backend preflight check.
+
+    Returns a compact JSON-serializable dict with configuration status.
+    """
+    sample = sample_path or _sample_path()
+    ollydbg = ollydbg_path or _ollydbg_exe_path()
+    script_dir = _olly_script_dir()
+
+    checks = {
+        "ollydbg_executable_found": ollydbg is not None,
+        "ollydbg_executable_path": str(ollydbg) if ollydbg else None,
+        "olly_script_module_importable": _olly_script_module_available(),
+        "olly_scripts_directory_exists": script_dir.exists(),
+        "step_audit_script_exists": _step_audit_script_exists(),
+        "sample_path_resolvable": sample is not None,
+        "sample_path": str(sample) if sample else None,
+    }
+
+    # Overall readiness: all critical checks must pass
+    critical_checks = [
+        checks["ollydbg_executable_found"],
+        checks["olly_script_module_importable"],
+        checks["olly_scripts_directory_exists"],
+        checks["step_audit_script_exists"],
+    ]
+    ready = all(critical_checks)
+
+    result = {
+        "preflight_name": "ollydbg_backend_preflight",
+        "preflight_version": 1,
+        "ready": ready,
+        "checks": checks,
+        "recommendation": (
+            "preflight_ready_for_bounded_ollydbg_runtime_decision"
+            if ready
+            else "preflight_not_configured_user_env_needed"
+        ),
+    }
+
+    if output_path is not None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(result, ensure_ascii=True, indent=2),
+            encoding="utf-8",
+        )
+
+    return result
+
+
+def main() -> int:
+    import argparse
+
+    parser = argparse.ArgumentParser(description="OllyDbg backend preflight check")
+    parser.add_argument("--sample-path", type=Path, default=None)
+    parser.add_argument("--ollydbg-path", type=Path, default=None)
+    parser.add_argument("--out", type=Path, default=None)
+    args = parser.parse_args()
+
+    result = run_ollydbg_preflight(
+        sample_path=args.sample_path,
+        ollydbg_path=args.ollydbg_path,
+        output_path=args.out,
+    )
+
+    print(json.dumps(result, ensure_ascii=True, indent=2))
+    return 0 if result["ready"] else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

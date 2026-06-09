@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260609_fix_single_step_audit_pytest_record_v1",
-  "round_id": "round_20260609_fix_single_step_audit_pytest_record_v1",
-  "based_on_decision_id": "decision_20260609_fix_single_step_audit_pytest_record_v1",
+  "report_id": "report_20260609_ollydbg_backend_preflight_config_v1",
+  "round_id": "round_20260609_ollydbg_backend_preflight_config_v1",
+  "based_on_decision_id": "decision_20260609_ollydbg_backend_preflight_config_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -18,6 +18,9 @@
   "training_status_modified": false,
   "status_overlay_modified": false,
   "files_changed": [
+    "reverse_agent/ollydbg_preflight.py",
+    "tests/test_ollydbg_preflight.py",
+    "project_state/ollydbg_preflight_result.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
@@ -25,14 +28,20 @@
     "python -m reverse_agent.project_state status",
     "python -m reverse_agent.project_state lint-decision",
     "python -m reverse_agent.project_state lint-report",
-    "python -m pytest tests/test_project_state.py"
+    "python -m pytest tests/test_project_state.py tests/test_ollydbg_preflight.py",
+    "python -m reverse_agent.ollydbg_preflight --out project_state/ollydbg_preflight_result.json"
   ],
-  "generated_artifacts": [],
-  "tool_integration_audit": {
-    "single_step_interface_exists": true,
-    "single_step_backend_available": false,
-    "step_api_unavailable_root_cause": "ollydbg_backend_not_configured",
-    "recommendation_category": "reuse_existing_debugger_step_interface"
+  "generated_artifacts": [
+    "project_state/ollydbg_preflight_result.json"
+  ],
+  "preflight_result": {
+    "ready": false,
+    "recommendation": "preflight_not_configured_user_env_needed",
+    "olly_scripts_directory_exists": true,
+    "step_audit_script_exists": true,
+    "ollydbg_executable_found": false,
+    "olly_script_module_importable": false,
+    "sample_path_resolvable": false
   }
 }
 ```
@@ -42,9 +51,9 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the execution authority for this round.
-- [x] Active decision: `decision_20260609_fix_single_step_audit_pytest_record_v1`.
-- [x] Active round: `round_20260609_fix_single_step_audit_pytest_record_v1`.
-- [x] Mainline is `tool_integration`; this is a code-audit and design round only.
+- [x] Active decision: `decision_20260609_ollydbg_backend_preflight_config_v1`.
+- [x] Active round: `round_20260609_ollydbg_backend_preflight_config_v1`.
+- [x] Mainline is `tool_integration`; this is a preflight implementation round.
 - [x] No sample binary was executed.
 - [x] No candidate, solver, search, runtime probe, debugger, emulator, hook, winpty, or sidecar work was run.
 - [x] `.codex-skills/` was not modified.
@@ -53,110 +62,106 @@
 
 ## 2. Scope
 
-Tool-integration audit round to answer: does reverse-agent already have reusable single-step, breakpoint, register/EFLAGS/EIP-read, and exception-capture interfaces? If so, why does `step_api_unavailable` occur? Should the next round reuse existing interfaces or define a minimal single-step adapter?
+Tool-integration preflight implementation round. Based on the previous audit conclusion to "reuse existing debugger step interface," this round implements a non-invasive preflight check that reports whether the OllyDbg backend is configured and ready — without starting OllyDbg, attaching to any process, or executing the sample.
 
-This round performed static code inspection only. No runtime execution, debugger attachment, or source-code modification occurred.
+Changes made:
+- Added `reverse_agent/ollydbg_preflight.py` — minimal preflight module
+- Added `tests/test_ollydbg_preflight.py` — focused mocked tests (no external tool startup)
+- Generated `project_state/ollydbg_preflight_result.json` — compact JSON artifact
+- Updated this report and `pytest_result.txt`
 
-## 3. Existing Interface Inventory
+## 3. Preflight Implementation
 
-### 3.1 Single-Step Infrastructure — EXISTS
+### 3.1 Module: `reverse_agent/ollydbg_preflight.py`
 
-| Component | File | Status | Details |
-|-----------|------|--------|---------|
-| OllyDbg single-step script | `reverse_agent/olly_scripts/compare_handoff_post_entry_step_audit.py` | ✅ **Complete** | `step_into()`, `read_registers()`, exception capture, `max_steps` limit |
-| Python caller/aggregator | `reverse_agent/strategies/compare_aware_search.py` L12914 | ✅ **Complete** | `run_compare_handoff_post_entry_step_runtime_audit()` |
-| Payload builder | `compare_aware_search.py` L12802 | ✅ **Complete** | `build_compare_handoff_post_entry_step_runtime_audit_payload()` |
-| Next-action router | `compare_aware_search.py` L12660 | ✅ **Complete** | `_post_entry_next_bounded_action()` returns `narrower_post_entry_breakpoint` when `step_api_unavailable` |
-| Hook points definition | `compare_aware_search.py` L12938 | ✅ **Complete** | `predecessor_handoff_call` (0x2338), `handoff_helper_entry` (0x1b50), `process_exception` (0x1913), `actual_compare` (0x258c) |
+Non-invasive checks (no process startup):
+- `ollydbg_executable_found` — checks `REVERSE_AGENT_OLLYDBG_PATH` env var and common Windows paths
+- `olly_script_module_importable` — checks if `olly.ollyscript` or equivalent Python module is importable
+- `olly_scripts_directory_exists` — verifies `reverse_agent/olly_scripts/` directory exists
+- `step_audit_script_exists` — verifies `compare_handoff_post_entry_step_audit.py` exists
+- `sample_path_resolvable` — checks `REVERSE_AGENT_SAMPLE_PATH` env var and default location
 
-### 3.2 Breakpoint Infrastructure — EXISTS
+### 3.2 Preflight Result
 
-| Component | File | Status |
-|-----------|------|--------|
-| OllyDbg breakpoint script | `reverse_agent/olly_scripts/compare_handoff_narrower_post_entry_breakpoint_audit.py` | ✅ **Complete** |
-| Python caller | `compare_aware_search.py` | ✅ **Complete** |
-| Install/hit/timeout detection | Narrower audit script | ✅ **Complete** |
+```json
+{
+  "preflight_name": "ollydbg_backend_preflight",
+  "preflight_version": 1,
+  "ready": false,
+  "checks": {
+    "ollydbg_executable_found": false,
+    "ollydbg_executable_path": null,
+    "olly_script_module_importable": false,
+    "olly_scripts_directory_exists": true,
+    "step_audit_script_exists": true,
+    "sample_path_resolvable": false,
+    "sample_path": null
+  },
+  "recommendation": "preflight_not_configured_user_env_needed"
+}
+```
 
-### 3.3 Frida Infrastructure — PARTIAL
+**Interpretation:**
+- ✅ OllyDbg scripts infrastructure exists (scripts directory + step audit script)
+- ❌ OllyDbg executable not found (not installed or not in PATH/common locations)
+- ❌ OllyDbg Python module not importable (`olly.ollyscript` not installed)
+- ❌ Sample path not resolvable (`samples/samplereverse.exe` not found)
 
-| Component | Status |
-|-----------|--------|
-| `frida_runner.py` | ❌ **Does not exist** |
-| `frida_hooks.py` | ❌ **Does not exist** |
-| `sidecar_health.py` | ✅ Exists (lifecycle monitoring only, no single-step) |
-| Frida single-step implementation | ❌ **Does not exist** |
+## 4. Tests
 
-### 3.4 IDA / Ghidra / x64dbg Infrastructure
+### 4.1 Focused Preflight Tests
 
-| Component | Status |
-|-----------|--------|
-| `ida_scripts/collect_evidence.py` | ✅ Exists (static collection, no runtime single-step) |
-| `ghidra_scripts/` | ❌ **Does not exist** |
-| `x64dbg_scripts/` | ❌ **Does not exist** |
-| `olly_scripts/` | ✅ Exists (single-step + breakpoint) |
+`tests/test_ollydbg_preflight.py` — 6 tests, all mocked, no external tool startup:
 
-## 4. Root Cause of `step_api_unavailable`
+| Test | Purpose |
+|------|---------|
+| `test_step_audit_script_exists` | Verify the step audit script is present |
+| `test_olly_script_module_not_available_by_default` | Confirm module not installed in test env |
+| `test_preflight_all_false_when_nothing_configured` | Default state returns `ready=false` |
+| `test_preflight_ready_when_all_mocked` | Mocked state returns `ready=true` |
+| `test_preflight_respects_explicit_paths` | Explicit paths override discovery |
+| `test_preflight_main_cli_exit_code` | CLI returns exit code 1 when not ready |
 
-**Finding: The single-step code infrastructure is complete, but the runtime backend is missing.**
+**Result: 6/6 passed**
 
-`compare_handoff_post_entry_step_audit.py` is an **OllyDbg script** (not Frida). It requires:
-1. OllyDbg process running with the target attached
-2. `olly.ollyscript` Python module available
-3. Script injection pipeline configured
+### 4.2 Full Test Suite
 
-The `step_api_unavailable` classification is returned when the OllyDbg backend cannot be reached — not because the single-step logic is unimplemented. The code at `compare_aware_search.py` L12666 explicitly maps `step_api_unavailable` → `narrower_post_entry_breakpoint` as a fallback strategy.
+`tests/test_project_state.py` + `tests/test_ollydbg_preflight.py` — **164/164 passed** (158 existing + 6 new)
 
-**Key evidence:**
-- `compare_handoff_post_entry_step_audit.py` contains full `step_into()` implementation with register read and exception capture
-- `run_compare_handoff_post_entry_step_runtime_audit()` at L12914 fully orchestrates the audit
-- The fallback `narrower_post_entry_breakpoint_audit` was already run (artifact present in `current_state.json`)
+## 5. Recommendation
 
-## 5. Reuse vs. New Adapter Decision
+**Category: `preflight_not_configured_user_env_needed`**
 
-**Verdict: REUSE existing OllyDbg infrastructure; do NOT build a new adapter from scratch.**
+The preflight confirms that:
+1. The OllyDbg single-step code infrastructure is present and intact
+2. The runtime backend (OllyDbg executable + Python module) is not configured
+3. The sample binary is not present at the expected location
 
-Rationale:
-1. The OllyDbg single-step script is feature-complete (step, register read, exception capture, max_steps limit)
-2. The Python caller/aggregator is already integrated into the search strategy
-3. Building a Frida/x64dbg adapter would duplicate existing logic without solving the backend availability problem
-4. The real gap is **runtime environment configuration**, not code
+Next steps (for a future decision):
+- Install OllyDbg and configure `REVERSE_AGENT_OLLYDBG_PATH`
+- Install the OllyDbg Python scripting module (`olly.ollyscript`)
+- Place `samplereverse.exe` at `samples/samplereverse.exe` or set `REVERSE_AGENT_SAMPLE_PATH`
 
-**What needs to happen:**
-- Configure OllyDbg as the runtime backend for `compare_handoff_post_entry_step_audit.py`
-- OR decide to switch to x64dbg with a script adapter (x64dbg has Python scripting via `x64dbgpy`)
-- OR implement a minimal Frida single-step adapter if OllyDbg is no longer viable
-
-## 6. Next Round Recommendation
-
-**Recommendation category: `reuse_existing_debugger_step_interface`**
-
-**Justification:**
-- The existing OllyDbg single-step infrastructure is complete and feature-ready
-- The code includes `step_into()`, `read_registers()`, exception capture, and `max_steps` limit
-- The Python caller/aggregator is already integrated into the search strategy
-- The only gap is runtime backend configuration, not missing code
-- Reusing the existing interface is the correct next step; a separate decision will define the backend configuration work
-
-## 7. Required Audit Checklist
+## 6. Required Audit Checklist
 
 | # | Check | Result |
 |---|-------|--------|
 | 1 | decision_packet.md has fenced JSON decision_meta block | PASS |
 | 2 | decision_meta.status == APPROVED | PASS |
 | 3 | decision_meta.mainline == tool_integration | PASS |
-| 4 | decision_meta.skill_profiles == ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"] and both active | PASS |
-| 5 | decision_packet.md is execution authority; task_packet.json is advisory | PASS |
-| 6 | Only static code inspection; no runtime execution | PASS |
-| 7 | No debugger, emulator, solver, candidate validation, or sample execution | PASS |
-| 8 | No source-code modification | PASS |
-| 9 | Existing interfaces inventoried with file paths and line numbers | PASS |
-| 10 | step_api_unavailable root cause identified | PASS (`ollydbg_backend_not_configured`) |
-| 11 | Reuse vs. new adapter decision made with rationale | PASS (reuse OllyDbg) |
-| 12 | Recommendation category is one of 5 allowed values | PASS |
-| 13 | Category justified from audit findings | PASS |
+| 4 | skill_profiles active in registry | PASS |
+| 5 | decision_packet.md is execution authority | PASS |
+| 6 | Preflight is non-invasive (no OllyDbg start, no attach, no sample execution) | PASS |
+| 7 | Source change is minimal and focused | PASS (1 module + 1 test file) |
+| 8 | Tests are mocked, no external tool startup | PASS |
+| 9 | Full test suite passes | PASS (164/164) |
+| 10 | Compact JSON artifact generated | PASS |
+| 11 | Artifact does not duplicate existing audit JSONs | PASS |
+| 12 | Recommendation category is one of 4 allowed values | PASS |
+| 13 | Category matches preflight result | PASS |
 | 14 | codex_execution_report.md matches this decision/round ID | PASS |
 | 15 | pytest_result.txt records this round's real command outputs | PASS |
 
-## 8. Stop Conditions
+## 7. Stop Conditions
 
-No stop condition triggered. This tool-integration audit round is complete and accepted.
+No stop condition triggered. This preflight implementation round is complete and accepted.
