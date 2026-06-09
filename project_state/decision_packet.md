@@ -3,4 +3,3 @@
 ```
 
 # Goal
-Prepare a
