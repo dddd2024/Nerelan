@@ -1,184 +1,58 @@
 ```json decision_meta
-{
-  "schema_version": 1,
-  "decision_id": "decision_20260609_archive_ollydbg_preflight_round_v1",
-  "round_id": "round_20260609_archive_ollydbg_preflight_round_v1",
-  "based_on_state_build_id": "state_20260608_152003_e6fc7ab3ce85",
-  "based_on_state_digest": "e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067",
-  "status": "APPROVED",
-  "mainline": "engineering_branch",
-  "skill_profiles": [
-    "reverse-agent-iteration@v2",
-    "samplereverse-frontier@v2"
-  ]
-}
+{"schema_version":1,"decision_id":"decision_20260609_archive_current_archive_round_and_rebuild_state_v1","round_id":"round_20260609_archive_current_archive_round_and_rebuild_state_v1","based_on_state_build_id":"state_20260608_152003_e6fc7ab3ce85","based_on_state_digest":"e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
 ```
 
 # DECISION_PACKET
 
-## 1. Goal
+## Goal
 
-Archive and reconcile the accepted OllyDbg user-path preflight validation round without changing reverse-solving behavior or launching any external reverse-engineering tool.
+Archive the currently accepted archive-governance round (`round_20260609_archive_ollydbg_preflight_round_v1`) and refresh project-state handoff metadata.
 
-The previous executed round was:
+## Current Evidence
 
-- decision: `decision_20260609_ollydbg_user_path_preflight_validation_v1`
-- round: `round_20260609_ollydbg_user_path_preflight_validation_v1`
-- report: `report_20260609_ollydbg_user_path_preflight_validation_v1`
-- status: `SUCCESS`
-- acceptance recommendation: `ACCEPTED`
+- Previous archive-governance round is ACCEPTED.
+- Old OllyDbg preflight round already has a manifest.
+- Current archive round itself is not archived yet.
+- task_packet/current_state still point to historical samplereverse state and should remain advisory, not execution authority.
+- No reverse-solving evidence should be promoted in this round.
 
-This round exists only to make the dynamic project state auditable: archive the accepted round metadata, ensure report/test/status IDs remain aligned, and record that the next functional blocker is user/environment configuration rather than more code changes.
+## Do Not Do
 
-## 2. Current Evidence
+- Do not run OllyDbg, IDA, Ghidra, x64dbg, emulator, debugger, hook, sidecar.
+- Do not execute samples.
+- Do not perform solver search, candidate generation, runtime probes.
+- Do not modify .codex-skills.
+- Do not read full solve_reports.
 
-- Mainline for this round is `engineering_branch` because the task is state/archive governance, not reverse solving and not new tool integration implementation.
-- `project_state/decision_packet.md` remains the current execution authority. `task_packet.json` and any `derived_task` remain advisory only.
-- `.codex-skills/registry.json` contains two active profiles used by this packet: `reverse-agent-iteration@v2` and `samplereverse-frontier@v2`.
-- The previous OllyDbg preflight validation report states `status: SUCCESS`, `acceptance_recommendation: ACCEPTED`, and `mainline: tool_integration`.
-- The previous report changed only `reverse_agent/ollydbg_preflight.py`, `tests/test_ollydbg_preflight.py`, `project_state/ollydbg_preflight_result.json`, `project_state/codex_execution_report.md`, and `project_state/pytest_result.txt`.
-- The previous report says no sample binary, debugger, emulator, runtime probe, hook, sidecar, IDA, or Ghidra was launched.
-- The previous pytest summary records `lint-decision: OK`, `lint-report: OK`, and `171 passed` for `tests/test_project_state.py tests/test_ollydbg_preflight.py`.
-- The previous non-invasive preflight resolved the user path `E:\Program Files\ollydbg` to `E:\Program Files\ollydbg\ollydbg.exe`.
-- The previous preflight still has `ready=false`, `backend_ready=false`, and `runtime_ready=false` because `olly.ollyscript` is not importable and no sample path is resolvable.
-- The previous `project_state status` output records `round_manifest_present: False` and `archive_status: not_archived` for `round_20260609_ollydbg_user_path_preflight_validation_v1`.
-- Current state remains a sample-state snapshot; it may differ from the previous tool-integration round and is allowed only as state provenance. Do not treat sample-state artifacts as current OllyDbg runtime evidence.
-- `negative_results.json` must still be checked. This round must not repeat any blocked solver/search/probe direction.
+## Files To Inspect
 
-## 3. Do Not Do
+- project_state/decision_packet.md
+- project_state/codex_execution_report.md
+- project_state/pytest_result.txt
+- project_state/current_state.json
+- project_state/task_packet.json
+- project_state/artifact_index.json
+- project_state/rounds/round_20260609_archive_ollydbg_preflight_round_v1/*
 
-- Do not modify `reverse_agent/ollydbg_preflight.py`.
-- Do not modify `tests/test_ollydbg_preflight.py` except if an existing state-governance test requires an expected fixture update for the archive metadata.
-- Do not launch OllyDbg, x64dbg, IDA, Ghidra, Frida, emulator, debugger, sidecar, hook, or runtime probe.
-- Do not execute any sample binary.
-- Do not run solver search, compare-aware search, candidate generation, candidate validation, beam expansion, budget expansion, or topN expansion.
-- Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
-- Do not modify `.codex-skills/`.
-- Do not change solver code, runtime probe code, sample metadata, training status, status overlay, or tool integration behavior.
-- Do not mark OllyDbg as runtime-ready. The previous preflight explicitly says runtime readiness is still false.
-- Do not treat `ollydbg_executable_found=true` as sufficient for backend readiness or runtime readiness.
+## Required Audit
 
-## 4. Files To Inspect
+- Verify current archive round is archived.
+- Verify round_manifest exists.
+- Verify report/decision/pytest IDs match.
+- Verify no runtime or reverse-solving actions occurred.
+- Verify stale artifacts remain stale.
 
-Required:
+## Implementation Scope
 
-- `project_state/decision_packet.md`
-- `project_state/codex_execution_report.md`
-- `project_state/pytest_result.txt`
-- `project_state/ollydbg_preflight_result.json`
-- `project_state/task_packet.json`
-- `project_state/current_state.json`
-- `project_state/artifact_index.json`
-- `project_state/negative_results.json`
-- `.codex-skills/registry.json`
+Only state-governance files, round manifests, report, pytest_result, and project-state refresh outputs may change.
 
-Required if present or generated by existing project-state tooling:
+## Tests
 
-- `project_state/rounds/round_20260609_ollydbg_user_path_preflight_validation_v1/round_manifest.json`
-- latest bounded `project_state/rounds/*/round_manifest.json` relevant to the previous OllyDbg preflight round
-
-Optional bounded:
-
-- Existing project-state archive/build/status code used by `python -m reverse_agent.project_state status`, only if needed to produce or validate the round manifest.
-
-Do not inspect full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
-
-## 5. Required Audit
-
-Codex must:
-
-1. Confirm this decision packet has a fenced JSON block tagged `decision_meta`.
-2. Confirm `decision_meta.status == APPROVED`.
-3. Confirm `decision_meta.mainline == engineering_branch`.
-4. Confirm both skill profiles are active in `.codex-skills/registry.json`:
-   - `reverse-agent-iteration@v2`
-   - `samplereverse-frontier@v2`
-5. Confirm the previous report consumed `decision_20260609_ollydbg_user_path_preflight_validation_v1` and used `round_20260609_ollydbg_user_path_preflight_validation_v1`.
-6. Confirm `project_state/pytest_result.txt` matches the previous report ID, decision ID, and round ID.
-7. Confirm the previous test evidence includes `171 passed` for `tests/test_project_state.py tests/test_ollydbg_preflight.py`.
-8. Confirm the previous preflight JSON agrees with report and pytest summary:
-   - `ready=false`
-   - `backend_ready=false`
-   - `runtime_ready=false`
-   - `ollydbg_executable_found=true`
-   - resolved executable path is `E:\Program Files\ollydbg\ollydbg.exe`
-   - `olly_script_module_importable=false`
-   - `sample_path_resolvable=false`
-   - recommendation is `preflight_not_configured_user_env_needed`
-9. Confirm the previous status output reported `round_manifest_present: False` and `archive_status: not_archived`, or explain if the archive has already been created by another process.
-10. Create or update only the minimal archive/manifest metadata needed to make the accepted previous round discoverable and auditable.
-11. Ensure archive metadata does not claim runtime readiness, candidate generation, sample execution, or debugger attachment.
-12. Cross-check `negative_results.json` and state explicitly that this archive/state-governance round does not repeat blocked solver/probe/search directions.
-13. Confirm no full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt` read occurred.
-14. Confirm no external reverse tool or sample was launched.
-15. Update `project_state/codex_execution_report.md` and `project_state/pytest_result.txt` for this archive round with matching `based_on_decision_id`, `round_id`, and test commands.
-
-## 6. Implementation Scope
-
-Allowed changes:
-
-1. `project_state/rounds/round_20260609_ollydbg_user_path_preflight_validation_v1/round_manifest.json`, if missing.
-2. `project_state/artifact_index.json`, only if existing project-state conventions require registering the previous preflight artifact or round manifest.
-3. `project_state/codex_execution_report.md`, updated for this archive/state-governance round.
-4. `project_state/pytest_result.txt`, updated with real command outputs for this archive/state-governance round.
-5. Existing project-state status/archive metadata files, only if required by current repository conventions and only for the previous accepted OllyDbg round.
-
-Disallowed changes:
-
-- `reverse_agent/ollydbg_preflight.py`
-- `tests/test_ollydbg_preflight.py`, except narrow expected-fixture updates if unavoidable
-- `.codex-skills/`
-- solver code
-- compare-aware search logic
-- runtime probe logic
-- sample binaries or sample metadata
-- training status
-- status overlay
-- debugger/tool execution code
-- full `solve_reports/`
-- any implementation that launches or drives OllyDbg/x64dbg/IDA/Ghidra/Frida
-
-## 7. Tests
-
-Run and record exact outputs in `project_state/pytest_result.txt`:
-
-```bash
 python -m reverse_agent.project_state status
 python -m reverse_agent.project_state lint-decision
 python -m reverse_agent.project_state lint-report
 python -m pytest tests/test_project_state.py -q
-```
 
-If a changed archive/status path affects OllyDbg preflight tests or report coverage expectations, also run:
+## Stop Conditions
 
-```bash
-python -m pytest tests/test_project_state.py tests/test_ollydbg_preflight.py -q
-```
-
-Acceptance requires:
-
-- `lint-decision: OK`
-- `lint-report: OK`
-- pytest passes
-- `codex_execution_report.md` contains `codex_report_summary`
-- `codex_report_summary.based_on_decision_id == decision_20260609_archive_ollydbg_preflight_round_v1`
-- report round ID is `round_20260609_archive_ollydbg_preflight_round_v1`
-- `pytest_result.txt` contains the same decision ID and round ID
-- the previous accepted OllyDbg preflight round remains represented as not runtime-ready
-- the previous accepted round has either a manifest or a clear reason why no manifest is produced by current project-state conventions
-- no stale old decision/report IDs are presented as the current archive-round result
-- no external reverse tool/sample execution occurred
-
-## 8. Stop Conditions
-
-Stop and report `FAILED` or `BLOCKED` if any of the following occurs:
-
-- archive/state reconciliation requires launching OllyDbg, x64dbg, IDA/Ghidra, Frida, sidecar, runtime probe, or a sample binary
-- `codex_execution_report.md` for the previous round is missing or no longer matches `decision_20260609_ollydbg_user_path_preflight_validation_v1`
-- `pytest_result.txt` for the previous round is missing or no longer matches the previous report
-- previous preflight JSON is missing and cannot be reconstructed without running disallowed external tools
-- final `lint-decision` fails
-- final `lint-report` fails
-- pytest fails
-- the archive metadata would require modifying `.codex-skills/`
-- the task shifts into reverse solving, candidate generation, runtime probing, or debugger/tool execution
+Stop if archive requires external tools, sample execution, solver execution, or modification of .codex-skills.
