@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-09T08:39:59Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260609_fix_repair_round_lint_and_report_v1\\codex_execution_report.md",
+      "sha256": "f050db35d309b6f4e8170756f843c51c4da5ee4d334ed509e361fdef210510a0",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260609_fix_repair_round_lint_and_report_v1\\decision_packet.md",
+      "sha256": "cbb23c96a50e1de7d133a6c60af89ac562b93cc3a9186dd8411f2a135d050590",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260609_fix_repair_round_lint_and_report_v1\\pytest_result.txt",
+      "sha256": "783dd82fe9d511121ad5a867b142e041f69c456fca72b95839027a79e348bf1f",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260609_fix_repair_round_lint_and_report_v1",
+  "schema_version": 1,
+  "source_git_commit": "a18a71d2bd02",
+  "source_harness_run": "sr_arg0_hook_readiness_ordering_20260526_r1",
+  "state_build_id": "state_20260608_152003_e6fc7ab3ce85",
+  "state_digest": "e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067",
+  "workflow_status": "REPORT_AVAILABLE"
+}
