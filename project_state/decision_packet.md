@@ -1,63 +1,70 @@
 ```json decision_meta
-{"schema_version":"1.0","decision_id":"decision_20260609_fix_samplereverse_diagnostic_review_schema_v1","round_id":"round_20260609_fix_samplereverse_diagnostic_review_schema_v1","based_on_state_build_id":"state_20260608_152003_e6fc7ab3ce85","based_on_state_digest":"e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067","status":"APPROVED","mainline":"reverse_solving","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
+{"schema_version":"1.0","decision_id":"decision_20260609_audit_existing_single_step_tool_interfaces_v1","round_id":"round_20260609_audit_existing_single_step_tool_interfaces_v1","based_on_state_build_id":"state_20260608_152003_e6fc7ab3ce85","based_on_state_digest":"e6fc7ab3ce8537d3a989adf7eeba7366ef987bf6887ee459b727c9417f958067","status":"APPROVED","mainline":"tool_integration","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
 ```
 
 # DECISION_PACKET
 
 ## 1. Goal
 
-Repair the diagnostic review report schema and audit evidence without running any new reverse-solving action. The current report uses the invalid recommendation category `evidence_production`; it must be changed to one of the categories explicitly allowed by the active decision. The report must also explicitly verify both active skill profiles: `reverse-agent-iteration@v2` and `samplereverse-frontier@v2`.
+Audit whether reverse-agent already has reusable interfaces for single-step debugging, breakpoint management, register/eflags/EIP reads, exception capture, and IDA/Ghidra/x64dbg/OllyDbg/Frida integration. The goal is to decide whether the next `samplereverse` evidence-producing round should reuse an existing tool interface or define a minimal single-step adapter.
 
-This is a `reverse_solving` report-schema repair round only. It must not execute the sample, run IDA/Ghidra/debuggers, run sidecars, run solvers, generate candidates, or inspect full `solve_reports/`.
+This round is a `tool_integration` audit/design round only. It must not run samples, launch debuggers, run IDA/Ghidra, run Frida/OllyDbg/x64dbg, execute sidecars, run runtime probes, generate candidates, or modify solver/runtime code.
 
 ## 2. Current Evidence
 
-- The active previous diagnostic review report is `report_20260609_samplereverse_current_window_diagnostic_review_v1` for `decision_20260609_samplereverse_current_window_diagnostic_review_v1`.
-- Its report/test IDs match and `lint-decision`, `lint-report`, and `pytest tests/test_project_state.py` passed.
-- The report and `pytest_result.txt` use `next_round_recommendation_category: evidence_production`, but the governing decision required one of five exact categories:
-  - `bounded_static_artifact_review_complete_next_decision_needed`
-  - `needs_manual_ida_or_x64dbg_tool_integration_decision`
-  - `needs_new_bounded_runtime_probe_decision`
-  - `needs_project_state_or_artifact_index_repair_decision`
-  - `blocked_insufficient_current_artifacts`
-- The previous diagnostic review recommends fixing single-step capability, possibly via Frida/x64dbg/OllyDbg backend support, and separately mentions manual IDA/x64dbg handoff-helper inspection. Because the highest-priority proposed action is to obtain new bounded runtime observation, the likely corrected category is `needs_new_bounded_runtime_probe_decision`. If Codex chooses a different allowed category, it must justify the choice from the already recorded report facts.
-- Active decision metadata declares both `reverse-agent-iteration@v2` and `samplereverse-frontier@v2`.
-- `.codex-skills/registry.json` records `reverse-agent-iteration` as active version 2 and `samplereverse-frontier` as active version 2.
-- The previous report checklist incorrectly mentioned only `reverse-agent-iteration@v2`; it must explicitly verify both profiles.
-- `artifact_index.json` already confirms the diagnostic review used current artifact families from `sr_arg0_hook_readiness_ordering_20260526_r1`. This repair round should not add new artifact conclusions unless needed to correct the schema/report wording.
-- `negative_results.json` continues to prohibit repeated blind solver/search/probe directions, full `solve_reports` commits, and several blocked Base64/RC4/material-hook directions. This repair round must not execute any of those directions.
+- The previous accepted reverse-solving schema repair selected `needs_new_bounded_runtime_probe_decision` as the next recommendation category.
+- The root capability gap is `step_api_unavailable`: the project cannot currently observe post-entry branch/eflags/next-EIP behavior inside the `0x401b50` handoff helper.
+- `current_state.json` still records the `samplereverse` bottleneck as `window_lifecycle_no_window_created`, with stage `compare_handoff_narrower_post_entry_breakpoint_audit`.
+- Current artifacts are indexed under `sr_arg0_hook_readiness_ordering_20260526_r1`, but this round must not read full `solve_reports/`; only bounded references needed to understand tool-interface requirements are allowed.
+- `negative_results.json` prohibits returning to old `sample_solver` blind search, only increasing beam/budget, using `compare_semantics_agree=false` candidates as primary frontier, committing full `solve_reports/`, and repeating several blocked Base64/RC4/material-hook directions.
+- Existing relevant capabilities may include project-state tooling, compare-aware strategy code, harness-generated runtime artifacts, OllyDbg scripts, debugger wrappers, Frida helpers, and possible IDA/Ghidra extraction interfaces. This round must verify these from repository code instead of assuming they do or do not exist.
+- Mature reverse tools should be reused when available. If IDA/Ghidra/x64dbg/OllyDbg already provide the needed evidence extraction, the next round should propose using that interface instead of reimplementing debugger functionality.
 - `project_state/decision_packet.md` remains the execution authority. `task_packet.json` remains advisory only.
 
 ## 3. Do Not Do
 
 - Do not execute any sample binary, including `samplereverse` or `Cpp2.exe`.
-- Do not run IDA, Ghidra, OllyDbg, x64dbg, debugger, emulator, runtime probe, hook, sidecar, winpty, console validator, or binary instrumentation.
+- Do not launch IDA, Ghidra, OllyDbg, x64dbg, Frida, debugger, emulator, runtime probe, hook, sidecar, winpty, console validator, or binary instrumentation.
 - Do not generate, mutate, rank, validate, or report candidate inputs or flags.
 - Do not run compare-aware search, old `sample_solver` blind search, brute force, beam expansion, budget expansion, topN expansion, Base64/RC4/DES/XOR solver work, or any solver action.
-- Do not rerun previous failed directions from `negative_results.json`.
+- Do not implement a single-step adapter in this round.
+- Do not modify source modules.
+- Do not modify `.codex-skills/`.
 - Do not inspect or commit full `solve_reports/`.
 - Do not read full `PROJECT_PROGRESS_LOG.txt`.
-- Do not modify `.codex-skills/`.
-- Do not modify source modules.
 - Do not modify training status, sample metadata, status overlay, archive directories, runtime artifacts, artifact freshness, or solver code.
 - Do not treat `task_packet.task` or `derived_task` as execution authority.
 - Do not promote stale or unknown-freshness artifacts to current evidence.
 
 ## 4. Files To Inspect
 
-Required files:
+Required project-state files:
 
 - `project_state/decision_packet.md`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
-- `.codex-skills/registry.json`
+- `project_state/current_state.json`
 - `project_state/artifact_index.json`
 - `project_state/negative_results.json`
+- `.codex-skills/registry.json`
 - `project_state/task_packet.json`
 
-Optional bounded files, only if needed to preserve wording from the existing diagnostic review:
+Required repository search terms and bounded inspection targets:
 
-- `project_state/current_state.json`
+- `step`, `single_step`, `single-step`
+- `Frida`, `frida`
+- `x64dbg`
+- `OllyDbg`, `olly`
+- `debugger`, `breakpoint`, `register`, `eflags`, `eip`
+- `IDA`, `idapython`, `Ghidra`
+- `compare_handoff_post_entry_step_audit.py`, if present
+- existing scripts under `reverse_agent/olly_scripts/`, if present
+- existing tool integration modules under `reverse_agent/` that expose debugger/static-tool functionality
+
+Optional bounded source/test inspection, only to determine existing interface shape:
+
+- tests that mention debugger, Frida, OllyDbg, x64dbg, IDA, Ghidra, breakpoint, register, eflags, or EIP
+- README/tooling docs that describe supported reverse tools
 
 Do not inspect full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -67,33 +74,57 @@ Codex must perform and record these checks:
 
 1. Confirm this decision packet has a fenced JSON block tagged `decision_meta`.
 2. Confirm `decision_meta.status == APPROVED`.
-3. Confirm `decision_meta.mainline == reverse_solving`.
+3. Confirm `decision_meta.mainline == tool_integration`.
 4. Confirm both skill profiles resolve to active registry skills:
    - `reverse-agent-iteration@v2`
    - `samplereverse-frontier@v2`
 5. Confirm `project_state/decision_packet.md` is the execution authority and `task_packet.json` is advisory only.
-6. Replace the invalid `evidence_production` recommendation category with exactly one of the five allowed values:
-   - `bounded_static_artifact_review_complete_next_decision_needed`
-   - `needs_manual_ida_or_x64dbg_tool_integration_decision`
-   - `needs_new_bounded_runtime_probe_decision`
-   - `needs_project_state_or_artifact_index_repair_decision`
-   - `blocked_insufficient_current_artifacts`
-7. If selecting `needs_new_bounded_runtime_probe_decision`, state that this means a future decision must define the bounded runtime/single-step work; do not run it here.
-8. If selecting `needs_manual_ida_or_x64dbg_tool_integration_decision`, state that this means a future tool-integration/manual-inspection decision is needed; do not run it here.
-9. Update both `project_state/codex_execution_report.md` and `project_state/pytest_result.txt` so their `next_round_recommendation_category` values match.
-10. Confirm no new reverse execution, runtime probing, debugger, emulator, sidecar, solver, candidate validation, IDA/Ghidra run, or source-code change occurred.
-11. Confirm stale artifacts remain stale and are not promoted as current evidence.
-12. Confirm `codex_execution_report.md` for this round matches this decision id and round id.
-13. Confirm `pytest_result.txt` records this round's real command outputs and matches this round's report.
+6. Confirm no sample execution, runtime probing, debugger/emulator launch, IDA/Ghidra launch, sidecar execution, solver work, or candidate validation occurred.
+7. Inventory existing interfaces for:
+   - single-step execution
+   - breakpoint install/remove/list
+   - register read/write
+   - EFLAGS/EIP/next-EIP observation
+   - exception capture/access-violation capture
+   - IDA/IDAPython static extraction
+   - Ghidra static extraction
+   - x64dbg/OllyDbg integration
+   - Frida integration
+   - StructuredEvidence conversion from tool output
+8. Explain why `compare_handoff_post_entry_step_audit.py` or equivalent currently reports `step_api_unavailable`, if the script or prior report exists in repository state.
+9. Distinguish mature tool capabilities from project wrapper capabilities: note whether a mature tool can do the work manually, and whether reverse-agent already has a wrapper to orchestrate it.
+10. Identify which existing interface, if any, should be reused for the next evidence-producing round.
+11. If no reusable interface exists, define the minimal single-step adapter boundary without implementing it. The boundary must include inputs, outputs, tool backend, safety limits, provenance/artifact output, and stop conditions.
+12. Cross-check `negative_results.json`; explicitly state that this interface audit does not repeat blocked solver/probe directions.
+13. Produce one final recommendation category, exactly one of:
+    - `reuse_existing_debugger_step_interface`
+    - `reuse_existing_static_tool_interface`
+    - `need_minimal_single_step_adapter`
+    - `need_manual_ida_x64dbg_decision`
+    - `blocked_no_interface_evidence`
+14. Confirm `codex_execution_report.md` for this round matches this decision id and round id.
+15. Confirm `pytest_result.txt` records this round's real command outputs and matches this round's report.
 
 ## 6. Implementation Scope
 
-Allowed changes only:
+Allowed changes:
 
-1. `project_state/codex_execution_report.md`, updated to correct the recommendation category and explicitly audit both skill profiles.
-2. `project_state/pytest_result.txt`, updated with this round's command outputs and the corrected matching recommendation category.
+1. `project_state/codex_execution_report.md`, updated with the interface inventory, existing capability matrix, negative-results cross-check, and final recommendation category.
+2. `project_state/pytest_result.txt`, updated with this round's command outputs.
+3. Optional compact JSON artifact: `project_state/single_step_tool_interface_audit_20260609.json`, if Codex needs machine-readable output. If created, list it in `generated_artifacts` and keep it small.
 
-Do not modify source modules, `.codex-skills/`, training status, sample metadata, status overlay, archive files, runtime artifacts, solver code, artifact freshness, or full `solve_reports/`.
+Disallowed changes:
+
+- source modules
+- `.codex-skills/`
+- solver code
+- runtime probe code
+- sample metadata
+- training status
+- status overlay
+- artifact freshness
+- archive directories
+- full `solve_reports/`
 
 ## 7. Tests
 
@@ -106,26 +137,36 @@ python -m reverse_agent.project_state lint-report
 python -m pytest tests/test_project_state.py
 ```
 
+If the optional JSON artifact is created, also run and record:
+
+```bash
+python -m json.tool project_state/single_step_tool_interface_audit_20260609.json > NUL
+```
+
+Use the platform-appropriate null sink if not on Windows, and record the actual command used.
+
 Acceptance requirements:
 
 - `lint-decision: OK`
 - `lint-report: OK`
 - `pytest tests/test_project_state.py` passes
+- optional JSON validates if created
 - report/test IDs match this decision and round
-- `next_round_recommendation_category` is one of the five allowed values
-- report and `pytest_result.txt` use the same recommendation category
-- both `reverse-agent-iteration@v2` and `samplereverse-frontier@v2` are explicitly audited as active
-- no runtime/reverse execution occurred
+- report includes the interface inventory
+- report includes exactly one final recommendation category from the allowed list
+- no sample execution, debugger/emulator launch, IDA/Ghidra launch, Frida/OllyDbg/x64dbg run, sidecar execution, solver work, candidate validation, source modification, or full `solve_reports/` inspection occurred
 
 ## 8. Stop Conditions
 
-Stop and report `FAILED` or `BLOCKED` if any of the following occurs:
+Stop and report `BLOCKED` or `FAILED` if any of the following occurs:
 
+- determining interface capability requires launching a debugger, IDA/Ghidra, Frida, x64dbg, OllyDbg, sidecar, or sample binary
+- determining interface capability requires full `solve_reports/` scanning
+- repository search cannot determine whether a relevant wrapper exists
+- final recommendation cannot be reduced to exactly one allowed category
 - final `lint-decision` fails
 - final `lint-report` fails
 - pytest fails
-- report still uses an invalid recommendation category
-- report and `pytest_result.txt` disagree on recommendation category
-- either skill profile cannot be resolved as active
-- any task requires new runtime/debugger/IDA/Ghidra/solver execution
-- any source, skill, artifact, archive, training status, or full `solve_reports/` modification becomes necessary
+- `pytest_result.txt` cannot be updated with real outputs from this round
+- report/test IDs mismatch
+- any task shifts this round into reverse execution, solver work, sample solving, or training dataset work
