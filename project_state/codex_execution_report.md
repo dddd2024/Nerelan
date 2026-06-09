@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260609_audit_existing_single_step_tool_interfaces_v1",
-  "round_id": "round_20260609_audit_existing_single_step_tool_interfaces_v1",
-  "based_on_decision_id": "decision_20260609_audit_existing_single_step_tool_interfaces_v1",
+  "report_id": "report_20260609_fix_single_step_interface_audit_category_v1",
+  "round_id": "round_20260609_fix_single_step_interface_audit_category_v1",
+  "based_on_decision_id": "decision_20260609_fix_single_step_interface_audit_category_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "tool_integration",
@@ -32,7 +32,7 @@
     "single_step_interface_exists": true,
     "single_step_backend_available": false,
     "step_api_unavailable_root_cause": "ollydbg_backend_not_configured",
-    "recommendation_category": "needs_manual_ida_or_x64dbg_tool_integration_decision"
+    "recommendation_category": "reuse_existing_debugger_step_interface"
   }
 }
 ```
@@ -42,8 +42,8 @@
 ## 1. Decision Authority Check
 
 - [x] `project_state/decision_packet.md` is the execution authority for this round.
-- [x] Active decision: `decision_20260609_audit_existing_single_step_tool_interfaces_v1`.
-- [x] Active round: `round_20260609_audit_existing_single_step_tool_interfaces_v1`.
+- [x] Active decision: `decision_20260609_fix_single_step_interface_audit_category_v1`.
+- [x] Active round: `round_20260609_fix_single_step_interface_audit_category_v1`.
 - [x] Mainline is `tool_integration`; this is a code-audit and design round only.
 - [x] No sample binary was executed.
 - [x] No candidate, solver, search, runtime probe, debugger, emulator, hook, winpty, or sidecar work was run.
@@ -128,13 +128,14 @@ Rationale:
 
 ## 6. Next Round Recommendation
 
-**Recommendation category: `needs_manual_ida_or_x64dbg_tool_integration_decision`**
+**Recommendation category: `reuse_existing_debugger_step_interface`**
 
 **Justification:**
-- The existing OllyDbg infrastructure is complete but the backend is not configured
-- A decision is needed on whether to: (a) fix OllyDbg runtime setup, (b) switch to x64dbg, or (c) implement Frida single-step
-- This is a tool-integration decision, not a new bounded runtime probe
-- Current artifacts (13 current) already fully document the problem
+- The existing OllyDbg single-step infrastructure is complete and feature-ready
+- The code includes `step_into()`, `read_registers()`, exception capture, and `max_steps` limit
+- The Python caller/aggregator is already integrated into the search strategy
+- The only gap is runtime backend configuration, not missing code
+- Reusing the existing interface is the correct next step; a separate decision will define the backend configuration work
 
 ## 7. Required Audit Checklist
 

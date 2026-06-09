@@ -1,16 +1,16 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260609_audit_existing_single_step_tool_interfaces_v1",
-  "report_id": "report_20260609_audit_existing_single_step_tool_interfaces_v1",
-  "round_id": "round_20260609_audit_existing_single_step_tool_interfaces_v1",
+  "decision_id": "decision_20260609_fix_single_step_interface_audit_category_v1",
+  "report_id": "report_20260609_fix_single_step_interface_audit_category_v1",
+  "round_id": "round_20260609_fix_single_step_interface_audit_category_v1",
   "generated_at": "2026-06-09",
   "status": "PASSED",
   "tool_integration_audit": {
     "single_step_interface_exists": true,
     "single_step_backend_available": false,
     "step_api_unavailable_root_cause": "ollydbg_backend_not_configured",
-    "recommendation_category": "needs_manual_ida_or_x64dbg_tool_integration_decision"
+    "recommendation_category": "reuse_existing_debugger_step_interface"
   },
   "tests_ran": [
     "python -m reverse_agent.project_state status",
@@ -21,7 +21,7 @@
 }
 ```
 
-# pytest_result.txt - Round: round_20260609_audit_existing_single_step_tool_interfaces_v1
+# pytest_result.txt - Round: round_20260609_fix_single_step_interface_audit_category_v1
 
 ## Command: python -m reverse_agent.project_state status
 
@@ -50,9 +50,9 @@ report_id: report_20260609_audit_existing_single_step_tool_interfaces_v1
 report_based_on_decision_id: decision_20260609_audit_existing_single_step_tool_interfaces_v1
 report_parse_error: None
 pytest_result_status: PASSED
-pytest_result_decision_id: decision_20260609_audit_existing_single_step_tool_interfaces_v1
-pytest_result_report_id: report_20260609_audit_existing_single_step_tool_interfaces_v1
-pytest_result_round_id: round_20260609_audit_existing_single_step_tool_interfaces_v1
+pytest_result_decision_id: decision_20260609_fix_single_step_interface_audit_category_v1
+pytest_result_report_id: report_20260609_fix_single_step_interface_audit_category_v1
+pytest_result_round_id: round_20260609_fix_single_step_interface_audit_category_v1
 pytest_result_matches_report: True
 report_tests_ran_count: 4
 pytest_result_tests_ran_count: 4
@@ -83,7 +83,7 @@ Status: PASSED (exit code 0)
 
 ```
 lint-decision: OK
-decision_id: decision_20260609_audit_existing_single_step_tool_interfaces_v1
+decision_id: decision_20260609_fix_single_step_interface_audit_category_v1
 decision_status: APPROVED
 mainline: tool_integration
 skill_profiles: ['reverse-agent-iteration@v2', 'samplereverse-frontier@v2']
@@ -101,15 +101,15 @@ Status: PASSED (exit code 0)
 
 ```
 lint-report: OK
-report_id: report_20260609_audit_existing_single_step_tool_interfaces_v1
+report_id: report_20260609_fix_single_step_interface_audit_category_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260609_audit_existing_single_step_tool_interfaces_v1
-decision_id: decision_20260609_audit_existing_single_step_tool_interfaces_v1
+based_on_decision_id: decision_20260609_fix_single_step_interface_audit_category_v1
+decision_id: decision_20260609_fix_single_step_interface_audit_category_v1
 decision_report_id_match: True
-round_id: round_20260609_audit_existing_single_step_tool_interfaces_v1
-report_round_id: round_20260609_audit_existing_single_step_tool_interfaces_v1
-decision_round_id: round_20260609_audit_existing_single_step_tool_interfaces_v1
+round_id: round_20260609_fix_single_step_interface_audit_category_v1
+report_round_id: round_20260609_fix_single_step_interface_audit_category_v1
+decision_round_id: round_20260609_fix_single_step_interface_audit_category_v1
 current_state_round_id: round_20260608_152003
 current_state_scope: sample_state
 report_decision_round_id_match: True
