@@ -1,199 +1,136 @@
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260610_repair_selected_fallback_evidence_materialization_v1","round_id":"round_20260610_repair_selected_fallback_evidence_materialization_v1","based_on_state_build_id":"state_20260610_103205_f0ad87317cc3","based_on_state_digest":"f0ad87317cc3be9adedda92452a22391b8cb8f6b21a246949b6fec5f4435df9a","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260610_rework_run_missing_harness_compare_test_v1",
+  "round_id": "round_20260610_rework_run_missing_harness_compare_test_v1",
+  "based_on_state_build_id": "state_20260610_105707_1114a74dbc48",
+  "based_on_state_digest": "1114a74dbc482a6cdcef792426ec10b895a15da031744a6e295ca39d770800fb",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]
+}
 ```
 
 # DECISION_PACKET
 
 ## 1. Goal
 
-Repair the selected fallback evidence chain after strict readiness classification.
-
-The current live state correctly refuses to treat the selected fallback run as ready because the selected case result is `not_found`, `validation_count` is `0`, and the embedded artifact manifest includes `instrumentation_incomplete`. This round must not bypass that strictness. The goal is to make the repair path concrete, schema-compatible, and test-covered so the next local action is no longer a vague `repair_selected_fallback_evidence` placeholder.
-
-This is an `engineering_branch` round. It is not a reverse-solving round and must not generate, rank, validate, or emit any candidate or flag.
+补齐上一轮缺失的必跑测试证据。上一轮实现方向暂不扩大，不做新功能，不改 solver，不推进 reverse solving。核心目标是运行完整 decision 要求的 pytest 命令，并更新 `pytest_result.txt`、`codex_execution_report.md` 和 round archive，使测试证据与当前报告一致。
 
 ## 2. Current Evidence
 
-- Previous decision consumed: `decision_20260610_repair_selected_fallback_readiness_strictness_v1`.
-- Previous audit result: `ACCEPTED_WITH_LIMITATIONS`.
-- `project_state/codex_execution_report.md` is bound to the previous decision and reports `SUCCESS`.
-- `project_state/pytest_result.txt` records `166 passed in 41.83s`, final `lint-report: OK`, `decision_consumed_by_report: True`, `decision_execution_state: CONSUMED_BY_SUCCESS_REPORT`, and `archive_status: archived`.
-- Live `project_state/model_gate.json` now sets `next_local_action: repair_selected_fallback_evidence`.
-- Live `selected_harness_evidence_source.readiness_audit.classification` is `fallback_evidence_incomplete`.
-- Live readiness reason is `case_result_status_is_not_found`.
-- Live readiness metadata still records `case_result_statuses: ["not_found"]`, `validation_count: 0`, `candidate_count: 3`, `structured_evidence_count: 1`, and `tool_artifact_count: 1`.
-- The selected fallback run remains `sr_arg0_hook_readiness_ordering_20260526_r1` with `selection_role: fallback` and `provenance: fallback_from_invalid_latest_run`.
-- The latest invalid run remains separately recorded as `solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424` with reason `case_results_directory_absent`.
-- `project_state/task_packet.json` currently has `task: repair_selected_fallback_evidence`; it is advisory only. This `decision_packet.md` controls the current round.
-- `project_state/artifact_index.json` still contains stale artifacts. Stale/missing artifacts must not be promoted to current.
-- Negative results still block blind search, beam/budget expansion, stale hook reuse, full `solve_reports/` scans, and repeated failed runtime probe directions.
-- Existing relevant capabilities include `reverse_agent/project_state.py`, `reverse_agent/harness.py`, `tests/test_project_state.py`, `tests/test_harness_artifact_manifest.py`, and `tests/test_harness_compare.py`. Inspect and reuse them; do not create duplicate harness/project-state writers.
-- IDA/Ghidra/debugger/solver interfaces are not in scope for this engineering repair round. Their existence must not be denied, but they must not be run.
+- 上一轮审计结论：`REWORK_REQUIRED`。
+- 原因：`decision_packet.md` 要求运行 `tests/test_project_state.py tests/test_harness_artifact_manifest.py tests/test_harness_compare.py`，但报告和 `pytest_result.txt` 只记录了前两个测试文件。
+- 当前主线仍为 `engineering_branch`。
+- `model_gate.json` 已正确保留 `fallback_evidence_incomplete`，并生成 `repair_diagnostics`。
+- 当前 `next_local_action` 为 `repair_harness_case_result_materialization`。
+- 不允许把本轮扩张为逆向求解、候选生成、runtime probe、IDA/Ghidra/debugger 调试。
+- `task_packet.json` 只是 advisory；当前轮执行权威是本 `project_state/decision_packet.md`。
+- `artifact_index.json` 仍包含 stale artifacts；stale/missing artifact 不能作为 current 证据。
+- negative_results 仍然禁止盲搜、扩 beam/budget、重复失败 runtime probe、复用 stale hook、提交完整 `solve_reports/`。
+- 这是测试证据返工轮，不需要运行 IDA/Ghidra/debugger/solver/harness real sample。
 
 ## 3. Do Not Do
 
-- Do not run any sample binary.
-- Do not run the harness on a real sample or replay the selected fallback run.
-- Do not generate, mutate, rank, or validate candidates.
-- Do not run solver/search expansion.
-- Do not run runtime probes, debugger, emulator, hooks, sidecars, IDA, Ghidra, OllyDbg, x64dbg, Frida, or pywinauto.
-- Do not inspect full `solve_reports/`.
-- Do not read full `PROJECT_PROGRESS_LOG.txt`.
-- Do not modify `.codex-skills/`.
-- Do not change solver/search/runtime/debugger/probe code.
-- Do not change IDA/Ghidra/debugger interfaces.
-- Do not change sample binaries, candidate files, training data, or status overlays.
-- Do not promote stale/missing artifacts to current.
-- Do not silently promote the fallback run to latest/current.
-- Do not mark fallback evidence ready unless all strict readiness requirements are actually satisfied by bounded metadata.
-- Do not paper over `not_found`, `instrumentation_incomplete`, or `validation_count: 0` by changing labels only.
+- 不要运行样本二进制。
+- 不要运行 harness real sample。
+- 不要生成、验证、排序 candidate。
+- 不要运行 solver/search/runtime/debugger/probe/IDA/Ghidra。
+- 不要改 `.codex-skills/`。
+- 不要改 solver/search/runtime/debugger/probe 代码。
+- 不要读取完整 `solve_reports/`。
+- 不要把 fallback evidence 提升为 current/latest。
+- 不要修改 historical `solve_reports/` 来制造通过状态。
+- 不要只改报告文本而不真实运行缺失测试。
+- 不要把本轮扩张为 reverse_solving、tool_integration 或 training_dataset。
 
 ## 4. Files To Inspect
 
-Required project-state files:
-
 - `project_state/decision_packet.md`
-- `project_state/current_state.json`
-- `project_state/artifact_index.json`
-- `project_state/model_gate.json`
-- `project_state/task_packet.json`
-- `project_state/negative_results.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
+- `project_state/model_gate.json`
+- `project_state/task_packet.json`
+- `project_state/current_state.json`
+- `project_state/artifact_index.json`
+- `project_state/negative_results.json`
 - `.codex-skills/registry.json`
-
-Required source/test files:
-
-- `reverse_agent/project_state.py`
-- `reverse_agent/harness.py`
+- `tests/test_harness_compare.py`
 - `tests/test_project_state.py`
 - `tests/test_harness_artifact_manifest.py`
-- `tests/test_harness_compare.py`, only if the harness status/manifest contract is directly affected.
-
-Allowed bounded fallback evidence inspection:
-
-- `solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/summary.json`
-- `solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/run_manifest.json`
-- Directory existence and filenames under `solve_reports/harness_runs/sr_arg0_hook_readiness_ordering_20260526_r1/case_results/`
-- The single selected fallback case-result JSON file, if exactly one exists, limited to metadata fields: `case_id`, `input_value`, `resolved_path`, `status`, `matched_expected`, `candidate_count`, `structured_evidence_count`, `tool_artifact_count`, `validation_count`, `artifact_manifest`, `error`, and provenance/status fields.
-- Embedded artifact manifest entries already present in that case result. Do not open all referenced tool artifact payloads unless bounded metadata is insufficient to classify the repair blocker.
-
-Do not inspect unrelated harness runs. Do not inspect full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
-Codex must:
+Codex 必须确认：
 
-1. Confirm this decision packet is the active execution authority and `task_packet.json` is advisory only.
-2. Confirm both skill profiles are active in `.codex-skills/registry.json`.
-3. Confirm the previous round is consumed/archived and report/decision matched.
-4. Inspect the current strict readiness classifier in `reverse_agent/project_state.py` and preserve its blocking semantics.
-5. Inspect the existing harness case-result and artifact-manifest writer path in `reverse_agent/harness.py`; reuse existing code and do not create a duplicate writer.
-6. Determine, from bounded metadata and existing code, which component owns each blocker:
-   - `status: not_found`;
-   - `summary.not_found_cases > 0` if present;
-   - `artifact_manifest[].classification: instrumentation_incomplete`;
-   - `validation_count: 0`.
-7. Add a schema-compatible repair diagnostic to live project state, preferably under `selected_harness_evidence_source.readiness_audit.repair_diagnostics` or an adjacent stable field, with:
-   - `blockers`: a list of concrete blocker codes;
-   - `repairable_from_existing_metadata`: boolean;
-   - `required_rebuild`: boolean;
-   - `owner_component`: `project_state`, `harness`, `case_result_writer`, `artifact_manifest_writer`, or `unknown`;
-   - `next_local_action`: a precise bounded action, not generic guessing.
-8. If the current selected fallback cannot be made ready from existing bounded metadata, keep `classification: fallback_evidence_incomplete` and set a precise action such as `rebuild_selected_fallback_case_result_metadata` or `repair_harness_case_result_materialization`.
-9. If a schema/projection bug is found and can be repaired without executing samples or harness runs, fix only that bug and add tests.
-10. Do not change historical `solve_reports/` files merely to make the current fallback appear ready.
-11. Preserve fallback provenance, run name/path, summary path, manifest path, latest invalid run, and fallback selection role.
-12. Preserve the latest invalid run record separately; do not overwrite it with the fallback.
-13. Ensure no stale/missing artifact is promoted to current.
-14. Ensure no sample/tool/debugger/solver/probe/IDA/Ghidra execution occurred.
-15. Update live `project_state/pytest_result.txt` with exact command outputs.
-16. Update live `project_state/codex_execution_report.md` with a valid `codex_report_summary` bound to this decision.
-17. Archive this round after live report/test/state files are updated.
-18. After archive, record final `lint-report` and `status` output showing the round is consumed and archived.
+1. 上一轮 report/decision 匹配，但测试命令缺少 `tests/test_harness_compare.py`。
+2. 当前返工只补测试证据，不做工程功能扩张。
+3. `model_gate.json` 的 `fallback_evidence_incomplete`、`repair_diagnostics`、`next_local_action` 不被回退。
+4. 没有运行样本、solver、probe、debugger、IDA/Ghidra。
+5. 新 `pytest_result.txt` 必须完整记录三文件 pytest 命令输出。
+6. 新 `codex_execution_report.md` 必须绑定本返工 decision_id。
+7. archive 后 `lint-report` 和 `status` 必须显示 consumed/archived。
+8. 若三文件 pytest 失败，必须如实报告失败原因，不得只更新报告绕过失败。
+9. 若需要源码修复，必须保持最小范围并说明为什么测试证据返工暴露该问题。
+10. 确认 `.codex-skills/registry.json` 中 `reverse-agent-iteration@v2` 和 `samplereverse-frontier@v2` 仍为 active。
 
 ## 6. Implementation Scope
 
-Allowed source changes:
+允许修改：
 
-- `reverse_agent/project_state.py`, limited to selected fallback evidence repair diagnostics, precise next-local-action projection, status/lint display if necessary, and schema-compatible state output.
-- `reverse_agent/harness.py`, only if a bounded bug is found in case-result status, not-found accounting, validation count projection, or embedded artifact-manifest metadata generation. Do not alter runtime execution behavior.
-- `tests/test_project_state.py`, limited to focused project-state repair diagnostic tests.
-- `tests/test_harness_artifact_manifest.py`, limited to focused case-result/artifact-manifest contract tests.
-- `tests/test_harness_compare.py`, only if directly affected by a harness case-result contract change.
-
-Allowed generated/report changes:
-
-- `project_state/model_gate.json`
-- `project_state/current_state.json`
-- `project_state/task_packet.json`
-- `project_state/artifact_index.json`
-- `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
-- `project_state/rounds/round_20260610_repair_selected_fallback_evidence_materialization_v1/*`, minimal archive only
+- `project_state/codex_execution_report.md`
+- `project_state/rounds/round_20260610_rework_run_missing_harness_compare_test_v1/*`
 
-Disallowed changes:
+通常不需要修改源码。除非完整测试暴露真实失败，才允许最小修复相关测试或工程代码；若需要源码修复，必须在报告中明确说明原因、文件、影响范围和新增测试结果。
+
+禁止修改：
 
 - `.codex-skills/`
 - solver/search/runtime/debugger/probe code
-- IDA/Ghidra/debugger interface code
+- IDA/Ghidra/debugger interfaces
 - sample binaries
 - candidate files
 - training dataset/sample metadata
 - status overlay
-- full `solve_reports/`
-- full `PROJECT_PROGRESS_LOG.txt`
+- historical `solve_reports/`
+- unrelated source/test files
 
 ## 7. Tests
 
-Run and record exact outputs:
+必须运行并记录完整输出：
 
 ```bash
-python -m reverse_agent.project_state build
-python -m reverse_agent.project_state status --state-dir project_state
-python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py tests/test_harness_compare.py -q
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_repair_selected_fallback_evidence_materialization_v1
+python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_rework_run_missing_harness_compare_test_v1
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
 ```
 
 Acceptance requirements:
 
-- Current fallback remains not ready unless strict readiness blockers are genuinely absent.
-- `status: not_found` remains a blocker.
-- Embedded `instrumentation_incomplete` remains a blocker.
-- `validation_count == 0` remains a blocker.
-- Repair diagnostics identify all current blockers and their owner component as specifically as possible.
-- `task_packet.json` advances to a precise bounded repair action, not `prepare_reverse_solving_from_selected_fallback_evidence`.
-- Fallback remains selected fallback evidence, not latest/current evidence.
-- Latest invalid harness run remains separately recorded as invalid/incomplete.
-- Regression tests cover the current not-found / instrumentation-incomplete / zero-validation path.
-- Positive tests cover a repair-ready or genuinely-ready metadata path without weakening strictness.
-- `python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py tests/test_harness_compare.py -q` passes.
-- `lint-report: OK` after live report update.
-- Final status shows `decision_report_id_match: True`.
-- Final status shows `decision_consumed_by_report: True`.
-- Final status shows `decision_execution_state: CONSUMED_BY_SUCCESS_REPORT`.
-- Final status shows `round_manifest_present: True` and `archive_status: archived` after archive.
-- No stale/missing artifact is promoted to current.
-- No sample/tool/debugger/solver/probe/IDA/Ghidra execution occurred.
-- No `.codex-skills/` modification occurred.
+- 三文件 pytest 命令真实运行并通过。
+- `pytest_result.txt` 的 summary 绑定本 decision_id、report_id、round_id。
+- `codex_execution_report.md` 顶部包含合法 `codex_report_summary`，并绑定本 decision_id。
+- 最终 `lint-report: OK`。
+- 最终 status 显示 `decision_report_id_match: True`。
+- 最终 status 显示 `decision_consumed_by_report: True`。
+- 最终 status 显示 `decision_execution_state: CONSUMED_BY_SUCCESS_REPORT`。
+- 最终 status 显示 `round_manifest_present: True` 和 `archive_status: archived`。
+- `model_gate.json` 仍保留 `fallback_evidence_incomplete` 和 precise `next_local_action`。
+- 没有样本、solver、probe、debugger、IDA/Ghidra 执行。
 
 ## 8. Stop Conditions
 
-Stop and report `BLOCKED` or `FAILED` if:
+停止并报告 `FAILED` 或 `BLOCKED`，如果：
 
-- Repairing selected fallback evidence requires running a sample binary.
-- Repairing selected fallback evidence requires running the harness on a sample.
-- Repairing selected fallback evidence requires solver/search/candidate generation/candidate validation.
-- Repairing selected fallback evidence requires runtime probe, debugger work, emulator, hook, sidecar, IDA, or Ghidra.
-- Repairing selected fallback evidence requires full `solve_reports/` traversal.
-- No schema-compatible way exists to represent repair diagnostics without breaking existing state consumers.
-- The only way to make the fallback look ready is to relabel incomplete evidence.
-- `lint-report` fails after final report update.
-- Final `status` cannot reach consumed/archived state.
-- `.codex-skills/` changes are required.
-- The round shifts from `engineering_branch` into direct reverse solving, candidate generation, runtime validation, or debugger work.
+- 三文件 pytest 命令失败。
+- 需要运行样本二进制才能修复。
+- 需要 solver/search/runtime/debugger/probe/IDA/Ghidra。
+- 需要修改 `.codex-skills/`。
+- 需要修改 historical `solve_reports/`。
+- `lint-report` 无法通过。
+- final status 无法达到 consumed/archived。
+- 返工范围无法保持在测试证据补齐和最小修复内。
