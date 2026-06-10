@@ -286,10 +286,15 @@ def test_model_gate_diagnoses_summary_error_with_missing_case_results(tmp_path: 
     assert model_gate["harness_diagnostics"]["diagnosis"] == "case_results_directory_absent"
     assert model_gate["harness_diagnostics"]["case_results_missing"] is True
     assert model_gate["harness_diagnostics"]["summary_error_cases"] == 1
+    assert model_gate["harness_diagnostics"]["latest_harness_run_status"] == "invalid_or_incomplete"
     # When case_results/ is missing, the gate must not ask Codex to inspect a non-existent file.
     assert model_gate["next_local_action"] == "repair_harness_artifact"
     summary = status_summary(state_dir=state_dir)
     assert summary["harness_diagnostics"]["diagnosis"] == "case_results_directory_absent"
+    # task_packet should frame the condition as harness repair, not generic reverse-solving.
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert task_packet["task"] == "repair_harness_artifact"
+    assert task_packet["next_local_action"] == "repair_harness_artifact"
 
 
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:

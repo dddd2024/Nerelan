@@ -4229,11 +4229,13 @@ def _build_summary_error_detail(
             "The summary may report error_cases if cases were resumed from a prior incomplete run "
             "or the run completed without executing any case."
         )
+        detail["latest_harness_run_status"] = "invalid_or_incomplete"
     else:
         detail["diagnosis"] = "case_results_contain_errors"
         detail["diagnosis_detail"] = (
             "One or more case result files have status='error' or an 'error' field."
         )
+        detail["latest_harness_run_status"] = "case_results_have_errors"
     return detail
 
 
@@ -4605,7 +4607,13 @@ def build_task_packet(
     missing_evidence = model_gate.get("missing_evidence", [])
 
     if not model_gate.get("should_call_model"):
-        task = "collect_missing_evidence"
+        next_local_action = model_gate.get("next_local_action")
+        # When the actionable local step is repairing the harness artifact,
+        # frame the task as harness repair rather than generic reverse-solving.
+        if next_local_action == "repair_harness_artifact":
+            task = "repair_harness_artifact"
+        else:
+            task = "collect_missing_evidence"
         return {
             "task": task,
             **_task_scope_fields(task),
@@ -4622,7 +4630,7 @@ def build_task_packet(
                 "tests/test_project_state.py",
             ],
             "missing_evidence": missing_evidence,
-            "next_local_action": model_gate.get("next_local_action"),
+            "next_local_action": next_local_action,
             "reason": model_gate.get("reason"),
             "artifact_refs": artifact_refs,
             "included": ["artifact references", "missing evidence", "model gate reason"],
