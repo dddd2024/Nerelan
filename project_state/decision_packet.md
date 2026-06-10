@@ -1,31 +1,34 @@
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260610_repair_missing_case_results_harness_artifact_v1","round_id":"round_20260610_repair_missing_case_results_harness_artifact_v1","based_on_state_build_id":"state_20260610_072727_3823c4ff37ca","based_on_state_digest":"3823c4ff37cacde2c7fefb71a97f8dc003bed57d1c6d77ed868ce3c401c3ecc9","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
+{"schema_version":1,"decision_id":"decision_20260610_repair_missing_case_results_final_evidence_v1","round_id":"round_20260610_repair_missing_case_results_final_evidence_v1","based_on_state_build_id":"state_20260610_081228_6c1551059244","based_on_state_digest":"6c1551059244adb018154536da5d72c4cfa2b59e8502b8f026b587a6f4d6e936","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
 ```
 
 # DECISION_PACKET
 
 ## 1. Goal
 
-Repair the `project_state` handling of a latest harness run whose `summary.json` exists but whose `case_results/` directory is missing.
+Complete the final evidence chain for `decision_20260610_repair_missing_case_results_harness_artifact_v1`.
 
-Current live `model_gate.json` correctly reports `harness_diagnostics.case_results_missing == true` and `next_local_action == repair_harness_artifact`. This round must turn that signal into a precise, auditable harness artifact state so the system no longer treats the latest incomplete run as inspectable failed-case evidence or produces a generic reverse-solving task from it.
+Do not redo the missing `case_results/` implementation unless final status exposes a real defect. The previous round already updated `model_gate.json` and `task_packet.json` to represent the incomplete harness artifact. This round exists only to bind the live report/test files to a final evidence repair decision and record post-archive `lint-report` and `status` output.
 
-This is an `engineering_branch` task. Do not solve the sample, do not generate candidates, and do not run external reverse/debug tools.
+This is an `engineering_branch` evidence-closure round, not reverse solving.
 
 ## 2. Current Evidence
 
-- Current state anchor: `state_20260610_072727_3823c4ff37ca` with digest `3823c4ff37cacde2c7fefb71a97f8dc003bed57d1c6d77ed868ce3c401c3ecc9`.
-- Current `model_gate.json` has `harness_diagnostics.case_results_missing: true`, `diagnosis: case_results_directory_absent`, and `next_local_action: repair_harness_artifact`.
-- The latest harness run referenced by state is `solve_reports\harness_runs\samplereverse_exact1_projected_vs_neighbor_20260424`.
-- Current `harness_diagnostics` says `summary_present: true`, `summary_resumed_cases: 1`, `summary_error_cases: 1`, `summary_executed_cases: 0`, `summary_total_cases: 1`, and `case_results_count: 0`.
-- Current `task_packet.json` still reports `task: collect_missing_evidence` and reverse-solving relevant files, even though the actionable local repair is the missing `case_results/` artifact.
-- Current `artifact_index.json` still contains stale/missing artifacts. Stale or missing artifacts must not be promoted to current evidence.
+- Current live `decision_packet.md` before this packet was `decision_20260610_repair_missing_case_results_harness_artifact_v1`.
+- Live `codex_execution_report.md` is bound to `decision_20260610_repair_missing_case_results_harness_artifact_v1` and reports `status: SUCCESS`.
+- Live `model_gate.json` reports `harness_diagnostics.case_results_missing: true`, `harness_diagnostics.latest_harness_run_status: invalid_or_incomplete`, and `next_local_action: repair_harness_artifact`.
+- Live `task_packet.json` reports `task: repair_harness_artifact` and `next_local_action: repair_harness_artifact`.
+- Live `pytest_result.txt` reports `163 passed`, but only records build/status/lint-decision/pytest in `tests_ran`.
+- The previous report did not record final `lint-report`, final `status`, or post-archive final `lint-report/status` output.
+- A round manifest exists for `round_20260610_repair_missing_case_results_harness_artifact_v1`, but the live pytest/report evidence does not show the final consumed/archived status required by the project workflow.
+- Current state anchor for this evidence-closure decision is `state_20260610_081228_6c1551059244` with digest `6c1551059244adb018154536da5d72c4cfa2b59e8502b8f026b587a6f4d6e936`.
+- `artifact_index.json` may still contain stale/missing artifacts. Stale or missing artifacts must not be promoted to current evidence.
 - `negative_results.json` still blocks blind search, beam/budget expansion, compare_semantics_agree=false frontier promotion, full `solve_reports` commit, repeated stale probes, and stale hook reuse.
 - `.codex-skills/registry.json` has active `reverse-agent-iteration@v2` and `samplereverse-frontier@v2`.
-- Existing relevant capabilities are the current `reverse_agent/project_state.py` state builder, model gate construction, harness diagnostics, task packet generation, artifact index generation, and existing project-state tests. Do not duplicate these mechanisms.
 
 ## 3. Do Not Do
 
+- Do not redo the missing `case_results/` feature implementation unless final status exposes a true defect.
 - Do not run any sample binary.
 - Do not generate, mutate, rank, or validate candidates.
 - Do not run solver/search expansion.
@@ -37,8 +40,7 @@ This is an `engineering_branch` task. Do not solve the sample, do not generate c
 - Do not change IDA/Ghidra/debugger interfaces.
 - Do not change sample binaries, candidate files, training data, or status overlays.
 - Do not promote stale/missing artifacts to current.
-- Do not treat a missing `case_results/` directory as an inspectable failed case.
-- Do not replace mature external reverse tooling with custom static/dynamic analysis logic.
+- Do not create another broad project-state feature.
 
 ## 4. Files To Inspect
 
@@ -54,18 +56,18 @@ Required project-state files:
 - `project_state/pytest_result.txt`
 - `.codex-skills/registry.json`
 
-Required source/test files:
+Required source/test files only if final status exposes a true defect:
 
 - `reverse_agent/project_state.py`
 - `tests/test_project_state.py`
 - `tests/test_harness_artifact_manifest.py`
 
-Allowed bounded runtime artifact inspection:
+Allowed archive files:
 
-- Directory existence/listing for `solve_reports/harness_runs/samplereverse_exact1_projected_vs_neighbor_20260424/`
-- `solve_reports/harness_runs/samplereverse_exact1_projected_vs_neighbor_20260424/summary.json`, if present
-- `solve_reports/harness_runs/samplereverse_exact1_projected_vs_neighbor_20260424/run_manifest.json`, if present
-- Do not inspect unrelated harness runs except by metadata summary needed to test fallback selection logic.
+- `project_state/rounds/round_20260610_repair_missing_case_results_harness_artifact_v1/round_manifest.json`
+- `project_state/rounds/round_20260610_repair_missing_case_results_harness_artifact_v1/codex_execution_report.md`
+- `project_state/rounds/round_20260610_repair_missing_case_results_harness_artifact_v1/pytest_result.txt`
+- New minimal archive for this evidence-closure round.
 
 Do not inspect full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -75,39 +77,48 @@ Codex must:
 
 1. Confirm the active decision is this packet and that `task_packet.json` is advisory only.
 2. Confirm both skill profiles are active in `.codex-skills/registry.json`.
-3. Confirm the latest harness run has `summary_present == true` but `case_results_missing == true`.
-4. Identify the current code path in `reverse_agent/project_state.py` that builds `harness_diagnostics`, `model_gate.json`, and `task_packet.json` from harness artifacts.
-5. Check whether existing tests already cover the case where summary exists but `case_results/` is absent.
-6. Implement the smallest project-state change needed so this condition is represented as an explicit incomplete/invalid harness artifact state, for example `latest_harness_run_status: invalid_or_incomplete` or an equivalent existing schema-compatible field.
-7. Ensure `task_packet.json` no longer frames this condition as ordinary reverse-solving `collect_missing_evidence` when the actionable next local work is repairing/rebuilding the harness artifact.
-8. Preserve compatibility with existing fields; do not remove old fields consumed by current tests or UI.
-9. Ensure `model_gate.json` keeps `next_local_action: repair_harness_artifact` or a documented equivalent existing action for this missing-artifact state.
-10. Ensure stale/missing artifacts remain stale/missing unless a current artifact with provenance is generated by build tooling.
-11. Add or update focused tests for the summary-present/case_results-absent case.
-12. Run the required tests and record exact outputs in `project_state/pytest_result.txt`.
-13. Update `project_state/codex_execution_report.md` with a valid `codex_report_summary` bound to this decision.
-14. Archive this round only after live report/test/state files are updated.
-15. After archive, rerun or record final `lint-report` and `status` so the final recorded output reflects the archived round.
-16. Ensure no sample/tool/debugger/solver/probe execution occurred.
-17. Ensure no `.codex-skills/` changes occurred.
+3. Confirm live `model_gate.json` still reports:
+   - `case_results_missing: true`
+   - `latest_harness_run_status: invalid_or_incomplete`
+   - `next_local_action: repair_harness_artifact`
+4. Confirm live `task_packet.json` reports:
+   - `task: repair_harness_artifact`
+   - `next_local_action: repair_harness_artifact`
+5. Run and record final evidence commands, without rerunning sample/solver/tool work.
+6. Update live `project_state/codex_execution_report.md` with a valid `codex_report_summary` bound to this decision.
+7. Update live `project_state/pytest_result.txt` so it includes exact command outputs, not only a one-line pytest summary.
+8. Archive this evidence-closure round only after live report/test files are updated.
+9. After archive, rerun or record final `lint-report` and `status` so the final recorded output reflects the archived round.
+10. Ensure final status shows:
+    - `decision_report_id_match: True`
+    - `decision_consumed_by_report: True`
+    - `decision_execution_state: CONSUMED_BY_SUCCESS_REPORT`
+    - `round_manifest_present: True`
+    - `archive_status: archived`
+11. Ensure no stale/missing artifact is promoted to current.
+12. Ensure no sample/tool/debugger/solver/probe execution occurred.
+13. Ensure no `.codex-skills/` changes occurred.
 
 ## 6. Implementation Scope
 
-Allowed source changes:
+Preferred changes are report/state evidence only:
 
-- `reverse_agent/project_state.py`, limited to project-state harness diagnostics, model gate, task packet, artifact-index/status handling for missing `case_results/`.
-- `tests/test_project_state.py`, limited to focused regression coverage for summary-present/case_results-absent behavior.
-- `tests/test_harness_artifact_manifest.py`, only if directly affected by artifact manifest validation.
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
+- `project_state/rounds/round_20260610_repair_missing_case_results_final_evidence_v1/*`, minimal archive only
 
-Allowed generated/report changes:
+Allowed generated files only if existing tooling regenerates them while recording final status:
 
 - `project_state/model_gate.json`
 - `project_state/current_state.json`
 - `project_state/task_packet.json`
 - `project_state/artifact_index.json`
-- `project_state/codex_execution_report.md`
-- `project_state/pytest_result.txt`
-- `project_state/rounds/round_20260610_repair_missing_case_results_harness_artifact_v1/*`, minimal archive only
+
+Allowed source/test changes only if final status exposes a true project-state bug:
+
+- `reverse_agent/project_state.py`
+- `tests/test_project_state.py`
+- `tests/test_harness_artifact_manifest.py`
 
 Disallowed changes:
 
@@ -123,33 +134,30 @@ Disallowed changes:
 
 ## 7. Tests
 
-Run and record exact outputs:
+Run and record exact outputs in live `project_state/pytest_result.txt`:
 
 ```bash
-python -m reverse_agent.project_state build
+python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
-python -m reverse_agent.project_state lint-decision --state-dir project_state
-python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q
+python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_repair_missing_case_results_final_evidence_v1
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
 ```
 
-After archiving this round, record final outputs for:
+If Codex needs to re-run focused tests because a source/test bug is exposed, record:
 
 ```bash
-python -m reverse_agent.project_state lint-report --state-dir project_state
-python -m reverse_agent.project_state status --state-dir project_state
+python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q
 ```
 
 Acceptance requirements:
 
-- `model_gate.json` still reports `case_results_missing: true` for the current latest harness run.
-- `model_gate.json` reports `next_local_action: repair_harness_artifact` or a documented equivalent existing action.
-- The missing `case_results/` condition is explicitly classified as an incomplete/invalid harness artifact state.
-- `task_packet.json` no longer presents this condition as generic reverse-solving `collect_missing_evidence` if the actionable local step is harness artifact repair.
-- Focused regression tests cover summary-present/case_results-absent behavior.
-- pytest passes for the tests run.
-- `lint-report: OK` after report update.
+- Live `model_gate.json` still reports `case_results_missing: true` for the current latest harness run.
+- Live `model_gate.json` still reports `latest_harness_run_status: invalid_or_incomplete`.
+- Live `model_gate.json` still reports `next_local_action: repair_harness_artifact`.
+- Live `task_packet.json` still reports `task: repair_harness_artifact`.
+- Live `pytest_result.txt` records full final command outputs.
+- `lint-report: OK` after live report update.
 - Final status shows `decision_report_id_match: True`.
 - Final status shows `decision_consumed_by_report: True`.
 - Final status shows `decision_execution_state: CONSUMED_BY_SUCCESS_REPORT`.
@@ -162,13 +170,13 @@ Acceptance requirements:
 
 Stop and report `BLOCKED` or `FAILED` if:
 
+- Final `lint-report` cannot pass.
+- Final `status` cannot reach consumed/archived state.
 - Fixing requires running a sample binary.
 - Fixing requires solver/search/candidate generation/candidate validation.
 - Fixing requires runtime probe, debugger work, emulator, hook, sidecar, IDA, or Ghidra.
 - Fixing requires full `solve_reports/` traversal.
-- Fixing requires broad refactor outside project-state harness diagnostics/task/model-gate logic.
+- Fixing requires broad refactor outside project-state evidence closure.
 - `.codex-skills/` changes are required.
-- No schema-compatible way exists to represent incomplete harness run status without breaking existing state consumers.
-- `lint-report` fails after final report update.
 - The round shifts from `engineering_branch` into `reverse_solving`, tool execution, candidate generation, runtime validation, or debugger work.
 ```
