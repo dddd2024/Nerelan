@@ -1,5 +1,6 @@
 import hashlib
 import json
+import subprocess
 import zipfile
 from pathlib import Path
 
@@ -5139,6 +5140,27 @@ def test_archive_round_writes_round_manifest(tmp_path: Path) -> None:
     assert manifest["included_state_snapshot"] is False
     assert "git_diff.patch" in manifest["omitted_files"]
     assert "current_state.json" in manifest["omitted_files"]
+
+
+def test_build_project_state_records_git_commit_from_non_repo_cwd(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    state_dir = tmp_path / "project_state"
+    reports_dir = tmp_path / "solve_reports"
+    outside_cwd = tmp_path / "outside"
+    outside_cwd.mkdir()
+    _make_minimal_harness_run(reports_dir)
+    monkeypatch.chdir(outside_cwd)
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    expected_commit = subprocess.check_output(
+        ["git", "-C", str(Path(__file__).resolve().parents[1]), "rev-parse", "--short=12", "HEAD"],
+        text=True,
+        encoding="utf-8",
+    ).strip()
+    assert current_state["source_git_commit"] == expected_commit
 
 
 def test_round_manifest_contains_expected_files(tmp_path: Path) -> None:

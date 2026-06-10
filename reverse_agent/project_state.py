@@ -135,6 +135,7 @@ DEFAULT_SAMPLE = "samplereverse"
 DEFAULT_REPORTS_DIR = Path("solve_reports")
 DEFAULT_PROGRESS_LOG = Path("PROJECT_PROGRESS_LOG.txt")
 DEFAULT_PACK_NAME = "gpt_context_pack.zip"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 STATE_SCHEMA_VERSION = 2
 DEFAULT_WORKFLOW_STATUS = "REPORT_AVAILABLE"
 DEFAULT_CURRENT_OWNER = "web_gpt"
@@ -916,7 +917,7 @@ def _state_digest(current_state: dict[str, Any]) -> str:
 def _git_commit() -> str:
     try:
         proc = subprocess.run(
-            ["git", "rev-parse", "--short=12", "HEAD"],
+            ["git", "-C", str(PROJECT_ROOT), "rev-parse", "--short=12", "HEAD"],
             shell=False,
             capture_output=True,
             text=True,
