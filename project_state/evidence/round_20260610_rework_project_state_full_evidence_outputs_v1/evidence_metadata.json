@@ -5,19 +5,8 @@
     "byte_size": 1943,
     "line_count": 50,
     "status": "FAIL",
-    "checks_count": 8
-  },
-  "git_diff_scoped": {
-    "path": "project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1/git_diff_scoped.patch",
-    "sha256": "ef840c6ebe288e0b08ebcc2d80d19cd9a1603b692991186b4c8e9834eb2f58ec",
-    "byte_size": 1926,
-    "line_count": 33
-  },
-  "git_diff_cached": {
-    "path": "project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1/git_diff_cached.patch",
-    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "byte_size": 0,
-    "line_count": 0
+    "checks_count": 8,
+    "note": "Pre-archive evidence from decision_20260610_rework_project_state_full_evidence_outputs_v1"
   },
   "doctor_result_final": {
     "path": "project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1/doctor_result_final.json",
@@ -25,6 +14,21 @@
     "byte_size": 1746,
     "line_count": 50,
     "status": "WARN",
-    "checks_count": 8
+    "checks_count": 8,
+    "note": "Post-archive final evidence from decision_20260610_rework_project_state_full_evidence_outputs_v1"
+  },
+  "git_diff_scoped": {
+    "path": "project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1/git_diff_scoped.patch",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_size": 0,
+    "line_count": 0,
+    "generation_command": "python difflib.unified_diff (git repo corrupt; git diff unavailable)"
+  },
+  "git_diff_cached": {
+    "path": "project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1/git_diff_cached.patch",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_size": 0,
+    "line_count": 0,
+    "generation_command": "git diff --cached (empty; no staged changes)"
   }
 }
