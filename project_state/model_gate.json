@@ -1,11 +1,21 @@
 {
   "context_level": 1,
-  "generated_at": "2026-06-10T08:12:28Z",
+  "generated_at": "2026-06-10T09:22:02Z",
   "harness_diagnostics": {
     "case_results_count": 0,
     "case_results_missing": true,
     "diagnosis": "case_results_directory_absent",
     "diagnosis_detail": "The latest harness run has no case_results/ directory. The summary may report error_cases if cases were resumed from a prior incomplete run or the run completed without executing any case.",
+    "fallback_available": true,
+    "fallback_harness_run": {
+      "executed_cases": 1,
+      "manifest_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
+      "provenance": "fallback_from_invalid_latest_run",
+      "run_name": "sr_arg0_hook_readiness_ordering_20260526_r1",
+      "run_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1",
+      "summary_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
+      "total_cases": 1
+    },
     "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424",
     "latest_harness_run_status": "invalid_or_incomplete",
     "summary_error_cases": 1,
@@ -15,7 +25,7 @@
     "summary_total_cases": 1
   },
   "missing_evidence": [],
-  "next_local_action": "repair_harness_artifact",
+  "next_local_action": "select_fallback_harness_run",
   "reason": "latest harness case has errors",
   "recommended_packet": "project_state/task_packet.json",
   "should_call_model": false
