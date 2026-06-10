@@ -38,11 +38,10 @@
     "project_state/task_packet.json"
   ],
   "tests_ran": [
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_state build",
     "python -m reverse_agent.project_state status --state-dir project_state",
-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_repair_missing_case_results_final_evidence_v1",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state status --state-dir project_state"
+    "python -m reverse_agent.project_state lint-decision --state-dir project_state",
+    "python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q"
   ],
   "generated_artifacts": [
     "project_state/codex_execution_report.md",

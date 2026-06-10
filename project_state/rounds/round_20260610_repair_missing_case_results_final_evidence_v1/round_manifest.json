@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-10T08:36:14Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260610_repair_missing_case_results_final_evidence_v1\\codex_execution_report.md",
+      "sha256": "e8308e5585e81aafaa37296911028f6aaf47151a4f41969d79f134c55ade4962",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260610_repair_missing_case_results_final_evidence_v1\\decision_packet.md",
+      "sha256": "6b403f8311426a13d0fb874d80d5a1a6d0505821f651d3608e7e043089eb46fe",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260610_repair_missing_case_results_final_evidence_v1\\pytest_result.txt",
+      "sha256": "865dd0ac6ea2f4457712bd348250124a18cc66cb8eba107131eced72ffd5438e",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260610_repair_missing_case_results_final_evidence_v1",
+  "schema_version": 1,
+  "source_git_commit": "2df471107ce9",
+  "source_harness_run": "samplereverse_exact1_projected_vs_neighbor_20260424",
+  "state_build_id": "state_20260610_081228_6c1551059244",
+  "state_digest": "6c1551059244adb018154536da5d72c4cfa2b59e8502b8f026b587a6f4d6e936",
+  "workflow_status": "REPORT_AVAILABLE"
+}
