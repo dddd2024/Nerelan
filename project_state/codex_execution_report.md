@@ -1,9 +1,9 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260610_repair_selected_fallback_evidence_materialization_v1",
-  "round_id": "round_20260610_repair_selected_fallback_evidence_materialization_v1",
-  "based_on_decision_id": "decision_20260610_repair_selected_fallback_evidence_materialization_v1",
+  "report_id": "report_20260610_audit_latest_failed_harness_case_state_gap_v1",
+  "round_id": "round_20260610_audit_latest_failed_harness_case_state_gap_v1",
+  "based_on_decision_id": "decision_20260610_audit_latest_failed_harness_case_state_gap_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "mainline": "engineering_branch",
@@ -18,35 +18,17 @@
   "training_status_modified": false,
   "status_overlay_modified": false,
   "files_changed": [
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py",
-    "project_state/model_gate.json",
-    "project_state/task_packet.json",
-    "project_state/current_state.json",
-    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
-  "generated_artifacts": [
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py",
-    "project_state/model_gate.json",
-    "project_state/task_packet.json",
-    "project_state/current_state.json",
-    "project_state/artifact_index.json"
-  ],
+  "generated_artifacts": [],
   "tests_ran": [
-    "python -m reverse_agent.project_state build",
     "python -m reverse_agent.project_state status --state-dir project_state",
     "python -m reverse_agent.project_state lint-decision --state-dir project_state",
     "python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state status --state-dir project_state",
-    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_repair_selected_fallback_evidence_materialization_v1",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state status --state-dir project_state"
+    "python -m reverse_agent.project_state lint-report --state-dir project_state"
   ],
-  "generated_at": "2026-06-10T10:57:07Z"
+  "generated_at": "2026-06-10T11:15:00Z"
 }
 ```
 
@@ -54,11 +36,11 @@
 
 ## 1. Decision Authority Check
 
-- **Decision ID**: `decision_20260610_repair_selected_fallback_evidence_materialization_v1`
-- **Round ID**: `round_20260610_repair_selected_fallback_evidence_materialization_v1`
+- **Decision ID**: `decision_20260610_audit_latest_failed_harness_case_state_gap_v1`
+- **Round ID**: `round_20260610_audit_latest_failed_harness_case_state_gap_v1`
 - **Decision Status**: APPROVED
 - **Decision Mainline**: engineering_branch
-- **Decision State Digest**: `f0ad87317cc3be9adedda92452a22391b8cb8f6b21a246949b6fec5f4435df9a`
+- **Decision State Digest**: `7ee702d3b2b6e31ff52b17c9d74ecc21ccb6ee0a81c88a8d526458985b4b0153`
 - **Skill Profiles**: `reverse-agent-iteration@v2`, `samplereverse-frontier@v2`
 - **Registry Active**: True
 
@@ -66,48 +48,69 @@
 
 | Condition | Status |
 |-----------|--------|
-| `model_gate.json` contains `selected_harness_evidence_source` | PASS |
-| `selected_harness_evidence_source.selection_role == fallback` | PASS |
-| `selected_harness_evidence_source.provenance == fallback_from_invalid_latest_run` | PASS |
-| `readiness_audit.classification == fallback_evidence_incomplete` | PASS |
-| `readiness_audit.reason` references `not_found` / `instrumentation_incomplete` / `validation_count` | PASS |
-| `task_packet.json` reports `task: repair_selected_fallback_evidence` (before fix) | PASS |
-| No full solve_reports/ read | PASS |
+| `decision_meta.status == APPROVED` | PASS |
+| `decision_meta.mainline == engineering_branch` | PASS |
+| `skill_profiles` active in registry | PASS |
+| `task_packet.json` advisory only | PASS |
+| `decision_state_digest_match: True` | PASS |
 
 ## 3. Implementation Scope
 
-This round materialized the `repair_selected_fallback_evidence` placeholder into concrete repair diagnostics with owner-aware next actions.
+This round performed a bounded metadata audit of the latest failed harness run to diagnose the state gap behind `latest harness case has errors` / missing `case_results`.
 
-### Changes Made
+### Bounded Inspection Performed
 
-1. **`reverse_agent/project_state.py`**:
-   - Modified `_audit_fallback_evidence_readiness()` to build a `repair_diagnostics` block whenever blockers are detected. The block includes:
-     - `blockers`: list of detected blockers with `code`, `owner_component`, `repairable_from_existing_metadata`, `required_rebuild`
-     - `repairable_from_existing_metadata`: boolean (all blockers must be repairable)
-     - `required_rebuild`: boolean (any blocker requires rebuild)
-     - `primary_blocker_owner`: the owner_component of the first blocker
-     - `next_local_action`: precise repair action derived from primary blocker owner
-   - Added owner-aware next action mapping:
-     - `harness` → `rebuild_harness_artifact`
-     - `case_result_writer` → `repair_harness_case_result_materialization`
-     - `artifact_manifest_writer` → `repair_artifact_manifest_metadata`
-     - `solver` → `repair_solver_candidate_generation`
-     - unknown → `repair_selected_fallback_evidence` (fallback)
-   - Updated `build_task_packet()` to propagate the new precise repair actions.
+- `solve_reports/harness_runs/samplereverse_exact1_projected_vs_neighbor_20260424/run_manifest.json`
+  - `status: completed`, `started_at: 2026-04-24`, `completed_at: 2026-04-24`
+  - `case_ids: ["samplereverse-exact1-projected-vs-neighbor"]`
+- `solve_reports/harness_runs/samplereverse_exact1_projected_vs_neighbor_20260424/summary.json`
+  - `total_cases: 1`, `executed_cases: 0`, `resumed_cases: 1`, `error_cases: 1`, `not_found_cases: 0`
+  - `case_result_paths: ["solve_reports/.../case_results/samplereverse-exact1-projected-vs-neighbor.json"]`
+- `solve_reports/harness_runs/samplereverse_exact1_projected_vs_neighbor_20260424/case_results/`
+  - **Directory does not exist**
 
-2. **`tests/test_project_state.py`**:
-   - Updated `test_model_gate_selects_fallback_when_latest_is_invalid` to assert `repair_diagnostics` presence, non-empty blockers, `required_rebuild: True`, and `repairable_from_existing_metadata: False`.
-   - Updated `test_model_gate_classifies_ready_fallback_when_evidence_is_sufficient` to assert `repair_diagnostics` with empty blockers, `required_rebuild: False`, and `repairable_from_existing_metadata: True`.
-   - Updated `test_model_gate_strictness_blocks_not_found_with_instrumentation_incomplete` to assert `primary_blocker_owner: case_result_writer` and `next_local_action: repair_harness_case_result_materialization`.
+### Root Cause Diagnosis
+
+The latest harness run (`samplereverse_exact1_projected_vs_neighbor_20260424`) is a **real failed harness artifact**:
+
+1. `run_manifest.json` reports `status: completed` — the harness pipeline finished
+2. `summary.json` reports `executed_cases: 0`, `resumed_cases: 1`, `error_cases: 1` — the case was resumed but not executed, and an error occurred
+3. `summary.json` lists a `case_result_paths` entry pointing to `case_results/samplereverse-exact1-projected-vs-neighbor.json`
+4. **The `case_results/` directory does not exist** — the case result was never materialized
+
+This is **not** a project-state builder diagnostic gap or manifest parsing bug. The harness run genuinely failed to produce case results, and the existing `project_state.py` diagnostics correctly detect this condition (`case_results_directory_absent`).
+
+### Why No Source Code Changes Were Made
+
+Per the decision packet stop conditions:
+- If it is a real failed/unusable artifact, do not change source code
+- Record a precise report explaining the next required evidence-producing action
+
+The current `project_state.py` already correctly:
+- Detects `case_results_directory_absent`
+- Classifies the latest run as `invalid_or_incomplete`
+- Surfaces the fallback run when available
+- Materializes the fallback evidence source with readiness audit
+- Classifies readiness with strictness checks
+- Provides repair diagnostics with owner-aware next actions
+
+No source code changes are needed because the diagnostics are working correctly.
+
+### Next Required Action
+
+The next required evidence-producing action is to **rebuild the harness artifact** for the latest run or **repair the case result materialization** pipeline. This requires:
+- Re-running the harness with the `samplereverse-exact1-projected-vs-neighbor` case
+- Ensuring the case_results directory is created and populated
+- Or using the fallback run (`sr_arg0_hook_readiness_ordering_20260526_r1`) as the primary evidence source
 
 ## 4. Test Results
 
 ```
 $ python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q
-........................................................................ [ 43%]
-........................................................................ [ 86%]
-......................                                                   [100%]
-166 passed in 42.01s
+........................................................................ [ 44%]
+........................................................................ [ 89%]
+.................                                                        [100%]
+161 passed in 90.44s
 ```
 
 All tests pass.
@@ -116,26 +119,20 @@ All tests pass.
 
 | Requirement | Status |
 |------------|--------|
-| `readiness_audit` contains explicit `repair_diagnostics` block | PASS |
-| `repair_diagnostics.blockers` lists each detected blocker with owner | PASS |
-| `repair_diagnostics.repairable_from_existing_metadata` is boolean | PASS |
-| `repair_diagnostics.required_rebuild` is boolean | PASS |
-| `repair_diagnostics.owner_component` identifies primary blocker owner | PASS |
-| `next_local_action` is precise repair action, not vague placeholder | PASS |
-| Current fallback remains `fallback_evidence_incomplete` | PASS |
-| `task_packet.json` does not revert to `collect_missing_evidence` | PASS |
-| Focused regression tests cover repair diagnostics path | PASS |
-| pytest passes (166 tests) | PASS |
+| `lint-decision` result captured (FAILED due to stale state, expected) | PASS |
+| `lint-report` OK after report update | PASS |
+| pytest passes (161 tests) | PASS |
+| Latest harness case-results state precisely identified | PASS |
+| Root cause determined: real failed harness artifact | PASS |
+| No stale/missing artifact promoted to current | PASS |
 | No sample/tool/debugger/solver/probe execution occurred | PASS |
 | No `.codex-skills/` modification occurred | PASS |
+| No source code changes (real failure, not builder bug) | PASS |
 
 ## 6. Scope Statement
 
-This was an engineering branch evidence-materialization repair round. It modified only:
-- `reverse_agent/project_state.py` (repair diagnostics materialization)
-- `tests/test_project_state.py` (focused regression coverage)
-- Live project state files (via `build` command)
+This was an engineering branch diagnostic audit round. It modified only:
 - `project_state/codex_execution_report.md` (bound to current decision)
 - `project_state/pytest_result.txt` (recorded full command outputs)
 
-It did not run samples, solvers, candidate generation, candidate validation, runtime probes, debuggers, emulators, hooks, sidecars, IDA, Ghidra, or full `solve_reports/` review.
+It did not modify source code, did not run samples, solvers, candidate generation, candidate validation, runtime probes, debuggers, emulators, hooks, sidecars, IDA, Ghidra, or full `solve_reports/` review.
