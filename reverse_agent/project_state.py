@@ -4195,6 +4195,47 @@ def _summary_has_errors(path: str | None) -> bool:
         return False
 
 
+def _build_summary_error_detail(
+    *,
+    artifact_index: dict[str, Any],
+    case_paths: list[Any],
+) -> dict[str, Any]:
+    """Build a backward-compatible diagnostic dict explaining why the latest harness run triggered errors.
+
+    This field is only populated when the ``latest harness case has errors`` gate fires.
+    Existing consumers that do not read ``harness_diagnostics`` continue to work.
+    """
+    latest_run = artifact_index.get("latest_harness_run")
+    latest_summary_path = artifact_index.get("latest_summary")
+    detail: dict[str, Any] = {
+        "latest_harness_run": latest_run,
+        "summary_present": latest_summary_path is not None,
+        "case_results_count": len(case_paths),
+        "case_results_missing": len(case_paths) == 0,
+    }
+    if latest_summary_path:
+        summary_data = _read_json(str(latest_summary_path))
+        if isinstance(summary_data, dict):
+            detail["summary_total_cases"] = summary_data.get("total_cases")
+            detail["summary_executed_cases"] = summary_data.get("executed_cases")
+            detail["summary_resumed_cases"] = summary_data.get("resumed_cases")
+            detail["summary_error_cases"] = summary_data.get("error_cases")
+    # Classify the root cause for downstream consumers
+    if len(case_paths) == 0:
+        detail["diagnosis"] = "case_results_directory_absent"
+        detail["diagnosis_detail"] = (
+            "The latest harness run has no case_results/ directory. "
+            "The summary may report error_cases if cases were resumed from a prior incomplete run "
+            "or the run completed without executing any case."
+        )
+    else:
+        detail["diagnosis"] = "case_results_contain_errors"
+        detail["diagnosis_detail"] = (
+            "One or more case result files have status='error' or an 'error' field."
+        )
+    return detail
+
+
 def _has_runtime_validation(artifact_refs: dict[str, Any]) -> bool:
     return any(key in artifact_refs for key in RUNTIME_VALIDATION_KEYS)
 
@@ -4249,6 +4290,10 @@ def build_model_gate(
         }
 
     latest_summary = artifact_index.get("latest_summary")
+    summary_error_detail = _build_summary_error_detail(
+        artifact_index=artifact_index,
+        case_paths=case_paths,
+    )
     if _summary_has_errors(str(latest_summary) if latest_summary else None) or _case_results_have_errors(
         [str(item) for item in case_paths]
     ):
@@ -4259,6 +4304,7 @@ def build_model_gate(
             "recommended_packet": "project_state/task_packet.json",
             "next_local_action": "inspect_failed_case_result",
             "missing_evidence": [],
+            "harness_diagnostics": summary_error_detail,
             "generated_at": _now_iso(),
         }
 
@@ -4998,6 +5044,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "should_call_model": model_gate.get("should_call_model"),
         "context_level": model_gate.get("context_level"),
         "model_gate_reason": model_gate.get("reason"),
+        "harness_diagnostics": model_gate.get("harness_diagnostics"),
         "task": task,
         "state_scope": task_packet.get("state_scope", STATE_SCOPE_SAMPLE),
         "task_source": task_packet.get("task_source", TASK_SOURCE_DERIVED_FROM_SAMPLE_ARTIFACTS),
@@ -5045,6 +5092,9 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"should_call_model: {summary.get('should_call_model')}")
     print(f"context_level: {summary.get('context_level')}")
     print(f"reason: {summary.get('model_gate_reason')}")
+    diag = summary.get("harness_diagnostics")
+    if diag:
+        print(f"harness_diagnostics: {json.dumps(diag, default=str)}")
     print(f"task: {summary.get('task')}")
     print(f"state_scope: {summary.get('state_scope')}")
     print(f"task_source: {summary.get('task_source')}")
@@ -5195,58 +5245,4 @@ def main(argv: list[str] | None = None) -> int:
     status_parser = subparsers.add_parser("status", help="Print concise project_state status.")
     status_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
-    lint_decision_parser = subparsers.add_parser("lint-decision", help="Lint the active decision packet.")
-    lint_decision_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
-
-    lint_report_parser = subparsers.add_parser("lint-report", help="Lint the active Codex execution report.")
-    lint_report_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
-
-    lint_handoff_parser = subparsers.add_parser("lint-handoff", help="Lint aggregate handoff health.")
-    lint_handoff_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
-
-    args = parser.parse_args(argv)
-    if args.command == "build":
-        build_project_state(
-            reports_dir=Path(args.reports_dir),
-            state_dir=Path(args.state_dir),
-            sample=str(args.sample),
-            run_name=str(args.run_name or ""),
-            progress_log=Path(args.progress_log),
-            max_artifacts=max(0, int(args.max_artifacts)),
-        )
-        return 0
-    if args.command == "new-round":
-        new_round(state_dir=Path(args.state_dir))
-        return 0
-    if args.command == "archive-round":
-        archive_round(
-            state_dir=Path(args.state_dir),
-            round_id=str(args.round_id or ""),
-            pytest_result=Path(args.pytest_result) if args.pytest_result else None,
-            include_state_snapshot=bool(args.include_state_snapshot),
-            include_diff=bool(args.include_diff),
-        )
-        return 0
-    if args.command == "pack":
-        pack_context(state_dir=Path(args.state_dir), out_path=Path(args.out))
-        return 0
-    if args.command == "status":
-        _print_status(status_summary(state_dir=Path(args.state_dir)))
-        return 0
-    if args.command == "lint-decision":
-        result = lint_decision(state_dir=Path(args.state_dir))
-        _print_lint_decision(result)
-        return 0 if result.get("ok") else 1
-    if args.command == "lint-report":
-        result = lint_report(state_dir=Path(args.state_dir))
-        _print_lint_report(result)
-        return 0 if result.get("ok") else 1
-    if args.command == "lint-handoff":
-        result = lint_handoff(state_dir=Path(args.state_dir))
-        _print_lint_handoff(result)
-        return 0 if result.get("ok") else 1
-    return 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    lint_decision_parser = subparsers.add_parser("lint-decision", help="Lint t
