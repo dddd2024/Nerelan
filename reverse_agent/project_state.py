@@ -1984,6 +1984,113 @@ def _find_fallback_harness_run(
     }
 
 
+def _audit_fallback_evidence_readiness(
+    fallback_info: dict[str, Any],
+) -> dict[str, Any]:
+    """Audit the selected fallback harness evidence for readiness.
+
+    Performs bounded metadata-only inspection of the fallback summary,
+    run manifest, and case_results directory. Returns a readiness
+    classification and supporting metadata.
+    """
+    summary_path = _path_from_json(fallback_info.get("summary_path", ""))
+    manifest_path = _path_from_json(fallback_info.get("manifest_path", ""))
+    run_path = _path_from_json(fallback_info.get("run_path", ""))
+
+    audit: dict[str, Any] = {
+        "run_name": fallback_info.get("run_name"),
+        "audited_at": _now_iso(),
+        "summary_present": summary_path.exists(),
+        "manifest_present": manifest_path.exists(),
+        "case_results_dir_present": False,
+        "case_result_count": 0,
+        "case_result_statuses": [],
+        "structured_evidence_count": 0,
+        "tool_artifact_count": 0,
+        "candidate_count": 0,
+        "validation_count": 0,
+        "has_errors": False,
+        "classification": "fallback_evidence_schema_gap",
+        "reason": "default_schema_gap",
+        "next_local_action": "repair_selected_fallback_evidence",
+    }
+
+    if not summary_path.exists() or not manifest_path.exists():
+        audit["reason"] = "missing_summary_or_manifest"
+        audit["classification"] = "fallback_evidence_incomplete"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+        return audit
+
+    summary_data = _read_json(str(summary_path))
+    manifest_data = _read_json(str(manifest_path))
+    if not isinstance(summary_data, dict) or not isinstance(manifest_data, dict):
+        audit["reason"] = "unparseable_summary_or_manifest"
+        audit["classification"] = "fallback_evidence_incomplete"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+        return audit
+
+    case_results_dir = run_path / "case_results"
+    audit["case_results_dir_present"] = case_results_dir.exists()
+    if case_results_dir.exists():
+        case_result_files = list(case_results_dir.glob("*.json"))
+        audit["case_result_count"] = len(case_result_files)
+        for crf in case_result_files:
+            cr_data = _read_json(str(crf))
+            if isinstance(cr_data, dict):
+                audit["case_result_statuses"].append(cr_data.get("status", "unknown"))
+                audit["structured_evidence_count"] = max(
+                    audit["structured_evidence_count"],
+                    cr_data.get("structured_evidence_count", 0),
+                )
+                audit["tool_artifact_count"] = max(
+                    audit["tool_artifact_count"],
+                    cr_data.get("tool_artifact_count", 0),
+                )
+                audit["candidate_count"] = max(
+                    audit["candidate_count"],
+                    cr_data.get("candidate_count", 0),
+                )
+                audit["validation_count"] = max(
+                    audit["validation_count"],
+                    cr_data.get("validation_count", 0),
+                )
+                if cr_data.get("error"):
+                    audit["has_errors"] = True
+
+    # Classify readiness based on bounded metadata inspection
+    if audit["has_errors"]:
+        audit["classification"] = "fallback_evidence_stale_or_untrusted"
+        audit["reason"] = "case_result_contains_errors"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+    elif audit["case_result_count"] == 0:
+        audit["classification"] = "fallback_evidence_incomplete"
+        audit["reason"] = "no_case_results_found"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+    elif audit["structured_evidence_count"] == 0 and audit["tool_artifact_count"] == 0:
+        audit["classification"] = "fallback_evidence_incomplete"
+        audit["reason"] = "no_structured_evidence_or_tool_artifacts"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+    elif audit["candidate_count"] == 0:
+        audit["classification"] = "fallback_evidence_incomplete"
+        audit["reason"] = "no_candidates_generated"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+    else:
+        # Evidence has candidates, structured evidence, and tool artifacts.
+        # Even if status is not_found, the evidence is sufficient for a
+        # reverse-solving decision because the structured evidence and
+        # tool artifacts provide the necessary basis.
+        audit["classification"] = "fallback_evidence_ready_for_reverse_decision"
+        audit["reason"] = (
+            f"has_{audit['case_result_count']}_case_result(s)_with_"
+            f"{audit['structured_evidence_count']}_structured_evidence_"
+            f"{audit['tool_artifact_count']}_tool_artifacts_"
+            f"{audit['candidate_count']}_candidates"
+        )
+        audit["next_local_action"] = "prepare_reverse_solving_from_selected_fallback_evidence"
+
+    return audit
+
+
 def _is_relative_to(path: Path, parent: Path) -> bool:
     try:
         path.resolve().relative_to(parent.resolve())
@@ -4381,6 +4488,8 @@ def build_model_gate(
             # surface the fallback explicitly; do not silently promote it as current.
             if summary_error_detail.get("fallback_available") is True:
                 fallback_info = summary_error_detail.get("fallback_harness_run", {})
+                # Audit the selected fallback evidence for readiness
+                readiness_audit = _audit_fallback_evidence_readiness(fallback_info)
                 selected_evidence = {
                     "selection_role": "fallback",
                     "run_name": fallback_info.get("run_name"),
@@ -4393,8 +4502,10 @@ def build_model_gate(
                     "latest_invalid_run": summary_error_detail.get("latest_harness_run"),
                     "latest_invalid_run_status": summary_error_detail.get("latest_harness_run_status"),
                     "latest_invalid_run_reason": summary_error_detail.get("diagnosis"),
+                    "readiness_audit": readiness_audit,
                 }
-                next_local_action = "inspect_selected_fallback_evidence"
+                # Advance next_local_action based on readiness classification
+                next_local_action = readiness_audit.get("next_local_action", "repair_selected_fallback_evidence")
             else:
                 selected_evidence = None
                 next_local_action = "rebuild_harness_artifact"
@@ -4709,7 +4820,14 @@ def build_task_packet(
         # When the actionable local step is repairing the harness artifact,
         # frame the task as harness repair rather than generic reverse-solving.
         # Also handle fallback selection and rebuild actions with precise naming.
-        if next_local_action in ("repair_harness_artifact", "select_fallback_harness_run", "rebuild_harness_artifact", "inspect_selected_fallback_evidence"):
+        if next_local_action in (
+            "repair_harness_artifact",
+            "select_fallback_harness_run",
+            "rebuild_harness_artifact",
+            "inspect_selected_fallback_evidence",
+            "prepare_reverse_solving_from_selected_fallback_evidence",
+            "repair_selected_fallback_evidence",
+        ):
             task = next_local_action
         else:
             task = "collect_missing_evidence"

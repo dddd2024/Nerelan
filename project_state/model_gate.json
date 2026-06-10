@@ -1,6 +1,6 @@
 {
   "context_level": 1,
-  "generated_at": "2026-06-10T09:48:37Z",
+  "generated_at": "2026-06-10T10:07:35Z",
   "harness_diagnostics": {
     "case_results_count": 0,
     "case_results_missing": true,
@@ -25,7 +25,7 @@
     "summary_total_cases": 1
   },
   "missing_evidence": [],
-  "next_local_action": "inspect_selected_fallback_evidence",
+  "next_local_action": "prepare_reverse_solving_from_selected_fallback_evidence",
   "reason": "latest harness case has errors",
   "recommended_packet": "project_state/task_packet.json",
   "selected_harness_evidence_source": {
@@ -35,6 +35,25 @@
     "latest_invalid_run_status": "invalid_or_incomplete",
     "manifest_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
     "provenance": "fallback_from_invalid_latest_run",
+    "readiness_audit": {
+      "audited_at": "2026-06-10T10:07:35Z",
+      "candidate_count": 3,
+      "case_result_count": 1,
+      "case_result_statuses": [
+        "not_found"
+      ],
+      "case_results_dir_present": true,
+      "classification": "fallback_evidence_ready_for_reverse_decision",
+      "has_errors": false,
+      "manifest_present": true,
+      "next_local_action": "prepare_reverse_solving_from_selected_fallback_evidence",
+      "reason": "has_1_case_result(s)_with_1_structured_evidence_1_tool_artifacts_3_candidates",
+      "run_name": "sr_arg0_hook_readiness_ordering_20260526_r1",
+      "structured_evidence_count": 1,
+      "summary_present": true,
+      "tool_artifact_count": 1,
+      "validation_count": 0
+    },
     "run_name": "sr_arg0_hook_readiness_ordering_20260526_r1",
     "run_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1",
     "selection_role": "fallback",

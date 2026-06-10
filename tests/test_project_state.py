@@ -347,9 +347,7 @@ def test_model_gate_selects_fallback_when_latest_is_invalid(tmp_path: Path) -> N
     assert model_gate["harness_diagnostics"]["fallback_available"] is True
     assert model_gate["harness_diagnostics"]["fallback_harness_run"]["run_name"] == "samplereverse_fallback"
     assert model_gate["harness_diagnostics"]["fallback_harness_run"]["provenance"] == "fallback_from_invalid_latest_run"
-    # When a complete fallback exists, the next action should be inspect_selected_fallback_evidence.
-    assert model_gate["next_local_action"] == "inspect_selected_fallback_evidence"
-    # model_gate should contain the materialized selected_harness_evidence_source.
+    # model_gate should contain the materialized selected_harness_evidence_source with readiness audit.
     evidence = model_gate["selected_harness_evidence_source"]
     assert evidence is not None
     assert evidence["selection_role"] == "fallback"
@@ -358,10 +356,88 @@ def test_model_gate_selects_fallback_when_latest_is_invalid(tmp_path: Path) -> N
     assert evidence["latest_invalid_run_status"] == "invalid_or_incomplete"
     assert evidence["latest_invalid_run_reason"] == "case_results_directory_absent"
     assert evidence["case_results_count"] == 1
-    # task_packet should frame the condition as inspect selected fallback evidence.
+    # Readiness audit should be present and classify based on case result metadata.
+    readiness = evidence["readiness_audit"]
+    assert readiness is not None
+    assert readiness["run_name"] == "samplereverse_fallback"
+    assert readiness["summary_present"] is True
+    assert readiness["manifest_present"] is True
+    assert readiness["case_results_dir_present"] is True
+    assert readiness["case_result_count"] == 1
+    # The test case result has no structured_evidence or candidates, so it should be incomplete.
+    assert readiness["classification"] == "fallback_evidence_incomplete"
+    assert readiness["next_local_action"] == "repair_selected_fallback_evidence"
+    # The model_gate next_local_action should follow the readiness audit recommendation.
+    assert model_gate["next_local_action"] == "repair_selected_fallback_evidence"
+    # task_packet should frame the condition as repair selected fallback evidence.
     task_packet = _read_json(state_dir / "task_packet.json")
-    assert task_packet["task"] == "inspect_selected_fallback_evidence"
-    assert task_packet["next_local_action"] == "inspect_selected_fallback_evidence"
+    assert task_packet["task"] == "repair_selected_fallback_evidence"
+    assert task_packet["next_local_action"] == "repair_selected_fallback_evidence"
+
+
+def test_model_gate_classifies_ready_fallback_when_evidence_is_sufficient(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+
+    # Create a complete fallback run with rich case_results metadata
+    fallback_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_ready_fallback")
+    _write_json(
+        fallback_dir / "summary.json",
+        {
+            "run_name": "samplereverse_ready_fallback",
+            "total_cases": 1,
+            "executed_cases": 1,
+            "error_cases": 0,
+            "case_result_paths": [str(fallback_dir / "case_results" / "samplereverse.json")],
+        },
+    )
+    _write_json(
+        fallback_dir / "case_results" / "samplereverse.json",
+        {
+            "status": "not_found",
+            "case_id": "samplereverse",
+            "structured_evidence_count": 2,
+            "tool_artifact_count": 3,
+            "candidate_count": 5,
+            "validation_count": 0,
+            "error": "",
+        },
+    )
+    _write_json(fallback_dir / "run_manifest.json", {"run_name": "samplereverse_ready_fallback"})
+
+    # Create an invalid latest run without case_results/
+    latest_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_latest_invalid")
+    _write_json(
+        latest_dir / "summary.json",
+        {
+            "run_name": "samplereverse_latest_invalid",
+            "total_cases": 1,
+            "executed_cases": 0,
+            "resumed_cases": 1,
+            "error_cases": 1,
+            "case_result_paths": [str(latest_dir / "case_results" / "samplereverse.json")],
+        },
+    )
+    (latest_dir / "case_results" / "samplereverse.json").unlink()
+    (latest_dir / "case_results").rmdir()
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    model_gate = _read_json(state_dir / "model_gate.json")
+    evidence = model_gate["selected_harness_evidence_source"]
+    assert evidence is not None
+    readiness = evidence["readiness_audit"]
+    assert readiness is not None
+    # With structured_evidence, tool_artifacts, and candidates, evidence is ready.
+    assert readiness["classification"] == "fallback_evidence_ready_for_reverse_decision"
+    assert readiness["structured_evidence_count"] == 2
+    assert readiness["tool_artifact_count"] == 3
+    assert readiness["candidate_count"] == 5
+    assert readiness["next_local_action"] == "prepare_reverse_solving_from_selected_fallback_evidence"
+    assert model_gate["next_local_action"] == "prepare_reverse_solving_from_selected_fallback_evidence"
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert task_packet["task"] == "prepare_reverse_solving_from_selected_fallback_evidence"
+    assert task_packet["next_local_action"] == "prepare_reverse_solving_from_selected_fallback_evidence"
 
 
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:
