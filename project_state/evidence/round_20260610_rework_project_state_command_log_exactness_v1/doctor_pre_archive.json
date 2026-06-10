@@ -1,0 +1,49 @@
+{
+  "status": "FAIL",
+  "checks": [
+    {
+      "name": "decision_approval",
+      "status": "PASS",
+      "detail": "decision decision_20260610_rework_project_state_command_log_exactness_v1 is APPROVED"
+    },
+    {
+      "name": "mainline",
+      "status": "PASS",
+      "detail": "mainline is engineering_branch"
+    },
+    {
+      "name": "skill_profiles",
+      "status": "PASS",
+      "detail": "skill profiles active: [{'profile': 'reverse-agent-iteration@v2', 'skill_name': 'reverse-agent-iteration', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'generic_workflow', 'registry_version': 2}, {'profile': 'samplereverse-frontier@v2', 'skill_name': 'samplereverse-frontier', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'sample_profile', 'registry_version': 2}]"
+    },
+    {
+      "name": "report_parse",
+      "status": "PASS",
+      "detail": "report report_20260610_rework_project_state_evidence_manifest_consistency_v1 status is SUCCESS"
+    },
+    {
+      "name": "report_decision_match",
+      "status": "FAIL",
+      "detail": "report based_on_decision_id (decision_20260610_rework_project_state_evidence_manifest_consistency_v1) does not match decision_id (decision_20260610_rework_project_state_command_log_exactness_v1)"
+    },
+    {
+      "name": "pytest_result",
+      "status": "PASS",
+      "detail": "pytest_result.txt matches report and covers all tests"
+    },
+    {
+      "name": "archive",
+      "status": "PASS",
+      "detail": "decision ready for execution (archive not yet expected)"
+    },
+    {
+      "name": "artifacts",
+      "status": "WARN",
+      "detail": "3 missing, 48 stale artifacts"
+    }
+  ],
+  "next_action": "fix_project_state_issues",
+  "decision_id": "decision_20260610_rework_project_state_command_log_exactness_v1",
+  "report_id": "report_20260610_rework_project_state_evidence_manifest_consistency_v1",
+  "decision_execution_state": "READY_FOR_EXECUTION"
+}

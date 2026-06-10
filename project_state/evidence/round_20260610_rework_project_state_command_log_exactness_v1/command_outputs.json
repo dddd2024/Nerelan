@@ -1,0 +1,16 @@
+{
+  "pwd": "",
+  "git_rev_parse": "F:/reverse-agent",
+  "git_status": " M project_state/codex_execution_report.md\n M project_state/decision_packet.md\n M project_state/model_gate.json\n M project_state/pytest_result.txt\n M project_state/task_packet.json\n M reverse_agent/project_state.py\n M tests/test_project_state.py\n",
+  "git_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "git_diff_bytes": 0,
+  "git_diff_lines": 0,
+  "git_diff_cached_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "git_diff_cached_bytes": 0,
+  "git_diff_cached_lines": 0,
+  "git_fsck_sha256": "f62b7be3b17d405dab01830dae584ab86b0c60f97e400e6e457bbf3f54d124bb",
+  "git_fsck_bytes": 47503,
+  "git_fsck_lines": 689,
+  "doctor_result_final_sha256": "c5c8f711ce7c7b11f4acf3ebe2189631d8308c5d8baa64e96fbcf3442beb7592",
+  "doctor_result_final_match": false
+}
