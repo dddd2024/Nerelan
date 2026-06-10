@@ -1,29 +1,32 @@
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260610_resolve_harness_artifact_repair_action_v1","round_id":"round_20260610_resolve_harness_artifact_repair_action_v1","based_on_state_build_id":"state_20260610_081228_6c1551059244","based_on_state_digest":"6c1551059244adb018154536da5d72c4cfa2b59e8502b8f026b587a6f4d6e936","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
+{"schema_version":1,"decision_id":"decision_20260610_resolve_harness_repair_action_live_state_rework_v1","round_id":"round_20260610_resolve_harness_repair_action_live_state_rework_v1","based_on_state_build_id":"state_20260610_081228_6c1551059244","based_on_state_digest":"6c1551059244adb018154536da5d72c4cfa2b59e8502b8f026b587a6f4d6e936","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
 ```
 
 # DECISION_PACKET
 
 ## 1. Goal
 
-Resolve the current `repair_harness_artifact` state into a precise next local action.
+Fix the live-state mismatch from `decision_20260610_resolve_harness_artifact_repair_action_v1`.
 
-The previous rounds correctly classified the latest harness run as `invalid_or_incomplete` because `summary.json` exists but `case_results/` is missing. This round must not redo that classification. Instead, it must decide whether project_state can safely select an existing complete harness run, or whether the correct next action is a bounded harness artifact rebuild in a later round.
+The prior report claims that `repair_harness_artifact` was resolved into precise actions (`select_fallback_harness_run` when a complete fallback exists, or `rebuild_harness_artifact` when none exists). However, live `model_gate.json`, live `task_packet.json`, and post-archive status still show the generic `repair_harness_artifact` action. This round must connect the implemented logic to `python -m reverse_agent.project_state build` and regenerate live state so the precise action is visible in `model_gate.json`, `task_packet.json`, and final status.
 
-This is an `engineering_branch` state-selection and repair-planning round. It must not run samples, solvers, runtime probes, or reverse-debugging tools.
+This is an `engineering_branch` live-state rework round. It must not enter reverse solving or execute samples/tools.
 
 ## 2. Current Evidence
 
-- Current state anchor: `state_20260610_081228_6c1551059244` with digest `6c1551059244adb018154536da5d72c4cfa2b59e8502b8f026b587a6f4d6e936`.
-- Current `model_gate.json` reports `harness_diagnostics.case_results_missing: true`.
-- Current `model_gate.json` reports `harness_diagnostics.latest_harness_run_status: invalid_or_incomplete`.
-- Current `model_gate.json` reports `next_local_action: repair_harness_artifact`.
-- Current `task_packet.json` reports `task: repair_harness_artifact` and `next_local_action: repair_harness_artifact`.
-- The latest harness run remains `solve_reports\harness_runs\samplereverse_exact1_projected_vs_neighbor_20260424`, whose summary says `summary_present: true`, `summary_resumed_cases: 1`, `summary_error_cases: 1`, `summary_executed_cases: 0`, `summary_total_cases: 1`, and `case_results_count: 0`.
-- `artifact_index.json` still includes stale/missing artifacts; stale/missing artifacts must not be promoted to current.
-- `negative_results.json` still blocks blind search, beam/budget expansion, compare_semantics_agree=false frontier promotion, full `solve_reports` commit, repeated stale probes, stale hook reuse, and full solve_reports scans.
-- Existing code already has project-state build/status/lint/archive logic, harness diagnostics, model gate generation, task packet generation, and artifact-index handling in `reverse_agent/project_state.py`. Do not duplicate those mechanisms.
-- Existing harness tests cover case-result artifact manifests in `tests/test_harness_artifact_manifest.py`; do not rewrite harness execution.
+- Current decision before this packet was `decision_20260610_resolve_harness_artifact_repair_action_v1`.
+- Its report is bound to that decision and says `status: SUCCESS`.
+- The report claims `build_model_gate()` now sets `next_local_action` to `select_fallback_harness_run` when fallback exists, or `rebuild_harness_artifact` when no complete fallback exists.
+- The report claims `build_task_packet()` propagates `select_fallback_harness_run` and `rebuild_harness_artifact` as precise task names.
+- Live `model_gate.json` still reports `next_local_action: repair_harness_artifact`.
+- Live `task_packet.json` still reports `task: repair_harness_artifact` and `next_local_action: repair_harness_artifact`.
+- Post-archive status for the prior round still reports `task: repair_harness_artifact` and `derived_task: repair_harness_artifact`.
+- The prior round did not record `python -m reverse_agent.project_state build` or `python -m reverse_agent.project_state lint-decision --state-dir project_state` in `pytest_result.txt`.
+- The prior round ran `python -m pytest tests/test_project_state.py -q` only, not the required combined `python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q`.
+- Latest harness run remains `solve_reports\harness_runs\samplereverse_exact1_projected_vs_neighbor_20260424`, with `summary.json` present but `case_results/` missing.
+- Current state anchor remains `state_20260610_081228_6c1551059244` with digest `6c1551059244adb018154536da5d72c4cfa2b59e8502b8f026b587a6f4d6e936`.
+- Stale/missing artifacts must not be promoted to current.
+- `.codex-skills/registry.json` has active `reverse-agent-iteration@v2` and `samplereverse-frontier@v2`.
 
 ## 3. Do Not Do
 
@@ -41,7 +44,7 @@ This is an `engineering_branch` state-selection and repair-planning round. It mu
 - Do not promote stale/missing artifacts to current.
 - Do not treat a run without `case_results/` as inspectable failed-case evidence.
 - Do not create synthetic `case_results/` that pretend a sample was executed.
-- Do not mark a fallback harness run as current unless provenance is explicit and schema-compatible.
+- Do not silently promote a fallback harness run to current/latest.
 
 ## 4. Files To Inspect
 
@@ -68,7 +71,7 @@ Allowed bounded harness metadata inspection:
 - Directory existence/listing for `solve_reports/harness_runs/samplereverse_exact1_projected_vs_neighbor_20260424/`
 - `solve_reports/harness_runs/samplereverse_exact1_projected_vs_neighbor_20260424/summary.json`, if present
 - `solve_reports/harness_runs/samplereverse_exact1_projected_vs_neighbor_20260424/run_manifest.json`, if present
-- A bounded metadata-only listing of sibling `solve_reports/harness_runs/*` directory names and their `summary.json` / `run_manifest.json` / `case_results/` presence, only to determine whether a complete fallback run exists.
+- Bounded metadata-only listing of sibling `solve_reports/harness_runs/*` directory names and their `summary.json` / `run_manifest.json` / `case_results/` presence only when needed to test fallback detection.
 
 Do not open full case result payloads except existence/count metadata. Do not inspect full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -78,29 +81,33 @@ Codex must:
 
 1. Confirm this decision packet is the active execution authority and `task_packet.json` is advisory only.
 2. Confirm both skill profiles are active in `.codex-skills/registry.json`.
-3. Confirm live `model_gate.json` and `task_packet.json` still represent the current condition as `repair_harness_artifact`.
-4. Identify the existing project-state code path that selects the latest harness run and produces `latest_harness_run`, `harness_diagnostics`, `model_gate.json`, `task_packet.json`, and artifact freshness.
-5. Perform bounded metadata-only inspection of harness runs to answer one question: is there an existing complete harness run with `case_results/` and compatible summary/run manifest that can be selected as a current evidence source without violating freshness/provenance rules?
-6. If a complete compatible fallback run exists, implement the smallest schema-compatible change so project_state records that the latest run is invalid/incomplete and uses the complete run only as an explicitly identified fallback, with provenance and freshness semantics clear.
-7. If no complete compatible fallback run exists, implement the smallest schema-compatible change so `model_gate.json` / `task_packet.json` move from generic `repair_harness_artifact` to a more precise next action such as `rebuild_harness_artifact` or an equivalent existing action name.
-8. Preserve backward compatibility for existing fields consumed by tests or UI.
-9. Add or update focused tests for the selected path:
-   - invalid latest run with no complete fallback; and/or
-   - invalid latest run with a complete fallback selected explicitly.
-10. Ensure stale/missing artifacts remain stale/missing unless current provenance is created by existing build tooling.
-11. Update live `project_state/codex_execution_report.md` with a valid `codex_report_summary` bound to this decision.
-12. Update live `project_state/pytest_result.txt` with exact command outputs.
-13. Archive this round after live report/test/state files are updated.
-14. After archive, record final `lint-report` and `status` output showing the round is consumed and archived.
-15. Ensure no sample/tool/debugger/solver/probe execution occurred.
-16. Ensure no `.codex-skills/` changes occurred.
+3. Inspect the previous changes in `reverse_agent/project_state.py` and identify why the precise action logic is not reflected in live `model_gate.json` / `task_packet.json` after status/archive.
+4. Run `python -m reverse_agent.project_state build` and inspect the regenerated live `model_gate.json` and `task_packet.json`.
+5. If build still leaves `next_local_action` / `task` as generic `repair_harness_artifact`, fix the disconnected code path in `reverse_agent/project_state.py`.
+6. Ensure live `model_gate.json` resolves the current condition to one of:
+   - `next_local_action: select_fallback_harness_run` with explicit fallback provenance; or
+   - `next_local_action: rebuild_harness_artifact` when no complete compatible fallback exists.
+7. Ensure live `task_packet.json` resolves the current condition to one of:
+   - `task: select_fallback_harness_run` with explicit fallback provenance; or
+   - `task: rebuild_harness_artifact` when no complete compatible fallback exists.
+8. Ensure `task_packet.json` does not revert to generic reverse-solving `collect_missing_evidence`.
+9. Ensure `task_packet.json` does not remain at generic `repair_harness_artifact` unless the report proves that `repair_harness_artifact` is intentionally now the exact terminal action. Prefer `rebuild_harness_artifact` / `select_fallback_harness_run` because that was the prior decision requirement.
+10. Preserve backward compatibility for existing fields consumed by tests or UI.
+11. Ensure stale/missing artifacts remain stale/missing unless current provenance is created by existing build tooling.
+12. Update focused regression tests so the build path, not just helper functions, produces the precise live action.
+13. Run the required tests and record exact command outputs in live `project_state/pytest_result.txt`.
+14. Update live `project_state/codex_execution_report.md` with a valid `codex_report_summary` bound to this decision.
+15. Archive this round after live report/test/state files are updated.
+16. After archive, record final `lint-report` and `status` output showing the round is consumed and archived.
+17. Ensure no sample/tool/debugger/solver/probe execution occurred.
+18. Ensure no `.codex-skills/` changes occurred.
 
 ## 6. Implementation Scope
 
 Allowed source changes:
 
-- `reverse_agent/project_state.py`, limited to harness run selection, invalid latest run handling, fallback provenance, model gate next action, task packet action, and status/lint display for this condition.
-- `tests/test_project_state.py`, limited to focused regression tests for invalid latest harness run resolution.
+- `reverse_agent/project_state.py`, limited to connecting fallback/rebuild action resolution to the actual project-state build path and status output.
+- `tests/test_project_state.py`, limited to focused regression tests for build-path live action resolution.
 - `tests/test_harness_artifact_manifest.py`, only if directly affected by harness artifact metadata compatibility.
 
 Allowed generated/report changes:
@@ -111,7 +118,7 @@ Allowed generated/report changes:
 - `project_state/artifact_index.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
-- `project_state/rounds/round_20260610_resolve_harness_artifact_repair_action_v1/*`, minimal archive only
+- `project_state/rounds/round_20260610_resolve_harness_repair_action_live_state_rework_v1/*`, minimal archive only
 
 Disallowed changes:
 
@@ -136,19 +143,23 @@ python -m reverse_agent.project_state lint-decision --state-dir project_state
 python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
-python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_resolve_harness_artifact_repair_action_v1
+python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_resolve_harness_repair_action_live_state_rework_v1
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state status --state-dir project_state
 ```
 
 Acceptance requirements:
 
-- The latest incomplete harness run remains explicitly classified as invalid/incomplete.
-- If a fallback run is selected, it is explicitly marked as fallback with provenance; it is not silently promoted as the latest/current run.
-- If no fallback is selected, `model_gate.json` and `task_packet.json` provide a more precise next local action than generic `repair_harness_artifact`, such as `rebuild_harness_artifact` or an equivalent existing action.
-- `task_packet.json` must not revert to generic reverse-solving `collect_missing_evidence` for this condition.
-- Focused regression tests cover the chosen path.
-- pytest passes for the tests run.
+- Live `model_gate.json` must no longer remain at generic `next_local_action: repair_harness_artifact`, unless the report proves that this exact value is intentionally now the terminal precise action.
+- Preferred accepted outputs are `next_local_action: rebuild_harness_artifact` when no complete compatible fallback exists, or `next_local_action: select_fallback_harness_run` with explicit fallback provenance when one exists.
+- Live `task_packet.json` must no longer remain at generic `task: repair_harness_artifact`, unless the report proves that this exact value is intentionally now the terminal precise action.
+- Preferred accepted outputs are `task: rebuild_harness_artifact` or `task: select_fallback_harness_run`.
+- Latest incomplete harness run remains explicitly classified as `invalid_or_incomplete`.
+- If fallback is selected, fallback provenance is explicit and the fallback run is not silently promoted as latest/current.
+- If no fallback is selected, rebuild action is explicit.
+- `task_packet.json` must not revert to `collect_missing_evidence` for this condition.
+- Focused regression tests cover the actual build path.
+- `python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q` passes.
 - `lint-report: OK` after live report update.
 - Final status shows `decision_report_id_match: True`.
 - Final status shows `decision_consumed_by_report: True`.
@@ -162,11 +173,11 @@ Acceptance requirements:
 
 Stop and report `BLOCKED` or `FAILED` if:
 
-- Resolving the repair action requires running a sample binary.
-- Resolving the repair action requires running the harness on a sample.
-- Resolving the repair action requires solver/search/candidate generation/candidate validation.
-- Resolving the repair action requires runtime probe, debugger work, emulator, hook, sidecar, IDA, or Ghidra.
-- Resolving the repair action requires full `solve_reports/` traversal.
+- Resolving the live action requires running a sample binary.
+- Resolving the live action requires running the harness on a sample.
+- Resolving the live action requires solver/search/candidate generation/candidate validation.
+- Resolving the live action requires runtime probe, debugger work, emulator, hook, sidecar, IDA, or Ghidra.
+- Resolving the live action requires full `solve_reports/` traversal.
 - No schema-compatible way exists to represent fallback or rebuild action without breaking existing state consumers.
 - `lint-report` fails after final report update.
 - Final `status` cannot reach consumed/archived state.
