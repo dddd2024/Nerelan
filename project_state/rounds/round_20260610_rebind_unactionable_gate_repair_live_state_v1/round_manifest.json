@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-10T06:22:57Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260610_rebind_unactionable_gate_repair_live_state_v1\\codex_execution_report.md",
+      "sha256": "f340b0d2fbb739c2b496843fc6a536bf7f3218be003cb0ca6032b0a82de6a2a4",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260610_rebind_unactionable_gate_repair_live_state_v1\\decision_packet.md",
+      "sha256": "741c26f003d4c78209727cf3759f8eb46b767916157948d404f1c619f3d4769f",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260610_rebind_unactionable_gate_repair_live_state_v1\\pytest_result.txt",
+      "sha256": "a65a1af70e41eb34d2a28ceaeb8b550d7128182f2d254ee1e5f4533a22d24370",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260610_rebind_unactionable_gate_repair_live_state_v1",
+  "schema_version": 1,
+  "source_git_commit": "e10559e50249",
+  "source_harness_run": "samplereverse_exact1_projected_vs_neighbor_20260424",
+  "state_build_id": "state_20260610_060844_d17fc0ba1c82",
+  "state_digest": "d17fc0ba1c823d328028914b3a019555162b7da63b9b03972bd4d555c8bae215",
+  "workflow_status": "REPORT_AVAILABLE"
+}
