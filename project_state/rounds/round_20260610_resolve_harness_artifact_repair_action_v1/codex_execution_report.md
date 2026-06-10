@@ -23,10 +23,6 @@
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
-  "generated_artifacts": [
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py"
-  ],
   "tests_ran": [
     "python -m pytest tests/test_project_state.py -q",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",

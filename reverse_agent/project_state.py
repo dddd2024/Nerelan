@@ -1922,6 +1922,68 @@ def _resolve_latest_run(reports_dir: Path, run_name: str = "") -> Path | None:
     return _latest_path(run_dirs)
 
 
+def _find_fallback_harness_run(
+    reports_dir: Path,
+    latest_run: Path | None,
+) -> dict[str, Any] | None:
+    """Find the most recent complete harness run with case_results/ as a fallback.
+
+    A complete run must have:
+    - case_results/ directory with at least one .json file
+    - summary.json with error_cases == 0
+    - run_manifest.json
+
+    The fallback is explicitly marked so it is not silently promoted as latest/current.
+    """
+    harness_root = reports_dir / "harness_runs"
+    if not harness_root.exists():
+        return None
+    candidates: list[dict[str, Any]] = []
+    for run_dir in harness_root.iterdir():
+        if not run_dir.is_dir():
+            continue
+        if latest_run is not None and run_dir.resolve() == latest_run.resolve():
+            continue
+        case_results_dir = run_dir / "case_results"
+        if not case_results_dir.exists() or not any(case_results_dir.glob("*.json")):
+            continue
+        summary_path = run_dir / "summary.json"
+        if not summary_path.exists():
+            continue
+        manifest_path = run_dir / "run_manifest.json"
+        if not manifest_path.exists():
+            continue
+        summary_data = _read_json(str(summary_path))
+        if not isinstance(summary_data, dict):
+            continue
+        if int(summary_data.get("error_cases", 0) or 0) > 0:
+            continue
+        candidates.append(
+            {
+                "run_dir": run_dir,
+                "mtime": _safe_mtime(run_dir),
+                "run_name": run_dir.name,
+                "summary_path": summary_path,
+                "manifest_path": manifest_path,
+                "executed_cases": summary_data.get("executed_cases", 0),
+                "total_cases": summary_data.get("total_cases", 0),
+            }
+        )
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item["mtime"], reverse=True)
+    best = candidates[0]
+    return {
+        "run_name": best["run_name"],
+        "run_path": _path_for_json(best["run_dir"]),
+        "summary_path": _path_for_json(best["summary_path"]),
+        "manifest_path": _path_for_json(best["manifest_path"]),
+        "executed_cases": best["executed_cases"],
+        "total_cases": best["total_cases"],
+        "provenance": "fallback_from_invalid_latest_run",
+    }
+
+
 def _is_relative_to(path: Path, parent: Path) -> bool:
     try:
         path.resolve().relative_to(parent.resolve())
@@ -4200,6 +4262,7 @@ def _build_summary_error_detail(
     *,
     artifact_index: dict[str, Any],
     case_paths: list[Any],
+    reports_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Build a backward-compatible diagnostic dict explaining why the latest harness run triggered errors.
 
@@ -4236,6 +4299,15 @@ def _build_summary_error_detail(
             "One or more case result files have status='error' or an 'error' field."
         )
         detail["latest_harness_run_status"] = "case_results_have_errors"
+    # Look for a complete fallback run when the latest is invalid/incomplete
+    if reports_dir is not None and detail.get("latest_harness_run_status") == "invalid_or_incomplete":
+        latest_run_path = _path_from_json(latest_run) if latest_run else None
+        fallback = _find_fallback_harness_run(reports_dir, latest_run_path)
+        if fallback is not None:
+            detail["fallback_harness_run"] = fallback
+            detail["fallback_available"] = True
+        else:
+            detail["fallback_available"] = False
     return detail
 
 
@@ -4257,6 +4329,7 @@ def build_model_gate(
     *,
     artifact_index: dict[str, Any],
     current_state: dict[str, Any],
+    reports_dir: Path | None = None,
 ) -> dict[str, Any]:
     artifact_refs = current_state.get("artifact_refs", {})
     artifact_refs = artifact_refs if isinstance(artifact_refs, dict) else {}
@@ -4296,6 +4369,7 @@ def build_model_gate(
     summary_error_detail = _build_summary_error_detail(
         artifact_index=artifact_index,
         case_paths=case_paths,
+        reports_dir=reports_dir,
     )
     if _summary_has_errors(str(latest_summary) if latest_summary else None) or _case_results_have_errors(
         [str(item) for item in case_paths]
@@ -4303,7 +4377,12 @@ def build_model_gate(
         # When case_results/ is missing, there is no concrete failed case-result to inspect.
         # Surface a more actionable next step instead of an unactionable inspection instruction.
         if summary_error_detail.get("case_results_missing") is True:
-            next_local_action = "repair_harness_artifact"
+            # If a complete fallback run exists, keep the latest marked as invalid and
+            # surface the fallback explicitly; do not silently promote it as current.
+            if summary_error_detail.get("fallback_available") is True:
+                next_local_action = "select_fallback_harness_run"
+            else:
+                next_local_action = "rebuild_harness_artifact"
         else:
             next_local_action = "inspect_failed_case_result"
         return {
@@ -4610,8 +4689,9 @@ def build_task_packet(
         next_local_action = model_gate.get("next_local_action")
         # When the actionable local step is repairing the harness artifact,
         # frame the task as harness repair rather than generic reverse-solving.
-        if next_local_action == "repair_harness_artifact":
-            task = "repair_harness_artifact"
+        # Also handle fallback selection and rebuild actions with precise naming.
+        if next_local_action in ("repair_harness_artifact", "select_fallback_harness_run", "rebuild_harness_artifact"):
+            task = next_local_action
         else:
             task = "collect_missing_evidence"
         return {
@@ -4763,7 +4843,7 @@ def build_project_state(
     )
     current_state = build_current_state(artifact_index=artifact_index, sample=sample)
     negative_results = build_negative_results(artifact_index=artifact_index)
-    model_gate = build_model_gate(artifact_index=artifact_index, current_state=current_state)
+    model_gate = build_model_gate(artifact_index=artifact_index, current_state=current_state, reports_dir=reports_dir)
     task_packet = build_task_packet(
         current_state=current_state,
         negative_results=negative_results,

@@ -261,7 +261,7 @@ def test_build_missing_solve_reports_does_not_crash_and_writes_files(tmp_path: P
     assert _read_json(state_dir / "model_gate.json")["should_call_model"] is False
 
 
-def test_model_gate_diagnoses_summary_error_with_missing_case_results(tmp_path: Path) -> None:
+def test_model_gate_diagnoses_summary_error_with_missing_case_results_no_fallback(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
     run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_missing_case_results")
@@ -287,14 +287,71 @@ def test_model_gate_diagnoses_summary_error_with_missing_case_results(tmp_path: 
     assert model_gate["harness_diagnostics"]["case_results_missing"] is True
     assert model_gate["harness_diagnostics"]["summary_error_cases"] == 1
     assert model_gate["harness_diagnostics"]["latest_harness_run_status"] == "invalid_or_incomplete"
-    # When case_results/ is missing, the gate must not ask Codex to inspect a non-existent file.
-    assert model_gate["next_local_action"] == "repair_harness_artifact"
+    # When no complete fallback exists, the next action should be rebuild, not generic repair.
+    assert model_gate["harness_diagnostics"]["fallback_available"] is False
+    assert model_gate["next_local_action"] == "rebuild_harness_artifact"
     summary = status_summary(state_dir=state_dir)
     assert summary["harness_diagnostics"]["diagnosis"] == "case_results_directory_absent"
-    # task_packet should frame the condition as harness repair, not generic reverse-solving.
+    # task_packet should frame the condition as precise rebuild action, not generic reverse-solving.
     task_packet = _read_json(state_dir / "task_packet.json")
-    assert task_packet["task"] == "repair_harness_artifact"
-    assert task_packet["next_local_action"] == "repair_harness_artifact"
+    assert task_packet["task"] == "rebuild_harness_artifact"
+    assert task_packet["next_local_action"] == "rebuild_harness_artifact"
+
+
+def test_model_gate_selects_fallback_when_latest_is_invalid(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+
+    # Create a complete fallback run with case_results/
+    fallback_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_fallback")
+    _write_json(
+        fallback_dir / "summary.json",
+        {
+            "run_name": "samplereverse_fallback",
+            "total_cases": 1,
+            "executed_cases": 1,
+            "error_cases": 0,
+            "case_result_paths": [str(fallback_dir / "case_results" / "samplereverse.json")],
+        },
+    )
+    _write_json(
+        fallback_dir / "case_results" / "samplereverse.json",
+        {"status": "ok", "result": "success"},
+    )
+    _write_json(fallback_dir / "run_manifest.json", {"run_name": "samplereverse_fallback"})
+
+    # Create an invalid latest run without case_results/
+    latest_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_latest_invalid")
+    _write_json(
+        latest_dir / "summary.json",
+        {
+            "run_name": "samplereverse_latest_invalid",
+            "total_cases": 1,
+            "executed_cases": 0,
+            "resumed_cases": 1,
+            "error_cases": 1,
+            "case_result_paths": [str(latest_dir / "case_results" / "samplereverse.json")],
+        },
+    )
+    (latest_dir / "case_results" / "samplereverse.json").unlink()
+    (latest_dir / "case_results").rmdir()
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    model_gate = _read_json(state_dir / "model_gate.json")
+    assert model_gate["reason"] == "latest harness case has errors"
+    assert model_gate["harness_diagnostics"]["diagnosis"] == "case_results_directory_absent"
+    assert model_gate["harness_diagnostics"]["case_results_missing"] is True
+    assert model_gate["harness_diagnostics"]["latest_harness_run_status"] == "invalid_or_incomplete"
+    # When a complete fallback exists, the next action should be select_fallback.
+    assert model_gate["harness_diagnostics"]["fallback_available"] is True
+    assert model_gate["harness_diagnostics"]["fallback_harness_run"]["run_name"] == "samplereverse_fallback"
+    assert model_gate["harness_diagnostics"]["fallback_harness_run"]["provenance"] == "fallback_from_invalid_latest_run"
+    assert model_gate["next_local_action"] == "select_fallback_harness_run"
+    # task_packet should frame the condition as fallback selection.
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert task_packet["task"] == "select_fallback_harness_run"
+    assert task_packet["next_local_action"] == "select_fallback_harness_run"
 
 
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:
