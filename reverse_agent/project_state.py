@@ -4297,12 +4297,18 @@ def build_model_gate(
     if _summary_has_errors(str(latest_summary) if latest_summary else None) or _case_results_have_errors(
         [str(item) for item in case_paths]
     ):
+        # When case_results/ is missing, there is no concrete failed case-result to inspect.
+        # Surface a more actionable next step instead of an unactionable inspection instruction.
+        if summary_error_detail.get("case_results_missing") is True:
+            next_local_action = "repair_harness_artifact"
+        else:
+            next_local_action = "inspect_failed_case_result"
         return {
             "should_call_model": False,
             "context_level": 1,
             "reason": "latest harness case has errors",
             "recommended_packet": "project_state/task_packet.json",
-            "next_local_action": "inspect_failed_case_result",
+            "next_local_action": next_local_action,
             "missing_evidence": [],
             "harness_diagnostics": summary_error_detail,
             "generated_at": _now_iso(),
@@ -5239,64 +5245,4 @@ def main(argv: list[str] | None = None) -> int:
     archive_parser.add_argument("--include-diff", action="store_true")
 
     pack_parser = subparsers.add_parser("pack", help="Pack compact GPT context files.")
-    pack_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
-    pack_parser.add_argument("--out", default=DEFAULT_PACK_NAME)
-
-    status_parser = subparsers.add_parser("status", help="Print concise project_state status.")
-    status_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
-
-    lint_decision_parser = subparsers.add_parser("lint-decision", help="Lint the active decision packet.")
-    lint_decision_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
-
-    lint_report_parser = subparsers.add_parser("lint-report", help="Lint the active Codex execution report.")
-    lint_report_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
-
-    lint_handoff_parser = subparsers.add_parser("lint-handoff", help="Lint aggregate handoff health.")
-    lint_handoff_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
-
-    args = parser.parse_args(argv)
-    if args.command == "build":
-        build_project_state(
-            reports_dir=Path(args.reports_dir),
-            state_dir=Path(args.state_dir),
-            sample=str(args.sample),
-            run_name=str(args.run_name or ""),
-            progress_log=Path(args.progress_log),
-            max_artifacts=max(0, int(args.max_artifacts)),
-        )
-        return 0
-    if args.command == "new-round":
-        new_round(state_dir=Path(args.state_dir))
-        return 0
-    if args.command == "archive-round":
-        archive_round(
-            state_dir=Path(args.state_dir),
-            round_id=str(args.round_id or ""),
-            pytest_result=Path(args.pytest_result) if args.pytest_result else None,
-            include_state_snapshot=bool(args.include_state_snapshot),
-            include_diff=bool(args.include_diff),
-        )
-        return 0
-    if args.command == "pack":
-        pack_context(state_dir=Path(args.state_dir), out_path=Path(args.out))
-        return 0
-    if args.command == "status":
-        _print_status(status_summary(state_dir=Path(args.state_dir)))
-        return 0
-    if args.command == "lint-decision":
-        result = lint_decision(state_dir=Path(args.state_dir))
-        _print_lint_decision(result)
-        return 0 if result.get("ok") else 1
-    if args.command == "lint-report":
-        result = lint_report(state_dir=Path(args.state_dir))
-        _print_lint_report(result)
-        return 0 if result.get("ok") else 1
-    if args.command == "lint-handoff":
-        result = lint_handoff(state_dir=Path(args.state_dir))
-        _print_lint_handoff(result)
-        return 0 if result.get("ok") else 1
-    return 1
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    pack_parse

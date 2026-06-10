@@ -285,6 +285,8 @@ def test_model_gate_diagnoses_summary_error_with_missing_case_results(tmp_path: 
     assert model_gate["harness_diagnostics"]["diagnosis"] == "case_results_directory_absent"
     assert model_gate["harness_diagnostics"]["case_results_missing"] is True
     assert model_gate["harness_diagnostics"]["summary_error_cases"] == 1
+    # When case_results/ is missing, the gate must not ask Codex to inspect a non-existent file.
+    assert model_gate["next_local_action"] == "repair_harness_artifact"
     summary = status_summary(state_dir=state_dir)
     assert summary["harness_diagnostics"]["diagnosis"] == "case_results_directory_absent"
 
@@ -5274,37 +5276,4 @@ def test_archive_round_uses_incrementing_round_for_legacy_state(tmp_path: Path) 
     state_dir = tmp_path / "project_state"
     reports_dir = tmp_path / "solve_reports"
     _make_minimal_harness_run(reports_dir)
-    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
-    current_state = _read_json(state_dir / "current_state.json")
-    current_state.pop("round_id", None)
-    _write_json(state_dir / "current_state.json", current_state)
-    archive_round(state_dir=state_dir)
-
-    result = archive_round(state_dir=state_dir)
-
-    assert result["round_id"] == "round_002"
-    assert (state_dir / "rounds" / "round_002" / "decision_packet.md").exists()
-
-
-def test_pack_contains_only_allowed_project_state_files(tmp_path: Path) -> None:
-    state_dir = tmp_path / "project_state"
-    reports_dir = tmp_path / "solve_reports"
-    _make_minimal_harness_run(reports_dir)
-    (reports_dir / "secret.exe").write_bytes(b"MZ")
-    (tmp_path / ".env").write_text("API_KEY=secret", encoding="utf-8")
-    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
-    archive_round(state_dir=state_dir)
-    out_path = tmp_path / "gpt_context_pack.zip"
-
-    result = pack_context(state_dir=state_dir, out_path=out_path)
-
-    assert out_path.exists()
-    assert "project_state/task_packet.json" in result["files"]
-    with zipfile.ZipFile(out_path) as archive:
-        names = archive.namelist()
-    assert "project_state/current_state.json" in names
-    assert "project_state/decision_packet.md" in names
-    assert not any(name.endswith("git_diff.patch") for name in names)
-    assert not any(name.startswith("solve_reports/") for name in names)
-    assert not any(name.endswith(".exe") for name in names)
-    assert ".env" not in names
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir,
