@@ -92,6 +92,9 @@ This round materialized the selected fallback harness run as an explicit project
 
 ```
 $ python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q
+........................................................................ [ 43%]
+........................................................................ [ 87%]
+....................                                                     [100%]
 164 passed in 80.09s
 ```
 

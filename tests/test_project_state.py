@@ -347,11 +347,21 @@ def test_model_gate_selects_fallback_when_latest_is_invalid(tmp_path: Path) -> N
     assert model_gate["harness_diagnostics"]["fallback_available"] is True
     assert model_gate["harness_diagnostics"]["fallback_harness_run"]["run_name"] == "samplereverse_fallback"
     assert model_gate["harness_diagnostics"]["fallback_harness_run"]["provenance"] == "fallback_from_invalid_latest_run"
-    assert model_gate["next_local_action"] == "select_fallback_harness_run"
-    # task_packet should frame the condition as fallback selection.
+    # When a complete fallback exists, the next action should be inspect_selected_fallback_evidence.
+    assert model_gate["next_local_action"] == "inspect_selected_fallback_evidence"
+    # model_gate should contain the materialized selected_harness_evidence_source.
+    evidence = model_gate["selected_harness_evidence_source"]
+    assert evidence is not None
+    assert evidence["selection_role"] == "fallback"
+    assert evidence["run_name"] == "samplereverse_fallback"
+    assert evidence["provenance"] == "fallback_from_invalid_latest_run"
+    assert evidence["latest_invalid_run_status"] == "invalid_or_incomplete"
+    assert evidence["latest_invalid_run_reason"] == "case_results_directory_absent"
+    assert evidence["case_results_count"] == 1
+    # task_packet should frame the condition as inspect selected fallback evidence.
     task_packet = _read_json(state_dir / "task_packet.json")
-    assert task_packet["task"] == "select_fallback_harness_run"
-    assert task_packet["next_local_action"] == "select_fallback_harness_run"
+    assert task_packet["task"] == "inspect_selected_fallback_evidence"
+    assert task_packet["next_local_action"] == "inspect_selected_fallback_evidence"
 
 
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:

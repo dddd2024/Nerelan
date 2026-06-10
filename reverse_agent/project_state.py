@@ -4380,12 +4380,28 @@ def build_model_gate(
             # If a complete fallback run exists, keep the latest marked as invalid and
             # surface the fallback explicitly; do not silently promote it as current.
             if summary_error_detail.get("fallback_available") is True:
-                next_local_action = "select_fallback_harness_run"
+                fallback_info = summary_error_detail.get("fallback_harness_run", {})
+                selected_evidence = {
+                    "selection_role": "fallback",
+                    "run_name": fallback_info.get("run_name"),
+                    "run_path": fallback_info.get("run_path"),
+                    "summary_path": fallback_info.get("summary_path"),
+                    "manifest_path": fallback_info.get("manifest_path"),
+                    "case_results_count": fallback_info.get("executed_cases", 0),
+                    "total_cases": fallback_info.get("total_cases", 0),
+                    "provenance": fallback_info.get("provenance", "fallback_from_invalid_latest_run"),
+                    "latest_invalid_run": summary_error_detail.get("latest_harness_run"),
+                    "latest_invalid_run_status": summary_error_detail.get("latest_harness_run_status"),
+                    "latest_invalid_run_reason": summary_error_detail.get("diagnosis"),
+                }
+                next_local_action = "inspect_selected_fallback_evidence"
             else:
+                selected_evidence = None
                 next_local_action = "rebuild_harness_artifact"
         else:
+            selected_evidence = None
             next_local_action = "inspect_failed_case_result"
-        return {
+        result: dict[str, Any] = {
             "should_call_model": False,
             "context_level": 1,
             "reason": "latest harness case has errors",
@@ -4395,6 +4411,9 @@ def build_model_gate(
             "harness_diagnostics": summary_error_detail,
             "generated_at": _now_iso(),
         }
+        if selected_evidence is not None:
+            result["selected_harness_evidence_source"] = selected_evidence
+        return result
 
     if _has_disagreeing_candidate(current_state):
         return {
@@ -4690,7 +4709,7 @@ def build_task_packet(
         # When the actionable local step is repairing the harness artifact,
         # frame the task as harness repair rather than generic reverse-solving.
         # Also handle fallback selection and rebuild actions with precise naming.
-        if next_local_action in ("repair_harness_artifact", "select_fallback_harness_run", "rebuild_harness_artifact"):
+        if next_local_action in ("repair_harness_artifact", "select_fallback_harness_run", "rebuild_harness_artifact", "inspect_selected_fallback_evidence"):
             task = next_local_action
         else:
             task = "collect_missing_evidence"

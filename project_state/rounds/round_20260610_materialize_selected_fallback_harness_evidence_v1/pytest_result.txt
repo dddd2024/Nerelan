@@ -3,42 +3,59 @@
 ```
 
 === Command 1: build ===
+
 $ python -m reverse_agent.project_state build
-(build succeeded)
+(build succeeded, no output)
 
 === Command 2: status (post-build) ===
+
 $ python -m reverse_agent.project_state status --state-dir project_state
+state_dir: project_state
+latest_harness_run: solve_reports\harness_runs\samplereverse_exact1_projected_vs_neighbor_20260424
+missing: ['case_results']
+artifact_freshness: {'missing': 3, 'stale': 48}
+should_call_model: False
+context_level: 1
+reason: latest harness case has errors
+harness_diagnostics: {"case_results_count": 0, "case_results_missing": true, "diagnosis": "case_results_directory_absent", "fallback_available": true, "fallback_harness_run": {"executed_cases": 1, "manifest_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json", "provenance": "fallback_from_invalid_latest_run", "run_name": "sr_arg0_hook_readiness_ordering_20260526_r1", "run_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1", "summary_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json", "total_cases": 1}, "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424", "latest_harness_run_status": "invalid_or_incomplete", "summary_error_cases": 1, "summary_executed_cases": 0, "summary_present": true, "summary_resumed_cases": 1, "summary_total_cases": 1}
 task: inspect_selected_fallback_evidence
 derived_task: inspect_selected_fallback_evidence
 
 === Command 3: lint-decision ===
+
 $ python -m reverse_agent.project_state lint-decision --state-dir project_state
-lint-decision: FAILED (digest mismatch after build, expected)
+lint-decision: FAILED
+error: based_on_state_digest does not match current_state.state_digest
+(expected after build regenerates state)
 
 === Command 4: pytest ===
+
 $ python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q
 164 passed in 80.09s
 
 === Command 5: lint-report (pre-archive) ===
+
 $ python -m reverse_agent.project_state lint-report --state-dir project_state
-lint-report: FAILED (pytest_result not yet updated, expected)
+lint-report: FAILED
+error: pytest_result decision_id does not match codex_report_summary.based_on_decision_id
+(pytest_result not yet updated to current decision)
 
 === Command 6: status (pre-archive) ===
+
 $ python -m reverse_agent.project_state status --state-dir project_state
+task: inspect_selected_fallback_evidence
+decision_id: decision_20260610_materialize_selected_fallback_harness_evidence_v1
 decision_execution_state: STALE_WITHOUT_MATCHING_REPORT
 
 === Command 7: archive-round ===
+
 $ python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_materialize_selected_fallback_harness_evidence_v1
-archive-round: OK
+(pending - will be executed)
 
 === Command 8: lint-report (post-archive) ===
-$ python -m reverse_agent.project_state lint-report --state-dir project_state
-lint-report: OK
+
+(pending)
 
 === Command 9: status (post-archive) ===
-$ python -m reverse_agent.project_state status --state-dir project_state
-decision_report_id_match: True
-decision_consumed_by_report: True
-decision_execution_state: CONSUMED_BY_SUCCESS_REPORT
-round_manifest_present: True
-archive_status: archived
+
+(pending)
