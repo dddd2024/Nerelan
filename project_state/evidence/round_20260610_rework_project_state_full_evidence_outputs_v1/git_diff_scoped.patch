@@ -1,0 +1,32 @@
+diff --git a/project_state/codex_execution_report.md b/project_state/codex_execution_report.md
+index 39efdb9..337202e 100644
+--- a/project_state/codex_execution_report.md
++++ b/project_state/codex_execution_report.md
+@@ -128,25 +128,4 @@ All tests pass.
+ |------------|--------|
+ | `pwd` and `git rev-parse --show-toplevel` prove repo root is `F:\reverse-agent` | PASS |
+ | `python -m pytest tests/test_project_state.py -q` passes | PASS |
+-| `lint-report: OK` after live report update | PASS |
+-| Final status shows `decision_report_id_match: True` | PASS |
+-| Final status shows `decision_consumed_by_report: True` | PASS |
+-| Final status shows `decision_execution_state: CONSUMED_BY_SUCCESS_REPORT` | PASS |
+-| Final status shows `round_manifest_present: True` and `archive_status: archived` | PASS |
+-| Final `doctor` output is `PASS` or `WARN`, not `FAIL` | PASS |
+-| Final `doctor --json` output is complete parseable JSON | PASS |
+-| Final `git status --short` is recorded | PASS |
+-| Final scoped `git diff -- ...` is recorded and consistent | PASS |
+-| Final scoped `git diff --cached -- ...` is recorded and consistent | PASS |
+-| Source file modifications explained with provenance | PASS |
+-| `codex_report_summary.files_changed` matches intentional changes | PASS |
+-| No `.codex-skills/` changes | PASS |
+-| No sample/tool/debugger/solver/probe/IDA/Ghidra execution | PASS |
+-
+-## 6. Scope Statement
+-
+-This was a workspace-evidence audit rework round. It intentionally modified only:
+-- `project_state/codex_execution_report.md` (bound to current rework decision)
+-- `project_state/pytest_result.txt` (recorded complete command outputs with workspace audit)
+-
+-It did not modify source code, did not run samples, solvers, candidate generation, candidate validation, runtime probes, debuggers, emulators, hooks, sidecars, IDA, Ghidra, or full `solve_reports/` review.
++| `lint-repor
+\ No newline at end of file
