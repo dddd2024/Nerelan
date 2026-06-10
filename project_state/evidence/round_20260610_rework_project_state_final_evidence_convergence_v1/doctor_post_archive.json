@@ -4,7 +4,7 @@
     {
       "name": "decision_approval",
       "status": "PASS",
-      "detail": "decision decision_20260610_rework_project_state_command_log_exactness_v1 is APPROVED"
+      "detail": "decision decision_20260610_rework_project_state_final_evidence_convergence_v1 is APPROVED"
     },
     {
       "name": "mainline",
@@ -19,7 +19,7 @@
     {
       "name": "report_parse",
       "status": "PASS",
-      "detail": "report report_20260610_rework_project_state_command_log_exactness_v1 status is SUCCESS"
+      "detail": "report report_20260610_rework_project_state_final_evidence_convergence_v1 status is SUCCESS"
     },
     {
       "name": "report_decision_match",
@@ -34,7 +34,7 @@
     {
       "name": "archive",
       "status": "PASS",
-      "detail": "decision ready for execution (archive not yet expected)"
+      "detail": "decision consumed and archived"
     },
     {
       "name": "artifacts",
@@ -43,7 +43,7 @@
     }
   ],
   "next_action": null,
-  "decision_id": "decision_20260610_rework_project_state_command_log_exactness_v1",
-  "report_id": "report_20260610_rework_project_state_command_log_exactness_v1",
-  "decision_execution_state": "READY_FOR_EXECUTION"
+  "decision_id": "decision_20260610_rework_project_state_final_evidence_convergence_v1",
+  "report_id": "report_20260610_rework_project_state_final_evidence_convergence_v1",
+  "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT"
 }

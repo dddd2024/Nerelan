@@ -1,0 +1,18 @@
+{
+  "doctor_post_archive": {
+    "path": "project_state/evidence/round_20260610_rework_project_state_final_evidence_convergence_v1/doctor_post_archive.json",
+    "sha256": "42fdc948c0897a0cffa1aa76b4a2af9c791210d232ab488a24e5d536bd2028af",
+    "byte_size": 1766,
+    "line_count": 49,
+    "status": "WARN",
+    "note": "Post-archive final evidence from decision_20260610_rework_project_state_final_evidence_convergence_v1"
+  },
+  "doctor_result_final": {
+    "path": "project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1/doctor_result_final.json",
+    "sha256": "c5c8f711ce7c7b11f4acf3ebe2189631d8308c5d8baa64e96fbcf3442beb7592",
+    "byte_size": 1795,
+    "line_count": 50,
+    "status": "WARN",
+    "note": "Canonical doctor_result_final.json sha256 for this convergence round"
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "status": "FAIL",
+  "status": "WARN",
   "checks": [
     {
       "name": "decision_approval",
@@ -19,12 +19,12 @@
     {
       "name": "report_parse",
       "status": "PASS",
-      "detail": "report report_20260610_rework_project_state_evidence_manifest_consistency_v1 status is SUCCESS"
+      "detail": "report report_20260610_rework_project_state_command_log_exactness_v1 status is SUCCESS"
     },
     {
       "name": "report_decision_match",
-      "status": "FAIL",
-      "detail": "report based_on_decision_id (decision_20260610_rework_project_state_evidence_manifest_consistency_v1) does not match decision_id (decision_20260610_rework_project_state_command_log_exactness_v1)"
+      "status": "PASS",
+      "detail": "report decision_id matches"
     },
     {
       "name": "pytest_result",
@@ -34,7 +34,7 @@
     {
       "name": "archive",
       "status": "PASS",
-      "detail": "decision ready for execution (archive not yet expected)"
+      "detail": "decision consumed and archived"
     },
     {
       "name": "artifacts",
@@ -42,8 +42,8 @@
       "detail": "3 missing, 48 stale artifacts"
     }
   ],
-  "next_action": "fix_project_state_issues",
+  "next_action": null,
   "decision_id": "decision_20260610_rework_project_state_command_log_exactness_v1",
-  "report_id": "report_20260610_rework_project_state_evidence_manifest_consistency_v1",
-  "decision_execution_state": "READY_FOR_EXECUTION"
+  "report_id": "report_20260610_rework_project_state_command_log_exactness_v1",
+  "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT"
 }

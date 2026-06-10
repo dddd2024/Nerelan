@@ -5,17 +5,15 @@
     "byte_size": 1943,
     "line_count": 50,
     "status": "FAIL",
-    "checks_count": 8,
     "note": "Pre-archive evidence from decision_20260610_rework_project_state_full_evidence_outputs_v1"
   },
   "doctor_result_final": {
     "path": "project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1/doctor_result_final.json",
-    "sha256": "4bcbf6183d7900d4e931004ee64ede858e4edf24d5ef3886d28a98ea282dba05",
-    "byte_size": 1746,
+    "sha256": "c5c8f711ce7c7b11f4acf3ebe2189631d8308c5d8baa64e96fbcf3442beb7592",
+    "byte_size": 1795,
     "line_count": 50,
     "status": "WARN",
-    "checks_count": 8,
-    "note": "Post-archive final evidence from decision_20260610_rework_project_state_full_evidence_outputs_v1"
+    "note": "Post-archive final evidence from decision_20260610_rework_project_state_full_evidence_outputs_v1; sha256 reconciled during final evidence convergence"
   },
   "git_diff_scoped": {
     "path": "project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1/git_diff_scoped.patch",

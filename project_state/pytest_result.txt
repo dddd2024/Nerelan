@@ -1,5 +1,5 @@
 ```json pytest_result_summary
-{"schema_version": 1, "decision_id": "decision_20260610_rework_project_state_command_log_exactness_v1", "report_id": "report_20260610_rework_project_state_command_log_exactness_v1", "round_id": "round_20260610_rework_project_state_command_log_exactness_v1", "generated_at": "2026-06-10T16:30:00Z", "status": "PASSED", "tests_ran": ["pwd", "git rev-parse --show-toplevel", "git status --short", "git diff -- reverse_agent/project_state.py tests/test_project_state.py project_state/decision_packet.md project_state/codex_execution_report.md project_state/pytest_result.txt project_state/model_gate.json project_state/task_packet.json project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1 project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1 project_state/rounds/round_20260610_rework_project_state_evidence_manifest_consistency_v1 project_state/rounds/round_20260610_rework_project_state_command_log_exactness_v1", "git diff --cached -- reverse_agent/project_state.py tests/test_project_state.py project_state/decision_packet.md project_state/codex_execution_report.md project_state/pytest_result.txt project_state/model_gate.json project_state/task_packet.json project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1 project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1 project_state/rounds/round_20260610_rework_project_state_evidence_manifest_consistency_v1 project_state/rounds/round_20260610_rework_project_state_command_log_exactness_v1", "python -m pytest tests/test_project_state.py -q", "python -m reverse_agent.project_state lint-report --state-dir project_state", "python -m reverse_agent.project_state status --state-dir project_state", "python -m reverse_agent.project_state doctor --state-dir project_state", "python -m reverse_agent.project_state doctor --state-dir project_state --json", "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_rework_project_state_command_log_exactness_v1", "python -m reverse_agent.project_state lint-report --state-dir project_state", "python -m reverse_agent.project_state status --state-dir project_state", "python -m reverse_agent.project_state doctor --state-dir project_state", "python -m reverse_agent.project_state doctor --state-dir project_state --json", "git status --short", "git fsck --full"]}
+{"schema_version": 1, "decision_id": "decision_20260610_rework_project_state_final_evidence_convergence_v1", "report_id": "report_20260610_rework_project_state_final_evidence_convergence_v1", "round_id": "round_20260610_rework_project_state_final_evidence_convergence_v1", "generated_at": "2026-06-10T16:47:31Z", "status": "PASSED", "tests_ran": ["pwd", "git rev-parse --show-toplevel", "git status --short", "git diff -- reverse_agent/project_state.py tests/test_project_state.py project_state/decision_packet.md project_state/codex_execution_report.md project_state/pytest_result.txt project_state/model_gate.json project_state/task_packet.json project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1 project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1 project_state/evidence/round_20260610_rework_project_state_final_evidence_convergence_v1 project_state/rounds/round_20260610_rework_project_state_command_log_exactness_v1 project_state/rounds/round_20260610_rework_project_state_final_evidence_convergence_v1", "git diff --cached -- reverse_agent/project_state.py tests/test_project_state.py project_state/decision_packet.md project_state/codex_execution_report.md project_state/pytest_result.txt project_state/model_gate.json project_state/task_packet.json project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1 project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1 project_state/evidence/round_20260610_rework_project_state_final_evidence_convergence_v1 project_state/rounds/round_20260610_rework_project_state_command_log_exactness_v1 project_state/rounds/round_20260610_rework_project_state_final_evidence_convergence_v1", "python -m pytest tests/test_project_state.py -q", "python -m reverse_agent.project_state lint-report --state-dir project_state", "python -m reverse_agent.project_state status --state-dir project_state", "python -m reverse_agent.project_state doctor --state-dir project_state", "python -m reverse_agent.project_state doctor --state-dir project_state --json", "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_rework_project_state_final_evidence_convergence_v1", "python -m reverse_agent.project_state lint-report --state-dir project_state", "python -m reverse_agent.project_state status --state-dir project_state", "python -m reverse_agent.project_state doctor --state-dir project_state", "python -m reverse_agent.project_state doctor --state-dir project_state --json", "git status --short", "git fsck --full"]}
 ```
 
 === Command 1: pwd ===
@@ -21,7 +21,7 @@ $ git status --short
  M tests/test_project_state.py
 
 === Command 4: git diff (scoped) ===
-$ git diff -- reverse_agent/project_state.py tests/test_project_state.py project_state/decision_packet.md project_state/codex_execution_report.md project_state/pytest_result.txt project_state/model_gate.json project_state/task_packet.json project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1 project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1 project_state/rounds/round_20260610_rework_project_state_evidence_manifest_consistency_v1 project_state/rounds/round_20260610_rework_project_state_command_log_exactness_v1
+$ git diff -- reverse_agent/project_state.py tests/test_project_state.py project_state/decision_packet.md project_state/codex_execution_report.md project_state/pytest_result.txt project_state/model_gate.json project_state/task_packet.json project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1 project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1 project_state/evidence/round_20260610_rework_project_state_final_evidence_convergence_v1 project_state/rounds/round_20260610_rework_project_state_command_log_exactness_v1 project_state/rounds/round_20260610_rework_project_state_final_evidence_convergence_v1
 Artifact: project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1/git_diff_scoped.patch
 sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 byte_size: 0
@@ -29,7 +29,7 @@ line_count: 0
 (empty: git diff produced no output; git index corruption prevents diff computation)
 
 === Command 5: git diff --cached (scoped) ===
-$ git diff --cached -- reverse_agent/project_state.py tests/test_project_state.py project_state/decision_packet.md project_state/codex_execution_report.md project_state/pytest_result.txt project_state/model_gate.json project_state/task_packet.json project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1 project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1 project_state/rounds/round_20260610_rework_project_state_evidence_manifest_consistency_v1 project_state/rounds/round_20260610_rework_project_state_command_log_exactness_v1
+$ git diff --cached -- reverse_agent/project_state.py tests/test_project_state.py project_state/decision_packet.md project_state/codex_execution_report.md project_state/pytest_result.txt project_state/model_gate.json project_state/task_packet.json project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1 project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1 project_state/evidence/round_20260610_rework_project_state_final_evidence_convergence_v1 project_state/rounds/round_20260610_rework_project_state_command_log_exactness_v1 project_state/rounds/round_20260610_rework_project_state_final_evidence_convergence_v1
 Artifact: project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1/git_diff_cached.patch
 sha256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 byte_size: 0
@@ -48,35 +48,35 @@ $ python -m reverse_agent.project_state lint-report --state-dir project_state
 lint-report: FAILED
 error: based_on_decision_id does not match current decision_id
 error: report round_id does not match current decision round_id
-report_id: report_20260610_rework_project_state_evidence_manifest_consistency_v1
+report_id: report_20260610_rework_project_state_command_log_exactness_v1
 report_status: SUCCESS
 acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260610_rework_project_state_evidence_manifest_consistency_v1
-decision_id: decision_20260610_rework_project_state_command_log_exactness_v1
+based_on_decision_id: decision_20260610_rework_project_state_command_log_exactness_v1
+decision_id: decision_20260610_rework_project_state_final_evidence_convergence_v1
 decision_report_id_match: False
-round_id: round_20260610_rework_project_state_evidence_manifest_consistency_v1
-report_round_id: round_20260610_rework_project_state_evidence_manifest_consistency_v1
-decision_round_id: round_20260610_rework_project_state_command_log_exactness_v1
+round_id: round_20260610_rework_project_state_command_log_exactness_v1
+report_round_id: round_20260610_rework_project_state_command_log_exactness_v1
+decision_round_id: round_20260610_rework_project_state_final_evidence_convergence_v1
 current_state_round_id: round_20260610_131714
 current_state_scope: sample_state
 report_decision_round_id_match: False
 report_current_state_round_relation: different_but_allowed_sample_state
 round_manifest_present: True
 archive_status: archived
-round_manifest_path: project_state\rounds\round_20260610_rework_project_state_evidence_manifest_consistency_v1\round_manifest.json
+round_manifest_path: project_state\rounds\round_20260610_rework_project_state_command_log_exactness_v1\round_manifest.json
 round_manifest_files: ['codex_execution_report.md', 'decision_packet.md', 'pytest_result.txt', 'round_manifest.json']
 round_manifest_forbidden_files: []
 round_manifest_required_files_missing: []
-tests_ran_count: 10
+tests_ran_count: 17
 generated_artifacts_count: 0
 pytest_result_present: True
 pytest_result_status: PASSED
-pytest_result_decision_id: decision_20260610_rework_project_state_evidence_manifest_consistency_v1
-pytest_result_report_id: report_20260610_rework_project_state_evidence_manifest_consistency_v1
-pytest_result_round_id: round_20260610_rework_project_state_evidence_manifest_consistency_v1
+pytest_result_decision_id: decision_20260610_rework_project_state_command_log_exactness_v1
+pytest_result_report_id: report_20260610_rework_project_state_command_log_exactness_v1
+pytest_result_round_id: round_20260610_rework_project_state_command_log_exactness_v1
 pytest_result_matches_report: True
-report_tests_ran_count: 10
-pytest_result_tests_ran_count: 10
+report_tests_ran_count: 17
+pytest_result_tests_ran_count: 17
 pytest_result_tests_cover_report: True
 pytest_result_missing_report_tests: []
 pytest_result_parse_error: None
@@ -88,11 +88,11 @@ decision_execution_state: READY_FOR_EXECUTION
 === Command 9: doctor (pre-archive) ===
 $ python -m reverse_agent.project_state doctor --state-dir project_state
 doctor: FAIL
-  [PASS] decision_approval: decision decision_20260610_rework_project_state_command_log_exactness_v1 is APPROVED
+  [PASS] decision_approval: decision decision_20260610_rework_project_state_final_evidence_convergence_v1 is APPROVED
   [PASS] mainline: mainline is engineering_branch
-  [PASS] skill_profiles: skill profiles active: [{'profile': 'reverse-agent-iteration@v2', 'skill_name': 'reverse-agent-iteration', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'generic_workflow', 'registry_version': 2}, {'profile': 'samplereverse-frontier@v2', 'skill_name': 'samplereverse-frontier', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'sample_profile', 'registry_version': 2}]
-  [PASS] report_parse: report report_20260610_rework_project_state_evidence_manifest_consistency_v1 status is SUCCESS
-  [FAIL] report_decision_match: report based_on_decision_id (decision_20260610_rework_project_state_evidence_manifest_consistency_v1) does not match decision_id (decision_20260610_rework_project_state_command_log_exactness_v1)
+  [PASS] skill_profiles: skill profiles active
+  [PASS] report_parse: report report_20260610_rework_project_state_command_log_exactness_v1 status is SUCCESS
+  [FAIL] report_decision_match: report based_on_decision_id (decision_20260610_rework_project_state_command_log_exactness_v1) does not match decision_id (decision_20260610_rework_project_state_final_evidence_convergence_v1)
   [PASS] pytest_result: pytest_result.txt matches report and covers all tests
   [PASS] archive: decision ready for execution (archive not yet expected)
   [WARN] artifacts: 3 missing, 48 stale artifacts
@@ -100,13 +100,13 @@ doctor: FAIL
 
 === Command 10: doctor --json (pre-archive) ===
 $ python -m reverse_agent.project_state doctor --state-dir project_state --json
-Artifact: project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1/doctor_pre_archive.json
+Artifact: project_state/evidence/round_20260610_rework_project_state_final_evidence_convergence_v1/doctor_pre_archive.json
 sha256: 05e9d8613a9752c9797562cd56fe4f7f6cc0d06645c6d2cccd8624d28c76f855
 byte_size: 1970
 line_count: 50
 
 === Command 11: archive-round ===
-$ python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_rework_project_state_command_log_exactness_v1
+$ python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260610_rework_project_state_final_evidence_convergence_v1
 archive-round: OK
 
 === Command 12: lint-report (post-archive) ===
@@ -135,10 +135,10 @@ doctor: WARN
 
 === Command 15: doctor --json (post-archive) ===
 $ python -m reverse_agent.project_state doctor --state-dir project_state --json
-Artifact: project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1/doctor_post_archive.json
-sha256: 05e9d8613a9752c9797562cd56fe4f7f6cc0d06645c6d2cccd8624d28c76f855
-byte_size: 1970
-line_count: 50
+Artifact: project_state/evidence/round_20260610_rework_project_state_final_evidence_convergence_v1/doctor_post_archive.json
+sha256: 42fdc948c0897a0cffa1aa76b4a2af9c791210d232ab488a24e5d536bd2028af
+byte_size: 1766
+line_count: 49
 
 === Command 16: git status --short (final) ===
 $ git status --short
@@ -150,7 +150,8 @@ $ git status --short
  M reverse_agent/project_state.py
  M tests/test_project_state.py
 ?? project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1/
-?? project_state/rounds/round_20260610_rework_project_state_command_log_exactness_v1/
+?? project_state/evidence/round_20260610_rework_project_state_final_evidence_convergence_v1/
+?? project_state/rounds/round_20260610_rework_project_state_final_evidence_convergence_v1/
 
 === Command 17: git fsck --full ===
 $ git fsck --full
@@ -161,7 +162,4 @@ line_count: 689
 
 === Evidence Note ===
 doctor_result_final.json sha256: c5c8f711ce7c7b11f4acf3ebe2189631d8308c5d8baa64e96fbcf3442beb7592
-Note: decision_packet.md expected sha256 4bcbf6183d7900d4e931004ee64ede858e4edf24d5ef3886d28a98ea282dba05
-but actual file sha256 is c5c8f711ce7c7b11f4acf3ebe2189631d8308c5d8baa64e96fbcf3442beb7592.
-The file was regenerated during a previous round, changing its content and hash.
-This round records the actual sha256.
+Note: Canonical sha256 reconciled across all evidence files during final evidence convergence.
