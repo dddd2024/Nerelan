@@ -1,0 +1,48 @@
+{
+  "_authority_note": "This is the FINAL AUTHORITATIVE command-output artifact for the evidence convergence round. It supersedes all pre-final command output records.",
+  "_round": "round_20260610_rework_project_state_final_evidence_convergence_v1",
+  "_decision_id": "decision_20260610_rework_project_state_final_evidence_convergence_v1",
+  "_report_id": "report_20260610_rework_project_state_final_evidence_convergence_v1",
+  "_final_authoritative": true,
+  "_supersedes": [
+    "project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1/all_command_outputs.json"
+  ],
+  "final_lint_report_status": "OK",
+  "final_status_decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+  "final_archive_status": "archived",
+  "final_doctor_status": "WARN",
+  "final_doctor_json_artifact": {
+    "path": "project_state/evidence/round_20260610_rework_project_state_final_evidence_convergence_v1/doctor_post_archive.json",
+    "sha256": "42fdc948c0897a0cffa1aa76b4a2af9c791210d232ab488a24e5d536bd2028af",
+    "byte_size": 1766,
+    "line_count": 49,
+    "status": "WARN",
+    "decision_id": "decision_20260610_rework_project_state_final_evidence_convergence_v1",
+    "report_id": "report_20260610_rework_project_state_final_evidence_convergence_v1",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT"
+  },
+  "historical_all_command_outputs": {
+    "path": "project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1/all_command_outputs.json",
+    "sha256": "187f2da1414e769b84f5b8a15d5dcb0e2c633767acf53b7e422e301a2014a621",
+    "byte_size": 13372,
+    "line_count": 40,
+    "label": "historical_pre_final_evidence",
+    "authoritative_for_final_evidence_convergence": false,
+    "note": "Old lint_post/status_post/doctor_post entries are historical only and show pre-final state from earlier rounds."
+  },
+  "canonical_doctor_result_final": {
+    "path": "project_state/evidence/round_20260610_rework_project_state_full_evidence_outputs_v1/doctor_result_final.json",
+    "sha256": "c5c8f711ce7c7b11f4acf3ebe2189631d8308c5d8baa64e96fbcf3442beb7592",
+    "byte_size": 1795,
+    "line_count": 50,
+    "status": "WARN",
+    "note": "Canonical doctor_result_final.json sha256 for this convergence round"
+  },
+  "command_outputs": {
+    "path": "project_state/evidence/round_20260610_rework_project_state_command_log_exactness_v1/command_outputs.json",
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "byte_size": 0,
+    "line_count": 0,
+    "note": "Minimal command outputs artifact; doctor_result_final_match updated to true during convergence"
+  }
+}
