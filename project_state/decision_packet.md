@@ -1,35 +1,46 @@
 ```json decision_meta
-{"schema_version":1,"decision_id":"decision_20260610_reconcile_harness_diagnostics_report_evidence_v1","round_id":"round_20260610_reconcile_harness_diagnostics_report_evidence_v1","based_on_state_build_id":"state_20260610_043358_c568aa84f77a","based_on_state_digest":"c568aa84f77a6d3a24679815a3d08efd360c70419e73194325effb77df392e50","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
+{"schema_version":1,"decision_id":"decision_20260610_repair_report_archive_and_status_evidence_v1","round_id":"round_20260610_repair_report_archive_and_status_evidence_v1","based_on_state_build_id":"state_20260610_043358_c568aa84f77a","based_on_state_digest":"c568aa84f77a6d3a24679815a3d08efd360c70419e73194325effb77df392e50","status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2","samplereverse-frontier@v2"]}
 ```
 
 # DECISION_PACKET
 
 ## 1. Goal
 
-Reconcile the evidence records for `decision_20260610_audit_latest_failed_harness_case_state_gap_v1`.
+Repair the remaining report/archive/status evidence inconsistency after `decision_20260610_reconcile_harness_diagnostics_report_evidence_v1`.
 
-Do not redo reverse solving. Do not rerun samples or tools. The existing `harness_diagnostics` implementation appears directionally correct; this round is to fix report/test/state evidence inconsistencies and add a focused regression test if missing.
+This is an `engineering_branch` state-evidence repair round. Do not continue reverse solving. Do not rerun samples, solvers, probes, debuggers, IDA/Ghidra, or any external reverse tool. The purpose is to make the live `project_state` files internally consistent so a later GPT audit can decide whether the previous implementation is acceptable.
 
-This is an `engineering_branch` evidence-reconciliation round. Current task authority is this `project_state/decision_packet.md`; `task_packet.json` remains advisory.
+Current execution authority is this `project_state/decision_packet.md`. `task_packet.json` remains advisory.
 
 ## 2. Current Evidence
 
 - Current state build is `state_20260610_043358_c568aa84f77a` with digest `c568aa84f77a6d3a24679815a3d08efd360c70419e73194325effb77df392e50`.
-- Previous round decision was `decision_20260610_audit_latest_failed_harness_case_state_gap_v1`.
-- Previous round report was `report_20260610_audit_latest_failed_harness_case_state_gap_v1` with status `SUCCESS` and acceptance recommendation `ACCEPTED`.
-- Previous round added `harness_diagnostics` to explain `latest harness case has errors`.
-- The reported root cause is `case_results_directory_absent` for `samplereverse_exact1_projected_vs_neighbor_20260424`.
-- `pytest_result.txt` currently contains inconsistent status fields:
-  - `decision_report_id_match: True`
+- The previous active decision was `decision_20260610_reconcile_harness_diagnostics_report_evidence_v1`.
+- `project_state/codex_execution_report.md` currently reports:
+  - `report_id`: `report_20260610_reconcile_harness_diagnostics_report_evidence_v1`
+  - `round_id`: `round_20260610_reconcile_harness_diagnostics_report_evidence_v1`
+  - `based_on_decision_id`: `decision_20260610_reconcile_harness_diagnostics_report_evidence_v1`
+  - `status`: `SUCCESS`
+  - `acceptance_recommendation`: `ACCEPTED`
+- `project_state/pytest_result.txt` top-level `pytest_result_summary` also uses the reconcile decision/report/round IDs and says `status: PASSED`.
+- However, the detailed `python -m reverse_agent.project_state status` block inside `pytest_result.txt` still shows stale previous report/test identifiers:
+  - `report_id: report_20260610_audit_latest_failed_harness_case_state_gap_v1`
+  - `report_based_on_decision_id: decision_20260610_audit_latest_failed_harness_case_state_gap_v1`
+  - `pytest_result_decision_id: decision_20260610_audit_latest_failed_harness_case_state_gap_v1`
+  - `decision_report_id_match: False`
   - `decision_consumed_by_report: False`
   - `decision_execution_state: READY_FOR_EXECUTION`
-- `pytest_result.txt` also points `round_manifest_path` to the previous `round_20260609_reconcile_material_schema_report_ids_v1`, while the current round archive exists under `round_20260610_audit_latest_failed_harness_case_state_gap_v1`.
-- The previous decision body had stale state evidence from `state_20260609_145049_7ee702d3b2b6` even though its `decision_meta` had been updated to `state_20260610_043358_c568aa84f77a`.
-- `codex_execution_report.md.files_changed` does not fully account for dynamic state files and round archive outputs from the previous round.
+- The later `python -m reverse_agent.project_state lint-report` block says the reconcile report now matches the reconcile decision and `pytest_result_matches_report: True`.
+- The same later `lint-report` block still says:
+  - `warning: report round not archived yet`
+  - `round_manifest_present: False`
+  - `archive_status: not_archived`
+  - `round_manifest_path: project_state\\rounds\\round_20260610_reconcile_harness_diagnostics_report_evidence_v1\\round_manifest.json`
+- `codex_execution_report.md` claims archived files exist for `round_20260610_reconcile_harness_diagnostics_report_evidence_v1`, but the recorded `lint-report` output says the round manifest is not present. This must be reconciled before acceptance.
+- The existing `harness_diagnostics` behavior appears directionally correct and has a focused regression test named `tests/test_project_state.py::test_model_gate_diagnoses_summary_error_with_missing_case_results`.
 - `artifact_index.json` still contains stale/missing artifacts; stale or missing artifacts must not be promoted to current evidence.
 - `negative_results.json` still blocks blind search, pure beam/budget expansion, repeated blocked probes, stale hook reuse, and full `solve_reports` commits.
-- Existing relevant implementation is `reverse_agent/project_state.py`; do not duplicate state, tool, IDA, Ghidra, debugger, solver, or harness interfaces.
-- Mature reverse tools may exist in the project, but this round must not run IDA, Ghidra, OllyDbg, x64dbg, debugger, emulator, hook, sidecar, solver, runtime probe, or sample binaries.
+- Mature reverse tools and existing tool interfaces may exist in the project, but this round must not run or alter IDA, Ghidra, OllyDbg, x64dbg, debugger, emulator, hook, sidecar, solver, runtime probe, or sample execution code.
 
 ## 3. Do Not Do
 
@@ -62,13 +73,13 @@ Required files:
 - `project_state/model_gate.json`
 - `project_state/negative_results.json`
 - `.codex-skills/registry.json`
-- `project_state/rounds/round_20260610_audit_latest_failed_harness_case_state_gap_v1/round_manifest.json`
+- `project_state/rounds/round_20260610_reconcile_harness_diagnostics_report_evidence_v1/round_manifest.json`, if present
 - `reverse_agent/project_state.py`
 - `tests/test_project_state.py`
+
+Optional bounded files only if a failing state/report/archive test requires them:
+
 - `tests/test_harness_artifact_manifest.py`
-
-Optional bounded files only if directly required by a failing test:
-
 - `tests/test_tool_runners.py`
 
 Do not inspect full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
@@ -81,36 +92,30 @@ Codex must:
 2. Confirm `decision_meta.mainline == engineering_branch`.
 3. Confirm both skill profiles are active in `.codex-skills/registry.json`.
 4. Confirm `task_packet.json` is advisory only and this decision controls the round.
-5. Explain why the previous `status` output showed `decision_report_id_match=True` but `decision_execution_state=READY_FOR_EXECUTION`.
-6. Regenerate or correct `project_state/pytest_result.txt` so detailed outputs correspond to the current report/round and no longer show the stale previous-round `round_manifest_path` for the active report.
-7. Ensure `round_manifest_path` points to the active report round when the current report is being linted.
-8. Update `project_state/codex_execution_report.md.files_changed` or equivalent report sections to include dynamic state files and archive files, or explicitly separate:
-   - `source_files_changed`
-   - `state_files_regenerated`
-   - `archived_files`
-9. Add or identify a focused automated test asserting `harness_diagnostics.diagnosis == "case_results_directory_absent"` when the latest summary reports errors and `case_results/` is absent.
-10. Preserve backward compatibility for existing consumers that ignore `harness_diagnostics`.
+5. Explain why the current `pytest_result.txt` first `status` block still contains stale previous report/test IDs while the later `lint-report` block says the reconcile report matches.
+6. Re-run `python -m reverse_agent.project_state status` after the live report and pytest result are updated, and ensure the recorded status block no longer shows stale `audit_latest_failed_harness_case_state_gap` report/test IDs for the active report.
+7. Reconcile the archive claim: either create/archive `round_20260610_reconcile_harness_diagnostics_report_evidence_v1` with the expected manifest through existing project-state archive tooling, or correct the report so it does not claim archived files that `lint-report` cannot see.
+8. Ensure `round_manifest_path` in recorded outputs points to the active report round and is consistent with whether the round is archived.
+9. Update `project_state/codex_execution_report.md` with a valid `codex_report_summary` for this decision.
+10. Update `project_state/pytest_result.txt` with exact command outputs for this round.
 11. Ensure stale/missing artifacts remain stale/missing unless the build tool has current provenance for a replacement artifact.
 12. Ensure no sample/tool/debugger/solver/probe execution occurred.
 13. Ensure no `.codex-skills/` changes occurred.
-14. Update `project_state/codex_execution_report.md` with a valid `codex_report_summary` for this decision.
-15. Update `project_state/pytest_result.txt` with exact command outputs for this round.
-16. Archive this rework round using existing project-state archive tooling only after report/test consistency is achieved.
 
 ## 6. Implementation Scope
 
 Allowed source changes only if needed:
 
-1. `tests/test_project_state.py` if a focused regression test is missing
-2. `reverse_agent/project_state.py` only if the focused regression test reveals a real bug
+1. `reverse_agent/project_state.py` only if the stale status/archive mismatch is caused by a real project-state bug.
+2. `tests/test_project_state.py` only if a focused regression test is needed for report/archive/status consistency.
 
 Allowed dynamic/report changes:
 
 1. `project_state/codex_execution_report.md`
 2. `project_state/pytest_result.txt`
-3. `project_state/decision_packet.md` only to reconcile stale body metadata with current `decision_meta`
+3. `project_state/decision_packet.md` only if archiving this active decision requires copying it into the round archive
 4. `project_state/current_state.json`, `project_state/task_packet.json`, `project_state/artifact_index.json`, and `project_state/model_gate.json` only if regenerated by `python -m reverse_agent.project_state build`
-5. `project_state/rounds/round_20260610_reconcile_harness_diagnostics_report_evidence_v1/round_manifest.json` and minimal archived report/test/decision files, only via existing archive tooling
+5. `project_state/rounds/round_20260610_repair_report_archive_and_status_evidence_v1/round_manifest.json` and minimal archived report/test/decision files, only via existing archive tooling
 
 Disallowed changes:
 
@@ -132,8 +137,14 @@ Run and record exact outputs in `project_state/pytest_result.txt`:
 ```bash
 python -m reverse_agent.project_state status
 python -m reverse_agent.project_state lint-decision
-python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py tests/test_tool_runners.py -q
 python -m reverse_agent.project_state lint-report
+python -m pytest tests/test_project_state.py -q
+```
+
+If `reverse_agent/project_state.py` changes, also run and record:
+
+```bash
+python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py tests/test_tool_runners.py -q
 ```
 
 If state files are regenerated, also run and record:
@@ -150,13 +161,13 @@ Acceptance requirements:
 - `lint-decision: OK`
 - `lint-report: OK` after report update
 - pytest passes for all tests run
-- `pytest_result.txt` detailed status output corresponds to this active report/round
-- `round_manifest_path` no longer points to an unrelated previous round for the active report
-- A focused regression test exists for `harness_diagnostics.diagnosis == "case_results_directory_absent"`
+- `pytest_result.txt` detailed `status` block corresponds to this active report/round or is explicitly labeled as pre-repair diagnostic output and followed by a post-repair status block
+- No stale previous report/test IDs are presented as the active post-repair state
+- `round_manifest_path` and archive status are internally consistent
 - No stale/missing artifact is promoted to current
 - No candidate/search/runtime/debugger/sample execution occurred
 - No `.codex-skills/` modification occurred
-- Any source change is minimal, tested, and limited to project-state diagnostics/report evidence consistency
+- Any source change is minimal, tested, and limited to project-state diagnostics/report/archive/status consistency
 
 ## 8. Stop Conditions
 
@@ -166,9 +177,8 @@ Stop and report `BLOCKED` or `FAILED` if:
 - Fixing requires full `solve_reports/` traversal.
 - Fixing requires candidate generation, candidate validation, solver/search expansion, runtime probe, debugger work, or tool execution.
 - pytest fails outside the project-state/report evidence area.
-- Fixing requires broad refactor beyond project-state diagnostics/report evidence consistency.
+- Fixing requires broad refactor beyond project-state diagnostics/report/archive/status consistency.
 - Fixing requires `.codex-skills/` modification.
 - `lint-decision` fails.
 - `lint-report` fails after report update.
 - The round shifts from `engineering_branch` into `reverse_solving`, tool execution, candidate generation, runtime validation, or debugger work.
-```
