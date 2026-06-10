@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-10T05:11:27Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260610_reconcile_harness_diagnostics_report_evidence_v1\\codex_execution_report.md",
+      "sha256": "88cf27b176afffafb6bde0c2d1a9bab6554e86439ee76e6a0e6004553c1fc97a",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260610_reconcile_harness_diagnostics_report_evidence_v1\\decision_packet.md",
+      "sha256": "25e66f9369fd293a7ed625e5bfeb11330a2c4b50c7013c9bb22ef12cf67cce62",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260610_reconcile_harness_diagnostics_report_evidence_v1\\pytest_result.txt",
+      "sha256": "39d217883916eeb7861d0a55b755d158d8f56a44a43158d94b325080dfe18f7a",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260610_reconcile_harness_diagnostics_report_evidence_v1",
+  "schema_version": 1,
+  "source_git_commit": "b11a3bba5ba9",
+  "source_harness_run": "samplereverse_exact1_projected_vs_neighbor_20260424",
+  "state_build_id": "state_20260610_043358_c568aa84f77a",
+  "state_digest": "c568aa84f77a6d3a24679815a3d08efd360c70419e73194325effb77df392e50",
+  "workflow_status": "REPORT_AVAILABLE"
+}

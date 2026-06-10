@@ -260,6 +260,35 @@ def test_build_missing_solve_reports_does_not_crash_and_writes_files(tmp_path: P
     assert _read_json(state_dir / "model_gate.json")["should_call_model"] is False
 
 
+def test_model_gate_diagnoses_summary_error_with_missing_case_results(tmp_path: Path) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_missing_case_results")
+    _write_json(
+        run_dir / "summary.json",
+        {
+            "run_name": "samplereverse_missing_case_results",
+            "total_cases": 1,
+            "executed_cases": 0,
+            "resumed_cases": 1,
+            "error_cases": 1,
+            "case_result_paths": [str(run_dir / "case_results" / "samplereverse.json")],
+        },
+    )
+    (run_dir / "case_results" / "samplereverse.json").unlink()
+    (run_dir / "case_results").rmdir()
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    model_gate = _read_json(state_dir / "model_gate.json")
+    assert model_gate["reason"] == "latest harness case has errors"
+    assert model_gate["harness_diagnostics"]["diagnosis"] == "case_results_directory_absent"
+    assert model_gate["harness_diagnostics"]["case_results_missing"] is True
+    assert model_gate["harness_diagnostics"]["summary_error_cases"] == 1
+    summary = status_summary(state_dir=state_dir)
+    assert summary["harness_diagnostics"]["diagnosis"] == "case_results_directory_absent"
+
+
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"

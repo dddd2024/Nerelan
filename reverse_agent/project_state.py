@@ -5245,4 +5245,58 @@ def main(argv: list[str] | None = None) -> int:
     status_parser = subparsers.add_parser("status", help="Print concise project_state status.")
     status_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
-    lint_decision_parser = subparsers.add_parser("lint-decision", help="Lint t
+    lint_decision_parser = subparsers.add_parser("lint-decision", help="Lint the active decision packet.")
+    lint_decision_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+
+    lint_report_parser = subparsers.add_parser("lint-report", help="Lint the active Codex execution report.")
+    lint_report_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+
+    lint_handoff_parser = subparsers.add_parser("lint-handoff", help="Lint aggregate handoff health.")
+    lint_handoff_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+
+    args = parser.parse_args(argv)
+    if args.command == "build":
+        build_project_state(
+            reports_dir=Path(args.reports_dir),
+            state_dir=Path(args.state_dir),
+            sample=str(args.sample),
+            run_name=str(args.run_name or ""),
+            progress_log=Path(args.progress_log),
+            max_artifacts=max(0, int(args.max_artifacts)),
+        )
+        return 0
+    if args.command == "new-round":
+        new_round(state_dir=Path(args.state_dir))
+        return 0
+    if args.command == "archive-round":
+        archive_round(
+            state_dir=Path(args.state_dir),
+            round_id=str(args.round_id or ""),
+            pytest_result=Path(args.pytest_result) if args.pytest_result else None,
+            include_state_snapshot=bool(args.include_state_snapshot),
+            include_diff=bool(args.include_diff),
+        )
+        return 0
+    if args.command == "pack":
+        pack_context(state_dir=Path(args.state_dir), out_path=Path(args.out))
+        return 0
+    if args.command == "status":
+        _print_status(status_summary(state_dir=Path(args.state_dir)))
+        return 0
+    if args.command == "lint-decision":
+        result = lint_decision(state_dir=Path(args.state_dir))
+        _print_lint_decision(result)
+        return 0 if result.get("ok") else 1
+    if args.command == "lint-report":
+        result = lint_report(state_dir=Path(args.state_dir))
+        _print_lint_report(result)
+        return 0 if result.get("ok") else 1
+    if args.command == "lint-handoff":
+        result = lint_handoff(state_dir=Path(args.state_dir))
+        _print_lint_handoff(result)
+        return 0 if result.get("ok") else 1
+    return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
