@@ -51,7 +51,7 @@
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
     "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
   },
-  "based_on_state_digest": "1114a74dbc482a6cdcef792426ec10b895a15da031744a6e295ca39d770800fb",
+  "based_on_state_digest": "88c14099a13a2bf2999e4a61b2c53d8edd9568217bb5ee36f0cfd4462e8cbbd2",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -131,7 +131,7 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-06-10T10:57:07Z",
+  "generated_at": "2026-06-10T13:17:14Z",
   "included": [
     "artifact references",
     "missing evidence",
@@ -157,10 +157,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260610_105707",
+  "round_id": "round_20260610_131714",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260610_105707_1114a74dbc48",
+  "state_build_id": "state_20260610_131714_88c14099a13a",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,

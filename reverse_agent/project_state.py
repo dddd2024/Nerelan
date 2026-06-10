@@ -1769,6 +1769,273 @@ def lint_handoff(state_dir: Path) -> dict[str, Any]:
     }
 
 
+def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
+    """Run diagnostic checks on project state and return a health report.
+
+    Reuses existing lint_decision, lint_report, and status_summary helpers.
+    Does not mutate live state files.
+    """
+    checks: list[dict[str, Any]] = []
+    overall_status = "PASS"
+    next_action: str | None = None
+
+    # Check 1: decision packet parse and approval
+    decision = read_decision_meta(state_dir)
+    decision_status = str(decision.get("status") or "UNKNOWN")
+    decision_id = str(decision.get("decision_id") or "")
+    decision_parse_error = decision.get("parse_error")
+    mainline = str(decision.get("mainline") or "")
+
+    if decision_parse_error:
+        checks.append({
+            "name": "decision_parse",
+            "status": "FAIL",
+            "detail": f"decision_meta invalid: {decision_parse_error}",
+        })
+        overall_status = "FAIL"
+    elif decision_status != "APPROVED":
+        checks.append({
+            "name": "decision_approval",
+            "status": "FAIL",
+            "detail": f"decision status is {decision_status}, expected APPROVED",
+        })
+        overall_status = "FAIL"
+    else:
+        checks.append({
+            "name": "decision_approval",
+            "status": "PASS",
+            "detail": f"decision {decision_id} is APPROVED",
+        })
+
+    # Check 2: mainline
+    if mainline != "engineering_branch":
+        checks.append({
+            "name": "mainline",
+            "status": "FAIL",
+            "detail": f"mainline is {mainline}, expected engineering_branch",
+        })
+        overall_status = "FAIL"
+    else:
+        checks.append({
+            "name": "mainline",
+            "status": "PASS",
+            "detail": "mainline is engineering_branch",
+        })
+
+    # Check 3: skill profiles
+    skill_profiles_value = decision.get("skill_profiles")
+    skill_profile_lint = _lint_skill_profiles(
+        state_dir=state_dir,
+        decision_status=decision_status,
+        mainline=mainline,
+        skill_profiles_value=skill_profiles_value,
+    )
+    if skill_profile_lint["errors"]:
+        checks.append({
+            "name": "skill_profiles",
+            "status": "FAIL",
+            "detail": "; ".join(skill_profile_lint["errors"]),
+        })
+        overall_status = "FAIL"
+    elif skill_profile_lint["warnings"]:
+        checks.append({
+            "name": "skill_profiles",
+            "status": "WARN",
+            "detail": "; ".join(skill_profile_lint["warnings"]),
+        })
+        if overall_status == "PASS":
+            overall_status = "WARN"
+    else:
+        checks.append({
+            "name": "skill_profiles",
+            "status": "PASS",
+            "detail": f"skill profiles active: {skill_profile_lint['parsed_skill_profiles']}",
+        })
+
+    # Check 4: report parse and match
+    handoff_status = build_handoff_status(state_dir)
+    report = handoff_status["codex_report"]
+    report_status = str(report.get("status") or "UNKNOWN")
+    report_id = str(report.get("report_id") or "")
+    based_on_decision_id = str(report.get("based_on_decision_id") or "")
+    report_parse_error = report.get("parse_error")
+
+    if report_parse_error:
+        checks.append({
+            "name": "report_parse",
+            "status": "FAIL",
+            "detail": f"codex_report_summary invalid: {report_parse_error}",
+        })
+        overall_status = "FAIL"
+    elif report_status in {"TEMPLATE_ONLY", "UNKNOWN"}:
+        checks.append({
+            "name": "report_parse",
+            "status": "FAIL",
+            "detail": f"report status is {report_status}",
+        })
+        overall_status = "FAIL"
+    else:
+        checks.append({
+            "name": "report_parse",
+            "status": "PASS",
+            "detail": f"report {report_id} status is {report_status}",
+        })
+
+    # Check 5: report-to-decision ID match
+    if based_on_decision_id and decision_id and based_on_decision_id != decision_id:
+        checks.append({
+            "name": "report_decision_match",
+            "status": "FAIL",
+            "detail": f"report based_on_decision_id ({based_on_decision_id}) does not match decision_id ({decision_id})",
+        })
+        overall_status = "FAIL"
+    else:
+        checks.append({
+            "name": "report_decision_match",
+            "status": "PASS",
+            "detail": "report decision_id matches",
+        })
+
+    # Check 6: pytest result
+    pytest_text = _read_text_or_empty(state_dir / "pytest_result.txt")
+    pytest_validation = validate_pytest_result_for_report(pytest_text, report)
+    pytest_result_present = bool(pytest_text.strip())
+
+    if pytest_validation.get("parse_error"):
+        checks.append({
+            "name": "pytest_result",
+            "status": "FAIL",
+            "detail": f"pytest_result.txt invalid: {pytest_validation['parse_error']}",
+        })
+        overall_status = "FAIL"
+    elif not pytest_result_present:
+        checks.append({
+            "name": "pytest_result",
+            "status": "FAIL",
+            "detail": "pytest_result.txt is missing or empty",
+        })
+        overall_status = "FAIL"
+    elif not pytest_validation.get("matches_report"):
+        checks.append({
+            "name": "pytest_result",
+            "status": "FAIL",
+            "detail": "pytest_result.txt does not match report",
+        })
+        overall_status = "FAIL"
+    elif not pytest_validation.get("tests_ran_covers_report"):
+        checks.append({
+            "name": "pytest_result",
+            "status": "WARN",
+            "detail": f"pytest_result missing {len(pytest_validation.get('missing_report_tests', []))} report tests",
+        })
+        if overall_status == "PASS":
+            overall_status = "WARN"
+    else:
+        checks.append({
+            "name": "pytest_result",
+            "status": "PASS",
+            "detail": "pytest_result.txt matches report and covers all tests",
+        })
+
+    # Check 7: archive state
+    consistency = handoff_status["handoff_consistency"]
+    decision_execution_state = str(consistency.get("decision_execution_state") or "UNKNOWN")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    round_consistency = build_round_consistency(
+        decision=decision,
+        report=report,
+        current_state=current_state,
+        task_packet=task_packet,
+        state_dir=state_dir,
+    )
+    round_manifest_present = bool(round_consistency.get("round_manifest_present"))
+    archive_status = str(round_consistency.get("archive_status") or "")
+
+    if decision_execution_state == "CONSUMED_BY_SUCCESS_REPORT":
+        if not round_manifest_present:
+            checks.append({
+                "name": "archive",
+                "status": "WARN",
+                "detail": "decision consumed but round manifest not present",
+            })
+            if overall_status == "PASS":
+                overall_status = "WARN"
+        elif archive_status != "archived":
+            checks.append({
+                "name": "archive",
+                "status": "WARN",
+                "detail": f"round manifest present but archive_status is {archive_status}",
+            })
+            if overall_status == "PASS":
+                overall_status = "WARN"
+        else:
+            checks.append({
+                "name": "archive",
+                "status": "PASS",
+                "detail": "decision consumed and archived",
+            })
+    elif decision_execution_state == "READY_FOR_EXECUTION":
+        checks.append({
+            "name": "archive",
+            "status": "PASS",
+            "detail": "decision ready for execution (archive not yet expected)",
+        })
+    else:
+        checks.append({
+            "name": "archive",
+            "status": "WARN",
+            "detail": f"decision_execution_state is {decision_execution_state}",
+        })
+        if overall_status == "PASS":
+            overall_status = "WARN"
+
+    # Check 8: stale/missing artifacts
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+    freshness = _artifact_freshness_counts(artifact_index)
+    missing_count = freshness.get("missing", 0)
+    stale_count = freshness.get("stale", 0)
+
+    if missing_count > 0 or stale_count > 0:
+        checks.append({
+            "name": "artifacts",
+            "status": "WARN",
+            "detail": f"{missing_count} missing, {stale_count} stale artifacts",
+        })
+        if overall_status == "PASS":
+            overall_status = "WARN"
+    else:
+        checks.append({
+            "name": "artifacts",
+            "status": "PASS",
+            "detail": "no missing or stale artifacts",
+        })
+
+    if overall_status == "FAIL":
+        next_action = "fix_project_state_issues"
+
+    result = {
+        "status": overall_status,
+        "checks": checks,
+        "next_action": next_action,
+        "decision_id": decision_id,
+        "report_id": report_id,
+        "decision_execution_state": decision_execution_state,
+    }
+
+    if json_output:
+        print(json.dumps(result, indent=2, default=str))
+    else:
+        print(f"doctor: {overall_status}")
+        for check in checks:
+            symbol = "PASS" if check["status"] == "PASS" else ("WARN" if check["status"] == "WARN" else "FAIL")
+            print(f"  [{symbol}] {check['name']}: {check['detail']}")
+        if next_action:
+            print(f"  next_action: {next_action}")
+
+    return result
+
+
 def ensure_state_layout(state_dir: Path) -> None:
     state_dir.mkdir(parents=True, exist_ok=True)
     rounds_dir = state_dir / "rounds"
@@ -5575,6 +5842,10 @@ def main(argv: list[str] | None = None) -> int:
     lint_handoff_parser = subparsers.add_parser("lint-handoff", help="Lint aggregate handoff health.")
     lint_handoff_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
 
+    doctor_parser = subparsers.add_parser("doctor", help="Run diagnostic checks on project state.")
+    doctor_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    doctor_parser.add_argument("--json", action="store_true", help="Output JSON instead of text.")
+
     args = parser.parse_args(argv)
     if args.command == "build":
         build_project_state(
@@ -5616,6 +5887,9 @@ def main(argv: list[str] | None = None) -> int:
         result = lint_handoff(state_dir=Path(args.state_dir))
         _print_lint_handoff(result)
         return 0 if result.get("ok") else 1
+    if args.command == "doctor":
+        result = doctor(state_dir=Path(args.state_dir), json_output=bool(args.json))
+        return 0 if result["status"] in {"PASS", "WARN"} else 1
     return 1
 
 

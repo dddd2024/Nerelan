@@ -9,6 +9,7 @@ import pytest
 from reverse_agent.project_state import (
     archive_round,
     build_project_state,
+    doctor,
     ensure_state_layout,
     extract_markdown_json_block,
     lint_decision,
@@ -532,6 +533,239 @@ def test_model_gate_strictness_blocks_not_found_with_instrumentation_incomplete(
     task_packet = _read_json(state_dir / "task_packet.json")
     assert task_packet["task"] == "repair_harness_case_result_materialization"
     assert task_packet["next_local_action"] == "repair_harness_case_result_materialization"
+
+
+def test_doctor_passes_on_healthy_state(tmp_path: Path) -> None:
+    """Doctor should report PASS or WARN on a fully consumed and archived state.
+
+    WARN is expected because build_project_state creates artifact_index.json with
+    missing artifacts for a minimal harness run.
+    """
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+
+    # Create skill registry in the temp directory (repo root = state_dir.parent = tmp_path)
+    _write_json(
+        tmp_path / ".codex-skills" / "registry.json",
+        {
+            "schema_version": 1,
+            "skills": {
+                "reverse-agent-iteration": {"status": "active", "version": 2, "scope": "generic_workflow"},
+                "samplereverse-frontier": {"status": "active", "version": 2},
+            },
+        },
+    )
+
+    # Build a minimal healthy state
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_healthy")
+    _write_json(
+        run_dir / "summary.json",
+        {"run_name": "samplereverse_healthy", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+    )
+    _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    # Write a matching decision, report, and pytest_result
+    decision_id = "decision_test_healthy"
+    round_id = "round_test_healthy"
+    report_id = "report_test_healthy"
+    (state_dir / "decision_packet.md").write_text(
+        f'```json decision_meta\n{{"schema_version": 1, "decision_id": "{decision_id}", "round_id": "{round_id}", "status": "APPROVED", "mainline": "engineering_branch", "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]}}\n```\n',
+        encoding="utf-8",
+    )
+    (state_dir / "codex_execution_report.md").write_text(
+        f'```json codex_report_summary\n{{"schema_version": 1, "report_id": "{report_id}", "round_id": "{round_id}", "based_on_decision_id": "{decision_id}", "status": "SUCCESS", "tests_ran": ["test"], "files_changed": [], "generated_artifacts": []}}\n```\n',
+        encoding="utf-8",
+    )
+    (state_dir / "pytest_result.txt").write_text(
+        f'```json pytest_result_summary\n{{"schema_version": 1, "decision_id": "{decision_id}", "report_id": "{report_id}", "round_id": "{round_id}", "status": "PASSED", "tests_ran": ["test"]}}\n```\n',
+        encoding="utf-8",
+    )
+
+    # Archive the round
+    archive_round(state_dir=state_dir, round_id=round_id)
+
+    result = doctor(state_dir=state_dir)
+
+    # Minimal harness runs produce missing artifacts in artifact_index.json,
+    # so doctor reports WARN rather than PASS.  This is acceptable.
+    assert result["status"] in {"PASS", "WARN"}
+    assert result["next_action"] is None
+    check_names = {c["name"] for c in result["checks"]}
+    assert "decision_approval" in check_names
+    assert "mainline" in check_names
+    assert "skill_profiles" in check_names
+    assert "report_parse" in check_names
+    assert "report_decision_match" in check_names
+    assert "pytest_result" in check_names
+    assert "archive" in check_names
+    assert "artifacts" in check_names
+
+
+def test_doctor_fails_on_report_decision_mismatch(tmp_path: Path) -> None:
+    """Doctor should FAIL when report decision_id does not match current decision."""
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+
+    # Create skill registry in the temp directory (repo root = state_dir.parent = tmp_path)
+    _write_json(
+        tmp_path / ".codex-skills" / "registry.json",
+        {
+            "schema_version": 1,
+            "skills": {
+                "reverse-agent-iteration": {"status": "active", "version": 2, "scope": "generic_workflow"},
+                "samplereverse-frontier": {"status": "active", "version": 2},
+            },
+        },
+    )
+
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_mismatch")
+    _write_json(
+        run_dir / "summary.json",
+        {"run_name": "samplereverse_mismatch", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+    )
+    _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    decision_id = "decision_test_mismatch"
+    round_id = "round_test_mismatch"
+    report_id = "report_test_mismatch"
+    (state_dir / "decision_packet.md").write_text(
+        f'```json decision_meta\n{{"schema_version": 1, "decision_id": "{decision_id}", "round_id": "{round_id}", "status": "APPROVED", "mainline": "engineering_branch", "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]}}\n```\n',
+        encoding="utf-8",
+    )
+    # Report based_on_decision_id does NOT match decision_id
+    (state_dir / "codex_execution_report.md").write_text(
+        f'```json codex_report_summary\n{{"schema_version": 1, "report_id": "{report_id}", "round_id": "{round_id}", "based_on_decision_id": "wrong_decision_id", "status": "SUCCESS", "tests_ran": ["test"], "files_changed": [], "generated_artifacts": []}}\n```\n',
+        encoding="utf-8",
+    )
+    (state_dir / "pytest_result.txt").write_text(
+        f'```json pytest_result_summary\n{{"schema_version": 1, "decision_id": "wrong_decision_id", "report_id": "{report_id}", "round_id": "{round_id}", "status": "PASSED", "tests_ran": ["test"]}}\n```\n',
+        encoding="utf-8",
+    )
+
+    result = doctor(state_dir=state_dir)
+
+    assert result["status"] == "FAIL"
+    assert result["next_action"] == "fix_project_state_issues"
+    report_match_check = next(c for c in result["checks"] if c["name"] == "report_decision_match")
+    assert report_match_check["status"] == "FAIL"
+
+
+def test_doctor_fails_on_missing_pytest_result(tmp_path: Path) -> None:
+    """Doctor should FAIL when pytest_result.txt is missing."""
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+
+    # Create skill registry in the temp directory (repo root = state_dir.parent = tmp_path)
+    _write_json(
+        tmp_path / ".codex-skills" / "registry.json",
+        {
+            "schema_version": 1,
+            "skills": {
+                "reverse-agent-iteration": {"status": "active", "version": 2, "scope": "generic_workflow"},
+                "samplereverse-frontier": {"status": "active", "version": 2},
+            },
+        },
+    )
+
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_no_pytest")
+    _write_json(
+        run_dir / "summary.json",
+        {"run_name": "samplereverse_no_pytest", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+    )
+    _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    decision_id = "decision_test_no_pytest"
+    round_id = "round_test_no_pytest"
+    report_id = "report_test_no_pytest"
+    (state_dir / "decision_packet.md").write_text(
+        f'```json decision_meta\n{{"schema_version": 1, "decision_id": "{decision_id}", "round_id": "{round_id}", "status": "APPROVED", "mainline": "engineering_branch", "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]}}\n```\n',
+        encoding="utf-8",
+    )
+    (state_dir / "codex_execution_report.md").write_text(
+        f'```json codex_report_summary\n{{"schema_version": 1, "report_id": "{report_id}", "round_id": "{round_id}", "based_on_decision_id": "{decision_id}", "status": "SUCCESS", "tests_ran": ["test"], "files_changed": [], "generated_artifacts": []}}\n```\n',
+        encoding="utf-8",
+    )
+    # Do NOT write pytest_result.txt
+    if (state_dir / "pytest_result.txt").exists():
+        (state_dir / "pytest_result.txt").unlink()
+
+    result = doctor(state_dir=state_dir)
+
+    assert result["status"] == "FAIL"
+    assert result["next_action"] == "fix_project_state_issues"
+    pytest_check = next(c for c in result["checks"] if c["name"] == "pytest_result")
+    assert pytest_check["status"] == "FAIL"
+    assert "missing" in pytest_check["detail"].lower() or "empty" in pytest_check["detail"].lower()
+
+
+def test_doctor_json_output(tmp_path: Path) -> None:
+    """Doctor --json should output valid JSON.
+
+    WARN is expected because build_project_state creates artifact_index.json with
+    missing artifacts for a minimal harness run.
+    """
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+
+    # Create skill registry in the temp directory (repo root = state_dir.parent = tmp_path)
+    _write_json(
+        tmp_path / ".codex-skills" / "registry.json",
+        {
+            "schema_version": 1,
+            "skills": {
+                "reverse-agent-iteration": {"status": "active", "version": 2, "scope": "generic_workflow"},
+                "samplereverse-frontier": {"status": "active", "version": 2},
+            },
+        },
+    )
+
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_json")
+    _write_json(
+        run_dir / "summary.json",
+        {"run_name": "samplereverse_json", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+    )
+    _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    decision_id = "decision_test_json"
+    round_id = "round_test_json"
+    report_id = "report_test_json"
+    (state_dir / "decision_packet.md").write_text(
+        f'```json decision_meta\n{{"schema_version": 1, "decision_id": "{decision_id}", "round_id": "{round_id}", "status": "APPROVED", "mainline": "engineering_branch", "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]}}\n```\n',
+        encoding="utf-8",
+    )
+    (state_dir / "codex_execution_report.md").write_text(
+        f'```json codex_report_summary\n{{"schema_version": 1, "report_id": "{report_id}", "round_id": "{round_id}", "based_on_decision_id": "{decision_id}", "status": "SUCCESS", "tests_ran": ["test"], "files_changed": [], "generated_artifacts": []}}\n```\n',
+        encoding="utf-8",
+    )
+    (state_dir / "pytest_result.txt").write_text(
+        f'```json pytest_result_summary\n{{"schema_version": 1, "decision_id": "{decision_id}", "report_id": "{report_id}", "round_id": "{round_id}", "status": "PASSED", "tests_ran": ["test"]}}\n```\n',
+        encoding="utf-8",
+    )
+    archive_round(state_dir=state_dir, round_id=round_id)
+
+    import io
+    import sys
+    old_stdout = sys.stdout
+    sys.stdout = io.StringIO()
+    try:
+        result = doctor(state_dir=state_dir, json_output=True)
+        output = sys.stdout.getvalue()
+    finally:
+        sys.stdout = old_stdout
+
+    parsed = json.loads(output)
+    # Minimal harness runs produce missing artifacts, so WARN is acceptable.
+    assert parsed["status"] in {"PASS", "WARN"}
+    assert "checks" in parsed
+    assert isinstance(parsed["checks"], list)
 
 
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:

@@ -1,6 +1,6 @@
 {
   "context_level": 1,
-  "generated_at": "2026-06-10T10:57:07Z",
+  "generated_at": "2026-06-10T13:17:14Z",
   "harness_diagnostics": {
     "case_results_count": 0,
     "case_results_missing": true,
@@ -36,7 +36,7 @@
     "manifest_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
     "provenance": "fallback_from_invalid_latest_run",
     "readiness_audit": {
-      "audited_at": "2026-06-10T10:57:07Z",
+      "audited_at": "2026-06-10T13:17:14Z",
       "candidate_count": 3,
       "case_result_count": 1,
       "case_result_statuses": [
