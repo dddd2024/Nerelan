@@ -51,7 +51,7 @@
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
     "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
   },
-  "based_on_state_digest": "78fcbbcf9a7c195e1409a59f9f6c6de51336bbf5e23b0731bad496b78214bd07",
+  "based_on_state_digest": "f0ad87317cc3be9adedda92452a22391b8cb8f6b21a246949b6fec5f4435df9a",
   "current_best": {
     "exact1": {
       "anchor_mode": "frontier",
@@ -93,7 +93,7 @@
     "reason": "window_lifecycle_no_window_created",
     "stage": "compare_handoff_narrower_post_entry_breakpoint_audit"
   },
-  "derived_task": "prepare_reverse_solving_from_selected_fallback_evidence",
+  "derived_task": "repair_selected_fallback_evidence",
   "do_not_do": [
     "do not return to old sample_solver blind search",
     "do not only increase beam or budget",
@@ -131,14 +131,14 @@
   ],
   "execution_scope": "decision_packet_controls_current_round",
   "expected_gpt_output": "project_state/decision_packet.md",
-  "generated_at": "2026-06-10T10:07:35Z",
+  "generated_at": "2026-06-10T10:32:05Z",
   "included": [
     "artifact references",
     "missing evidence",
     "model gate reason"
   ],
   "missing_evidence": [],
-  "next_local_action": "prepare_reverse_solving_from_selected_fallback_evidence",
+  "next_local_action": "repair_selected_fallback_evidence",
   "omitted": [
     {
       "name": "full PROJECT_PROGRESS_LOG.txt",
@@ -157,10 +157,10 @@
     "tests/test_compare_aware_search_strategy.py",
     "tests/test_project_state.py"
   ],
-  "round_id": "round_20260610_100735",
+  "round_id": "round_20260610_103205",
   "sample": "samplereverse",
   "schema_version": 2,
-  "state_build_id": "state_20260610_100735_78fcbbcf9a7c",
+  "state_build_id": "state_20260610_103205_f0ad87317cc3",
   "state_scope": "sample_state",
   "sufficiency_check": {
     "has_artifact_refs": true,
@@ -169,6 +169,6 @@
     "has_runtime_validation": true,
     "has_stall_stage": true
   },
-  "task": "prepare_reverse_solving_from_selected_fallback_evidence",
+  "task": "repair_selected_fallback_evidence",
   "task_source": "derived_from_sample_artifacts"
 }

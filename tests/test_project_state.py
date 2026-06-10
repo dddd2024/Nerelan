@@ -379,7 +379,9 @@ def test_model_gate_classifies_ready_fallback_when_evidence_is_sufficient(tmp_pa
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
 
-    # Create a complete fallback run with rich case_results metadata
+    # Create a complete fallback run with rich case_results metadata that passes ALL strictness checks.
+    # Must have: status != not_found, no instrumentation_incomplete, validation_count > 0,
+    # structured_evidence > 0 or tool_artifacts > 0, candidates > 0.
     fallback_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_ready_fallback")
     _write_json(
         fallback_dir / "summary.json",
@@ -388,19 +390,23 @@ def test_model_gate_classifies_ready_fallback_when_evidence_is_sufficient(tmp_pa
             "total_cases": 1,
             "executed_cases": 1,
             "error_cases": 0,
+            "not_found_cases": 0,
             "case_result_paths": [str(fallback_dir / "case_results" / "samplereverse.json")],
         },
     )
     _write_json(
         fallback_dir / "case_results" / "samplereverse.json",
         {
-            "status": "not_found",
+            "status": "ok",
             "case_id": "samplereverse",
             "structured_evidence_count": 2,
             "tool_artifact_count": 3,
             "candidate_count": 5,
-            "validation_count": 0,
+            "validation_count": 2,
             "error": "",
+            "artifact_manifest": [
+                {"artifact_id": "test_artifact", "classification": "confirmed"}
+            ],
         },
     )
     _write_json(fallback_dir / "run_manifest.json", {"run_name": "samplereverse_ready_fallback"})
@@ -428,16 +434,84 @@ def test_model_gate_classifies_ready_fallback_when_evidence_is_sufficient(tmp_pa
     assert evidence is not None
     readiness = evidence["readiness_audit"]
     assert readiness is not None
-    # With structured_evidence, tool_artifacts, and candidates, evidence is ready.
+    # All strictness checks passed: evidence is genuinely ready.
     assert readiness["classification"] == "fallback_evidence_ready_for_reverse_decision"
     assert readiness["structured_evidence_count"] == 2
     assert readiness["tool_artifact_count"] == 3
     assert readiness["candidate_count"] == 5
+    assert readiness["validation_count"] == 2
     assert readiness["next_local_action"] == "prepare_reverse_solving_from_selected_fallback_evidence"
     assert model_gate["next_local_action"] == "prepare_reverse_solving_from_selected_fallback_evidence"
     task_packet = _read_json(state_dir / "task_packet.json")
     assert task_packet["task"] == "prepare_reverse_solving_from_selected_fallback_evidence"
     assert task_packet["next_local_action"] == "prepare_reverse_solving_from_selected_fallback_evidence"
+
+
+def test_model_gate_strictness_blocks_not_found_with_instrumentation_incomplete(tmp_path: Path) -> None:
+    """Regression test: status:not_found + instrumentation_incomplete must NOT be classified ready."""
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+
+    fallback_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_strict_fallback")
+    _write_json(
+        fallback_dir / "summary.json",
+        {
+            "run_name": "samplereverse_strict_fallback",
+            "total_cases": 1,
+            "executed_cases": 1,
+            "error_cases": 0,
+            "not_found_cases": 1,
+            "case_result_paths": [str(fallback_dir / "case_results" / "samplereverse.json")],
+        },
+    )
+    _write_json(
+        fallback_dir / "case_results" / "samplereverse.json",
+        {
+            "status": "not_found",
+            "case_id": "samplereverse",
+            "structured_evidence_count": 2,
+            "tool_artifact_count": 3,
+            "candidate_count": 5,
+            "validation_count": 0,
+            "error": "",
+            "artifact_manifest": [
+                {"artifact_id": "incomplete_probe", "classification": "instrumentation_incomplete"}
+            ],
+        },
+    )
+    _write_json(fallback_dir / "run_manifest.json", {"run_name": "samplereverse_strict_fallback"})
+
+    latest_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_latest_invalid")
+    _write_json(
+        latest_dir / "summary.json",
+        {
+            "run_name": "samplereverse_latest_invalid",
+            "total_cases": 1,
+            "executed_cases": 0,
+            "resumed_cases": 1,
+            "error_cases": 1,
+            "case_result_paths": [str(latest_dir / "case_results" / "samplereverse.json")],
+        },
+    )
+    (latest_dir / "case_results" / "samplereverse.json").unlink()
+    (latest_dir / "case_results").rmdir()
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    model_gate = _read_json(state_dir / "model_gate.json")
+    evidence = model_gate["selected_harness_evidence_source"]
+    assert evidence is not None
+    readiness = evidence["readiness_audit"]
+    assert readiness is not None
+    # Must be classified as incomplete, NOT ready.
+    assert readiness["classification"] == "fallback_evidence_incomplete"
+    # The first failing strictness check is status == not_found.
+    assert readiness["reason"] == "case_result_status_is_not_found"
+    assert readiness["next_local_action"] == "repair_selected_fallback_evidence"
+    assert model_gate["next_local_action"] == "repair_selected_fallback_evidence"
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert task_packet["task"] == "repair_selected_fallback_evidence"
+    assert task_packet["next_local_action"] == "repair_selected_fallback_evidence"
 
 
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:

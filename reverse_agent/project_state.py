@@ -2031,13 +2031,18 @@ def _audit_fallback_evidence_readiness(
 
     case_results_dir = run_path / "case_results"
     audit["case_results_dir_present"] = case_results_dir.exists()
+    has_not_found_status = False
+    has_instrumentation_incomplete = False
     if case_results_dir.exists():
         case_result_files = list(case_results_dir.glob("*.json"))
         audit["case_result_count"] = len(case_result_files)
         for crf in case_result_files:
             cr_data = _read_json(str(crf))
             if isinstance(cr_data, dict):
-                audit["case_result_statuses"].append(cr_data.get("status", "unknown"))
+                status = cr_data.get("status", "unknown")
+                audit["case_result_statuses"].append(status)
+                if status == "not_found":
+                    has_not_found_status = True
                 audit["structured_evidence_count"] = max(
                     audit["structured_evidence_count"],
                     cr_data.get("structured_evidence_count", 0),
@@ -2056,8 +2061,20 @@ def _audit_fallback_evidence_readiness(
                 )
                 if cr_data.get("error"):
                     audit["has_errors"] = True
+                # Check embedded artifact manifest for instrumentation_incomplete
+                artifact_manifest = cr_data.get("artifact_manifest", [])
+                if isinstance(artifact_manifest, list):
+                    for entry in artifact_manifest:
+                        if isinstance(entry, dict) and entry.get("classification") == "instrumentation_incomplete":
+                            has_instrumentation_incomplete = True
 
-    # Classify readiness based on bounded metadata inspection
+    # Check summary-level not_found_cases
+    summary_not_found_cases = 0
+    if isinstance(summary_data, dict):
+        summary_not_found_cases = int(summary_data.get("not_found_cases", 0) or 0)
+
+    # Classify readiness based on bounded metadata inspection.
+    # Strictness: any of the following prevents ready classification.
     if audit["has_errors"]:
         audit["classification"] = "fallback_evidence_stale_or_untrusted"
         audit["reason"] = "case_result_contains_errors"
@@ -2065,6 +2082,22 @@ def _audit_fallback_evidence_readiness(
     elif audit["case_result_count"] == 0:
         audit["classification"] = "fallback_evidence_incomplete"
         audit["reason"] = "no_case_results_found"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+    elif has_not_found_status:
+        audit["classification"] = "fallback_evidence_incomplete"
+        audit["reason"] = "case_result_status_is_not_found"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+    elif summary_not_found_cases > 0:
+        audit["classification"] = "fallback_evidence_incomplete"
+        audit["reason"] = f"summary_reports_not_found_cases_{summary_not_found_cases}"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+    elif has_instrumentation_incomplete:
+        audit["classification"] = "fallback_evidence_incomplete"
+        audit["reason"] = "embedded_artifact_manifest_classification_is_instrumentation_incomplete"
+        audit["next_local_action"] = "repair_selected_fallback_evidence"
+    elif audit["validation_count"] == 0:
+        audit["classification"] = "fallback_evidence_incomplete"
+        audit["reason"] = "validation_count_is_zero"
         audit["next_local_action"] = "repair_selected_fallback_evidence"
     elif audit["structured_evidence_count"] == 0 and audit["tool_artifact_count"] == 0:
         audit["classification"] = "fallback_evidence_incomplete"
@@ -2075,16 +2108,14 @@ def _audit_fallback_evidence_readiness(
         audit["reason"] = "no_candidates_generated"
         audit["next_local_action"] = "repair_selected_fallback_evidence"
     else:
-        # Evidence has candidates, structured evidence, and tool artifacts.
-        # Even if status is not_found, the evidence is sufficient for a
-        # reverse-solving decision because the structured evidence and
-        # tool artifacts provide the necessary basis.
+        # All strictness checks passed: evidence is genuinely ready.
         audit["classification"] = "fallback_evidence_ready_for_reverse_decision"
         audit["reason"] = (
             f"has_{audit['case_result_count']}_case_result(s)_with_"
             f"{audit['structured_evidence_count']}_structured_evidence_"
             f"{audit['tool_artifact_count']}_tool_artifacts_"
-            f"{audit['candidate_count']}_candidates"
+            f"{audit['candidate_count']}_candidates_"
+            f"{audit['validation_count']}_validations"
         )
         audit["next_local_action"] = "prepare_reverse_solving_from_selected_fallback_evidence"
 
