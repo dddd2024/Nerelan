@@ -366,13 +366,19 @@ def test_model_gate_selects_fallback_when_latest_is_invalid(tmp_path: Path) -> N
     assert readiness["case_result_count"] == 1
     # The test case result has no structured_evidence or candidates, so it should be incomplete.
     assert readiness["classification"] == "fallback_evidence_incomplete"
-    assert readiness["next_local_action"] == "repair_selected_fallback_evidence"
+    # Repair diagnostics should be present with blockers.
+    repair_diag = readiness["repair_diagnostics"]
+    assert repair_diag is not None
+    assert len(repair_diag["blockers"]) > 0
+    assert repair_diag["required_rebuild"] is True
+    assert repair_diag["repairable_from_existing_metadata"] is False
+    assert repair_diag["primary_blocker_owner"] is not None
     # The model_gate next_local_action should follow the readiness audit recommendation.
-    assert model_gate["next_local_action"] == "repair_selected_fallback_evidence"
-    # task_packet should frame the condition as repair selected fallback evidence.
+    assert model_gate["next_local_action"] == readiness["next_local_action"]
+    # task_packet should frame the condition as the precise repair action.
     task_packet = _read_json(state_dir / "task_packet.json")
-    assert task_packet["task"] == "repair_selected_fallback_evidence"
-    assert task_packet["next_local_action"] == "repair_selected_fallback_evidence"
+    assert task_packet["task"] == readiness["next_local_action"]
+    assert task_packet["next_local_action"] == readiness["next_local_action"]
 
 
 def test_model_gate_classifies_ready_fallback_when_evidence_is_sufficient(tmp_path: Path) -> None:
@@ -441,6 +447,13 @@ def test_model_gate_classifies_ready_fallback_when_evidence_is_sufficient(tmp_pa
     assert readiness["candidate_count"] == 5
     assert readiness["validation_count"] == 2
     assert readiness["next_local_action"] == "prepare_reverse_solving_from_selected_fallback_evidence"
+    # Ready path should have empty blockers and no rebuild required.
+    repair_diag = readiness["repair_diagnostics"]
+    assert repair_diag is not None
+    assert repair_diag["blockers"] == []
+    assert repair_diag["required_rebuild"] is False
+    assert repair_diag["repairable_from_existing_metadata"] is True
+    assert repair_diag["primary_blocker_owner"] is None
     assert model_gate["next_local_action"] == "prepare_reverse_solving_from_selected_fallback_evidence"
     task_packet = _read_json(state_dir / "task_packet.json")
     assert task_packet["task"] == "prepare_reverse_solving_from_selected_fallback_evidence"
@@ -507,11 +520,18 @@ def test_model_gate_strictness_blocks_not_found_with_instrumentation_incomplete(
     assert readiness["classification"] == "fallback_evidence_incomplete"
     # The first failing strictness check is status == not_found.
     assert readiness["reason"] == "case_result_status_is_not_found"
-    assert readiness["next_local_action"] == "repair_selected_fallback_evidence"
-    assert model_gate["next_local_action"] == "repair_selected_fallback_evidence"
+    # Repair diagnostics should identify the primary blocker owner.
+    repair_diag = readiness["repair_diagnostics"]
+    assert repair_diag is not None
+    assert repair_diag["primary_blocker_owner"] == "case_result_writer"
+    assert repair_diag["required_rebuild"] is True
+    assert repair_diag["repairable_from_existing_metadata"] is False
+    # next_local_action should be precise based on primary blocker owner.
+    assert readiness["next_local_action"] == "repair_harness_case_result_materialization"
+    assert model_gate["next_local_action"] == "repair_harness_case_result_materialization"
     task_packet = _read_json(state_dir / "task_packet.json")
-    assert task_packet["task"] == "repair_selected_fallback_evidence"
-    assert task_packet["next_local_action"] == "repair_selected_fallback_evidence"
+    assert task_packet["task"] == "repair_harness_case_result_materialization"
+    assert task_packet["next_local_action"] == "repair_harness_case_result_materialization"
 
 
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:

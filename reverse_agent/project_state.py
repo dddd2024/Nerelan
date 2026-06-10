@@ -2073,40 +2073,88 @@ def _audit_fallback_evidence_readiness(
     if isinstance(summary_data, dict):
         summary_not_found_cases = int(summary_data.get("not_found_cases", 0) or 0)
 
-    # Classify readiness based on bounded metadata inspection.
-    # Strictness: any of the following prevents ready classification.
+    # Build repair diagnostics from detected blockers.
+    blockers: list[dict[str, Any]] = []
     if audit["has_errors"]:
-        audit["classification"] = "fallback_evidence_stale_or_untrusted"
-        audit["reason"] = "case_result_contains_errors"
-        audit["next_local_action"] = "repair_selected_fallback_evidence"
-    elif audit["case_result_count"] == 0:
+        blockers.append({
+            "code": "case_result_contains_errors",
+            "owner_component": "case_result_writer",
+            "repairable_from_existing_metadata": False,
+            "required_rebuild": True,
+        })
+    if audit["case_result_count"] == 0:
+        blockers.append({
+            "code": "no_case_results_found",
+            "owner_component": "harness",
+            "repairable_from_existing_metadata": False,
+            "required_rebuild": True,
+        })
+    if has_not_found_status:
+        blockers.append({
+            "code": "case_result_status_is_not_found",
+            "owner_component": "case_result_writer",
+            "repairable_from_existing_metadata": False,
+            "required_rebuild": True,
+        })
+    if summary_not_found_cases > 0:
+        blockers.append({
+            "code": "summary_reports_not_found_cases",
+            "owner_component": "harness",
+            "repairable_from_existing_metadata": False,
+            "required_rebuild": True,
+        })
+    if has_instrumentation_incomplete:
+        blockers.append({
+            "code": "instrumentation_incomplete_in_artifact_manifest",
+            "owner_component": "artifact_manifest_writer",
+            "repairable_from_existing_metadata": False,
+            "required_rebuild": True,
+        })
+    if audit["validation_count"] == 0:
+        blockers.append({
+            "code": "validation_count_is_zero",
+            "owner_component": "case_result_writer",
+            "repairable_from_existing_metadata": False,
+            "required_rebuild": True,
+        })
+    if audit["structured_evidence_count"] == 0 and audit["tool_artifact_count"] == 0:
+        blockers.append({
+            "code": "no_structured_evidence_or_tool_artifacts",
+            "owner_component": "artifact_manifest_writer",
+            "repairable_from_existing_metadata": False,
+            "required_rebuild": True,
+        })
+    if audit["candidate_count"] == 0:
+        blockers.append({
+            "code": "no_candidates_generated",
+            "owner_component": "solver",
+            "repairable_from_existing_metadata": False,
+            "required_rebuild": True,
+        })
+
+    # Classify readiness based on bounded metadata inspection.
+    if blockers:
         audit["classification"] = "fallback_evidence_incomplete"
-        audit["reason"] = "no_case_results_found"
-        audit["next_local_action"] = "repair_selected_fallback_evidence"
-    elif has_not_found_status:
-        audit["classification"] = "fallback_evidence_incomplete"
-        audit["reason"] = "case_result_status_is_not_found"
-        audit["next_local_action"] = "repair_selected_fallback_evidence"
-    elif summary_not_found_cases > 0:
-        audit["classification"] = "fallback_evidence_incomplete"
-        audit["reason"] = f"summary_reports_not_found_cases_{summary_not_found_cases}"
-        audit["next_local_action"] = "repair_selected_fallback_evidence"
-    elif has_instrumentation_incomplete:
-        audit["classification"] = "fallback_evidence_incomplete"
-        audit["reason"] = "embedded_artifact_manifest_classification_is_instrumentation_incomplete"
-        audit["next_local_action"] = "repair_selected_fallback_evidence"
-    elif audit["validation_count"] == 0:
-        audit["classification"] = "fallback_evidence_incomplete"
-        audit["reason"] = "validation_count_is_zero"
-        audit["next_local_action"] = "repair_selected_fallback_evidence"
-    elif audit["structured_evidence_count"] == 0 and audit["tool_artifact_count"] == 0:
-        audit["classification"] = "fallback_evidence_incomplete"
-        audit["reason"] = "no_structured_evidence_or_tool_artifacts"
-        audit["next_local_action"] = "repair_selected_fallback_evidence"
-    elif audit["candidate_count"] == 0:
-        audit["classification"] = "fallback_evidence_incomplete"
-        audit["reason"] = "no_candidates_generated"
-        audit["next_local_action"] = "repair_selected_fallback_evidence"
+        audit["reason"] = blockers[0]["code"]
+        # Determine precise next_local_action based on primary blocker owner.
+        primary_owner = blockers[0]["owner_component"]
+        if primary_owner == "harness":
+            audit["next_local_action"] = "rebuild_harness_artifact"
+        elif primary_owner == "case_result_writer":
+            audit["next_local_action"] = "repair_harness_case_result_materialization"
+        elif primary_owner == "artifact_manifest_writer":
+            audit["next_local_action"] = "repair_artifact_manifest_metadata"
+        elif primary_owner == "solver":
+            audit["next_local_action"] = "repair_solver_candidate_generation"
+        else:
+            audit["next_local_action"] = "repair_selected_fallback_evidence"
+        audit["repair_diagnostics"] = {
+            "blockers": blockers,
+            "repairable_from_existing_metadata": all(b["repairable_from_existing_metadata"] for b in blockers),
+            "required_rebuild": any(b["required_rebuild"] for b in blockers),
+            "primary_blocker_owner": primary_owner,
+            "next_local_action": audit["next_local_action"],
+        }
     else:
         # All strictness checks passed: evidence is genuinely ready.
         audit["classification"] = "fallback_evidence_ready_for_reverse_decision"
@@ -2118,6 +2166,13 @@ def _audit_fallback_evidence_readiness(
             f"{audit['validation_count']}_validations"
         )
         audit["next_local_action"] = "prepare_reverse_solving_from_selected_fallback_evidence"
+        audit["repair_diagnostics"] = {
+            "blockers": [],
+            "repairable_from_existing_metadata": True,
+            "required_rebuild": False,
+            "primary_blocker_owner": None,
+            "next_local_action": audit["next_local_action"],
+        }
 
     return audit
 
@@ -4858,6 +4913,9 @@ def build_task_packet(
             "inspect_selected_fallback_evidence",
             "prepare_reverse_solving_from_selected_fallback_evidence",
             "repair_selected_fallback_evidence",
+            "repair_harness_case_result_materialization",
+            "repair_artifact_manifest_metadata",
+            "repair_solver_candidate_generation",
         ):
             task = next_local_action
         else:
