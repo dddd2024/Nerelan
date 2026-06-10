@@ -24,3 +24,8 @@ env/
 
 # IDA triage temp directories
 project_state/triage_*/
+
+# Legacy/corrupt git directories (not part of project)
+.git_corrupt/
+.git_corrupt_v2/
+.git_old2/

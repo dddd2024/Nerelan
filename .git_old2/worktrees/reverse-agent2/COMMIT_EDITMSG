@@ -1,4 +1,0 @@
-Add dynamic model catalog and unified connection flow
-
-# Conflicts:
-#	reverse_agent/pipeline.py
