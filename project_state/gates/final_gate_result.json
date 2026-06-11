@@ -1,0 +1,92 @@
+{
+  "schema_version": 1,
+  "gate_name": "final-check",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260611_engineering_gate_final_check_v1",
+  "report_id": "report_20260611_engineering_gate_final_check_v1",
+  "round_id": "round_20260611_engineering_gate_final_check_v1",
+  "generated_at": "2026-06-11T12:56:52.666650Z",
+  "checks": [
+    {
+      "name": "decision_report_match",
+      "status": "PASS",
+      "detail": "decision/report ids and round_id match"
+    },
+    {
+      "name": "pytest_result_match",
+      "status": "PASS",
+      "detail": "pytest_result matches report",
+      "errors": []
+    },
+    {
+      "name": "pytest_result_covers_report_tests",
+      "status": "PASS",
+      "detail": "pytest_result covers report tests",
+      "missing_report_tests": []
+    },
+    {
+      "name": "round_manifest_present",
+      "status": "PASS",
+      "detail": "round manifest is present",
+      "round_manifest_path": "project_state\\rounds\\round_20260611_engineering_gate_final_check_v1\\round_manifest.json"
+    },
+    {
+      "name": "archived_report_matches_live_report",
+      "status": "PASS",
+      "detail": "archived report matches live report"
+    },
+    {
+      "name": "archived_pytest_result_matches_live_pytest_result",
+      "status": "PASS",
+      "detail": "archived pytest_result matches live pytest_result"
+    },
+    {
+      "name": "files_changed_covers_git_diff",
+      "status": "PASS",
+      "detail": "files_changed covers git status files",
+      "missing_files": [],
+      "git_changed_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260611_engineering_gate_final_check_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260611_engineering_gate_final_check_v1/decision_packet.md",
+        "project_state/rounds/round_20260611_engineering_gate_final_check_v1/pytest_result.txt",
+        "project_state/rounds/round_20260611_engineering_gate_final_check_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ]
+    },
+    {
+      "name": "generated_artifacts_cover_round_archive",
+      "status": "PASS",
+      "detail": "generated_artifacts covers round archive files",
+      "missing_artifacts": []
+    },
+    {
+      "name": "forbidden_paths_absent",
+      "status": "PASS",
+      "detail": "no forbidden paths detected",
+      "forbidden_paths": []
+    },
+    {
+      "name": "status_policy_valid",
+      "status": "PASS",
+      "detail": "SUCCESS report passes lint and doctor",
+      "lint_errors": [],
+      "warnings": [],
+      "doctor_status": "PASS",
+      "report_status": "SUCCESS"
+    }
+  ],
+  "blocking_reasons": [],
+  "warnings": [],
+  "recommended_next_action": "no_action_required",
+  "status_summary": {
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_report_id_match": true,
+    "decision_consumed_by_report": true,
+    "archive_status": "archived",
+    "report_status": "SUCCESS",
+    "report_acceptance_recommendation": "ACCEPTED"
+  }
+}
