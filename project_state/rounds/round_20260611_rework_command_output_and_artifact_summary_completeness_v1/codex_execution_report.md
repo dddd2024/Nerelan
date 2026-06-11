@@ -98,10 +98,4 @@
 - Pre-archive `status`: current decision/report/result are aligned and decision is consumed by the success report.
 - Pre-archive `doctor`: WARN only for missing round manifest and pre-existing artifact freshness (`3 missing, 48 stale artifacts`).
 - Pre-archive `doctor --json`: WARN with the same archive/artifact details.
-- `archive-round`: PASS with empty stdout/stderr, created `project_state/rounds/round_20260611_rework_command_output_and_artifact_summary_completeness_v1/`.
-- Archive materialization check: `decision_packet.md`, `codex_execution_report.md`, `pytest_result.txt`, and `round_manifest.json` exist in the current round archive.
-- Post-archive `lint-report`: OK; archive status is `archived` and manifest has no forbidden or missing required files.
-- Post-archive `status`: decision/report/result remain aligned, `decision_execution_state` is `CONSUMED_BY_SUCCESS_REPORT`, and artifact freshness is `historical_sample_artifacts_non_blocking`.
-- Post-archive `doctor`: PASS.
-- Post-archive `doctor --json`: PASS.
-- Final `git status --short` has only expected report/result modifications and the new current round archive directory.
+- Archive and post-archive validation are run after this report update so the generated round archive captures the current command evidence.
