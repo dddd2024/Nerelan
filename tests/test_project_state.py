@@ -885,6 +885,63 @@ def test_doctor_fails_on_missing_pytest_result(tmp_path: Path) -> None:
     assert "missing" in pytest_check["detail"].lower() or "empty" in pytest_check["detail"].lower()
 
 
+def test_doctor_fails_when_pytest_header_body_contradict(tmp_path: Path) -> None:
+    """Doctor should FAIL when pytest_result header says PASSED but body shows failures."""
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+
+    _write_json(
+        tmp_path / ".codex-skills" / "registry.json",
+        {
+            "schema_version": 1,
+            "skills": {
+                "reverse-agent-iteration": {"status": "active", "version": 2, "scope": "generic_workflow"},
+                "samplereverse-frontier": {"status": "active", "version": 2},
+            },
+        },
+    )
+
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_contra")
+    _write_json(
+        run_dir / "summary.json",
+        {"run_name": "samplereverse_contra", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+    )
+    _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    decision_id = "decision_test_contra"
+    round_id = "round_test_contra"
+    report_id = "report_test_contra"
+    (state_dir / "decision_packet.md").write_text(
+        f'```json decision_meta\n{{"schema_version": 1, "decision_id": "{decision_id}", "round_id": "{round_id}", "status": "APPROVED", "mainline": "training_dataset", "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]}}\n```\n',
+        encoding="utf-8",
+    )
+    (state_dir / "codex_execution_report.md").write_text(
+        f'```json codex_report_summary\n{{"schema_version": 1, "report_id": "{report_id}", "round_id": "{round_id}", "based_on_decision_id": "{decision_id}", "status": "SUCCESS", "tests_ran": ["test"], "files_changed": [], "generated_artifacts": []}}\n```\n',
+        encoding="utf-8",
+    )
+    # Write a pytest_result with PASSED header but failed body
+    (state_dir / "pytest_result.txt").write_text(
+        '```json pytest_result_summary\n'
+        f'{{"schema_version": 1, "decision_id": "{decision_id}", "report_id": "{report_id}", "round_id": "{round_id}", "status": "PASSED", "tests_ran": ["test"]}}\n'
+        '```\n\n'
+        '=== Command: pytest ===\n'
+        '$ python -m pytest tests/ -q\n'
+        '.................................F...................................... [ 50%]\n'
+        '........................................................................ [100%]\n'
+        '1 failed, 235 passed in 87.20s\n',
+        encoding="utf-8",
+    )
+
+    result = doctor(state_dir=state_dir)
+
+    assert result["status"] == "FAIL"
+    pytest_check = next(c for c in result["checks"] if c["name"] == "pytest_result")
+    assert pytest_check["status"] == "FAIL"
+    assert "header status is PASSED but body indicates failures" in pytest_check["detail"]
+
+
 def test_doctor_json_output(tmp_path: Path) -> None:
     """Doctor --json should expose artifact freshness classification and counts."""
     reports_dir = tmp_path / "solve_reports"
@@ -5034,6 +5091,70 @@ def test_validate_pytest_result_for_report_mismatch() -> None:
 
     assert result["matches_report"] is False
     assert "decision_id does not match" in " ".join(result["errors"])
+
+
+def test_validate_pytest_result_for_report_passed_header_with_failed_body_is_error() -> None:
+    """A PASSED header combined with a body showing failures must produce an error."""
+    report_summary = {"based_on_decision_id": "decision_test", "report_id": "report_test"}
+    pytest_text = """```json pytest_result_summary
+{"schema_version": 1, "decision_id": "decision_test", "report_id": "report_test", "round_id": "round_test", "status": "PASSED", "tests_ran": ["python -m pytest -q"]}
+```
+
+=== Command: pytest ===
+$ python -m pytest tests/ -q
+.................................F...................................... [ 50%]
+........................................................................ [100%]
+1 failed, 235 passed in 87.20s
+"""
+    result = validate_pytest_result_for_report(pytest_text, report_summary)
+
+    assert result["status"] == "PASSED"
+    assert result["body_has_failure_text"] is True
+    assert result["body_failed_count"] == 1
+    assert any("header status is PASSED but body indicates failures" in e for e in result["errors"])
+
+
+def test_validate_pytest_result_for_report_failed_header_without_failure_body_warns() -> None:
+    """A FAILED header with no failure markers in the body should warn."""
+    report_summary = {"based_on_decision_id": "decision_test", "report_id": "report_test"}
+    pytest_text = """```json pytest_result_summary
+{"schema_version": 1, "decision_id": "decision_test", "report_id": "report_test", "round_id": "round_test", "status": "FAILED", "tests_ran": ["python -m pytest -q"]}
+```
+
+All tests passed. 0 failed.
+"""
+    result = validate_pytest_result_for_report(pytest_text, report_summary)
+
+    assert result["status"] == "FAILED"
+    assert result["body_has_failure_text"] is False
+    assert any("header status is FAILED but body contains no failure markers" in w for w in result["warnings"])
+    assert result["errors"] == []
+
+
+def test_validate_pytest_result_for_report_passed_header_with_clean_body_is_ok() -> None:
+    """A PASSED header with a clean body (no failures) must have no errors."""
+    report_summary = {"based_on_decision_id": "decision_test", "report_id": "report_test"}
+    pytest_text = """```json pytest_result_summary
+{"schema_version": 1, "decision_id": "decision_test", "report_id": "report_test", "round_id": "round_test", "status": "PASSED", "tests_ran": ["python -m pytest -q"]}
+```
+
+=== Command: pytest ===
+$ python -m pytest tests/ -q
+........................................................................ [ 30%]
+........................................................................ [ 61%]
+........................................................................ [ 91%]
+....................                                                     [100%]
+236 passed in 87.20s (0:01:27)
+
+All tests passed. 0 failed.
+"""
+    result = validate_pytest_result_for_report(pytest_text, report_summary)
+
+    assert result["status"] == "PASSED"
+    assert result["body_has_failure_text"] is False
+    assert result["body_failed_count"] == 0
+    assert result["errors"] == []
+    assert result["warnings"] == []
 
 
 def test_write_pytest_result_overwrites_existing_text(tmp_path: Path) -> None:

@@ -1,20 +1,20 @@
 {
   "archive_mode": "minimal",
-  "archived_at": "2026-06-11T09:05:32Z",
+  "archived_at": "2026-06-11T09:53:33Z",
   "files": {
     "codex_execution_report.md": {
-      "archived_path": "project_state\\rounds\\round_20260611_fix_test_failures_and_add_mainline_coverage_v1\\codex_execution_report.md",
-      "sha256": "06f34a3309c653277677bfd33c00d4d462ce894d29dbaa5032c354a506d59fa3",
+      "archived_path": "project_state\\rounds\\round_20260611_rework_training_integrity_command_and_pytest_body_guard_v1\\codex_execution_report.md",
+      "sha256": "75cc27702d5458459b6aaa845b6fb00077d8727f266c63ae9ad0e70abfdce720",
       "source_path": "project_state\\codex_execution_report.md"
     },
     "decision_packet.md": {
-      "archived_path": "project_state\\rounds\\round_20260611_fix_test_failures_and_add_mainline_coverage_v1\\decision_packet.md",
-      "sha256": "28b02145cbd791af199c7742f2dbb5034931a2870f47db380b529441ab1260f7",
+      "archived_path": "project_state\\rounds\\round_20260611_rework_training_integrity_command_and_pytest_body_guard_v1\\decision_packet.md",
+      "sha256": "cbf0d8cddb828a2af9ef1b8d9c3f69c7379f0928936069e169ebca6b6d7c74a4",
       "source_path": "project_state\\decision_packet.md"
     },
     "pytest_result.txt": {
-      "archived_path": "project_state\\rounds\\round_20260611_fix_test_failures_and_add_mainline_coverage_v1\\pytest_result.txt",
-      "sha256": "c3437413667904283a10560b43da25dc446ef22930f3e9621208e54134e561d3",
+      "archived_path": "project_state\\rounds\\round_20260611_rework_training_integrity_command_and_pytest_body_guard_v1\\pytest_result.txt",
+      "sha256": "ba0549046d1334f1a86334195452c5361975f462f60932780dffab40c99a63ae",
       "source_path": "project_state\\pytest_result.txt"
     }
   },
@@ -28,9 +28,9 @@
     "task_packet.json",
     "git_diff.patch"
   ],
-  "round_id": "round_20260611_fix_test_failures_and_add_mainline_coverage_v1",
+  "round_id": "round_20260611_rework_training_integrity_command_and_pytest_body_guard_v1",
   "schema_version": 1,
-  "source_git_commit": "f1ece031b520",
+  "source_git_commit": "0b5e646be839",
   "source_harness_run": "samplereverse_exact1_projected_vs_neighbor_20260424",
   "state_build_id": "state_20260610_131714_88c14099a13a",
   "state_digest": "88c14099a13a2bf2999e4a61b2c53d8edd9568217bb5ee36f0cfd4462e8cbbd2",

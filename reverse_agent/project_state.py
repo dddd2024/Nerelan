@@ -1121,6 +1121,45 @@ def parse_pytest_result_header(text: str) -> dict[str, Any]:
     }
 
 
+def _parse_pytest_body_for_failures(body: str) -> dict[str, Any]:
+    """Scan pytest output body for failure indicators.
+
+    Returns:
+        dict with keys:
+        - failed_count: int (0 if no failures detected)
+        - has_failure_text: bool
+        - failure_lines: list[str] (first few lines containing failure markers)
+    """
+    failure_patterns = [
+        re.compile(r"([1-9]\d*)\s+failed"),
+        re.compile(r"FAILED\s+"),
+        re.compile(r"ERROR\s+"),
+        re.compile(r"=+\s+FAILURES\s+="),
+        re.compile(r"=+\s+ERRORS\s+="),
+    ]
+    failed_count = 0
+    has_failure_text = False
+    failure_lines: list[str] = []
+    for line in body.splitlines():
+        for pat in failure_patterns:
+            m = pat.search(line)
+            if m:
+                has_failure_text = True
+                if "failed" in pat.pattern:
+                    try:
+                        failed_count = max(failed_count, int(m.group(1)))
+                    except ValueError:
+                        pass
+                if len(failure_lines) < 5:
+                    failure_lines.append(line.strip())
+                break
+    return {
+        "failed_count": failed_count,
+        "has_failure_text": has_failure_text,
+        "failure_lines": failure_lines,
+    }
+
+
 def validate_pytest_result_for_report(
     pytest_text: str,
     report_summary: dict[str, Any],
@@ -1164,6 +1203,24 @@ def validate_pytest_result_for_report(
                 warnings.append("pytest_result tests_ran does not cover codex_report_summary.tests_ran")
     elif report_tests_ran is not None:
         warnings.append("codex_report_summary.tests_ran must be a list of strings for coverage check")
+
+    # Header/body consistency check
+    body = pytest_text
+    header_end = pytest_text.find("```", pytest_text.find("```json") + 1)
+    if header_end != -1:
+        body = pytest_text[header_end + 3:]
+    body_parse = _parse_pytest_body_for_failures(body)
+    header_status = str(parsed.get("status") or "UNKNOWN")
+    if header_status == "PASSED" and body_parse["has_failure_text"]:
+        errors.append(
+            f"pytest_result header status is PASSED but body indicates failures "
+            f"({body_parse['failed_count']} failed). Contradiction detected."
+        )
+    elif header_status == "FAILED" and not body_parse["has_failure_text"]:
+        warnings.append(
+            "pytest_result header status is FAILED but body contains no failure markers"
+        )
+
     return {
         "found": parsed.get("found"),
         "parse_error": parsed.get("parse_error"),
@@ -1180,6 +1237,9 @@ def validate_pytest_result_for_report(
         "missing_report_tests": missing_report_tests,
         "errors": errors,
         "warnings": warnings,
+        "body_failed_count": body_parse["failed_count"],
+        "body_has_failure_text": body_parse["has_failure_text"],
+        "body_failure_lines": body_parse["failure_lines"],
     }
 
 
@@ -1923,6 +1983,14 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
             "name": "pytest_result",
             "status": "FAIL",
             "detail": "pytest_result.txt does not match report",
+        })
+        overall_status = "FAIL"
+    elif pytest_validation.get("errors"):
+        # Header/body contradiction or other validation errors
+        checks.append({
+            "name": "pytest_result",
+            "status": "FAIL",
+            "detail": "; ".join(pytest_validation["errors"]),
         })
         overall_status = "FAIL"
     elif not pytest_validation.get("tests_ran_covers_report"):
