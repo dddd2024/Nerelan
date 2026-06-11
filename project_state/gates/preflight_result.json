@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "gate_name": "preflight",
+  "gate_status": "BLOCKED",
+  "decision_id": "decision_20260611_engineering_gate_preflight_v1",
+  "round_id": "round_20260611_engineering_gate_preflight_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-11T13:29:18.239182Z",
+  "checks": [
+    {
+      "name": "decision_meta_parse",
+      "status": "PASS",
+      "detail": "decision_meta parsed",
+      "parse_error": null
+    },
+    {
+      "name": "decision_approved",
+      "status": "PASS",
+      "detail": "decision status is APPROVED"
+    },
+    {
+      "name": "mainline_valid",
+      "status": "PASS",
+      "detail": "mainline is engineering_branch",
+      "allowed_mainlines": [
+        "engineering_branch",
+        "reverse_solving",
+        "tool_integration",
+        "training_dataset"
+      ]
+    },
+    {
+      "name": "skill_profiles_active",
+      "status": "PASS",
+      "detail": "skill profiles are active",
+      "parsed_skill_profiles": [
+        {
+          "profile": "reverse-agent-iteration@v2",
+          "skill_name": "reverse-agent-iteration",
+          "version": 2,
+          "draft": false,
+          "registry_status": "active",
+          "registry_scope": "generic_workflow",
+          "registry_version": 2
+        },
+        {
+          "profile": "samplereverse-frontier@v2",
+          "skill_name": "samplereverse-frontier",
+          "version": 2,
+          "draft": false,
+          "registry_status": "active",
+          "registry_scope": "sample_profile",
+          "registry_version": 2
+        }
+      ],
+      "errors": []
+    },
+    {
+      "name": "decision_not_consumed_by_report",
+      "status": "FAIL",
+      "detail": "decision already appears consumed by report",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "report_20260611_engineering_gate_preflight_v1"
+    },
+    {
+      "name": "task_packet_is_non_authoritative",
+      "status": "PASS",
+      "detail": "decision_packet remains authoritative over task_packet suggestions",
+      "task": "repair_harness_case_result_materialization",
+      "derived_task": "repair_harness_case_result_materialization",
+      "active_decision_packet": "project_state/decision_packet.md"
+    },
+    {
+      "name": "implementation_scope_present",
+      "status": "PASS",
+      "detail": "implementation scope is present and parseable",
+      "allowed_paths": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/final_gate_result.json` only if final-check is rerun",
+        "project_state/gates/preflight_result.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260611_engineering_gate_preflight_v1/*",
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py` only if helper exposure is strictly necessary",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py` only if shared helper tests are necessary"
+      ]
+    },
+    {
+      "name": "forbidden_paths_not_allowed",
+      "status": "PASS",
+      "detail": "allowed scope contains no forbidden paths",
+      "forbidden_paths": []
+    },
+    {
+      "name": "mainline_scope_policy",
+      "status": "PASS",
+      "detail": "mainline scope policy is satisfied",
+      "matched_terms": [],
+      "matched_paths": []
+    },
+    {
+      "name": "artifact_freshness_policy",
+      "status": "PASS",
+      "detail": "stale/missing artifacts are not claimed as current evidence",
+      "artifact_freshness": {
+        "current": 1,
+        "missing": 3,
+        "stale": 48
+      },
+      "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424"
+    },
+    {
+      "name": "tool_capability_audit_required_when_applicable",
+      "status": "PASS",
+      "detail": "tool capability audit requirement is satisfied",
+      "capability_required": false
+    }
+  ],
+  "blocking_reasons": [
+    "decision_not_consumed_by_report: decision already appears consumed by report"
+  ],
+  "warnings": [],
+  "recommended_next_action": "do_not_start_consumed_or_stale_decision",
+  "status_summary": {
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_report_id_match": true,
+    "decision_consumed_by_report": true,
+    "task": "repair_harness_case_result_materialization",
+    "derived_task": "repair_harness_case_result_materialization",
+    "current_state_round_id": "round_20260610_131714"
+  }
+}

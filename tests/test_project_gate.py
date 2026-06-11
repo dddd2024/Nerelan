@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from reverse_agent.project_gate import final_check, main
+from reverse_agent.project_gate import final_check, main, preflight
 from reverse_agent.project_state import archive_round, write_pytest_result
 
 
@@ -64,6 +64,100 @@ def _write_decision(state_dir: Path, *, decision_id: str, round_id: str) -> None
 """,
         encoding="utf-8",
     )
+
+
+def _write_preflight_decision(
+    state_dir: Path,
+    *,
+    decision_id: str = "decision_preflight",
+    round_id: str = "round_preflight",
+    status: str = "APPROVED",
+    mainline: str = "engineering_branch",
+    skill_profiles: list[str] | None = None,
+    goal: str = "Build a read-only project gate.",
+    current_evidence: str = "Historical stale artifacts are not current evidence.",
+    implementation_scope: str | None = None,
+) -> None:
+    profiles = skill_profiles if skill_profiles is not None else ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]
+    payload = {
+        "schema_version": 1,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": status,
+        "mainline": mainline,
+        "skill_profiles": profiles,
+    }
+    scope = implementation_scope or """Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated files:
+
+- `project_state/gates/preflight_result.json`
+
+Disallowed:
+
+- `.codex-skills/`
+- `solve_reports/`
+"""
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+{goal}
+
+## 2. Current Evidence
+
+{current_evidence}
+
+## 6. Implementation Scope
+
+{scope}
+""",
+        encoding="utf-8",
+    )
+
+
+def _make_preflight_state(tmp_path: Path, **decision_kwargs: object) -> Path:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+    _write_json(
+        state_dir / "current_state.json",
+        {
+            "round_id": "round_sample",
+            "state_build_id": "state_test",
+            "state_digest": "digest_test",
+            "state_scope": "sample_state",
+        },
+    )
+    _write_json(
+        state_dir / "task_packet.json",
+        {
+            "task": "old_sample_task",
+            "derived_task": "old_sample_task",
+            "state_scope": "sample_state",
+            "task_source": "derived_from_sample_artifacts",
+            "execution_scope": "decision_packet_controls_current_round",
+            "active_decision_packet": "project_state/decision_packet.md",
+        },
+    )
+    _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+    _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+    _write_json(state_dir / "negative_results.json", {})
+    _write_preflight_decision(state_dir, **decision_kwargs)
+    return state_dir
 
 
 def _write_report(
@@ -328,3 +422,128 @@ def test_project_gate_cli_json_writes_result(tmp_path: Path, capsys: pytest.Capt
 
     assert output["gate_status"] == "PASSED"
     assert (state_dir / "gates" / "final_gate_result.json").exists()
+
+
+def test_preflight_passes_current_engineering_decision(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path)
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["blocking_reasons"] == []
+    assert (state_dir / "gates" / "preflight_result.json").exists()
+
+
+def test_preflight_fails_when_decision_meta_missing(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path)
+    (state_dir / "decision_packet.md").write_text("# DECISION_PACKET\n", encoding="utf-8")
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "decision_meta_parse")["status"] == "FAIL"
+
+
+def test_preflight_fails_when_status_not_approved(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path, status="DRAFT")
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "decision_approved")["status"] == "FAIL"
+
+
+def test_preflight_fails_on_invalid_mainline(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path, mainline="sample_solving")
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "mainline_valid")["status"] == "FAIL"
+
+
+def test_preflight_fails_on_unknown_skill_profile(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path, skill_profiles=["unknown-skill@v1"])
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "skill_profiles_active")["status"] == "FAIL"
+
+
+def test_preflight_blocks_consumed_decision(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path)
+    _write_report(
+        state_dir,
+        decision_id="decision_preflight",
+        report_id="report_preflight",
+        round_id="round_preflight",
+        generated_artifacts=["project_state/gates/preflight_result.json"],
+    )
+    _write_pytest(state_dir, decision_id="decision_preflight", report_id="report_preflight", round_id="round_preflight")
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "BLOCKED"
+    assert _check(result, "decision_not_consumed_by_report")["status"] == "FAIL"
+
+
+def test_preflight_fails_when_allowed_scope_includes_forbidden_path(tmp_path: Path) -> None:
+    scope = """Allowed source files:
+
+- `.codex-skills/registry.json`
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+"""
+    state_dir = _make_preflight_state(tmp_path, implementation_scope=scope)
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    forbidden = _check(result, "forbidden_paths_not_allowed")
+    assert forbidden["status"] == "FAIL"
+    assert ".codex-skills/registry.json" in forbidden["forbidden_paths"]
+
+
+def test_preflight_fails_engineering_branch_sample_solver_scope(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path, goal="Run sample solver and runtime probe for this round.")
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "mainline_scope_policy")["status"] == "FAIL"
+
+
+def test_preflight_fails_reverse_mainline_without_tool_capability_audit(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        mainline="reverse_solving",
+        goal="Continue reverse solving from current state.",
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "tool_capability_audit_required_when_applicable")["status"] == "FAIL"
+
+
+def test_preflight_fails_when_stale_artifact_claimed_as_current_evidence(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path, current_evidence="The stale artifact is current evidence.")
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "artifact_freshness_policy")["status"] == "FAIL"
+
+
+def test_project_gate_preflight_cli_json_writes_result(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    state_dir = _make_preflight_state(tmp_path)
+
+    assert main(["preflight", "--state-dir", str(state_dir), "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["gate_status"] == "PASSED"
+    assert (state_dir / "gates" / "preflight_result.json").exists()

@@ -14,6 +14,7 @@ from .project_state import (
     DEFAULT_STATE_DIR,
     build_round_consistency,
     doctor,
+    lint_decision,
     lint_report,
     read_codex_report_summary,
     read_decision_meta,
@@ -25,7 +26,13 @@ from .project_state import (
 GATE_RESULT_SCHEMA_VERSION = 1
 FINAL_GATE_NAME = "final-check"
 FINAL_GATE_RESULT_NAME = "final_gate_result.json"
+PREFLIGHT_GATE_NAME = "preflight"
+PREFLIGHT_RESULT_NAME = "preflight_result.json"
 SELF_OUTPUT_PATH = f"project_state/gates/{FINAL_GATE_RESULT_NAME}"
+PREFLIGHT_OUTPUT_PATH = f"project_state/gates/{PREFLIGHT_RESULT_NAME}"
+
+ALLOWED_MAINLINES = {"engineering_branch", "reverse_solving", "tool_integration", "training_dataset"}
+CAPABILITY_MAINLINES = {"reverse_solving", "tool_integration", "training_dataset"}
 
 FORBIDDEN_PATHS = {
     ".codex-skills/registry.json",
@@ -41,6 +48,22 @@ FORBIDDEN_PREFIXES = (
     "reverse_agent/strategies/",
     "reverse_agent/transforms/",
 )
+SAMPLE_SOLVING_TERMS = (
+    "sample_solver",
+    "candidate search",
+    "runtime probe",
+    "debugger",
+    "hook",
+    "emulator",
+    "sidecar",
+    "run sample",
+    "run solver",
+    "solver",
+    "运行样本",
+    "样本求解",
+    "推进样本",
+)
+CAPABILITY_TERMS = ("ida", "ghidra", "debugger", "solver", "harness", "tool capability", "能力")
 
 
 def _now_iso() -> str:
@@ -71,13 +94,122 @@ def _rel(path: Path) -> str:
 
 
 def _norm_path(value: object) -> str:
-    return str(value or "").replace("\\", "/").strip().lstrip("./")
+    normalized = str(value or "").replace("\\", "/").strip()
+    return normalized[2:] if normalized.startswith("./") else normalized
 
 
 def _string_set(value: object) -> set[str]:
     if not isinstance(value, list):
         return set()
     return {_norm_path(item) for item in value if isinstance(item, str) and _norm_path(item)}
+
+
+def _markdown_section(text: str, heading: str) -> str:
+    lines = text.splitlines()
+    start: int | None = None
+    start_level = 0
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if not stripped.startswith("#"):
+            continue
+        hashes = len(stripped) - len(stripped.lstrip("#"))
+        title = stripped.lstrip("#").strip()
+        if heading.lower() in title.lower():
+            start = index + 1
+            start_level = hashes
+            break
+    if start is None:
+        return ""
+    section: list[str] = []
+    for line in lines[start:]:
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            hashes = len(stripped) - len(stripped.lstrip("#"))
+            if hashes <= start_level:
+                break
+        section.append(line)
+    return "\n".join(section)
+
+
+def _without_section(text: str, heading: str) -> str:
+    section = _markdown_section(text, heading)
+    return text.replace(section, "") if section else text
+
+
+def _scope_paths(scope_text: str) -> set[str]:
+    paths: set[str] = set()
+    for raw_line in scope_text.splitlines():
+        line = raw_line.strip()
+        if not line.startswith("-"):
+            continue
+        item = line[1:].strip().strip("`").strip()
+        if not item or item.lower().endswith(":"):
+            continue
+        if item in {"Allowed source files", "Allowed tests", "Allowed generated files", "Disallowed"}:
+            continue
+        paths.add(_norm_path(item))
+    return paths
+
+
+def _allowed_scope_paths(scope_text: str) -> set[str]:
+    paths: set[str] = set()
+    in_allowed_block = False
+    for raw_line in scope_text.splitlines():
+        line = raw_line.strip()
+        lowered = line.lower()
+        if lowered.startswith("allowed"):
+            in_allowed_block = True
+            continue
+        if lowered.startswith("disallowed") or lowered.startswith("禁止"):
+            in_allowed_block = False
+            continue
+        if not in_allowed_block or not line.startswith("-"):
+            continue
+        item = line[1:].strip().strip("`").strip()
+        if item:
+            paths.add(_norm_path(item))
+    if paths:
+        return paths
+    return _scope_paths(scope_text)
+
+
+def _decision_text_without_do_not_do(decision_text: str) -> str:
+    text = decision_text
+    for heading in ("Do Not Do", "Stop Conditions", "Disallowed"):
+        section = _markdown_section(text, heading)
+        if section:
+            text = text.replace(section, "")
+    return text.lower()
+
+
+def _matched_non_negated_terms(text: str, terms: tuple[str, ...]) -> list[str]:
+    negation_markers = (
+        "do not",
+        "not ",
+        "no ",
+        "without",
+        "forbidden",
+        "audit",
+        "check",
+        "require",
+        "不",
+        "不得",
+        "禁止",
+        "不能",
+        "检查",
+        "审计",
+        "能力",
+        "要求",
+    )
+    matches: set[str] = set()
+    for raw_line in text.splitlines():
+        line = raw_line.lower()
+        if any(marker in line for marker in negation_markers):
+            continue
+        for term in terms:
+            if term in line:
+                matches.add(term)
+    return sorted(matches)
 
 
 def _git_changed_files(repo_root: Path) -> list[str]:
@@ -394,15 +526,253 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         (out_dir / FINAL_GATE_RESULT_NAME).write_text(
             json.dumps(result, ensure_ascii=True, indent=2) + "\n",
             encoding="utf-8",
+            newline="\n",
+        )
+    return result
+
+
+def _preflight_recommended_next_action(gate_status: str) -> str:
+    if gate_status == "PASSED":
+        return "proceed_with_decision_scope"
+    if gate_status == "BLOCKED":
+        return "do_not_start_consumed_or_stale_decision"
+    if gate_status == "WARN":
+        return "review_preflight_warnings_before_starting"
+    return "fix_preflight_failures_before_starting"
+
+
+def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
+    repo_root = repo_root or Path.cwd()
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    lint_decision_result = lint_decision(state_dir)
+    status = status_summary(state_dir=state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    current_state = _read_json(state_dir / "current_state.json")
+    artifact_index = _read_json(state_dir / "artifact_index.json")
+
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+    decision_status = str(decision.get("status") or "UNKNOWN")
+    checks: list[dict[str, Any]] = []
+
+    parse_error = decision.get("parse_error")
+    parse_ok = bool(decision_id and round_id and not parse_error and decision_status != "UNKNOWN")
+    checks.append(
+        _check(
+            "decision_meta_parse",
+            "PASS" if parse_ok else "FAIL",
+            "decision_meta parsed" if parse_ok else "decision_meta missing or invalid",
+            parse_error=parse_error,
+        )
+    )
+
+    checks.append(
+        _check(
+            "decision_approved",
+            "PASS" if decision_status == "APPROVED" else "FAIL",
+            "decision status is APPROVED" if decision_status == "APPROVED" else f"decision status is {decision_status}",
+        )
+    )
+
+    checks.append(
+        _check(
+            "mainline_valid",
+            "PASS" if mainline in ALLOWED_MAINLINES else "FAIL",
+            f"mainline is {mainline}" if mainline in ALLOWED_MAINLINES else f"mainline is invalid: {mainline}",
+            allowed_mainlines=sorted(ALLOWED_MAINLINES),
+        )
+    )
+
+    skill_errors = [
+        error
+        for error in lint_decision_result.get("errors", [])
+        if "skill" in str(error).lower() or "profile" in str(error).lower()
+    ]
+    parsed_profiles = lint_decision_result.get("parsed_skill_profiles") or []
+    inactive_profiles = [
+        profile
+        for profile in parsed_profiles
+        if isinstance(profile, dict) and profile.get("registry_status") != "active"
+    ]
+    skill_ok = bool(parsed_profiles) and not skill_errors and not inactive_profiles
+    checks.append(
+        _check(
+            "skill_profiles_active",
+            "PASS" if skill_ok else "FAIL",
+            "skill profiles are active" if skill_ok else "skill profiles are missing, inactive, or unknown",
+            parsed_skill_profiles=parsed_profiles,
+            errors=skill_errors,
+        )
+    )
+
+    consumed = bool(status.get("decision_consumed_by_report"))
+    stale_report_match = bool(status.get("decision_report_id_match"))
+    not_consumed_ok = not consumed and not stale_report_match
+    checks.append(
+        _check(
+            "decision_not_consumed_by_report",
+            "PASS" if not_consumed_ok else "FAIL",
+            "decision has not been consumed by a report" if not_consumed_ok else "decision already appears consumed by report",
+            decision_execution_state=status.get("decision_execution_state"),
+            report_id=status.get("report_id"),
+        )
+    )
+
+    task = str(task_packet.get("task") or "")
+    derived_task = str(task_packet.get("derived_task") or "")
+    active_decision_packet = str(task_packet.get("active_decision_packet") or "")
+    task_packet_ok = active_decision_packet in {"", "project_state/decision_packet.md"}
+    checks.append(
+        _check(
+            "task_packet_is_non_authoritative",
+            "PASS" if task_packet_ok else "WARN",
+            "decision_packet remains authoritative over task_packet suggestions"
+            if task_packet_ok
+            else "task_packet points at a nonstandard decision packet",
+            task=task,
+            derived_task=derived_task,
+            active_decision_packet=active_decision_packet,
+        )
+    )
+
+    scope_text = _markdown_section(decision_text, "Implementation Scope")
+    allowed_paths = _allowed_scope_paths(scope_text)
+    scope_ok = bool(scope_text.strip()) and bool(allowed_paths)
+    checks.append(
+        _check(
+            "implementation_scope_present",
+            "PASS" if scope_ok else "FAIL",
+            "implementation scope is present and parseable"
+            if scope_ok
+            else "implementation scope is missing or has no parseable allowed paths",
+            allowed_paths=sorted(allowed_paths),
+        )
+    )
+
+    forbidden_allowed = _forbidden_hits(allowed_paths)
+    checks.append(
+        _check(
+            "forbidden_paths_not_allowed",
+            "PASS" if not forbidden_allowed else "FAIL",
+            "allowed scope contains no forbidden paths"
+            if not forbidden_allowed
+            else "allowed scope includes forbidden paths",
+            forbidden_paths=forbidden_allowed,
+        )
+    )
+
+    actionable_text = _decision_text_without_do_not_do(decision_text)
+    goal_text = _markdown_section(decision_text, "Goal").lower()
+    sample_terms = _matched_non_negated_terms(goal_text, SAMPLE_SOLVING_TERMS)
+    sample_scope_paths = [
+        path
+        for path in sorted(allowed_paths)
+        if any(token in path for token in ("solver", "runtime", "probe", "ida", "ghidra", "olly"))
+    ]
+    engineering_scope_ok = not (mainline == "engineering_branch" and (sample_terms or sample_scope_paths))
+    checks.append(
+        _check(
+            "mainline_scope_policy",
+            "PASS" if engineering_scope_ok else "FAIL",
+            "mainline scope policy is satisfied"
+            if engineering_scope_ok
+            else "engineering_branch decision includes sample-solving/runtime terms",
+            matched_terms=sample_terms,
+            matched_paths=sample_scope_paths,
+        )
+    )
+
+    current_evidence = _markdown_section(decision_text, "Current Evidence").lower()
+    stale_terms_present = "stale" in current_evidence or "missing" in current_evidence
+    has_negation = any(term in current_evidence for term in ("cannot", "not current", "historical", "历史", "不能", "不得"))
+    artifact_policy_ok = not (stale_terms_present and "current evidence" in current_evidence and not has_negation)
+    freshness = status.get("artifact_freshness") or {}
+    checks.append(
+        _check(
+            "artifact_freshness_policy",
+            "PASS" if artifact_policy_ok else "FAIL",
+            "stale/missing artifacts are not claimed as current evidence"
+            if artifact_policy_ok
+            else "stale/missing artifact is described as current evidence",
+            artifact_freshness=freshness,
+            latest_harness_run=artifact_index.get("latest_harness_run"),
+        )
+    )
+
+    capability_required = mainline in CAPABILITY_MAINLINES
+    capability_text_present = any(term in actionable_text for term in CAPABILITY_TERMS) and any(
+        term in actionable_text for term in ("audit", "check", "检查", "审计")
+    )
+    capability_ok = not capability_required or capability_text_present
+    checks.append(
+        _check(
+            "tool_capability_audit_required_when_applicable",
+            "PASS" if capability_ok else "FAIL",
+            "tool capability audit requirement is satisfied"
+            if capability_ok
+            else "reverse/tool/training mainline lacks required tool capability audit wording",
+            capability_required=capability_required,
+        )
+    )
+
+    status_errors = [check for check in checks if check.get("status") == "FAIL"]
+    warnings = [
+        f"{check['name']}: {check['detail']}"
+        for check in checks
+        if check.get("status") == "WARN"
+    ]
+    blocking_reasons = [f"{check['name']}: {check['detail']}" for check in status_errors]
+    if status_errors:
+        gate_status = "BLOCKED" if any(check["name"] == "decision_not_consumed_by_report" for check in status_errors) else "FAILED"
+    elif warnings:
+        gate_status = "WARN"
+    else:
+        gate_status = "PASSED"
+
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "gate_name": PREFLIGHT_GATE_NAME,
+        "gate_status": gate_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "checks": checks,
+        "blocking_reasons": blocking_reasons,
+        "warnings": warnings,
+        "recommended_next_action": _preflight_recommended_next_action(gate_status),
+        "status_summary": {
+            "decision_execution_state": status.get("decision_execution_state"),
+            "decision_report_id_match": status.get("decision_report_id_match"),
+            "decision_consumed_by_report": status.get("decision_consumed_by_report"),
+            "task": task,
+            "derived_task": derived_task,
+            "current_state_round_id": current_state.get("round_id"),
+        },
+    }
+
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / PREFLIGHT_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
         )
     return result
 
 
 def _print_result(result: dict[str, Any]) -> None:
-    print(f"final-check: {result.get('gate_status')}")
+    print(f"{result.get('gate_name')}: {result.get('gate_status')}")
     print(f"decision_id: {result.get('decision_id')}")
-    print(f"report_id: {result.get('report_id')}")
+    if result.get("report_id") is not None:
+        print(f"report_id: {result.get('report_id')}")
     print(f"round_id: {result.get('round_id')}")
+    if result.get("mainline") is not None:
+        print(f"mainline: {result.get('mainline')}")
     for check in result.get("checks", []):
         print(f"  [{check.get('status')}] {check.get('name')}: {check.get('detail')}")
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
@@ -414,10 +784,20 @@ def main(argv: list[str] | None = None) -> int:
     final_parser = subparsers.add_parser("final-check", help="Run final closeout gate.")
     final_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     final_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    preflight_parser = subparsers.add_parser("preflight", help="Run preflight start gate.")
+    preflight_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    preflight_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
         result = final_check(state_dir=Path(args.state_dir), repo_root=Path.cwd())
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_result(result)
+        return 1 if result.get("gate_status") == "FAILED" else 0
+    if args.command == "preflight":
+        result = preflight(state_dir=Path(args.state_dir), repo_root=Path.cwd())
         if args.json:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
