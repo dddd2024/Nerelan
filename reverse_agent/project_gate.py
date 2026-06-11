@@ -28,8 +28,11 @@ FINAL_GATE_NAME = "final-check"
 FINAL_GATE_RESULT_NAME = "final_gate_result.json"
 PREFLIGHT_GATE_NAME = "preflight"
 PREFLIGHT_RESULT_NAME = "preflight_result.json"
+COMMAND_PLAN_NAME = "command-plan"
+COMMAND_PLAN_RESULT_NAME = "command_plan.json"
 SELF_OUTPUT_PATH = f"project_state/gates/{FINAL_GATE_RESULT_NAME}"
 PREFLIGHT_OUTPUT_PATH = f"project_state/gates/{PREFLIGHT_RESULT_NAME}"
+COMMAND_PLAN_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_RESULT_NAME}"
 
 ALLOWED_MAINLINES = {"engineering_branch", "reverse_solving", "tool_integration", "training_dataset"}
 CAPABILITY_MAINLINES = {"reverse_solving", "tool_integration", "training_dataset"}
@@ -64,6 +67,19 @@ SAMPLE_SOLVING_TERMS = (
     "推进样本",
 )
 CAPABILITY_TERMS = ("ida", "ghidra", "debugger", "solver", "harness", "tool capability", "能力")
+COMMAND_PLAN_KINDS = {
+    "preflight",
+    "final-check",
+    "lint-report",
+    "status",
+    "doctor",
+    "archive-round",
+    "command-plan",
+    "pytest",
+    "git status",
+    "git rev-parse",
+    "pwd",
+}
 
 
 def _now_iso() -> str:
@@ -134,6 +150,47 @@ def _markdown_section(text: str, heading: str) -> str:
 def _without_section(text: str, heading: str) -> str:
     section = _markdown_section(text, heading)
     return text.replace(section, "") if section else text
+
+
+def _fenced_code_blocks(text: str) -> list[tuple[str, str]]:
+    blocks: list[tuple[str, str]] = []
+    lines = text.splitlines()
+    in_block = False
+    language = ""
+    body: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            fence_tail = stripped[3:].strip().lower()
+            if not in_block:
+                in_block = True
+                language = fence_tail
+                body = []
+                continue
+            blocks.append((language, "\n".join(body)))
+            in_block = False
+            language = ""
+            body = []
+            continue
+        if in_block:
+            body.append(line)
+    return blocks
+
+
+def _extract_bash_commands(text: str) -> tuple[list[str], str | None]:
+    blocks = _fenced_code_blocks(text)
+    bash_blocks = [body for language, body in blocks if language in {"bash", "sh", "shell"}]
+    if not bash_blocks:
+        return [], "Tests section has no fenced bash command block"
+    commands = [
+        line.strip()
+        for body in bash_blocks
+        for line in body.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    if not commands:
+        return [], "fenced bash command block is empty"
+    return commands, None
 
 
 def _scope_paths(scope_text: str) -> set[str]:
@@ -541,6 +598,165 @@ def _preflight_recommended_next_action(gate_status: str) -> str:
     return "fix_preflight_failures_before_starting"
 
 
+def _command_kind(command: str) -> str:
+    lowered = command.lower()
+    if lowered == "pwd" or lowered.startswith("pwd "):
+        return "pwd"
+    if "python -m pytest" in lowered or lowered.startswith("pytest"):
+        return "pytest"
+    if "project_gate" in lowered and "preflight" in lowered:
+        return "preflight"
+    if "project_gate" in lowered and "command-plan" in lowered:
+        return "command-plan"
+    if "project_gate" in lowered and "final-check" in lowered:
+        return "final-check"
+    if "project_state" in lowered and "archive-round" in lowered:
+        return "archive-round"
+    if "project_state" in lowered and "lint-report" in lowered:
+        return "lint-report"
+    if "project_state" in lowered and " doctor" in lowered:
+        return "doctor"
+    if "project_state" in lowered and " status" in lowered:
+        return "status"
+    if lowered.startswith("git status") or " git status" in lowered:
+        return "git status"
+    if lowered.startswith("git rev-parse") or " git rev-parse" in lowered:
+        return "git rev-parse"
+    return "unknown"
+
+
+def _command_phase(kind: str, *, archive_seen: bool) -> str:
+    if archive_seen and kind != "archive-round":
+        return "post_archive"
+    if kind == "preflight":
+        return "preflight"
+    if kind == "pytest":
+        return "test"
+    if kind == "archive-round":
+        return "archive"
+    if kind in {"final-check", "command-plan"}:
+        return "gate"
+    if kind in {"lint-report", "status", "doctor", "git status", "git rev-parse", "pwd"}:
+        return "status"
+    return "unknown"
+
+
+def _decision_allows_expected_nonzero_preflight(decision_text: str) -> bool:
+    lowered = decision_text.lower()
+    return (
+        "preflight" in lowered
+        and (
+            "expected nonzero" in lowered
+            or "expected non-zero" in lowered
+            or "expected non zero" in lowered
+            or "expected nonzero diagnostic" in lowered
+            or "expected nonzero diagnostic" in lowered.replace("-", "")
+            or "预期非 0" in lowered
+            or "预期非0" in lowered
+        )
+    )
+
+
+def _command_expected_exit_codes(
+    *,
+    kind: str,
+    phase: str,
+    command: str,
+    decision_text: str,
+) -> tuple[list[int], str, str | None]:
+    if kind == "preflight" and phase != "preflight":
+        if _decision_allows_expected_nonzero_preflight(decision_text):
+            return [1], "post-report preflight expected nonzero diagnostic", None
+        return [0], "post-report preflight is not explicitly marked expected nonzero", (
+            f"command '{command}' looks like a post-report preflight diagnostic without expected nonzero wording"
+        )
+    if kind == "unknown":
+        return [0], "unknown command kind; defaulting to zero exit", None
+    return [0], f"{kind} expected to exit 0", None
+
+
+def _command_plan_recommended_next_action(plan_status: str) -> str:
+    if plan_status == "PASSED":
+        return "record_and_follow_command_plan_manually"
+    if plan_status == "WARN":
+        return "review_command_plan_warnings_before_execution"
+    return "fix_decision_tests_block_before_execution"
+
+
+def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    tests_text = _markdown_section(decision_text, "Tests")
+
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+    commands: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    blocking_reasons: list[str] = []
+
+    if not tests_text.strip():
+        blocking_reasons.append("Tests section is missing")
+    else:
+        extracted_commands, extract_error = _extract_bash_commands(tests_text)
+        if extract_error:
+            blocking_reasons.append(extract_error)
+        archive_seen = False
+        for index, command in enumerate(extracted_commands, start=1):
+            kind = _command_kind(command)
+            phase = _command_phase(kind, archive_seen=archive_seen)
+            expected_exit_codes, notes, blocking_reason = _command_expected_exit_codes(
+                kind=kind,
+                phase=phase,
+                command=command,
+                decision_text=decision_text,
+            )
+            if kind == "unknown":
+                warnings.append(f"command {index} has unknown kind: {command}")
+            if blocking_reason:
+                blocking_reasons.append(blocking_reason)
+            commands.append(
+                {
+                    "index": index,
+                    "command": command,
+                    "phase": phase,
+                    "kind": kind,
+                    "required": True,
+                    "expected_exit_codes": expected_exit_codes,
+                    "records_stdout_stderr": True,
+                    "notes": notes,
+                }
+            )
+            if kind == "archive-round":
+                archive_seen = True
+
+    plan_status = "FAILED" if blocking_reasons else ("WARN" if warnings else "PASSED")
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "plan_name": COMMAND_PLAN_NAME,
+        "plan_status": plan_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        "commands": commands,
+        "warnings": warnings,
+        "blocking_reasons": blocking_reasons,
+        "recommended_next_action": _command_plan_recommended_next_action(plan_status),
+    }
+
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / COMMAND_PLAN_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return result
+
+
 def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
@@ -778,6 +994,27 @@ def _print_result(result: dict[str, Any]) -> None:
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
 
 
+def _print_command_plan(result: dict[str, Any]) -> None:
+    print(f"{result.get('plan_name')}: {result.get('plan_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"mainline: {result.get('mainline')}")
+    for command in result.get("commands", []):
+        print(
+            "  "
+            f"[{command.get('index')}] "
+            f"{command.get('phase')} "
+            f"{command.get('kind')}: "
+            f"{command.get('command')} "
+            f"expected_exit={command.get('expected_exit_codes')}"
+        )
+    for warning in result.get("warnings", []):
+        print(f"  [WARN] {warning}")
+    for reason in result.get("blocking_reasons", []):
+        print(f"  [BLOCK] {reason}")
+    print(f"recommended_next_action: {result.get('recommended_next_action')}")
+
+
 def _final_check_exit_code(gate_status: object) -> int:
     return 1 if gate_status == "FAILED" else 0
 
@@ -796,6 +1033,9 @@ def main(argv: list[str] | None = None) -> int:
     preflight_parser = subparsers.add_parser("preflight", help="Run preflight start gate.")
     preflight_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     preflight_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    command_plan_parser = subparsers.add_parser("command-plan", help="Generate a read-only command execution plan.")
+    command_plan_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    command_plan_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
@@ -812,6 +1052,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _print_result(result)
         return _preflight_exit_code(result.get("gate_status"))
+    if args.command == "command-plan":
+        result = command_plan(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_command_plan(result)
+        return 1 if result.get("plan_status") == "FAILED" else 0
     return 1
 
 

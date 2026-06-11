@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260611_engineering_gate_preflight_exit_policy_v1",
-  "round_id": "round_20260611_engineering_gate_preflight_exit_policy_v1",
+  "decision_id": "decision_20260611_engineering_gate_command_plan_v1",
+  "round_id": "round_20260611_engineering_gate_command_plan_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-11T15:38:45.738846Z",
+  "generated_at": "2026-06-11T15:54:53.131039Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -60,7 +60,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "report_20260611_engineering_gate_preflight_v1"
+      "report_id": "report_20260611_engineering_gate_preflight_exit_policy_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -76,12 +76,15 @@
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
         "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260611_engineering_gate_preflight_exit_policy_v1/*",
+        "project_state/rounds/round_20260611_engineering_gate_command_plan_v1/*",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_state.py` only if helper exposure is strictly necessary",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py` only if shared helper tests are necessary"
       ]
     },
     {

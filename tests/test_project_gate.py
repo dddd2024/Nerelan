@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from reverse_agent.project_gate import final_check, main, preflight
+from reverse_agent.project_gate import command_plan, final_check, main, preflight
 from reverse_agent.project_state import archive_round, write_pytest_result
 
 
@@ -157,6 +157,58 @@ def _make_preflight_state(tmp_path: Path, **decision_kwargs: object) -> Path:
     _write_json(state_dir / "model_gate.json", {"should_call_model": False})
     _write_json(state_dir / "negative_results.json", {})
     _write_preflight_decision(state_dir, **decision_kwargs)
+    return state_dir
+
+
+def _write_command_plan_decision(
+    state_dir: Path,
+    *,
+    tests_block: str | None,
+    extra_text: str = "",
+) -> None:
+    payload = {
+        "schema_version": 1,
+        "decision_id": "decision_command_plan",
+        "round_id": "round_command_plan",
+        "based_on_state_build_id": "state_test",
+        "based_on_state_digest": "digest_test",
+        "status": "APPROVED",
+        "mainline": "engineering_branch",
+        "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
+    }
+    tests_section = "" if tests_block is None else f"""
+## 7. Tests
+
+```bash
+{tests_block}
+```
+"""
+    (state_dir / "decision_packet.md").write_text(
+        f"""```json decision_meta
+{json.dumps(payload, indent=2)}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+
+Build a read-only command plan.
+
+{extra_text}
+{tests_section}
+""",
+        encoding="utf-8",
+    )
+
+
+def _make_command_plan_state(
+    tmp_path: Path,
+    *,
+    tests_block: str | None,
+    extra_text: str = "",
+) -> Path:
+    state_dir = _make_preflight_state(tmp_path)
+    _write_command_plan_decision(state_dir, tests_block=tests_block, extra_text=extra_text)
     return state_dir
 
 
@@ -574,3 +626,144 @@ def test_project_gate_final_check_cli_keeps_consistent_blocked_report_zero_exit(
     state_dir = _make_gate_state(tmp_path, status="BLOCKED", acceptance="BLOCKED")
 
     assert main(["final-check", "--state-dir", str(state_dir)]) == 0
+
+
+def test_command_plan_extracts_fenced_bash_commands_and_classifies_phases(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""pwd
+python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_state lint-report --state-dir project_state
+python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_command_plan
+python -m reverse_agent.project_gate final-check --state-dir project_state --json
+git status --short
+""",
+    )
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    commands = result["commands"]
+    assert [command["command"] for command in commands][:3] == [
+        "pwd",
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+    ]
+    assert [command["phase"] for command in commands] == [
+        "status",
+        "preflight",
+        "test",
+        "gate",
+        "status",
+        "archive",
+        "post_archive",
+        "post_archive",
+    ]
+    assert [command["kind"] for command in commands] == [
+        "pwd",
+        "preflight",
+        "pytest",
+        "final-check",
+        "lint-report",
+        "archive-round",
+        "final-check",
+        "git status",
+    ]
+    assert commands[1]["expected_exit_codes"] == [0]
+    assert commands[2]["expected_exit_codes"] == [0]
+    assert commands[5]["expected_exit_codes"] == [0]
+    assert commands[6]["expected_exit_codes"] == [0]
+    assert result["blocking_reasons"] == []
+    assert result["warnings"] == []
+
+
+def test_command_plan_fails_when_tests_section_missing(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(tmp_path, tests_block=None)
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "FAILED"
+    assert "Tests section is missing" in result["blocking_reasons"]
+
+
+def test_command_plan_fails_when_tests_section_has_no_fenced_bash_block(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest -q")
+    text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    text = text.replace("```bash\npython -m pytest -q\n```", "- `python -m pytest -q`")
+    (state_dir / "decision_packet.md").write_text(text, encoding="utf-8")
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "FAILED"
+    assert "Tests section has no fenced bash command block" in result["blocking_reasons"]
+
+
+def test_command_plan_fails_when_bash_block_empty(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(tmp_path, tests_block="")
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "FAILED"
+    assert "fenced bash command block is empty" in result["blocking_reasons"]
+
+
+def test_command_plan_requires_explicit_expected_nonzero_for_post_report_preflight(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_command_plan
+python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+    )
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "FAILED"
+    assert result["commands"][1]["phase"] == "post_archive"
+    assert result["commands"][1]["expected_exit_codes"] == [0]
+    assert any("post-report preflight" in reason for reason in result["blocking_reasons"])
+
+
+def test_command_plan_allows_explicit_expected_nonzero_post_report_preflight(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_command_plan
+python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+        extra_text="Post-report preflight is an expected nonzero diagnostic.",
+    )
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert result["commands"][1]["phase"] == "post_archive"
+    assert result["commands"][1]["expected_exit_codes"] == [1]
+    assert result["commands"][1]["notes"] == "post-report preflight expected nonzero diagnostic"
+
+
+def test_project_gate_command_plan_cli_json_writes_result(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -m pytest tests/test_project_gate.py -q",
+    )
+
+    assert main(["command-plan", "--state-dir", str(state_dir), "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["plan_status"] == "PASSED"
+    assert output["commands"][0]["kind"] == "pytest"
+    assert (state_dir / "gates" / "command_plan.json").exists()
+
+
+def test_command_plan_classifies_command_plan_self_check_as_gate(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    )
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert result["commands"][0]["kind"] == "command-plan"
+    assert result["commands"][0]["phase"] == "gate"
