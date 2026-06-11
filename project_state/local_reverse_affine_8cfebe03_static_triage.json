@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "sample_id": "affine_8cfebe03",
+  "relative_path": "逆向课程2024春补考03/affine.exe",
+  "analysis_mode": "single_sample_static_triage",
+  "mainline": "tool_integration",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "generated_at": "2026-06-11T11:04:06Z",
+  "tool_status": "blocked",
+  "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+  "blocked_detail": "",
+  "source_tool": "IDA",
+  "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+  "size_bytes": 196688,
+  "file_type": "pe",
+  "category": "unknown",
+  "tags": [
+    "local",
+    "reverse",
+    "pe"
+  ],
+  "triage": {
+    "input_apis": [],
+    "interesting_strings": [],
+    "functions": [],
+    "compare_contexts": [],
+    "validation_function_candidates": [],
+    "solver_profile_hypotheses": []
+  },
+  "candidate": null,
+  "known_candidate": "",
+  "recommended_next_action": "Resolve blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+}
