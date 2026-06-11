@@ -1,15 +1,15 @@
 {
   "cases": [
     {
-      "case_id": "desenc_14c58fcd",
-      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2019秋04/desenc.exe",
+      "case_id": "rc4_interactive_solver_773052ac",
+      "input_value": "${LOCAL_REVERSE_ROOT}/rc4_interactive_solver.py",
       "expected_flag": "",
       "category": "crypto/cipher",
       "tags": [
         "local",
         "reverse",
         "crypto_cipher",
-        "pe"
+        "python"
       ],
       "notes": "Auto-generated from local reverse inventory."
     }

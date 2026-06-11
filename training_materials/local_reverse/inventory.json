@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-04T05:38:36Z",
+  "generated_at": "2026-06-11T08:02:47Z",
   "samples_root_hint": "LOCAL_REVERSE_ROOT",
   "entries": [
     {
@@ -58,6 +58,59 @@
       "github_upload_policy": "metadata_only"
     },
     {
+      "sample_id": "rc4_interactive_solver_773052ac",
+      "display_name": "rc4_interactive_solver.py",
+      "relative_path": "rc4_interactive_solver.py",
+      "sha256": "773052ac5ecd81beb42509ced8ab4c3d4c2f4f91b9d7e07049f604fcd41b37b8",
+      "size_bytes": 18600,
+      "extension": ".py",
+      "guessed_file_type": "python",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "python"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "xor_array_solver_v2_fb15e14c",
+      "display_name": "xor_array_solver_v2.py",
+      "relative_path": "xor_array_solver_v2.py",
+      "sha256": "fb15e14c868ed263ecf5d43daec07f1b820a4e6d630a87dc8ef524339266dee9",
+      "size_bytes": 5596,
+      "extension": ".py",
+      "guessed_file_type": "python",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "python"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp2_5910fe3b",
+      "display_name": "Cpp2.exe",
+      "relative_path": "新建文件夹/Cpp2.exe",
+      "sha256": "5910fe3b430d7b8e5569467aec7de9d8a41e3f40b7e56115f76b59a89ff97134",
+      "size_bytes": 176202,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
       "sample_id": "desenc_0e0b5203",
       "display_name": "desenc.exe",
       "relative_path": "逆向课程2019春04/desenc.exe",
@@ -70,6 +123,42 @@
         "local",
         "reverse",
         "crypto_cipher",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp2_6a58f5f7",
+      "display_name": "Cpp2.exe",
+      "relative_path": "逆向课程2019秋01/Cpp2.exe",
+      "sha256": "6a58f5f714b4d8ad5d03f70e7dd2dda6aee782cb45f239556c4e3431b5a16782",
+      "size_bytes": 184406,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp2_b210bced",
+      "display_name": "Cpp2.exe",
+      "relative_path": "逆向课程2019秋02/Cpp2.exe",
+      "sha256": "b210bced49f3b9ecd333d1c2fed8326aa13fae75ede047b7709d22dd25ab9cf5",
+      "size_bytes": 196691,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
         "pe"
       ],
       "status": "indexed",
@@ -165,6 +254,23 @@
       "github_upload_policy": "metadata_only"
     },
     {
+      "sample_id": "main_d44edbfe",
+      "display_name": "main.exe",
+      "relative_path": "逆向课程2020秋03/main.exe",
+      "sha256": "d44edbfe19b4776851fbacd4af1a163b62471e192764154be08efdeb5bc1bb71",
+      "size_bytes": 200782,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
       "sample_id": "byte_shift_transform_solver_3718a6fa",
       "display_name": "byte_shift_transform_solver.py",
       "relative_path": "逆向课程2021春02/byte_shift_transform_solver.py",
@@ -186,6 +292,60 @@
       "display_name": "Cpp2.exe",
       "relative_path": "逆向课程2021春02/Cpp2.exe",
       "sha256": "f2738577f6d38a499eeaf24e6d7c04668f591b89b751f38dda88bdb069d34564",
+      "size_bytes": 196689,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp2_29ebb670",
+      "display_name": "Cpp2.exe",
+      "relative_path": "逆向课程2021春03/Cpp2.exe",
+      "sha256": "29ebb670762408abb6a1665b6eb4ae081ecdb4f07e5fa215db8c72b9e6d6d0c3",
+      "size_bytes": 196689,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp2_aa2b785b",
+      "display_name": "Cpp2.exe",
+      "relative_path": "逆向课程2021春04/Cpp2.exe",
+      "sha256": "aa2b785b6b16e4356e19e3061bbd3d8963dae9b0027ccdb187fb597186662c9a",
+      "size_bytes": 200785,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp1_378eeffd",
+      "display_name": "CPP1.exe",
+      "relative_path": "逆向课程2022春01/CPP1.exe",
+      "sha256": "378eeffdb7f9ccd9ef33a59d3a2bb8a180d057a2955c7537ce91fd0d48931057",
       "size_bytes": 196689,
       "extension": ".exe",
       "guessed_file_type": "pe",
@@ -323,6 +483,24 @@
       "github_upload_policy": "metadata_only"
     },
     {
+      "sample_id": "cpp2_35310f79",
+      "display_name": "CPP2.exe",
+      "relative_path": "逆向课程2023春02/CPP2.exe",
+      "sha256": "35310f7946f3357c474a25b0ed7d5542231df83ec9ad004afcc9a9c94b3a5a3a",
+      "size_bytes": 196700,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
       "sample_id": "cpp3_019fcdc8",
       "display_name": "CPP3.exe",
       "relative_path": "逆向课程2023春03/CPP3.exe",
@@ -353,6 +531,42 @@
         "local",
         "reverse",
         "python"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp4_c7cb6b0e",
+      "display_name": "CPP4.exe",
+      "relative_path": "逆向课程2023春04/CPP4.exe",
+      "sha256": "c7cb6b0e970e8c2ab68f8bfb19051628ce89a7f233ff9a4b1513b1114b968424",
+      "size_bytes": 200796,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp5_79788295",
+      "display_name": "CPP5.exe",
+      "relative_path": "逆向课程2023春05/CPP5.exe",
+      "sha256": "79788295c42b0b2378ba816e982fdef2a287d3f59ca86676b75171c4395605a5",
+      "size_bytes": 200796,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
       ],
       "status": "indexed",
       "github_upload_policy": "metadata_only"
@@ -394,11 +608,47 @@
       "github_upload_policy": "metadata_only"
     },
     {
+      "sample_id": "cpp3_5c3b34d5",
+      "display_name": "Cpp3.exe",
+      "relative_path": "逆向课程2023春补考03/Cpp3.exe",
+      "sha256": "5c3b34d5f728ff4d5b8a5f33f8b63d5b53e7dedccb5a7811523e6ba96c3058b8",
+      "size_bytes": 196691,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
       "sample_id": "cpp4_ab1b6104",
       "display_name": "Cpp4.exe",
       "relative_path": "逆向课程2023春补考04/Cpp4.exe",
       "sha256": "ab1b6104f0b3afa77dd2b15b181b6601f97bc615d1e7b2a0491b89987f964e99",
       "size_bytes": 200782,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp5_8fae8fac",
+      "display_name": "Cpp5.exe",
+      "relative_path": "逆向课程2023春补考05/Cpp5.exe",
+      "sha256": "8fae8fac0b06cb3758e02de62a72de45207699c163a45a2b51363cce7a7d0b4e",
+      "size_bytes": 200784,
       "extension": ".exe",
       "guessed_file_type": "pe",
       "category": "cpp",
@@ -448,6 +698,42 @@
       "github_upload_policy": "metadata_only"
     },
     {
+      "sample_id": "desenc_fd9d0af6",
+      "display_name": "DESEnc.exe",
+      "relative_path": "逆向课程2024春04/DESEnc.exe",
+      "sha256": "fd9d0af666e252c61c6bad78b24c96faf96955e82f82e2965835264217caacf4",
+      "size_bytes": 200787,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp2_561edd9a",
+      "display_name": "Cpp2.exe",
+      "relative_path": "逆向课程2024春补考02/Cpp2.exe",
+      "sha256": "561edd9a35afa22ccf5bea7f7c9fbf1a1d74bb4b06ab4a5a8280bd2363fa6511",
+      "size_bytes": 196686,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
       "sample_id": "affine_8cfebe03",
       "display_name": "affine.exe",
       "relative_path": "逆向课程2024春补考03/affine.exe",
@@ -470,6 +756,77 @@
       "relative_path": "逆向课程2024春补考03/cpp3.exe",
       "sha256": "e5a33e0b6f82114882d2141469a3bef3b793c8672c0372e491c082494dc6362d",
       "size_bytes": 196686,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "main_ab1b6104",
+      "display_name": "main.exe",
+      "relative_path": "逆向课程2024春补考04/main.exe",
+      "sha256": "ab1b6104f0b3afa77dd2b15b181b6601f97bc615d1e7b2a0491b89987f964e99",
+      "size_bytes": 200782,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "rc4enc_f93c785f",
+      "display_name": "rc4enc.exe",
+      "relative_path": "逆向课程2024春补考05/rc4enc.exe",
+      "sha256": "f93c785f6ae4d042e67f560248652919413baee070648eb8eea2cf73ea2231d1",
+      "size_bytes": 196688,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp2_8c0d2ad4",
+      "display_name": "Cpp2.exe",
+      "relative_path": "逆向课程2025春01/Cpp2.exe",
+      "sha256": "8c0d2ad4e44d823d41d71054ad08694a7a5ea9562f997c828a40e6257d552b77",
+      "size_bytes": 196689,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "cpp2_f53fb951",
+      "display_name": "Cpp2.exe",
+      "relative_path": "逆向课程2025春02/Cpp2.exe",
+      "sha256": "f53fb951f387f63b95dc86b2d2a778c063defffe6853b6da48e27bf6bed66d7f",
+      "size_bytes": 200785,
       "extension": ".exe",
       "guessed_file_type": "pe",
       "category": "cpp",
@@ -506,6 +863,23 @@
       "relative_path": "逆向课程2025春04/main.exe",
       "sha256": "36c51ec1d1dd3170d1cb56cbcf8313c468b1c194902b89ec52d736c7899ec1a9",
       "size_bytes": 200791,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "status": "indexed",
+      "github_upload_policy": "metadata_only"
+    },
+    {
+      "sample_id": "main_6ae5a26d",
+      "display_name": "main.exe",
+      "relative_path": "逆向课程2025春05/main.exe",
+      "sha256": "6ae5a26db998b0f6e7932492dd3e83f306ac3394be627b899d631591b4453c38",
+      "size_bytes": 184401,
       "extension": ".exe",
       "guessed_file_type": "pe",
       "category": "unknown",

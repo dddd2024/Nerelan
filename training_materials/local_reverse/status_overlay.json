@@ -1,31 +1,15 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-08T14:42:30Z",
+  "generated_at": "2026-06-11T08:02:56Z",
   "source_inventory_hint": "LOCAL_REVERSE_ROOT",
-  "sample_count": 29,
+  "sample_count": 50,
   "status_summary": {
-    "solved": 5,
-    "blocked": 4,
+    "solved": 1,
+    "blocked": 2,
     "needs_triage": 0,
-    "inventory_only": 20,
-    "solved_count": 5,
-    "inventory_only_count": 20
+    "inventory_only": 47
   },
   "samples": [
-    {
-      "sample_id": "cpp1_7b504c54",
-      "relative_path": "逆向课程2023春补考01/Cpp1.exe",
-      "category": "cpp",
-      "tags": [
-        "local",
-        "reverse",
-        "cpp",
-        "pe"
-      ],
-      "training_status": "solved",
-      "known_candidate": "WeKnowItOk",
-      "blocked_reason": ""
-    },
     {
       "sample_id": "cpp1_bcbd9979",
       "relative_path": "逆向课程2022春补考01/Cpp1.exe",
@@ -39,51 +23,6 @@
       "training_status": "solved",
       "known_candidate": "hookapi",
       "blocked_reason": ""
-    },
-    {
-      "sample_id": "affine_8cfebe03",
-      "relative_path": "逆向课程2024春补考03/affine.exe",
-      "category": "unknown",
-      "tags": [
-        "local",
-        "reverse",
-        "pe"
-      ],
-      "training_status": "blocked",
-      "known_candidate": "",
-      "blocked_reason": "MISSING_EXPECTED_CIPHERTEXT"
-    },
-    {
-      "sample_id": "cpp1_2f6fcb63",
-      "relative_path": "逆向课程2023春01/CPP1.exe",
-      "category": "cpp",
-      "tags": [
-        "local",
-        "reverse",
-        "cpp",
-        "pe"
-      ],
-      "training_status": "blocked",
-      "known_candidate": "",
-      "blocked_reason": "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE"
-    },
-    {
-      "sample_id": "cpp2_2f64e68d",
-      "relative_path": "逆向课程2025春03/CPP2.exe",
-      "category": "cpp",
-      "tags": [
-        "local",
-        "reverse",
-        "cpp",
-        "pe"
-      ],
-      "training_status": "solved",
-      "known_candidate": "10013",
-      "blocked_reason": "",
-      "solved_by": "oracle_backed_runtime_validation",
-      "solved_at": "2026-06-07T15:00:00Z",
-      "solved_round": "round_20260607_cpp2_2f64e68d_oracle_backed_validation_rework_v1",
-      "evidence_source": "project_state/local_reverse_cpp2_2f64e68d_oracle_backed_runtime_validation.json"
     },
     {
       "sample_id": "cpp2_4c69f173",
@@ -114,6 +53,19 @@
       "blocked_reason": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN"
     },
     {
+      "sample_id": "affine_8cfebe03",
+      "relative_path": "逆向课程2024春补考03/affine.exe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
       "sample_id": "byte_shift_transform_solver_3718a6fa",
       "relative_path": "逆向课程2021春02/byte_shift_transform_solver.py",
       "category": "unknown",
@@ -121,6 +73,76 @@
         "local",
         "reverse",
         "python"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp1_2f6fcb63",
+      "relative_path": "逆向课程2023春01/CPP1.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp1_378eeffd",
+      "relative_path": "逆向课程2022春01/CPP1.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp1_7b504c54",
+      "relative_path": "逆向课程2023春补考01/Cpp1.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_29ebb670",
+      "relative_path": "逆向课程2021春03/Cpp2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_2f64e68d",
+      "relative_path": "逆向课程2025春03/CPP2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",
@@ -136,13 +158,65 @@
         "cpp",
         "pe"
       ],
-      "training_status": "solved",
-      "known_candidate": "KEEP_DREAM",
-      "blocked_reason": "",
-      "solved_by": "bounded_runtime_validation",
-      "solved_at": "2026-06-07T15:00:00Z",
-      "solved_round": "round_20260607_cpp2_32f1713e_keep_dream_runtime_validation_v1",
-      "evidence_source": "project_state/local_reverse_cpp2_32f1713e_keep_dream_runtime_validation.json"
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_35310f79",
+      "relative_path": "逆向课程2023春02/CPP2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_561edd9a",
+      "relative_path": "逆向课程2024春补考02/Cpp2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_5910fe3b",
+      "relative_path": "新建文件夹/Cpp2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_6a58f5f7",
+      "relative_path": "逆向课程2019秋01/Cpp2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
     },
     {
       "sample_id": "cpp2_883e67b9",
@@ -154,17 +228,69 @@
         "cpp",
         "pe"
       ],
-      "training_status": "solved",
-      "known_candidate": "KaiJu_YiZhi_PEN",
-      "blocked_reason": "",
-      "solved_by": "console_runtime_validation",
-      "solved_at": "2026-06-08T14:42:30Z",
-      "solved_round": "round_20260608_cpp2_883e67b9_reverse_solving_candidate_validation_v1",
-      "evidence_source": "project_state/local_reverse_cpp2_883e67b9_candidate_validation.json"
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_8c0d2ad4",
+      "relative_path": "逆向课程2025春01/Cpp2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_aa2b785b",
+      "relative_path": "逆向课程2021春04/Cpp2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_b210bced",
+      "relative_path": "逆向课程2019秋02/Cpp2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
     },
     {
       "sample_id": "cpp2_f2738577",
       "relative_path": "逆向课程2021春02/Cpp2.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp2_f53fb951",
+      "relative_path": "逆向课程2025春02/Cpp2.exe",
       "category": "cpp",
       "tags": [
         "local",
@@ -205,6 +331,20 @@
       "blocked_reason": ""
     },
     {
+      "sample_id": "cpp3_5c3b34d5",
+      "relative_path": "逆向课程2023春补考03/Cpp3.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
       "sample_id": "cpp3_e5a33e0b",
       "relative_path": "逆向课程2024春补考03/cpp3.exe",
       "category": "cpp",
@@ -233,8 +373,50 @@
       "blocked_reason": ""
     },
     {
+      "sample_id": "cpp4_c7cb6b0e",
+      "relative_path": "逆向课程2023春04/CPP4.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
       "sample_id": "cpp5_2ea076a7",
       "relative_path": "逆向课程2022春05/CPP5.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp5_79788295",
+      "relative_path": "逆向课程2023春05/CPP5.exe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "cpp5_8fae8fac",
+      "relative_path": "逆向课程2023春补考05/Cpp5.exe",
       "category": "cpp",
       "tags": [
         "local",
@@ -317,8 +499,61 @@
       "blocked_reason": ""
     },
     {
+      "sample_id": "desenc_fd9d0af6",
+      "relative_path": "逆向课程2024春04/DESEnc.exe",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
       "sample_id": "main_36c51ec1",
       "relative_path": "逆向课程2025春04/main.exe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "main_6ae5a26d",
+      "relative_path": "逆向课程2025春05/main.exe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "main_ab1b6104",
+      "relative_path": "逆向课程2024春补考04/main.exe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "main_d44edbfe",
+      "relative_path": "逆向课程2020秋03/main.exe",
       "category": "unknown",
       "tags": [
         "local",
@@ -370,8 +605,36 @@
       "blocked_reason": ""
     },
     {
+      "sample_id": "rc4_interactive_solver_773052ac",
+      "relative_path": "rc4_interactive_solver.py",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "python"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
       "sample_id": "rc4enc_3480917d",
       "relative_path": "逆向课程2019秋03/rc4enc.exe",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "rc4enc_f93c785f",
+      "relative_path": "逆向课程2024春补考05/rc4enc.exe",
       "category": "crypto/cipher",
       "tags": [
         "local",
@@ -412,6 +675,19 @@
     {
       "sample_id": "xor_array_solver_4e6d25f0",
       "relative_path": "逆向课程2023春03/xor_array_solver.py",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "python"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": ""
+    },
+    {
+      "sample_id": "xor_array_solver_v2_fb15e14c",
+      "relative_path": "xor_array_solver_v2.py",
       "category": "unknown",
       "tags": [
         "local",

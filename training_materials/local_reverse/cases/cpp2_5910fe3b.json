@@ -1,13 +1,14 @@
 {
   "cases": [
     {
-      "case_id": "seh_52be8d5c",
-      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2020秋02/SEH.exe",
+      "case_id": "cpp2_5910fe3b",
+      "input_value": "${LOCAL_REVERSE_ROOT}/新建文件夹/Cpp2.exe",
       "expected_flag": "",
-      "category": "unknown",
+      "category": "cpp",
       "tags": [
         "local",
         "reverse",
+        "cpp",
         "pe"
       ],
       "notes": "Auto-generated from local reverse inventory."

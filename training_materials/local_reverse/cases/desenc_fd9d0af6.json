@@ -1,13 +1,14 @@
 {
   "cases": [
     {
-      "case_id": "seh_52be8d5c",
-      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2020秋02/SEH.exe",
+      "case_id": "desenc_fd9d0af6",
+      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2024春04/DESEnc.exe",
       "expected_flag": "",
-      "category": "unknown",
+      "category": "crypto/cipher",
       "tags": [
         "local",
         "reverse",
+        "crypto_cipher",
         "pe"
       ],
       "notes": "Auto-generated from local reverse inventory."

@@ -1810,18 +1810,19 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
         })
 
     # Check 2: mainline
-    if mainline != "engineering_branch":
+    ALLOWED_MAINLINES = {"engineering_branch", "reverse_solving", "tool_integration", "training_dataset"}
+    if mainline not in ALLOWED_MAINLINES:
         checks.append({
             "name": "mainline",
             "status": "FAIL",
-            "detail": f"mainline is {mainline}, expected engineering_branch",
+            "detail": f"mainline is {mainline}, expected one of {ALLOWED_MAINLINES}",
         })
         overall_status = "FAIL"
     else:
         checks.append({
             "name": "mainline",
             "status": "PASS",
-            "detail": "mainline is engineering_branch",
+            "detail": f"mainline is {mainline}",
         })
 
     # Check 3: skill profiles

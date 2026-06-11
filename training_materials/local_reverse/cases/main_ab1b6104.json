@@ -1,8 +1,8 @@
 {
   "cases": [
     {
-      "case_id": "seh_52be8d5c",
-      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2020秋02/SEH.exe",
+      "case_id": "main_ab1b6104",
+      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2024春补考04/main.exe",
       "expected_flag": "",
       "category": "unknown",
       "tags": [

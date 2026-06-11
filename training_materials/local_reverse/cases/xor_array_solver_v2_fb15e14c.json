@@ -1,14 +1,14 @@
 {
   "cases": [
     {
-      "case_id": "seh_52be8d5c",
-      "input_value": "${LOCAL_REVERSE_ROOT}/逆向课程2020秋02/SEH.exe",
+      "case_id": "xor_array_solver_v2_fb15e14c",
+      "input_value": "${LOCAL_REVERSE_ROOT}/xor_array_solver_v2.py",
       "expected_flag": "",
       "category": "unknown",
       "tags": [
         "local",
         "reverse",
-        "pe"
+        "python"
       ],
       "notes": "Auto-generated from local reverse inventory."
     }
