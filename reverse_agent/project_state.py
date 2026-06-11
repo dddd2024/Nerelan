@@ -281,6 +281,7 @@ CODEX_EXECUTION_REPORT_TEMPLATE = """```json codex_report_summary
   "files_changed": [],
   "tests_ran": [],
   "generated_artifacts": [],
+  "verified_artifacts": [],
   "next_suggested_task": ""
 }
 ```
@@ -1057,6 +1058,7 @@ def read_codex_report_summary(state_dir: Path) -> dict[str, Any]:
         "files_changed": meta.get("files_changed"),
         "tests_ran": meta.get("tests_ran"),
         "generated_artifacts": meta.get("generated_artifacts"),
+        "verified_artifacts": meta.get("verified_artifacts"),
         "next_suggested_task": meta.get("next_suggested_task") or "",
         "parse_error": meta.get("parse_error"),
     }
@@ -1649,13 +1651,12 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
     if round_id and decision_round_id and round_id != decision_round_id:
         errors.append("report round_id does not match current decision round_id")
 
-    required_report_summary_list_fields = ("generated_artifacts",)
+    artifact_list_fields = ("generated_artifacts", "verified_artifacts")
     if report_status in {"SUCCESS", "PARTIAL", "BLOCKED", "FAILED"}:
-        for field in required_report_summary_list_fields:
-            if report.get(field) is None:
-                errors.append(f"{field} missing")
+        if all(report.get(field) is None for field in artifact_list_fields):
+            errors.append("generated_artifacts or verified_artifacts missing")
 
-    for field in ("files_changed", "tests_ran", "generated_artifacts"):
+    for field in ("files_changed", "tests_ran", *artifact_list_fields):
         value = report.get(field)
         if value is not None and not isinstance(value, list):
             errors.append(f"{field} must be a list")
@@ -1693,6 +1694,7 @@ def lint_report(state_dir: Path) -> dict[str, Any]:
         **round_consistency,
         "tests_ran_count": _list_count(report.get("tests_ran")),
         "generated_artifacts_count": _list_count(report.get("generated_artifacts")),
+        "verified_artifacts_count": _list_count(report.get("verified_artifacts")),
         "pytest_result_present": pytest_result_present,
         "pytest_result_status": pytest_validation.get("status"),
         "pytest_result_decision_id": pytest_validation.get("decision_id"),
@@ -5778,6 +5780,7 @@ def _print_lint_report(result: dict[str, Any]) -> None:
     )
     print(f"tests_ran_count: {result.get('tests_ran_count')}")
     print(f"generated_artifacts_count: {result.get('generated_artifacts_count')}")
+    print(f"verified_artifacts_count: {result.get('verified_artifacts_count')}")
     print(f"pytest_result_present: {result.get('pytest_result_present')}")
     print(f"pytest_result_status: {result.get('pytest_result_status')}")
     print(f"pytest_result_decision_id: {result.get('pytest_result_decision_id')}")

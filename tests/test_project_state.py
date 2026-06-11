@@ -102,6 +102,9 @@ def _write_codex_report(
     files_changed: object = None,
     tests_ran: object = None,
     generated_artifacts: object = None,
+    verified_artifacts: object = None,
+    include_generated_artifacts: bool = True,
+    include_verified_artifacts: bool = False,
 ) -> None:
     payload = {
         "schema_version": 1,
@@ -112,8 +115,11 @@ def _write_codex_report(
         "acceptance_recommendation": acceptance_recommendation,
         "files_changed": [] if files_changed is None else files_changed,
         "tests_ran": ["python -m pytest -q"] if tests_ran is None else tests_ran,
-        "generated_artifacts": [] if generated_artifacts is None else generated_artifacts,
     }
+    if include_generated_artifacts:
+        payload["generated_artifacts"] = [] if generated_artifacts is None else generated_artifacts
+    if include_verified_artifacts:
+        payload["verified_artifacts"] = [] if verified_artifacts is None else verified_artifacts
     (state_dir / "codex_execution_report.md").write_text(
         f"""```json codex_report_summary
 {json.dumps(payload, indent=2)}
@@ -4212,11 +4218,81 @@ def test_lint_report_ok_for_matching_success_report(tmp_path: Path) -> None:
     assert result["current_state_round_id"] == current_state["round_id"]
     assert result["tests_ran_count"] == 1
     assert result["generated_artifacts_count"] == 1
+    assert result["verified_artifacts_count"] == 0
     assert result["pytest_result_present"] is True
     assert result["report_tests_ran_count"] == 1
     assert result["pytest_result_tests_ran_count"] == 1
     assert result["pytest_result_tests_cover_report"] is True
     assert result["pytest_result_missing_report_tests"] == []
+
+
+def test_lint_report_accepts_verified_artifacts_without_generated_artifacts(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+        generated_artifacts=None,
+        verified_artifacts=["project_state/evidence/doctor_post_archive.json"],
+        include_generated_artifacts=False,
+        include_verified_artifacts=True,
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert result["generated_artifacts_count"] == 0
+    assert result["verified_artifacts_count"] == 1
+
+
+def test_lint_report_accepts_generated_and_verified_artifacts(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+        generated_artifacts=["project_state/pytest_result.txt"],
+        verified_artifacts=["project_state/evidence/doctor_post_archive.json"],
+        include_verified_artifacts=True,
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is True
+    assert result["generated_artifacts_count"] == 1
+    assert result["verified_artifacts_count"] == 1
+
+
+def test_read_codex_report_summary_preserves_old_reports_without_verified_artifacts(tmp_path: Path) -> None:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_codex_report(
+        state_dir,
+        generated_artifacts=["project_state/pytest_result.txt"],
+        include_verified_artifacts=False,
+    )
+
+    summary = read_codex_report_summary(state_dir)
+
+    assert summary["generated_artifacts"] == ["project_state/pytest_result.txt"]
+    assert summary["verified_artifacts"] is None
+    assert summary["parse_error"] is None
+
+
+def test_lint_report_fails_when_verified_artifacts_has_wrong_type(tmp_path: Path) -> None:
+    state_dir, current_state = _prepare_lint_report_state(tmp_path)
+    _write_codex_report(
+        state_dir,
+        round_id=str(current_state["round_id"]),
+        based_on_decision_id="decision_report",
+        verified_artifacts="project_state/evidence/doctor_post_archive.json",
+        include_verified_artifacts=True,
+    )
+
+    result = lint_report(state_dir)
+
+    assert result["ok"] is False
+    assert "verified_artifacts must be a list" in result["errors"]
 
 
 def test_status_summary_exposes_pytest_result_tests_ran_coverage(tmp_path: Path) -> None:
@@ -4264,7 +4340,7 @@ def test_lint_report_fails_when_report_summary_missing(tmp_path: Path) -> None:
     assert "codex_report_summary missing" in result["errors"]
 
 
-def test_lint_report_fails_when_generated_artifacts_missing(tmp_path: Path) -> None:
+def test_lint_report_fails_when_artifact_lists_missing(tmp_path: Path) -> None:
     state_dir, current_state = _prepare_lint_report_state(tmp_path)
     payload = {
         "schema_version": 1,
@@ -4289,7 +4365,7 @@ def test_lint_report_fails_when_generated_artifacts_missing(tmp_path: Path) -> N
     result = lint_report(state_dir)
 
     assert result["ok"] is False
-    assert "generated_artifacts missing" in result["errors"]
+    assert "generated_artifacts or verified_artifacts missing" in result["errors"]
 
 
 def test_lint_report_fails_when_report_status_template_only(tmp_path: Path) -> None:
@@ -4381,6 +4457,8 @@ def test_lint_report_fails_when_summary_lists_have_wrong_type(tmp_path: Path) ->
         files_changed="reverse_agent/project_state.py",
         tests_ran="python -m pytest -q",
         generated_artifacts="project_state/pytest_result.txt",
+        verified_artifacts="project_state/evidence/doctor_post_archive.json",
+        include_verified_artifacts=True,
     )
 
     result = lint_report(state_dir)
@@ -4389,6 +4467,7 @@ def test_lint_report_fails_when_summary_lists_have_wrong_type(tmp_path: Path) ->
     assert "files_changed must be a list" in result["errors"]
     assert "tests_ran must be a list" in result["errors"]
     assert "generated_artifacts must be a list" in result["errors"]
+    assert "verified_artifacts must be a list" in result["errors"]
 
 
 def test_lint_report_allows_engineering_round_with_sample_state(tmp_path: Path) -> None:
