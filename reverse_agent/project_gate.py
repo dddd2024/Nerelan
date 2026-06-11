@@ -16,6 +16,7 @@ from .project_state import (
     doctor,
     lint_decision,
     lint_report,
+    parse_pytest_result_header,
     read_codex_report_summary,
     read_decision_meta,
     status_summary,
@@ -334,6 +335,266 @@ def _archive_file_matches_live(state_dir: Path, round_id: str, name: str) -> boo
     return live_path.read_bytes() == archived_path.read_bytes()
 
 
+def _report_mentions_command_plan(report: dict[str, Any]) -> bool:
+    report_tests = _string_set(report.get("tests_ran"))
+    generated_artifacts = _string_set(report.get("generated_artifacts"))
+    return any("command-plan" in item for item in report_tests) or COMMAND_PLAN_OUTPUT_PATH in generated_artifacts
+
+
+def _expected_exit_codes_by_command(command_plan_payload: dict[str, Any]) -> dict[str, list[list[int]]]:
+    expected: dict[str, list[list[int]]] = {}
+    commands = command_plan_payload.get("commands")
+    if not isinstance(commands, list):
+        return expected
+    for item in commands:
+        if not isinstance(item, dict):
+            continue
+        command = str(item.get("command") or "")
+        codes = item.get("expected_exit_codes")
+        if not command or not isinstance(codes, list):
+            continue
+        normalized_codes: list[int] = []
+        for code in codes:
+            try:
+                normalized_codes.append(int(code))
+            except (TypeError, ValueError):
+                continue
+        expected.setdefault(command, []).append(normalized_codes)
+    return expected
+
+
+def _command_strings(command_plan_payload: dict[str, Any]) -> set[str]:
+    commands = command_plan_payload.get("commands")
+    if not isinstance(commands, list):
+        return set()
+    return {
+        str(item.get("command") or "")
+        for item in commands
+        if isinstance(item, dict) and str(item.get("command") or "")
+    }
+
+
+def _command_plan_json_commands(command_plan_payload: dict[str, Any]) -> list[dict[str, Any]]:
+    commands = command_plan_payload.get("commands")
+    if not isinstance(commands, list):
+        return []
+    return [dict(item) for item in commands if isinstance(item, dict)]
+
+
+def _parse_recorded_command_blocks(pytest_text: str) -> dict[str, Any]:
+    blocks: list[dict[str, Any]] = []
+    malformed: list[str] = []
+    current: dict[str, Any] | None = None
+    section = "stdout"
+    for raw_line in pytest_text.splitlines():
+        line = raw_line.rstrip("\n")
+        if line.startswith("===== COMMAND: ") and line.endswith(" ====="):
+            if current is not None:
+                malformed.append(str(current.get("command") or "<unknown>"))
+                blocks.append(current)
+            command = line[len("===== COMMAND: ") : -len(" =====")]
+            current = {"command": command, "stdout_lines": [], "stderr_lines": [], "exit_code": None}
+            section = "stdout"
+            continue
+        if current is None:
+            continue
+        if line == "===== STDERR =====":
+            section = "stderr"
+            continue
+        if line.startswith("===== EXIT: ") and line.endswith(" ====="):
+            exit_text = line[len("===== EXIT: ") : -len(" =====")].strip()
+            try:
+                current["exit_code"] = int(exit_text)
+            except ValueError:
+                malformed.append(str(current.get("command") or "<unknown>"))
+            blocks.append(current)
+            current = None
+            section = "stdout"
+            continue
+        if section == "stderr":
+            current["stderr_lines"].append(line)
+        else:
+            current["stdout_lines"].append(line)
+    if current is not None:
+        malformed.append(str(current.get("command") or "<unknown>"))
+        blocks.append(current)
+    for block in blocks:
+        block["stdout"] = "\n".join(block.pop("stdout_lines", []))
+        block["stderr"] = "\n".join(block.pop("stderr_lines", []))
+    return {"blocks": blocks, "malformed_commands": malformed}
+
+
+def _validate_command_plan_consistency(
+    *,
+    state_dir: Path,
+    decision: dict[str, Any],
+    report: dict[str, Any],
+    pytest_text: str,
+) -> list[dict[str, Any]]:
+    checks: list[dict[str, Any]] = []
+    command_plan_required = _report_mentions_command_plan(report)
+    command_plan_path = state_dir / "gates" / COMMAND_PLAN_RESULT_NAME
+    command_plan_payload = _read_json(command_plan_path)
+    command_plan_present = command_plan_path.exists() and bool(command_plan_payload)
+    if not command_plan_required:
+        checks.append(
+            _check(
+                "command_plan_present",
+                "PASS",
+                "command-plan consistency is not required for this report",
+                required=False,
+            )
+        )
+        return checks
+
+    checks.append(
+        _check(
+            "command_plan_present",
+            "PASS" if command_plan_present else "FAIL",
+            "command_plan.json is present" if command_plan_present else "command_plan.json is missing or invalid",
+            path=COMMAND_PLAN_OUTPUT_PATH,
+            required=True,
+        )
+    )
+    if not command_plan_present:
+        for name in (
+            "command_plan_ids_match",
+            "command_plan_covers_report_tests",
+            "pytest_result_exit_codes_match_command_plan",
+            "command_plan_json_stdout_full",
+            "command_plan_generated_artifact_recorded",
+        ):
+            checks.append(_check(name, "FAIL", "command_plan.json is unavailable"))
+        return checks
+
+    plan_status_ok = command_plan_payload.get("plan_status") == "PASSED"
+    ids_ok = (
+        plan_status_ok
+        and str(command_plan_payload.get("decision_id") or "") == str(decision.get("decision_id") or "")
+        and str(command_plan_payload.get("round_id") or "") == str(decision.get("round_id") or "")
+        and str(command_plan_payload.get("round_id") or "") == str(report.get("round_id") or "")
+    )
+    checks.append(
+        _check(
+            "command_plan_ids_match",
+            "PASS" if ids_ok else "FAIL",
+            "command_plan ids and status match current decision/report"
+            if ids_ok
+            else "command_plan ids, round_id, or status do not match",
+            plan_status=command_plan_payload.get("plan_status"),
+            command_plan_decision_id=command_plan_payload.get("decision_id"),
+            command_plan_round_id=command_plan_payload.get("round_id"),
+        )
+    )
+
+    plan_commands = _command_strings(command_plan_payload)
+    report_tests = _string_set(report.get("tests_ran"))
+    pytest_header = parse_pytest_result_header(pytest_text)
+    pytest_tests = set(pytest_header.get("tests_ran") or [])
+    missing_report_tests = sorted(report_tests - plan_commands)
+    missing_pytest_tests = sorted(pytest_tests - plan_commands)
+    coverage_ok = not missing_report_tests and not missing_pytest_tests
+    checks.append(
+        _check(
+            "command_plan_covers_report_tests",
+            "PASS" if coverage_ok else "FAIL",
+            "command_plan commands cover report and pytest_result tests"
+            if coverage_ok
+            else "command_plan commands do not cover report or pytest_result tests",
+            missing_report_tests=missing_report_tests,
+            missing_pytest_result_tests=missing_pytest_tests,
+        )
+    )
+
+    recorded = _parse_recorded_command_blocks(pytest_text)
+    blocks = list(recorded.get("blocks") or [])
+    malformed_commands = list(recorded.get("malformed_commands") or [])
+    blocks_by_command: dict[str, list[dict[str, Any]]] = {}
+    for block in blocks:
+        blocks_by_command.setdefault(str(block.get("command") or ""), []).append(block)
+
+    expected_by_command = _expected_exit_codes_by_command(command_plan_payload)
+    exit_errors: list[dict[str, Any]] = []
+    for command, expected_entries in expected_by_command.items():
+        recorded_entries = blocks_by_command.get(command, [])
+        if len(recorded_entries) < len(expected_entries):
+            exit_errors.append(
+                {
+                    "command": command,
+                    "error": "missing recorded command block",
+                    "expected_count": len(expected_entries),
+                    "recorded_count": len(recorded_entries),
+                }
+            )
+            continue
+        for index, expected_codes in enumerate(expected_entries):
+            exit_code = recorded_entries[index].get("exit_code")
+            if exit_code not in expected_codes:
+                exit_errors.append(
+                    {
+                        "command": command,
+                        "exit_code": exit_code,
+                        "expected_exit_codes": expected_codes,
+                    }
+                )
+    if malformed_commands:
+        exit_errors.append({"error": "malformed recorded command block", "commands": malformed_commands})
+    checks.append(
+        _check(
+            "pytest_result_exit_codes_match_command_plan",
+            "PASS" if not exit_errors else "FAIL",
+            "recorded command exit codes match command_plan expected_exit_codes"
+            if not exit_errors
+            else "recorded command exit codes do not match command_plan expected_exit_codes",
+            errors=exit_errors,
+        )
+    )
+
+    json_commands = [
+        str(item.get("command") or "")
+        for item in _command_plan_json_commands(command_plan_payload)
+        if "command-plan" in str(item.get("command") or "") and "--json" in str(item.get("command") or "")
+    ]
+    json_stdout_errors: list[dict[str, Any]] = []
+    for command in json_commands:
+        matching_blocks = blocks_by_command.get(command, [])
+        if not matching_blocks:
+            json_stdout_errors.append({"command": command, "error": "missing recorded stdout"})
+            continue
+        stdout = str(matching_blocks[0].get("stdout") or "").strip()
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            json_stdout_errors.append({"command": command, "error": f"stdout is not JSON: {exc.msg}"})
+            continue
+        if not isinstance(payload, dict) or not isinstance(payload.get("commands"), list):
+            json_stdout_errors.append({"command": command, "error": "stdout commands is not a full list"})
+    checks.append(
+        _check(
+            "command_plan_json_stdout_full",
+            "PASS" if not json_stdout_errors else "FAIL",
+            "command-plan --json recorded stdout contains full commands array"
+            if not json_stdout_errors
+            else "command-plan --json recorded stdout is missing a full commands array",
+            errors=json_stdout_errors,
+        )
+    )
+
+    generated_artifacts = _string_set(report.get("generated_artifacts"))
+    artifact_recorded = COMMAND_PLAN_OUTPUT_PATH in generated_artifacts
+    checks.append(
+        _check(
+            "command_plan_generated_artifact_recorded",
+            "PASS" if artifact_recorded else "FAIL",
+            "report generated_artifacts includes command_plan.json"
+            if artifact_recorded
+            else "report generated_artifacts omits command_plan.json",
+            path=COMMAND_PLAN_OUTPUT_PATH,
+        )
+    )
+    return checks
+
+
 def _forbidden_hits(paths: set[str]) -> list[str]:
     hits: list[str] = []
     for path in sorted(paths):
@@ -485,6 +746,15 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
                 else "generated_artifacts omits round archive files"
             ),
             missing_artifacts=missing_archive_artifacts,
+        )
+    )
+
+    checks.extend(
+        _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision=decision,
+            report=report,
+            pytest_text=pytest_text,
         )
     )
 

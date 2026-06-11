@@ -346,6 +346,131 @@ def _make_gate_state(
     return state_dir
 
 
+def _command_block(command: str, stdout: str, *, exit_code: int = 0, stderr: str = "") -> str:
+    lines = [f"===== COMMAND: {command} ====="]
+    if stdout:
+        lines.append(stdout.rstrip())
+    if stderr:
+        lines.extend(["===== STDERR =====", stderr.rstrip()])
+    lines.append(f"===== EXIT: {exit_code} =====")
+    return "\n".join(lines)
+
+
+def _make_command_plan_gate_state(
+    tmp_path: Path,
+    *,
+    command_plan_overrides: dict[str, object] | None = None,
+    report_tests: list[str] | None = None,
+    pytest_body: str | None = None,
+    generated_artifacts: list[str] | None = None,
+) -> Path:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+    _write_json(
+        state_dir / "current_state.json",
+        {
+            "round_id": "round_sample",
+            "state_build_id": "state_test",
+            "state_digest": "digest_test",
+            "state_scope": "sample_state",
+            "source_harness_run": "run_test",
+        },
+    )
+    _write_json(
+        state_dir / "task_packet.json",
+        {
+            "state_scope": "sample_state",
+            "task_source": "derived_from_sample_artifacts",
+            "execution_scope": "decision_packet_controls_current_round",
+            "active_decision_packet": "project_state/decision_packet.md",
+        },
+    )
+    _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+    _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+    _write_json(state_dir / "negative_results.json", {})
+
+    decision_id = "decision_gate"
+    report_id = "report_gate"
+    round_id = "round_gate"
+    commands = [
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    ]
+    plan_payload = {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "generated_at": "2026-06-11T00:00:00Z",
+        "commands": [
+            {
+                "index": index,
+                "command": command,
+                "phase": "gate" if "project_gate" in command else "test",
+                "kind": "command-plan" if "command-plan" in command else ("final-check" if "final-check" in command else "pytest"),
+                "required": True,
+                "expected_exit_codes": [0],
+                "records_stdout_stderr": True,
+                "notes": "expected to exit 0",
+            }
+            for index, command in enumerate(commands, start=1)
+        ],
+        "warnings": [],
+        "blocking_reasons": [],
+        "recommended_next_action": "record_and_follow_command_plan_manually",
+    }
+    if command_plan_overrides:
+        plan_payload.update(command_plan_overrides)
+    archive_paths = _archive_paths(round_id)
+    tests = report_tests if report_tests is not None else commands
+    _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
+    _write_report(
+        state_dir,
+        decision_id=decision_id,
+        report_id=report_id,
+        round_id=round_id,
+        files_changed=[
+            "reverse_agent/project_gate.py",
+            "tests/test_project_gate.py",
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            *archive_paths,
+        ],
+        tests_ran=tests,
+        generated_artifacts=generated_artifacts
+        if generated_artifacts is not None
+        else ["project_state/gates/command_plan.json", "project_state/gates/final_gate_result.json", *archive_paths],
+    )
+    _write_json(state_dir / "gates" / "command_plan.json", plan_payload)
+    body = pytest_body
+    if body is None:
+        body = "\n\n".join(
+            [
+                _command_block(commands[0], "212 passed in 1.00s"),
+                _command_block(commands[1], "command-plan: PASSED"),
+                _command_block(commands[2], json.dumps(plan_payload, indent=2)),
+                _command_block(commands[3], "final-check: PASSED"),
+            ]
+        )
+    _write_pytest(
+        state_dir,
+        decision_id=decision_id,
+        report_id=report_id,
+        round_id=round_id,
+        tests_ran=tests,
+        body=body,
+    )
+    archive_round(state_dir=state_dir, round_id=round_id)
+    return state_dir
+
+
 @pytest.fixture(autouse=True)
 def _clean_git_diff(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
@@ -464,6 +589,158 @@ def test_final_check_accepts_consistent_blocked_report_as_blocked(tmp_path: Path
     assert result["gate_status"] == "BLOCKED"
     assert result["blocking_reasons"] == []
     assert _check(result, "status_policy_valid")["status"] == "PASS"
+
+
+def test_final_check_passes_command_plan_report_pytest_consistency(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(tmp_path)
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert _check(result, "command_plan_present")["status"] == "PASS"
+    assert _check(result, "command_plan_ids_match")["status"] == "PASS"
+    assert _check(result, "command_plan_covers_report_tests")["status"] == "PASS"
+    assert _check(result, "pytest_result_exit_codes_match_command_plan")["status"] == "PASS"
+    assert _check(result, "command_plan_json_stdout_full")["status"] == "PASS"
+    assert _check(result, "command_plan_generated_artifact_recorded")["status"] == "PASS"
+
+
+def test_final_check_fails_when_command_plan_json_missing(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(tmp_path)
+    (state_dir / "gates" / "command_plan.json").unlink()
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "command_plan_present")["status"] == "FAIL"
+
+
+def test_final_check_fails_when_command_plan_ids_mismatch(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(tmp_path, command_plan_overrides={"decision_id": "other_decision"})
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "command_plan_ids_match")["status"] == "FAIL"
+
+
+def test_final_check_fails_when_command_plan_missing_report_test(tmp_path: Path) -> None:
+    extra_command = "python -m reverse_agent.project_state status --state-dir project_state"
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        report_tests=[
+            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            extra_command,
+        ],
+        pytest_body="\n\n".join(
+            [
+                _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "212 passed"),
+                _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
+                _command_block(
+                    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "plan_name": "command-plan",
+                            "plan_status": "PASSED",
+                            "decision_id": "decision_gate",
+                            "round_id": "round_gate",
+                            "mainline": "engineering_branch",
+                            "commands": [
+                                {"command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"},
+                                {"command": "python -m reverse_agent.project_gate command-plan --state-dir project_state"},
+                                {"command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json"},
+                                {"command": "python -m reverse_agent.project_gate final-check --state-dir project_state"},
+                            ],
+                        },
+                        indent=2,
+                    ),
+                ),
+                _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED"),
+                _command_block(extra_command, "state_dir: project_state"),
+            ]
+        ),
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    coverage = _check(result, "command_plan_covers_report_tests")
+    assert coverage["status"] == "FAIL"
+    assert extra_command in coverage["missing_report_tests"]
+
+
+def test_final_check_fails_when_recorded_exit_code_mismatches_command_plan(tmp_path: Path) -> None:
+    command = "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        pytest_body="\n\n".join(
+            [
+                _command_block(command, "pytest completed", exit_code=2),
+                _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
+                _command_block(
+                    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                    json.dumps({"commands": [{"command": command}]}, indent=2),
+                ),
+                _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED"),
+            ]
+        ),
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    exit_check = _check(result, "pytest_result_exit_codes_match_command_plan")
+    assert exit_check["status"] == "FAIL"
+    assert exit_check["errors"][0]["exit_code"] == 2
+
+
+def test_final_check_fails_when_command_plan_json_stdout_is_abbreviated(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        pytest_body="\n\n".join(
+            [
+                _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "212 passed"),
+                _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
+                _command_block(
+                    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                    json.dumps({"commands": "4 entries; full artifact saved in project_state/gates/command_plan.json"}),
+                ),
+                _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED"),
+            ]
+        ),
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "command_plan_json_stdout_full")["status"] == "FAIL"
+
+
+def test_final_check_fails_when_command_plan_artifact_not_recorded(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        generated_artifacts=["project_state/gates/final_gate_result.json", *_archive_paths("round_gate")],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "command_plan_generated_artifact_recorded")["status"] == "FAIL"
+
+
+def test_final_check_keeps_ordinary_rounds_without_command_plan_compatible(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    present_check = _check(result, "command_plan_present")
+    assert present_check["status"] == "PASS"
+    assert present_check["required"] is False
 
 
 def test_project_gate_cli_json_writes_result(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
