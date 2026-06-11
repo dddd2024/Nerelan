@@ -15,6 +15,7 @@ from reverse_agent.local_reverse_training_status import (
     _build_sample_entry,
     _build_solved_map,
     _build_static_handoff_overlay,
+    _build_static_tool_blocked_overlay,
     build_training_status,
     main,
 )
@@ -884,6 +885,29 @@ class TestBuildStaticHandoffOverlay:
         result = _build_static_handoff_overlay(index_path)
         assert "no_static" not in result
 
+    def test_static_tool_no_output_triage_artifact_skipped(self, tmp_path: Path) -> None:
+        index_path = self._make_artifact_index(tmp_path, [
+            {
+                "key_prefix": "local_reverse_affine_8cfebe03_static_triage",
+                "kind": "local_reverse_single_sample_static_triage",
+                "freshness": "current",
+                "artifact": {
+                    "sample_id": "affine_8cfebe03",
+                    "static_only": True,
+                    "executed_sample": False,
+                    "runtime_validated": False,
+                    "tool_status": "blocked",
+                    "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+                    "candidate": None,
+                    "analysis_mode": "single_sample_static_triage",
+                },
+            },
+        ])
+
+        result = _build_static_handoff_overlay(index_path)
+
+        assert "affine_8cfebe03" not in result
+
     # -- 6. executed_sample=true -> skipped --
 
     def test_executed_sample_true_skipped(self, tmp_path: Path) -> None:
@@ -1041,6 +1065,144 @@ class TestBuildStaticHandoffOverlay:
         # Handoff should win (affine_cipher, not xor_fixed_key)
         assert "affine_cipher" in entry["classification"]
         assert entry["blocked_reason"] == "MISSING_EXPECTED_CIPHERTEXT"
+
+
+class TestBuildStaticToolBlockedOverlay:
+    def test_static_tool_no_output_marks_needs_triage(self, tmp_path: Path) -> None:
+        artifact_file = tmp_path / "static_triage.json"
+        _write_json(artifact_file, {
+            "sample_id": "affine_8cfebe03",
+            "static_only": True,
+            "executed_sample": False,
+            "runtime_validated": False,
+            "tool_status": "blocked",
+            "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+            "source_tool": "IDA",
+            "candidate": None,
+            "analysis_mode": "single_sample_static_triage",
+        })
+        index_path = tmp_path / "artifact_index.json"
+        _write_json(index_path, {
+            "latest_artifacts_v2": {
+                "local_reverse_affine_8cfebe03_static_triage": {
+                    "kind": "local_reverse_single_sample_static_triage",
+                    "freshness": "current",
+                    "path": str(artifact_file),
+                    "sample_id": "affine_8cfebe03",
+                }
+            }
+        })
+
+        result = _build_static_tool_blocked_overlay(index_path)
+
+        entry = result["affine_8cfebe03"]
+        assert entry["training_status"] == "needs_triage"
+        assert entry["blocked_reason"] == "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+        assert "static_tool_blocked" in entry["evidence_sources"]
+        assert "source_tool:IDA" in entry["evidence_sources"]
+
+    def test_static_tool_success_or_stale_artifact_skipped(self, tmp_path: Path) -> None:
+        artifact_file = tmp_path / "static_triage.json"
+        _write_json(artifact_file, {
+            "sample_id": "affine_8cfebe03",
+            "static_only": True,
+            "executed_sample": False,
+            "runtime_validated": False,
+            "tool_status": "success",
+            "blocked_reason": "",
+            "candidate": None,
+        })
+        index_path = tmp_path / "artifact_index.json"
+        _write_json(index_path, {
+            "latest_artifacts_v2": {
+                "local_reverse_affine_8cfebe03_static_triage": {
+                    "kind": "local_reverse_single_sample_static_triage",
+                    "freshness": "current",
+                    "path": str(artifact_file),
+                    "sample_id": "affine_8cfebe03",
+                },
+                "local_reverse_affine_8cfebe03_stale_static_triage": {
+                    "kind": "local_reverse_single_sample_static_triage",
+                    "freshness": "stale",
+                    "path": str(artifact_file),
+                    "sample_id": "affine_8cfebe03",
+                },
+            }
+        })
+
+        assert _build_static_tool_blocked_overlay(index_path) == {}
+
+
+def test_build_training_status_marks_static_tool_blocked_sample_needs_triage(tmp_path: Path) -> None:
+    inventory = {
+        "schema_version": 1,
+        "entries": [
+            {
+                "sample_id": "affine_8cfebe03",
+                "display_name": "affine.exe",
+                "relative_path": "affine.exe",
+                "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+                "size_bytes": 196688,
+                "extension": ".exe",
+                "guessed_file_type": "pe",
+                "category": "unknown",
+                "tags": ["local", "reverse", "pe"],
+            }
+        ],
+    }
+    artifact_file = tmp_path / "local_reverse_affine_8cfebe03_static_triage.json"
+    _write_json(artifact_file, {
+        "sample_id": "affine_8cfebe03",
+        "static_only": True,
+        "executed_sample": False,
+        "runtime_validated": False,
+        "tool_status": "blocked",
+        "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+        "source_tool": "IDA",
+        "candidate": None,
+        "analysis_mode": "single_sample_static_triage",
+    })
+    artifact_index = {
+        "latest_artifacts_v2": {
+            "local_reverse_affine_8cfebe03_static_triage": {
+                "kind": "local_reverse_single_sample_static_triage",
+                "freshness": "current",
+                "path": str(artifact_file),
+                "sample_id": "affine_8cfebe03",
+            }
+        }
+    }
+
+    inv_path = tmp_path / "inventory.json"
+    artifact_index_path = tmp_path / "artifact_index.json"
+    out_path = tmp_path / "status.json"
+    queue_path = tmp_path / "queue.json"
+    _write_json(inv_path, inventory)
+    _write_json(artifact_index_path, artifact_index)
+
+    result = build_training_status(
+        inventory_path=inv_path,
+        validated_path=tmp_path / "missing_validated.json",
+        constraint_path=tmp_path / "missing_constraint.json",
+        solver_result_path=tmp_path / "missing_solver.json",
+        artifact_index_path=artifact_index_path,
+        out_path=out_path,
+        queue_out_path=queue_path,
+    )
+
+    assert result["status_summary"]["needs_triage"] == 1
+    assert result["status_summary"]["inventory_only"] == 0
+
+    status_data = json.loads(out_path.read_text(encoding="utf-8"))
+    sample = status_data["samples"][0]
+    assert sample["sample_id"] == "affine_8cfebe03"
+    assert sample["training_status"] == "needs_triage"
+    assert sample["known_candidate"] == ""
+    assert sample["blocked_reason"] == "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+    assert "static_tool_blocked" in sample["evidence_sources"]
+
+    queue_data = json.loads(queue_path.read_text(encoding="utf-8"))
+    assert queue_data["items"] == []
 
 
 def test_training_status_end_to_end_with_artifact_index_overlays(tmp_path: Path) -> None:

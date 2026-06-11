@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-11T11:04:52Z",
+  "generated_at": "2026-06-11T12:22:29Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 50,
   "status_summary": {
     "solved": 1,
     "blocked": 2,
-    "needs_triage": 0,
-    "inventory_only": 47
+    "needs_triage": 1,
+    "inventory_only": 46
   },
   "samples": [
     {
@@ -99,12 +99,17 @@
         "reverse",
         "pe"
       ],
-      "training_status": "inventory_only",
+      "training_status": "needs_triage",
       "known_candidate": "",
-      "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
+      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+      "classification": "single_sample_static_triage",
+      "evidence_sources": [
+        "source:local_reverse_affine_8cfebe03_static_triage.json",
+        "static_tool_blocked",
+        "tool_status:blocked",
+        "source_tool:IDA"
+      ],
+      "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
     },
     {
       "sample_id": "byte_shift_transform_solver_3718a6fa",

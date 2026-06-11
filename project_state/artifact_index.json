@@ -51,7 +51,8 @@
     "smt_validation": null,
     "strata_summary": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
-    "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json"
+    "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json",
+    "local_reverse_affine_8cfebe03_static_triage": "project_state\\local_reverse_affine_8cfebe03_static_triage.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -512,6 +513,19 @@
       "sha256": "9a0d39b1d183ff69ae98a656e24c6e6f7f0b5bf80ac3cb4a8112d714b9ddf385",
       "size_bytes": 60793,
       "source_run": "sr_mhrv_20260512_r7"
+    },
+    "local_reverse_affine_8cfebe03_static_triage": {
+      "freshness": "current",
+      "kind": "local_reverse_single_sample_static_triage",
+      "modified_at": "2026-06-11T11:04:06Z",
+      "path": "project_state\\local_reverse_affine_8cfebe03_static_triage.json",
+      "sha256": "11dd2c39120b24a6e4c01871a1bb8449d076d237fa258dd171149a154cf5d1a3",
+      "size_bytes": 1064,
+      "source_run": "project_state",
+      "sample_id": "affine_8cfebe03",
+      "artifact_status": "tool_blocked",
+      "tool_status": "blocked",
+      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
     }
   },
   "latest_case_results": [],

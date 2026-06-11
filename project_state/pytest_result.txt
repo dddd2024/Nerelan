@@ -1,26 +1,552 @@
-Decision: decision_20260611_affine_rank1_static_triage_status_overlay_v1
-Round: round_20260611_affine_rank1_static_triage_status_overlay_v1
+```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "report_id": "report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "round_id": "round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "generated_at": "2026-06-11T12:23:25Z",
+  "status": "PASSED",
+  "tests_ran": [
+    "pwd",
+    "git rev-parse --show-toplevel",
+    "git status --short",
+    "python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py -q",
+    "python -m pytest tests/test_local_reverse_inventory.py tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py tests/test_project_state.py -q",
+    "python -m reverse_agent.local_reverse_training_status --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json",
+    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_state status --state-dir project_state",
+    "python -m reverse_agent.project_state doctor --state-dir project_state",
+    "python -m reverse_agent.project_state doctor --state-dir project_state --json",
+    "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_state status --state-dir project_state",
+    "python -m reverse_agent.project_state doctor --state-dir project_state",
+    "python -m reverse_agent.project_state doctor --state-dir project_state --json",
+    "git status --short"
+  ]
+}
+```
 
-Test Command 1:
-  python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py -q
-Test Command 2:
-  python -m pytest tests/test_local_reverse_inventory.py tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py tests/test_project_state.py -q
-Execution Time: ~3.5 seconds total
-Exit Code: 0
+# Command Outputs
 
-=== stdout / stderr summary ===
-Test Command 1 output:
-  ..                                                                   [100%]
-  2 passed in 0.08s
+## pwd
+exit_code: 0
+stdout:
+```text
 
-Test Command 2 output:
-  ................
-  ================= 16 passed in 3.51s =================
+Path
+----
+F:\reverse-agent
+```
+stderr:
+```text
+<empty>
+```
 
-=== PASS / FAIL conclusion ===
-PASS
+## git rev-parse --show-toplevel
+exit_code: 0
+stdout:
+```text
+F:/reverse-agent
+```
+stderr:
+```text
+<empty>
+```
 
-Notes:
-- All existing tests pass; no regressions introduced.
-- Static triage module (local_reverse_single_sample_static_triage) and training status module (local_reverse_training_status) behave correctly after this round's execution.
-- No new production code was added; this round executed existing tools to produce artifacts and update state files.
+## git status --short
+exit_code: 0
+stdout:
+```text
+ M project_state/artifact_index.json
+ M project_state/local_reverse_evaluation_queue.json
+ M project_state/local_reverse_training_status.json
+ M reverse_agent/local_reverse_training_status.py
+ M tests/test_local_reverse_training_status.py
+ M training_materials/local_reverse/status_overlay.json
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py -q
+exit_code: 0
+stdout:
+```text
+....................................................................     [100%]
+68 passed in 1.22s
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m pytest tests/test_local_reverse_inventory.py tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py tests/test_project_state.py -q
+exit_code: 0
+stdout:
+```text
+........................................................................ [ 26%]
+........................................................................ [ 53%]
+........................................................................ [ 80%]
+...................................................                      [100%]
+267 passed in 20.65s
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.local_reverse_training_status --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json
+exit_code: 0
+stdout:
+```text
+[training_status] samples=50 solved=1 blocked=2 needs_triage=1 inventory_only=46
+[training_status] status out: project_state\local_reverse_training_status.json
+[training_status] queue out: project_state\local_reverse_evaluation_queue.json
+[training_status] github status: training_materials\local_reverse\status_overlay.json
+[training_status] queue items: 41
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.project_state lint-report --state-dir project_state
+exit_code: 0
+stdout:
+```text
+lint-report: OK
+warning: report_status is BLOCKED
+warning: report round not archived yet
+report_id: report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+report_status: BLOCKED
+acceptance_recommendation: BLOCKED
+based_on_decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_report_id_match: True
+round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+report_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+current_state_round_id: round_20260610_131714
+current_state_scope: sample_state
+report_decision_round_id_match: True
+report_current_state_round_relation: different_but_allowed_sample_state
+round_manifest_present: False
+archive_status: not_archived
+round_manifest_path: project_state\rounds\round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1\round_manifest.json
+round_manifest_files: []
+round_manifest_forbidden_files: []
+round_manifest_required_files_missing: []
+tests_ran_count: 6
+generated_artifacts_count: 3
+verified_artifacts_count: 2
+pytest_result_present: True
+pytest_result_status: PASSED
+pytest_result_decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_report_id: report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_matches_report: True
+report_tests_ran_count: 6
+pytest_result_tests_ran_count: 6
+pytest_result_tests_cover_report: True
+pytest_result_missing_report_tests: []
+pytest_result_parse_error: None
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.project_state status --state-dir project_state
+exit_code: 0
+stdout:
+```text
+state_dir: project_state
+latest_harness_run: solve_reports\harness_runs\samplereverse_exact1_projected_vs_neighbor_20260424
+missing: ['case_results']
+artifact_freshness: {'current': 1, 'missing': 3, 'stale': 48}
+artifact_freshness_classification: artifact_freshness_requires_review
+artifact_freshness_blocking: True
+should_call_model: False
+context_level: 1
+reason: latest harness case has errors
+harness_diagnostics: {"case_results_count": 0, "case_results_missing": true, "diagnosis": "case_results_directory_absent", "diagnosis_detail": "The latest harness run has no case_results/ directory. The summary may report error_cases if cases were resumed from a prior incomplete run or the run completed without executing any case.", "fallback_available": true, "fallback_harness_run": {"executed_cases": 1, "manifest_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json", "provenance": "fallback_from_invalid_latest_run", "run_name": "sr_arg0_hook_readiness_ordering_20260526_r1", "run_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1", "summary_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json", "total_cases": 1}, "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424", "latest_harness_run_status": "invalid_or_incomplete", "summary_error_cases": 1, "summary_executed_cases": 0, "summary_present": true, "summary_resumed_cases": 1, "summary_total_cases": 1}
+task: repair_harness_case_result_materialization
+state_scope: sample_state
+task_source: derived_from_sample_artifacts
+derived_task: repair_harness_case_result_materialization
+active_decision_packet: project_state/decision_packet.md
+execution_scope: decision_packet_controls_current_round
+expected_gpt_output: project_state/decision_packet.md
+decision_status: APPROVED
+decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_based_on_state_digest: 88c14099a13a2bf2999e4a61b2c53d8edd9568217bb5ee36f0cfd4462e8cbbd2
+decision_parse_error: None
+report_status: BLOCKED
+report_acceptance_recommendation: BLOCKED
+report_id: report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+report_based_on_decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+report_parse_error: None
+pytest_result_status: PASSED
+pytest_result_decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_report_id: report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_matches_report: True
+report_tests_ran_count: 6
+pytest_result_tests_ran_count: 6
+pytest_result_tests_cover_report: True
+pytest_result_missing_report_tests: []
+decision_report_id_match: True
+decision_state_digest_match: True
+decision_consumed_by_report: True
+decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT
+decision_ready_for_execution: False
+report_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+current_state_round_id: round_20260610_131714
+current_state_scope: sample_state
+report_decision_round_id_match: True
+report_current_state_round_relation: different_but_allowed_sample_state
+round_manifest_present: False
+archive_status: not_archived
+round_manifest_path: project_state\rounds\round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1\round_manifest.json
+round_manifest_files: []
+round_manifest_forbidden_files: []
+round_manifest_required_files_missing: []
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.project_state doctor --state-dir project_state
+exit_code: 0
+stdout:
+```text
+doctor: WARN
+  [PASS] decision_approval: decision decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1 is APPROVED
+  [PASS] mainline: mainline is training_dataset
+  [PASS] skill_profiles: skill profiles active: [{'profile': 'reverse-agent-iteration@v2', 'skill_name': 'reverse-agent-iteration', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'generic_workflow', 'registry_version': 2}, {'profile': 'samplereverse-frontier@v2', 'skill_name': 'samplereverse-frontier', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'sample_profile', 'registry_version': 2}]
+  [PASS] report_parse: report report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1 status is BLOCKED
+  [PASS] report_decision_match: report decision_id matches
+  [PASS] pytest_result: pytest_result.txt matches report and covers all tests
+  [WARN] archive: decision_execution_state is CONSUMED_BY_NON_SUCCESS_REPORT
+  [WARN] artifacts: 3 missing, 48 stale artifacts
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.project_state doctor --state-dir project_state --json
+exit_code: 0
+stdout:
+```text
+{
+  "status": "WARN",
+  "checks": [
+    {
+      "name": "decision_approval",
+      "status": "PASS",
+      "detail": "decision decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1 is APPROVED"
+    },
+    {
+      "name": "mainline",
+      "status": "PASS",
+      "detail": "mainline is training_dataset"
+    },
+    {
+      "name": "skill_profiles",
+      "status": "PASS",
+      "detail": "skill profiles active: [{'profile': 'reverse-agent-iteration@v2', 'skill_name': 'reverse-agent-iteration', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'generic_workflow', 'registry_version': 2}, {'profile': 'samplereverse-frontier@v2', 'skill_name': 'samplereverse-frontier', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'sample_profile', 'registry_version': 2}]"
+    },
+    {
+      "name": "report_parse",
+      "status": "PASS",
+      "detail": "report report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1 status is BLOCKED"
+    },
+    {
+      "name": "report_decision_match",
+      "status": "PASS",
+      "detail": "report decision_id matches"
+    },
+    {
+      "name": "pytest_result",
+      "status": "PASS",
+      "detail": "pytest_result.txt matches report and covers all tests"
+    },
+    {
+      "name": "archive",
+      "status": "WARN",
+      "detail": "decision_execution_state is CONSUMED_BY_NON_SUCCESS_REPORT"
+    },
+    {
+      "name": "artifacts",
+      "status": "WARN",
+      "detail": "3 missing, 48 stale artifacts",
+      "counts": {
+        "current": 1,
+        "missing": 3,
+        "stale": 48
+      },
+      "classification": "artifact_freshness_requires_review",
+      "blocking": true
+    }
+  ],
+  "next_action": null,
+  "decision_id": "decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "report_id": "report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+  "artifact_freshness": {
+    "status": "WARN",
+    "classification": "artifact_freshness_requires_review",
+    "blocking": true,
+    "counts": {
+      "current": 1,
+      "missing": 3,
+      "stale": 48
+    },
+    "detail": "3 missing, 48 stale artifacts",
+    "reason": "active context may depend on current artifact evidence or handoff health is not fully clean"
+  }
+}
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+exit_code: 0
+stdout:
+```text
+<empty>
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.project_state lint-report --state-dir project_state
+exit_code: 0
+stdout:
+```text
+lint-report: OK
+warning: report_status is BLOCKED
+report_id: report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+report_status: BLOCKED
+acceptance_recommendation: BLOCKED
+based_on_decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_report_id_match: True
+round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+report_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+current_state_round_id: round_20260610_131714
+current_state_scope: sample_state
+report_decision_round_id_match: True
+report_current_state_round_relation: different_but_allowed_sample_state
+round_manifest_present: True
+archive_status: archived
+round_manifest_path: project_state\rounds\round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1\round_manifest.json
+round_manifest_files: ['codex_execution_report.md', 'decision_packet.md', 'pytest_result.txt', 'round_manifest.json']
+round_manifest_forbidden_files: []
+round_manifest_required_files_missing: []
+tests_ran_count: 6
+generated_artifacts_count: 3
+verified_artifacts_count: 2
+pytest_result_present: True
+pytest_result_status: PASSED
+pytest_result_decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_report_id: report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_matches_report: True
+report_tests_ran_count: 6
+pytest_result_tests_ran_count: 6
+pytest_result_tests_cover_report: True
+pytest_result_missing_report_tests: []
+pytest_result_parse_error: None
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.project_state status --state-dir project_state
+exit_code: 0
+stdout:
+```text
+state_dir: project_state
+latest_harness_run: solve_reports\harness_runs\samplereverse_exact1_projected_vs_neighbor_20260424
+missing: ['case_results']
+artifact_freshness: {'current': 1, 'missing': 3, 'stale': 48}
+artifact_freshness_classification: artifact_freshness_requires_review
+artifact_freshness_blocking: True
+should_call_model: False
+context_level: 1
+reason: latest harness case has errors
+harness_diagnostics: {"case_results_count": 0, "case_results_missing": true, "diagnosis": "case_results_directory_absent", "diagnosis_detail": "The latest harness run has no case_results/ directory. The summary may report error_cases if cases were resumed from a prior incomplete run or the run completed without executing any case.", "fallback_available": true, "fallback_harness_run": {"executed_cases": 1, "manifest_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json", "provenance": "fallback_from_invalid_latest_run", "run_name": "sr_arg0_hook_readiness_ordering_20260526_r1", "run_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1", "summary_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json", "total_cases": 1}, "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424", "latest_harness_run_status": "invalid_or_incomplete", "summary_error_cases": 1, "summary_executed_cases": 0, "summary_present": true, "summary_resumed_cases": 1, "summary_total_cases": 1}
+task: repair_harness_case_result_materialization
+state_scope: sample_state
+task_source: derived_from_sample_artifacts
+derived_task: repair_harness_case_result_materialization
+active_decision_packet: project_state/decision_packet.md
+execution_scope: decision_packet_controls_current_round
+expected_gpt_output: project_state/decision_packet.md
+decision_status: APPROVED
+decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_based_on_state_digest: 88c14099a13a2bf2999e4a61b2c53d8edd9568217bb5ee36f0cfd4462e8cbbd2
+decision_parse_error: None
+report_status: BLOCKED
+report_acceptance_recommendation: BLOCKED
+report_id: report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+report_based_on_decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+report_parse_error: None
+pytest_result_status: PASSED
+pytest_result_decision_id: decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_report_id: report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+pytest_result_matches_report: True
+report_tests_ran_count: 6
+pytest_result_tests_ran_count: 6
+pytest_result_tests_cover_report: True
+pytest_result_missing_report_tests: []
+decision_report_id_match: True
+decision_state_digest_match: True
+decision_consumed_by_report: True
+decision_execution_state: CONSUMED_BY_NON_SUCCESS_REPORT
+decision_ready_for_execution: False
+report_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+decision_round_id: round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1
+current_state_round_id: round_20260610_131714
+current_state_scope: sample_state
+report_decision_round_id_match: True
+report_current_state_round_relation: different_but_allowed_sample_state
+round_manifest_present: True
+archive_status: archived
+round_manifest_path: project_state\rounds\round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1\round_manifest.json
+round_manifest_files: ['codex_execution_report.md', 'decision_packet.md', 'pytest_result.txt', 'round_manifest.json']
+round_manifest_forbidden_files: []
+round_manifest_required_files_missing: []
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.project_state doctor --state-dir project_state
+exit_code: 0
+stdout:
+```text
+doctor: WARN
+  [PASS] decision_approval: decision decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1 is APPROVED
+  [PASS] mainline: mainline is training_dataset
+  [PASS] skill_profiles: skill profiles active: [{'profile': 'reverse-agent-iteration@v2', 'skill_name': 'reverse-agent-iteration', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'generic_workflow', 'registry_version': 2}, {'profile': 'samplereverse-frontier@v2', 'skill_name': 'samplereverse-frontier', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'sample_profile', 'registry_version': 2}]
+  [PASS] report_parse: report report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1 status is BLOCKED
+  [PASS] report_decision_match: report decision_id matches
+  [PASS] pytest_result: pytest_result.txt matches report and covers all tests
+  [WARN] archive: decision_execution_state is CONSUMED_BY_NON_SUCCESS_REPORT
+  [WARN] artifacts: 3 missing, 48 stale artifacts
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.project_state doctor --state-dir project_state --json
+exit_code: 0
+stdout:
+```text
+{
+  "status": "WARN",
+  "checks": [
+    {
+      "name": "decision_approval",
+      "status": "PASS",
+      "detail": "decision decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1 is APPROVED"
+    },
+    {
+      "name": "mainline",
+      "status": "PASS",
+      "detail": "mainline is training_dataset"
+    },
+    {
+      "name": "skill_profiles",
+      "status": "PASS",
+      "detail": "skill profiles active: [{'profile': 'reverse-agent-iteration@v2', 'skill_name': 'reverse-agent-iteration', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'generic_workflow', 'registry_version': 2}, {'profile': 'samplereverse-frontier@v2', 'skill_name': 'samplereverse-frontier', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'sample_profile', 'registry_version': 2}]"
+    },
+    {
+      "name": "report_parse",
+      "status": "PASS",
+      "detail": "report report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1 status is BLOCKED"
+    },
+    {
+      "name": "report_decision_match",
+      "status": "PASS",
+      "detail": "report decision_id matches"
+    },
+    {
+      "name": "pytest_result",
+      "status": "PASS",
+      "detail": "pytest_result.txt matches report and covers all tests"
+    },
+    {
+      "name": "archive",
+      "status": "WARN",
+      "detail": "decision_execution_state is CONSUMED_BY_NON_SUCCESS_REPORT"
+    },
+    {
+      "name": "artifacts",
+      "status": "WARN",
+      "detail": "3 missing, 48 stale artifacts",
+      "counts": {
+        "current": 1,
+        "missing": 3,
+        "stale": 48
+      },
+      "classification": "artifact_freshness_requires_review",
+      "blocking": true
+    }
+  ],
+  "next_action": null,
+  "decision_id": "decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "report_id": "report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+  "artifact_freshness": {
+    "status": "WARN",
+    "classification": "artifact_freshness_requires_review",
+    "blocking": true,
+    "counts": {
+      "current": 1,
+      "missing": 3,
+      "stale": 48
+    },
+    "detail": "3 missing, 48 stale artifacts",
+    "reason": "active context may depend on current artifact evidence or handoff health is not fully clean"
+  }
+}
+```
+stderr:
+```text
+<empty>
+```
+
+## git status --short
+exit_code: 0
+stdout:
+```text
+ M project_state/artifact_index.json
+ M project_state/codex_execution_report.md
+ M project_state/local_reverse_evaluation_queue.json
+ M project_state/local_reverse_training_status.json
+ M project_state/pytest_result.txt
+ M reverse_agent/local_reverse_training_status.py
+ M tests/test_local_reverse_training_status.py
+ M training_materials/local_reverse/status_overlay.json
+?? project_state/rounds/round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1/
+```
+stderr:
+```text
+<empty>
+```

@@ -128,6 +128,7 @@ def build_training_status(
     runtime_blocked_map = _build_runtime_blocked_overlay(artifact_index_path)
     mature_backend_blocked_map = _build_mature_backend_blocked_overlay(artifact_index_path)
     static_handoff_map = _build_static_handoff_overlay(artifact_index_path)
+    static_tool_blocked_map = _build_static_tool_blocked_overlay(artifact_index_path)
 
     # Merge with inventory entries
     samples: list[dict[str, Any]] = []
@@ -177,6 +178,10 @@ def build_training_status(
             status = overlay.get("training_status", TRAINING_STATUS_NEEDS_TRIAGE)
             info = overlay
             counts[status] = counts.get(status, 0) + 1
+        elif sample_id in static_tool_blocked_map:
+            status = TRAINING_STATUS_NEEDS_TRIAGE
+            info = static_tool_blocked_map[sample_id]
+            counts["needs_triage"] += 1
         else:
             status = TRAINING_STATUS_INVENTORY_ONLY
             info = {}
@@ -577,6 +582,75 @@ def _build_static_handoff_overlay(
             for k, v in entry.items():
                 if k not in existing or not existing.get(k):
                     existing[k] = v
+
+    return overlay
+
+
+def _build_static_tool_blocked_overlay(
+    artifact_index_path: Path,
+) -> dict[str, dict[str, Any]]:
+    """Scan artifact_index for current static tool failures.
+
+    Tool failures are evidence that a sample still needs triage, not evidence
+    that the sample itself is semantically blocked.
+    """
+    if not artifact_index_path.exists():
+        return {}
+
+    artifact_index = _load_json(artifact_index_path, "artifact_index")
+    v2 = artifact_index.get("latest_artifacts_v2", {})
+
+    overlay: dict[str, dict[str, Any]] = {}
+    for key, meta in v2.items():
+        if meta.get("freshness") != "current":
+            continue
+        if meta.get("kind") != "local_reverse_single_sample_static_triage":
+            continue
+
+        artifact_path_text = meta.get("path", "")
+        if not artifact_path_text:
+            continue
+        artifact_path = _resolve_artifact_path(artifact_path_text, artifact_index_path)
+
+        artifact = _load_json(artifact_path, f"artifact:{key}")
+        if not artifact:
+            continue
+
+        sample_id = artifact.get("sample_id") or meta.get("sample_id", "")
+        if not sample_id:
+            continue
+
+        if artifact.get("static_only") is not True:
+            continue
+        if artifact.get("executed_sample") is not False:
+            continue
+        if artifact.get("runtime_validated") is not False:
+            continue
+        if artifact.get("candidate") is not None:
+            continue
+        if artifact.get("tool_status") != "blocked":
+            continue
+
+        blocked_reason = artifact.get("blocked_reason", "")
+        if not str(blocked_reason).startswith("STATIC_TOOL_"):
+            continue
+
+        source_tool = artifact.get("source_tool", "")
+        evidence_sources = [
+            f"source:{artifact_path.name}",
+            "static_tool_blocked",
+            "tool_status:blocked",
+        ]
+        if source_tool:
+            evidence_sources.append(f"source_tool:{source_tool}")
+
+        overlay[sample_id] = {
+            "training_status": TRAINING_STATUS_NEEDS_TRIAGE,
+            "blocked_reason": blocked_reason,
+            "classification": artifact.get("analysis_mode", ""),
+            "evidence_sources": evidence_sources,
+            "next_action": f"resolve static tool blocker: {blocked_reason}",
+        }
 
     return overlay
 

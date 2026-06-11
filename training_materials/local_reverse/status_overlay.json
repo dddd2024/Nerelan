@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-11T11:04:52Z",
+  "generated_at": "2026-06-11T12:22:29Z",
   "source_inventory_hint": "LOCAL_REVERSE_ROOT",
   "sample_count": 50,
   "status_summary": {
     "solved": 1,
     "blocked": 2,
-    "needs_triage": 0,
-    "inventory_only": 47
+    "needs_triage": 1,
+    "inventory_only": 46
   },
   "samples": [
     {
@@ -61,9 +61,9 @@
         "reverse",
         "pe"
       ],
-      "training_status": "inventory_only",
+      "training_status": "needs_triage",
       "known_candidate": "",
-      "blocked_reason": ""
+      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
     },
     {
       "sample_id": "byte_shift_transform_solver_3718a6fa",

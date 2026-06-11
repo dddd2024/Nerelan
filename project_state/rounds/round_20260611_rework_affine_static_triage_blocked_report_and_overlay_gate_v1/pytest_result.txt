@@ -1,0 +1,103 @@
+```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "report_id": "report_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "round_id": "round_20260611_rework_affine_static_triage_blocked_report_and_overlay_gate_v1",
+  "generated_at": "2026-06-11T12:22:29Z",
+  "status": "PASSED",
+  "tests_ran": [
+    "pwd",
+    "git rev-parse --show-toplevel",
+    "git status --short",
+    "python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py -q",
+    "python -m pytest tests/test_local_reverse_inventory.py tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py tests/test_project_state.py -q",
+    "python -m reverse_agent.local_reverse_training_status --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json"
+  ]
+}
+```
+
+# Command Outputs
+
+## pwd
+exit_code: 0
+stdout:
+```text
+
+Path            
+----            
+F:\reverse-agent
+```
+stderr:
+```text
+<empty>
+```
+
+## git rev-parse --show-toplevel
+exit_code: 0
+stdout:
+```text
+F:/reverse-agent
+```
+stderr:
+```text
+<empty>
+```
+
+## git status --short
+exit_code: 0
+stdout:
+```text
+ M project_state/artifact_index.json
+ M project_state/local_reverse_evaluation_queue.json
+ M project_state/local_reverse_training_status.json
+ M reverse_agent/local_reverse_training_status.py
+ M tests/test_local_reverse_training_status.py
+ M training_materials/local_reverse/status_overlay.json
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py -q
+exit_code: 0
+stdout:
+```text
+....................................................................     [100%]
+68 passed in 1.22s
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m pytest tests/test_local_reverse_inventory.py tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py tests/test_project_state.py -q
+exit_code: 0
+stdout:
+```text
+........................................................................ [ 26%]
+........................................................................ [ 53%]
+........................................................................ [ 80%]
+...................................................                      [100%]
+267 passed in 20.65s
+```
+stderr:
+```text
+<empty>
+```
+
+## python -m reverse_agent.local_reverse_training_status --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json
+exit_code: 0
+stdout:
+```text
+[training_status] samples=50 solved=1 blocked=2 needs_triage=1 inventory_only=46
+[training_status] status out: project_state\local_reverse_training_status.json
+[training_status] queue out: project_state\local_reverse_evaluation_queue.json
+[training_status] github status: training_materials\local_reverse\status_overlay.json
+[training_status] queue items: 41
+```
+stderr:
+```text
+<empty>
+```
