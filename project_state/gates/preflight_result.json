@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "BLOCKED",
-  "decision_id": "decision_20260611_engineering_gate_preflight_v1",
-  "round_id": "round_20260611_engineering_gate_preflight_v1",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260611_engineering_gate_preflight_exit_policy_v1",
+  "round_id": "round_20260611_engineering_gate_preflight_exit_policy_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-11T13:29:18.239182Z",
+  "generated_at": "2026-06-11T15:38:45.738846Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -57,9 +57,9 @@
     },
     {
       "name": "decision_not_consumed_by_report",
-      "status": "FAIL",
-      "detail": "decision already appears consumed by report",
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "status": "PASS",
+      "detail": "decision has not been consumed by a report",
+      "decision_execution_state": "READY_FOR_EXECUTION",
       "report_id": "report_20260611_engineering_gate_preflight_v1"
     },
     {
@@ -76,14 +76,12 @@
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
         "project_state/codex_execution_report.md",
-        "project_state/gates/final_gate_result.json` only if final-check is rerun",
+        "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260611_engineering_gate_preflight_v1/*",
+        "project_state/rounds/round_20260611_engineering_gate_preflight_exit_policy_v1/*",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py` only if helper exposure is strictly necessary",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py` only if shared helper tests are necessary"
+        "tests/test_project_gate.py"
       ]
     },
     {
@@ -117,15 +115,13 @@
       "capability_required": false
     }
   ],
-  "blocking_reasons": [
-    "decision_not_consumed_by_report: decision already appears consumed by report"
-  ],
+  "blocking_reasons": [],
   "warnings": [],
-  "recommended_next_action": "do_not_start_consumed_or_stale_decision",
+  "recommended_next_action": "proceed_with_decision_scope",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-    "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
+    "decision_execution_state": "READY_FOR_EXECUTION",
+    "decision_report_id_match": false,
+    "decision_consumed_by_report": false,
     "task": "repair_harness_case_result_materialization",
     "derived_task": "repair_harness_case_result_materialization",
     "current_state_round_id": "round_20260610_131714"

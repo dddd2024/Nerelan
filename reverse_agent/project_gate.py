@@ -778,6 +778,15 @@ def _print_result(result: dict[str, Any]) -> None:
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
 
 
+def _final_check_exit_code(gate_status: object) -> int:
+    return 1 if gate_status == "FAILED" else 0
+
+
+def _preflight_exit_code(gate_status: object) -> int:
+    # WARN remains non-blocking so teams can review warnings without hiding hard stops.
+    return 1 if gate_status in {"BLOCKED", "FAILED"} else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Project closeout gate checks.")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -795,14 +804,14 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_result(result)
-        return 1 if result.get("gate_status") == "FAILED" else 0
+        return _final_check_exit_code(result.get("gate_status"))
     if args.command == "preflight":
         result = preflight(state_dir=Path(args.state_dir), repo_root=Path.cwd())
         if args.json:
             print(json.dumps(result, ensure_ascii=True, indent=2))
         else:
             _print_result(result)
-        return 1 if result.get("gate_status") == "FAILED" else 0
+        return _preflight_exit_code(result.get("gate_status"))
     return 1
 
 

@@ -547,3 +547,30 @@ def test_project_gate_preflight_cli_json_writes_result(tmp_path: Path, capsys: p
 
     assert output["gate_status"] == "PASSED"
     assert (state_dir / "gates" / "preflight_result.json").exists()
+
+
+def test_project_gate_preflight_cli_blocks_consumed_decision(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path)
+    _write_report(
+        state_dir,
+        decision_id="decision_preflight",
+        report_id="report_preflight",
+        round_id="round_preflight",
+        generated_artifacts=["project_state/gates/preflight_result.json"],
+    )
+    _write_pytest(state_dir, decision_id="decision_preflight", report_id="report_preflight", round_id="round_preflight")
+
+    assert main(["preflight", "--state-dir", str(state_dir)]) != 0
+
+
+def test_project_gate_preflight_cli_fails_invalid_decision(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(tmp_path)
+    (state_dir / "decision_packet.md").write_text("# DECISION_PACKET\n", encoding="utf-8")
+
+    assert main(["preflight", "--state-dir", str(state_dir)]) != 0
+
+
+def test_project_gate_final_check_cli_keeps_consistent_blocked_report_zero_exit(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path, status="BLOCKED", acceptance="BLOCKED")
+
+    assert main(["final-check", "--state-dir", str(state_dir)]) == 0
