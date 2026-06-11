@@ -10,7 +10,7 @@ import traceback
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Mapping, Sequence
 
 from .pipeline import SolveResult, run_pipeline
 from .tool_runners import ToolAutomationConfig
@@ -872,8 +872,35 @@ def _build_summary(
         elapsed_seconds=elapsed_seconds,
         manifest_path=str(manifest_path),
         summary_path=str(summary_path),
-        case_result_paths=[str(Path(run_dir) / "case_results" / f"{_sanitize_token(item.case_id)}.json") for item in results],
+        case_result_paths=_materialized_case_result_paths(run_dir, results),
     )
+
+
+def _materialized_case_result_paths(run_dir: Path, results: Sequence[HarnessCaseResult]) -> list[str]:
+    case_result_paths: list[str] = []
+    case_results_dir = Path(run_dir) / "case_results"
+    for result in results:
+        result_path = case_results_dir / f"{_sanitize_token(result.case_id)}.json"
+        if not result_path.is_file():
+            raise FileNotFoundError(f"Case result file for case_id {result.case_id!r} is missing: {result_path}")
+        try:
+            raw_result = json.loads(result_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            raise ValueError(
+                f"Case result file for case_id {result.case_id!r} is not readable JSON: {result_path}"
+            ) from exc
+        if not isinstance(raw_result, Mapping):
+            raise ValueError(
+                f"Case result file for case_id {result.case_id!r} must contain a JSON object: {result_path}"
+            )
+        materialized_case_id = raw_result.get("case_id")
+        if materialized_case_id != result.case_id:
+            raise ValueError(
+                "Case result file case_id mismatch: "
+                f"expected {result.case_id!r}, found {materialized_case_id!r} in {result_path}"
+            )
+        case_result_paths.append(str(result_path))
+    return case_result_paths
 
 
 def _write_summary_markdown(

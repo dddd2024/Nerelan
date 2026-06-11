@@ -4,6 +4,8 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 
+import pytest
+
 from reverse_agent.harness import (
     HarnessCase,
     HarnessCaseResult,
@@ -25,6 +27,7 @@ def test_harness_resume_skips_terminal_result(tmp_path: Path, monkeypatch) -> No
     assert summary.executed_cases == 0
     assert summary.resumed_cases == 1
     assert calls == []
+    _assert_materialized_case_result_paths(summary, ["demo"])
 
 
 def test_harness_resume_reruns_error_by_default_or_policy(tmp_path: Path, monkeypatch) -> None:
@@ -135,10 +138,60 @@ def test_harness_resume_unknown_or_missing_status_reruns_under_terminal_only(
     assert calls == ["demo.exe"]
 
 
+def test_harness_summary_case_result_paths_are_materialized_for_normal_completion(
+    tmp_path: Path, monkeypatch
+) -> None:
+    calls: list[str] = []
+    _patch_pipeline(monkeypatch, tmp_path, calls)
+
+    summary = run_harness(_config(tmp_path), log=lambda _: None)
+
+    assert summary.executed_cases == 1
+    assert summary.passed_cases == 1
+    _assert_materialized_case_result_paths(summary, ["demo"])
+
+
+def test_harness_summary_case_result_paths_are_materialized_for_error_completion(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def _raise_pipeline(**kwargs):  # noqa: ANN001
+        raise RuntimeError(f"boom: {kwargs['input_value']}")
+
+    monkeypatch.setattr("reverse_agent.harness.run_pipeline", _raise_pipeline)
+
+    summary = run_harness(_config(tmp_path), log=lambda _: None)
+
+    assert summary.executed_cases == 1
+    assert summary.error_cases == 1
+    payloads = _assert_materialized_case_result_paths(summary, ["demo"])
+    assert payloads[0]["status"] == "error"
+    assert "boom: demo.exe" in payloads[0]["error"]
+
+
+def test_harness_fail_fast_writes_materialized_partial_summary(tmp_path: Path, monkeypatch) -> None:
+    def _raise_pipeline(**kwargs):  # noqa: ANN001
+        raise RuntimeError(f"boom: {kwargs['input_value']}")
+
+    monkeypatch.setattr("reverse_agent.harness.run_pipeline", _raise_pipeline)
+
+    with pytest.raises(RuntimeError, match="boom: demo.exe"):
+        run_harness(_config(tmp_path, fail_fast=True), log=lambda _: None)
+
+    summary_path = tmp_path / "reports" / "harness_runs" / "resume_suite" / "summary.json"
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary_payload["error_cases"] == 1
+    assert summary_payload["case_result_paths"]
+    for path_text in summary_payload["case_result_paths"]:
+        result_payload = json.loads(Path(path_text).read_text(encoding="utf-8"))
+        assert result_payload["case_id"] == "demo"
+        assert result_payload["status"] == "error"
+
+
 def _config(
     tmp_path: Path,
     resume_policy: str = "terminal-only",
     rerun_statuses: set[str] | None = None,
+    fail_fast: bool = False,
 ) -> HarnessConfig:
     return HarnessConfig(
         cases=[HarnessCase(case_id="demo", input_value="demo.exe", expected_flag="flag{demo}")],
@@ -147,6 +200,7 @@ def _config(
         analysis_mode="Static Analysis",
         resume_policy=resume_policy,
         rerun_statuses=rerun_statuses or set(),
+        fail_fast=fail_fast,
     )
 
 
@@ -197,3 +251,17 @@ def _write_cached_result(tmp_path: Path, status: str | None) -> None:
     result_path = tmp_path / "reports" / "harness_runs" / "resume_suite" / "case_results" / "demo.json"
     result_path.parent.mkdir(parents=True, exist_ok=True)
     result_path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _assert_materialized_case_result_paths(
+    summary: HarnessSummary, expected_case_ids: list[str]
+) -> list[dict[str, object]]:
+    assert len(summary.case_result_paths) == len(expected_case_ids)
+    payloads: list[dict[str, object]] = []
+    for path_text, expected_case_id in zip(summary.case_result_paths, expected_case_ids, strict=True):
+        result_path = Path(path_text)
+        assert result_path.is_file()
+        payload = json.loads(result_path.read_text(encoding="utf-8"))
+        assert payload["case_id"] == expected_case_id
+        payloads.append(payload)
+    return payloads

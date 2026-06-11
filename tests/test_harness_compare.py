@@ -3,7 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from reverse_agent.harness import HarnessConfig, HarnessSummary, compare_harness_runs, main
+import pytest
+
+from reverse_agent.harness import (
+    HarnessCaseResult,
+    HarnessConfig,
+    HarnessSummary,
+    _materialized_case_result_paths,
+    compare_harness_runs,
+    main,
+)
 
 
 def test_harness_compare_detects_status_change(tmp_path: Path) -> None:
@@ -222,6 +231,23 @@ def test_harness_compare_reads_top_level_artifact_fields(tmp_path: Path) -> None
     assert artifact_delta["evidence_gate_changed"] is True
 
 
+def test_harness_materialization_invariant_catches_gap_compare_would_skip(tmp_path: Path) -> None:
+    run_dir = tmp_path / "harness_runs" / "head"
+    missing_result = _case_result("missing")
+
+    with pytest.raises(FileNotFoundError, match="missing"):
+        _materialized_case_result_paths(run_dir, [missing_result])
+
+    case_path = run_dir / "case_results" / "malformed.json"
+    case_path.parent.mkdir(parents=True, exist_ok=True)
+    case_path.write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="not readable JSON"):
+        _materialized_case_result_paths(run_dir, [_case_result("malformed")])
+
+    assert compare_harness_runs("base", "head", tmp_path)["case_deltas"] == []
+
+
 def _write_case(
     tmp_path: Path,
     run_name: str,
@@ -272,3 +298,24 @@ def _write_artifact(
         payload["runtime_backed_count"] = runtime_backed_count
     path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
     return path
+
+
+def _case_result(case_id: str) -> HarnessCaseResult:
+    return HarnessCaseResult(
+        case_id=case_id,
+        input_value=f"{case_id}.exe",
+        expected_flag=None,
+        selected_flag="NOT_FOUND",
+        matched_expected=None,
+        status="completed_no_expected",
+        elapsed_seconds=0.1,
+        analysis_mode="Static Analysis",
+        report_path="",
+        resolved_path=f"{case_id}.exe",
+        model_name="Copilot CLI",
+        candidate_count=0,
+        extracted_strings_count=0,
+        tool_artifact_count=0,
+        structured_evidence_count=0,
+        validation_count=0,
+    )
