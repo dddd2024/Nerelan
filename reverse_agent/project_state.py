@@ -151,6 +151,20 @@ STATE_PACKAGE_CLASSIFICATION_ORDER = (
     "archive",
     "heavy_history",
 )
+STATE_PACKAGE_COMPACT_CORE_PATHS = (
+    "project_state/decision_packet.md",
+    "project_state/current_state.json",
+    "project_state/artifact_index.json",
+    "project_state/negative_results.json",
+    "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt",
+    "project_state/task_packet.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/final_gate_result.json",
+    "solve_reports/",
+    "PROJECT_PROGRESS_LOG.txt",
+)
 STATE_DIGEST_EXCLUDED_KEYS = {
     "generated_at",
     "round_id",
@@ -2104,9 +2118,14 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
         })
 
     # Check 9: state package responsibility classification
-    state_package_classification = build_state_package_classification(state_dir)
+    full_state_package_classification = build_state_package_classification(state_dir)
+    state_package_classification = compact_state_package_classification(
+        full_state_package_classification,
+        decision=decision,
+        report=report,
+    )
     classification_checks = state_package_classification["checks"]
-    if state_package_classification["status"] == "PASS":
+    if full_state_package_classification["status"] == "PASS":
         checks.append({
             "name": "state_package_classification",
             "status": "PASS",
@@ -2118,6 +2137,10 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
             "summary": state_package_classification["summary"],
             "checks": classification_checks,
             "entries": state_package_classification["entries"],
+            "entries_compacted": state_package_classification["entries_compacted"],
+            "archive_total_count": state_package_classification["archive_total_count"],
+            "archive_included_count": state_package_classification["archive_included_count"],
+            "archive_omitted_count": state_package_classification["archive_omitted_count"],
         })
     else:
         failed = [check["name"] for check in classification_checks if check["status"] != "PASS"]
@@ -2128,6 +2151,10 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
             "summary": state_package_classification["summary"],
             "checks": classification_checks,
             "entries": state_package_classification["entries"],
+            "entries_compacted": state_package_classification["entries_compacted"],
+            "archive_total_count": state_package_classification["archive_total_count"],
+            "archive_included_count": state_package_classification["archive_included_count"],
+            "archive_omitted_count": state_package_classification["archive_omitted_count"],
         })
         overall_status = "FAIL"
 
@@ -2881,6 +2908,67 @@ def build_state_package_classification(state_dir: Path) -> dict[str, Any]:
         "summary": summary,
         "entries": entries,
         "checks": checks,
+    }
+
+
+def _archive_entry_path(round_id: str) -> str:
+    return f"project_state/rounds/{round_id}/*"
+
+
+def compact_state_package_classification(
+    classification: dict[str, Any],
+    *,
+    decision: dict[str, Any] | None = None,
+    report: dict[str, Any] | None = None,
+    archive_examples: int = 0,
+) -> dict[str, Any]:
+    entries = [entry for entry in classification.get("entries", []) if isinstance(entry, dict)]
+    by_path = {str(entry.get("path") or ""): entry for entry in entries}
+    archive_entries = [
+        entry
+        for entry in entries
+        if entry.get("classification") == "archive"
+        and str(entry.get("path") or "").startswith("project_state/rounds/")
+    ]
+
+    included_paths = set(STATE_PACKAGE_COMPACT_CORE_PATHS)
+    for source in (report, decision):
+        round_id = str((source or {}).get("round_id") or "")
+        if round_id:
+            included_paths.add(_archive_entry_path(round_id))
+
+    compact_entries: list[dict[str, Any]] = [
+        entry for entry in entries if str(entry.get("path") or "") in included_paths
+    ]
+    included_archive_paths = {
+        str(entry.get("path") or "")
+        for entry in compact_entries
+        if entry.get("classification") == "archive"
+    }
+    remaining_archive_entries = [
+        entry
+        for entry in archive_entries
+        if str(entry.get("path") or "") not in included_archive_paths
+    ]
+    if archive_examples > 0:
+        compact_entries.extend(remaining_archive_entries[:archive_examples])
+        included_archive_paths.update(
+            str(entry.get("path") or "") for entry in remaining_archive_entries[:archive_examples]
+        )
+
+    archive_included_count = sum(1 for entry in compact_entries if entry.get("classification") == "archive")
+    archive_total_count = len(archive_entries)
+    compacted = archive_included_count < archive_total_count
+    return {
+        "status": classification.get("status"),
+        "summary": classification.get("summary", {}),
+        "entries": compact_entries,
+        "checks": classification.get("checks", []),
+        "entries_compacted": True,
+        "archive_total_count": archive_total_count,
+        "archive_included_count": archive_included_count,
+        "archive_omitted_count": max(0, archive_total_count - archive_included_count),
+        "archive_entries_compacted": compacted,
     }
 
 
@@ -6083,7 +6171,11 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         round_consistency=round_consistency,
         pytest_validation=pytest_validation,
     )
-    state_package_classification = build_state_package_classification(state_dir)
+    state_package_classification = compact_state_package_classification(
+        build_state_package_classification(state_dir),
+        decision=decision,
+        report=codex_report,
+    )
     return {
         "state_dir": _path_for_json(state_dir),
         "latest_harness_run": artifact_index.get("latest_harness_run"),
@@ -6146,6 +6238,12 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"artifact_freshness_blocking: {summary.get('artifact_freshness_blocking')}")
     print(f"state_package_classification_status: {summary.get('state_package_classification_status')}")
     print(f"state_package_classification: {summary.get('state_package_classification_summary')}")
+    state_package = summary.get("state_package_classification") or {}
+    if isinstance(state_package, dict):
+        print(f"state_package_entries_compacted: {state_package.get('entries_compacted')}")
+        print(f"state_package_archive_total_count: {state_package.get('archive_total_count')}")
+        print(f"state_package_archive_included_count: {state_package.get('archive_included_count')}")
+        print(f"state_package_archive_omitted_count: {state_package.get('archive_omitted_count')}")
     print(f"should_call_model: {summary.get('should_call_model')}")
     print(f"context_level: {summary.get('context_level')}")
     print(f"reason: {summary.get('model_gate_reason')}")

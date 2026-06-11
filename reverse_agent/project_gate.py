@@ -79,6 +79,7 @@ COMMAND_PLAN_KINDS = {
     "pytest",
     "git status",
     "git rev-parse",
+    "test-path",
     "pwd",
 }
 
@@ -368,9 +369,9 @@ def _command_strings(command_plan_payload: dict[str, Any]) -> set[str]:
     if not isinstance(commands, list):
         return set()
     return {
-        str(item.get("command") or "")
+        _norm_path(item.get("command"))
         for item in commands
-        if isinstance(item, dict) and str(item.get("command") or "")
+        if isinstance(item, dict) and _norm_path(item.get("command"))
     }
 
 
@@ -490,7 +491,7 @@ def _validate_command_plan_consistency(
     plan_commands = _command_strings(command_plan_payload)
     report_tests = _string_set(report.get("tests_ran"))
     pytest_header = parse_pytest_result_header(pytest_text)
-    pytest_tests = set(pytest_header.get("tests_ran") or [])
+    pytest_tests = {_norm_path(item) for item in (pytest_header.get("tests_ran") or []) if _norm_path(item)}
     missing_report_tests = sorted(report_tests - plan_commands)
     missing_pytest_tests = sorted(pytest_tests - plan_commands)
     coverage_ok = not missing_report_tests and not missing_pytest_tests
@@ -892,6 +893,8 @@ def _command_kind(command: str) -> str:
         return "git status"
     if lowered.startswith("git rev-parse") or " git rev-parse" in lowered:
         return "git rev-parse"
+    if "test-path" in lowered:
+        return "test-path"
     return "unknown"
 
 
@@ -906,7 +909,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "archive"
     if kind in {"final-check", "command-plan"}:
         return "gate"
-    if kind in {"lint-report", "status", "doctor", "git status", "git rev-parse", "pwd"}:
+    if kind in {"lint-report", "status", "doctor", "git status", "git rev-parse", "test-path", "pwd"}:
         return "status"
     return "unknown"
 

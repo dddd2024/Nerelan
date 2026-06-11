@@ -1044,3 +1044,16 @@ def test_command_plan_classifies_command_plan_self_check_as_gate(tmp_path: Path)
     assert result["plan_status"] == "PASSED"
     assert result["commands"][0]["kind"] == "command-plan"
     assert result["commands"][0]["phase"] == "gate"
+
+
+def test_command_plan_classifies_powershell_test_path_as_status(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block='powershell -NoProfile -Command "Test-Path F:\\reverse-agent"',
+    )
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert result["commands"][0]["kind"] == "test-path"
+    assert result["commands"][0]["phase"] == "status"

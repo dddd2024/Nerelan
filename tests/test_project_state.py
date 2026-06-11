@@ -1086,6 +1086,10 @@ def test_status_summary_includes_state_package_classification(tmp_path: Path) ->
     assert summary["state_package_classification_summary"]["authoritative"] >= 1
     assert _classification_entry(package, "project_state/task_packet.json")["classification"] == "advisory"
     assert _classification_entry(package, "project_state/decision_packet.md")["classification"] == "authoritative"
+    assert package["entries_compacted"] is True
+    assert package["archive_total_count"] == 1
+    assert package["archive_included_count"] == 1
+    assert package["archive_omitted_count"] == 0
 
 
 def test_doctor_json_includes_state_package_classification_entries(tmp_path: Path) -> None:
@@ -1098,6 +1102,31 @@ def test_doctor_json_includes_state_package_classification_entries(tmp_path: Pat
     assert check["status"] == "PASS"
     assert _classification_entry(package, "project_state/task_packet.json")["classification"] == "advisory"
     assert _classification_entry(package, "project_state/decision_packet.md")["classification"] == "authoritative"
+    assert package["entries_compacted"] is True
+
+
+def test_doctor_json_compacts_historical_archive_entries(tmp_path: Path) -> None:
+    state_dir = _prepare_state_package_classification_state(tmp_path)
+    for index in range(5):
+        old_round = state_dir / "rounds" / f"round_old_{index}"
+        old_round.mkdir(parents=True)
+        _write_json(old_round / "round_manifest.json", {"round_id": f"round_old_{index}"})
+
+    result = doctor(state_dir=state_dir, json_output=False)
+
+    package = result["state_package_classification"]
+    archive_entries = [
+        entry for entry in package["entries"] if entry.get("classification") == "archive"
+    ]
+    assert package["entries_compacted"] is True
+    assert package["archive_total_count"] == 6
+    assert package["archive_included_count"] == 1
+    assert package["archive_omitted_count"] == 5
+    assert len(archive_entries) == 1
+    assert archive_entries[0]["path"] == "project_state/rounds/round_state_package/*"
+    check = next(c for c in result["checks"] if c["name"] == "state_package_classification")
+    assert check["archive_total_count"] == 6
+    assert check["archive_omitted_count"] == 5
 
 
 def test_state_package_task_packet_is_advisory_even_with_old_sample_task(tmp_path: Path) -> None:
