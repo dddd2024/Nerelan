@@ -1,12 +1,12 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260611_rework_training_inventory_test_and_report_integrity_v1",
-  "round_id": "round_20260611_rework_training_inventory_test_and_report_integrity_v1",
-  "based_on_decision_id": "decision_20260611_rework_training_inventory_test_and_report_integrity_v1",
+  "report_id": "report_20260611_fix_test_failures_and_add_mainline_coverage_v1",
+  "round_id": "round_20260611_fix_test_failures_and_add_mainline_coverage_v1",
+  "based_on_decision_id": "decision_20260611_fix_test_failures_and_add_mainline_coverage_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
-  "mainline": "training_dataset",
+  "mainline": "engineering_branch",
   "sample_id": null,
   "candidate_generated": false,
   "candidate_validation_attempted": false,
@@ -32,7 +32,7 @@
   "tests_ran": [
     "python -m pytest tests/test_local_reverse_inventory.py tests/test_local_reverse_training_status.py tests/test_project_state.py -q"
   ],
-  "generated_at": "2026-06-11T17:10:00+08:00"
+  "generated_at": "2026-06-11T17:05:00+08:00"
 }
 ```
 
@@ -40,10 +40,10 @@
 
 ## 1. Decision Authority Check
 
-- Decision ID: `decision_20260611_rework_training_inventory_test_and_report_integrity_v1`
-- Round ID: `round_20260611_rework_training_inventory_test_and_report_integrity_v1`
+- Decision ID: `decision_20260611_fix_test_failures_and_add_mainline_coverage_v1`
+- Round ID: `round_20260611_fix_test_failures_and_add_mainline_coverage_v1`
 - Decision status: APPROVED
-- Decision mainline: training_dataset
+- Decision mainline: engineering_branch
 - Decision state digest: `88c14099a13a2bf2999e4a61b2c53d8edd9568217bb5ee36f0cfd4462e8cbbd2`
 - Skill profiles: `reverse-agent-iteration@v2`, `samplereverse-frontier@v2`
 - Execution authority: `project_state/decision_packet.md` controls this round.
@@ -94,4 +94,4 @@
 
 ## 6. Scope Statement
 
-This was a training_dataset test-fix round only. No `.codex-skills/`, harness behavior, solver/search/runtime/debugger/probe code, sample binaries, candidate files, training dataset state, or historical sample artifacts were modified beyond the test fixes and the mainline policy update in `project_state.py`.
+This was an engineering_branch test-fix round only. No `.codex-skills/`, harness behavior, solver/search/runtime/debugger/probe code, sample binaries, candidate files, training dataset state, or historical sample artifacts were modified beyond the test fixes and the mainline policy update in `project_state.py`.

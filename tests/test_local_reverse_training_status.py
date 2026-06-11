@@ -1043,55 +1043,264 @@ class TestBuildStaticHandoffOverlay:
         assert entry["blocked_reason"] == "MISSING_EXPECTED_CIPHERTEXT"
 
 
-def test_real_cpp1_target_provenance_recheck_removes_cpp1_from_queue(tmp_path: Path) -> None:
+def test_training_status_end_to_end_with_artifact_index_overlays(tmp_path: Path) -> None:
+    """End-to-end test using deterministic tmp_path fixtures instead of live artifact_index.
+
+    Verifies that build_training_status correctly merges:
+    - inventory entries
+    - validated candidate handoff (solved)
+    - constraint recovery (blocked)
+    - runtime validation overlay (solved via current artifact)
+    - runtime blocked overlay (blocked via current artifact)
+    - mature backend blocked overlay (blocked via current artifact)
+    - static handoff overlay (blocked via current artifact)
+
+    All artifacts are created in tmp_path; no dependency on live project_state/artifact_index.json.
+    """
+    # --- 1. Build deterministic inventory ---
+    inventory = {
+        "schema_version": 1,
+        "entries": [
+            {
+                "sample_id": "cpp1_2f6fcb63",
+                "display_name": "CPP1.exe",
+                "relative_path": "Cpp1.exe",
+                "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+                "size_bytes": 196700,
+                "extension": ".exe",
+                "guessed_file_type": "pe",
+                "category": "cpp",
+                "tags": ["local", "reverse", "cpp", "pe"],
+            },
+            {
+                "sample_id": "cpp1_7b504c54",
+                "display_name": "Cpp1.exe",
+                "relative_path": "Cpp1.exe",
+                "sha256": "7b504c54c165100549a0eacb7eb7cad26bc235ec0c4bed5c38c95a827ff81a3c",
+                "size_bytes": 184398,
+                "extension": ".exe",
+                "guessed_file_type": "pe",
+                "category": "cpp",
+                "tags": ["local", "reverse", "cpp", "pe"],
+            },
+            {
+                "sample_id": "cpp2_2f64e68d",
+                "display_name": "CPP2.exe",
+                "relative_path": "CPP2.exe",
+                "sha256": "2f64e68d4f8c20b12c2332b7ff7895195c992d834ba6d16be4013de8bb1a92a1",
+                "size_bytes": 196689,
+                "extension": ".exe",
+                "guessed_file_type": "pe",
+                "category": "cpp",
+                "tags": ["local", "reverse", "cpp", "pe"],
+            },
+            {
+                "sample_id": "rc4enc_3480917d",
+                "display_name": "rc4enc.exe",
+                "relative_path": "rc4enc.exe",
+                "sha256": "3480917ddedce512f76e97c26df3b3ad12b71b34db472fa8836ba67528bcb09f",
+                "size_bytes": 196693,
+                "extension": ".exe",
+                "guessed_file_type": "pe",
+                "category": "crypto/cipher",
+                "tags": ["local", "reverse", "crypto_cipher", "pe"],
+            },
+        ],
+    }
+
+    # --- 2. Validated handoff: cpp1_7b504c54 solved ---
+    validated = {
+        "validated_candidates": [
+            {
+                "sample_id": "7b504c54c1651005",
+                "candidate": "WeKnowItOk",
+                "validation_status": "validated",
+            }
+        ],
+        "unresolved_targets": [],
+    }
+
+    # --- 3. Constraint recovery: rc4enc blocked ---
+    constraint = {
+        "targets": [
+            {
+                "sample_id": "3480917ddedce512",
+                "constraint_status": "blocked",
+                "blocked_reason": "MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005",
+                "next_action": "recover transform",
+            },
+        ],
+    }
+
+    # --- 4. Solver result ---
+    solver = {
+        "targets": [
+            {
+                "sample_id": "2f6fcb637151a413",
+                "classification": "cpp_static_triage",
+            },
+            {
+                "sample_id": "7b504c54c1651005",
+                "classification": "api_assisted_password",
+            },
+            {
+                "sample_id": "2f64e68d4f8c20b1",
+                "classification": "bounded_input_range_hash",
+            },
+        ],
+    }
+
+    # --- 5. Build deterministic artifact_index in tmp_path ---
+    # 5a. Static handoff overlay artifact for cpp1_2f6fcb63 -> BLOCKED
+    static_artifact_file = tmp_path / "static_handoff.json"
+    _write_json(static_artifact_file, {
+        "sample_id": "cpp1_2f6fcb63",
+        "static_only": True,
+        "executed_sample": False,
+        "runtime_validated": False,
+        "status": "BLOCKED",
+        "blocked_reason": "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE",
+        "candidate": None,
+        "cipher_type": "",
+        "analysis_mode": "target_byte_provenance_recheck",
+        "provenance_verdict": "CONFIRMED_NO_PRINTABLE_PREIMAGE",
+    })
+
+    # 5b. Runtime validation artifact for cpp1_7b504c54 -> SOLVED
+    runtime_val_file = tmp_path / "runtime_validation.json"
+    _write_json(runtime_val_file, {
+        "sample_id": "cpp1_7b504c54",
+        "analysis_mode": "console_runtime_validation",
+        "validation_status": "VALIDATED_SUCCESS",
+        "runtime_validated": True,
+        "solved": True,
+        "known_candidate": "WeKnowItOk",
+    })
+
+    # 5c. Runtime blocked artifact for cpp2_2f64e68d -> BLOCKED
+    runtime_blocked_file = tmp_path / "runtime_blocked.json"
+    _write_json(runtime_blocked_file, {
+        "sample_id": "cpp2_2f64e68d",
+        "analysis_mode": "console_runtime_pair_validation",
+        "validation_status": "AMBIGUOUS_OUTPUT",
+        "runtime_validated": False,
+        "solved": False,
+        "blocked_reason": "AMBIGUOUS_OUTPUT",
+        "failure_reason": "Candidate and negative control produced identical output.",
+        "known_candidate": "",
+    })
+
+    # 5d. Mature backend blocked artifact for cpp2_2f64e68d -> BLOCKED (higher priority)
+    mature_backend_file = tmp_path / "mature_backend_blocked.json"
+    _write_json(mature_backend_file, {
+        "sample_id": "cpp2_2f64e68d",
+        "analysis_mode": "console_mature_backend_availability_probe",
+        "probe_status": "BLOCKED_MATURE_BACKEND_MISSING",
+        "can_attempt_interactive_console_validation_next": False,
+        "solved": False,
+        "blocked_reason": "Windows platform but no mature backend available",
+        "known_candidate": "",
+    })
+
+    # 5e. Assemble artifact_index
+    artifact_index = {
+        "latest_artifacts_v2": {
+            "local_reverse_cpp1_2f6fcb63_target_provenance_recheck": {
+                "kind": "local_reverse_sample_target_provenance_recheck",
+                "freshness": "current",
+                "path": str(static_artifact_file),
+                "sample_id": "cpp1_2f6fcb63",
+            },
+            "local_reverse_cpp1_7b504c54_runtime_validation": {
+                "kind": "local_reverse_console_runtime_validation",
+                "freshness": "current",
+                "path": str(runtime_val_file),
+                "sample_id": "cpp1_7b504c54",
+            },
+            "local_reverse_cpp2_2f64e68d_runtime_blocked": {
+                "kind": "local_reverse_console_pair_runtime_validation",
+                "freshness": "current",
+                "path": str(runtime_blocked_file),
+                "sample_id": "cpp2_2f64e68d",
+            },
+            "local_reverse_cpp2_2f64e68d_mature_backend": {
+                "kind": "local_reverse_console_mature_backend_availability_probe",
+                "freshness": "current",
+                "path": str(mature_backend_file),
+                "sample_id": "cpp2_2f64e68d",
+            },
+        }
+    }
+    artifact_index_path = tmp_path / "artifact_index.json"
+    _write_json(artifact_index_path, artifact_index)
+
+    # --- 6. Run build_training_status ---
+    inv_path = tmp_path / "inventory.json"
+    val_path = tmp_path / "validated.json"
+    con_path = tmp_path / "constraint.json"
+    sol_path = tmp_path / "solver.json"
     out_path = tmp_path / "status.json"
     queue_path = tmp_path / "queue.json"
     gh_path = tmp_path / "github_status.json"
 
+    _write_json(inv_path, inventory)
+    _write_json(val_path, validated)
+    _write_json(con_path, constraint)
+    _write_json(sol_path, solver)
+
     result = build_training_status(
-        inventory_path=Path("project_state/local_reverse_inventory.json"),
-        validated_path=Path("project_state/local_reverse_validated_candidate_handoff.json"),
-        constraint_path=Path("project_state/local_reverse_constraint_recovery_result.json"),
-        solver_result_path=Path("project_state/local_reverse_ida_solver_result.json"),
-        artifact_index_path=Path("project_state/artifact_index.json"),
+        inventory_path=inv_path,
+        validated_path=val_path,
+        constraint_path=con_path,
+        solver_result_path=sol_path,
+        artifact_index_path=artifact_index_path,
         out_path=out_path,
         queue_out_path=queue_path,
         github_status_path=gh_path,
     )
 
-    assert result["status_summary"]["blocked"] >= 4
-    assert result["status_summary"]["solved"] >= 2
+    # --- 7. Assertions ---
+    # blocked: cpp1_2f6fcb63 (static), cpp2_2f64e68d (mature_backend priority over runtime_blocked), rc4enc_3480917d (constraint)
+    assert result["status_summary"]["blocked"] == 3
+    # solved: cpp1_7b504c54 (runtime validation)
+    assert result["status_summary"]["solved"] == 1
+    # inventory_only: none (all 4 samples have some status)
+    assert result["status_summary"]["inventory_only"] == 0
 
     status_data = json.loads(out_path.read_text(encoding="utf-8"))
     samples_by_id = {s["sample_id"]: s for s in status_data["samples"]}
+
+    # cpp1_2f6fcb63 blocked via static handoff overlay
     cpp1 = samples_by_id["cpp1_2f6fcb63"]
     assert cpp1["training_status"] == TRAINING_STATUS_BLOCKED
     assert cpp1["known_candidate"] == ""
     assert cpp1["blocked_reason"] == "CURRENT_TARGET_CONFIRMED_NO_COMPLETE_PRINTABLE_PREIMAGE"
-    assert "source:local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json" in cpp1["evidence_sources"]
     assert "static_blocked_artifact" in cpp1["evidence_sources"]
 
+    # cpp1_7b504c54 solved via runtime validation overlay
     runtime_cpp1 = samples_by_id["cpp1_7b504c54"]
     assert runtime_cpp1["training_status"] == TRAINING_STATUS_SOLVED
     assert runtime_cpp1["known_candidate"] == "WeKnowItOk"
     assert runtime_cpp1["blocked_reason"] == ""
-    assert "source:local_reverse_cpp1_7b504c54_runtime_validation.json" in runtime_cpp1["evidence_sources"]
     assert "console_runtime_validation" in runtime_cpp1["evidence_sources"]
+    assert "runtime_validated_success" in runtime_cpp1["evidence_sources"]
 
+    # cpp2_2f64e68d blocked via mature_backend overlay (priority over runtime_blocked)
+    cpp2 = samples_by_id["cpp2_2f64e68d"]
+    assert cpp2["training_status"] == TRAINING_STATUS_BLOCKED
+    assert cpp2["known_candidate"] == ""
+    assert cpp2["blocked_reason"] == "Windows platform but no mature backend available"
+    assert "console_mature_backend_probe" in cpp2["evidence_sources"]
+    assert "mature_backend_missing" in cpp2["evidence_sources"]
+
+    # Queue excludes solved and blocked
     queue_data = json.loads(queue_path.read_text(encoding="utf-8"))
     queue_ids = {item["sample_id"] for item in queue_data["items"]}
     assert "cpp1_2f6fcb63" not in queue_ids
     assert "cpp1_7b504c54" not in queue_ids
-    # cpp2_2f64e68d should now be blocked (AMBIGUOUS_OUTPUT + BLOCKED_MATURE_BACKEND_MISSING)
     assert "cpp2_2f64e68d" not in queue_ids
 
-    # Verify cpp2_2f64e68d is correctly marked as blocked
-    cpp2 = samples_by_id["cpp2_2f64e68d"]
-    assert cpp2["training_status"] == TRAINING_STATUS_BLOCKED
-    assert cpp2["known_candidate"] == ""
-    assert cpp2["blocked_reason"] != ""
-    assert "console_mature_backend_probe" in cpp2["evidence_sources"] or "console_runtime_validation" in cpp2["evidence_sources"]
-
+    # GitHub-safe output has no absolute local paths
     github_text = gh_path.read_text(encoding="utf-8")
     assert "E:\\reverse" not in github_text
     assert "D:\\reverse" not in github_text

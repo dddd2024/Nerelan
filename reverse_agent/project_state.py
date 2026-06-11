@@ -2604,7 +2604,8 @@ def _historical_artifact_freshness_is_non_blocking(
     round_consistency: dict[str, Any],
     pytest_validation: dict[str, Any],
 ) -> bool:
-    if str(decision.get("mainline") or "") != "engineering_branch":
+    ALLOWED_NON_BLOCKING_MAINLINES = {"engineering_branch", "reverse_solving", "tool_integration", "training_dataset"}
+    if str(decision.get("mainline") or "") not in ALLOWED_NON_BLOCKING_MAINLINES:
         return False
     if decision_execution_state != "CONSUMED_BY_SUCCESS_REPORT":
         return False

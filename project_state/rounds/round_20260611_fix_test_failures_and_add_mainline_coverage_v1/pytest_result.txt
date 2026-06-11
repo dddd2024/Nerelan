@@ -1,10 +1,10 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260611_rework_training_inventory_test_and_report_integrity_v1",
-  "report_id": "report_20260611_rework_training_inventory_test_and_report_integrity_v1",
-  "round_id": "round_20260611_rework_training_inventory_test_and_report_integrity_v1",
-  "generated_at": "2026-06-11T17:10:00+08:00",
+  "decision_id": "decision_20260611_fix_test_failures_and_add_mainline_coverage_v1",
+  "report_id": "report_20260611_fix_test_failures_and_add_mainline_coverage_v1",
+  "round_id": "round_20260611_fix_test_failures_and_add_mainline_coverage_v1",
+  "generated_at": "2026-06-11T17:05:00+08:00",
   "status": "PASSED",
   "tests_ran": [
     "python -m pytest tests/test_local_reverse_inventory.py tests/test_local_reverse_training_status.py tests/test_project_state.py -q"

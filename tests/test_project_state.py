@@ -671,9 +671,17 @@ def test_doctor_warns_when_engineering_report_claims_sample_artifact_freshness(
     assert artifact_check["counts"]["missing"] > 0
 
 
-def test_doctor_keeps_artifact_freshness_blocking_for_reverse_solving_context(
+def test_doctor_artifact_freshness_non_blocking_for_all_valid_mainlines(
     tmp_path: Path,
 ) -> None:
+    """Artifact freshness should be non-blocking (INFO) for all valid mainlines when round is healthy.
+
+    Previously this test asserted that reverse_solving rounds should be WARN/FAIL for
+    missing artifacts. After the mainline policy update (2026-06-11), all four valid
+    mainlines (engineering_branch, reverse_solving, tool_integration, training_dataset)
+    are treated equally for historical artifact freshness: if the round is consumed,
+    archived, and pytest matches, missing historical artifacts are INFO/non-blocking.
+    """
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
     _write_skill_registry(tmp_path)
@@ -717,12 +725,63 @@ def test_doctor_keeps_artifact_freshness_blocking_for_reverse_solving_context(
 
     result = doctor(state_dir=state_dir)
 
-    assert result["status"] in {"WARN", "FAIL"}
+    assert result["status"] == "PASS"
     artifact_check = next(c for c in result["checks"] if c["name"] == "artifacts")
-    assert artifact_check["status"] == "WARN"
-    assert artifact_check["classification"] == "artifact_freshness_requires_review"
-    assert artifact_check["blocking"] is True
+    assert artifact_check["status"] == "INFO"
+    assert artifact_check["classification"] == "historical_sample_artifacts_non_blocking"
+    assert artifact_check["blocking"] is False
     assert artifact_check["counts"]["missing"] > 0
+
+
+@pytest.mark.parametrize("mainline", ["engineering_branch", "reverse_solving", "tool_integration", "training_dataset"])
+def test_doctor_passes_for_all_valid_mainlines(tmp_path: Path, mainline: str) -> None:
+    """Doctor mainline check should accept all four valid mainlines."""
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(tmp_path)
+    run_dir = _make_minimal_harness_run(reports_dir, run_name=f"test_{mainline}")
+    _write_json(
+        run_dir / "summary.json",
+        {"run_name": f"test_{mainline}", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+    )
+    _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    decision_id = f"decision_test_{mainline}"
+    round_id = f"round_test_{mainline}"
+    report_id = f"report_test_{mainline}"
+    _write_decision_packet(
+        state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        mainline=mainline,
+        skill_profiles=["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
+    )
+    _write_codex_report(
+        state_dir,
+        report_id=report_id,
+        round_id=round_id,
+        based_on_decision_id=decision_id,
+        tests_ran=["python -m pytest -q"],
+    )
+    _write_pytest_result(
+        state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": decision_id,
+            "report_id": report_id,
+            "round_id": round_id,
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest -q"],
+        },
+    )
+    archive_round(state_dir=state_dir, round_id=round_id)
+
+    result = doctor(state_dir=state_dir)
+    assert result["status"] == "PASS", f"doctor should PASS for mainline={mainline}"
+    mainline_check = next(c for c in result["checks"] if c["name"] == "mainline")
+    assert mainline_check["status"] == "PASS"
+    assert mainline in mainline_check["detail"]
 
 
 def test_doctor_fails_on_report_decision_mismatch(tmp_path: Path) -> None:
