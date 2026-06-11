@@ -35,6 +35,16 @@ def _read_json(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _classification_entry(package: dict[str, object], path: str) -> dict[str, object]:
+    entries = package.get("entries")
+    assert isinstance(entries, list)
+    for entry in entries:
+        assert isinstance(entry, dict)
+        if entry.get("path") == path:
+            return entry
+    raise AssertionError(f"classification entry not found: {path}")
+
+
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -1004,6 +1014,135 @@ def test_doctor_json_output(tmp_path: Path) -> None:
     artifact_check = next(c for c in parsed["checks"] if c["name"] == "artifacts")
     assert artifact_check["status"] == "INFO"
     assert artifact_check["counts"]["missing"] > 0
+    state_package_check = next(c for c in parsed["checks"] if c["name"] == "state_package_classification")
+    assert state_package_check["status"] == "PASS"
+    assert parsed["state_package_classification"]["summary"]["advisory"] >= 1
+
+
+def _prepare_state_package_classification_state(tmp_path: Path) -> Path:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(tmp_path)
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_state_package")
+    _write_json(
+        run_dir / "summary.json",
+        {"run_name": "samplereverse_state_package", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+    )
+    _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+    current_state = _read_json(state_dir / "current_state.json")
+    assert isinstance(current_state, dict)
+
+    decision_id = "decision_state_package"
+    round_id = "round_state_package"
+    report_id = "report_state_package"
+    _write_decision_packet(
+        state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        based_on_state_build_id=str(current_state["state_build_id"]),
+        based_on_state_digest=str(current_state["state_digest"]),
+        mainline="engineering_branch",
+        skill_profiles=["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
+    )
+    _write_codex_report(
+        state_dir,
+        report_id=report_id,
+        round_id=round_id,
+        based_on_decision_id=decision_id,
+        tests_ran=["python -m pytest tests/test_project_state.py -q"],
+        files_changed=["reverse_agent/project_state.py", "tests/test_project_state.py"],
+        generated_artifacts=[
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+        ],
+    )
+    _write_pytest_result(
+        state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": decision_id,
+            "report_id": report_id,
+            "round_id": round_id,
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest tests/test_project_state.py -q"],
+        },
+    )
+    _write_json(state_dir / "gates" / "preflight_result.json", {"status": "PASS"})
+    _write_json(state_dir / "gates" / "command_plan.json", {"status": "PASS"})
+    _write_json(state_dir / "gates" / "final_gate_result.json", {"status": "PASS"})
+    archive_round(state_dir=state_dir, round_id=round_id)
+    return state_dir
+
+
+def test_status_summary_includes_state_package_classification(tmp_path: Path) -> None:
+    state_dir = _prepare_state_package_classification_state(tmp_path)
+
+    summary = status_summary(state_dir=state_dir)
+
+    package = summary["state_package_classification"]
+    assert summary["state_package_classification_status"] == "PASS"
+    assert summary["state_package_classification_summary"]["authoritative"] >= 1
+    assert _classification_entry(package, "project_state/task_packet.json")["classification"] == "advisory"
+    assert _classification_entry(package, "project_state/decision_packet.md")["classification"] == "authoritative"
+
+
+def test_doctor_json_includes_state_package_classification_entries(tmp_path: Path) -> None:
+    state_dir = _prepare_state_package_classification_state(tmp_path)
+
+    result = doctor(state_dir=state_dir, json_output=False)
+
+    package = result["state_package_classification"]
+    check = next(c for c in result["checks"] if c["name"] == "state_package_classification")
+    assert check["status"] == "PASS"
+    assert _classification_entry(package, "project_state/task_packet.json")["classification"] == "advisory"
+    assert _classification_entry(package, "project_state/decision_packet.md")["classification"] == "authoritative"
+
+
+def test_state_package_task_packet_is_advisory_even_with_old_sample_task(tmp_path: Path) -> None:
+    state_dir = _prepare_state_package_classification_state(tmp_path)
+    task_packet = _read_json(state_dir / "task_packet.json")
+    assert isinstance(task_packet, dict)
+    task_packet["task"] = "old_samplereverse_candidate_search"
+    task_packet["next_local_action"] = "old_samplereverse_candidate_search"
+    _write_json(state_dir / "task_packet.json", task_packet)
+
+    summary = status_summary(state_dir=state_dir)
+
+    package = summary["state_package_classification"]
+    assert summary["decision_id"] == "decision_state_package"
+    task_entry = _classification_entry(package, "project_state/task_packet.json")
+    decision_entry = _classification_entry(package, "project_state/decision_packet.md")
+    assert task_entry["classification"] == "advisory"
+    assert "cannot_override_decision_packet" in str(task_entry["authority"])
+    assert decision_entry["classification"] == "authoritative"
+    assert decision_entry["authority"] == "controls_current_round"
+
+
+def test_state_package_gate_outputs_are_derived_cache(tmp_path: Path) -> None:
+    state_dir = _prepare_state_package_classification_state(tmp_path)
+
+    package = status_summary(state_dir=state_dir)["state_package_classification"]
+
+    for gate_name in ("preflight_result.json", "command_plan.json", "final_gate_result.json"):
+        entry = _classification_entry(package, f"project_state/gates/{gate_name}")
+        assert entry["classification"] == "derived_cache"
+        assert entry["default_context"] is False
+
+
+def test_state_package_archives_and_heavy_history_are_not_default_context(tmp_path: Path) -> None:
+    state_dir = _prepare_state_package_classification_state(tmp_path)
+
+    package = status_summary(state_dir=state_dir)["state_package_classification"]
+
+    round_entry = _classification_entry(package, "project_state/rounds/round_state_package/*")
+    assert round_entry["classification"] == "archive"
+    assert round_entry["default_context"] is False
+    for path in ("solve_reports/", "PROJECT_PROGRESS_LOG.txt"):
+        entry = _classification_entry(package, path)
+        assert entry["classification"] == "heavy_history"
+        assert entry["default_context"] is False
 
 
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:

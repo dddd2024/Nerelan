@@ -144,6 +144,13 @@ STATE_SCOPE_SAMPLE = "sample_state"
 TASK_SOURCE_DERIVED_FROM_SAMPLE_ARTIFACTS = "derived_from_sample_artifacts"
 ACTIVE_DECISION_PACKET = "project_state/decision_packet.md"
 EXECUTION_SCOPE_DECISION_PACKET_CONTROLS_CURRENT_ROUND = "decision_packet_controls_current_round"
+STATE_PACKAGE_CLASSIFICATION_ORDER = (
+    "authoritative",
+    "advisory",
+    "derived_cache",
+    "archive",
+    "heavy_history",
+)
 STATE_DIGEST_EXCLUDED_KEYS = {
     "generated_at",
     "round_id",
@@ -2096,6 +2103,34 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
             "blocking": False,
         })
 
+    # Check 9: state package responsibility classification
+    state_package_classification = build_state_package_classification(state_dir)
+    classification_checks = state_package_classification["checks"]
+    if state_package_classification["status"] == "PASS":
+        checks.append({
+            "name": "state_package_classification",
+            "status": "PASS",
+            "detail": (
+                "task_packet.json advisory; decision_packet.md authoritative; "
+                "gates/*.json derived_cache; rounds/<round_id>/* archive; "
+                "solve_reports/ and PROJECT_PROGRESS_LOG.txt heavy_history"
+            ),
+            "summary": state_package_classification["summary"],
+            "checks": classification_checks,
+            "entries": state_package_classification["entries"],
+        })
+    else:
+        failed = [check["name"] for check in classification_checks if check["status"] != "PASS"]
+        checks.append({
+            "name": "state_package_classification",
+            "status": "FAIL",
+            "detail": f"state package classification checks failed: {failed}",
+            "summary": state_package_classification["summary"],
+            "checks": classification_checks,
+            "entries": state_package_classification["entries"],
+        })
+        overall_status = "FAIL"
+
     if overall_status == "FAIL":
         next_action = "fix_project_state_issues"
 
@@ -2107,6 +2142,7 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
         "report_id": report_id,
         "decision_execution_state": decision_execution_state,
         "artifact_freshness": artifact_classification,
+        "state_package_classification": state_package_classification,
     }
 
     if json_output:
@@ -2613,6 +2649,239 @@ def _artifact_freshness_counts(artifact_index: dict[str, Any]) -> dict[str, int]
         freshness = str(item.get("freshness") or "unknown")
         counts[freshness] = counts.get(freshness, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _state_package_entry(
+    path: str,
+    classification: str,
+    *,
+    role: str,
+    default_context: bool,
+    authority: str,
+    present: bool | None = None,
+) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "path": path,
+        "classification": classification,
+        "role": role,
+        "default_context": default_context,
+        "authority": authority,
+    }
+    if present is not None:
+        entry["present"] = present
+    return entry
+
+
+def _state_package_classification_checks(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_path = {str(entry.get("path") or ""): entry for entry in entries}
+
+    def _matches(path: str, classification: str, *, default_context: bool | None = None) -> bool:
+        entry = by_path.get(path)
+        if not entry or entry.get("classification") != classification:
+            return False
+        if default_context is not None and bool(entry.get("default_context")) is not default_context:
+            return False
+        return True
+
+    gate_entries = [
+        entry
+        for entry in entries
+        if str(entry.get("path") or "").startswith("project_state/gates/")
+        and str(entry.get("path") or "").endswith(".json")
+    ]
+    round_entries = [
+        entry
+        for entry in entries
+        if str(entry.get("path") or "").startswith("project_state/rounds/")
+    ]
+
+    return [
+        {
+            "name": "task_packet_advisory_only",
+            "status": "PASS" if _matches("project_state/task_packet.json", "advisory") else "FAIL",
+            "detail": "task_packet.json is advisory and cannot override decision_packet.md",
+        },
+        {
+            "name": "decision_packet_authoritative",
+            "status": "PASS" if _matches("project_state/decision_packet.md", "authoritative") else "FAIL",
+            "detail": "decision_packet.md is the current execution authority",
+        },
+        {
+            "name": "gate_outputs_derived_cache",
+            "status": (
+                "PASS"
+                if all(entry.get("classification") == "derived_cache" for entry in gate_entries)
+                else "FAIL"
+            ),
+            "detail": f"{len(gate_entries)} gates/*.json entries are derived_cache",
+        },
+        {
+            "name": "rounds_archive_not_default_context",
+            "status": (
+                "PASS"
+                if all(
+                    entry.get("classification") == "archive"
+                    and bool(entry.get("default_context")) is False
+                    for entry in round_entries
+                )
+                else "FAIL"
+            ),
+            "detail": f"{len(round_entries)} rounds/<round_id>/* entries are archive and not default context",
+        },
+        {
+            "name": "heavy_history_not_default_context",
+            "status": (
+                "PASS"
+                if _matches("solve_reports/", "heavy_history", default_context=False)
+                and _matches("PROJECT_PROGRESS_LOG.txt", "heavy_history", default_context=False)
+                else "FAIL"
+            ),
+            "detail": "solve_reports/ and PROJECT_PROGRESS_LOG.txt are heavy_history and not default context",
+        },
+    ]
+
+
+def build_state_package_classification(state_dir: Path) -> dict[str, Any]:
+    """Classify project_state files by responsibility without reading heavy history."""
+    entries: list[dict[str, Any]] = []
+
+    authoritative_entries = (
+        (
+            "project_state/decision_packet.md",
+            "current_execution_authority",
+            "controls_current_round",
+            state_dir / "decision_packet.md",
+        ),
+        (
+            "project_state/current_state.json",
+            "current_state_summary",
+            "required_fact_source",
+            state_dir / "current_state.json",
+        ),
+        (
+            "project_state/artifact_index.json",
+            "artifact_index_summary",
+            "required_fact_source",
+            state_dir / "artifact_index.json",
+        ),
+        (
+            "project_state/negative_results.json",
+            "negative_result_guardrails",
+            "required_fact_source",
+            state_dir / "negative_results.json",
+        ),
+        (
+            "project_state/codex_execution_report.md",
+            "execution_closeout_report",
+            "required_fact_source",
+            state_dir / "codex_execution_report.md",
+        ),
+        (
+            "project_state/pytest_result.txt",
+            "verification_result",
+            "required_fact_source",
+            state_dir / "pytest_result.txt",
+        ),
+    )
+    for path, role, authority, local_path in authoritative_entries:
+        entries.append(
+            _state_package_entry(
+                path,
+                "authoritative",
+                role=role,
+                default_context=True,
+                authority=authority,
+                present=local_path.exists(),
+            )
+        )
+
+    advisory_entries = (
+        (
+            "project_state/task_packet.json",
+            "suggested_task_context",
+            "advisory_only_cannot_override_decision_packet",
+            state_dir / "task_packet.json",
+        ),
+        (
+            "project_state/model_gate.json",
+            "model_call_hint",
+            "advisory_only_cannot_override_decision_packet",
+            state_dir / "model_gate.json",
+        ),
+    )
+    for path, role, authority, local_path in advisory_entries:
+        entries.append(
+            _state_package_entry(
+                path,
+                "advisory",
+                role=role,
+                default_context=True,
+                authority=authority,
+                present=local_path.exists(),
+            )
+        )
+
+    gates_dir = state_dir / "gates"
+    gate_paths = sorted(gates_dir.glob("*.json")) if gates_dir.exists() else []
+    for path in gate_paths:
+        entries.append(
+            _state_package_entry(
+                f"project_state/gates/{path.name}",
+                "derived_cache",
+                role="regenerable_gate_output",
+                default_context=False,
+                authority="derived_from_project_gate_commands",
+                present=path.exists(),
+            )
+        )
+
+    rounds_dir = state_dir / "rounds"
+    round_dirs = sorted(path for path in rounds_dir.iterdir() if path.is_dir()) if rounds_dir.exists() else []
+    for path in round_dirs:
+        entries.append(
+            _state_package_entry(
+                f"project_state/rounds/{path.name}/*",
+                "archive",
+                role="historical_round_archive",
+                default_context=False,
+                authority="historical_record_not_current_execution_authority",
+                present=True,
+            )
+        )
+
+    entries.append(
+        _state_package_entry(
+            "solve_reports/",
+            "heavy_history",
+            role="heavy_solver_and_harness_history",
+            default_context=False,
+            authority="historical_output_not_default_context",
+            present=(state_dir.parent / "solve_reports").exists(),
+        )
+    )
+    entries.append(
+        _state_package_entry(
+            "PROJECT_PROGRESS_LOG.txt",
+            "heavy_history",
+            role="heavy_progress_history",
+            default_context=False,
+            authority="historical_output_not_default_context",
+            present=(state_dir.parent / "PROJECT_PROGRESS_LOG.txt").exists(),
+        )
+    )
+
+    summary = {name: 0 for name in STATE_PACKAGE_CLASSIFICATION_ORDER}
+    for entry in entries:
+        classification = str(entry.get("classification") or "")
+        summary[classification] = summary.get(classification, 0) + 1
+    summary = {key: summary[key] for key in STATE_PACKAGE_CLASSIFICATION_ORDER if key in summary}
+    checks = _state_package_classification_checks(entries)
+    return {
+        "status": "PASS" if all(check["status"] == "PASS" for check in checks) else "FAIL",
+        "summary": summary,
+        "entries": entries,
+        "checks": checks,
+    }
 
 
 def _classify_artifact_freshness(
@@ -5814,6 +6083,7 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         round_consistency=round_consistency,
         pytest_validation=pytest_validation,
     )
+    state_package_classification = build_state_package_classification(state_dir)
     return {
         "state_dir": _path_for_json(state_dir),
         "latest_harness_run": artifact_index.get("latest_harness_run"),
@@ -5821,6 +6091,9 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "artifact_freshness": artifact_freshness,
         "artifact_freshness_classification": artifact_freshness_classification["classification"],
         "artifact_freshness_blocking": artifact_freshness_classification["blocking"],
+        "state_package_classification": state_package_classification,
+        "state_package_classification_summary": state_package_classification["summary"],
+        "state_package_classification_status": state_package_classification["status"],
         "should_call_model": model_gate.get("should_call_model"),
         "context_level": model_gate.get("context_level"),
         "model_gate_reason": model_gate.get("reason"),
@@ -5871,6 +6144,8 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"artifact_freshness: {summary.get('artifact_freshness')}")
     print(f"artifact_freshness_classification: {summary.get('artifact_freshness_classification')}")
     print(f"artifact_freshness_blocking: {summary.get('artifact_freshness_blocking')}")
+    print(f"state_package_classification_status: {summary.get('state_package_classification_status')}")
+    print(f"state_package_classification: {summary.get('state_package_classification_summary')}")
     print(f"should_call_model: {summary.get('should_call_model')}")
     print(f"context_level: {summary.get('context_level')}")
     print(f"reason: {summary.get('model_gate_reason')}")
