@@ -541,12 +541,10 @@ def test_model_gate_strictness_blocks_not_found_with_instrumentation_incomplete(
     assert task_packet["next_local_action"] == "repair_harness_case_result_materialization"
 
 
-def test_doctor_passes_on_healthy_state(tmp_path: Path) -> None:
-    """Doctor should report PASS or WARN on a fully consumed and archived state.
-
-    WARN is expected because build_project_state creates artifact_index.json with
-    missing artifacts for a minimal harness run.
-    """
+def test_doctor_passes_on_healthy_engineering_state_with_historical_artifact_freshness(
+    tmp_path: Path,
+) -> None:
+    """Historical sample artifact freshness should be informational for a clean engineering round."""
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
 
@@ -594,9 +592,7 @@ def test_doctor_passes_on_healthy_state(tmp_path: Path) -> None:
 
     result = doctor(state_dir=state_dir)
 
-    # Minimal harness runs produce missing artifacts in artifact_index.json,
-    # so doctor reports WARN rather than PASS.  This is acceptable.
-    assert result["status"] in {"PASS", "WARN"}
+    assert result["status"] == "PASS"
     assert result["next_action"] is None
     check_names = {c["name"] for c in result["checks"]}
     assert "decision_approval" in check_names
@@ -607,6 +603,126 @@ def test_doctor_passes_on_healthy_state(tmp_path: Path) -> None:
     assert "pytest_result" in check_names
     assert "archive" in check_names
     assert "artifacts" in check_names
+    artifact_check = next(c for c in result["checks"] if c["name"] == "artifacts")
+    assert artifact_check["status"] == "INFO"
+    assert artifact_check["classification"] == "historical_sample_artifacts_non_blocking"
+    assert artifact_check["blocking"] is False
+    assert artifact_check["counts"]["missing"] > 0
+    assert result["artifact_freshness"]["classification"] == "historical_sample_artifacts_non_blocking"
+    assert result["artifact_freshness"]["blocking"] is False
+    summary = status_summary(state_dir=state_dir)
+    assert summary["artifact_freshness_classification"] == "historical_sample_artifacts_non_blocking"
+    assert summary["artifact_freshness_blocking"] is False
+
+
+def test_doctor_warns_when_engineering_report_claims_sample_artifact_freshness(
+    tmp_path: Path,
+) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(tmp_path)
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_claims_artifact")
+    _write_json(
+        run_dir / "summary.json",
+        {"run_name": "samplereverse_claims_artifact", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+    )
+    _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    decision_id = "decision_test_claims_artifact"
+    round_id = "round_test_claims_artifact"
+    report_id = "report_test_claims_artifact"
+    _write_decision_packet(
+        state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        mainline="engineering_branch",
+        skill_profiles=["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
+    )
+    _write_codex_report(
+        state_dir,
+        report_id=report_id,
+        round_id=round_id,
+        based_on_decision_id=decision_id,
+        tests_ran=["python -m pytest -q"],
+        include_verified_artifacts=True,
+        verified_artifacts=["solve_reports/harness_runs/samplereverse_claims_artifact/missing_artifact.json"],
+    )
+    _write_pytest_result(
+        state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": decision_id,
+            "report_id": report_id,
+            "round_id": round_id,
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest -q"],
+        },
+    )
+    archive_round(state_dir=state_dir, round_id=round_id)
+
+    result = doctor(state_dir=state_dir)
+
+    assert result["status"] == "WARN"
+    artifact_check = next(c for c in result["checks"] if c["name"] == "artifacts")
+    assert artifact_check["status"] == "WARN"
+    assert artifact_check["classification"] == "artifact_freshness_requires_review"
+    assert artifact_check["blocking"] is True
+    assert artifact_check["counts"]["missing"] > 0
+
+
+def test_doctor_keeps_artifact_freshness_blocking_for_reverse_solving_context(
+    tmp_path: Path,
+) -> None:
+    reports_dir = tmp_path / "solve_reports"
+    state_dir = tmp_path / "project_state"
+    _write_skill_registry(tmp_path)
+    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_reverse_solving")
+    _write_json(
+        run_dir / "summary.json",
+        {"run_name": "samplereverse_reverse_solving", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+    )
+    _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+    build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+
+    decision_id = "decision_test_reverse_solving"
+    round_id = "round_test_reverse_solving"
+    report_id = "report_test_reverse_solving"
+    _write_decision_packet(
+        state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        mainline="reverse_solving",
+        skill_profiles=["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
+    )
+    _write_codex_report(
+        state_dir,
+        report_id=report_id,
+        round_id=round_id,
+        based_on_decision_id=decision_id,
+        tests_ran=["python -m pytest -q"],
+    )
+    _write_pytest_result(
+        state_dir,
+        summary={
+            "schema_version": 1,
+            "decision_id": decision_id,
+            "report_id": report_id,
+            "round_id": round_id,
+            "status": "PASSED",
+            "tests_ran": ["python -m pytest -q"],
+        },
+    )
+    archive_round(state_dir=state_dir, round_id=round_id)
+
+    result = doctor(state_dir=state_dir)
+
+    assert result["status"] in {"WARN", "FAIL"}
+    artifact_check = next(c for c in result["checks"] if c["name"] == "artifacts")
+    assert artifact_check["status"] == "WARN"
+    assert artifact_check["classification"] == "artifact_freshness_requires_review"
+    assert artifact_check["blocking"] is True
+    assert artifact_check["counts"]["missing"] > 0
 
 
 def test_doctor_fails_on_report_decision_mismatch(tmp_path: Path) -> None:
@@ -711,11 +827,7 @@ def test_doctor_fails_on_missing_pytest_result(tmp_path: Path) -> None:
 
 
 def test_doctor_json_output(tmp_path: Path) -> None:
-    """Doctor --json should output valid JSON.
-
-    WARN is expected because build_project_state creates artifact_index.json with
-    missing artifacts for a minimal harness run.
-    """
+    """Doctor --json should expose artifact freshness classification and counts."""
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
 
@@ -768,10 +880,14 @@ def test_doctor_json_output(tmp_path: Path) -> None:
         sys.stdout = old_stdout
 
     parsed = json.loads(output)
-    # Minimal harness runs produce missing artifacts, so WARN is acceptable.
-    assert parsed["status"] in {"PASS", "WARN"}
+    assert parsed["status"] == "PASS"
     assert "checks" in parsed
     assert isinstance(parsed["checks"], list)
+    assert parsed["artifact_freshness"]["classification"] == "historical_sample_artifacts_non_blocking"
+    assert parsed["artifact_freshness"]["blocking"] is False
+    artifact_check = next(c for c in parsed["checks"] if c["name"] == "artifacts")
+    assert artifact_check["status"] == "INFO"
+    assert artifact_check["counts"]["missing"] > 0
 
 
 def test_project_state_indexes_pre_rc4_material_probe_and_negative_result(tmp_path: Path) -> None:

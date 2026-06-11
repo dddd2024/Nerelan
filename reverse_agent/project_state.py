@@ -1995,22 +1995,36 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
     # Check 8: stale/missing artifacts
     artifact_index = _read_json(state_dir / "artifact_index.json")
     freshness = _artifact_freshness_counts(artifact_index)
-    missing_count = freshness.get("missing", 0)
-    stale_count = freshness.get("stale", 0)
+    artifact_classification = _classify_artifact_freshness(
+        freshness=freshness,
+        decision=decision,
+        report=report,
+        decision_execution_state=decision_execution_state,
+        round_consistency=round_consistency,
+        pytest_validation=pytest_validation,
+    )
+    missing_count = artifact_classification["counts"].get("missing", 0)
+    stale_count = artifact_classification["counts"].get("stale", 0)
 
     if missing_count > 0 or stale_count > 0:
         checks.append({
             "name": "artifacts",
-            "status": "WARN",
-            "detail": f"{missing_count} missing, {stale_count} stale artifacts",
+            "status": artifact_classification["status"],
+            "detail": artifact_classification["detail"],
+            "counts": artifact_classification["counts"],
+            "classification": artifact_classification["classification"],
+            "blocking": artifact_classification["blocking"],
         })
-        if overall_status == "PASS":
+        if artifact_classification["blocking"] and overall_status == "PASS":
             overall_status = "WARN"
     else:
         checks.append({
             "name": "artifacts",
             "status": "PASS",
             "detail": "no missing or stale artifacts",
+            "counts": artifact_classification["counts"],
+            "classification": artifact_classification["classification"],
+            "blocking": False,
         })
 
     if overall_status == "FAIL":
@@ -2023,6 +2037,7 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
         "decision_id": decision_id,
         "report_id": report_id,
         "decision_execution_state": decision_execution_state,
+        "artifact_freshness": artifact_classification,
     }
 
     if json_output:
@@ -2030,7 +2045,11 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
     else:
         print(f"doctor: {overall_status}")
         for check in checks:
-            symbol = "PASS" if check["status"] == "PASS" else ("WARN" if check["status"] == "WARN" else "FAIL")
+            symbol = (
+                "PASS"
+                if check["status"] == "PASS"
+                else ("WARN" if check["status"] == "WARN" else ("INFO" if check["status"] == "INFO" else "FAIL"))
+            )
             print(f"  [{symbol}] {check['name']}: {check['detail']}")
         if next_action:
             print(f"  next_action: {next_action}")
@@ -2525,6 +2544,96 @@ def _artifact_freshness_counts(artifact_index: dict[str, Any]) -> dict[str, int]
         freshness = str(item.get("freshness") or "unknown")
         counts[freshness] = counts.get(freshness, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _classify_artifact_freshness(
+    *,
+    freshness: dict[str, int],
+    decision: dict[str, Any],
+    report: dict[str, Any],
+    decision_execution_state: str,
+    round_consistency: dict[str, Any],
+    pytest_validation: dict[str, Any],
+) -> dict[str, Any]:
+    counts = dict(sorted(freshness.items()))
+    missing_count = counts.get("missing", 0)
+    stale_count = counts.get("stale", 0)
+    has_freshness_problem = missing_count > 0 or stale_count > 0
+    if not has_freshness_problem:
+        return {
+            "status": "PASS",
+            "classification": "artifact_freshness_current",
+            "blocking": False,
+            "counts": counts,
+            "detail": "no missing or stale artifacts",
+            "reason": "artifact_index reports no missing or stale latest artifacts",
+        }
+
+    if _historical_artifact_freshness_is_non_blocking(
+        decision=decision,
+        report=report,
+        decision_execution_state=decision_execution_state,
+        round_consistency=round_consistency,
+        pytest_validation=pytest_validation,
+    ):
+        return {
+            "status": "INFO",
+            "classification": "historical_sample_artifacts_non_blocking",
+            "blocking": False,
+            "counts": counts,
+            "detail": f"{missing_count} missing, {stale_count} stale historical sample artifacts (non-blocking)",
+            "reason": "healthy engineering round does not claim current sample artifact freshness",
+        }
+
+    return {
+        "status": "WARN",
+        "classification": "artifact_freshness_requires_review",
+        "blocking": True,
+        "counts": counts,
+        "detail": f"{missing_count} missing, {stale_count} stale artifacts",
+        "reason": "active context may depend on current artifact evidence or handoff health is not fully clean",
+    }
+
+
+def _historical_artifact_freshness_is_non_blocking(
+    *,
+    decision: dict[str, Any],
+    report: dict[str, Any],
+    decision_execution_state: str,
+    round_consistency: dict[str, Any],
+    pytest_validation: dict[str, Any],
+) -> bool:
+    if str(decision.get("mainline") or "") != "engineering_branch":
+        return False
+    if decision_execution_state != "CONSUMED_BY_SUCCESS_REPORT":
+        return False
+    if str(report.get("status") or "") != "SUCCESS":
+        return False
+    if not bool(pytest_validation.get("matches_report")):
+        return False
+    if not bool(pytest_validation.get("tests_ran_covers_report")):
+        return False
+    if not bool(round_consistency.get("round_manifest_present")):
+        return False
+    if str(round_consistency.get("archive_status") or "") != "archived":
+        return False
+    return not _report_claims_sample_artifact_freshness(report)
+
+
+def _report_claims_sample_artifact_freshness(report: dict[str, Any]) -> bool:
+    artifact_fields = [
+        report.get("generated_artifacts"),
+        report.get("verified_artifacts"),
+    ]
+    sample_artifact_markers = ("solve_reports", "harness_runs", "tool_artifacts")
+    for value in artifact_fields:
+        if not isinstance(value, list):
+            continue
+        for item in value:
+            text = str(item).replace("/", "\\")
+            if any(marker in text for marker in sample_artifact_markers):
+                return True
+    return False
 
 
 def build_artifact_index(
@@ -5626,11 +5735,22 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         task_packet=task_packet,
         state_dir=state_dir,
     )
+    artifact_freshness = _artifact_freshness_counts(artifact_index)
+    artifact_freshness_classification = _classify_artifact_freshness(
+        freshness=artifact_freshness,
+        decision=decision,
+        report=codex_report,
+        decision_execution_state=str(handoff_consistency.get("decision_execution_state") or "UNKNOWN"),
+        round_consistency=round_consistency,
+        pytest_validation=pytest_validation,
+    )
     return {
         "state_dir": _path_for_json(state_dir),
         "latest_harness_run": artifact_index.get("latest_harness_run"),
         "missing": artifact_index.get("missing", []),
-        "artifact_freshness": _artifact_freshness_counts(artifact_index),
+        "artifact_freshness": artifact_freshness,
+        "artifact_freshness_classification": artifact_freshness_classification["classification"],
+        "artifact_freshness_blocking": artifact_freshness_classification["blocking"],
         "should_call_model": model_gate.get("should_call_model"),
         "context_level": model_gate.get("context_level"),
         "model_gate_reason": model_gate.get("reason"),
@@ -5679,6 +5799,8 @@ def _print_status(summary: dict[str, Any]) -> None:
     print(f"latest_harness_run: {summary.get('latest_harness_run')}")
     print(f"missing: {summary.get('missing')}")
     print(f"artifact_freshness: {summary.get('artifact_freshness')}")
+    print(f"artifact_freshness_classification: {summary.get('artifact_freshness_classification')}")
+    print(f"artifact_freshness_blocking: {summary.get('artifact_freshness_blocking')}")
     print(f"should_call_model: {summary.get('should_call_model')}")
     print(f"context_level: {summary.get('context_level')}")
     print(f"reason: {summary.get('model_gate_reason')}")
