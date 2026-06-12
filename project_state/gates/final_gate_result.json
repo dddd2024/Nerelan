@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260612_engineering_baseline_lifecycle_guard_v1",
-  "report_id": "codex_report_20260612_engineering_baseline_lifecycle_guard_v1",
-  "round_id": "round_20260612_engineering_baseline_lifecycle_guard_v1",
-  "generated_at": "2026-06-12T13:42:46.292183Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
+  "report_id": "codex_report_20260612_tool_integration_capability_inventory_v1",
+  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
+  "generated_at": "2026-06-12T14:34:55.146723Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -26,19 +26,19 @@
     },
     {
       "name": "round_manifest_present",
-      "status": "PASS",
-      "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260612_engineering_baseline_lifecycle_guard_v1\\round_manifest.json"
+      "status": "WARN",
+      "detail": "round manifest is missing",
+      "round_manifest_path": "project_state\\rounds\\round_20260612_tool_integration_capability_inventory_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "PASS",
-      "detail": "archived report matches live report"
+      "status": "WARN",
+      "detail": "archived report differs from live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "PASS",
-      "detail": "archived pytest_result matches live pytest_result"
+      "status": "WARN",
+      "detail": "archived pytest_result differs from live pytest_result"
     },
     {
       "name": "round_delta_summary_present",
@@ -46,84 +46,138 @@
       "detail": "round delta summary is baseline-aware",
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
-      "inherited_dirty_files": [],
-      "new_dirty_files_since_baseline": [
+      "inherited_dirty_files": [
+        ".git_corrupt",
+        ".git_corrupt_v2",
+        ".git_old2",
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
+        "project_state/model_gate.json",
+        "project_state/pytest_result.txt",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_state.py"
+      ],
+      "new_dirty_files_since_baseline": [
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/round_manifest.json",
+        "project_state/structured_evidence_gap_report.json",
+        "project_state/tool_capability_inventory.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/tool_capability_inventory.py",
+        "tests/test_tool_capability_inventory.py"
       ],
       "final_dirty_files": [
+        ".git_corrupt",
+        ".git_corrupt_v2",
+        ".git_old2",
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/model_gate.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/round_manifest.json",
+        "project_state/structured_evidence_gap_report.json",
+        "project_state/task_packet.json",
+        "project_state/tool_capability_inventory.json",
+        "reverse_agent/harness.py",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_state.py",
+        "reverse_agent/tool_capability_inventory.py",
+        "tests/test_project_state.py",
+        "tests/test_tool_capability_inventory.py"
       ]
     },
     {
       "name": "files_changed_excludes_inherited_dirty_files",
       "status": "PASS",
       "detail": "files_changed excludes inherited baseline dirty files",
-      "inherited_dirty_files": []
+      "inherited_dirty_files": [
+        ".git_corrupt",
+        ".git_corrupt_v2",
+        ".git_old2",
+        "project_state/artifact_index.json",
+        "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
+        "project_state/model_gate.json",
+        "project_state/pytest_result.txt",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_state.py"
+      ]
     },
     {
       "name": "files_changed_covers_git_diff",
-      "status": "PASS",
-      "detail": "files_changed covers round delta files",
-      "missing_files": [],
+      "status": "FAIL",
+      "detail": "files_changed omits round delta files",
+      "missing_files": [
+        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/round_manifest.json"
+      ],
       "git_changed_files": [
+        ".git_corrupt",
+        ".git_corrupt_v2",
+        ".git_old2",
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/model_gate.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/round_manifest.json",
+        "project_state/structured_evidence_gap_report.json",
+        "project_state/task_packet.json",
+        "project_state/tool_capability_inventory.json",
+        "reverse_agent/harness.py",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/project_state.py",
+        "reverse_agent/tool_capability_inventory.py",
+        "tests/test_project_state.py",
+        "tests/test_tool_capability_inventory.py"
       ],
       "required_round_delta_files": [
-        "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/round_manifest.json",
+        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/round_manifest.json",
+        "project_state/structured_evidence_gap_report.json",
+        "project_state/tool_capability_inventory.json",
         "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "reverse_agent/tool_capability_inventory.py",
+        "tests/test_tool_capability_inventory.py"
       ],
-      "inherited_dirty_files": []
+      "inherited_dirty_files": [
+        ".git_corrupt",
+        ".git_corrupt_v2",
+        ".git_old2",
+        "project_state/artifact_index.json",
+        "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
+        "project_state/model_gate.json",
+        "project_state/pytest_result.txt",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_state.py"
+      ]
     },
     {
       "name": "generated_artifacts_cover_round_delta",
@@ -133,17 +187,48 @@
     },
     {
       "name": "baseline_lifecycle_guard",
-      "status": "PASS",
-      "detail": "baseline source/test dirty files are absent or explicitly allowed",
-      "source_test_baseline_dirty": [],
+      "status": "FAIL",
+      "detail": "baseline contains source/test dirty files not allowed as inherited baseline",
+      "unauthorized_inherited_source_test_files": [
+        "reverse_agent/project_state.py",
+        "tests/test_project_state.py"
+      ],
       "allowed_inherited_dirty_files": [],
-      "generated_or_archive_baseline_dirty_files": []
+      "source_test_scope": [
+        "New tests only for this inventory/gap-report behavior",
+        "reverse_agent/",
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
+      ]
+    },
+    {
+      "name": "baseline_inherited_allowlist_explained",
+      "status": "PASS",
+      "detail": "no source/test inherited baseline explanation is required",
+      "inherited_dirty_files": [
+        ".git_corrupt",
+        ".git_corrupt_v2",
+        ".git_old2",
+        "project_state/artifact_index.json",
+        "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
+        "project_state/model_gate.json",
+        "project_state/pytest_result.txt",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_state.py"
+      ]
     },
     {
       "name": "generated_artifacts_cover_round_archive",
-      "status": "PASS",
-      "detail": "generated_artifacts covers round archive files",
-      "missing_artifacts": []
+      "status": "FAIL",
+      "detail": "generated_artifacts omits round archive files",
+      "missing_artifacts": [
+        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/round_manifest.json"
+      ]
     },
     {
       "name": "command_plan_present",
@@ -157,8 +242,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260612_engineering_baseline_lifecycle_guard_v1",
-      "command_plan_round_id": "round_20260612_engineering_baseline_lifecycle_guard_v1"
+      "command_plan_decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
+      "command_plan_round_id": "round_20260612_tool_integration_capability_inventory_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -169,15 +254,63 @@
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
-      "status": "PASS",
-      "detail": "recorded command exit codes match command_plan expected_exit_codes",
-      "errors": []
+      "status": "FAIL",
+      "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+      "errors": [
+        {
+          "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        },
+        {
+          "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        },
+        {
+          "command": "python -m reverse_agent.project_state doctor --state-dir project_state --json",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        },
+        {
+          "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        },
+        {
+          "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        },
+        {
+          "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        }
+      ]
     },
     {
       "name": "command_plan_json_stdout_full",
-      "status": "PASS",
-      "detail": "command-plan --json recorded stdout contains full commands array",
-      "errors": []
+      "status": "FAIL",
+      "detail": "command-plan --json recorded stdout is missing a full commands array",
+      "errors": [
+        {
+          "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+          "error": "stdout is not JSON: Expecting value"
+        }
+      ]
     },
     {
       "name": "command_plan_generated_artifact_recorded",
@@ -194,16 +327,90 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "codex_report_summary matches synthesized summary",
-      "errors": [],
-      "diffs": []
+      "status": "FAIL",
+      "detail": "codex_report_summary differs from synthesized summary",
+      "errors": [
+        "baseline contains source/test dirty files not allowed as inherited baseline",
+        "files_changed includes inherited dirty files: ['project_state/codex_execution_report.md', 'project_state/pytest_result.txt']"
+      ],
+      "diffs": [
+        {
+          "field": "files_changed",
+          "expected": [
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/decision_packet.md",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/pytest_result.txt",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/round_manifest.json",
+            "project_state/structured_evidence_gap_report.json",
+            "project_state/tool_capability_inventory.json",
+            "reverse_agent/project_gate.py",
+            "reverse_agent/project_state.py",
+            "reverse_agent/tool_capability_inventory.py",
+            "tests/test_project_state.py",
+            "tests/test_tool_capability_inventory.py"
+          ],
+          "actual": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/*",
+            "project_state/structured_evidence_gap_report.json",
+            "project_state/tool_capability_inventory.json",
+            "reverse_agent/project_gate.py",
+            "reverse_agent/tool_capability_inventory.py",
+            "tests/test_tool_capability_inventory.py"
+          ]
+        },
+        {
+          "field": "generated_artifacts",
+          "expected": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/decision_packet.md",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/pytest_result.txt",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/round_manifest.json"
+          ],
+          "actual": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/*",
+            "project_state/structured_evidence_gap_report.json",
+            "project_state/tool_capability_inventory.json"
+          ]
+        }
+      ]
     },
     {
       "name": "report_summary_status_source_available",
-      "status": "PASS",
-      "detail": "report summary status fields are derived from final gate result",
-      "warnings": []
+      "status": "WARN",
+      "detail": "report summary synthesis has source warnings",
+      "warnings": [
+        "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
+      ]
     },
     {
       "name": "forbidden_paths_absent",
@@ -213,22 +420,39 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "PASS",
-      "detail": "SUCCESS report passes lint and doctor",
-      "lint_errors": [],
-      "warnings": [],
-      "doctor_status": "PASS",
+      "status": "FAIL",
+      "detail": "status policy found blocking issues",
+      "lint_errors": [
+        "3 missing, 48 stale artifacts"
+      ],
+      "warnings": [
+        "report round not archived yet"
+      ],
+      "doctor_status": "WARN",
       "report_status": "SUCCESS"
     }
   ],
-  "blocking_reasons": [],
-  "warnings": [],
-  "recommended_next_action": "no_action_required",
+  "blocking_reasons": [
+    "files_changed_covers_git_diff: files_changed omits round delta files",
+    "baseline_lifecycle_guard: baseline contains source/test dirty files not allowed as inherited baseline",
+    "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
+    "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+    "command_plan_json_stdout_full: command-plan --json recorded stdout is missing a full commands array",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary",
+    "status_policy_valid: status policy found blocking issues"
+  ],
+  "warnings": [
+    "round_manifest_present: round manifest is missing",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "report_summary_status_source_available: report summary synthesis has source warnings"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
-    "archive_status": "archived",
+    "archive_status": "not_archived",
     "report_status": "SUCCESS",
     "report_acceptance_recommendation": "ACCEPTED"
   }

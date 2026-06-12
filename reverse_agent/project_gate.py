@@ -2119,6 +2119,8 @@ def _command_kind(command: str) -> str:
         return "git rm"
     if "local_reverse_training_review" in lowered and " build" in lowered:
         return "build"
+    if "tool_capability_inventory" in lowered and " build" in lowered:
+        return "build"
     if "python -c" in lowered:
         return "python-inline"
     if "test-path" in lowered:

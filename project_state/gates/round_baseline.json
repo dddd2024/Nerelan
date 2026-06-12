@@ -1,11 +1,50 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260612_engineering_baseline_lifecycle_guard_v1",
-  "round_id": "round_20260612_engineering_baseline_lifecycle_guard_v1",
-  "head_commit": "3ea58d653265",
-  "baseline_git_status_short": [],
-  "baseline_git_diff_name_only": [],
-  "baseline_dirty_files": [],
-  "generated_at": "2026-06-12T13:26:27.573837Z"
+  "decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
+  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
+  "head_commit": "afd1274bfdbe",
+  "baseline_git_status_short": [
+    " D .git_corrupt",
+    " D .git_corrupt_v2",
+    " D .git_old2",
+    " M project_state/artifact_index.json",
+    " M project_state/codex_execution_report.md",
+    " M project_state/decision_packet.md",
+    " M project_state/model_gate.json",
+    " M project_state/pytest_result.txt",
+    " M project_state/task_packet.json",
+    " M reverse_agent/harness.py",
+    " M reverse_agent/project_state.py",
+    " M tests/test_project_state.py"
+  ],
+  "baseline_git_diff_name_only": [
+    ".git_corrupt",
+    ".git_corrupt_v2",
+    ".git_old2",
+    "project_state/artifact_index.json",
+    "project_state/codex_execution_report.md",
+    "project_state/decision_packet.md",
+    "project_state/model_gate.json",
+    "project_state/pytest_result.txt",
+    "project_state/task_packet.json",
+    "reverse_agent/harness.py",
+    "reverse_agent/project_state.py",
+    "tests/test_project_state.py"
+  ],
+  "baseline_dirty_files": [
+    ".git_corrupt",
+    ".git_corrupt_v2",
+    ".git_old2",
+    "project_state/artifact_index.json",
+    "project_state/codex_execution_report.md",
+    "project_state/decision_packet.md",
+    "project_state/model_gate.json",
+    "project_state/pytest_result.txt",
+    "project_state/task_packet.json",
+    "reverse_agent/harness.py",
+    "reverse_agent/project_state.py",
+    "tests/test_project_state.py"
+  ],
+  "generated_at": "2026-06-12T13:58:38.430102Z"
 }

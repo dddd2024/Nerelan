@@ -1,0 +1,161 @@
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
+  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
+  "generated_at": "2026-06-12T14:19:30Z",
+  "evidence_usage_boundary": {
+    "current": "artifacts with freshness=current in artifact_index.json; produced by validated tool runs in the current or recent rounds",
+    "stale": "artifacts with freshness=stale; can be referenced as historical context but NOT as current evidence for decision-making",
+    "missing": "artifacts with freshness=missing; cannot be used as evidence; must be regenerated or marked as not needed",
+    "unknown": "capabilities or artifacts not yet inventoried; must be assessed before use"
+  },
+  "evidence_mappings": [
+    {
+      "capability": "IDA / IDAPython",
+      "tool_output_registrable_in_artifact_index": true,
+      "structured_evidence_available": false,
+      "gap_description": "IDA / IDAPython tool output can be registered in artifact_index but lacks full StructuredEvidence mapping",
+      "details": "tool_runners.py parses IDA JSON output into ToolRunArtifact with structured_evidence list; evidence.py provides StructuredEvidence dataclass and factory functions; local_reverse_single_sample_static_triage.py consumes IDA JSON for triage"
+    },
+    {
+      "capability": "Ghidra",
+      "tool_output_registrable_in_artifact_index": false,
+      "structured_evidence_available": false,
+      "gap_description": "Ghidra has no tool integration; no output to register or map",
+      "details": "no Ghidra headless analyzer, script runner, or evidence adapter exists in the codebase"
+    },
+    {
+      "capability": "OllyDbg / x64dbg / debugger",
+      "tool_output_registrable_in_artifact_index": true,
+      "structured_evidence_available": false,
+      "gap_description": "OllyDbg / x64dbg / debugger tool output can be registered in artifact_index but lacks full StructuredEvidence mapping",
+      "details": "tool_runners.py parses OllyDbg JSON output into ToolRunArtifact with structured_evidence; olly_scripts/ contains 28 audit/probe scripts; ollydbg_preflight.py provides non-invasive configuration check"
+    },
+    {
+      "capability": "strings / file / objdump / radare2",
+      "tool_output_registrable_in_artifact_index": true,
+      "structured_evidence_available": false,
+      "gap_description": "strings / file / objdump / radare2 tool output can be registered in artifact_index but lacks full StructuredEvidence mapping",
+      "details": "static_feature_extractor.py provides pure Python string extraction (no external tool dependency); no StructuredEvidence factory for generic string extraction results; no file/objdump/radare2 integration"
+    },
+    {
+      "capability": "solver templates",
+      "tool_output_registrable_in_artifact_index": true,
+      "structured_evidence_available": false,
+      "gap_description": "solver templates tool output can be registered in artifact_index but lacks full StructuredEvidence mapping",
+      "details": "sample_solver.py provides generic solver framework; local_reverse_solver_profiles.py provides profile dispatch; corpus_static_audit.py generates gap reports"
+    },
+    {
+      "capability": "symbolic / constraint solver (Z3 / angr)",
+      "tool_output_registrable_in_artifact_index": true,
+      "structured_evidence_available": false,
+      "gap_description": "symbolic / constraint solver (Z3 / angr) tool output can be registered in artifact_index but lacks full StructuredEvidence mapping",
+      "details": "samplereverse_z3.py uses z3 with graceful import fallback; advanced_solvers.py uses angr with graceful import fallback; local_reverse_constraint_recovery.py dispatches constraint recovery; no StructuredEvidence factory for Z3/angr results"
+    },
+    {
+      "capability": "harness",
+      "tool_output_registrable_in_artifact_index": true,
+      "structured_evidence_available": false,
+      "gap_description": "harness tool output can be registered in artifact_index but lacks full StructuredEvidence mapping",
+      "details": "harness.py orchestrates compare-aware campaigns; produces case results and artifact manifests; artifact_index.json registers harness outputs"
+    },
+    {
+      "capability": "sample metadata",
+      "tool_output_registrable_in_artifact_index": true,
+      "structured_evidence_available": false,
+      "gap_description": "sample metadata tool output can be registered in artifact_index but lacks full StructuredEvidence mapping",
+      "details": "local_reverse_inventory.py builds inventory from LOCAL_REVERSE_ROOT; local_samples.py manages sample metadata; corpus_loader.py loads corpus cases; no StructuredEvidence factory for metadata"
+    },
+    {
+      "capability": "artifact_index",
+      "tool_output_registrable_in_artifact_index": true,
+      "structured_evidence_available": true,
+      "details": "project_state.py builds and manages artifact_index.json; project_gate.py reads artifact_index for gate checks; tracks freshness (current/stale/missing), SHA256, size_bytes, source_run"
+    },
+    {
+      "capability": "StructuredEvidence conversion",
+      "tool_output_registrable_in_artifact_index": true,
+      "structured_evidence_available": true,
+      "details": "evidence.py defines StructuredEvidence dataclass and factory functions for Base64/RC4/UTF16LE material evidence; tool_runners.py parses tool output into StructuredEvidence; strategies and pipeline consume StructuredEvidence"
+    }
+  ],
+  "evidence_gaps": [
+    {
+      "capability": "IDA / IDAPython",
+      "gap_type": "missing_structured_evidence_factory",
+      "description": "IDA / IDAPython produces tool output that can be registered in artifact_index but does not have a StructuredEvidence factory for standardized evidence exchange",
+      "safe_next_action": "add StructuredEvidence factory in evidence.py for IDA / IDAPython output"
+    },
+    {
+      "capability": "OllyDbg / x64dbg / debugger",
+      "gap_type": "missing_structured_evidence_factory",
+      "description": "OllyDbg / x64dbg / debugger produces tool output that can be registered in artifact_index but does not have a StructuredEvidence factory for standardized evidence exchange",
+      "safe_next_action": "add StructuredEvidence factory in evidence.py for OllyDbg / x64dbg / debugger output"
+    },
+    {
+      "capability": "strings / file / objdump / radare2",
+      "gap_type": "missing_structured_evidence_factory",
+      "description": "strings / file / objdump / radare2 produces tool output that can be registered in artifact_index but does not have a StructuredEvidence factory for standardized evidence exchange",
+      "safe_next_action": "add StructuredEvidence factory in evidence.py for strings / file / objdump / radare2 output"
+    },
+    {
+      "capability": "solver templates",
+      "gap_type": "missing_structured_evidence_factory",
+      "description": "solver templates produces tool output that can be registered in artifact_index but does not have a StructuredEvidence factory for standardized evidence exchange",
+      "safe_next_action": "add StructuredEvidence factory in evidence.py for solver templates output"
+    },
+    {
+      "capability": "symbolic / constraint solver (Z3 / angr)",
+      "gap_type": "missing_structured_evidence_factory",
+      "description": "symbolic / constraint solver (Z3 / angr) produces tool output that can be registered in artifact_index but does not have a StructuredEvidence factory for standardized evidence exchange",
+      "safe_next_action": "add StructuredEvidence factory in evidence.py for symbolic / constraint solver (Z3 / angr) output"
+    },
+    {
+      "capability": "harness",
+      "gap_type": "missing_structured_evidence_factory",
+      "description": "harness produces tool output that can be registered in artifact_index but does not have a StructuredEvidence factory for standardized evidence exchange",
+      "safe_next_action": "add StructuredEvidence factory in evidence.py for harness output"
+    },
+    {
+      "capability": "sample metadata",
+      "gap_type": "missing_structured_evidence_factory",
+      "description": "sample metadata produces tool output that can be registered in artifact_index but does not have a StructuredEvidence factory for standardized evidence exchange",
+      "safe_next_action": "add StructuredEvidence factory in evidence.py for sample metadata output"
+    },
+    {
+      "capability": "GUI / CLI configuration",
+      "gap_type": "missing_structured_evidence_factory",
+      "description": "GUI / CLI configuration has tool integration but no StructuredEvidence mapping",
+      "safe_next_action": "add StructuredEvidence factory in evidence.py for GUI / CLI configuration output"
+    }
+  ],
+  "triage_prerequisites": [
+    {
+      "action": "bounded_static_triage",
+      "minimum_requirements": [
+        "IDA executable configured and reachable (tool_runners.py IDA runner)",
+        "IDA script path set (ida_scripts/collect_evidence.py or equivalent)",
+        "LOCAL_REVERSE_ROOT environment variable pointing to sample directory",
+        "local_reverse_inventory.json up to date (run local_reverse_inventory.py)",
+        "local_reverse_training_status.json up to date (run local_reverse_training_status.py)"
+      ],
+      "adapter_schema_fields_needed": [
+        "tool_capability_inventory.json: capability entry for IDA with current_status=implemented",
+        "structured_evidence_gap_report.json: evidence mapping for IDA output",
+        "artifact_index.json: freshness tracking for static triage artifacts"
+      ],
+      "current_blockers": [
+        "IDA must be installed and configured on the system",
+        "IDA script must produce valid JSON evidence",
+        "local_reverse_training_next_queue.json must have inventory_only samples with allowed_next_action containing bounded_static_triage"
+      ]
+    }
+  ],
+  "summary": {
+    "total_capabilities_assessed": 11,
+    "with_full_structured_evidence": 2,
+    "registrable_but_missing_se": 7,
+    "not_registrable": 1,
+    "total_gaps": 8
+  }
+}

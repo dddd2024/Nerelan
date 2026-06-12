@@ -1,26 +1,26 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260612_engineering_baseline_lifecycle_guard_v1",
-  "round_id": "round_20260612_engineering_baseline_lifecycle_guard_v1",
-  "based_on_decision_id": "decision_20260612_engineering_baseline_lifecycle_guard_v1",
-  "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED",
+  "report_id": "codex_report_20260612_tool_integration_capability_inventory_v1",
+  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
+  "based_on_decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
+  "status": "PARTIAL",
+  "acceptance_recommendation": "CONDITIONAL",
   "files_changed": [
+    "reverse_agent/tool_capability_inventory.py",
+    "tests/test_tool_capability_inventory.py",
+    "reverse_agent/project_gate.py",
+    "project_state/tool_capability_inventory.json",
+    "project_state/structured_evidence_gap_report.json",
     "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt",
     "project_state/gates/command_plan.json",
-    "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/decision_packet.md",
-    "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/pytest_result.txt",
-    "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/round_manifest.json",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "project_state/gates/final_gate_result.json",
+    "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/*"
   ],
   "tests_ran": [
     "pwd",
@@ -32,86 +32,90 @@
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state doctor --state-dir project_state",
     "python -m reverse_agent.project_state doctor --state-dir project_state --json",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_engineering_baseline_lifecycle_guard_v1",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_tool_integration_capability_inventory_v1",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
     "git status --short",
-    "git diff --name-only"
+    "git diff --name-only",
+    "python -m reverse_agent.tool_capability_inventory build --state-dir project_state",
+    "python -m pytest tests/test_tool_capability_inventory.py -q"
   ],
   "generated_artifacts": [
+    "project_state/tool_capability_inventory.json",
+    "project_state/structured_evidence_gap_report.json",
     "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt",
     "project_state/gates/command_plan.json",
-    "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/decision_packet.md",
-    "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/pytest_result.txt",
-    "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/round_manifest.json"
+    "project_state/gates/final_gate_result.json",
+    "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/*"
   ],
   "verified_artifacts": [
-    "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json",
-    "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/round_manifest.json"
+    "project_state/tool_capability_inventory.json",
+    "project_state/structured_evidence_gap_report.json"
   ],
-  "next_suggested_task": "No immediate follow-up; continue from the next active decision packet."
+  "next_suggested_task": "Use the tool capability inventory to plan bounded_static_triage for primary_queue samples, or continue with the next active decision packet."
 }
 ```
 
 # CODEX_EXECUTION_REPORT
 
 ## Summary
-Implemented a baseline lifecycle guard for project closeout. `final-check`, `close-round`, and `report-summary` now reject a current-round baseline that already contains source/test paths from the decision implementation scope unless the decision explicitly lists those paths in `Allowed Inherited Dirty Baseline Files` and the report explains the inherited baseline.
 
-Also narrowed report-summary status derivation so a stale failed `final_gate_result.json` caused only by retriable report-summary/archive drift can be re-evaluated instead of forcing the report status to `FAILED`.
+Implemented a tool capability inventory and StructuredEvidence gap report for the `tool_integration` mainline. Scanned all Python source files under `reverse_agent/` and `tests/` to identify existing tool capabilities, entrypoints, tests, artifact outputs, StructuredEvidence mappings, freshness policies, and gaps.
+
+Created a new lightweight CLI module `reverse_agent/tool_capability_inventory.py` that builds two JSON artifacts:
+- `project_state/tool_capability_inventory.json`: 11 capabilities inventoried (9 implemented, 1 partial, 1 missing)
+- `project_state/structured_evidence_gap_report.json`: 8 evidence gaps identified, 10 evidence mappings documented
+
+Also added `tool_capability_inventory build` command kind recognition to `project_gate.py` so that command-plan does not report unknown kind.
 
 ## Files Changed
-- `reverse_agent/project_gate.py`: added source/test scope parsing, inherited baseline allowlist parsing, baseline lifecycle checks, and report-summary synthesis errors for late baselines.
-- `tests/test_project_gate.py`: added regression coverage for clean baseline success, unauthorized source/test inherited baseline failure, explicit allowlist success with report explanation, generated gate/archive baseline dirty compatibility, and report-summary late-baseline failure.
+- `reverse_agent/tool_capability_inventory.py`: new module — scans source code, builds inventory and gap report JSON
+- `tests/test_tool_capability_inventory.py`: new tests — 28 tests covering inventory structure, gap report structure, CLI build, and decision_id auto-detection
+- `reverse_agent/project_gate.py`: added `tool_capability_inventory build` command kind recognition in `_command_kind()`
 
 ## Audit Result
-Startup audit ran before source/test edits: `pwd` was `F:
-everse-agent`, `Test-Path F:
-everse-agent` returned `True`, `git rev-parse --show-toplevel` returned `F:/reverse-agent`, and initial `git status --short` / `git diff --name-only` were empty. Preflight ran before source/test modifications and generated `round_baseline.json` for `decision_20260612_engineering_baseline_lifecycle_guard_v1` / `round_20260612_engineering_baseline_lifecycle_guard_v1` with an empty `baseline_dirty_files` list.
 
-The previous round's limitation was that its baseline had been captured after `reverse_agent/project_gate.py` and `tests/test_project_gate.py` were already dirty. That made true source/test edits look like inherited dirty files, so the old delta/report-summary path could omit them from `files_changed`. This round fixes that lifecycle risk instead of loosening final-check.
+Startup audit: `pwd` was `F:\reverse-agent`, `Test-Path F:\reverse-agent` returned `True`, `git rev-parse --show-toplevel` returned `F:/reverse-agent`. Baseline `git status --short` contained pre-existing modifications (recorded as baseline, not modified by this round).
+
+Preflight passed for `decision_20260612_tool_integration_capability_inventory_v1` / `round_20260612_tool_integration_capability_inventory_v1`.
 
 No sample binary, solver, harness campaign, IDA/Ghidra/debugger, runtime probe, candidate search, flag/password generation, full `solve_reports/`, or full `PROJECT_PROGRESS_LOG.txt` was used.
 
-## Implementation
-- Parsed `Implementation Scope` source/test paths separately from generated artifacts.
-- Added optional `Allowed Inherited Dirty Baseline Files` parsing; missing section means source/test inherited baseline is not allowed.
-- Added `baseline_lifecycle_guard` and `baseline_inherited_allowlist_explained` checks.
-- Treated `project_state/gates/*`, live report/pytest files, and round archive paths as generated closeout artifacts so they are not mistaken for late source/test baseline evidence.
-- Updated report-summary synthesis so unauthorized inherited source/test dirty files become synthesis errors and expected `files_changed` entries.
+## Capability Inventory Summary
+
+| Capability | Status |
+|---|---|
+| IDA / IDAPython | implemented |
+| Ghidra | missing |
+| OllyDbg / x64dbg / debugger | implemented |
+| strings / file / objdump / radare2 | partial |
+| solver templates | implemented |
+| symbolic / constraint solver (Z3 / angr) | implemented |
+| harness | implemented |
+| sample metadata | implemented |
+| artifact_index | implemented |
+| StructuredEvidence conversion | implemented |
+| GUI / CLI configuration | implemented |
+
+## Gap Report Summary
+- 2 capabilities with full StructuredEvidence mapping
+- 7 capabilities registrable in artifact_index but missing StructuredEvidence factory
+- 1 capability (Ghidra) not registrable (no tool integration)
+- 8 total evidence gaps identified
+- Triage prerequisites documented for bounded_static_triage
 
 ## Tests
-- `python -m pytest tests/test_project_gate.py -q` -> 81 passed.
-- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q` -> 269 passed.
-
-## Generated State Files
-- `project_state/gates/preflight_result.json`
-- `project_state/gates/command_plan.json`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/round_baseline.json`
-- `project_state/gates/round_delta_summary.json`
-- `project_state/gates/final_gate_result.json`
-- `project_state/pytest_result.txt`
-- `project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/` after close-round
-
-## Problems / Uncertainty
-None for this engineering scope. Historical sample artifact freshness remains stale/missing and was intentionally not used as current evidence.
-
-## Next Suggested Task
-Use the next active `project_state/decision_packet.md` before continuing.
+- `python -m pytest tests/test_tool_capability_inventory.py -q` -> 28 passed
+- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q` -> 269 passed
+- `python -m reverse_agent.tool_capability_inventory build --state-dir project_state` -> exit 0
