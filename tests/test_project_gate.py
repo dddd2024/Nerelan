@@ -3,7 +3,15 @@ from pathlib import Path
 
 import pytest
 
-from reverse_agent.project_gate import _close_round_exit_code, close_round, command_plan, final_check, main, preflight
+from reverse_agent.project_gate import (
+    _close_round_exit_code,
+    build_report_summary_synthesis,
+    close_round,
+    command_plan,
+    final_check,
+    main,
+    preflight,
+)
 from reverse_agent.project_state import archive_round, write_pytest_result
 
 
@@ -524,6 +532,148 @@ def _make_command_plan_gate_state(
     return state_dir
 
 
+def _make_report_summary_state(
+    tmp_path: Path,
+    *,
+    report_status: str = "SUCCESS",
+    acceptance: str = "ACCEPTED",
+    files_changed: list[str] | None = None,
+    tests_ran: list[str] | None = None,
+    generated_artifacts: list[str] | None = None,
+    baseline_dirty_files: list[str] | None = None,
+) -> Path:
+    state_dir = tmp_path / "project_state"
+    state_dir.mkdir()
+    _write_skill_registry(tmp_path)
+    decision_id = "decision_report_summary"
+    round_id = "round_gate"
+    report_id = "codex_report_gate"
+    commands = [
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+        "python -m reverse_agent.project_state lint-report --state-dir project_state",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    ]
+    archive_paths = _archive_paths(round_id)
+    expected_files_changed = [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py",
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        *archive_paths,
+    ]
+    expected_generated_artifacts = [
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        *archive_paths,
+    ]
+    _write_json(
+        state_dir / "current_state.json",
+        {
+            "round_id": "round_sample",
+            "state_build_id": "state_test",
+            "state_digest": "digest_test",
+            "state_scope": "sample_state",
+        },
+    )
+    _write_json(
+        state_dir / "task_packet.json",
+        {
+            "state_scope": "sample_state",
+            "task_source": "derived_from_sample_artifacts",
+            "execution_scope": "decision_packet_controls_current_round",
+            "active_decision_packet": "project_state/decision_packet.md",
+        },
+    )
+    _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+    _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+    _write_json(state_dir / "negative_results.json", {})
+    _write_preflight_decision(
+        state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        goal="Build report-summary synthesis for codex_report_summary.",
+        implementation_scope="""Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+""",
+    )
+    _write_round_baseline(
+        state_dir,
+        decision_id=decision_id,
+        round_id=round_id,
+        baseline_dirty_files=baseline_dirty_files,
+    )
+    command_plan_payload = {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": "engineering_branch",
+        "generated_at": "2026-06-12T00:00:00Z",
+        "commands": [
+            {
+                "index": index,
+                "command": command,
+                "phase": "gate" if "project_gate" in command else "status",
+                "kind": "report-summary" if "report-summary" in command else "command-plan",
+                "required": True,
+                "expected_exit_codes": [0],
+                "records_stdout_stderr": True,
+                "notes": "expected to exit 0",
+            }
+            for index, command in enumerate(commands, start=1)
+        ],
+        "warnings": [],
+        "blocking_reasons": [],
+    }
+    _write_json(state_dir / "gates" / "command_plan.json", command_plan_payload)
+    _write_json(
+        state_dir / "gates" / "final_gate_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "PASSED",
+            "decision_id": decision_id,
+            "report_id": report_id,
+            "round_id": round_id,
+            "checks": [],
+        },
+    )
+    _write_report(
+        state_dir,
+        decision_id=decision_id,
+        report_id=report_id,
+        round_id=round_id,
+        status=report_status,
+        acceptance=acceptance,
+        files_changed=files_changed if files_changed is not None else expected_files_changed,
+        tests_ran=tests_ran if tests_ran is not None else commands,
+        generated_artifacts=generated_artifacts if generated_artifacts is not None else expected_generated_artifacts,
+    )
+    body = "\n\n".join(_command_block(command, "ok") for command in commands)
+    _write_pytest(state_dir, decision_id=decision_id, report_id=report_id, round_id=round_id, tests_ran=commands, body=body)
+    archive_round(state_dir=state_dir, round_id=round_id)
+    return state_dir
+
+
 @pytest.fixture(autouse=True)
 def _clean_git_diff(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
@@ -899,6 +1049,80 @@ def test_final_check_keeps_ordinary_rounds_without_command_plan_compatible(tmp_p
     present_check = _check(result, "command_plan_present")
     assert present_check["status"] == "PASS"
     assert present_check["required"] is False
+
+
+def test_report_summary_synthesizes_expected_fields(tmp_path: Path) -> None:
+    state_dir = _make_report_summary_state(tmp_path)
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "PASSED"
+    summary = result["synthesized_summary"]
+    assert summary["report_id"] == "codex_report_gate"
+    assert summary["status"] == "SUCCESS"
+    assert summary["acceptance_recommendation"] == "ACCEPTED"
+    assert "project_state/gates/report_summary_synthesis.json" in summary["generated_artifacts"]
+    assert (state_dir / "gates" / "report_summary_synthesis.json").exists()
+
+
+def test_report_summary_fails_when_report_tests_ran_missing(tmp_path: Path) -> None:
+    state_dir = _make_report_summary_state(tmp_path, tests_ran=[])
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "FAILED"
+    assert any(diff["field"] == "tests_ran" for diff in result["diffs"])
+
+
+def test_report_summary_fails_when_files_changed_claims_inherited_dirty(tmp_path: Path) -> None:
+    state_dir = _make_report_summary_state(
+        tmp_path,
+        baseline_dirty_files=["reverse_agent/project_gate.py"],
+    )
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "FAILED"
+    assert any("inherited dirty files" in error for error in result["errors"])
+
+
+def test_report_summary_fails_on_report_status_final_gate_contradiction(tmp_path: Path) -> None:
+    state_dir = _make_report_summary_state(tmp_path, report_status="FAILED", acceptance="REWORK_REQUIRED")
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "FAILED"
+    assert any(diff["field"] == "status" for diff in result["diffs"])
+    assert any(diff["field"] == "acceptance_recommendation" for diff in result["diffs"])
+
+
+def test_report_summary_fails_when_command_plan_missing(tmp_path: Path) -> None:
+    state_dir = _make_report_summary_state(tmp_path)
+    (state_dir / "gates" / "command_plan.json").unlink()
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "FAILED"
+    assert any("command_plan.json" in error for error in result["errors"])
+
+
+def test_report_summary_fails_when_round_delta_cannot_be_baseline_aware(tmp_path: Path) -> None:
+    state_dir = _make_report_summary_state(tmp_path)
+    (state_dir / "gates" / "round_baseline.json").unlink()
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "FAILED"
+    assert any("round_delta_summary.json" in error for error in result["errors"])
+
+
+def test_final_check_fails_when_report_summary_differs(tmp_path: Path) -> None:
+    state_dir = _make_report_summary_state(tmp_path, tests_ran=[])
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "report_summary_fields_match_synthesis")["status"] == "FAIL"
 
 
 def test_close_round_archives_unarchived_consistent_round(tmp_path: Path) -> None:
@@ -1491,6 +1715,24 @@ def test_command_plan_classifies_command_plan_self_check_as_gate(tmp_path: Path)
     assert result["plan_status"] == "PASSED"
     assert result["commands"][0]["kind"] == "command-plan"
     assert result["commands"][0]["phase"] == "gate"
+
+
+def test_command_plan_injects_report_summary_when_decision_requests_it(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_state lint-report --state-dir project_state
+""",
+        extra_text="This round must add a report-summary validation entrypoint.",
+    )
+
+    result = command_plan(state_dir=state_dir)
+
+    commands = [command["command"] for command in result["commands"]]
+    assert "python -m reverse_agent.project_gate report-summary --state-dir project_state" in commands
+    inserted = result["commands"][1]
+    assert inserted["kind"] == "report-summary"
+    assert inserted["phase"] == "gate"
 
 
 def test_command_plan_classifies_close_round_help_as_gate(tmp_path: Path) -> None:

@@ -32,11 +32,14 @@ PREFLIGHT_GATE_NAME = "preflight"
 PREFLIGHT_RESULT_NAME = "preflight_result.json"
 COMMAND_PLAN_NAME = "command-plan"
 COMMAND_PLAN_RESULT_NAME = "command_plan.json"
+REPORT_SUMMARY_NAME = "report-summary"
+REPORT_SUMMARY_RESULT_NAME = "report_summary_synthesis.json"
 ROUND_BASELINE_RESULT_NAME = "round_baseline.json"
 ROUND_DELTA_SUMMARY_NAME = "round_delta_summary.json"
 SELF_OUTPUT_PATH = f"project_state/gates/{FINAL_GATE_RESULT_NAME}"
 PREFLIGHT_OUTPUT_PATH = f"project_state/gates/{PREFLIGHT_RESULT_NAME}"
 COMMAND_PLAN_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_RESULT_NAME}"
+REPORT_SUMMARY_OUTPUT_PATH = f"project_state/gates/{REPORT_SUMMARY_RESULT_NAME}"
 ROUND_BASELINE_OUTPUT_PATH = f"project_state/gates/{ROUND_BASELINE_RESULT_NAME}"
 ROUND_DELTA_OUTPUT_PATH = f"project_state/gates/{ROUND_DELTA_SUMMARY_NAME}"
 CLOSE_ROUND_NAME = "close-round"
@@ -88,6 +91,7 @@ COMMAND_PLAN_KINDS = {
     "doctor",
     "archive-round",
     "command-plan",
+    "report-summary",
     "close-round",
     "pytest",
     "git status",
@@ -616,6 +620,25 @@ def _report_mentions_command_plan(report: dict[str, Any]) -> bool:
     return any("command-plan" in item for item in report_tests) or COMMAND_PLAN_OUTPUT_PATH in generated_artifacts
 
 
+def _report_summary_required(
+    *,
+    decision_text: str,
+    report: dict[str, Any],
+    command_plan_payload: dict[str, Any] | None = None,
+) -> bool:
+    lowered = decision_text.lower()
+    report_tests = _string_set(report.get("tests_ran"))
+    generated_artifacts = _string_set(report.get("generated_artifacts"))
+    plan_commands = _command_strings(command_plan_payload or {})
+    return (
+        "report-summary" in lowered
+        or "synth-report" in lowered
+        or any("report-summary" in item for item in report_tests)
+        or any("report-summary" in item for item in plan_commands)
+        or REPORT_SUMMARY_OUTPUT_PATH in generated_artifacts
+    )
+
+
 def _expected_exit_codes_by_command(command_plan_payload: dict[str, Any]) -> dict[str, list[list[int]]]:
     expected: dict[str, list[list[int]]] = {}
     commands = command_plan_payload.get("commands")
@@ -870,6 +893,325 @@ def _validate_command_plan_consistency(
     return checks
 
 
+def _expected_report_id(round_id: str) -> str:
+    if round_id.startswith("round_"):
+        return f"codex_report_{round_id[len('round_'):]}"
+    return f"codex_report_{round_id}" if round_id else ""
+
+
+def _report_status_from_gate(gate_status: str) -> tuple[str, str] | None:
+    mapping = {
+        "PASSED": ("SUCCESS", "ACCEPTED"),
+        "WARN": ("PARTIAL", "NEEDS_REVIEW"),
+        "FAILED": ("FAILED", "REWORK_REQUIRED"),
+        "BLOCKED": ("BLOCKED", "BLOCKED"),
+    }
+    return mapping.get(gate_status)
+
+
+def _report_status_from_gate_payload(payload: dict[str, Any]) -> tuple[str, str] | None:
+    gate_status = str(payload.get("gate_status") or "")
+    if gate_status == "WARN":
+        status_summary_payload = payload.get("status_summary")
+        status_summary_map = status_summary_payload if isinstance(status_summary_payload, dict) else {}
+        report_status = str(status_summary_map.get("report_status") or "")
+        acceptance = str(status_summary_map.get("report_acceptance_recommendation") or "")
+        warn_check_names = {
+            str(check.get("name") or "")
+            for check in payload.get("checks", [])
+            if isinstance(check, dict) and check.get("status") == "WARN"
+        }
+        allowed_prearchive_warnings = ARCHIVE_PENDING_CHECKS | {
+            "report_summary_status_source_available",
+            "status_policy_valid",
+        }
+        if report_status == "SUCCESS" and warn_check_names and warn_check_names <= allowed_prearchive_warnings:
+            return "SUCCESS", acceptance if acceptance else "ACCEPTED"
+    return _report_status_from_gate(gate_status)
+
+
+def _final_gate_is_report_summary_self_failure(payload: dict[str, Any]) -> bool:
+    if payload.get("gate_status") != "FAILED":
+        return False
+    failed_check_names = {
+        str(check.get("name") or "")
+        for check in payload.get("checks", [])
+        if isinstance(check, dict) and check.get("status") == "FAIL"
+    }
+    return bool(failed_check_names) and failed_check_names <= {"report_summary_fields_match_synthesis"}
+
+
+def _expected_archive_paths(state_dir: Path, round_id: str, manifest_files: list[str]) -> set[str]:
+    if manifest_files:
+        return _round_archive_paths(state_dir, round_id, manifest_files)
+    return _round_archive_paths(
+        state_dir,
+        round_id,
+        [
+            "codex_execution_report.md",
+            "decision_packet.md",
+            "pytest_result.txt",
+            ARCHIVE_MANIFEST_NAME,
+        ],
+    )
+
+
+def _report_summary_diff(
+    *,
+    field: str,
+    expected: object,
+    actual: object,
+) -> dict[str, Any] | None:
+    if isinstance(expected, list):
+        if field == "tests_ran":
+            expected_list = sorted(str(item) for item in expected)
+            actual_list = sorted(str(item) for item in actual) if isinstance(actual, list) else []
+        else:
+            expected_list = sorted(_norm_path(item) for item in expected)
+            actual_list = sorted(_norm_path(item) for item in actual) if isinstance(actual, list) else []
+        if expected_list == actual_list:
+            return None
+        return {"field": field, "expected": expected_list, "actual": actual_list}
+    if expected == actual:
+        return None
+    return {"field": field, "expected": expected, "actual": actual}
+
+
+def build_report_summary_synthesis(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    repo_root = repo_root or Path.cwd()
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    report = read_codex_report_summary(state_dir)
+    pytest_text = _read_text(state_dir / "pytest_result.txt")
+    pytest_header = parse_pytest_result_header(pytest_text)
+    command_plan_path = state_dir / "gates" / COMMAND_PLAN_RESULT_NAME
+    command_plan_payload = _read_json(command_plan_path)
+    final_gate_payload = _read_json(state_dir / "gates" / FINAL_GATE_RESULT_NAME)
+
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or report.get("round_id") or "")
+    report_id = _expected_report_id(round_id)
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    commands = _command_plan_json_commands(command_plan_payload)
+    command_strings = [str(item.get("command") or "") for item in commands if str(item.get("command") or "")]
+    command_plan_ok = (
+        bool(command_plan_payload)
+        and command_plan_path.exists()
+        and str(command_plan_payload.get("decision_id") or "") == decision_id
+        and str(command_plan_payload.get("round_id") or "") == round_id
+        and isinstance(command_plan_payload.get("commands"), list)
+    )
+    if not command_plan_ok:
+        errors.append("command_plan.json missing, invalid, or for a different decision/round")
+
+    delta_summary = _build_round_delta_summary(
+        state_dir=state_dir,
+        repo_root=repo_root,
+        decision_id=decision_id,
+        round_id=round_id,
+        write_result=write_result,
+    )
+    delta_ok = (
+        bool(delta_summary)
+        and bool(delta_summary.get("baseline_available"))
+        and str(delta_summary.get("decision_id") or "") == decision_id
+        and str(delta_summary.get("round_id") or "") == round_id
+    )
+    if not delta_ok:
+        errors.append("round_delta_summary.json missing, invalid, or not baseline-aware for current round")
+
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+    round_consistency = build_round_consistency(
+        decision=decision,
+        report=report,
+        current_state=current_state,
+        task_packet=task_packet,
+        state_dir=state_dir,
+    )
+    archive_paths = _expected_archive_paths(state_dir, round_id, list(round_consistency.get("round_manifest_files") or []))
+    round_delta_files = _string_set(
+        delta_summary.get("new_dirty_files_since_baseline")
+        if delta_summary.get("baseline_available")
+        else delta_summary.get("final_dirty_files")
+    )
+    expected_files_changed = sorted(round_delta_files | archive_paths | {REPORT_SUMMARY_OUTPUT_PATH})
+    expected_generated_artifacts = sorted(
+        {
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            PREFLIGHT_OUTPUT_PATH,
+            COMMAND_PLAN_OUTPUT_PATH,
+            REPORT_SUMMARY_OUTPUT_PATH,
+            SELF_OUTPUT_PATH,
+            ROUND_BASELINE_OUTPUT_PATH,
+            ROUND_DELTA_OUTPUT_PATH,
+            *archive_paths,
+        }
+    )
+
+    final_gate_status = ""
+    final_gate_matches = (
+        str(final_gate_payload.get("decision_id") or "") == decision_id
+        and str(final_gate_payload.get("round_id") or "") == round_id
+        and str(final_gate_payload.get("gate_status") or "")
+    )
+    if final_gate_matches:
+        if _final_gate_is_report_summary_self_failure(final_gate_payload):
+            final_gate_matches = False
+            warnings.append(
+                "final_gate_result.json contains only a self-referential report-summary failure; "
+                "status fields cannot be gate-derived yet"
+            )
+        else:
+            final_gate_status = str(final_gate_payload.get("gate_status") or "")
+    else:
+        warnings.append("final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet")
+    status_pair = _report_status_from_gate_payload(final_gate_payload) if final_gate_matches else None
+
+    synthesized_summary: dict[str, Any] = {
+        "report_id": report_id,
+        "round_id": round_id,
+        "based_on_decision_id": decision_id,
+        "files_changed": expected_files_changed,
+        "tests_ran": command_strings,
+        "generated_artifacts": expected_generated_artifacts,
+    }
+    if status_pair is not None:
+        synthesized_summary["status"] = status_pair[0]
+        synthesized_summary["acceptance_recommendation"] = status_pair[1]
+
+    if not isinstance(pytest_header.get("tests_ran"), list) or not pytest_header.get("tests_ran"):
+        errors.append("pytest_result_summary.tests_ran missing or empty")
+    else:
+        pytest_tests = {str(item) for item in pytest_header.get("tests_ran") or []}
+        missing_pytest_tests = sorted(set(command_strings) - pytest_tests)
+        if missing_pytest_tests:
+            errors.append(f"pytest_result_summary.tests_ran omits command_plan commands: {missing_pytest_tests}")
+
+    inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
+    report_files_changed = _string_set(report.get("files_changed"))
+    inherited_claimed = sorted(inherited_dirty_files & report_files_changed)
+    if inherited_claimed:
+        errors.append(f"files_changed includes inherited dirty files: {inherited_claimed}")
+
+    diffs: list[dict[str, Any]] = []
+    for field in (
+        "report_id",
+        "round_id",
+        "based_on_decision_id",
+        "status",
+        "acceptance_recommendation",
+        "files_changed",
+        "tests_ran",
+        "generated_artifacts",
+    ):
+        if field not in synthesized_summary:
+            continue
+        diff = _report_summary_diff(field=field, expected=synthesized_summary[field], actual=report.get(field))
+        if diff:
+            diffs.append(diff)
+
+    synthesis_status = "FAILED" if errors or diffs else ("WARN" if warnings else "PASSED")
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": REPORT_SUMMARY_RESULT_NAME,
+        "gate_name": REPORT_SUMMARY_NAME,
+        "synthesis_status": synthesis_status,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "report_id": report.get("report_id") or "",
+        "generated_at": _now_iso(),
+        "synthesized_summary": synthesized_summary,
+        "diffs": diffs,
+        "errors": errors,
+        "warnings": warnings,
+        "sources": {
+            "decision_meta": "project_state/decision_packet.md",
+            "command_plan": COMMAND_PLAN_OUTPUT_PATH,
+            "round_delta_summary": ROUND_DELTA_OUTPUT_PATH,
+            "final_gate_result": SELF_OUTPUT_PATH,
+            "pytest_result": "project_state/pytest_result.txt",
+        },
+    }
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / REPORT_SUMMARY_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return result
+
+
+def _report_summary_checks(
+    *,
+    state_dir: Path,
+    repo_root: Path,
+    decision_text: str,
+    report: dict[str, Any],
+    write_result: bool,
+) -> list[dict[str, Any]]:
+    command_plan_payload = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    required = _report_summary_required(
+        decision_text=decision_text,
+        report=report,
+        command_plan_payload=command_plan_payload,
+    )
+    if not required:
+        return [
+            _check(
+                "report_summary_synthesis_required",
+                "PASS",
+                "report-summary synthesis is not required for this report",
+                required=False,
+            )
+        ]
+
+    synthesis = build_report_summary_synthesis(
+        state_dir=state_dir,
+        repo_root=repo_root,
+        write_result=write_result,
+    )
+    errors = list(synthesis.get("errors") or [])
+    diffs = list(synthesis.get("diffs") or [])
+    warnings = list(synthesis.get("warnings") or [])
+    return [
+        _check(
+            "report_summary_synthesis_required",
+            "PASS",
+            "report-summary synthesis is required for this report",
+            required=True,
+            artifact=REPORT_SUMMARY_OUTPUT_PATH,
+        ),
+        _check(
+            "report_summary_fields_match_synthesis",
+            "PASS" if not errors and not diffs else "FAIL",
+            "codex_report_summary matches synthesized summary"
+            if not errors and not diffs
+            else "codex_report_summary differs from synthesized summary",
+            errors=errors,
+            diffs=diffs,
+        ),
+        _check(
+            "report_summary_status_source_available",
+            "PASS" if not warnings else "WARN",
+            "report summary status fields are derived from final gate result"
+            if not warnings
+            else "report summary synthesis has source warnings",
+            warnings=warnings,
+        ),
+    ]
+
+
 def _forbidden_hits(paths: set[str]) -> list[str]:
     hits: list[str] = []
     for path in sorted(paths):
@@ -905,6 +1247,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
     state_dir = Path(state_dir)
 
     decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
     report = read_codex_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
     pytest_validation = validate_pytest_result_for_report(pytest_text, report)
@@ -1035,6 +1378,16 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
             decision=decision,
             report=report,
             pytest_text=pytest_text,
+        )
+    )
+
+    checks.extend(
+        _report_summary_checks(
+            state_dir=state_dir,
+            repo_root=repo_root,
+            decision_text=decision_text,
+            report=report,
+            write_result=write_result,
         )
     )
 
@@ -1262,6 +1615,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         }
 
     decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
     report = read_codex_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
     pytest_validation = validate_pytest_result_for_report(pytest_text, report)
@@ -1395,6 +1749,16 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             files_changed=files_changed,
             generated_artifacts=generated_artifacts,
             archive_paths=archive_paths,
+        )
+    )
+
+    checks.extend(
+        _report_summary_checks(
+            state_dir=state_dir,
+            repo_root=repo_root,
+            decision_text=decision_text,
+            report=report,
+            write_result=True,
         )
     )
 
@@ -1561,6 +1925,8 @@ def _command_kind(command: str) -> str:
         return "preflight"
     if "project_gate" in lowered and "command-plan" in lowered:
         return "command-plan"
+    if "project_gate" in lowered and "report-summary" in lowered:
+        return "report-summary"
     if "project_gate" in lowered and "close-round" in lowered:
         return "close-round"
     if "project_gate" in lowered and "final-check" in lowered:
@@ -1603,7 +1969,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "close-round"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -1666,6 +2032,28 @@ def _command_plan_recommended_next_action(plan_status: str) -> str:
     return "fix_decision_tests_block_before_execution"
 
 
+def _decision_requests_report_summary(decision_text: str) -> bool:
+    lowered = decision_text.lower()
+    return "report-summary" in lowered or "synth-report" in lowered or "report summary" in lowered
+
+
+def _inject_report_summary_command(extracted_commands: list[str], decision_text: str) -> list[str]:
+    command = "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+    if not _decision_requests_report_summary(decision_text):
+        return extracted_commands
+    if any("project_gate" in item and "report-summary" in item for item in extracted_commands):
+        return extracted_commands
+    insert_at = next(
+        (
+            index
+            for index, item in enumerate(extracted_commands)
+            if "lint-report" in item or ("project_gate" in item and "final-check" in item)
+        ),
+        len(extracted_commands),
+    )
+    return [*extracted_commands[:insert_at], command, *extracted_commands[insert_at:]]
+
+
 def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
     state_dir = Path(state_dir)
     decision = read_decision_meta(state_dir)
@@ -1685,6 +2073,7 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
         extracted_commands, extract_error = _extract_bash_commands(tests_text)
         if extract_error:
             blocking_reasons.append(extract_error)
+        extracted_commands = _inject_report_summary_command(extracted_commands, decision_text)
         archive_seen = False
         for index, command in enumerate(extracted_commands, start=1):
             kind = _command_kind(command)
@@ -2010,6 +2399,20 @@ def _print_command_plan(result: dict[str, Any]) -> None:
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
 
 
+def _print_report_summary(result: dict[str, Any]) -> None:
+    print(f"{result.get('gate_name')}: {result.get('synthesis_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"report_id: {result.get('report_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    for error in result.get("errors", []):
+        print(f"  [ERROR] {error}")
+    for diff in result.get("diffs", []):
+        print(f"  [DIFF] {diff.get('field')}")
+    for warning in result.get("warnings", []):
+        print(f"  [WARN] {warning}")
+    print(f"artifact: {REPORT_SUMMARY_OUTPUT_PATH}")
+
+
 def _print_close_round(result: dict[str, Any]) -> None:
     print(f"{result.get('gate_name')}: {result.get('close_status')}")
     print(f"decision_id: {result.get('decision_id')}")
@@ -2053,6 +2456,9 @@ def main(argv: list[str] | None = None) -> int:
     command_plan_parser = subparsers.add_parser("command-plan", help="Generate a read-only command execution plan.")
     command_plan_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     command_plan_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    report_summary_parser = subparsers.add_parser("report-summary", help="Synthesize and validate codex_report_summary.")
+    report_summary_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    report_summary_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     close_round_parser = subparsers.add_parser("close-round", help="Run final-check, archive the round, and re-check.")
     close_round_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     close_round_parser.add_argument("--round-id", required=True)
@@ -2080,6 +2486,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _print_command_plan(result)
         return 1 if result.get("plan_status") == "FAILED" else 0
+    if args.command == "report-summary":
+        result = build_report_summary_synthesis(state_dir=Path(args.state_dir), repo_root=Path.cwd())
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_report_summary(result)
+        return 1 if result.get("synthesis_status") == "FAILED" else 0
     if args.command == "close-round":
         result = close_round(state_dir=Path(args.state_dir), round_id=args.round_id, repo_root=Path.cwd())
         if args.json:
