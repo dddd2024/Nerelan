@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260612_training_local_reverse_inventory_audit_v1",
-  "round_id": "round_20260612_training_local_reverse_inventory_audit_v1",
+  "decision_id": "decision_20260612_training_metadata_contract_repair_v1",
+  "round_id": "round_20260612_training_metadata_contract_repair_v1",
   "mainline": "training_dataset",
-  "generated_at": "2026-06-12T03:15:25.730291Z",
+  "generated_at": "2026-06-12T05:42:53.347303Z",
   "commands": [
     {
       "index": 1,
@@ -69,7 +69,7 @@
     },
     {
       "index": 6,
-      "command": "python -m pytest tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_local_reverse_training_status.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -177,7 +177,7 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260612_training_local_reverse_inventory_audit_v1",
+      "command": "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260612_training_metadata_contract_repair_v1",
       "phase": "archive",
       "kind": "archive-round",
       "required": true,

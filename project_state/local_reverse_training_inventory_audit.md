@@ -145,11 +145,26 @@ are known:
 | `training_status` | status overlay | Present for all overlay samples. |
 | `known_candidate` | solved overlays only | Present only when already validated. |
 | `blocked_reason` | blocked/static tool overlays | Present when applicable. |
+| `failure_reason` | runtime/blocked artifacts | Present in richer local output when a prior attempt produced a non-blocking failure (e.g., `AMBIGUOUS_OUTPUT`, `VALIDATED_FAILURE`). Must not be aliased to `blocked_reason`; see distinction below. |
 | `classification` | local training status only | Present in richer local output, absent from compact overlay. |
 | `evidence_sources` | local training status only | Present in richer local output, absent from compact overlay. |
+| `solver_used` | not first-class | **Unknown / not first-class** in the compact GitHub overlay. The overlay records `known_candidate` only when a candidate has already been validated; it does **not** record which solver family or search strategy produced it. Richer local output may contain `solver_profile_hypotheses` from static triage, but these are hypotheses, not confirmed `solver_used`. Codex must not infer `solver_used` from `known_candidate`. |
+| `tool_evidence_used` | local training status / artifact_index | Present in richer local output as `evidence_sources` (e.g., `ida_solver_classification`, `runtime_validation`, `static_handoff`, `source:artifact_index.json`). The compact overlay omits this list. Future contract references should use the field name `tool_evidence_used` and map it from `evidence_sources` when available. |
 | `expected_input` / `expected_output` | not first-class | Unknown for most inventory-only samples. |
 | `run_history` | artifact_index-derived | Partial and should not be inferred from stale artifacts. |
 | `github_upload_policy` | inventory | Present and currently `metadata_only` for all entries. |
+
+### Distinction: `blocked_reason` vs. `failure_reason`
+
+- `blocked_reason` describes the **current blocker** that prevents further progress on a sample (e.g., `MISSING_UPSTREAM_TRANSFORM_FUNCTION`, `NO_BOUNDED_HASH_PREIMAGE_DOMAIN`, `STATIC_TOOL_NO_OUTPUT`). It is a forward-looking statement: "we cannot proceed because X."
+- `failure_reason` describes a **historical failed path** that was attempted but did not succeed (e.g., `AMBIGUOUS_OUTPUT` from a runtime validation, `VALIDATED_FAILURE` from a candidate check). It is a backward-looking statement: "we tried Y and it failed."
+- The compact overlay only exposes `blocked_reason`. Richer local output may contain both fields via runtime validation artifacts. Codex must not conflate them or write a `blocked_reason` when the intent is `failure_reason`.
+
+### Distinction: `known_candidate` vs. `solver_used`
+
+- `known_candidate` is a **validated answer or flag** that has passed runtime or manual confirmation. It is output-level metadata.
+- `solver_used` would be the **solver family, strategy, or tool chain** that produced the candidate (e.g., `compare_aware_search`, `xor_array_static_solver`, `IDA_decompile_guided`). This is **not** a first-class field in the current compact overlay or status builder.
+- Codex must not infer `solver_used` from `known_candidate`. If a future round needs `solver_used`, it must be introduced as a new first-class field with explicit provenance tracking, not backfilled from existing candidate values.
 
 ## Gaps and Risks
 
@@ -171,8 +186,10 @@ are known:
 1. Keep the GitHub-safe contract metadata-only.
 2. If metadata is stale, refresh inventory/status using the existing builders
    without adding new scanners or uploading samples.
-3. Select one queue item from `project_state/local_reverse_evaluation_queue.json`
-   and run only static triage.
+3. After this contract repair is accepted, the next operational decision may
+   select **exactly one** queue item from
+   `project_state/local_reverse_evaluation_queue.json` and run only static
+   triage. **This round does not execute that triage.**
 4. Record any static triage result as metadata, preserving blocked/tool-failure
    status when evidence is incomplete.
 5. Defer solver generation, runtime validation, brute force, and binary upload

@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260612_training_local_reverse_inventory_audit_v1",
-  "round_id": "round_20260612_training_local_reverse_inventory_audit_v1",
+  "decision_id": "decision_20260612_training_metadata_contract_repair_v1",
+  "round_id": "round_20260612_training_metadata_contract_repair_v1",
   "mainline": "training_dataset",
-  "generated_at": "2026-06-12T03:14:52.650679Z",
+  "generated_at": "2026-06-12T05:37:11.031049Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -60,7 +60,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": ""
+      "report_id": "report_20260612_training_local_reverse_inventory_audit_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -75,18 +75,14 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "None by default. Do not modify source code in this audit-only round.",
-        "None by default. Do not modify tests in this audit-only round.",
+        "None.",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
-        "project_state/local_reverse_evaluation_queue.json",
         "project_state/local_reverse_training_inventory_audit.md",
-        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_training_local_reverse_inventory_audit_v1/*",
-        "training_materials/local_reverse/status_overlay.json"
+        "project_state/rounds/round_20260612_training_metadata_contract_repair_v1/*"
       ]
     },
     {
@@ -100,6 +96,7 @@
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
       "matched_terms": [
+        "debugger",
         "solver"
       ],
       "matched_paths": []
