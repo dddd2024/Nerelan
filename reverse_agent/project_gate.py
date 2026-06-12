@@ -876,9 +876,43 @@ def _failed_check_names(result: dict[str, Any]) -> set[str]:
     }
 
 
+def _valid_close_round_id(round_id: str) -> bool:
+    if not round_id:
+        return False
+    return "/" not in round_id and "\\" not in round_id and ".." not in round_id
+
+
+def _close_round_archive_payload(
+    *,
+    state_dir: Path,
+    round_id: str,
+    status: str,
+    archive_result: dict[str, Any] | None = None,
+    error: str = "",
+) -> dict[str, Any]:
+    manifest_path = state_dir / "rounds" / round_id / ARCHIVE_MANIFEST_NAME if round_id else state_dir / "rounds" / ARCHIVE_MANIFEST_NAME
+    manifest = _read_json(manifest_path)
+    manifest_files = sorted(str(name) for name in (manifest.get("files") or {}).keys())
+    files = [*manifest_files, ARCHIVE_MANIFEST_NAME] if manifest_files else []
+    payload: dict[str, Any] = {
+        "status": status,
+        "round_manifest_path": _state_relative_path(state_dir, manifest_path) if round_id else "",
+        "files": files,
+        "included_diff": bool(manifest.get("included_diff")) if manifest else False,
+        "included_state_snapshot": bool(manifest.get("included_state_snapshot")) if manifest else False,
+        "copied": list((archive_result or {}).get("copied") or []),
+        "idempotent": (archive_result or {}).get("status") == "no-op",
+    }
+    if error:
+        payload["error"] = error
+    return payload
+
+
 def _close_round_recommended_next_action(close_status: str) -> str:
     if close_status == "CLOSED":
         return "no_action_required"
+    if close_status == "INVALID":
+        return "fix_close_round_usage_or_metadata_before_retry"
     if close_status == "BLOCKED":
         return "fix_blocking_closeout_preconditions_before_archive"
     return "fix_close_round_failures_before_retry"
@@ -887,6 +921,37 @@ def _close_round_recommended_next_action(close_status: str) -> str:
 def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None) -> dict[str, Any]:
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
+    requested_round_id = str(round_id or "")
+
+    invalid_reasons: list[str] = []
+    if not state_dir.exists() or not state_dir.is_dir():
+        invalid_reasons.append(f"state_dir is not a directory: {state_dir}")
+    if not _valid_close_round_id(requested_round_id):
+        invalid_reasons.append(f"invalid round_id: {requested_round_id}")
+    if invalid_reasons:
+        return {
+            "schema_version": GATE_RESULT_SCHEMA_VERSION,
+            "gate_name": CLOSE_ROUND_NAME,
+            "close_status": "INVALID",
+            "decision_id": "",
+            "report_id": "",
+            "round_id": requested_round_id,
+            "generated_at": _now_iso(),
+            "checks": [
+                _check("close_round_usage_valid", "FAIL", reason)
+                for reason in invalid_reasons
+            ],
+            "actions": [],
+            "archive": _close_round_archive_payload(
+                state_dir=state_dir,
+                round_id=requested_round_id,
+                status="not_attempted",
+            ),
+            "blocking_reasons": invalid_reasons,
+            "warnings": [],
+            "recommended_next_action": _close_round_recommended_next_action("INVALID"),
+            "status_summary": {},
+        }
 
     decision = read_decision_meta(state_dir)
     report = read_codex_report_summary(state_dir)
@@ -899,11 +964,15 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     report_id = str(report.get("report_id") or "")
     decision_round_id = str(decision.get("round_id") or "")
     report_round_id = str(report.get("round_id") or "")
-    requested_round_id = str(round_id or "")
     decision_status = str(decision.get("status") or "UNKNOWN")
     report_status = str(report.get("status") or "UNKNOWN")
     checks: list[dict[str, Any]] = []
     actions: list[dict[str, Any]] = []
+    archive_payload = _close_round_archive_payload(
+        state_dir=state_dir,
+        round_id=requested_round_id,
+        status="not_attempted",
+    )
 
     parse_error = decision.get("parse_error")
     decision_parse_ok = bool(decision_id and decision_round_id and not parse_error)
@@ -924,6 +993,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     )
 
     report_parse_error = report.get("parse_error")
+    critical_metadata_errors = [str(error) for error in (parse_error, report_parse_error) if error]
     report_present = bool(report_id and report_round_id and not report_parse_error)
     checks.append(
         _check(
@@ -1055,7 +1125,15 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     )
 
     precheck_failures = [check for check in checks if check.get("status") == "FAIL"]
-    if precheck_failures:
+    if critical_metadata_errors:
+        close_status = "INVALID"
+        archive_payload = _close_round_archive_payload(
+            state_dir=state_dir,
+            round_id=requested_round_id,
+            status="not_attempted",
+            error="; ".join(critical_metadata_errors),
+        )
+    elif precheck_failures:
         close_status = "FAILED"
     else:
         before = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
@@ -1079,6 +1157,12 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                 archive_result = archive_round(state_dir=state_dir, round_id=requested_round_id)
             except FileExistsError as exc:
                 actions.append({"name": "archive_round", "status": "FAILED", "error": str(exc)})
+                archive_payload = _close_round_archive_payload(
+                    state_dir=state_dir,
+                    round_id=requested_round_id,
+                    status="FAILED",
+                    error=str(exc),
+                )
                 close_status = "FAILED"
             else:
                 actions.append(
@@ -1089,6 +1173,12 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                         "manifest": archive_result.get("manifest"),
                         "copied": archive_result.get("copied") or [],
                     }
+                )
+                archive_payload = _close_round_archive_payload(
+                    state_dir=state_dir,
+                    round_id=requested_round_id,
+                    status=str(archive_result.get("status") or "archived"),
+                    archive_result=archive_result,
                 )
                 after = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
                 after_failed = _failed_check_names(after)
@@ -1121,6 +1211,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         "generated_at": _now_iso(),
         "checks": checks,
         "actions": actions,
+        "archive": archive_payload,
         "blocking_reasons": blocking_reasons,
         "warnings": warnings,
         "recommended_next_action": _close_round_recommended_next_action(close_status),
@@ -1574,6 +1665,8 @@ def _print_close_round(result: dict[str, Any]) -> None:
         print(f"  [{check.get('status')}] {check.get('name')}: {check.get('detail')}")
     for action in result.get("actions", []):
         print(f"  [ACTION {action.get('status')}] {action.get('name')}")
+    archive = result.get("archive") if isinstance(result.get("archive"), dict) else {}
+    print(f"archive_status: {archive.get('status')}")
     for reason in result.get("blocking_reasons", []):
         print(f"  [BLOCK] {reason}")
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
@@ -1589,6 +1682,8 @@ def _preflight_exit_code(gate_status: object) -> int:
 
 
 def _close_round_exit_code(close_status: object) -> int:
+    if close_status == "INVALID":
+        return 2
     return 0 if close_status == "CLOSED" else 1
 
 

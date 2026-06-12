@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from reverse_agent.project_gate import close_round, command_plan, final_check, main, preflight
+from reverse_agent.project_gate import _close_round_exit_code, close_round, command_plan, final_check, main, preflight
 from reverse_agent.project_state import archive_round, write_pytest_result
 
 
@@ -751,6 +751,20 @@ def test_close_round_archives_unarchived_consistent_round(tmp_path: Path) -> Non
     result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
 
     assert result["close_status"] == "CLOSED"
+    assert result["archive"] == {
+        "status": "created",
+        "round_manifest_path": "project_state/rounds/round_gate/round_manifest.json",
+        "files": [
+            "codex_execution_report.md",
+            "decision_packet.md",
+            "pytest_result.txt",
+            "round_manifest.json",
+        ],
+        "included_diff": False,
+        "included_state_snapshot": False,
+        "copied": ["decision_packet.md", "codex_execution_report.md", "pytest_result.txt"],
+        "idempotent": False,
+    }
     assert _check(result, "requested_round_id_match")["status"] == "PASS"
     assert result["actions"][0]["name"] == "final_check_before_archive"
     assert set(result["actions"][0]["allowed_archive_pending_failures"]) == {
@@ -771,6 +785,9 @@ def test_close_round_is_idempotent_for_existing_matching_archive(tmp_path: Path)
     result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
 
     assert result["close_status"] == "CLOSED"
+    assert result["archive"]["status"] == "no-op"
+    assert result["archive"]["idempotent"] is True
+    assert result["archive"]["copied"] == []
     archive_action = next(action for action in result["actions"] if action["name"] == "archive_round")
     assert archive_action["status"] == "no-op"
 
@@ -847,6 +864,30 @@ def test_close_round_fails_when_recorded_exit_code_mismatches_command_plan(tmp_p
     assert _check(result, "pytest_result_exit_codes_match_command_plan")["status"] == "FAIL"
 
 
+def test_close_round_fails_when_command_plan_json_stdout_is_abbreviated(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        archived=False,
+        pytest_body="\n\n".join(
+            [
+                _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "pytest completed"),
+                _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
+                _command_block(
+                    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                    json.dumps({"commands": "4 entries; full artifact saved in project_state/gates/command_plan.json"}),
+                ),
+                _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED"),
+            ]
+        ),
+    )
+
+    result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
+
+    assert result["close_status"] == "FAILED"
+    assert _check(result, "command_plan_json_stdout_full")["status"] == "FAIL"
+    assert result["archive"]["status"] == "not_attempted"
+
+
 def test_close_round_fails_when_forbidden_path_is_reported(tmp_path: Path) -> None:
     state_dir = _make_command_plan_gate_state(
         tmp_path,
@@ -880,6 +921,16 @@ def test_close_round_fails_when_existing_archive_manifest_differs(tmp_path: Path
     archive_action = next(action for action in result["actions"] if action["name"] == "archive_round")
     assert archive_action["status"] == "FAILED"
     assert "round manifest differs" in archive_action["error"]
+
+
+def test_close_round_exit_code_returns_two_for_invalid_status() -> None:
+    assert _close_round_exit_code("INVALID") == 2
+
+
+def test_project_gate_close_round_cli_invalid_state_dir_returns_two(tmp_path: Path) -> None:
+    missing_state_dir = tmp_path / "missing_project_state"
+
+    assert main(["close-round", "--state-dir", str(missing_state_dir), "--round-id", "round_gate"]) == 2
 
 
 def test_project_gate_close_round_cli_json_closes_round(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
