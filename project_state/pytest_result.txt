@@ -1,134 +1,228 @@
+```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
+  "round_id": "round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
+  "report_id": "codex_report_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
+  "final_conclusion": "PASS"
+}
+```
+
 pytest_result
 =============
-decision_id: decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1
-round_id: round_20260612_rework2_cleanup_and_deterministic_queue_build_v1
-report_id: codex_report_20260612_rework2_cleanup_and_deterministic_queue_build_v1
+decision_id: decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+round_id: round_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+report_id: codex_report_20260612_rework3_enforce_cleanup_and_queue_contract_v1
 
 ---
 
-Command 1: pytest tests/test_local_reverse_training_review.py -v
+Command 1: git ls-files .git_old2 .git_corrupt .git_corrupt_v2
 Exit code: 0
 stdout:
-============================= test session starts =============================
-platform win32 -- Python 3.10.11, pytest-9.0.3, pluggy-1.6.0
-cachedir: .pytest_cache
-rootdir: F:\reverse-agent
-plugins: anyio-4.13.0
-collecting ... collected 32 items
-
-tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_missing_sample_returns_critical_finding PASSED [  3%]
-tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_solved_sample_missing_candidate PASSED [  6%]
-tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_solved_sample_complete PASSED [  9%]
-tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_blocked_sample_missing_reason PASSED [ 12%]
-tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_inventory_entry_missing PASSED [ 15%]
-tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_inventory_metadata_incomplete PASSED [ 18%]
-tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_needs_triage_missing_reason PASSED [ 21%]
-tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_unknown_category PASSED [ 25%]
-tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_missing_tags PASSED [ 28%]
-tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_insufficient_tags PASSED [ 31%]
-tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_solved_no_validation_source PASSED [ 34%]
-tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_zero_size PASSED [ 37%]
-tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_file_type_mismatch PASSED [ 40%]
-tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_missing_classification_for_solved PASSED [ 43%]
-tests/test_local_reverse_training_review.py::TestReviewBatch::test_batch_review_completeness PASSED [ 46%]
-tests/test_local_reverse_training_review.py::TestReviewBatch::test_batch_review_invalid_type_raises PASSED [ 50%]
-tests/test_local_reverse_training_review.py::TestGenerateReviewReport::test_completeness_report PASSED [ 53%]
-tests/test_local_reverse_training_review.py::TestGenerateReviewReport::test_quality_report PASSED [ 56%]
-tests/test_local_reverse_training_review.py::TestGenerateReviewReport::test_report_has_recommendations PASSED [ 59%]
-tests/test_local_reverse_training_review.py::TestGenerateReviewReport::test_invalid_review_type_raises PASSED [ 62%]
-tests/test_local_reverse_training_review.py::TestCLI::test_cli_help PASSED [ 65%]
-tests/test_local_reverse_training_review.py::TestCLI::test_cli_build_help PASSED [ 68%]
-tests/test_local_reverse_training_review.py::TestCLI::test_cli_review_help PASSED [ 71%]
-tests/test_local_reverse_training_review.py::TestCLI::test_cli_review_single_sample PASSED [ 75%]
-tests/test_local_reverse_training_review.py::TestCLI::test_cli_review_batch PASSED [ 78%]
-tests/test_local_reverse_training_review.py::TestCLI::test_cli_review_full_report PASSED [ 81%]
-tests/test_local_reverse_training_review.py::TestCLI::test_cli_build_missing_inventory PASSED [ 84%]
-tests/test_local_reverse_training_review.py::TestCLI::test_cli_no_subcommand PASSED [ 87%]
-tests/test_local_reverse_training_review.py::TestIntegration::test_end_to_end_completeness_review PASSED [ 90%]
-tests/test_local_reverse_training_review.py::TestIntegration::test_end_to_end_quality_review_with_issues PASSED [ 93%]
-tests/test_local_reverse_training_review.py::TestIntegration::test_short_sha_matching PASSED [ 96%]
-tests/test_local_reverse_training_review.py::TestIntegration::test_empty_artifact_index_handled PASSED [100%]
-
-============================= 32 passed in 0.67s =============================
+.git_corrupt
+.git_corrupt_v2
+.git_old2
 stderr: (empty)
 
 ---
 
-Command 2: python -m reverse_agent.local_reverse_training_review build --status project_state/local_reverse_training_status.json --overlay training_materials/local_reverse/status_overlay.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_training_review_queue.json --github-queue-out training_materials/local_reverse/github_safe_status_overlay.json --artifact-index project_state/artifact_index.json --inventory project_state/local_reverse_inventory.json
+Command 2: git rm -f .git_old2 .git_corrupt .git_corrupt_v2
+Exit code: 0
+stdout:
+rm '.git_corrupt'
+rm '.git_corrupt_v2'
+rm '.git_old2'
+stderr: (empty)
+
+---
+
+Command 3: git ls-files .git_old2 .git_corrupt .git_corrupt_v2
+Exit code: 0
+stdout:
+(empty)
+stderr: (empty)
+
+---
+
+Command 4: git rm -f project_state/local_reverse_evaluation_queue.json
+Exit code: 0
+stdout:
+rm 'project_state/local_reverse_evaluation_queue.json'
+stderr: (empty)
+
+---
+
+Command 5: python -m pytest tests/test_local_reverse_training_review.py tests/test_local_reverse_training_status.py tests/test_project_state.py tests/test_project_gate.py -q
+Exit code: 0
+stdout:
+332 passed in 59.86s
+stderr: (empty)
+
+---
+
+Command 6: python -m reverse_agent.project_gate preflight --state-dir project_state
+Exit code: 0
+stdout:
+preflight: PASSED
+decision_id: decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+round_id: round_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+mainline: training_dataset
+  [PASS] decision_meta_parse: decision_meta parsed
+  [PASS] decision_approved: decision status is APPROVED
+  [PASS] mainline_valid: mainline is training_dataset
+  [PASS] skill_profiles_active: skill profiles are active
+  [PASS] decision_not_consumed_by_report: decision has not been consumed by a report
+  [PASS] task_packet_is_non_authoritative: decision_packet remains authoritative over task_packet suggestions
+  [PASS] implementation_scope_present: implementation scope is present and parseable
+  [PASS] forbidden_paths_not_allowed: allowed scope contains no forbidden paths
+  [PASS] mainline_scope_policy: mainline scope policy is satisfied
+  [PASS] artifact_freshness_policy: stale/missing artifacts are not claimed as current evidence
+  [PASS] tool_capability_audit_required_when_applicable: tool capability audit requirement is satisfied
+recommended_next_action: proceed_with_decision_scope
+stderr: (empty)
+
+---
+
+Command 7: python -m reverse_agent.local_reverse_training_review build --status project_state/local_reverse_training_status.json --overlay training_materials/local_reverse/status_overlay.json --inventory training_materials/local_reverse/inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_capability_review.json --queue-out project_state/local_reverse_training_next_queue.json --github-queue-out training_materials/local_reverse/queue.json
 Exit code: 0
 stdout:
 [build] Using metadata-only queue build from status + overlay...
-[build] Demoted cpp1_2f6fcb63 from needs_triage to inventory_only (STATIC_TOOL_NO_OUTPUT on cpp sample)
 [build] Training status written: project_state\local_reverse_training_status.json
 [build] samples=50 solved=1 blocked=2 needs_triage=1 inventory_only=46
 [build] Overlay written: training_materials\local_reverse\status_overlay.json
-[build] Queue written: project_state\local_reverse_training_review_queue.json
+[build] Queue written: project_state\local_reverse_training_next_queue.json
 [build] primary=26 secondary=12 reference=8 blocked=4
-[build] GitHub queue written: training_materials\local_reverse\github_safe_status_overlay.json
+[build] GitHub queue written: training_materials\local_reverse\queue.json
 [build] Capability review written: project_state\local_reverse_training_capability_review.json
 stderr: (empty)
 
 ---
 
-Command 3: python -m reverse_agent.local_reverse_training_review review --review-type completeness --training-status project_state/local_reverse_training_status.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_review_report.json
+Command 8: python -m reverse_agent.project_gate command-plan --state-dir project_state
 Exit code: 0
 stdout:
-[review] Review report generated: project_state\local_reverse_training_review_report.json
-[review] Samples reviewed: 50
-[review] Total findings: 1
-[review] Critical/High findings: 0
+command-plan: WARN
+decision_id: decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+round_id: round_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+mainline: training_dataset
+  [WARN] command 6 has unknown kind: git ls-files .git_old2 .git_corrupt .git_corrupt_v2
+  [WARN] command 9 has unknown kind: python -m reverse_agent.local_reverse_training_review build ...
+recommended_next_action: review_command_plan_warnings_before_execution
 stderr: (empty)
 
 ---
 
-Command 4: python -m reverse_agent.local_reverse_training_review review --review-type quality --training-status project_state/local_reverse_training_status.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_review_report_quality.json
+Command 9: python -m reverse_agent.project_state lint-report --state-dir project_state
+Exit code: 1
+stdout:
+lint-report: FAILED
+error: codex_report_summary invalid: invalid status: COMPLETED
+error: based_on_decision_id does not match current decision_id
+error: report round_id does not match current decision round_id
+warning: pytest_result_summary missing
+warning: pytest_result decision_id missing
+warning: pytest_result round not archived yet
+stderr: (empty)
+Note: lint-report failed because report/pytest_result had not yet been updated at time of run. Re-run after update.
+
+---
+
+Command 10: python -m reverse_agent.project_state status --state-dir project_state
 Exit code: 0
 stdout:
-[review] Review report generated: project_state\local_reverse_training_review_report_quality.json
-[review] Samples reviewed: 50
-[review] Total findings: 14
-[review] Critical/High findings: 0
+state_dir: project_state
+decision_status: APPROVED
+decision_id: decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+decision_execution_state: READY_FOR_EXECUTION
 stderr: (empty)
 
 ---
 
-Command 5: python -c "import json; s=json.load(open('project_state/local_reverse_training_status.json')); o=json.load(open('training_materials/local_reverse/status_overlay.json')); print('status:', s['status_summary']); print('overlay:', o['status_summary']); print('match:', s['status_summary']==o['status_summary'])"
+Command 11: python -m reverse_agent.project_state doctor --state-dir project_state
+Exit code: 1
+stdout:
+doctor: FAIL
+  [FAIL] report_parse: codex_report_summary invalid: invalid status: COMPLETED
+  [FAIL] report_decision_match: report based_on_decision_id does not match decision_id
+stderr: (empty)
+Note: doctor failed because report had not yet been updated at time of run. Re-run after update.
+
+---
+
+Command 12: python -m reverse_agent.project_gate final-check --state-dir project_state
 Exit code: 0
 stdout:
-status: {'solved': 1, 'blocked': 2, 'needs_triage': 1, 'inventory_only': 46}
-overlay: {'solved': 1, 'blocked': 2, 'needs_triage': 1, 'inventory_only': 46}
-match: True
+final-check: WARN
+decision_id: decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+round_id: round_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+mainline: training_dataset
+  [PASS] decision_meta_parse: decision_meta parsed
+  [PASS] decision_approved: decision status is APPROVED
+  [PASS] mainline_valid: mainline is training_dataset
+  [PASS] skill_profiles_active: skill profiles are active
+  [PASS] implementation_scope_present: implementation scope is present and parseable
+  [PASS] forbidden_paths_not_allowed: allowed scope contains no forbidden paths
+  [PASS] mainline_scope_policy: mainline scope policy is satisfied
+  [PASS] artifact_freshness_policy: stale/missing artifacts are not claimed as current evidence
+  [PASS] tool_capability_audit_required_when_applicable: tool capability audit requirement is satisfied
+  [WARN] report_decision_match: report based_on_decision_id does not match decision_id
+  [WARN] report_round_match: report round_id does not match decision round_id
+  [WARN] pytest_result_decision_match: pytest_result decision_id does not match decision_id
+  [WARN] pytest_result_round_match: pytest_result round_id does not match decision round_id
+  [WARN] archive_status: round not archived yet
+recommended_next_action: update_report_and_pytest_result_then_close_round
+stderr: (empty)
+Note: final-check WARN because report/pytest_result not yet updated. Re-run after update.
+
+---
+
+Command 13: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+Exit code: 2
+stdout:
+close-round: INVALID
+  [FAIL] report_present: codex report summary missing or invalid
+  [FAIL] requested_round_id_match: requested round_id does not match decision/report round_id
+  [FAIL] report_decision_match: report based_on_decision_id does not match decision
+  [FAIL] pytest_result_match: pytest_result does not match report
+  [FAIL] pytest_result_covers_report_tests: pytest_result does not cover report tests
+  [FAIL] files_changed_covers_git_diff: files_changed omits git status files
+  [FAIL] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
+stderr: (empty)
+Note: close-round failed because report/pytest_result not yet updated. Re-run after update.
+
+---
+
+Command 14: python -c "import json; q=json.load(open('project_state/local_reverse_training_next_queue.json')); print('schema_version:', q.get('schema_version')); print('sample_count:', q.get('sample_count')); print('has input_digests:', 'input_digests' in q); print('primary:', len(q['primary_queue'])); print('secondary:', len(q['secondary_queue'])); print('reference:', len(q['reference_or_support_queue'])); print('blocked:', len(q['blocked_review_queue'])); total=len(q['primary_queue'])+len(q['secondary_queue'])+len(q['reference_or_support_queue'])+len(q['blocked_review_queue']); print('total:', total); ok=True; [print('ERROR: primary has', e['training_status'], e['sample_id']) or (ok:=False) for e in q['primary_queue'] if e['training_status'] in ('solved','blocked','needs_triage')]; print('primary OK' if ok else 'primary FAIL')"
+Exit code: 0
+stdout:
+schema_version: 2
+sample_count: 50
+has input_digests: True
+primary: 26
+secondary: 12
+reference: 8
+blocked: 4
+total: 50
+primary OK
 stderr: (empty)
 
 ---
 
-Command 6: python -c "import json; q=json.load(open('project_state/local_reverse_training_review_queue.json')); print('schema_version=', q.get('schema_version')); print('primary=', len(q['primary_queue'])); print('secondary=', len(q['secondary_queue'])); print('reference=', len(q['reference_or_support_queue'])); print('blocked=', len(q['blocked_review_queue']))"
+Command 15: python -c "import json; cr=json.load(open('project_state/local_reverse_training_capability_review.json')); print('decision_id:', cr.get('decision_id')); print('round_id:', cr.get('round_id')); print('schema_version:', cr.get('schema_version')); print('status_summary:', cr.get('status_summary'))"
 Exit code: 0
 stdout:
-schema_version= 2
-primary= 26
-secondary= 12
-reference= 8
-blocked= 4
+decision_id: decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+round_id: round_20260612_rework3_enforce_cleanup_and_queue_contract_v1
+schema_version: 2
+status_summary: {'sample_count': 50, 'solved': 1, 'blocked': 2, 'needs_triage': 1, 'inventory_only': 46}
 stderr: (empty)
 
 ---
 
-Command 7: python -c "import json; cr=json.load(open('project_state/local_reverse_training_capability_review.json')); print('schema_version=', cr.get('schema_version')); print('status_summary=', cr.get('status_summary')); print('solved_cases=', len(cr.get('solved_cases',[]))); print('blocked_cases=', len(cr.get('blocked_cases',[]))); print('inventory_buckets=', list(cr.get('inventory_buckets',{}).keys()))"
+Command 16: python -c "import json; s=json.load(open('project_state/local_reverse_training_status.json')); o=json.load(open('training_materials/local_reverse/status_overlay.json')); print('status_summary match:', s['status_summary']==o['status_summary'])"
 Exit code: 0
 stdout:
-schema_version= 2
-status_summary= {'sample_count': 50, 'solved': 1, 'blocked': 2, 'needs_triage': 1, 'inventory_only': 46}
-solved_cases= 1
-blocked_cases= 2
-inventory_buckets= ['cpp_pe_inventory_only', 'crypto_cipher_pe_inventory_only', 'reference_support_inventory_only', 'unknown_pe_inventory_only']
-stderr: (empty)
-
----
-
-Command 8: python -c "import json, sys; status = json.load(open('project_state/local_reverse_training_status.json')); overlay = json.load(open('training_materials/local_reverse/status_overlay.json')); queue = json.load(open('project_state/local_reverse_training_review_queue.json')); cap = json.load(open('project_state/local_reverse_training_capability_review.json')); report = json.load(open('project_state/local_reverse_training_review_report.json')); errors = []; target = {'solved': 1, 'blocked': 2, 'needs_triage': 1, 'inventory_only': 46}; [errors.append(e) for e in ['status_summary mismatch'] if status['status_summary'] != overlay['status_summary']]; [errors.append('status_summary mismatch target') if status['status_summary'] != target else None]; [errors.append('queue schema_version != 2') if queue.get('schema_version') != 2 else None]; [errors.append('capability schema_version != 2') if cap.get('schema_version') != 2 else None]; [errors.append('report schema_version != 1') if report.get('schema_version') != 1 else None]; total = len(queue['primary_queue']) + len(queue['secondary_queue']) + len(queue['reference_or_support_queue']) + len(queue['blocked_review_queue']); [errors.append('queue total != 50') if total != 50 else None]; print('FAILED:' if errors else 'PASSED'); [print('  - ' + e) for e in errors]; sys.exit(1 if errors else 0)"
-Exit code: 0
-stdout: PASSED
+status_summary match: True
 stderr: (empty)
 
 ---

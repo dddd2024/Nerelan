@@ -161,8 +161,8 @@ def _cmd_build_metadata_only(args: argparse.Namespace, status_path: Path, overla
     training_status["sample_count"] = len(samples)
     training_status["generated_at"] = _now_iso()
 
-    # Write updated status
-    out_status_path = Path(args.out) if args.out else status_path
+    # Write updated status back to the status input path
+    out_status_path = status_path
     out_status_path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(out_status_path, training_status)
     print(f"[build] Training status written: {out_status_path}")
@@ -188,7 +188,7 @@ def _cmd_build_metadata_only(args: argparse.Namespace, status_path: Path, overla
         print(f"[build] Overlay written: {overlay_out_path}")
 
     # --- Build bucketed queue ---
-    queue = _build_bucketed_queue(samples, inventory)
+    queue = _build_bucketed_queue(samples, inventory, status_path, overlay_path)
 
     queue_out_path = Path(args.queue_out) if args.queue_out else None
     if queue_out_path:
@@ -206,8 +206,6 @@ def _cmd_build_metadata_only(args: argparse.Namespace, status_path: Path, overla
     # --- Build capability review ---
     capability_review = _build_capability_review(samples, counts)
     capability_out_path = Path(args.out) if args.out else Path("project_state/local_reverse_training_capability_review.json")
-    if str(capability_out_path).endswith("training_status.json"):
-        capability_out_path = Path("project_state/local_reverse_training_capability_review.json")
     capability_out_path.parent.mkdir(parents=True, exist_ok=True)
     _write_json(capability_out_path, capability_review)
     print(f"[build] Capability review written: {capability_out_path}")
@@ -215,7 +213,7 @@ def _cmd_build_metadata_only(args: argparse.Namespace, status_path: Path, overla
     return 0
 
 
-def _build_bucketed_queue(samples: list[dict[str, Any]], inventory: dict[str, Any]) -> dict[str, Any]:
+def _build_bucketed_queue(samples: list[dict[str, Any]], inventory: dict[str, Any], status_path: Path | None = None, overlay_path: Path | None = None) -> dict[str, Any]:
     """Build a deterministic bucketed evaluation queue."""
     primary_queue: list[dict[str, Any]] = []
     secondary_queue: list[dict[str, Any]] = []
@@ -300,6 +298,11 @@ def _build_bucketed_queue(samples: list[dict[str, Any]], inventory: dict[str, An
         "schema_version": 2,
         "generated_at": _now_iso(),
         "source_files": ["project_state/local_reverse_training_status.json", "training_materials/local_reverse/status_overlay.json"],
+        "input_digests": {
+            "training_status_sha256": _file_sha256(status_path) if status_path and status_path.exists() else None,
+            "overlay_sha256": _file_sha256(overlay_path) if overlay_path and overlay_path.exists() else None,
+        },
+        "sample_count": len(samples),
         "status_summary": counts,
         "primary_queue": primary_queue,
         "secondary_queue": secondary_queue,
@@ -379,8 +382,8 @@ def _build_capability_review(samples: list[dict[str, Any]], counts: dict[str, in
         "schema_version": 2,
         "mainline": "training_dataset",
         "artifact_kind": "local_reverse_training_capability_review",
-        "decision_id": "decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
-        "round_id": "round_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
+        "decision_id": "decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
+        "round_id": "round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
         "status_summary": {
             "sample_count": len(samples),
             **counts,
@@ -903,6 +906,17 @@ def _load_json(path: Path, label: str) -> dict[str, Any]:
         return json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return {}
+
+
+def _file_sha256(path: Path) -> str | None:
+    """Compute SHA-256 hex digest of a file, or None if unreadable."""
+    import hashlib
+    try:
+        h = hashlib.sha256()
+        h.update(path.read_bytes())
+        return h.hexdigest()
+    except (OSError, IOError):
+        return None
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:

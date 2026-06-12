@@ -2,8 +2,8 @@
   "schema_version": 2,
   "mainline": "training_dataset",
   "artifact_kind": "local_reverse_training_capability_review",
-  "decision_id": "decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
-  "round_id": "round_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
+  "decision_id": "decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
+  "round_id": "round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
   "status_summary": {
     "sample_count": 50,
     "solved": 1,
@@ -107,5 +107,5 @@
       ]
     }
   },
-  "generated_at": "2026-06-12T11:23:57Z"
+  "generated_at": "2026-06-12T11:39:36Z"
 }
