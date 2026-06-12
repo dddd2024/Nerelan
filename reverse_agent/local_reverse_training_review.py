@@ -74,7 +74,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
         return 1
 
     print("[build] Building training status...")
-    build_training_status(
+    result = build_training_status(
         inventory_path=inventory_path,
         validated_path=Path(args.validated) if args.validated else None,
         constraint_path=Path(args.constraint_recovery) if args.constraint_recovery else None,
@@ -82,6 +82,7 @@ def _cmd_build(args: argparse.Namespace) -> int:
         artifact_index_path=Path(args.artifact_index) if args.artifact_index else None,
         out_path=Path(args.training_status),
         queue_out_path=Path(args.queue_out) if args.queue_out else None,
+        github_status_path=Path(args.github_status_out) if args.github_status_out else None,
     )
 
     # Verify output was created
@@ -89,13 +90,27 @@ def _cmd_build(args: argparse.Namespace) -> int:
         print(f"[build] Error: Failed to create training status: {args.training_status}")
         return 1
 
+    summary = result.get("status_summary", {})
     print(f"[build] Training status written: {args.training_status}")
+    print(f"[build] samples={result.get('sample_count', 0)} "
+          f"solved={summary.get('solved', 0)} "
+          f"blocked={summary.get('blocked', 0)} "
+          f"needs_triage={summary.get('needs_triage', 0)} "
+          f"inventory_only={summary.get('inventory_only', 0)}")
 
     if args.queue_out:
         if Path(args.queue_out).exists():
-            print(f"[build] Queue written: {args.queue_out}")
+            queue = result.get("queue", {})
+            items = queue.get("items", [])
+            print(f"[build] Queue written: {args.queue_out} ({len(items)} items)")
         else:
             print(f"[build] Warning: Queue file not created: {args.queue_out}")
+
+    if args.github_status_out:
+        if Path(args.github_status_out).exists():
+            print(f"[build] GitHub status written: {args.github_status_out}")
+        else:
+            print(f"[build] Warning: GitHub status not created: {args.github_status_out}")
 
     return 0
 
@@ -669,6 +684,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--queue-out",
         default="",
         help="Path for evaluation queue output",
+    )
+    build_parser.add_argument(
+        "--github-status-out",
+        default="",
+        help="Path for GitHub-safe status overlay output",
     )
 
     # ---- review subcommand ----

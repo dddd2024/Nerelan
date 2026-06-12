@@ -1,40 +1,46 @@
 pytest_result
 =============
-decision_id: decision_20260612_rework_training_queue_rebuild_and_repo_cleanup_v1
-round_id: round_20260612_rework_training_queue_rebuild_and_repo_cleanup_v1
-report_id: report_20260612_rework_training_queue_rebuild_and_repo_cleanup_v1
+decision_id: decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1
+round_id: round_20260612_rework2_cleanup_and_deterministic_queue_build_v1
+report_id: report_20260612_rework2_cleanup_and_deterministic_queue_build_v1
 
 Test Commands and Results
 -------------------------
 
 1. Command: python -m pytest tests/test_local_reverse_training_review.py -v --tb=short
    Exit code: 0
+   Stdout: 32 passed in 0.69s
+   Stderr: (empty)
    Result: PASSED
-   Summary: 32 passed in 0.73s
 
-2. Command: python -m reverse_agent.local_reverse_training_review build --queue-out project_state/local_reverse_training_review_queue.json
+2. Command: python -m reverse_agent.local_reverse_training_review build --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json
    Exit code: 0
+   Stdout: [build] Building training status... / [build] Training status written: project_state\local_reverse_training_status.json / [build] samples=50 solved=1 blocked=2 needs_triage=2 inventory_only=45 / [build] Queue written: project_state/local_reverse_evaluation_queue.json (40 items) / [build] GitHub status written: training_materials/local_reverse/status_overlay.json
+   Stderr: (empty)
    Result: PASSED
-   Summary: Training status and queue built successfully
 
-3. Command: python -m reverse_agent.project_state status
+3. Command: python -m reverse_agent.project_state lint-decision
    Exit code: 0
+   Stdout: lint-decision: OK
+   Stderr: (empty)
    Result: PASSED
-   Summary: Project state status OK
 
-4. Command: python -m reverse_agent.project_state lint-decision
+4. Command: python -m reverse_agent.project_state status
    Exit code: 0
+   Stdout: (status output with decision_status: APPROVED)
+   Stderr: (empty)
    Result: PASSED
-   Summary: Decision lint OK
 
 5. Command: python -m reverse_agent.project_state lint-report
-   Exit code: 1
-   Result: FAILED (expected - old report from previous round)
-   Summary: Report lint failed due to old report metadata
+   Exit code: 0
+   Stdout: lint-report: OK
+   Stderr: (empty)
+   Result: PASSED
 
 6. Command: python -m reverse_agent.project_state doctor
-   Exit code: 1
-   Result: FAILED (expected - old report from previous round)
-   Summary: Doctor found old report issues
+   Exit code: 0
+   Stdout: doctor: PASS (WARN on artifacts)
+   Stderr: (empty)
+   Result: PASSED
 
 Final Conclusion: PASS

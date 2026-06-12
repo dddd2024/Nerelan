@@ -1,34 +1,34 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260612_rework_training_queue_rebuild_and_repo_cleanup_v1",
-  "round_id": "round_20260612_rework_training_queue_rebuild_and_repo_cleanup_v1",
-  "based_on_decision_id": "decision_20260612_rework_training_queue_rebuild_and_repo_cleanup_v1",
+  "report_id": "report_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
+  "round_id": "round_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
+  "based_on_decision_id": "decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
   "status": "SUCCESS",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
     "reverse_agent/local_reverse_training_review.py",
-    "tests/test_local_reverse_training_review.py",
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/local_reverse_training_status.json",
-    "project_state/local_reverse_training_review_queue.json"
+    "project_state/local_reverse_evaluation_queue.json",
+    "training_materials/local_reverse/status_overlay.json"
   ],
   "tests_ran": [
     "python -m pytest tests/test_local_reverse_training_review.py -v --tb=short",
-    "python -m reverse_agent.local_reverse_training_review build --queue-out project_state/local_reverse_training_review_queue.json",
-    "python -m reverse_agent.project_state status",
+    "python -m reverse_agent.local_reverse_training_review build --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json",
     "python -m reverse_agent.project_state lint-decision",
+    "python -m reverse_agent.project_state status",
     "python -m reverse_agent.project_state lint-report",
     "python -m reverse_agent.project_state doctor"
   ],
   "generated_artifacts": [
     "reverse_agent/local_reverse_training_review.py",
-    "tests/test_local_reverse_training_review.py",
     "project_state/pytest_result.txt",
     "project_state/codex_execution_report.md",
     "project_state/local_reverse_training_status.json",
-    "project_state/local_reverse_training_review_queue.json"
+    "project_state/local_reverse_evaluation_queue.json",
+    "training_materials/local_reverse/status_overlay.json"
   ]
 }
 ```
@@ -36,8 +36,8 @@
 # Codex Execution Report
 
 ## Decision Reference
-- **Decision ID**: `decision_20260612_rework_training_queue_rebuild_and_repo_cleanup_v1`
-- **Round ID**: `round_20260612_rework_training_queue_rebuild_and_repo_cleanup_v1`
+- **Decision ID**: `decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1`
+- **Round ID**: `round_20260612_rework2_cleanup_and_deterministic_queue_build_v1`
 - **Mainline**: `training_dataset`
 
 ## Summary

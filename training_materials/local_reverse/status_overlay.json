@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-11T12:22:29Z",
+  "generated_at": "2026-06-12T11:06:08Z",
   "source_inventory_hint": "LOCAL_REVERSE_ROOT",
   "sample_count": 50,
   "status_summary": {
     "solved": 1,
     "blocked": 2,
-    "needs_triage": 1,
-    "inventory_only": 46
+    "needs_triage": 2,
+    "inventory_only": 45
   },
   "samples": [
     {
@@ -66,19 +66,6 @@
       "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
     },
     {
-      "sample_id": "byte_shift_transform_solver_3718a6fa",
-      "relative_path": "逆向课程2021春02/byte_shift_transform_solver.py",
-      "category": "unknown",
-      "tags": [
-        "local",
-        "reverse",
-        "python"
-      ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": ""
-    },
-    {
       "sample_id": "cpp1_2f6fcb63",
       "relative_path": "逆向课程2023春01/CPP1.exe",
       "category": "cpp",
@@ -87,6 +74,19 @@
         "reverse",
         "cpp",
         "pe"
+      ],
+      "training_status": "needs_triage",
+      "known_candidate": "",
+      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+    },
+    {
+      "sample_id": "byte_shift_transform_solver_3718a6fa",
+      "relative_path": "逆向课程2021春02/byte_shift_transform_solver.py",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "python"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",
