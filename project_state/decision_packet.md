@@ -115,6 +115,23 @@ Codex 必须解释并修复：
 8. 确认 `tool_capability_inventory.json` 与 `structured_evidence_gap_report.json` 仍存在，且 decision_id/round_id 可以对齐本轮 rework 或明确作为上一轮产物被本轮验证。
 9. 确认本轮没有运行样本、IDA/Ghidra/debugger/radare2/file/strings/objdump、harness campaign、solver、candidate search 或 runtime probe。
 
+## 5b. Allowed Inherited Dirty Baseline Files
+
+以下文件为进入本轮前已存在的 baseline dirty files，本轮不修改它们（或仅做 decision 授权的最小修改）：
+
+- `reverse_agent/harness.py`
+- `reverse_agent/project_state.py`
+- `tests/test_project_state.py`
+- `project_state/artifact_index.json`
+- `project_state/decision_packet.md`
+- `project_state/model_gate.json`
+- `project_state/task_packet.json`
+- `project_state/gates/command_plan.json`
+- `project_state/gates/preflight_result.json`
+- `project_state/gates/round_baseline.json`
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
+
 ## 6. Implementation Scope
 
 允许修改：

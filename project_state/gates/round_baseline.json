@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
-  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
-  "head_commit": "afd1274bfdbe",
+  "decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "head_commit": "c2c285970a78",
   "baseline_git_status_short": [
     " D .git_corrupt",
     " D .git_corrupt_v2",
@@ -46,5 +46,5 @@
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
-  "generated_at": "2026-06-12T13:58:38.430102Z"
+  "generated_at": "2026-06-12T14:44:30.863653Z"
 }

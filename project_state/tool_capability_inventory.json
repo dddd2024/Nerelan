@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
-  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
-  "generated_at": "2026-06-12T14:19:30Z",
+  "decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "generated_at": "2026-06-12T14:44:51Z",
   "scan_scope": {
     "directories": [
       "reverse_agent/",
@@ -3133,15 +3133,15 @@
               "        hits = _grep_keyword(files, \"ida\")"
             ],
             [
-              90,
+              92,
               "            \"IDA / IDAPython\","
             ],
             [
-              129,
+              131,
               "    def test_ida_is_implemented(self):"
             ],
             [
-              131,
+              133,
               "        ida = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"IDA / IDAPython\")"
             ]
           ]
@@ -4333,15 +4333,15 @@
               "        hits = _grep_keyword(files, \"ida\")"
             ],
             [
-              90,
+              92,
               "            \"IDA / IDAPython\","
             ],
             [
-              129,
+              131,
               "    def test_ida_is_implemented(self):"
             ],
             [
-              131,
+              133,
               "        ida = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"IDA / IDAPython\")"
             ]
           ]
@@ -4459,19 +4459,19 @@
           "match_count": 4,
           "sample_lines": [
             [
-              91,
+              93,
               "            \"Ghidra\","
             ],
             [
-              134,
+              136,
               "    def test_ghidra_is_missing(self):"
             ],
             [
-              136,
+              138,
               "        ghidra = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"Ghidra\")"
             ],
             [
-              137,
+              139,
               "        assert ghidra[\"current_status\"] == \"missing\""
             ]
           ]
@@ -4483,19 +4483,19 @@
           "match_count": 4,
           "sample_lines": [
             [
-              91,
+              93,
               "            \"Ghidra\","
             ],
             [
-              134,
+              136,
               "    def test_ghidra_is_missing(self):"
             ],
             [
-              136,
+              138,
               "        ghidra = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"Ghidra\")"
             ],
             [
-              137,
+              139,
               "        assert ghidra[\"current_status\"] == \"missing\""
             ]
           ]
@@ -4787,7 +4787,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              92,
+              94,
               "            \"OllyDbg / x64dbg / debugger\","
             ]
           ]
@@ -4913,7 +4913,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              92,
+              94,
               "            \"OllyDbg / x64dbg / debugger\","
             ]
           ]
@@ -5117,7 +5117,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              92,
+              94,
               "            \"OllyDbg / x64dbg / debugger\","
             ]
           ]
@@ -5191,7 +5191,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              92,
+              94,
               "            \"OllyDbg / x64dbg / debugger\","
             ]
           ]
@@ -5237,7 +5237,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              92,
+              94,
               "            \"OllyDbg / x64dbg / debugger\","
             ]
           ]
@@ -6345,7 +6345,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              93,
+              95,
               "            \"strings / file / objdump / radare2\","
             ]
           ]
@@ -6403,7 +6403,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              93,
+              95,
               "            \"strings / file / objdump / radare2\","
             ]
           ]
@@ -6435,7 +6435,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              93,
+              95,
               "            \"strings / file / objdump / radare2\","
             ]
           ]
@@ -6859,7 +6859,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              93,
+              95,
               "            \"strings / file / objdump / radare2\","
             ]
           ]
@@ -6891,7 +6891,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              93,
+              95,
               "            \"strings / file / objdump / radare2\","
             ]
           ]
@@ -7248,7 +7248,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              95,
+              97,
               "            \"symbolic / constraint solver (Z3 / angr)\","
             ]
           ]
@@ -7398,7 +7398,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              95,
+              97,
               "            \"symbolic / constraint solver (Z3 / angr)\","
             ]
           ]
@@ -7822,7 +7822,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              95,
+              97,
               "            \"symbolic / constraint solver (Z3 / angr)\","
             ]
           ]
@@ -7870,7 +7870,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              95,
+              97,
               "            \"symbolic / constraint solver (Z3 / angr)\","
             ]
           ]
@@ -8064,7 +8064,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              95,
+              97,
               "            \"symbolic / constraint solver (Z3 / angr)\","
             ]
           ]
@@ -8196,7 +8196,7 @@
               "CAPABILITY_TERMS = (\"ida\", \"ghidra\", \"debugger\", \"solver\", \"harness\", \"tool capability\", \"能力\")"
             ],
             [
-              2464,
+              2466,
               "            latest_harness_run=artifact_index.get(\"latest_harness_run\"),"
             ]
           ]
@@ -8504,23 +8504,23 @@
           "match_count": 5,
           "sample_lines": [
             [
-              61,
+              63,
               "        hits = _grep_keyword(files, \"harness\")"
             ],
             [
-              96,
+              98,
               "            \"harness\","
             ],
             [
-              139,
+              141,
               "    def test_harness_is_implemented(self):"
             ],
             [
-              141,
+              143,
               "        harness = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"harness\")"
             ],
             [
-              142,
+              144,
               "        assert harness[\"current_status\"] == \"implemented\""
             ]
           ]
@@ -8768,23 +8768,23 @@
           "match_count": 5,
           "sample_lines": [
             [
-              61,
+              63,
               "        hits = _grep_keyword(files, \"harness\")"
             ],
             [
-              96,
+              98,
               "            \"harness\","
             ],
             [
-              139,
+              141,
               "    def test_harness_is_implemented(self):"
             ],
             [
-              141,
+              143,
               "        harness = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"harness\")"
             ],
             [
-              142,
+              144,
               "        assert harness[\"current_status\"] == \"implemented\""
             ]
           ]
@@ -9339,7 +9339,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              97,
+              99,
               "            \"sample metadata\","
             ]
           ]
@@ -9565,7 +9565,7 @@
           "match_count": 1,
           "sample_lines": [
             [
-              97,
+              99,
               "            \"sample metadata\","
             ]
           ]
@@ -9851,11 +9851,11 @@
           "match_count": 2,
           "sample_lines": [
             [
-              2309,
+              2311,
               "    artifact_index = _read_json(state_dir / \"artifact_index.json\")"
             ],
             [
-              2464,
+              2466,
               "            latest_harness_run=artifact_index.get(\"latest_harness_run\"),"
             ]
           ]
@@ -10237,15 +10237,15 @@
           "match_count": 3,
           "sample_lines": [
             [
-              98,
+              100,
               "            \"artifact_index\","
             ],
             [
-              144,
+              146,
               "    def test_artifact_index_is_implemented(self):"
             ],
             [
-              146,
+              148,
               "        ai = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"artifact_index\")"
             ]
           ]
@@ -10563,15 +10563,15 @@
           "match_count": 3,
           "sample_lines": [
             [
-              98,
+              100,
               "            \"artifact_index\","
             ],
             [
-              144,
+              146,
               "    def test_artifact_index_is_implemented(self):"
             ],
             [
-              146,
+              148,
               "        ai = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"artifact_index\")"
             ]
           ]
@@ -10799,11 +10799,11 @@
               "        hits = _grep_keyword(files, \"StructuredEvidence\")"
             ],
             [
-              99,
+              101,
               "            \"StructuredEvidence conversion\","
             ],
             [
-              151,
+              153,
               "        se = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"StructuredEvidence conversion\")"
             ]
           ]
@@ -10885,11 +10885,11 @@
               "        hits = _grep_keyword(files, \"StructuredEvidence\")"
             ],
             [
-              99,
+              101,
               "            \"StructuredEvidence conversion\","
             ],
             [
-              151,
+              153,
               "        se = next(c for c in inv[\"capabilities\"] if c[\"capability_name\"] == \"StructuredEvidence conversion\")"
             ]
           ]
@@ -11654,7 +11654,7 @@
               "import argparse"
             ],
             [
-              2616,
+              2618,
               "    parser = argparse.ArgumentParser(description=\"Project closeout gate checks.\")"
             ]
           ]

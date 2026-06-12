@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
-  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
+  "decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
   "mainline": "tool_integration",
-  "generated_at": "2026-06-12T14:25:05.661667Z",
+  "generated_at": "2026-06-12T15:24:06.289496Z",
   "commands": [
     {
       "index": 1,
@@ -105,150 +105,6 @@
     },
     {
       "index": 9,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 10,
-      "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
-      "phase": "status",
-      "kind": "lint-report",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "lint-report expected to exit 0"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
-      "phase": "status",
-      "kind": "doctor",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "doctor expected to exit 0"
-    },
-    {
-      "index": 12,
-      "command": "python -m reverse_agent.project_state doctor --state-dir project_state --json",
-      "phase": "status",
-      "kind": "doctor",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "doctor expected to exit 0"
-    },
-    {
-      "index": 13,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "phase": "gate",
-      "kind": "report-summary",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "report-summary expected to exit 0"
-    },
-    {
-      "index": 14,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 16,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_tool_integration_capability_inventory_v1",
-      "phase": "gate",
-      "kind": "close-round",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "close-round expected to exit 0"
-    },
-    {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 19,
-      "command": "git status --short",
-      "phase": "status",
-      "kind": "git status",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "git status expected to exit 0"
-    },
-    {
-      "index": 20,
-      "command": "git diff --name-only",
-      "phase": "status",
-      "kind": "git diff",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "git diff expected to exit 0"
-    },
-    {
-      "index": 21,
       "command": "python -m reverse_agent.tool_capability_inventory build --state-dir project_state",
       "phase": "status",
       "kind": "build",
@@ -260,7 +116,7 @@
       "notes": "build expected to exit 0"
     },
     {
-      "index": 22,
+      "index": 10,
       "command": "python -m pytest tests/test_tool_capability_inventory.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -270,6 +126,150 @@
       ],
       "records_stdout_stderr": true,
       "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 11,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
+      "phase": "status",
+      "kind": "lint-report",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "lint-report expected to exit 0"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+      "phase": "status",
+      "kind": "doctor",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "doctor expected to exit 0"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_state doctor --state-dir project_state --json",
+      "phase": "status",
+      "kind": "doctor",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "doctor expected to exit 0"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "phase": "gate",
+      "kind": "report-summary",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "report-summary expected to exit 0"
+    },
+    {
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 17,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 18,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework_tool_inventory_closeout_consistency_v1",
+      "phase": "gate",
+      "kind": "close-round",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "close-round expected to exit 0"
+    },
+    {
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 20,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 21,
+      "command": "git status --short",
+      "phase": "status",
+      "kind": "git status",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "git status expected to exit 0"
+    },
+    {
+      "index": 22,
+      "command": "git diff --name-only",
+      "phase": "status",
+      "kind": "git diff",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "git diff expected to exit 0"
     }
   ],
   "warnings": [],

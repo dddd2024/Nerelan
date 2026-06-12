@@ -2,15 +2,15 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "FAILED",
-  "decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
-  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
-  "report_id": "codex_report_20260612_tool_integration_capability_inventory_v1",
-  "generated_at": "2026-06-12T14:34:55.127648Z",
+  "synthesis_status": "WARN",
+  "decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "report_id": "codex_report_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "generated_at": "2026-06-12T15:24:46.184215Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260612_tool_integration_capability_inventory_v1",
-    "round_id": "round_20260612_tool_integration_capability_inventory_v1",
-    "based_on_decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
+    "report_id": "codex_report_20260612_rework_tool_inventory_closeout_consistency_v1",
+    "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
+    "based_on_decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
     "files_changed": [
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
@@ -18,17 +18,12 @@
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/decision_packet.md",
-      "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/pytest_result.txt",
-      "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/round_manifest.json",
+      "project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/decision_packet.md",
+      "project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/pytest_result.txt",
+      "project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/round_manifest.json",
       "project_state/structured_evidence_gap_report.json",
-      "project_state/tool_capability_inventory.json",
-      "reverse_agent/project_gate.py",
-      "reverse_agent/project_state.py",
-      "reverse_agent/tool_capability_inventory.py",
-      "tests/test_project_state.py",
-      "tests/test_tool_capability_inventory.py"
+      "project_state/tool_capability_inventory.json"
     ],
     "tests_ran": [
       "pwd",
@@ -39,6 +34,8 @@
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+      "python -m reverse_agent.tool_capability_inventory build --state-dir project_state",
+      "python -m pytest tests/test_tool_capability_inventory.py -q",
       "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "python -m reverse_agent.project_state doctor --state-dir project_state",
@@ -46,13 +43,11 @@
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_tool_integration_capability_inventory_v1",
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework_tool_inventory_closeout_consistency_v1",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
       "git status --short",
-      "git diff --name-only",
-      "python -m reverse_agent.tool_capability_inventory build --state-dir project_state",
-      "python -m pytest tests/test_tool_capability_inventory.py -q"
+      "git diff --name-only"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -63,86 +58,14 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/decision_packet.md",
-      "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/pytest_result.txt",
-      "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/round_manifest.json"
+      "project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/decision_packet.md",
+      "project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/pytest_result.txt",
+      "project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/round_manifest.json"
     ]
   },
-  "diffs": [
-    {
-      "field": "files_changed",
-      "expected": [
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/round_manifest.json",
-        "project_state/structured_evidence_gap_report.json",
-        "project_state/tool_capability_inventory.json",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "reverse_agent/tool_capability_inventory.py",
-        "tests/test_project_state.py",
-        "tests/test_tool_capability_inventory.py"
-      ],
-      "actual": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/*",
-        "project_state/structured_evidence_gap_report.json",
-        "project_state/tool_capability_inventory.json",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/tool_capability_inventory.py",
-        "tests/test_tool_capability_inventory.py"
-      ]
-    },
-    {
-      "field": "generated_artifacts",
-      "expected": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/round_manifest.json"
-      ],
-      "actual": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/*",
-        "project_state/structured_evidence_gap_report.json",
-        "project_state/tool_capability_inventory.json"
-      ]
-    }
-  ],
-  "errors": [
-    "baseline contains source/test dirty files not allowed as inherited baseline",
-    "files_changed includes inherited dirty files: ['project_state/codex_execution_report.md', 'project_state/pytest_result.txt']"
-  ],
+  "diffs": [],
+  "errors": [],
   "warnings": [
     "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
   ],

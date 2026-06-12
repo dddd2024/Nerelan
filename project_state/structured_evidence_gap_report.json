@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
-  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
-  "generated_at": "2026-06-12T14:19:30Z",
+  "decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "generated_at": "2026-06-12T14:44:51Z",
   "evidence_usage_boundary": {
     "current": "artifacts with freshness=current in artifact_index.json; produced by validated tool runs in the current or recent rounds",
     "stale": "artifacts with freshness=stale; can be referenced as historical context but NOT as current evidence for decision-making",
