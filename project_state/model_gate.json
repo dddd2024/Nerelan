@@ -1,96 +1,15 @@
 {
-  "context_level": 1,
-  "generated_at": "2026-06-10T13:17:14Z",
-  "harness_diagnostics": {
-    "case_results_count": 0,
-    "case_results_missing": true,
-    "diagnosis": "case_results_directory_absent",
-    "diagnosis_detail": "The latest harness run has no case_results/ directory. The summary may report error_cases if cases were resumed from a prior incomplete run or the run completed without executing any case.",
-    "fallback_available": true,
-    "fallback_harness_run": {
-      "executed_cases": 1,
-      "manifest_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
-      "provenance": "fallback_from_invalid_latest_run",
-      "run_name": "sr_arg0_hook_readiness_ordering_20260526_r1",
-      "run_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1",
-      "summary_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
-      "total_cases": 1
-    },
-    "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424",
-    "latest_harness_run_status": "invalid_or_incomplete",
-    "summary_error_cases": 1,
-    "summary_executed_cases": 0,
-    "summary_present": true,
-    "summary_resumed_cases": 1,
-    "summary_total_cases": 1
-  },
-  "missing_evidence": [],
-  "next_local_action": "repair_harness_case_result_materialization",
-  "reason": "latest harness case has errors",
+  "context_level": 0,
+  "generated_at": "2026-06-12T15:43:05Z",
+  "missing_evidence": [
+    "case_results",
+    "frontier_summary",
+    "runtime_validation",
+    "strata_summary",
+    "summary"
+  ],
+  "next_local_action": "collect_artifacts",
+  "reason": "artifact evidence is incomplete; do not ask the model to guess",
   "recommended_packet": "project_state/task_packet.json",
-  "selected_harness_evidence_source": {
-    "case_results_count": 1,
-    "latest_invalid_run": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424",
-    "latest_invalid_run_reason": "case_results_directory_absent",
-    "latest_invalid_run_status": "invalid_or_incomplete",
-    "manifest_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\run_manifest.json",
-    "provenance": "fallback_from_invalid_latest_run",
-    "readiness_audit": {
-      "audited_at": "2026-06-10T13:17:14Z",
-      "candidate_count": 3,
-      "case_result_count": 1,
-      "case_result_statuses": [
-        "not_found"
-      ],
-      "case_results_dir_present": true,
-      "classification": "fallback_evidence_incomplete",
-      "has_errors": false,
-      "manifest_present": true,
-      "next_local_action": "repair_harness_case_result_materialization",
-      "reason": "case_result_status_is_not_found",
-      "repair_diagnostics": {
-        "blockers": [
-          {
-            "code": "case_result_status_is_not_found",
-            "owner_component": "case_result_writer",
-            "repairable_from_existing_metadata": false,
-            "required_rebuild": true
-          },
-          {
-            "code": "summary_reports_not_found_cases",
-            "owner_component": "harness",
-            "repairable_from_existing_metadata": false,
-            "required_rebuild": true
-          },
-          {
-            "code": "instrumentation_incomplete_in_artifact_manifest",
-            "owner_component": "artifact_manifest_writer",
-            "repairable_from_existing_metadata": false,
-            "required_rebuild": true
-          },
-          {
-            "code": "validation_count_is_zero",
-            "owner_component": "case_result_writer",
-            "repairable_from_existing_metadata": false,
-            "required_rebuild": true
-          }
-        ],
-        "next_local_action": "repair_harness_case_result_materialization",
-        "primary_blocker_owner": "case_result_writer",
-        "repairable_from_existing_metadata": false,
-        "required_rebuild": true
-      },
-      "run_name": "sr_arg0_hook_readiness_ordering_20260526_r1",
-      "structured_evidence_count": 1,
-      "summary_present": true,
-      "tool_artifact_count": 1,
-      "validation_count": 0
-    },
-    "run_name": "sr_arg0_hook_readiness_ordering_20260526_r1",
-    "run_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1",
-    "selection_role": "fallback",
-    "summary_path": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
-    "total_cases": 1
-  },
   "should_call_model": false
 }

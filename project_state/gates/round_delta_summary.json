@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
-  "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
-  "head_commit": "c2c285970a78",
+  "decision_id": "decision_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1",
+  "round_id": "round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1",
+  "head_commit": "2672d951a452",
   "baseline_available": true,
   "baseline_git_status_short": [
     " D .git_corrupt",
@@ -16,6 +16,7 @@
     " M project_state/pytest_result.txt",
     " M project_state/task_packet.json",
     " M reverse_agent/harness.py",
+    " M reverse_agent/project_gate.py",
     " M reverse_agent/project_state.py",
     " M tests/test_project_state.py"
   ],
@@ -30,6 +31,7 @@
     "project_state/pytest_result.txt",
     "project_state/task_packet.json",
     "reverse_agent/harness.py",
+    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
@@ -44,6 +46,7 @@
     "project_state/pytest_result.txt",
     "project_state/task_packet.json",
     "reverse_agent/harness.py",
+    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
@@ -55,6 +58,7 @@
     " M project_state/codex_execution_report.md",
     " M project_state/decision_packet.md",
     " M project_state/gates/command_plan.json",
+    " M project_state/gates/final_gate_result.json",
     " M project_state/gates/preflight_result.json",
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
@@ -65,8 +69,13 @@
     " M project_state/task_packet.json",
     " M project_state/tool_capability_inventory.json",
     " M reverse_agent/harness.py",
+    " M reverse_agent/project_gate.py",
     " M reverse_agent/project_state.py",
-    " M tests/test_project_state.py"
+    " M tests/test_project_state.py",
+    "?? project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     ".git_corrupt",
@@ -76,6 +85,7 @@
     "project_state/codex_execution_report.md",
     "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
+    "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
@@ -86,6 +96,7 @@
     "project_state/task_packet.json",
     "project_state/tool_capability_inventory.json",
     "reverse_agent/harness.py",
+    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
@@ -104,10 +115,15 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/model_gate.json",
     "project_state/pytest_result.txt",
+    "project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/decision_packet.md",
+    "project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/pytest_result.txt",
+    "project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/round_manifest.json",
     "project_state/structured_evidence_gap_report.json",
     "project_state/task_packet.json",
     "project_state/tool_capability_inventory.json",
     "reverse_agent/harness.py",
+    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
@@ -118,6 +134,10 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
+    "project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/decision_packet.md",
+    "project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/pytest_result.txt",
+    "project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/round_manifest.json",
     "project_state/structured_evidence_gap_report.json",
     "project_state/tool_capability_inventory.json"
   ],
@@ -132,9 +152,10 @@
     "project_state/pytest_result.txt",
     "project_state/task_packet.json",
     "reverse_agent/harness.py",
+    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-12T15:24:46.175518Z"
+  "generated_at": "2026-06-12T15:59:19.008730Z"
 }

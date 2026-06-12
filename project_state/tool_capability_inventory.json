@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
-  "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
-  "generated_at": "2026-06-12T14:44:51Z",
+  "decision_id": "decision_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1",
+  "round_id": "round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1",
+  "generated_at": "2026-06-12T15:47:39Z",
   "scan_scope": {
     "directories": [
       "reverse_agent/",
@@ -9015,19 +9015,19 @@
           "match_count": 4,
           "sample_lines": [
             [
-              1736,
+              1734,
               "        return \"fix_close_round_usage_or_metadata_before_retry\""
             ],
             [
-              1819,
+              1817,
               "    critical_metadata_errors = [str(error) for error in (parse_error, report_parse_error) if error]"
             ],
             [
-              1973,
+              1971,
               "    if critical_metadata_errors:"
             ],
             [
-              1979,
+              1977,
               "            error=\"; \".join(critical_metadata_errors),"
             ]
           ]

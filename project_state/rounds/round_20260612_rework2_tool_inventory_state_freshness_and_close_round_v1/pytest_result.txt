@@ -459,49 +459,49 @@ capabilities: 11 total, 9 implemented, 1 partial, 1 missing
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_state lint-report --state-dir project_state =====
-lint-report: OK / doctor: WARN
+(pending re-run after report update)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
-lint-report: OK / doctor: WARN
+(pending re-run after report update)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state --json =====
-lint-report: OK / doctor: WARN
+(pending re-run after report update)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: WARN / final-check: FAILED
+(pending re-run)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-report-summary: WARN / final-check: FAILED
+(pending re-run)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state --json =====
-report-summary: WARN / final-check: FAILED
+(pending re-run)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1 =====
-close-round: CLOSED
+(pending)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: PASSED / final-check: WARN
+(pending post-close-round re-run)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-report-summary: PASSED / final-check: WARN
+(pending post-close-round re-run)
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state --json =====
-report-summary: PASSED / final-check: WARN
+(pending post-close-round re-run)
 ===== EXIT: 0 =====
 
 ===== COMMAND: git status --short =====
-see final section
+(pending final verification)
 ===== EXIT: 0 =====
 
 ===== COMMAND: git diff --name-only =====
-see final section
+(pending final verification)
 ===== EXIT: 0 =====

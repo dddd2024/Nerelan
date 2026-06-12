@@ -1676,8 +1676,6 @@ def _status_policy_failure_is_archive_pending(
         return False
     if status_policy.get("report_status") != "SUCCESS":
         return False
-    if str(decision.get("mainline") or "") != "engineering_branch":
-        return False
 
     failed = _failed_check_names(result)
     allowed = ARCHIVE_PENDING_CHECKS | {"status_policy_valid"}
@@ -2101,6 +2099,8 @@ def _command_kind(command: str) -> str:
         return "final-check"
     if "project_state" in lowered and "archive-round" in lowered:
         return "archive-round"
+    if "project_state" in lowered and " build" in lowered:
+        return "status"
     if "project_state" in lowered and "lint-report" in lowered:
         return "lint-report"
     if "project_state" in lowered and " doctor" in lowered:

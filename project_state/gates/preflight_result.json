@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
-  "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "decision_id": "decision_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1",
+  "round_id": "round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1",
   "mainline": "tool_integration",
-  "generated_at": "2026-06-12T15:05:10.443679Z",
+  "generated_at": "2026-06-12T15:57:40.548998Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -59,15 +59,15 @@
       "name": "decision_not_consumed_by_report",
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260612_rework_tool_inventory_closeout_consistency_v1"
+      "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
+      "report_id": "codex_report_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
       "status": "PASS",
       "detail": "decision_packet remains authoritative over task_packet suggestions",
-      "task": "repair_harness_case_result_materialization",
-      "derived_task": "repair_harness_case_result_materialization",
+      "task": "collect_missing_evidence",
+      "derived_task": "collect_missing_evidence",
       "active_decision_packet": "project_state/decision_packet.md"
     },
     {
@@ -75,19 +75,25 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/model_gate.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/*",
+        "project_state/rounds/round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1/*",
         "project_state/structured_evidence_gap_report.json",
+        "project_state/task_packet.json",
         "project_state/tool_capability_inventory.json",
         "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
         "tests/test_project_gate.py",
+        "tests/test_project_state.py",
         "tests/test_tool_capability_inventory.py"
       ]
     },
@@ -109,11 +115,9 @@
       "status": "PASS",
       "detail": "stale/missing artifacts are not claimed as current evidence",
       "artifact_freshness": {
-        "current": 2,
-        "missing": 3,
-        "stale": 48
+        "missing": 50
       },
-      "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_exact1_projected_vs_neighbor_20260424"
+      "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6"
     },
     {
       "name": "tool_capability_audit_required_when_applicable",
@@ -138,17 +142,18 @@
       "project_state/pytest_result.txt",
       "project_state/task_packet.json",
       "reverse_agent/harness.py",
+      "reverse_agent/project_gate.py",
       "reverse_agent/project_state.py",
       "tests/test_project_state.py"
     ],
-    "head_commit": "c2c285970a78"
+    "head_commit": "2672d951a452"
   },
   "status_summary": {
-    "decision_execution_state": "READY_FOR_EXECUTION",
+    "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
     "decision_report_id_match": false,
     "decision_consumed_by_report": false,
-    "task": "repair_harness_case_result_materialization",
-    "derived_task": "repair_harness_case_result_materialization",
-    "current_state_round_id": "round_20260610_131714"
+    "task": "collect_missing_evidence",
+    "derived_task": "collect_missing_evidence",
+    "current_state_round_id": "round_20260612_154305"
   }
 }

@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-12T15:59:05Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1\\codex_execution_report.md",
+      "sha256": "5c3d184b2d73906148b282d58fc8d8465c6048accad9f2a0f6d74df3df874b66",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1\\decision_packet.md",
+      "sha256": "b1f84ce2874f0e3b842a77eb2b3cb93a14e2aedd97edbd3241abdd4411ad2ce7",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1\\pytest_result.txt",
+      "sha256": "8e6e737c8b1d441a0f1b0b5c65e64c9625c8819c8e84737d0974391e2c1ccc1b",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260612_rework2_tool_inventory_state_freshness_and_close_round_v1",
+  "schema_version": 1,
+  "source_git_commit": "2672d951a452",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260612_154305_9877218db479",
+  "state_digest": "9877218db479bcb3f914fe77bcf71da3f217beb5e780eccd84fb47fbaf997626",
+  "workflow_status": "REPORT_AVAILABLE"
+}
