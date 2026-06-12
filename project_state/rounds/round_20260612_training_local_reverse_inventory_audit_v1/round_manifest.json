@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-12T03:15:27Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260612_training_local_reverse_inventory_audit_v1\\codex_execution_report.md",
+      "sha256": "9f6bc08d57ffca8c2fdca38e27b1e6808dceb12d4e2de48afa4005e384438b98",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260612_training_local_reverse_inventory_audit_v1\\decision_packet.md",
+      "sha256": "8ad0e3fa32722cff1fff24f2378021251001026a2f15aef4460d4c9eac83909f",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260612_training_local_reverse_inventory_audit_v1\\pytest_result.txt",
+      "sha256": "9e70e159a9227c8dce70f76b5a1dddd760c458c173ea797dc1d430744c247e24",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260612_training_local_reverse_inventory_audit_v1",
+  "schema_version": 1,
+  "source_git_commit": "b88f03e947bb",
+  "source_harness_run": "samplereverse_exact1_projected_vs_neighbor_20260424",
+  "state_build_id": "state_20260610_131714_88c14099a13a",
+  "state_digest": "88c14099a13a2bf2999e4a61b2c53d8edd9568217bb5ee36f0cfd4462e8cbbd2",
+  "workflow_status": "REPORT_AVAILABLE"
+}

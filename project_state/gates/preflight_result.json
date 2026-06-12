@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260612_engineering_close_round_contract_rework_v1",
-  "round_id": "round_20260612_engineering_close_round_contract_rework_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-12T02:49:46.775771Z",
+  "decision_id": "decision_20260612_training_local_reverse_inventory_audit_v1",
+  "round_id": "round_20260612_training_local_reverse_inventory_audit_v1",
+  "mainline": "training_dataset",
+  "generated_at": "2026-06-12T03:14:52.650679Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -21,7 +21,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is engineering_branch",
+      "detail": "mainline is training_dataset",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -75,16 +75,18 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "None by default. Do not modify source code in this audit-only round.",
+        "None by default. Do not modify tests in this audit-only round.",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_inventory_audit.md",
+        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_close_round_contract_rework_v1/*",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py` only if a small reusable helper is necessary",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py` only if `project_state.py` helper behavior changes"
+        "project_state/rounds/round_20260612_training_local_reverse_inventory_audit_v1/*",
+        "training_materials/local_reverse/status_overlay.json"
       ]
     },
     {
@@ -97,7 +99,9 @@
       "name": "mainline_scope_policy",
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
-      "matched_terms": [],
+      "matched_terms": [
+        "solver"
+      ],
       "matched_paths": []
     },
     {
@@ -115,7 +119,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": false
+      "capability_required": true
     }
   ],
   "blocking_reasons": [],
