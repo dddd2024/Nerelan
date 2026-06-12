@@ -681,36 +681,30 @@ def test_doctor_warns_when_engineering_report_claims_sample_artifact_freshness(
     assert artifact_check["counts"]["missing"] > 0
 
 
-def test_doctor_artifact_freshness_non_blocking_for_all_valid_mainlines(
+@pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration", "training_dataset"])
+def test_doctor_artifact_freshness_blocks_capability_mainlines(
     tmp_path: Path,
+    mainline: str,
 ) -> None:
-    """Artifact freshness should be non-blocking (INFO) for all valid mainlines when round is healthy.
-
-    Previously this test asserted that reverse_solving rounds should be WARN/FAIL for
-    missing artifacts. After the mainline policy update (2026-06-11), all four valid
-    mainlines (engineering_branch, reverse_solving, tool_integration, training_dataset)
-    are treated equally for historical artifact freshness: if the round is consumed,
-    archived, and pytest matches, missing historical artifacts are INFO/non-blocking.
-    """
     reports_dir = tmp_path / "solve_reports"
     state_dir = tmp_path / "project_state"
     _write_skill_registry(tmp_path)
-    run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_reverse_solving")
+    run_dir = _make_minimal_harness_run(reports_dir, run_name=f"samplereverse_{mainline}")
     _write_json(
         run_dir / "summary.json",
-        {"run_name": "samplereverse_reverse_solving", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+        {"run_name": f"samplereverse_{mainline}", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
     )
     _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
     build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
 
-    decision_id = "decision_test_reverse_solving"
-    round_id = "round_test_reverse_solving"
-    report_id = "report_test_reverse_solving"
+    decision_id = f"decision_test_{mainline}_freshness"
+    round_id = f"round_test_{mainline}_freshness"
+    report_id = f"report_test_{mainline}_freshness"
     _write_decision_packet(
         state_dir,
         decision_id=decision_id,
         round_id=round_id,
-        mainline="reverse_solving",
+        mainline=mainline,
         skill_profiles=["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
     )
     _write_codex_report(
@@ -735,11 +729,11 @@ def test_doctor_artifact_freshness_non_blocking_for_all_valid_mainlines(
 
     result = doctor(state_dir=state_dir)
 
-    assert result["status"] == "PASS"
+    assert result["status"] == "WARN"
     artifact_check = next(c for c in result["checks"] if c["name"] == "artifacts")
-    assert artifact_check["status"] == "INFO"
-    assert artifact_check["classification"] == "historical_sample_artifacts_non_blocking"
-    assert artifact_check["blocking"] is False
+    assert artifact_check["status"] == "WARN"
+    assert artifact_check["classification"] == "artifact_freshness_requires_review"
+    assert artifact_check["blocking"] is True
     assert artifact_check["counts"]["missing"] > 0
 
 
@@ -788,7 +782,8 @@ def test_doctor_passes_for_all_valid_mainlines(tmp_path: Path, mainline: str) ->
     archive_round(state_dir=state_dir, round_id=round_id)
 
     result = doctor(state_dir=state_dir)
-    assert result["status"] == "PASS", f"doctor should PASS for mainline={mainline}"
+    expected_status = "PASS" if mainline == "engineering_branch" else "WARN"
+    assert result["status"] == expected_status
     mainline_check = next(c for c in result["checks"] if c["name"] == "mainline")
     assert mainline_check["status"] == "PASS"
     assert mainline in mainline_check["detail"]

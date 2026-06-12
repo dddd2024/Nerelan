@@ -44,7 +44,13 @@ def _archive_paths(round_id: str) -> list[str]:
     ]
 
 
-def _write_decision(state_dir: Path, *, decision_id: str, round_id: str) -> None:
+def _write_decision(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+    mainline: str = "engineering_branch",
+) -> None:
     payload = {
         "schema_version": 1,
         "decision_id": decision_id,
@@ -52,7 +58,7 @@ def _write_decision(state_dir: Path, *, decision_id: str, round_id: str) -> None
         "based_on_state_build_id": "state_test",
         "based_on_state_digest": "digest_test",
         "status": "APPROVED",
-        "mainline": "engineering_branch",
+        "mainline": mainline,
         "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"],
     }
     (state_dir / "decision_packet.md").write_text(
@@ -277,6 +283,7 @@ def _make_gate_state(
     *,
     status: str = "SUCCESS",
     acceptance: str = "ACCEPTED",
+    mainline: str = "engineering_branch",
     files_changed: list[str] | None = None,
     tests_ran: list[str] | None = None,
     pytest_tests_ran: list[str] | None = None,
@@ -321,7 +328,7 @@ def _make_gate_state(
         *archive_paths,
     ]
     report_tests = tests_ran if tests_ran is not None else ["python -m pytest -q"]
-    _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
+    _write_decision(state_dir, decision_id=decision_id, round_id=round_id, mainline=mainline)
     _write_report(
         state_dir,
         decision_id=decision_id,
@@ -506,6 +513,49 @@ def test_final_check_passes_successful_consistent_round(tmp_path: Path) -> None:
     assert result["gate_status"] == "PASSED"
     assert result["blocking_reasons"] == []
     assert (state_dir / "gates" / "final_gate_result.json").exists()
+
+
+def test_final_check_passes_engineering_success_with_legacy_sample_artifacts(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _write_json(
+        state_dir / "artifact_index.json",
+        {
+            "latest_artifacts_v2": {
+                "old_probe": {"freshness": "stale"},
+                "missing_probe": {"freshness": "missing"},
+            }
+        },
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert result["blocking_reasons"] == []
+    assert _check(result, "status_policy_valid")["status"] == "PASS"
+
+
+@pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration", "training_dataset"])
+def test_final_check_blocks_success_with_legacy_artifacts_for_capability_mainlines(
+    tmp_path: Path,
+    mainline: str,
+) -> None:
+    state_dir = _make_gate_state(tmp_path, mainline=mainline)
+    _write_json(
+        state_dir / "artifact_index.json",
+        {
+            "latest_artifacts_v2": {
+                "old_probe": {"freshness": "stale"},
+                "missing_probe": {"freshness": "missing"},
+            }
+        },
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    status_policy = _check(result, "status_policy_valid")
+    assert status_policy["status"] == "FAIL"
+    assert "stale artifacts" in " ".join(status_policy["lint_errors"])
 
 
 def test_final_check_fails_when_codex_report_summary_missing(tmp_path: Path) -> None:
@@ -792,6 +842,32 @@ def test_close_round_archives_unarchived_consistent_round(tmp_path: Path) -> Non
     assert result["actions"][2]["name"] == "final_check_after_archive"
     assert result["actions"][2]["status"] == "PASSED"
     assert (state_dir / "rounds" / "round_gate" / "round_manifest.json").exists()
+
+
+def test_close_round_allows_engineering_success_legacy_artifacts_until_archive(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+    _write_json(
+        state_dir / "artifact_index.json",
+        {
+            "latest_artifacts_v2": {
+                "old_probe": {"freshness": "stale"},
+                "missing_probe": {"freshness": "missing"},
+            }
+        },
+    )
+
+    result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
+
+    assert result["close_status"] == "CLOSED"
+    assert set(result["actions"][0]["allowed_archive_pending_failures"]) == {
+        "round_manifest_present",
+        "archived_report_matches_live_report",
+        "archived_pytest_result_matches_live_pytest_result",
+        "status_policy_valid",
+    }
+    assert result["actions"][0]["unexpected_failures"] == []
+    assert result["actions"][2]["status"] == "PASSED"
+    assert result["actions"][2]["gate_status"] == "PASSED"
 
 
 def test_close_round_is_idempotent_for_existing_matching_archive(tmp_path: Path) -> None:

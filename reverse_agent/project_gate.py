@@ -895,6 +895,44 @@ def _failed_check_names(result: dict[str, Any]) -> set[str]:
     }
 
 
+def _check_by_name(result: dict[str, Any], name: str) -> dict[str, Any]:
+    for check in result.get("checks", []):
+        if isinstance(check, dict) and check.get("name") == name:
+            return check
+    return {}
+
+
+def _status_policy_failure_is_archive_pending(
+    *,
+    result: dict[str, Any],
+    decision: dict[str, Any],
+) -> bool:
+    status_policy = _check_by_name(result, "status_policy_valid")
+    if status_policy.get("status") != "FAIL":
+        return False
+    if status_policy.get("report_status") != "SUCCESS":
+        return False
+    if str(decision.get("mainline") or "") != "engineering_branch":
+        return False
+
+    failed = _failed_check_names(result)
+    allowed = ARCHIVE_PENDING_CHECKS | {"status_policy_valid"}
+    if not failed <= allowed:
+        return False
+
+    status_summary_payload = result.get("status_summary")
+    status_summary_map = status_summary_payload if isinstance(status_summary_payload, dict) else {}
+    if status_summary_map.get("archive_status") != "not_archived":
+        return False
+
+    errors = [str(error) for error in (status_policy.get("lint_errors") or [])]
+    if not errors or any("artifact" not in error.lower() for error in errors):
+        return False
+
+    warnings = {str(warning) for warning in (status_policy.get("warnings") or [])}
+    return warnings <= {"report round not archived yet", "doctor status is WARN"}
+
+
 def _valid_close_round_id(round_id: str) -> bool:
     if not round_id:
         return False
@@ -1157,8 +1195,11 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     else:
         before = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
         before_failed = _failed_check_names(before)
-        unexpected_before = sorted(before_failed - ARCHIVE_PENDING_CHECKS)
-        expected_archive_pending = sorted(before_failed & ARCHIVE_PENDING_CHECKS)
+        allowed_pending = set(ARCHIVE_PENDING_CHECKS)
+        if _status_policy_failure_is_archive_pending(result=before, decision=decision):
+            allowed_pending.add("status_policy_valid")
+        unexpected_before = sorted(before_failed - allowed_pending)
+        expected_archive_pending = sorted(before_failed & allowed_pending)
         actions.append(
             {
                 "name": "final_check_before_archive",
