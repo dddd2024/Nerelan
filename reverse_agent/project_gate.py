@@ -12,6 +12,7 @@ from typing import Any
 from .project_state import (
     ARCHIVE_MANIFEST_NAME,
     DEFAULT_STATE_DIR,
+    archive_round,
     build_round_consistency,
     doctor,
     lint_decision,
@@ -34,6 +35,13 @@ COMMAND_PLAN_RESULT_NAME = "command_plan.json"
 SELF_OUTPUT_PATH = f"project_state/gates/{FINAL_GATE_RESULT_NAME}"
 PREFLIGHT_OUTPUT_PATH = f"project_state/gates/{PREFLIGHT_RESULT_NAME}"
 COMMAND_PLAN_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_RESULT_NAME}"
+CLOSE_ROUND_NAME = "close-round"
+
+ARCHIVE_PENDING_CHECKS = {
+    "round_manifest_present",
+    "archived_report_matches_live_report",
+    "archived_pytest_result_matches_live_pytest_result",
+}
 
 ALLOWED_MAINLINES = {"engineering_branch", "reverse_solving", "tool_integration", "training_dataset"}
 CAPABILITY_MAINLINES = {"reverse_solving", "tool_integration", "training_dataset"}
@@ -76,6 +84,7 @@ COMMAND_PLAN_KINDS = {
     "doctor",
     "archive-round",
     "command-plan",
+    "close-round",
     "pytest",
     "git status",
     "git rev-parse",
@@ -859,6 +868,272 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
     return result
 
 
+def _failed_check_names(result: dict[str, Any]) -> set[str]:
+    return {
+        str(check.get("name") or "")
+        for check in result.get("checks", [])
+        if isinstance(check, dict) and check.get("status") == "FAIL"
+    }
+
+
+def _close_round_recommended_next_action(close_status: str) -> str:
+    if close_status == "CLOSED":
+        return "no_action_required"
+    if close_status == "BLOCKED":
+        return "fix_blocking_closeout_preconditions_before_archive"
+    return "fix_close_round_failures_before_retry"
+
+
+def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None) -> dict[str, Any]:
+    repo_root = repo_root or Path.cwd()
+    state_dir = Path(state_dir)
+
+    decision = read_decision_meta(state_dir)
+    report = read_codex_report_summary(state_dir)
+    pytest_text = _read_text(state_dir / "pytest_result.txt")
+    pytest_validation = validate_pytest_result_for_report(pytest_text, report)
+    current_state = _read_json(state_dir / "current_state.json")
+    task_packet = _read_json(state_dir / "task_packet.json")
+
+    decision_id = str(decision.get("decision_id") or "")
+    report_id = str(report.get("report_id") or "")
+    decision_round_id = str(decision.get("round_id") or "")
+    report_round_id = str(report.get("round_id") or "")
+    requested_round_id = str(round_id or "")
+    decision_status = str(decision.get("status") or "UNKNOWN")
+    report_status = str(report.get("status") or "UNKNOWN")
+    checks: list[dict[str, Any]] = []
+    actions: list[dict[str, Any]] = []
+
+    parse_error = decision.get("parse_error")
+    decision_parse_ok = bool(decision_id and decision_round_id and not parse_error)
+    checks.append(
+        _check(
+            "decision_meta_parse",
+            "PASS" if decision_parse_ok else "FAIL",
+            "decision_meta parsed" if decision_parse_ok else "decision_meta missing or invalid",
+            parse_error=parse_error,
+        )
+    )
+    checks.append(
+        _check(
+            "decision_approved",
+            "PASS" if decision_status == "APPROVED" else "FAIL",
+            "decision status is APPROVED" if decision_status == "APPROVED" else f"decision status is {decision_status}",
+        )
+    )
+
+    report_parse_error = report.get("parse_error")
+    report_present = bool(report_id and report_round_id and not report_parse_error)
+    checks.append(
+        _check(
+            "report_present",
+            "PASS" if report_present else "FAIL",
+            "codex report summary parsed" if report_present else "codex report summary missing or invalid",
+            parse_error=report_parse_error,
+        )
+    )
+
+    round_match = bool(
+        requested_round_id
+        and decision_round_id
+        and report_round_id
+        and requested_round_id == decision_round_id == report_round_id
+    )
+    checks.append(
+        _check(
+            "requested_round_id_match",
+            "PASS" if round_match else "FAIL",
+            "requested round_id matches decision and report"
+            if round_match
+            else "requested round_id does not match decision/report round_id",
+            requested_round_id=requested_round_id,
+            decision_round_id=decision_round_id,
+            report_round_id=report_round_id,
+        )
+    )
+
+    report_decision_ok = bool(decision_id and report.get("based_on_decision_id") == decision_id)
+    checks.append(
+        _check(
+            "report_decision_match",
+            "PASS" if report_decision_ok else "FAIL",
+            "report is based on current decision" if report_decision_ok else "report based_on_decision_id does not match decision",
+            report_based_on_decision_id=report.get("based_on_decision_id"),
+        )
+    )
+
+    pytest_match_ok = pytest_validation.get("matches_report") is True and not pytest_validation.get("errors")
+    checks.append(
+        _check(
+            "pytest_result_match",
+            "PASS" if pytest_match_ok else "FAIL",
+            "pytest_result matches report" if pytest_match_ok else "pytest_result does not match report",
+            errors=pytest_validation.get("errors") or [],
+        )
+    )
+
+    pytest_covers = pytest_validation.get("tests_ran_covers_report")
+    checks.append(
+        _check(
+            "pytest_result_covers_report_tests",
+            "PASS" if pytest_covers is True else "FAIL",
+            "pytest_result covers report tests" if pytest_covers is True else "pytest_result does not cover report tests",
+            missing_report_tests=pytest_validation.get("missing_report_tests") or [],
+        )
+    )
+
+    checks.extend(
+        _validate_command_plan_consistency(
+            state_dir=state_dir,
+            decision=decision,
+            report=report,
+            pytest_text=pytest_text,
+        )
+    )
+
+    changed_files = set(_git_changed_files(repo_root))
+    files_changed = _string_set(report.get("files_changed"))
+    generated_artifacts = _string_set(report.get("generated_artifacts"))
+    round_consistency = build_round_consistency(
+        decision=decision,
+        report=report,
+        current_state=current_state,
+        task_packet=task_packet,
+        state_dir=state_dir,
+    )
+    manifest_files = list(round_consistency.get("round_manifest_files") or [])
+    archive_paths = _round_archive_paths(state_dir, requested_round_id, manifest_files)
+    missing_diff_files = sorted(changed_files - files_changed)
+    checks.append(
+        _check(
+            "files_changed_covers_git_diff",
+            "PASS" if not missing_diff_files else "FAIL",
+            "files_changed covers git status files" if not missing_diff_files else "files_changed omits git status files",
+            missing_files=missing_diff_files,
+            git_changed_files=sorted(changed_files),
+        )
+    )
+
+    missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
+    checks.append(
+        _check(
+            "generated_artifacts_cover_round_archive",
+            "PASS" if not missing_archive_artifacts else "FAIL",
+            "generated_artifacts covers round archive files"
+            if not missing_archive_artifacts
+            else "generated_artifacts omits round archive files",
+            missing_artifacts=missing_archive_artifacts,
+        )
+    )
+
+    forbidden_hits = _forbidden_hits(changed_files | files_changed | generated_artifacts | archive_paths)
+    manifest_forbidden = list(round_consistency.get("round_manifest_forbidden_files") or [])
+    if manifest_forbidden:
+        forbidden_hits.extend(f"round_manifest:{name}" for name in manifest_forbidden)
+    checks.append(
+        _check(
+            "forbidden_paths_absent",
+            "PASS" if not forbidden_hits else "FAIL",
+            "no forbidden paths detected" if not forbidden_hits else "forbidden paths detected",
+            forbidden_paths=sorted(set(forbidden_hits)),
+        )
+    )
+
+    status = status_summary(state_dir=state_dir)
+    state_package_ok = str(status.get("state_package_classification_status") or "PASS") != "FAIL"
+    checks.append(
+        _check(
+            "state_package_compact",
+            "PASS" if state_package_ok else "FAIL",
+            "state package classification is compact or non-blocking"
+            if state_package_ok
+            else "state package classification reports blocking expansion",
+            state_package_classification_status=status.get("state_package_classification_status"),
+            state_package_entries_compacted=status.get("state_package_entries_compacted"),
+        )
+    )
+
+    precheck_failures = [check for check in checks if check.get("status") == "FAIL"]
+    if precheck_failures:
+        close_status = "FAILED"
+    else:
+        before = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+        before_failed = _failed_check_names(before)
+        unexpected_before = sorted(before_failed - ARCHIVE_PENDING_CHECKS)
+        expected_archive_pending = sorted(before_failed & ARCHIVE_PENDING_CHECKS)
+        actions.append(
+            {
+                "name": "final_check_before_archive",
+                "status": "PASSED" if not unexpected_before else "FAILED",
+                "gate_status": before.get("gate_status"),
+                "allowed_archive_pending_failures": expected_archive_pending,
+                "unexpected_failures": unexpected_before,
+                "artifact": f"project_state/gates/{FINAL_GATE_RESULT_NAME}",
+            }
+        )
+        if unexpected_before:
+            close_status = "FAILED"
+        else:
+            try:
+                archive_result = archive_round(state_dir=state_dir, round_id=requested_round_id)
+            except FileExistsError as exc:
+                actions.append({"name": "archive_round", "status": "FAILED", "error": str(exc)})
+                close_status = "FAILED"
+            else:
+                actions.append(
+                    {
+                        "name": "archive_round",
+                        "status": archive_result.get("status"),
+                        "round_dir": archive_result.get("round_dir"),
+                        "manifest": archive_result.get("manifest"),
+                        "copied": archive_result.get("copied") or [],
+                    }
+                )
+                after = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+                after_failed = _failed_check_names(after)
+                actions.append(
+                    {
+                        "name": "final_check_after_archive",
+                        "status": "PASSED" if not after_failed else "FAILED",
+                        "gate_status": after.get("gate_status"),
+                        "unexpected_failures": sorted(after_failed),
+                        "artifact": f"project_state/gates/{FINAL_GATE_RESULT_NAME}",
+                    }
+                )
+                close_status = "CLOSED" if not after_failed else "FAILED"
+
+    warnings = [f"{check['name']}: {check['detail']}" for check in checks if check.get("status") == "WARN"]
+    blocking_reasons = [f"{check['name']}: {check['detail']}" for check in checks if check.get("status") == "FAIL"]
+    for action in actions:
+        if action.get("status") == "FAILED":
+            blocking_reasons.append(f"{action.get('name')}: {action.get('error') or action.get('unexpected_failures')}")
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "gate_name": CLOSE_ROUND_NAME,
+        "close_status": close_status,
+        "decision_id": decision_id,
+        "report_id": report_id,
+        "round_id": requested_round_id,
+        "decision_round_id": decision_round_id,
+        "report_round_id": report_round_id,
+        "report_status": report_status,
+        "generated_at": _now_iso(),
+        "checks": checks,
+        "actions": actions,
+        "blocking_reasons": blocking_reasons,
+        "warnings": warnings,
+        "recommended_next_action": _close_round_recommended_next_action(close_status),
+        "status_summary": {
+            "decision_execution_state": status.get("decision_execution_state"),
+            "archive_status": status.get("archive_status"),
+            "report_status": status.get("report_status"),
+            "report_acceptance_recommendation": status.get("report_acceptance_recommendation"),
+        },
+    }
+    return result
+
+
 def _preflight_recommended_next_action(gate_status: str) -> str:
     if gate_status == "PASSED":
         return "proceed_with_decision_scope"
@@ -879,6 +1154,8 @@ def _command_kind(command: str) -> str:
         return "preflight"
     if "project_gate" in lowered and "command-plan" in lowered:
         return "command-plan"
+    if "project_gate" in lowered and "close-round" in lowered:
+        return "close-round"
     if "project_gate" in lowered and "final-check" in lowered:
         return "final-check"
     if "project_state" in lowered and "archive-round" in lowered:
@@ -907,7 +1184,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan"}:
+    if kind in {"final-check", "command-plan", "close-round"}:
         return "gate"
     if kind in {"lint-report", "status", "doctor", "git status", "git rev-parse", "test-path", "pwd"}:
         return "status"
@@ -1288,6 +1565,20 @@ def _print_command_plan(result: dict[str, Any]) -> None:
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
 
 
+def _print_close_round(result: dict[str, Any]) -> None:
+    print(f"{result.get('gate_name')}: {result.get('close_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"report_id: {result.get('report_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    for check in result.get("checks", []):
+        print(f"  [{check.get('status')}] {check.get('name')}: {check.get('detail')}")
+    for action in result.get("actions", []):
+        print(f"  [ACTION {action.get('status')}] {action.get('name')}")
+    for reason in result.get("blocking_reasons", []):
+        print(f"  [BLOCK] {reason}")
+    print(f"recommended_next_action: {result.get('recommended_next_action')}")
+
+
 def _final_check_exit_code(gate_status: object) -> int:
     return 1 if gate_status == "FAILED" else 0
 
@@ -1295,6 +1586,10 @@ def _final_check_exit_code(gate_status: object) -> int:
 def _preflight_exit_code(gate_status: object) -> int:
     # WARN remains non-blocking so teams can review warnings without hiding hard stops.
     return 1 if gate_status in {"BLOCKED", "FAILED"} else 0
+
+
+def _close_round_exit_code(close_status: object) -> int:
+    return 0 if close_status == "CLOSED" else 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1309,6 +1604,10 @@ def main(argv: list[str] | None = None) -> int:
     command_plan_parser = subparsers.add_parser("command-plan", help="Generate a read-only command execution plan.")
     command_plan_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     command_plan_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    close_round_parser = subparsers.add_parser("close-round", help="Run final-check, archive the round, and re-check.")
+    close_round_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    close_round_parser.add_argument("--round-id", required=True)
+    close_round_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
@@ -1332,6 +1631,13 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _print_command_plan(result)
         return 1 if result.get("plan_status") == "FAILED" else 0
+    if args.command == "close-round":
+        result = close_round(state_dir=Path(args.state_dir), round_id=args.round_id, repo_root=Path.cwd())
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_close_round(result)
+        return _close_round_exit_code(result.get("close_status"))
     return 1
 
 
