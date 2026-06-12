@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "WARN",
-  "decision_id": "decision_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1",
-  "round_id": "round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1",
-  "mainline": "tool_integration",
-  "generated_at": "2026-06-12T07:20:47.741102Z",
+  "decision_id": "decision_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
+  "round_id": "round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-12T07:39:57.302314Z",
   "commands": [
     {
       "index": 1,
@@ -57,6 +57,18 @@
     },
     {
       "index": 5,
+      "command": "git diff --name-only",
+      "phase": "unknown",
+      "kind": "unknown",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "unknown command kind; defaulting to zero exit"
+    },
+    {
+      "index": 6,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "phase": "preflight",
       "kind": "preflight",
@@ -66,18 +78,6 @@
       ],
       "records_stdout_stderr": true,
       "notes": "preflight expected to exit 0"
-    },
-    {
-      "index": 6,
-      "command": "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_2f6fcb63 --queue project_state/local_reverse_evaluation_queue.json --inventory training_materials/local_reverse/inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
-      "phase": "unknown",
-      "kind": "unknown",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "unknown command kind; defaulting to zero exit"
     },
     {
       "index": 7,
@@ -213,7 +213,7 @@
     },
     {
       "index": 18,
-      "command": "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1",
+      "command": "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
       "phase": "archive",
       "kind": "archive-round",
       "required": true,
@@ -273,7 +273,7 @@
     }
   ],
   "warnings": [
-    "command 6 has unknown kind: python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_2f6fcb63 --queue project_state/local_reverse_evaluation_queue.json --inventory training_materials/local_reverse/inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+    "command 5 has unknown kind: git diff --name-only",
     "command 7 has unknown kind: python -c \"import json, pathlib; p=pathlib.Path('project_state/local_reverse_cpp1_2f6fcb63_static_triage.json'); d=json.loads(p.read_text(encoding='utf-8')); assert d['sample_id']=='cpp1_2f6fcb63'; assert d['analysis_mode']=='single_sample_static_triage'; assert d['static_only'] is True; assert d['executed_sample'] is False; assert d['runtime_validated'] is False; assert d.get('candidate') in (None, ''); print('triage artifact ok:', d.get('tool_status'), d.get('blocked_reason',''))\"",
     "command 8 has unknown kind: powershell -NoProfile -Command \"$x=Get-ChildItem -Path project_state -Recurse -Include *.i64,*.id0,*.id1,*.nam,*.til -ErrorAction SilentlyContinue; if ($x) { $x.FullName; exit 1 } else { 'no ida db sidecars' }\"",
     "command 22 has unknown kind: git diff --name-only"

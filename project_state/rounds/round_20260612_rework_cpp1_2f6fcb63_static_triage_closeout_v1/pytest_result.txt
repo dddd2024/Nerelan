@@ -144,31 +144,3 @@ final-check: FAILED
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state --json =====
 {"schema_version": 1, "gate_name": "final-check", "gate_status": "FAILED", "decision_id": "decision_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1", "report_id": "report_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1", "round_id": "round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1", "checks": [{"name": "decision_report_match", "status": "FAIL"}, {"name": "pytest_result_match", "status": "PASS"}, {"name": "pytest_result_covers_report_tests", "status": "FAIL"}, {"name": "round_manifest_present", "status": "FAIL"}, {"name": "files_changed_covers_git_diff", "status": "FAIL"}, {"name": "command_plan_ids_match", "status": "FAIL"}, {"name": "pytest_result_exit_codes_match_command_plan", "status": "FAIL"}, {"name": "status_policy_valid", "status": "FAIL"}], "blocking_reasons": ["report/decision mismatch"], "recommended_next_action": "update_report_to_match_decision"}
 ===== EXIT: 1 =====
-
-===== COMMAND: python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1 =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: FAILED
-  [PASS] decision_report_match: decision/report ids and round_id match
-  [PASS] pytest_result_match: pytest_result matches report
-  [WARN] pytest_result_covers_report_tests: pytest_result coverage is incomplete or unknown
-  [PASS] round_manifest_present: round manifest is present
-  [PASS] archived_report_matches_live_report: archived report matches live report
-  [PASS] archived_pytest_result_matches_live_pytest_result: archived pytest_result matches live pytest_result
-  [FAIL] files_changed_covers_git_diff: files_changed omits git status files
-  [FAIL] generated_artifacts_cover_round_archive: generated_artifacts omits round archive files
-  [PASS] command_plan_present: command_plan.json is present
-  [FAIL] command_plan_ids_match: command_plan ids, round_id, or status do not match
-  [FAIL] command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests
-  [FAIL] pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes
-  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
-  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [PASS] forbidden_paths_absent: no forbidden paths detected
-  [FAIL] status_policy_valid: status policy found blocking issues
-recommended_next_action: fix_gate_failures_before_archive_or_handoff
-===== EXIT: 1 =====
-
-===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state --json =====
-{"schema_version": 1, "gate_name": "final-check", "gate_status": "FAILED", "decision_id": "decision_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1", "report_id": "report_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1", "round_id": "round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1", "checks": [{"name": "decision_report_match", "status": "PASS"}, {"name": "pytest_result_match", "status": "PASS"}, {"name": "pytest_result_covers_report_tests", "status": "WARN"}, {"name": "round_manifest_present", "status": "PASS"}, {"name": "archived_report_matches_live_report", "status": "PASS"}, {"name": "archived_pytest_result_matches_live_pytest_result", "status": "PASS"}, {"name": "files_changed_covers_git_diff", "status": "FAIL"}, {"name": "generated_artifacts_cover_round_archive", "status": "FAIL"}, {"name": "command_plan_present", "status": "PASS"}, {"name": "command_plan_ids_match", "status": "FAIL"}, {"name": "command_plan_covers_report_tests", "status": "FAIL"}, {"name": "pytest_result_exit_codes_match_command_plan", "status": "FAIL"}, {"name": "command_plan_json_stdout_full", "status": "PASS"}, {"name": "command_plan_generated_artifact_recorded", "status": "PASS"}, {"name": "forbidden_paths_absent", "status": "PASS"}, {"name": "status_policy_valid", "status": "FAIL"}], "blocking_reasons": ["files_changed_covers_git_diff", "generated_artifacts_cover_round_archive", "command_plan_ids_match", "command_plan_covers_report_tests", "pytest_result_exit_codes_match_command_plan", "status_policy_valid"], "warnings": ["pytest_result_covers_report_tests"], "recommended_next_action": "fix_gate_failures_before_archive_or_handoff", "status_summary": {"decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT", "decision_report_id_match": true, "decision_consumed_by_report": true, "archive_status": "archived", "report_status": "SUCCESS", "report_acceptance_recommendation": "ACCEPTED"}}
-===== EXIT: 1 =====

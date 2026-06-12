@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1",
-  "report_id": "report_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1",
-  "round_id": "round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1",
-  "generated_at": "2026-06-12T07:24:38.124871Z",
+  "decision_id": "decision_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
+  "report_id": "report_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
+  "round_id": "round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
+  "generated_at": "2026-06-12T07:46:29.788158Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -23,74 +23,67 @@
       "status": "WARN",
       "detail": "pytest_result coverage is incomplete or unknown",
       "missing_report_tests": [
-        "python -c artifact field validation",
+        "pwd",
+        "powershell -NoProfile -Command \"Test-Path F:\\reverse-agent\"",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "git diff --name-only",
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -c triage artifact field validation",
         "powershell ida sidecar cleanup check",
-        "python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q"
+        "python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q --ignore=.git_old2 --ignore=.git_corrupt_v2 --ignore=.git_corrupt --ignore=.git_bak --ignore=.git",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_state lint-report --state-dir project_state",
+        "python -m reverse_agent.project_state status --state-dir project_state",
+        "python -m reverse_agent.project_state doctor --state-dir project_state",
+        "python -m reverse_agent.project_state doctor --state-dir project_state --json",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
+        "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state --json"
       ]
     },
     {
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "PASS",
-      "detail": "archived report matches live report"
+      "status": "FAIL",
+      "detail": "archived report differs from live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "PASS",
-      "detail": "archived pytest_result matches live pytest_result"
+      "status": "FAIL",
+      "detail": "archived pytest_result differs from live pytest_result"
     },
     {
       "name": "files_changed_covers_git_diff",
-      "status": "FAIL",
-      "detail": "files_changed omits git status files",
-      "missing_files": [
-        "project_state/decision_packet.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/model_gate.json",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/round_manifest.json",
-        "project_state/task_packet.json",
-        "reverse_agent/harness.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
-      ],
+      "status": "PASS",
+      "detail": "files_changed covers git status files",
+      "missing_files": [],
       "git_changed_files": [
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/preflight_result.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
-        "project_state/model_gate.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/round_manifest.json",
-        "project_state/task_packet.json",
-        "reverse_agent/harness.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "project_state/rounds/round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1/decision_packet.md",
+        "project_state/rounds/round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1/pytest_result.txt",
+        "project_state/rounds/round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1/round_manifest.json"
       ]
     },
     {
       "name": "generated_artifacts_cover_round_archive",
-      "status": "FAIL",
-      "detail": "generated_artifacts omits round archive files",
-      "missing_artifacts": [
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/round_manifest.json"
-      ]
+      "status": "PASS",
+      "detail": "generated_artifacts covers round archive files",
+      "missing_artifacts": []
     },
     {
       "name": "command_plan_present",
@@ -104,8 +97,8 @@
       "status": "FAIL",
       "detail": "command_plan ids, round_id, or status do not match",
       "plan_status": "WARN",
-      "command_plan_decision_id": "decision_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1",
-      "command_plan_round_id": "round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1"
+      "command_plan_decision_id": "decision_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
+      "command_plan_round_id": "round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -113,18 +106,35 @@
       "detail": "command_plan commands do not cover report or pytest_result tests",
       "missing_report_tests": [
         "powershell ida sidecar cleanup check",
-        "python -c artifact field validation"
-      ],
-      "missing_pytest_result_tests": [
-        "powershell -NoProfile -Command { $x = Get-ChildItem -Path project_state -Recurse -Include '*.i64','*.id0','*.id1','*.nam','*.til' -ErrorAction SilentlyContinue; if ($x.Count -gt 0) { $x.FullName; exit 1 } else { Write-Host 'no ida db sidecars' } }",
+        "python -c triage artifact field validation",
         "python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q --ignore=.git_old2 --ignore=.git_corrupt_v2 --ignore=.git_corrupt --ignore=.git_bak --ignore=.git"
-      ]
+      ],
+      "missing_pytest_result_tests": []
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
       "status": "FAIL",
       "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
       "errors": [
+        {
+          "command": "git status --short",
+          "error": "missing recorded command block",
+          "expected_count": 2,
+          "recorded_count": 1
+        },
+        {
+          "command": "git diff --name-only",
+          "error": "missing recorded command block",
+          "expected_count": 2,
+          "recorded_count": 1
+        },
+        {
+          "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        },
         {
           "command": "powershell -NoProfile -Command \"$x=Get-ChildItem -Path project_state -Recurse -Include *.i64,*.id0,*.id1,*.nam,*.til -ErrorAction SilentlyContinue; if ($x) { $x.FullName; exit 1 } else { 'no ida db sidecars' }\"",
           "error": "missing recorded command block",
@@ -190,19 +200,14 @@
     },
     {
       "name": "command_plan_json_stdout_full",
-      "status": "FAIL",
-      "detail": "command-plan --json recorded stdout is missing a full commands array",
-      "errors": [
-        {
-          "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-          "error": "stdout is not JSON: Expecting value"
-        }
-      ]
+      "status": "PASS",
+      "detail": "command-plan --json recorded stdout contains full commands array",
+      "errors": []
     },
     {
       "name": "command_plan_generated_artifact_recorded",
-      "status": "FAIL",
-      "detail": "report generated_artifacts omits command_plan.json",
+      "status": "PASS",
+      "detail": "report generated_artifacts includes command_plan.json",
       "path": "project_state/gates/command_plan.json"
     },
     {
@@ -226,13 +231,11 @@
     }
   ],
   "blocking_reasons": [
-    "files_changed_covers_git_diff: files_changed omits git status files",
-    "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
     "command_plan_ids_match: command_plan ids, round_id, or status do not match",
     "command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests",
     "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
-    "command_plan_json_stdout_full: command-plan --json recorded stdout is missing a full commands array",
-    "command_plan_generated_artifact_recorded: report generated_artifacts omits command_plan.json",
     "status_policy_valid: status policy found blocking issues"
   ],
   "warnings": [
