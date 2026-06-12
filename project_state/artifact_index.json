@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-10T13:17:08Z",
+  "generated_at": "2026-06-12T07:13:33Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": "solve_reports\\harness_runs\\samplereverse_pre_compare_handoff_target_20260512\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_breakpoint_probe\\base64_rc4_breakpoint_probe.json",
     "base64_rc4_static_point_discovery": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\base64_rc4_static_point_discovery\\base64_rc4_static_point_discovery.json",
@@ -52,7 +52,8 @@
     "strata_summary": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\samplereverse_compare_aware_strata_summary.json",
     "summary": "solve_reports\\harness_runs\\sr_arg0_hook_readiness_ordering_20260526_r1\\summary.json",
     "transform_trace_consistency": "solve_reports\\harness_runs\\sr_mhrv_20260512_r7\\reports\\tool_artifacts\\samplereverse_patched\\transform_trace_consistency\\transform_trace_consistency.json",
-    "local_reverse_affine_8cfebe03_static_triage": "project_state\\local_reverse_affine_8cfebe03_static_triage.json"
+    "local_reverse_affine_8cfebe03_static_triage": "project_state\\local_reverse_affine_8cfebe03_static_triage.json",
+    "local_reverse_cpp1_2f6fcb63_static_triage": "project_state\\local_reverse_cpp1_2f6fcb63_static_triage.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -526,6 +527,19 @@
       "artifact_status": "tool_blocked",
       "tool_status": "blocked",
       "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+    },
+    "local_reverse_cpp1_2f6fcb63_static_triage": {
+      "freshness": "current",
+      "kind": "local_reverse_single_sample_static_triage",
+      "modified_at": "2026-06-12T07:13:33Z",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "sha256": "983af683a70517761dcbf02e4d39d3f625a993103ed186d103eaeb7740210da4",
+      "size_bytes": 1062,
+      "source_run": "project_state",
+      "sample_id": "cpp1_2f6fcb63",
+      "artifact_status": "tool_blocked",
+      "tool_status": "blocked",
+      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
     }
   },
   "latest_case_results": [],
@@ -535,6 +549,12 @@
     "case_results"
   ],
   "recent_artifacts": [
+    {
+      "kind": "local_reverse_single_sample_static_triage",
+      "modified_at": "2026-06-12T07:13:33Z",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "size_bytes": 1062
+    },
     {
       "kind": "compare_handoff_narrower_post_entry_breakpoint_audit",
       "modified_at": "2026-06-02T05:39:38Z",
