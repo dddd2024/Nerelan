@@ -32,9 +32,13 @@ PREFLIGHT_GATE_NAME = "preflight"
 PREFLIGHT_RESULT_NAME = "preflight_result.json"
 COMMAND_PLAN_NAME = "command-plan"
 COMMAND_PLAN_RESULT_NAME = "command_plan.json"
+ROUND_BASELINE_RESULT_NAME = "round_baseline.json"
+ROUND_DELTA_SUMMARY_NAME = "round_delta_summary.json"
 SELF_OUTPUT_PATH = f"project_state/gates/{FINAL_GATE_RESULT_NAME}"
 PREFLIGHT_OUTPUT_PATH = f"project_state/gates/{PREFLIGHT_RESULT_NAME}"
 COMMAND_PLAN_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_RESULT_NAME}"
+ROUND_BASELINE_OUTPUT_PATH = f"project_state/gates/{ROUND_BASELINE_RESULT_NAME}"
+ROUND_DELTA_OUTPUT_PATH = f"project_state/gates/{ROUND_DELTA_SUMMARY_NAME}"
 CLOSE_ROUND_NAME = "close-round"
 
 ARCHIVE_PENDING_CHECKS = {
@@ -332,6 +336,245 @@ def _git_changed_files(repo_root: Path) -> list[str]:
         if normalized and normalized != SELF_OUTPUT_PATH:
             files.append(normalized)
     return sorted(set(files))
+
+
+def _git_status_short_lines(repo_root: Path) -> list[str]:
+    try:
+        proc = subprocess.run(
+            ["git", "status", "--short", "--untracked-files=all"],
+            cwd=repo_root,
+            shell=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if proc.returncode != 0:
+        return []
+    return [line.rstrip() for line in proc.stdout.splitlines() if line.strip()]
+
+
+def _git_diff_name_only(repo_root: Path) -> list[str]:
+    try:
+        proc = subprocess.run(
+            ["git", "diff", "--name-only"],
+            cwd=repo_root,
+            shell=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+    if proc.returncode != 0:
+        return []
+    return sorted({_norm_path(line) for line in proc.stdout.splitlines() if _norm_path(line)})
+
+
+def _git_head_commit(repo_root: Path) -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--short=12", "HEAD"],
+            cwd=repo_root,
+            shell=False,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return (proc.stdout or "").strip()
+
+
+def _round_baseline_path(state_dir: Path) -> Path:
+    return state_dir / "gates" / ROUND_BASELINE_RESULT_NAME
+
+
+def _round_delta_summary_path(state_dir: Path) -> Path:
+    return state_dir / "gates" / ROUND_DELTA_SUMMARY_NAME
+
+
+def _baseline_matches_round(payload: dict[str, Any], decision_id: str, round_id: str) -> bool:
+    return (
+        bool(payload)
+        and str(payload.get("decision_id") or "") == decision_id
+        and str(payload.get("round_id") or "") == round_id
+    )
+
+
+def _capture_round_baseline(
+    *,
+    state_dir: Path,
+    repo_root: Path,
+    decision_id: str,
+    round_id: str,
+    write_result: bool,
+) -> dict[str, Any]:
+    baseline_path = _round_baseline_path(state_dir)
+    existing = _read_json(baseline_path)
+    if _baseline_matches_round(existing, decision_id, round_id):
+        return existing
+
+    baseline = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": ROUND_BASELINE_RESULT_NAME,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "head_commit": _git_head_commit(repo_root),
+        "baseline_git_status_short": _git_status_short_lines(repo_root),
+        "baseline_git_diff_name_only": _git_diff_name_only(repo_root),
+        "baseline_dirty_files": _git_changed_files(repo_root),
+        "generated_at": _now_iso(),
+    }
+    if write_result:
+        baseline_path.parent.mkdir(parents=True, exist_ok=True)
+        baseline_path.write_text(
+            json.dumps(baseline, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return baseline
+
+
+def _build_round_delta_summary(
+    *,
+    state_dir: Path,
+    repo_root: Path,
+    decision_id: str,
+    round_id: str,
+    write_result: bool,
+) -> dict[str, Any]:
+    baseline = _read_json(_round_baseline_path(state_dir))
+    baseline_available = _baseline_matches_round(baseline, decision_id, round_id)
+    baseline_dirty_files = _string_set(baseline.get("baseline_dirty_files")) if baseline_available else set()
+    final_dirty_files = set(_git_changed_files(repo_root))
+    if write_result:
+        final_dirty_files.add(SELF_OUTPUT_PATH)
+        final_dirty_files.add(ROUND_DELTA_OUTPUT_PATH)
+
+    inherited_dirty_files = final_dirty_files & baseline_dirty_files if baseline_available else set()
+    new_dirty_files = final_dirty_files - baseline_dirty_files if baseline_available else final_dirty_files
+    resolved_dirty_files = baseline_dirty_files - final_dirty_files if baseline_available else set()
+
+    summary = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": ROUND_DELTA_SUMMARY_NAME,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "head_commit": _git_head_commit(repo_root),
+        "baseline_available": baseline_available,
+        "baseline_git_status_short": baseline.get("baseline_git_status_short") if baseline_available else [],
+        "baseline_git_diff_name_only": baseline.get("baseline_git_diff_name_only") if baseline_available else [],
+        "baseline_dirty_files": sorted(baseline_dirty_files),
+        "final_git_status_short": _git_status_short_lines(repo_root),
+        "final_git_diff_name_only": _git_diff_name_only(repo_root),
+        "final_dirty_files": sorted(final_dirty_files),
+        "new_dirty_files_since_baseline": sorted(new_dirty_files),
+        "inherited_dirty_files": sorted(inherited_dirty_files),
+        "baseline_dirty_files_resolved": sorted(resolved_dirty_files),
+        "generated_at": _now_iso(),
+    }
+    if write_result:
+        summary_path = _round_delta_summary_path(state_dir)
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(summary, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return summary
+
+
+def _round_delta_checks(
+    *,
+    delta_summary: dict[str, Any],
+    files_changed: set[str],
+    generated_artifacts: set[str],
+    archive_paths: set[str],
+) -> list[dict[str, Any]]:
+    baseline_available = bool(delta_summary.get("baseline_available"))
+    final_dirty_files = _string_set(delta_summary.get("final_dirty_files"))
+    new_dirty_files = _string_set(delta_summary.get("new_dirty_files_since_baseline"))
+    inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
+    required_changed_files = (new_dirty_files if baseline_available else final_dirty_files) | archive_paths
+
+    checks: list[dict[str, Any]] = []
+    checks.append(
+        _check(
+            "round_delta_summary_present",
+            "PASS" if baseline_available else "WARN",
+            "round delta summary is baseline-aware"
+            if baseline_available
+            else "round baseline is missing; falling back to legacy git diff coverage",
+            path=ROUND_DELTA_OUTPUT_PATH,
+            baseline_available=baseline_available,
+            inherited_dirty_files=sorted(inherited_dirty_files),
+            new_dirty_files_since_baseline=sorted(new_dirty_files),
+            final_dirty_files=sorted(final_dirty_files),
+        )
+    )
+
+    inherited_claimed = sorted(inherited_dirty_files & files_changed) if baseline_available else []
+    if inherited_claimed:
+        checks.append(
+            _check(
+                "files_changed_excludes_inherited_dirty_files",
+                "FAIL",
+                "files_changed includes inherited baseline dirty files",
+                inherited_files_in_files_changed=inherited_claimed,
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "files_changed_excludes_inherited_dirty_files",
+                "PASS" if baseline_available else "WARN",
+                "files_changed excludes inherited baseline dirty files"
+                if baseline_available
+                else "no baseline summary is available for inherited dirty file classification",
+                inherited_dirty_files=sorted(inherited_dirty_files),
+            )
+        )
+
+    missing_diff_files = sorted(required_changed_files - files_changed)
+    checks.append(
+        _check(
+            "files_changed_covers_git_diff",
+            "PASS" if not missing_diff_files else "FAIL",
+            "files_changed covers round delta files"
+            if not missing_diff_files
+            else "files_changed omits round delta files",
+            missing_files=missing_diff_files,
+            git_changed_files=sorted(final_dirty_files),
+            required_round_delta_files=sorted(required_changed_files),
+            inherited_dirty_files=sorted(inherited_dirty_files),
+        )
+    )
+
+    required_delta_artifacts = {ROUND_DELTA_OUTPUT_PATH}
+    if baseline_available:
+        required_delta_artifacts.add(ROUND_BASELINE_OUTPUT_PATH)
+    missing_delta_artifacts = sorted(required_delta_artifacts - generated_artifacts)
+    checks.append(
+        _check(
+            "generated_artifacts_cover_round_delta",
+            "PASS" if not missing_delta_artifacts else "FAIL",
+            "generated_artifacts covers round baseline/delta artifacts"
+            if not missing_delta_artifacts
+            else "generated_artifacts omits round baseline/delta artifacts",
+            missing_artifacts=missing_delta_artifacts,
+        )
+    )
+    return checks
 
 
 def _check(name: str, status: str, detail: str, **extra: Any) -> dict[str, Any]:
@@ -721,10 +964,11 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
 
     manifest_present = bool(round_consistency.get("round_manifest_present"))
     manifest_files = list(round_consistency.get("round_manifest_files") or [])
+    archive_pending_status = "FAIL" if manifest_present else "WARN"
     checks.append(
         _check(
             "round_manifest_present",
-            "PASS" if manifest_present else "FAIL",
+            "PASS" if manifest_present else archive_pending_status,
             "round manifest is present" if manifest_present else "round manifest is missing",
             round_manifest_path=round_consistency.get("round_manifest_path") or "",
         )
@@ -734,7 +978,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
     checks.append(
         _check(
             "archived_report_matches_live_report",
-            "PASS" if archived_report_match is True else "FAIL",
+            "PASS" if archived_report_match is True else archive_pending_status,
             "archived report matches live report" if archived_report_match is True else "archived report differs from live report",
         )
     )
@@ -743,7 +987,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
     checks.append(
         _check(
             "archived_pytest_result_matches_live_pytest_result",
-            "PASS" if archived_pytest_match is True else "FAIL",
+            "PASS" if archived_pytest_match is True else archive_pending_status,
             (
                 "archived pytest_result matches live pytest_result"
                 if archived_pytest_match is True
@@ -752,21 +996,25 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         )
     )
 
-    changed_files = set(_git_changed_files(repo_root))
     files_changed = _string_set(report.get("files_changed"))
-    missing_diff_files = sorted(changed_files - files_changed)
-    checks.append(
-        _check(
-            "files_changed_covers_git_diff",
-            "PASS" if not missing_diff_files else "FAIL",
-            "files_changed covers git status files" if not missing_diff_files else "files_changed omits git status files",
-            missing_files=missing_diff_files,
-            git_changed_files=sorted(changed_files),
-        )
-    )
-
     archive_paths = _round_archive_paths(state_dir, round_id, manifest_files)
     generated_artifacts = _string_set(report.get("generated_artifacts"))
+    delta_summary = _build_round_delta_summary(
+        state_dir=state_dir,
+        repo_root=repo_root,
+        decision_id=decision_id,
+        round_id=round_id,
+        write_result=write_result,
+    )
+    changed_files = _string_set(delta_summary.get("final_dirty_files"))
+    checks.extend(
+        _round_delta_checks(
+            delta_summary=delta_summary,
+            files_changed=files_changed,
+            generated_artifacts=generated_artifacts,
+            archive_paths=archive_paths,
+        )
+    )
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
     checks.append(
         _check(
@@ -1122,7 +1370,6 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         )
     )
 
-    changed_files = set(_git_changed_files(repo_root))
     files_changed = _string_set(report.get("files_changed"))
     generated_artifacts = _string_set(report.get("generated_artifacts"))
     round_consistency = build_round_consistency(
@@ -1134,14 +1381,20 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     )
     manifest_files = list(round_consistency.get("round_manifest_files") or [])
     archive_paths = _round_archive_paths(state_dir, requested_round_id, manifest_files)
-    missing_diff_files = sorted(changed_files - files_changed)
-    checks.append(
-        _check(
-            "files_changed_covers_git_diff",
-            "PASS" if not missing_diff_files else "FAIL",
-            "files_changed covers git status files" if not missing_diff_files else "files_changed omits git status files",
-            missing_files=missing_diff_files,
-            git_changed_files=sorted(changed_files),
+    delta_summary = _build_round_delta_summary(
+        state_dir=state_dir,
+        repo_root=repo_root,
+        decision_id=decision_id,
+        round_id=requested_round_id,
+        write_result=True,
+    )
+    changed_files = _string_set(delta_summary.get("final_dirty_files"))
+    checks.extend(
+        _round_delta_checks(
+            delta_summary=delta_summary,
+            files_changed=files_changed,
+            generated_artifacts=generated_artifacts,
+            archive_paths=archive_paths,
         )
     )
 
@@ -1503,6 +1756,13 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
     mainline = str(decision.get("mainline") or "")
     decision_status = str(decision.get("status") or "UNKNOWN")
     checks: list[dict[str, Any]] = []
+    baseline = _capture_round_baseline(
+        state_dir=state_dir,
+        repo_root=repo_root,
+        decision_id=decision_id,
+        round_id=round_id,
+        write_result=write_result,
+    )
 
     parse_error = decision.get("parse_error")
     parse_ok = bool(decision_id and round_id and not parse_error and decision_status != "UNKNOWN")
@@ -1690,6 +1950,11 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
         "blocking_reasons": blocking_reasons,
         "warnings": warnings,
         "recommended_next_action": _preflight_recommended_next_action(gate_status),
+        "round_baseline": {
+            "path": ROUND_BASELINE_OUTPUT_PATH,
+            "baseline_dirty_files": baseline.get("baseline_dirty_files") or [],
+            "head_commit": baseline.get("head_commit") or "",
+        },
         "status_summary": {
             "decision_execution_state": status.get("decision_execution_state"),
             "decision_report_id_match": status.get("decision_report_id_match"),

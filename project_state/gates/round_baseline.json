@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "artifact_name": "round_baseline.json",
+  "decision_id": "decision_20260612_engineering_round_delta_scope_guard_v1",
+  "round_id": "round_20260612_engineering_round_delta_scope_guard_v1",
+  "head_commit": "f07d79f65f01",
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
+  "generated_at": "2026-06-12T07:35:00Z"
+}

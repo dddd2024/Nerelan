@@ -44,6 +44,29 @@ def _archive_paths(round_id: str) -> list[str]:
     ]
 
 
+def _write_round_baseline(
+    state_dir: Path,
+    *,
+    decision_id: str,
+    round_id: str,
+    baseline_dirty_files: list[str] | None = None,
+) -> None:
+    _write_json(
+        state_dir / "gates" / "round_baseline.json",
+        {
+            "schema_version": 1,
+            "artifact_name": "round_baseline.json",
+            "decision_id": decision_id,
+            "round_id": round_id,
+            "head_commit": "commit_test",
+            "baseline_git_status_short": [],
+            "baseline_git_diff_name_only": [],
+            "baseline_dirty_files": baseline_dirty_files if baseline_dirty_files is not None else [],
+            "generated_at": "2026-06-12T00:00:00Z",
+        },
+    )
+
+
 def _write_decision(
     state_dir: Path,
     *,
@@ -324,11 +347,14 @@ def _make_gate_state(
         "tests/test_project_gate.py",
         "project_state/codex_execution_report.md",
         "project_state/pytest_result.txt",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
         "project_state/gates/final_gate_result.json",
         *archive_paths,
     ]
     report_tests = tests_ran if tests_ran is not None else ["python -m pytest -q"]
     _write_decision(state_dir, decision_id=decision_id, round_id=round_id, mainline=mainline)
+    _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
     _write_report(
         state_dir,
         decision_id=decision_id,
@@ -340,7 +366,12 @@ def _make_gate_state(
         tests_ran=report_tests,
         generated_artifacts=generated_artifacts
         if generated_artifacts is not None
-        else ["project_state/gates/final_gate_result.json", *archive_paths],
+        else [
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/final_gate_result.json",
+            *archive_paths,
+        ],
     )
     _write_pytest(
         state_dir,
@@ -439,6 +470,7 @@ def _make_command_plan_gate_state(
     archive_paths = _archive_paths(round_id)
     tests = report_tests if report_tests is not None else commands
     _write_decision(state_dir, decision_id=decision_id, round_id=round_id)
+    _write_round_baseline(state_dir, decision_id=decision_id, round_id=round_id)
     _write_report(
         state_dir,
         decision_id=decision_id,
@@ -451,6 +483,8 @@ def _make_command_plan_gate_state(
             "tests/test_project_gate.py",
             "project_state/codex_execution_report.md",
             "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
             "project_state/gates/command_plan.json",
             "project_state/gates/final_gate_result.json",
             *archive_paths,
@@ -458,7 +492,13 @@ def _make_command_plan_gate_state(
         tests_ran=tests,
         generated_artifacts=generated_artifacts
         if generated_artifacts is not None
-        else ["project_state/gates/command_plan.json", "project_state/gates/final_gate_result.json", *archive_paths],
+        else [
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            *archive_paths,
+        ],
     )
     _write_json(state_dir / "gates" / "command_plan.json", plan_payload)
     body = pytest_body
@@ -493,6 +533,8 @@ def _clean_git_diff(monkeypatch: pytest.MonkeyPatch) -> None:
             "tests/test_project_gate.py",
             "project_state/codex_execution_report.md",
             "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
             "project_state/rounds/round_gate/codex_execution_report.md",
             "project_state/rounds/round_gate/decision_packet.md",
             "project_state/rounds/round_gate/pytest_result.txt",
@@ -513,6 +555,8 @@ def test_final_check_passes_successful_consistent_round(tmp_path: Path) -> None:
     assert result["gate_status"] == "PASSED"
     assert result["blocking_reasons"] == []
     assert (state_dir / "gates" / "final_gate_result.json").exists()
+    assert (state_dir / "gates" / "round_delta_summary.json").exists()
+    assert _check(result, "round_delta_summary_present")["status"] == "PASS"
 
 
 def test_final_check_passes_engineering_success_with_legacy_sample_artifacts(tmp_path: Path) -> None:
@@ -612,6 +656,53 @@ def test_final_check_fails_when_generated_artifacts_omit_archive_files(tmp_path:
     artifact_check = _check(result, "generated_artifacts_cover_round_archive")
     assert artifact_check["status"] == "FAIL"
     assert "project_state/rounds/round_gate/codex_execution_report.md" in artifact_check["missing_artifacts"]
+
+
+def test_final_check_warns_without_round_baseline_for_legacy_round(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    (state_dir / "gates" / "round_baseline.json").unlink()
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "WARN"
+    delta_check = _check(result, "round_delta_summary_present")
+    assert delta_check["status"] == "WARN"
+    assert "falling back to legacy" in delta_check["detail"]
+
+
+def test_final_check_fails_when_files_changed_claims_inherited_dirty_file(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _write_round_baseline(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        baseline_dirty_files=["reverse_agent/project_gate.py"],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    inherited_check = _check(result, "files_changed_excludes_inherited_dirty_files")
+    assert inherited_check["status"] == "FAIL"
+    assert "reverse_agent/project_gate.py" in inherited_check["inherited_files_in_files_changed"]
+
+
+def test_final_check_fails_when_generated_artifacts_omit_round_delta_files(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(
+        tmp_path,
+        generated_artifacts=[
+            "project_state/gates/final_gate_result.json",
+            *_archive_paths("round_gate"),
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    delta_artifacts = _check(result, "generated_artifacts_cover_round_delta")
+    assert delta_artifacts["status"] == "FAIL"
+    assert "project_state/gates/round_baseline.json" in delta_artifacts["missing_artifacts"]
+    assert "project_state/gates/round_delta_summary.json" in delta_artifacts["missing_artifacts"]
 
 
 def test_final_check_fails_when_archived_report_differs_from_live_report(tmp_path: Path) -> None:
@@ -832,11 +923,7 @@ def test_close_round_archives_unarchived_consistent_round(tmp_path: Path) -> Non
     }
     assert _check(result, "requested_round_id_match")["status"] == "PASS"
     assert result["actions"][0]["name"] == "final_check_before_archive"
-    assert set(result["actions"][0]["allowed_archive_pending_failures"]) == {
-        "round_manifest_present",
-        "archived_report_matches_live_report",
-        "archived_pytest_result_matches_live_pytest_result",
-    }
+    assert result["actions"][0]["allowed_archive_pending_failures"] == []
     assert result["actions"][1]["name"] == "archive_round"
     assert result["actions"][1]["status"] == "created"
     assert result["actions"][2]["name"] == "final_check_after_archive"
@@ -859,11 +946,7 @@ def test_close_round_allows_engineering_success_legacy_artifacts_until_archive(t
     result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
 
     assert result["close_status"] == "CLOSED"
-    assert set(result["actions"][0]["allowed_archive_pending_failures"]) == {
-        "round_manifest_present",
-        "archived_report_matches_live_report",
-        "archived_pytest_result_matches_live_pytest_result",
-    }
+    assert result["actions"][0]["allowed_archive_pending_failures"] == []
     assert result["actions"][0]["unexpected_failures"] == []
     assert result["actions"][2]["status"] == "PASSED"
     assert result["actions"][2]["gate_status"] == "PASSED"
@@ -894,7 +977,7 @@ def test_close_round_closes_consistent_partial_report(tmp_path: Path) -> None:
 
     assert result["close_status"] == "CLOSED"
     assert result["actions"][0]["status"] == "PASSED"
-    assert result["actions"][0]["gate_status"] == "FAILED"
+    assert result["actions"][0]["gate_status"] == "WARN"
     assert result["actions"][0]["unexpected_failures"] == []
     assert result["actions"][1]["status"] == "created"
     assert result["actions"][2]["status"] == "PASSED"
@@ -914,7 +997,7 @@ def test_close_round_closes_consistent_blocked_report(tmp_path: Path) -> None:
 
     assert result["close_status"] == "CLOSED"
     assert result["actions"][0]["status"] == "PASSED"
-    assert result["actions"][0]["gate_status"] == "FAILED"
+    assert result["actions"][0]["gate_status"] == "BLOCKED"
     assert result["actions"][0]["unexpected_failures"] == []
     assert result["actions"][1]["status"] == "created"
     assert result["actions"][2]["status"] == "PASSED"
@@ -1099,6 +1182,11 @@ def test_preflight_passes_current_engineering_decision(tmp_path: Path) -> None:
     assert result["gate_status"] == "PASSED"
     assert result["blocking_reasons"] == []
     assert (state_dir / "gates" / "preflight_result.json").exists()
+    baseline_path = state_dir / "gates" / "round_baseline.json"
+    assert baseline_path.exists()
+    baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+    assert baseline["decision_id"] == "decision_preflight"
+    assert baseline["round_id"] == "round_preflight"
 
 
 def test_preflight_fails_when_decision_meta_missing(tmp_path: Path) -> None:
