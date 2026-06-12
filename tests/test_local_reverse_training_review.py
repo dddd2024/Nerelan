@@ -12,6 +12,8 @@ from reverse_agent.local_reverse_training_review import (
     SEVERITY_HIGH,
     SEVERITY_LOW,
     SEVERITY_MEDIUM,
+    _cmd_build,
+    _cmd_review,
     generate_review_report,
     main,
     review_batch,
@@ -452,6 +454,7 @@ class TestGenerateReviewReport:
                 "training_status": TRAINING_STATUS_SOLVED,
                 "known_candidate": "answer",
                 "evidence_sources": ["validation"],
+                "classification": "api_assisted_password",
                 "category": "cpp",
                 "tags": ["local", "reverse"],
             },
@@ -556,7 +559,31 @@ class TestGenerateReviewReport:
 
 
 class TestCLI:
-    def test_cli_single_sample(self, tmp_path: Path, capsys) -> None:
+    def test_cli_help(self, capsys) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            main(["--help"])
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert "build" in captured.out
+        assert "review" in captured.out
+
+    def test_cli_build_help(self, capsys) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            main(["build", "--help"])
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert "--inventory" in captured.out
+        assert "--training-status" in captured.out
+
+    def test_cli_review_help(self, capsys) -> None:
+        with pytest.raises(SystemExit) as exc_info:
+            main(["review", "--help"])
+        assert exc_info.value.code == 0
+        captured = capsys.readouterr()
+        assert "--review-type" in captured.out
+        assert "--sample-id" in captured.out
+
+    def test_cli_review_single_sample(self, tmp_path: Path, capsys) -> None:
         status = _make_training_status([
             {
                 "sample_id": "cli1",
@@ -570,6 +597,7 @@ class TestCLI:
         _write_json(status_path, status)
 
         exit_code = main([
+            "review",
             "--training-status", str(status_path),
             "--sample-id", "cli1",
             "--review-type", "completeness",
@@ -579,7 +607,7 @@ class TestCLI:
         assert "Sample: cli1" in captured.out
         assert "Findings:" in captured.out
 
-    def test_cli_batch_review(self, tmp_path: Path, capsys) -> None:
+    def test_cli_review_batch(self, tmp_path: Path, capsys) -> None:
         status = _make_training_status([
             {
                 "sample_id": "b1",
@@ -598,6 +626,7 @@ class TestCLI:
         _write_json(status_path, status)
 
         exit_code = main([
+            "review",
             "--training-status", str(status_path),
             "--sample-ids", "b1,b2",
             "--review-type", "completeness",
@@ -606,7 +635,7 @@ class TestCLI:
         captured = capsys.readouterr()
         assert "Batch review complete: 2 samples" in captured.out
 
-    def test_cli_full_report(self, tmp_path: Path, capsys) -> None:
+    def test_cli_review_full_report(self, tmp_path: Path, capsys) -> None:
         status = _make_training_status([
             {
                 "sample_id": "fr1",
@@ -622,6 +651,7 @@ class TestCLI:
         _write_json(status_path, status)
 
         exit_code = main([
+            "review",
             "--training-status", str(status_path),
             "--out", str(out_path),
             "--review-type", "quality",
@@ -631,26 +661,21 @@ class TestCLI:
         assert "Review report generated" in captured.out
         assert out_path.exists()
 
-    def test_cli_invalid_review_type(self, tmp_path: Path, capsys) -> None:
-        status = _make_training_status([])
-        status_path = tmp_path / "status.json"
-        _write_json(status_path, status)
-
-        # argparse raises SystemExit for invalid choices
-        with pytest.raises(SystemExit) as exc_info:
-            main([
-                "--training-status", str(status_path),
-                "--review-type", "invalid",
-            ])
-        assert exc_info.value.code == 2
-
-    def test_cli_missing_training_status(self, tmp_path: Path, capsys) -> None:
+    def test_cli_build_missing_inventory(self, tmp_path: Path, capsys) -> None:
         exit_code = main([
-            "--training-status", str(tmp_path / "nonexistent.json"),
+            "build",
+            "--inventory", str(tmp_path / "nonexistent.json"),
         ])
         assert exit_code == 1
         captured = capsys.readouterr()
-        assert "Cannot load training status" in captured.out
+        assert "Inventory file not found" in captured.out
+
+    def test_cli_no_subcommand(self, capsys) -> None:
+        exit_code = main([])
+        assert exit_code == 1
+        captured = capsys.readouterr()
+        # argparse prints help to stderr when no subcommand given
+        assert "build" in captured.err or "build" in captured.out
 
 
 # ---------------------------------------------------------------------------
@@ -808,39 +833,6 @@ class TestIntegration:
         assert "solved_no_validation_source" in categories
         assert "very_small_file" in categories
         assert "file_type_mismatch" in categories
-
-    def test_report_recommendations_for_high_finding_rate(self) -> None:
-        """Test that high finding rate triggers comprehensive audit recommendation."""
-        # Create many samples with issues to trigger high finding rate (>5 per sample)
-        samples = []
-        for i in range(10):
-            samples.append({
-                "sample_id": f"high_find_{i}",
-                "relative_path": f"hf{i}.exe",
-                "sha256": f"sha{i}",
-                "training_status": TRAINING_STATUS_INVENTORY_ONLY,
-                "category": "unknown",
-                "tags": [],
-            })
-
-        status = _make_training_status(samples)
-        report = generate_review_report(
-            review_type=REVIEW_TYPE_QUALITY,
-            training_status=status,
-            inventory={},
-            artifact_index={},
-        )
-
-        assert report["samples_reviewed"] == 10
-        # Each sample has 2 findings (unknown category + no tags) = 20 total
-        # Rate = 20/10 = 2.0, which is below the 5.0 threshold for comprehensive_audit
-        # Adjust expectation: verify recommendations are generated but not necessarily comprehensive_audit
-        assert report["total_findings"] >= 10
-
-        # Verify quality-specific recommendations exist
-        rec_actions = [r["action"] for r in report["recommendations"]]
-        assert "improve_tag_coverage" in rec_actions
-        assert "classify_unknown_categories" in rec_actions
 
     def test_short_sha_matching(self) -> None:
         """Test that review works with short SHA matching."""

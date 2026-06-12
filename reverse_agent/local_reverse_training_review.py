@@ -57,23 +57,55 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
     args = parser.parse_args(sys.argv[1:] if argv is None else argv)
 
+    if args.subcommand == "build":
+        return _cmd_build(args)
+    elif args.subcommand == "review":
+        return _cmd_review(args)
+    else:
+        parser.print_help()
+        return 1
+
+
+def _cmd_build(args: argparse.Namespace) -> int:
+    """Handle the 'build' subcommand: refresh training status and generate queue."""
+    inventory_path = Path(args.inventory)
+    if not inventory_path.exists():
+        print(f"[build] Error: Inventory file not found: {inventory_path}")
+        return 1
+
+    print("[build] Building training status...")
+    build_training_status(
+        inventory_path=inventory_path,
+        validated_path=Path(args.validated) if args.validated else None,
+        constraint_path=Path(args.constraint_recovery) if args.constraint_recovery else None,
+        solver_result_path=Path(args.solver_result) if args.solver_result else None,
+        artifact_index_path=Path(args.artifact_index) if args.artifact_index else None,
+        out_path=Path(args.training_status),
+        queue_out_path=Path(args.queue_out) if args.queue_out else None,
+    )
+
+    # Verify output was created
+    if not Path(args.training_status).exists():
+        print(f"[build] Error: Failed to create training status: {args.training_status}")
+        return 1
+
+    print(f"[build] Training status written: {args.training_status}")
+
+    if args.queue_out:
+        if Path(args.queue_out).exists():
+            print(f"[build] Queue written: {args.queue_out}")
+        else:
+            print(f"[build] Warning: Queue file not created: {args.queue_out}")
+
+    return 0
+
+
+def _cmd_review(args: argparse.Namespace) -> int:
+    """Handle the 'review' subcommand: perform sample review."""
     review_type = args.review_type
     if review_type not in VALID_REVIEW_TYPES:
         print(f"[review] Error: Invalid review type '{review_type}'. Valid types: {VALID_REVIEW_TYPES}")
         return 1
-
-    # Build fresh training status if requested
-    if args.refresh_status:
-        print("[review] Refreshing training status...")
-        build_training_status(
-            inventory_path=Path(args.inventory),
-            validated_path=Path(args.validated),
-            constraint_path=Path(args.constraint_recovery),
-            solver_result_path=Path(args.solver_result),
-            artifact_index_path=Path(args.artifact_index),
-            out_path=Path(args.training_status),
-            queue_out_path=Path(args.queue_out) if args.queue_out else None,
-        )
 
     # Load training status
     training_status = _load_json(Path(args.training_status), "training_status")
@@ -592,69 +624,93 @@ def _now_iso() -> str:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    """Build argument parser for CLI."""
+    """Build argument parser for CLI with subcommands."""
     parser = argparse.ArgumentParser(
         description="Review local reverse engineering training samples for completeness or quality."
     )
-    parser.add_argument(
+    subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
+
+    # ---- build subcommand ----
+    build_parser = subparsers.add_parser(
+        "build",
+        help="Build training status from inventory and optional solver/validation inputs.",
+    )
+    build_parser.add_argument(
+        "--inventory",
+        default=str(DEFAULT_INVENTORY),
+        help="Path to local_reverse_inventory.json",
+    )
+    build_parser.add_argument(
+        "--validated",
+        default="project_state/local_reverse_validated_candidate_handoff.json",
+        help="Path to validated candidate handoff",
+    )
+    build_parser.add_argument(
+        "--constraint-recovery",
+        default="project_state/local_reverse_constraint_recovery_result.json",
+        help="Path to constraint recovery result",
+    )
+    build_parser.add_argument(
+        "--solver-result",
+        default="project_state/local_reverse_ida_solver_result.json",
+        help="Path to solver result",
+    )
+    build_parser.add_argument(
+        "--artifact-index",
+        default=str(DEFAULT_ARTIFACT_INDEX),
+        help="Path to artifact_index.json",
+    )
+    build_parser.add_argument(
+        "--training-status",
+        default=str(DEFAULT_TRAINING_STATUS),
+        help="Path for training status output",
+    )
+    build_parser.add_argument(
+        "--queue-out",
+        default="",
+        help="Path for evaluation queue output",
+    )
+
+    # ---- review subcommand ----
+    review_parser = subparsers.add_parser(
+        "review",
+        help="Review samples for completeness or quality.",
+    )
+    review_parser.add_argument(
         "--review-type",
         choices=list(VALID_REVIEW_TYPES),
         default=REVIEW_TYPE_COMPLETENESS,
         help="Type of review to perform",
     )
-    parser.add_argument(
+    review_parser.add_argument(
         "--sample-id",
         help="Review a specific sample by ID",
     )
-    parser.add_argument(
+    review_parser.add_argument(
         "--sample-ids",
         help="Comma-separated list of sample IDs for batch review",
     )
-    parser.add_argument(
+    review_parser.add_argument(
         "--training-status",
         default=str(DEFAULT_TRAINING_STATUS),
         help="Path to local_reverse_training_status.json",
     )
-    parser.add_argument(
+    review_parser.add_argument(
         "--inventory",
         default=str(DEFAULT_INVENTORY),
         help="Path to local_reverse_inventory.json",
     )
-    parser.add_argument(
+    review_parser.add_argument(
         "--artifact-index",
         default=str(DEFAULT_ARTIFACT_INDEX),
         help="Path to artifact_index.json",
     )
-    parser.add_argument(
+    review_parser.add_argument(
         "--out",
         default=str(DEFAULT_OUT),
         help="Path for review report output",
     )
-    parser.add_argument(
-        "--refresh-status",
-        action="store_true",
-        help="Refresh training status before review",
-    )
-    parser.add_argument(
-        "--validated",
-        default="project_state/local_reverse_validated_candidate_handoff.json",
-        help="Path to validated candidate handoff (for --refresh-status)",
-    )
-    parser.add_argument(
-        "--constraint-recovery",
-        default="project_state/local_reverse_constraint_recovery_result.json",
-        help="Path to constraint recovery result (for --refresh-status)",
-    )
-    parser.add_argument(
-        "--solver-result",
-        default="project_state/local_reverse_ida_solver_result.json",
-        help="Path to solver result (for --refresh-status)",
-    )
-    parser.add_argument(
-        "--queue-out",
-        default="",
-        help="Path for evaluation queue output (for --refresh-status)",
-    )
+
     return parser
 
 

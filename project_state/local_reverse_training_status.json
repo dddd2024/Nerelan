@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-11T12:22:29Z",
+  "generated_at": "2026-06-12T10:36:08Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 50,
   "status_summary": {
     "solved": 1,
     "blocked": 2,
-    "needs_triage": 1,
-    "inventory_only": 46
+    "needs_triage": 2,
+    "inventory_only": 45
   },
   "samples": [
     {
@@ -112,26 +112,6 @@
       "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
     },
     {
-      "sample_id": "byte_shift_transform_solver_3718a6fa",
-      "relative_path": "逆向课程2021春02/byte_shift_transform_solver.py",
-      "sha256": "3718a6fa2242133d865f118ab53f4677c60faadf80562307d49498a0825a038b",
-      "size_bytes": 12189,
-      "extension": ".py",
-      "guessed_file_type": "python",
-      "category": "unknown",
-      "tags": [
-        "local",
-        "reverse",
-        "python"
-      ],
-      "training_status": "inventory_only",
-      "known_candidate": "",
-      "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
-    },
-    {
       "sample_id": "cpp1_2f6fcb63",
       "relative_path": "逆向课程2023春01/CPP1.exe",
       "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
@@ -144,6 +124,31 @@
         "reverse",
         "cpp",
         "pe"
+      ],
+      "training_status": "needs_triage",
+      "known_candidate": "",
+      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+      "classification": "single_sample_static_triage",
+      "evidence_sources": [
+        "source:local_reverse_cpp1_2f6fcb63_static_triage.json",
+        "static_tool_blocked",
+        "tool_status:blocked",
+        "source_tool:IDA"
+      ],
+      "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+    },
+    {
+      "sample_id": "byte_shift_transform_solver_3718a6fa",
+      "relative_path": "逆向课程2021春02/byte_shift_transform_solver.py",
+      "sha256": "3718a6fa2242133d865f118ab53f4677c60faadf80562307d49498a0825a038b",
+      "size_bytes": 12189,
+      "extension": ".py",
+      "guessed_file_type": "python",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "python"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",
