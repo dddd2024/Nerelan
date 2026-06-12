@@ -88,6 +88,9 @@ COMMAND_PLAN_KINDS = {
     "pytest",
     "git status",
     "git rev-parse",
+    "git diff",
+    "python-inline",
+    "powershell",
     "test-path",
     "pwd",
 }
@@ -278,6 +281,22 @@ def _matched_non_negated_terms(text: str, terms: tuple[str, ...]) -> list[str]:
             if term in line:
                 matches.add(term)
     return sorted(matches)
+
+
+def _scope_path_has_runtime_token(path: str) -> bool:
+    runtime_tokens = {"solver", "runtime", "probe", "ida", "ghidra", "olly"}
+    chunks: list[str] = []
+    current = []
+    for char in path.lower().replace("\\", "/"):
+        if char.isalnum():
+            current.append(char)
+            continue
+        if current:
+            chunks.append("".join(current))
+            current = []
+    if current:
+        chunks.append("".join(current))
+    return any(chunk in runtime_tokens for chunk in chunks)
 
 
 def _git_changed_files(repo_root: Path) -> list[str]:
@@ -1261,8 +1280,14 @@ def _command_kind(command: str) -> str:
         return "git status"
     if lowered.startswith("git rev-parse") or " git rev-parse" in lowered:
         return "git rev-parse"
+    if lowered.startswith("git diff") or " git diff" in lowered:
+        return "git diff"
+    if "python -c" in lowered:
+        return "python-inline"
     if "test-path" in lowered:
         return "test-path"
+    if lowered.startswith("powershell ") or lowered == "powershell":
+        return "powershell"
     return "unknown"
 
 
@@ -1277,7 +1302,18 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "archive"
     if kind in {"final-check", "command-plan", "close-round"}:
         return "gate"
-    if kind in {"lint-report", "status", "doctor", "git status", "git rev-parse", "test-path", "pwd"}:
+    if kind in {
+        "lint-report",
+        "status",
+        "doctor",
+        "git status",
+        "git rev-parse",
+        "git diff",
+        "python-inline",
+        "powershell",
+        "test-path",
+        "pwd",
+    }:
         return "status"
     return "unknown"
 
@@ -1527,7 +1563,7 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
     sample_scope_paths = [
         path
         for path in sorted(allowed_paths)
-        if any(token in path for token in ("solver", "runtime", "probe", "ida", "ghidra", "olly"))
+        if _scope_path_has_runtime_token(path)
     ]
     engineering_scope_ok = not (mainline == "engineering_branch" and (sample_terms or sample_scope_paths))
     checks.append(

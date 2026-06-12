@@ -360,6 +360,8 @@ def _make_command_plan_gate_state(
     tmp_path: Path,
     *,
     command_plan_overrides: dict[str, object] | None = None,
+    status: str = "SUCCESS",
+    acceptance: str = "ACCEPTED",
     report_tests: list[str] | None = None,
     pytest_body: str | None = None,
     generated_artifacts: list[str] | None = None,
@@ -435,6 +437,8 @@ def _make_command_plan_gate_state(
         decision_id=decision_id,
         report_id=report_id,
         round_id=round_id,
+        status=status,
+        acceptance=acceptance,
         files_changed=[
             "reverse_agent/project_gate.py",
             "tests/test_project_gate.py",
@@ -591,6 +595,17 @@ def test_final_check_accepts_consistent_blocked_report_as_blocked(tmp_path: Path
     assert result["gate_status"] == "BLOCKED"
     assert result["blocking_reasons"] == []
     assert _check(result, "status_policy_valid")["status"] == "PASS"
+
+
+def test_final_check_warns_for_consistent_partial_report(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "WARN"
+    assert result["blocking_reasons"] == []
+    assert _check(result, "status_policy_valid")["status"] == "WARN"
+    assert not [check for check in result["checks"] if check["status"] == "FAIL"]
 
 
 def test_final_check_passes_command_plan_report_pytest_consistency(tmp_path: Path) -> None:
@@ -790,6 +805,46 @@ def test_close_round_is_idempotent_for_existing_matching_archive(tmp_path: Path)
     assert result["archive"]["copied"] == []
     archive_action = next(action for action in result["actions"] if action["name"] == "archive_round")
     assert archive_action["status"] == "no-op"
+
+
+def test_close_round_closes_consistent_partial_report(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        status="PARTIAL",
+        acceptance="NEEDS_REVIEW",
+        archived=False,
+    )
+
+    result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
+
+    assert result["close_status"] == "CLOSED"
+    assert result["actions"][0]["status"] == "PASSED"
+    assert result["actions"][0]["gate_status"] == "FAILED"
+    assert result["actions"][0]["unexpected_failures"] == []
+    assert result["actions"][1]["status"] == "created"
+    assert result["actions"][2]["status"] == "PASSED"
+    assert result["actions"][2]["gate_status"] == "WARN"
+    assert (state_dir / "rounds" / "round_gate" / "round_manifest.json").exists()
+
+
+def test_close_round_closes_consistent_blocked_report(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        status="BLOCKED",
+        acceptance="BLOCKED",
+        archived=False,
+    )
+
+    result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
+
+    assert result["close_status"] == "CLOSED"
+    assert result["actions"][0]["status"] == "PASSED"
+    assert result["actions"][0]["gate_status"] == "FAILED"
+    assert result["actions"][0]["unexpected_failures"] == []
+    assert result["actions"][1]["status"] == "created"
+    assert result["actions"][2]["status"] == "PASSED"
+    assert result["actions"][2]["gate_status"] == "BLOCKED"
+    assert (state_dir / "rounds" / "round_gate" / "round_manifest.json").exists()
 
 
 def test_close_round_fails_when_decision_is_not_approved(tmp_path: Path) -> None:
@@ -1054,6 +1109,27 @@ def test_preflight_fails_engineering_branch_sample_solver_scope(tmp_path: Path) 
     assert _check(result, "mainline_scope_policy")["status"] == "FAIL"
 
 
+def test_preflight_allows_engineering_branch_validation_paths(tmp_path: Path) -> None:
+    scope = """Allowed source files:
+
+- `reverse_agent/project_state.py` only if required to keep report schema/status validation consistent
+
+Allowed tests:
+
+- `tests/test_project_state.py` only if project_state schema validation is touched
+
+Allowed generated files:
+
+- `project_state/gates/preflight_result.json`
+"""
+    state_dir = _make_preflight_state(tmp_path, implementation_scope=scope)
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert _check(result, "mainline_scope_policy")["status"] == "PASS"
+
+
 def test_preflight_fails_reverse_mainline_without_tool_capability_audit(tmp_path: Path) -> None:
     state_dir = _make_preflight_state(
         tmp_path,
@@ -1278,3 +1354,21 @@ def test_command_plan_classifies_powershell_test_path_as_status(tmp_path: Path) 
     assert result["plan_status"] == "PASSED"
     assert result["commands"][0]["kind"] == "test-path"
     assert result["commands"][0]["phase"] == "status"
+
+
+def test_command_plan_classifies_common_audit_commands_as_status(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""git diff --name-only
+python -c "print('ok')"
+powershell -NoProfile -Command "$x = 1; 'ok'"
+""",
+    )
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert [command["kind"] for command in result["commands"]] == ["git diff", "python-inline", "powershell"]
+    assert [command["phase"] for command in result["commands"]] == ["status", "status", "status"]
+    assert result["blocking_reasons"] == []
+    assert result["warnings"] == []

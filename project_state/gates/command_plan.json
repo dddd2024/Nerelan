@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "plan_name": "command-plan",
-  "plan_status": "WARN",
-  "decision_id": "decision_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
-  "round_id": "round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
+  "plan_status": "PASSED",
+  "decision_id": "decision_20260612_engineering_gate_limited_closeout_contract_v1",
+  "round_id": "round_20260612_engineering_gate_limited_closeout_contract_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-12T07:39:57.302314Z",
+  "generated_at": "2026-06-12T08:23:16.535898Z",
   "commands": [
     {
       "index": 1,
@@ -57,18 +57,6 @@
     },
     {
       "index": 5,
-      "command": "git diff --name-only",
-      "phase": "unknown",
-      "kind": "unknown",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "unknown command kind; defaulting to zero exit"
-    },
-    {
-      "index": 6,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "phase": "preflight",
       "kind": "preflight",
@@ -80,32 +68,8 @@
       "notes": "preflight expected to exit 0"
     },
     {
-      "index": 7,
-      "command": "python -c \"import json, pathlib; p=pathlib.Path('project_state/local_reverse_cpp1_2f6fcb63_static_triage.json'); d=json.loads(p.read_text(encoding='utf-8')); assert d['sample_id']=='cpp1_2f6fcb63'; assert d['analysis_mode']=='single_sample_static_triage'; assert d['static_only'] is True; assert d['executed_sample'] is False; assert d['runtime_validated'] is False; assert d.get('candidate') in (None, ''); print('triage artifact ok:', d.get('tool_status'), d.get('blocked_reason',''))\"",
-      "phase": "unknown",
-      "kind": "unknown",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "unknown command kind; defaulting to zero exit"
-    },
-    {
-      "index": 8,
-      "command": "powershell -NoProfile -Command \"$x=Get-ChildItem -Path project_state -Recurse -Include *.i64,*.id0,*.id1,*.nam,*.til -ErrorAction SilentlyContinue; if ($x) { $x.FullName; exit 1 } else { 'no ida db sidecars' }\"",
-      "phase": "unknown",
-      "kind": "unknown",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "unknown command kind; defaulting to zero exit"
-    },
-    {
-      "index": 9,
-      "command": "python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py tests/test_project_gate.py tests/test_project_state.py -q",
+      "index": 6,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -116,7 +80,7 @@
       "notes": "pytest expected to exit 0"
     },
     {
-      "index": 10,
+      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "phase": "gate",
       "kind": "command-plan",
@@ -128,7 +92,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 11,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "phase": "gate",
       "kind": "command-plan",
@@ -140,7 +104,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 12,
+      "index": 9,
       "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "phase": "status",
       "kind": "lint-report",
@@ -152,7 +116,7 @@
       "notes": "lint-report expected to exit 0"
     },
     {
-      "index": 13,
+      "index": 10,
       "command": "python -m reverse_agent.project_state status --state-dir project_state",
       "phase": "status",
       "kind": "status",
@@ -164,7 +128,7 @@
       "notes": "status expected to exit 0"
     },
     {
-      "index": 14,
+      "index": 11,
       "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
       "phase": "status",
       "kind": "doctor",
@@ -176,7 +140,7 @@
       "notes": "doctor expected to exit 0"
     },
     {
-      "index": 15,
+      "index": 12,
       "command": "python -m reverse_agent.project_state doctor --state-dir project_state --json",
       "phase": "status",
       "kind": "doctor",
@@ -186,6 +150,42 @@
       ],
       "records_stdout_stderr": true,
       "notes": "doctor expected to exit 0"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_engineering_gate_limited_closeout_contract_v1",
+      "phase": "gate",
+      "kind": "close-round",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "close-round expected to exit 0"
     },
     {
       "index": 16,
@@ -213,44 +213,8 @@
     },
     {
       "index": 18,
-      "command": "python -m reverse_agent.project_state archive-round --state-dir project_state --round-id round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1",
-      "phase": "archive",
-      "kind": "archive-round",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "archive-round expected to exit 0"
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "post_archive",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-      "phase": "post_archive",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 21,
       "command": "git status --short",
-      "phase": "post_archive",
+      "phase": "status",
       "kind": "git status",
       "required": true,
       "expected_exit_codes": [
@@ -260,24 +224,19 @@
       "notes": "git status expected to exit 0"
     },
     {
-      "index": 22,
+      "index": 19,
       "command": "git diff --name-only",
-      "phase": "post_archive",
-      "kind": "unknown",
+      "phase": "status",
+      "kind": "git diff",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "records_stdout_stderr": true,
-      "notes": "unknown command kind; defaulting to zero exit"
+      "notes": "git diff expected to exit 0"
     }
   ],
-  "warnings": [
-    "command 5 has unknown kind: git diff --name-only",
-    "command 7 has unknown kind: python -c \"import json, pathlib; p=pathlib.Path('project_state/local_reverse_cpp1_2f6fcb63_static_triage.json'); d=json.loads(p.read_text(encoding='utf-8')); assert d['sample_id']=='cpp1_2f6fcb63'; assert d['analysis_mode']=='single_sample_static_triage'; assert d['static_only'] is True; assert d['executed_sample'] is False; assert d['runtime_validated'] is False; assert d.get('candidate') in (None, ''); print('triage artifact ok:', d.get('tool_status'), d.get('blocked_reason',''))\"",
-    "command 8 has unknown kind: powershell -NoProfile -Command \"$x=Get-ChildItem -Path project_state -Recurse -Include *.i64,*.id0,*.id1,*.nam,*.til -ErrorAction SilentlyContinue; if ($x) { $x.FullName; exit 1 } else { 'no ida db sidecars' }\"",
-    "command 22 has unknown kind: git diff --name-only"
-  ],
+  "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "review_command_plan_warnings_before_execution"
+  "recommended_next_action": "record_and_follow_command_plan_manually"
 }
