@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260612_tool_integration_capability_inventory_v1",
-  "round_id": "round_20260612_tool_integration_capability_inventory_v1",
+  "decision_id": "decision_20260612_rework_tool_inventory_closeout_consistency_v1",
+  "round_id": "round_20260612_rework_tool_inventory_closeout_consistency_v1",
   "based_on_state_build_id": "state_20260610_131714_88c14099a13a",
   "based_on_state_digest": "88c14099a13a2bf2999e4a61b2c53d8edd9568217bb5ee36f0cfd4462e8cbbd2",
   "status": "APPROVED",
@@ -18,41 +18,39 @@
 
 ## 1. Goal
 
-本轮转入 `tool_integration` 主线，只做工具能力盘点与 StructuredEvidence 接入缺口分析，不推进具体样本求解。
+只返工上一轮 `tool_integration` closeout 一致性，不扩展工具库存内容，不进入样本 triage，不新增求解能力。
 
-目标：建立一个可复用的工具能力库存，明确项目内现有 IDA/Ghidra/debugger/radare2/strings/file/objdump/solver/harness/StructuredEvidence 相关入口、产物路径、freshness 规则和缺口，防止后续逆向任务继续重复造轮子或假设工具接口不存在。
+目标是让以下六类状态完全一致并通过 final-check：
 
-本轮必须产出：
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
+- `project_state/gates/command_plan.json`
+- `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/*`
 
-- `project_state/tool_capability_inventory.json`
-- `project_state/structured_evidence_gap_report.json`
-
-如果仓库中已经存在同类 inventory/gap report 生成逻辑，则必须复用并小步增强；如果不存在，可新增轻量 CLI，但只允许扫描仓库源码和 project_state，不允许运行外部逆向工具或样本。
+上一轮已经生成 `project_state/tool_capability_inventory.json` 与 `project_state/structured_evidence_gap_report.json`，本轮只允许校正 closeout、report、gate、round archive 一致性；不得继续扩展 inventory/gap report 的内容范围。
 
 ## 2. Current Evidence
 
-- 上一轮 `decision_20260612_engineering_baseline_lifecycle_guard_v1` 已验收，final-check、report-summary、lint-report、doctor、close-round 均通过；baseline 生命周期问题已修复。
-- 当前 gate closeout 链已经相对稳定，可以从工程自检回到能力建设主线。
-- `project_state/local_reverse_training_next_queue.json` 显示本地训练集共有 50 个样本，其中 `inventory_only=46`，`primary_queue` 的条目允许 `bounded_static_triage` 和 `readiness_check`，但不允许 `reverse_solving`、`candidate_generation`、`runtime_validation` 或 `upload_binary`。
-- `project_state/local_reverse_training_capability_review.json` 显示 C++ PE inventory-only 样本有 26 个，crypto/cipher PE inventory-only 样本有 6 个，reference/support 文件有 8 个，unknown PE inventory-only 样本有 6 个。
-- `current_state.json` 和 `artifact_index.json` 仍包含旧 sample-solving 事实与 stale artifact；本轮不得把这些 stale artifact 当作 current 证据。
-- `negative_results.json` 明确禁止旧 sample_solver blind search、单纯扩 beam/budget、使用 compare_semantics_agree=false candidate、提交完整 `solve_reports/` 等方向。本轮不得触碰这些方向。
-- `task_packet.json` 只能作为 advisory；当前执行权威是本 `decision_packet.md`。
-- `.codex-skills/registry.json` 中 `reverse-agent-iteration@v2` 与 `samplereverse-frontier@v2` 均为 active。
-
-已有相关能力必须先检查，不能假设不存在：
-
-- IDA / IDAPython 相关 runner、script、artifact adapter。
-- Ghidra 相关 runner、script、headless analyzer、artifact adapter。
-- OllyDbg / x64dbg / debugger / runtime probe 相关入口。
-- strings / file / objdump / radare2 静态工具入口。
-- solver 模板、symbolic/constraint solver、harness。
-- sample metadata、artifact_index、StructuredEvidence 转换、GUI/CLI 配置入口。
-
-工具运行权限：
-
-- 允许：扫描仓库源码、tests、project_state 的文本和 JSON；运行项目自身 CLI、pytest、lint/doctor/final-check；生成 metadata-only inventory/gap report。
-- 不允许：运行 IDA/Ghidra/debugger/radare2/file/strings/objdump 等外部逆向工具；不允许打开、执行、上传或分析样本二进制；不允许运行 harness campaign、solver、candidate search 或 runtime probe。
+- 当前上一轮 report 是 `codex_report_20260612_tool_integration_capability_inventory_v1`，`status=PARTIAL`，`acceptance_recommendation=CONDITIONAL`，不能作为已验收完成状态。
+- 当前 `project_state/gates/final_gate_result.json` 的 `gate_status=FAILED`。
+- 当前 `project_state/gates/report_summary_synthesis.json` 的 `synthesis_status=FAILED`。
+- 当前 `pytest_result.txt` 记录 `lint-report`、`doctor`、`doctor --json`、`report-summary`、`final-check`、`final-check --json` 曾以 exit code 1 失败，虽然后续 `close-round` 后又记录 final-check PASSED，但 live `final_gate_result.json` 仍是 FAILED，说明收尾产物不一致。
+- 当前 final gate blocking reasons 包括：
+  - `files_changed_covers_git_diff` 失败。
+  - `baseline_lifecycle_guard` 失败。
+  - `generated_artifacts_cover_round_archive` 失败。
+  - `pytest_result_exit_codes_match_command_plan` 失败。
+  - `command_plan_json_stdout_full` 失败。
+  - `report_summary_fields_match_synthesis` 失败。
+  - `status_policy_valid` 失败。
+- 当前 baseline 包含历史 dirty files，其中有 `reverse_agent/project_state.py` 和 `tests/test_project_state.py`；上一轮没有显式 inherited allowlist，因此 baseline lifecycle guard 触发失败。
+- 当前 `files_changed` / `generated_artifacts` 使用了 wildcard archive path：`project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/*`。这不满足 report-summary 自动合成的精确路径要求。
+- 当前 `project_state/tool_capability_inventory.json` 和 `project_state/structured_evidence_gap_report.json` 可作为已生成产物保留，但本轮不得把其内容继续扩大或用于样本求解。
+- `task_packet.json` 仍只能作为 advisory；当前执行权威是本 `decision_packet.md`。
+- `current_state.json` 和 `artifact_index.json` 仍包含旧 sample-solving 事实与 stale/missing artifact；本轮不得把这些 stale artifact 当作 current evidence。
+- `negative_results.json` 禁止旧 sample_solver blind search、扩 beam/budget、compare_semantics_agree=false candidate、提交完整 solve_reports 等方向。本轮不得触碰这些方向。
 
 ## 3. Do Not Do
 
@@ -65,10 +63,10 @@
 - 不读取、上传或复制 raw sample、sample binary、IDA database、debug trace、大体积历史 artifact。
 - 不修改 `.codex-skills/`。
 - 不修改训练队列业务分类规则。
-- 不修改 solver、harness、IDA/Ghidra/debugger 的执行逻辑；本轮只允许盘点/登记/轻量 schema 或 CLI glue。
-- 不把 stale/missing artifact 当 current evidence。
-- 不重复实现成熟工具已有能力。
-- 不把某一个本地样本的结论写入长期 skill 或通用逻辑。
+- 不继续扩展 `tool_capability_inventory.json` / `structured_evidence_gap_report.json` 的能力内容；只可重生成以对齐 decision/round/report schema。
+- 不把 wildcard round archive 路径继续写进 `files_changed` 或 `generated_artifacts`。
+- 不把失败命令记录保留为本轮最终 tests_ran 的通过证据。
+- 不通过降低 final-check / report-summary 校验强度来制造假通过。
 
 ## 4. Files To Inspect
 
@@ -82,94 +80,59 @@
 - `project_state/decision_packet.md`
 - `project_state/pytest_result.txt`
 - `.codex-skills/registry.json`
-- `project_state/local_reverse_training_next_queue.json`
-- `project_state/local_reverse_training_capability_review.json`
-- `project_state/local_reverse_training_status.json`
-- `training_materials/local_reverse/queue.json`
-- `training_materials/local_reverse/status_overlay.json`
-- `README.md`
-- `reverse_agent/`
-- `tests/`
-
-必须有界搜索的关键词：
-
-- `ida`, `idapython`, `ghidra`, `headless`, `x64dbg`, `ollydbg`, `debugger`, `radare2`, `r2`, `objdump`, `strings`, `file`, `StructuredEvidence`, `artifact_index`, `harness`, `solver`, `symbolic`, `z3`, `constraint`, `metadata`, `local_reverse`。
+- `project_state/gates/command_plan.json`
+- `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/gates/round_baseline.json`
+- `project_state/gates/round_delta_summary.json`
+- `project_state/tool_capability_inventory.json`
+- `project_state/structured_evidence_gap_report.json`
+- `reverse_agent/project_gate.py`
+- `reverse_agent/tool_capability_inventory.py`
+- `tests/test_tool_capability_inventory.py`
 
 可有界读取：
 
-- 与上述关键词直接命中的源码、测试、schema、README 小节。
-- 最新 round manifest，用于确认上轮 gate 状态。
+- `tests/test_project_gate.py`，仅用于 closeout/report-summary/final-check 相关测试失败定位。
+- `tests/test_project_state.py`，仅用于 lint/doctor 相关测试失败定位。
+- 最新上一轮 commit diff 或 round artifact manifest，若需要确认为什么 live artifacts 与 report 不一致。
 
 不得默认读取：完整 `solve_reports/`、完整 `PROJECT_PROGRESS_LOG.txt`、raw local samples、历史大体积 archive。
 
 ## 5. Required Audit
 
-Codex 必须：
+Codex 必须解释并修复：
 
-1. 启动前记录并报告：`pwd`、`Test-Path F:\reverse-agent`、`git rev-parse --show-toplevel`、`git status --short`、`git diff --name-only`。
-2. 在任何修改前运行 `python -m reverse_agent.project_gate preflight --state-dir project_state`，确保 baseline 属于当前 decision/round。
-3. 明确列出现有工具能力，不得写“项目没有 IDA/Ghidra/debugger 接口”除非已经用有界搜索证实。
-4. 对每类能力输出：
-   - `capability_name`
-   - `tool_family`
-   - `existing_entrypoints`
-   - `existing_tests`
-   - `artifact_outputs`
-   - `structured_evidence_mapping`
-   - `freshness_policy`
-   - `current_status`，只允许 `implemented`、`partial`、`planned`、`missing`、`unknown`
-   - `do_not_duplicate`
-   - `safe_next_action`
-5. `tool_capability_inventory.json` 至少覆盖：
-   - IDA / IDAPython
-   - Ghidra
-   - OllyDbg / x64dbg / debugger
-   - strings / file / objdump / radare2
-   - solver templates
-   - symbolic / constraint solver
-   - harness
-   - sample metadata
-   - artifact_index
-   - StructuredEvidence conversion
-   - GUI / CLI configuration
-6. `structured_evidence_gap_report.json` 必须指出：
-   - 哪些工具输出已经能登记进 artifact_index。
-   - 哪些工具输出只能作为线索，不能当 current evidence。
-   - 哪些工具输出缺少 StructuredEvidence 映射。
-   - 下一轮若要对 primary_queue 做 bounded_static_triage，最小需要补齐哪些 adapter/schema 字段。
-7. 如果新增 CLI，例如 `python -m reverse_agent.tool_capability_inventory build --state-dir project_state`，必须：
-   - 只扫描仓库源码与 project_state。
-   - 不运行外部逆向工具。
-   - 输出稳定 JSON。
-   - 有测试覆盖。
-   - 更新 command-plan kind，避免 unknown kind。
-8. 若不新增 CLI，只手工生成 JSON，也必须用测试或 project_state doctor/lint 确保 schema 可读、字段完整、决策 ID 匹配。
+1. 为什么上一轮 report 是 `PARTIAL/CONDITIONAL`，不能作为成功验收。
+2. 为什么当前 live `final_gate_result.json` 仍为 FAILED，而 `pytest_result.txt` 后半段又记录 final-check PASSED。
+3. 为什么 `report_summary_synthesis.json` 是 FAILED。
+4. 为什么 `command-plan --json` stdout 没有记录完整 JSON commands array。
+5. 为什么 `lint-report`、`doctor`、`doctor --json`、`report-summary`、`final-check`、`final-check --json` 曾记录 exit code 1。
+6. 为什么 `files_changed` / `generated_artifacts` 使用 wildcard archive 路径，以及如何改为精确 round archive 文件路径。
+7. 为什么 baseline 仍包含未授权 source/test inherited dirty files，并决定本轮应如何处理：
+   - 若这些文件确为进入本轮前历史 baseline，必须在本轮 decision/report 中显式说明并列入 allowed inherited baseline；或
+   - 若这些文件实际是本轮应修改文件，必须重新生成 clean baseline 或把它们纳入本轮真实 `files_changed`，不得静默忽略。
+8. 确认 `tool_capability_inventory.json` 与 `structured_evidence_gap_report.json` 仍存在，且 decision_id/round_id 可以对齐本轮 rework 或明确作为上一轮产物被本轮验证。
 9. 确认本轮没有运行样本、IDA/Ghidra/debugger/radare2/file/strings/objdump、harness campaign、solver、candidate search 或 runtime probe。
 
 ## 6. Implementation Scope
 
 允许修改：
 
-- `reverse_agent/project_gate.py` only if command-plan kind / gate artifact validation must recognize a new inventory command
-- `reverse_agent/project_state.py` only if lint/doctor needs a small compatibility check for the new artifacts
-- `tests/test_project_gate.py` only if command-plan/final-check integration is touched
-- `tests/test_project_state.py` only if project_state lint/doctor integration is touched
-- New lightweight module under `reverse_agent/` only if no equivalent inventory generator exists, for example `reverse_agent/tool_capability_inventory.py`
-- New tests only for this inventory/gap-report behavior
-
-允许生成或更新：
-
-- `project_state/tool_capability_inventory.json`
-- `project_state/structured_evidence_gap_report.json`
-- `project_state/gates/round_baseline.json`
-- `project_state/gates/round_delta_summary.json`
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
 - `project_state/gates/command_plan.json`
 - `project_state/gates/report_summary_synthesis.json`
 - `project_state/gates/final_gate_result.json`
+- `project_state/gates/round_baseline.json`
+- `project_state/gates/round_delta_summary.json`
 - `project_state/gates/preflight_result.json`
-- `project_state/codex_execution_report.md`
-- `project_state/pytest_result.txt`
-- `project_state/rounds/round_20260612_tool_integration_capability_inventory_v1/*`
+- `project_state/tool_capability_inventory.json` only to update decision_id/round_id/provenance if required by closeout consistency
+- `project_state/structured_evidence_gap_report.json` only to update decision_id/round_id/provenance if required by closeout consistency
+- `project_state/rounds/round_20260612_rework_tool_inventory_closeout_consistency_v1/*`
+- `reverse_agent/project_gate.py` only if needed to fix command-plan/report-summary/final-check closeout consistency without weakening checks
+- `tests/test_project_gate.py` only if needed for closeout regression coverage
+- `tests/test_tool_capability_inventory.py` only if needed to keep inventory CLI tests green after provenance-only updates
 
 不允许修改：
 
@@ -184,12 +147,13 @@ Codex 必须：
 - raw local samples
 - sample binaries
 - solver/harness/IDA/Ghidra/debugger execution logic
+- inventory/gap report semantic scope beyond provenance/closeout consistency
 - unrelated source modules
 - unrelated tests
 
 ## 7. Tests
 
-必须运行并完整记录 stdout/stderr/exit code：
+必须重新运行并完整记录 stdout/stderr/exit code：
 
 ```bash
 pwd
@@ -200,6 +164,8 @@ git diff --name-only
 python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
+python -m reverse_agent.tool_capability_inventory build --state-dir project_state
+python -m pytest tests/test_tool_capability_inventory.py -q
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state doctor --state-dir project_state
@@ -207,42 +173,37 @@ python -m reverse_agent.project_state doctor --state-dir project_state --json
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state --json
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_tool_integration_capability_inventory_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework_tool_inventory_closeout_consistency_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state --json
 git status --short
 git diff --name-only
 ```
 
-如果新增 inventory CLI，必须额外运行并记录：
-
-```bash
-python -m reverse_agent.tool_capability_inventory build --state-dir project_state
-python -m pytest tests/test_tool_capability_inventory.py -q
-```
-
 验收条件：
 
-- pytest 必须通过。
+- `python -m pytest tests/test_tool_capability_inventory.py -q` 必须通过。
+- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q` 必须通过。
 - `command-plan` 不得出现 unknown kind。
-- `tool_capability_inventory.json` 与 `structured_evidence_gap_report.json` 必须存在，且 decision_id/round_id 指向本轮。
-- inventory 必须覆盖 Required Audit 中列出的 10 类能力。
-- gap report 必须明确 current/stale/missing/unknown 的证据使用边界。
-- 不得运行外部逆向工具或样本。
-- `lint-report`、`doctor`、`report-summary`、`final-check`、`close-round` 均不得 FAIL。
-- `codex_report_summary.files_changed` 必须包含本轮真实 source/test/project_state 改动。
-- `generated_artifacts` 必须覆盖 gate artifacts、inventory/gap artifacts、report-summary artifact、round archive。
+- `command-plan --json` 的 stdout 必须记录完整 JSON commands array。
+- `lint-report`、`doctor`、`doctor --json`、`report-summary`、`final-check`、`final-check --json`、`close-round` 均不得以 exit code 1 作为最终状态。
+- `report_summary_synthesis.json` 必须为 `PASSED`。
+- `final_gate_result.json` 必须为 `PASSED`。
+- `codex_execution_report.md` 的 `codex_report_summary.status` 应为 `SUCCESS`，`acceptance_recommendation` 应为 `ACCEPTED`；若仍为 PARTIAL/CONDITIONAL，必须停止并报告 BLOCKED。
+- `files_changed` 和 `generated_artifacts` 必须使用精确路径，不能使用 `round_id/*` wildcard。
+- round archive 必须存在，且 archive/live report、pytest_result 一致。
+- `tool_capability_inventory.json` 与 `structured_evidence_gap_report.json` 必须存在，且 provenance 对齐本轮 rework 或被 report 明确标记为上一轮产物经本轮验证。
 - `pytest_result.txt` 必须包含 fenced `pytest_result_summary` JSON，并覆盖 report 中所有 `tests_ran`。
-- close-round 必须成功生成 round manifest。
 
 ## 8. Stop Conditions
 
 立即停止并报告 `BLOCKED`：
 
+- 无法让 `report_summary_synthesis.json` 和 `final_gate_result.json` 同时 PASSED。
+- 无法解释或清理 `PARTIAL/CONDITIONAL` report 状态。
+- 无法消除 wildcard archive 路径。
+- 无法处理未授权 inherited source/test dirty baseline。
 - 需要运行样本、solver、IDA/Ghidra/debugger/radare2/file/strings/objdump 才能完成本轮。
 - 需要读取完整 `solve_reports/`。
 - 需要修改 `.codex-skills/`。
-- 无法判断现有工具接口是否存在。
-- 无法保证 inventory/gap report 不包含 raw sample 或本地敏感路径。
 - final-check 只能通过降低校验强度来通过。
-- `close-round` 仍无法生成有效 round manifest。
