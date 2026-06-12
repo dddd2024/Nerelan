@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-12T11:06:08Z",
+  "generated_at": "2026-06-12T11:23:57Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 50,
   "status_summary": {
     "solved": 1,
     "blocked": 2,
-    "needs_triage": 2,
-    "inventory_only": 45
+    "needs_triage": 1,
+    "inventory_only": 46
   },
   "samples": [
     {
@@ -125,17 +125,12 @@
         "cpp",
         "pe"
       ],
-      "training_status": "needs_triage",
+      "training_status": "inventory_only",
       "known_candidate": "",
-      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
-      "classification": "single_sample_static_triage",
-      "evidence_sources": [
-        "source:local_reverse_cpp1_2f6fcb63_static_triage.json",
-        "static_tool_blocked",
-        "tool_status:blocked",
-        "source_tool:IDA"
-      ],
-      "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
     },
     {
       "sample_id": "byte_shift_transform_solver_3718a6fa",

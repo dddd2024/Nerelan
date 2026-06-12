@@ -2,45 +2,135 @@ pytest_result
 =============
 decision_id: decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1
 round_id: round_20260612_rework2_cleanup_and_deterministic_queue_build_v1
-report_id: report_20260612_rework2_cleanup_and_deterministic_queue_build_v1
+report_id: codex_report_20260612_rework2_cleanup_and_deterministic_queue_build_v1
 
-Test Commands and Results
--------------------------
+---
 
-1. Command: python -m pytest tests/test_local_reverse_training_review.py -v --tb=short
-   Exit code: 0
-   Stdout: 32 passed in 0.69s
-   Stderr: (empty)
-   Result: PASSED
+Command 1: pytest tests/test_local_reverse_training_review.py -v
+Exit code: 0
+stdout:
+============================= test session starts =============================
+platform win32 -- Python 3.10.11, pytest-9.0.3, pluggy-1.6.0
+cachedir: .pytest_cache
+rootdir: F:\reverse-agent
+plugins: anyio-4.13.0
+collecting ... collected 32 items
 
-2. Command: python -m reverse_agent.local_reverse_training_review build --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out training_materials/local_reverse/status_overlay.json
-   Exit code: 0
-   Stdout: [build] Building training status... / [build] Training status written: project_state\local_reverse_training_status.json / [build] samples=50 solved=1 blocked=2 needs_triage=2 inventory_only=45 / [build] Queue written: project_state/local_reverse_evaluation_queue.json (40 items) / [build] GitHub status written: training_materials/local_reverse/status_overlay.json
-   Stderr: (empty)
-   Result: PASSED
+tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_missing_sample_returns_critical_finding PASSED [  3%]
+tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_solved_sample_missing_candidate PASSED [  6%]
+tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_solved_sample_complete PASSED [  9%]
+tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_blocked_sample_missing_reason PASSED [ 12%]
+tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_inventory_entry_missing PASSED [ 15%]
+tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_inventory_metadata_incomplete PASSED [ 18%]
+tests/test_local_reverse_training_review.py::TestReviewSampleCompleteness::test_needs_triage_missing_reason PASSED [ 21%]
+tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_unknown_category PASSED [ 25%]
+tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_missing_tags PASSED [ 28%]
+tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_insufficient_tags PASSED [ 31%]
+tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_solved_no_validation_source PASSED [ 34%]
+tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_zero_size PASSED [ 37%]
+tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_file_type_mismatch PASSED [ 40%]
+tests/test_local_reverse_training_review.py::TestReviewSampleQuality::test_missing_classification_for_solved PASSED [ 43%]
+tests/test_local_reverse_training_review.py::TestReviewBatch::test_batch_review_completeness PASSED [ 46%]
+tests/test_local_reverse_training_review.py::TestReviewBatch::test_batch_review_invalid_type_raises PASSED [ 50%]
+tests/test_local_reverse_training_review.py::TestGenerateReviewReport::test_completeness_report PASSED [ 53%]
+tests/test_local_reverse_training_review.py::TestGenerateReviewReport::test_quality_report PASSED [ 56%]
+tests/test_local_reverse_training_review.py::TestGenerateReviewReport::test_report_has_recommendations PASSED [ 59%]
+tests/test_local_reverse_training_review.py::TestGenerateReviewReport::test_invalid_review_type_raises PASSED [ 62%]
+tests/test_local_reverse_training_review.py::TestCLI::test_cli_help PASSED [ 65%]
+tests/test_local_reverse_training_review.py::TestCLI::test_cli_build_help PASSED [ 68%]
+tests/test_local_reverse_training_review.py::TestCLI::test_cli_review_help PASSED [ 71%]
+tests/test_local_reverse_training_review.py::TestCLI::test_cli_review_single_sample PASSED [ 75%]
+tests/test_local_reverse_training_review.py::TestCLI::test_cli_review_batch PASSED [ 78%]
+tests/test_local_reverse_training_review.py::TestCLI::test_cli_review_full_report PASSED [ 81%]
+tests/test_local_reverse_training_review.py::TestCLI::test_cli_build_missing_inventory PASSED [ 84%]
+tests/test_local_reverse_training_review.py::TestCLI::test_cli_no_subcommand PASSED [ 87%]
+tests/test_local_reverse_training_review.py::TestIntegration::test_end_to_end_completeness_review PASSED [ 90%]
+tests/test_local_reverse_training_review.py::TestIntegration::test_end_to_end_quality_review_with_issues PASSED [ 93%]
+tests/test_local_reverse_training_review.py::TestIntegration::test_short_sha_matching PASSED [ 96%]
+tests/test_local_reverse_training_review.py::TestIntegration::test_empty_artifact_index_handled PASSED [100%]
 
-3. Command: python -m reverse_agent.project_state lint-decision
-   Exit code: 0
-   Stdout: lint-decision: OK
-   Stderr: (empty)
-   Result: PASSED
+============================= 32 passed in 0.67s =============================
+stderr: (empty)
 
-4. Command: python -m reverse_agent.project_state status
-   Exit code: 0
-   Stdout: (status output with decision_status: APPROVED)
-   Stderr: (empty)
-   Result: PASSED
+---
 
-5. Command: python -m reverse_agent.project_state lint-report
-   Exit code: 0
-   Stdout: lint-report: OK
-   Stderr: (empty)
-   Result: PASSED
+Command 2: python -m reverse_agent.local_reverse_training_review build --status project_state/local_reverse_training_status.json --overlay training_materials/local_reverse/status_overlay.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_training_review_queue.json --github-queue-out training_materials/local_reverse/github_safe_status_overlay.json --artifact-index project_state/artifact_index.json --inventory project_state/local_reverse_inventory.json
+Exit code: 0
+stdout:
+[build] Using metadata-only queue build from status + overlay...
+[build] Demoted cpp1_2f6fcb63 from needs_triage to inventory_only (STATIC_TOOL_NO_OUTPUT on cpp sample)
+[build] Training status written: project_state\local_reverse_training_status.json
+[build] samples=50 solved=1 blocked=2 needs_triage=1 inventory_only=46
+[build] Overlay written: training_materials\local_reverse\status_overlay.json
+[build] Queue written: project_state\local_reverse_training_review_queue.json
+[build] primary=26 secondary=12 reference=8 blocked=4
+[build] GitHub queue written: training_materials\local_reverse\github_safe_status_overlay.json
+[build] Capability review written: project_state\local_reverse_training_capability_review.json
+stderr: (empty)
 
-6. Command: python -m reverse_agent.project_state doctor
-   Exit code: 0
-   Stdout: doctor: PASS (WARN on artifacts)
-   Stderr: (empty)
-   Result: PASSED
+---
 
-Final Conclusion: PASS
+Command 3: python -m reverse_agent.local_reverse_training_review review --review-type completeness --training-status project_state/local_reverse_training_status.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_review_report.json
+Exit code: 0
+stdout:
+[review] Review report generated: project_state\local_reverse_training_review_report.json
+[review] Samples reviewed: 50
+[review] Total findings: 1
+[review] Critical/High findings: 0
+stderr: (empty)
+
+---
+
+Command 4: python -m reverse_agent.local_reverse_training_review review --review-type quality --training-status project_state/local_reverse_training_status.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_review_report_quality.json
+Exit code: 0
+stdout:
+[review] Review report generated: project_state\local_reverse_training_review_report_quality.json
+[review] Samples reviewed: 50
+[review] Total findings: 14
+[review] Critical/High findings: 0
+stderr: (empty)
+
+---
+
+Command 5: python -c "import json; s=json.load(open('project_state/local_reverse_training_status.json')); o=json.load(open('training_materials/local_reverse/status_overlay.json')); print('status:', s['status_summary']); print('overlay:', o['status_summary']); print('match:', s['status_summary']==o['status_summary'])"
+Exit code: 0
+stdout:
+status: {'solved': 1, 'blocked': 2, 'needs_triage': 1, 'inventory_only': 46}
+overlay: {'solved': 1, 'blocked': 2, 'needs_triage': 1, 'inventory_only': 46}
+match: True
+stderr: (empty)
+
+---
+
+Command 6: python -c "import json; q=json.load(open('project_state/local_reverse_training_review_queue.json')); print('schema_version=', q.get('schema_version')); print('primary=', len(q['primary_queue'])); print('secondary=', len(q['secondary_queue'])); print('reference=', len(q['reference_or_support_queue'])); print('blocked=', len(q['blocked_review_queue']))"
+Exit code: 0
+stdout:
+schema_version= 2
+primary= 26
+secondary= 12
+reference= 8
+blocked= 4
+stderr: (empty)
+
+---
+
+Command 7: python -c "import json; cr=json.load(open('project_state/local_reverse_training_capability_review.json')); print('schema_version=', cr.get('schema_version')); print('status_summary=', cr.get('status_summary')); print('solved_cases=', len(cr.get('solved_cases',[]))); print('blocked_cases=', len(cr.get('blocked_cases',[]))); print('inventory_buckets=', list(cr.get('inventory_buckets',{}).keys()))"
+Exit code: 0
+stdout:
+schema_version= 2
+status_summary= {'sample_count': 50, 'solved': 1, 'blocked': 2, 'needs_triage': 1, 'inventory_only': 46}
+solved_cases= 1
+blocked_cases= 2
+inventory_buckets= ['cpp_pe_inventory_only', 'crypto_cipher_pe_inventory_only', 'reference_support_inventory_only', 'unknown_pe_inventory_only']
+stderr: (empty)
+
+---
+
+Command 8: python -c "import json, sys; status = json.load(open('project_state/local_reverse_training_status.json')); overlay = json.load(open('training_materials/local_reverse/status_overlay.json')); queue = json.load(open('project_state/local_reverse_training_review_queue.json')); cap = json.load(open('project_state/local_reverse_training_capability_review.json')); report = json.load(open('project_state/local_reverse_training_review_report.json')); errors = []; target = {'solved': 1, 'blocked': 2, 'needs_triage': 1, 'inventory_only': 46}; [errors.append(e) for e in ['status_summary mismatch'] if status['status_summary'] != overlay['status_summary']]; [errors.append('status_summary mismatch target') if status['status_summary'] != target else None]; [errors.append('queue schema_version != 2') if queue.get('schema_version') != 2 else None]; [errors.append('capability schema_version != 2') if cap.get('schema_version') != 2 else None]; [errors.append('report schema_version != 1') if report.get('schema_version') != 1 else None]; total = len(queue['primary_queue']) + len(queue['secondary_queue']) + len(queue['reference_or_support_queue']) + len(queue['blocked_review_queue']); [errors.append('queue total != 50') if total != 50 else None]; print('FAILED:' if errors else 'PASSED'); [print('  - ' + e) for e in errors]; sys.exit(1 if errors else 0)"
+Exit code: 0
+stdout: PASSED
+stderr: (empty)
+
+---
+
+Final conclusion: PASS

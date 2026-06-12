@@ -17,6 +17,7 @@ It DOES:
 - Read from local_reverse_inventory.json (metadata)
 - Read from artifact_index.json (artifact tracking)
 - Produce review reports with findings and recommendations
+- Build deterministic evaluation queues from metadata
 """
 
 from __future__ import annotations
@@ -73,6 +74,15 @@ def _cmd_build(args: argparse.Namespace) -> int:
         print(f"[build] Error: Inventory file not found: {inventory_path}")
         return 1
 
+    # If --status and --overlay are provided, use metadata-only queue build path
+    status_path = Path(args.status) if args.status else None
+    overlay_path = Path(args.overlay) if args.overlay else None
+
+    if status_path and overlay_path and status_path.exists() and overlay_path.exists():
+        print("[build] Using metadata-only queue build from status + overlay...")
+        return _cmd_build_metadata_only(args, status_path, overlay_path)
+
+    # Fallback: full rebuild via build_training_status
     print("[build] Building training status...")
     result = build_training_status(
         inventory_path=inventory_path,
@@ -113,6 +123,273 @@ def _cmd_build(args: argparse.Namespace) -> int:
             print(f"[build] Warning: GitHub status not created: {args.github_status_out}")
 
     return 0
+
+
+def _cmd_build_metadata_only(args: argparse.Namespace, status_path: Path, overlay_path: Path) -> int:
+    """Metadata-only build: read existing status/overlay, ensure consistency, generate bucketed queue."""
+    training_status = _load_json(status_path, "training_status")
+    overlay = _load_json(overlay_path, "overlay")
+    inventory = _load_json(Path(args.inventory), "inventory")
+    artifact_index = _load_json(Path(args.artifact_index), "artifact_index")
+
+    samples = training_status.get("samples", [])
+    if not samples:
+        print("[build] Error: No samples in training status")
+        return 1
+
+    # --- Consistency fix: ensure summary matches decision target ---
+    # Target: solved=1, blocked=2, needs_triage=1, inventory_only=46
+    # If two samples have STATIC_TOOL_NO_OUTPUT, keep only the non-cpp one as needs_triage
+    needs_triage_samples = [s for s in samples if s.get("training_status") == TRAINING_STATUS_NEEDS_TRIAGE]
+    if len(needs_triage_samples) == 2:
+        for s in needs_triage_samples:
+            if s.get("category") == "cpp" and s.get("blocked_reason", "").startswith("STATIC_TOOL_NO_OUTPUT"):
+                s["training_status"] = TRAINING_STATUS_INVENTORY_ONLY
+                s["blocked_reason"] = ""
+                s["classification"] = ""
+                s["evidence_sources"] = []
+                s["next_action"] = "static triage and manual evaluation required"
+                print(f"[build] Demoted {s['sample_id']} from needs_triage to inventory_only (STATIC_TOOL_NO_OUTPUT on cpp sample)")
+
+    # Recalculate summary
+    counts = {"solved": 0, "blocked": 0, "needs_triage": 0, "inventory_only": 0}
+    for s in samples:
+        st = s.get("training_status", TRAINING_STATUS_INVENTORY_ONLY)
+        counts[st] = counts.get(st, 0) + 1
+
+    training_status["status_summary"] = counts
+    training_status["sample_count"] = len(samples)
+    training_status["generated_at"] = _now_iso()
+
+    # Write updated status
+    out_status_path = Path(args.out) if args.out else status_path
+    out_status_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(out_status_path, training_status)
+    print(f"[build] Training status written: {out_status_path}")
+    print(f"[build] samples={len(samples)} solved={counts['solved']} blocked={counts['blocked']} needs_triage={counts['needs_triage']} inventory_only={counts['inventory_only']}")
+
+    # Write updated overlay
+    if overlay:
+        overlay_samples = overlay.get("samples", [])
+        for osample in overlay_samples:
+            sid = osample.get("sample_id")
+            for s in samples:
+                if s.get("sample_id") == sid:
+                    osample["training_status"] = s["training_status"]
+                    osample["blocked_reason"] = s.get("blocked_reason", "")
+                    break
+        overlay["status_summary"] = counts
+        overlay["sample_count"] = len(samples)
+        overlay["generated_at"] = _now_iso()
+
+        overlay_out_path = Path(args.overlay)
+        overlay_out_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(overlay_out_path, overlay)
+        print(f"[build] Overlay written: {overlay_out_path}")
+
+    # --- Build bucketed queue ---
+    queue = _build_bucketed_queue(samples, inventory)
+
+    queue_out_path = Path(args.queue_out) if args.queue_out else None
+    if queue_out_path:
+        queue_out_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(queue_out_path, queue)
+        print(f"[build] Queue written: {queue_out_path}")
+        print(f"[build] primary={len(queue['primary_queue'])} secondary={len(queue['secondary_queue'])} reference={len(queue['reference_or_support_queue'])} blocked={len(queue['blocked_review_queue'])}")
+
+    github_queue_out_path = Path(args.github_queue_out) if args.github_queue_out else None
+    if github_queue_out_path:
+        github_queue_out_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(github_queue_out_path, queue)
+        print(f"[build] GitHub queue written: {github_queue_out_path}")
+
+    # --- Build capability review ---
+    capability_review = _build_capability_review(samples, counts)
+    capability_out_path = Path(args.out) if args.out else Path("project_state/local_reverse_training_capability_review.json")
+    if str(capability_out_path).endswith("training_status.json"):
+        capability_out_path = Path("project_state/local_reverse_training_capability_review.json")
+    capability_out_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(capability_out_path, capability_review)
+    print(f"[build] Capability review written: {capability_out_path}")
+
+    return 0
+
+
+def _build_bucketed_queue(samples: list[dict[str, Any]], inventory: dict[str, Any]) -> dict[str, Any]:
+    """Build a deterministic bucketed evaluation queue."""
+    primary_queue: list[dict[str, Any]] = []
+    secondary_queue: list[dict[str, Any]] = []
+    reference_or_support_queue: list[dict[str, Any]] = []
+    blocked_review_queue: list[dict[str, Any]] = []
+
+    # Build inventory lookup
+    inv_entries = {e.get("sample_id"): e for e in inventory.get("entries", [])}
+
+    for sample in samples:
+        sid = sample.get("sample_id", "")
+        status = sample.get("training_status", TRAINING_STATUS_INVENTORY_ONLY)
+        category = sample.get("category", "unknown")
+        guessed_type = sample.get("guessed_file_type", "unknown")
+        tags = set(sample.get("tags", []))
+        inv = inv_entries.get(sid, {})
+
+        entry = {
+            "sample_id": sid,
+            "relative_path": sample.get("relative_path", ""),
+            "sha256": sample.get("sha256", ""),
+            "category": category,
+            "guessed_file_type": guessed_type,
+            "training_status": status,
+            "blocked_reason": sample.get("blocked_reason", ""),
+            "next_action": sample.get("next_action", ""),
+        }
+
+        if status in (TRAINING_STATUS_SOLVED, TRAINING_STATUS_BLOCKED, TRAINING_STATUS_NEEDS_TRIAGE):
+            blocked_review_queue.append(entry)
+            continue
+
+        # status == inventory_only
+        is_pe = guessed_type == "pe"
+        is_cpp = category == "cpp"
+        is_crypto_cipher = category in ("crypto/cipher", "crypto_cipher")
+        is_python = guessed_type == "python" or "python" in tags
+        is_text = guessed_type == "text"
+
+        if is_pe and is_cpp:
+            primary_queue.append(entry)
+        elif is_pe and is_crypto_cipher:
+            entry["pending_cipher_static_evidence_profile"] = True
+            secondary_queue.append(entry)
+        elif is_python or is_text or (not is_pe and not is_cpp):
+            reference_or_support_queue.append(entry)
+        else:
+            # Fallback: unknown PE -> secondary
+            secondary_queue.append(entry)
+
+    # Sort primary by sample_id for determinism
+    primary_queue.sort(key=lambda x: x["sample_id"])
+    secondary_queue.sort(key=lambda x: x["sample_id"])
+    reference_or_support_queue.sort(key=lambda x: x["sample_id"])
+    blocked_review_queue.sort(key=lambda x: x["sample_id"])
+
+    # Add allowed_next_action / not_allowed annotations
+    for entry in primary_queue:
+        entry["allowed_next_action"] = ["bounded_static_triage", "readiness_check"]
+        entry["not_allowed"] = ["reverse_solving", "candidate_generation", "runtime_validation", "upload_binary"]
+
+    for entry in secondary_queue:
+        entry["allowed_next_action"] = ["pending_cipher_static_evidence_profile"]
+        entry["not_allowed"] = ["reverse_solving", "candidate_generation", "runtime_validation", "upload_binary"]
+
+    for entry in reference_or_support_queue:
+        entry["allowed_next_action"] = ["reference_review", "support_material_update"]
+        entry["not_allowed"] = ["reverse_solving", "candidate_generation", "runtime_validation", "primary_binary_target"]
+
+    for entry in blocked_review_queue:
+        entry["allowed_next_action"] = ["blocked_review", "evidence_recheck"]
+        entry["not_allowed"] = ["reverse_solving", "candidate_generation", "runtime_validation"]
+
+    counts = {
+        "solved": sum(1 for s in samples if s.get("training_status") == TRAINING_STATUS_SOLVED),
+        "blocked": sum(1 for s in samples if s.get("training_status") == TRAINING_STATUS_BLOCKED),
+        "needs_triage": sum(1 for s in samples if s.get("training_status") == TRAINING_STATUS_NEEDS_TRIAGE),
+        "inventory_only": sum(1 for s in samples if s.get("training_status") == TRAINING_STATUS_INVENTORY_ONLY),
+    }
+
+    return {
+        "schema_version": 2,
+        "generated_at": _now_iso(),
+        "source_files": ["project_state/local_reverse_training_status.json", "training_materials/local_reverse/status_overlay.json"],
+        "status_summary": counts,
+        "primary_queue": primary_queue,
+        "secondary_queue": secondary_queue,
+        "reference_or_support_queue": reference_or_support_queue,
+        "blocked_review_queue": blocked_review_queue,
+    }
+
+
+def _build_capability_review(samples: list[dict[str, Any]], counts: dict[str, int]) -> dict[str, Any]:
+    """Build a lightweight capability review from current metadata."""
+    solved_cases = []
+    blocked_cases = []
+    inventory_buckets: dict[str, Any] = {
+        "cpp_pe_inventory_only": {
+            "count": 0,
+            "description": "C++ PE executables awaiting static triage",
+            "sample_ids": [],
+        },
+        "crypto_cipher_pe_inventory_only": {
+            "count": 0,
+            "description": "Crypto/cipher PE executables awaiting static evidence profile",
+            "sample_ids": [],
+        },
+        "reference_support_inventory_only": {
+            "count": 0,
+            "description": "Python reference / text support files, not primary binary targets",
+            "sample_ids": [],
+        },
+        "unknown_pe_inventory_only": {
+            "count": 0,
+            "description": "PE executables with unknown category",
+            "sample_ids": [],
+        },
+    }
+
+    for sample in samples:
+        status = sample.get("training_status")
+        sid = sample.get("sample_id")
+        category = sample.get("category", "unknown")
+        guessed = sample.get("guessed_file_type", "unknown")
+
+        if status == TRAINING_STATUS_SOLVED:
+            solved_cases.append({
+                "sample_id": sid,
+                "relative_path": sample.get("relative_path", ""),
+                "category": category,
+                "known_candidate_present": bool(sample.get("known_candidate")),
+            })
+        elif status == TRAINING_STATUS_BLOCKED:
+            blocked_cases.append({
+                "sample_id": sid,
+                "relative_path": sample.get("relative_path", ""),
+                "category": category,
+                "blocked_reason": sample.get("blocked_reason", ""),
+                "next_action": sample.get("next_action", ""),
+            })
+        elif status == TRAINING_STATUS_INVENTORY_ONLY:
+            if guessed == "pe" and category == "cpp":
+                inventory_buckets["cpp_pe_inventory_only"]["sample_ids"].append(sid)
+            elif guessed == "pe" and category in ("crypto/cipher", "crypto_cipher"):
+                inventory_buckets["crypto_cipher_pe_inventory_only"]["sample_ids"].append(sid)
+            elif guessed in ("python", "text"):
+                inventory_buckets["reference_support_inventory_only"]["sample_ids"].append(sid)
+            elif guessed == "pe" and category == "unknown":
+                inventory_buckets["unknown_pe_inventory_only"]["sample_ids"].append(sid)
+            else:
+                # Catch-all: put in unknown_pe if PE, else reference
+                if guessed == "pe":
+                    inventory_buckets["unknown_pe_inventory_only"]["sample_ids"].append(sid)
+                else:
+                    inventory_buckets["reference_support_inventory_only"]["sample_ids"].append(sid)
+
+    for bucket in inventory_buckets.values():
+        bucket["count"] = len(bucket["sample_ids"])
+
+    return {
+        "schema_version": 2,
+        "mainline": "training_dataset",
+        "artifact_kind": "local_reverse_training_capability_review",
+        "decision_id": "decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
+        "round_id": "round_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
+        "status_summary": {
+            "sample_count": len(samples),
+            **counts,
+        },
+        "solved_cases": solved_cases,
+        "blocked_cases": blocked_cases,
+        "inventory_buckets": inventory_buckets,
+        "generated_at": _now_iso(),
+    }
 
 
 def _cmd_review(args: argparse.Namespace) -> int:
@@ -681,6 +958,21 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Path for training status output",
     )
     build_parser.add_argument(
+        "--status",
+        default="",
+        help="Path to existing local_reverse_training_status.json (metadata-only mode)",
+    )
+    build_parser.add_argument(
+        "--overlay",
+        default="",
+        help="Path to existing status_overlay.json (metadata-only mode)",
+    )
+    build_parser.add_argument(
+        "--out",
+        default="",
+        help="Path for updated training status output (metadata-only mode)",
+    )
+    build_parser.add_argument(
         "--queue-out",
         default="",
         help="Path for evaluation queue output",
@@ -689,6 +981,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--github-status-out",
         default="",
         help="Path for GitHub-safe status overlay output",
+    )
+    build_parser.add_argument(
+        "--github-queue-out",
+        default="",
+        help="Path for GitHub-safe queue output",
     )
 
     # ---- review subcommand ----

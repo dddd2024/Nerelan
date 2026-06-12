@@ -1,0 +1,410 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-12T11:23:58Z",
+  "review_type": "completeness",
+  "source_training_status": "project_state\\local_reverse_inventory.json",
+  "samples_reviewed": 50,
+  "total_findings": 1,
+  "severity_counts": {
+    "critical": 0,
+    "high": 0,
+    "medium": 1,
+    "low": 0,
+    "info": 0
+  },
+  "critical_high_count": 0,
+  "findings_by_status": {
+    "solved": {
+      "count": 1,
+      "findings": 1,
+      "categories": [
+        "solved_missing_artifacts"
+      ]
+    },
+    "blocked": {
+      "count": 2,
+      "findings": 0,
+      "categories": []
+    },
+    "needs_triage": {
+      "count": 1,
+      "findings": 0,
+      "categories": []
+    },
+    "inventory_only": {
+      "count": 46,
+      "findings": 0,
+      "categories": []
+    }
+  },
+  "recommendations": [
+    {
+      "priority": "medium",
+      "action": "ensure_inventory_sync",
+      "message": "Ensure all samples in training_status have corresponding inventory entries"
+    },
+    {
+      "priority": "medium",
+      "action": "validate_solved_samples",
+      "message": "All solved samples should have known_candidate and evidence_sources"
+    }
+  ],
+  "sample_results": [
+    {
+      "sample_id": "cpp1_bcbd9979",
+      "review_type": "completeness",
+      "training_status": "solved",
+      "findings": [
+        {
+          "severity": "medium",
+          "category": "solved_missing_artifacts",
+          "message": "Solved sample has no artifacts in artifact_index"
+        }
+      ],
+      "finding_count": 1
+    },
+    {
+      "sample_id": "cpp2_4c69f173",
+      "review_type": "completeness",
+      "training_status": "blocked",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "sha_256_18019fca",
+      "review_type": "completeness",
+      "training_status": "blocked",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "affine_8cfebe03",
+      "review_type": "completeness",
+      "training_status": "needs_triage",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp1_2f6fcb63",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "byte_shift_transform_solver_3718a6fa",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp1_378eeffd",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp1_7b504c54",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_29ebb670",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_2f64e68d",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_32f1713e",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_35310f79",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_561edd9a",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_5910fe3b",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_6a58f5f7",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_883e67b9",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_8c0d2ad4",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_aa2b785b",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_b210bced",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_f2738577",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_f53fb951",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp2_fc735338",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp3_019fcdc8",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp3_5c3b34d5",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp3_e5a33e0b",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp4_ab1b6104",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp4_c7cb6b0e",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp5_2ea076a7",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp5_79788295",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp5_8fae8fac",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "cpp_6af7c7f1",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "des_interactive_solver_256e1726",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "desenc_0e0b5203",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "desenc_14c58fcd",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "desenc_40cba418",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "desenc_fd9d0af6",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "main_36c51ec1",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "main_6ae5a26d",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "main_ab1b6104",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "main_d44edbfe",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "main_fb1f8cc0",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "pwd_030127ca",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "rc4_add1978d",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "rc4_interactive_solver_773052ac",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "rc4enc_3480917d",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "rc4enc_f93c785f",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "seh_52be8d5c",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "sha_cd947414",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "xor_array_solver_4e6d25f0",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    },
+    {
+      "sample_id": "xor_array_solver_v2_fb15e14c",
+      "review_type": "completeness",
+      "training_status": "inventory_only",
+      "findings": [],
+      "finding_count": 0
+    }
+  ]
+}
