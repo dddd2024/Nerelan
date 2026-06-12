@@ -4,6 +4,7 @@ import argparse
 import contextlib
 import io
 import json
+import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
@@ -224,13 +225,21 @@ def _scope_paths(scope_text: str) -> set[str]:
         line = raw_line.strip()
         if not line.startswith("-"):
             continue
-        item = line[1:].strip().strip("`").strip()
+        item = _path_from_markdown_bullet(line)
         if not item or item.lower().endswith(":"):
             continue
         if item in {"Allowed source files", "Allowed tests", "Allowed generated files", "Disallowed"}:
             continue
         paths.add(_norm_path(item))
     return paths
+
+
+def _path_from_markdown_bullet(line: str) -> str:
+    item = line[1:].strip() if line.strip().startswith("-") else line.strip()
+    match = re.search(r"`([^`]+)`", item)
+    if match:
+        return match.group(1).strip()
+    return item.strip().strip("`").strip()
 
 
 def _allowed_scope_paths(scope_text: str) -> set[str]:
@@ -247,12 +256,43 @@ def _allowed_scope_paths(scope_text: str) -> set[str]:
             continue
         if not in_allowed_block or not line.startswith("-"):
             continue
-        item = line[1:].strip().strip("`").strip()
+        item = _path_from_markdown_bullet(line)
         if item:
             paths.add(_norm_path(item))
     if paths:
         return paths
     return _scope_paths(scope_text)
+
+
+def _allowed_source_test_scope_paths(scope_text: str) -> set[str]:
+    paths: set[str] = set()
+    active = False
+    for raw_line in scope_text.splitlines():
+        line = raw_line.strip()
+        lowered = line.lower()
+        if lowered.startswith("allowed source") or lowered.startswith("allowed tests") or lowered.startswith("允许修改"):
+            active = True
+            continue
+        if (
+            lowered.startswith("allowed generated")
+            or lowered.startswith("disallowed")
+            or lowered.startswith("不允许")
+            or lowered.startswith("允许生成")
+            or lowered.startswith("禁止")
+        ):
+            active = False
+            continue
+        if not active or not line.startswith("-"):
+            continue
+        item = _path_from_markdown_bullet(line)
+        if item:
+            paths.add(_norm_path(item))
+    return paths
+
+
+def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
+    section = _markdown_section(decision_text, "Allowed Inherited Dirty Baseline Files")
+    return _scope_paths(section)
 
 
 def _decision_text_without_do_not_do(decision_text: str) -> str:
@@ -407,6 +447,15 @@ def _round_delta_summary_path(state_dir: Path) -> Path:
     return state_dir / "gates" / ROUND_DELTA_SUMMARY_NAME
 
 
+def _is_generated_state_or_archive_path(path: str) -> bool:
+    normalized = _norm_path(path)
+    return (
+        normalized.startswith("project_state/gates/")
+        or normalized.startswith("project_state/rounds/")
+        or normalized in {"project_state/codex_execution_report.md", "project_state/pytest_result.txt"}
+    )
+
+
 def _baseline_matches_round(payload: dict[str, Any], decision_id: str, round_id: str) -> bool:
     return (
         bool(payload)
@@ -527,7 +576,11 @@ def _round_delta_checks(
         )
     )
 
-    inherited_claimed = sorted(inherited_dirty_files & files_changed) if baseline_available else []
+    inherited_claimed = sorted(
+        path
+        for path in (inherited_dirty_files & files_changed)
+        if not _is_generated_state_or_archive_path(path)
+    ) if baseline_available else []
     if inherited_claimed:
         checks.append(
             _check(
@@ -578,6 +631,80 @@ def _round_delta_checks(
             missing_artifacts=missing_delta_artifacts,
         )
     )
+    return checks
+
+
+def _baseline_lifecycle_checks(
+    *,
+    delta_summary: dict[str, Any],
+    decision_text: str,
+    report_text: str,
+) -> list[dict[str, Any]]:
+    baseline_available = bool(delta_summary.get("baseline_available"))
+    baseline_dirty_files = _string_set(delta_summary.get("baseline_dirty_files"))
+    inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
+    scope_text = _markdown_section(decision_text, "Implementation Scope")
+    source_test_scope = _allowed_source_test_scope_paths(scope_text)
+    allowed_inherited = _allowed_inherited_baseline_paths(decision_text)
+    source_test_baseline_dirty = sorted(baseline_dirty_files & source_test_scope)
+    unauthorized = sorted((baseline_dirty_files & source_test_scope) - allowed_inherited)
+    allowed_claimed = sorted((baseline_dirty_files & source_test_scope) & allowed_inherited)
+    generated_or_archive_dirty = sorted(path for path in baseline_dirty_files if _is_generated_state_or_archive_path(path))
+    checks: list[dict[str, Any]] = []
+    if not baseline_available:
+        checks.append(
+            _check(
+                "baseline_lifecycle_guard",
+                "WARN",
+                "round baseline is unavailable; legacy lifecycle guard is advisory only",
+                source_test_scope=sorted(source_test_scope),
+            )
+        )
+        return checks
+    if unauthorized:
+        checks.append(
+            _check(
+                "baseline_lifecycle_guard",
+                "FAIL",
+                "baseline contains source/test dirty files not allowed as inherited baseline",
+                unauthorized_inherited_source_test_files=unauthorized,
+                allowed_inherited_dirty_files=sorted(allowed_inherited),
+                source_test_scope=sorted(source_test_scope),
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "baseline_lifecycle_guard",
+                "PASS",
+                "baseline source/test dirty files are absent or explicitly allowed",
+                source_test_baseline_dirty=source_test_baseline_dirty,
+                allowed_inherited_dirty_files=sorted(allowed_inherited),
+                generated_or_archive_baseline_dirty_files=generated_or_archive_dirty,
+            )
+        )
+    if allowed_claimed:
+        report_lower = report_text.lower()
+        explains = "baseline" in report_lower and "inherited" in report_lower
+        checks.append(
+            _check(
+                "baseline_inherited_allowlist_explained",
+                "PASS" if explains else "FAIL",
+                "report explains explicitly allowed inherited baseline files"
+                if explains
+                else "report does not explain explicitly allowed inherited baseline files",
+                allowed_inherited_source_test_files=allowed_claimed,
+            )
+        )
+    elif inherited_dirty_files:
+        checks.append(
+            _check(
+                "baseline_inherited_allowlist_explained",
+                "PASS",
+                "no source/test inherited baseline explanation is required",
+                inherited_dirty_files=sorted(inherited_dirty_files),
+            )
+        )
     return checks
 
 
@@ -941,6 +1068,18 @@ def _final_gate_is_report_summary_self_failure(payload: dict[str, Any]) -> bool:
     return bool(failed_check_names) and failed_check_names <= {"report_summary_fields_match_synthesis"}
 
 
+def _final_gate_is_retriable_status_source_failure(payload: dict[str, Any]) -> bool:
+    if payload.get("gate_status") != "FAILED":
+        return False
+    failed_check_names = {
+        str(check.get("name") or "")
+        for check in payload.get("checks", [])
+        if isinstance(check, dict) and check.get("status") == "FAIL"
+    }
+    retriable_checks = ARCHIVE_PENDING_CHECKS | {"report_summary_fields_match_synthesis"}
+    return bool(failed_check_names) and failed_check_names <= retriable_checks
+
+
 def _expected_archive_paths(state_dir: Path, round_id: str, manifest_files: list[str]) -> set[str]:
     if manifest_files:
         return _round_archive_paths(state_dir, round_id, manifest_files)
@@ -986,6 +1125,8 @@ def build_report_summary_synthesis(
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
     decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+    report_text = _read_text(state_dir / "codex_execution_report.md")
     report = read_codex_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
     pytest_header = parse_pytest_result_header(pytest_text)
@@ -1042,6 +1183,17 @@ def build_report_summary_synthesis(
         if delta_summary.get("baseline_available")
         else delta_summary.get("final_dirty_files")
     )
+    lifecycle_checks = _baseline_lifecycle_checks(
+        delta_summary=delta_summary,
+        decision_text=decision_text,
+        report_text=report_text,
+    )
+    unauthorized_lifecycle_files: set[str] = set()
+    for check in lifecycle_checks:
+        if check.get("status") == "FAIL":
+            errors.append(str(check.get("detail") or check.get("name")))
+            unauthorized_lifecycle_files.update(_string_set(check.get("unauthorized_inherited_source_test_files")))
+    round_delta_files |= unauthorized_lifecycle_files
     expected_files_changed = sorted(round_delta_files | archive_paths | {REPORT_SUMMARY_OUTPUT_PATH})
     expected_generated_artifacts = sorted(
         {
@@ -1064,10 +1216,10 @@ def build_report_summary_synthesis(
         and str(final_gate_payload.get("gate_status") or "")
     )
     if final_gate_matches:
-        if _final_gate_is_report_summary_self_failure(final_gate_payload):
+        if _final_gate_is_retriable_status_source_failure(final_gate_payload):
             final_gate_matches = False
             warnings.append(
-                "final_gate_result.json contains only a self-referential report-summary failure; "
+                "final_gate_result.json contains only retriable report-summary/archive drift failures; "
                 "status fields cannot be gate-derived yet"
             )
         else:
@@ -1248,6 +1400,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
 
     decision = read_decision_meta(state_dir)
     decision_text = _read_text(state_dir / "decision_packet.md")
+    report_text = _read_text(state_dir / "codex_execution_report.md")
     report = read_codex_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
     pytest_validation = validate_pytest_result_for_report(pytest_text, report)
@@ -1356,6 +1509,13 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
             files_changed=files_changed,
             generated_artifacts=generated_artifacts,
             archive_paths=archive_paths,
+        )
+    )
+    checks.extend(
+        _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
         )
     )
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
@@ -1616,6 +1776,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
 
     decision = read_decision_meta(state_dir)
     decision_text = _read_text(state_dir / "decision_packet.md")
+    report_text = _read_text(state_dir / "codex_execution_report.md")
     report = read_codex_report_summary(state_dir)
     pytest_text = _read_text(state_dir / "pytest_result.txt")
     pytest_validation = validate_pytest_result_for_report(pytest_text, report)
@@ -1749,6 +1910,13 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             files_changed=files_changed,
             generated_artifacts=generated_artifacts,
             archive_paths=archive_paths,
+        )
+    )
+    checks.extend(
+        _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
         )
     )
 

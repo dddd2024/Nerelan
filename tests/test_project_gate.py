@@ -81,6 +81,7 @@ def _write_decision(
     decision_id: str,
     round_id: str,
     mainline: str = "engineering_branch",
+    extra_text: str = "",
 ) -> None:
     payload = {
         "schema_version": 1,
@@ -98,6 +99,21 @@ def _write_decision(
 ```
 
 # DECISION_PACKET
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated files:
+
+- `project_state/gates/final_gate_result.json`
+{extra_text}
 """,
         encoding="utf-8",
     )
@@ -837,6 +853,104 @@ def test_final_check_fails_when_files_changed_claims_inherited_dirty_file(tmp_pa
     assert "reverse_agent/project_gate.py" in inherited_check["inherited_files_in_files_changed"]
 
 
+def test_final_check_fails_when_source_test_dirty_is_inherited_without_allowlist(tmp_path: Path) -> None:
+    archive_paths = _archive_paths("round_gate")
+    state_dir = _make_gate_state(
+        tmp_path,
+        files_changed=[
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/final_gate_result.json",
+            *archive_paths,
+        ],
+    )
+    _write_round_baseline(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        baseline_dirty_files=["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    lifecycle = _check(result, "baseline_lifecycle_guard")
+    assert lifecycle["status"] == "FAIL"
+    assert "reverse_agent/project_gate.py" in lifecycle["unauthorized_inherited_source_test_files"]
+    assert "tests/test_project_gate.py" in lifecycle["unauthorized_inherited_source_test_files"]
+
+
+def test_final_check_allows_inherited_source_test_dirty_with_explicit_allowlist_and_report_note(tmp_path: Path) -> None:
+    archive_paths = _archive_paths("round_gate")
+    state_dir = _make_gate_state(
+        tmp_path,
+        files_changed=[
+            "project_state/codex_execution_report.md",
+            "project_state/pytest_result.txt",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/gates/final_gate_result.json",
+            *archive_paths,
+        ],
+    )
+    _write_decision(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        extra_text="""
+
+## Allowed Inherited Dirty Baseline Files
+
+- `reverse_agent/project_gate.py`
+- `tests/test_project_gate.py`
+""",
+    )
+    report_path = state_dir / "codex_execution_report.md"
+    report_path.write_text(
+        report_path.read_text(encoding="utf-8")
+        + "\nThe inherited baseline files are explicitly allowed for this round.\n",
+        encoding="utf-8",
+    )
+    (state_dir / "rounds" / "round_gate" / "codex_execution_report.md").write_text(
+        report_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    _write_round_baseline(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        baseline_dirty_files=["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert _check(result, "baseline_lifecycle_guard")["status"] == "PASS"
+    assert _check(result, "baseline_inherited_allowlist_explained")["status"] == "PASS"
+
+
+def test_final_check_does_not_reject_generated_baseline_dirty_files(tmp_path: Path) -> None:
+    state_dir = _make_gate_state(tmp_path)
+    _write_round_baseline(
+        state_dir,
+        decision_id="decision_gate",
+        round_id="round_gate",
+        baseline_dirty_files=[
+            "project_state/gates/preflight_result.json",
+            "project_state/rounds/round_gate/round_manifest.json",
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    lifecycle = _check(result, "baseline_lifecycle_guard")
+    assert lifecycle["status"] == "PASS"
+    assert "project_state/gates/preflight_result.json" in lifecycle["generated_or_archive_baseline_dirty_files"]
+
+
 def test_final_check_fails_when_generated_artifacts_omit_round_delta_files(tmp_path: Path) -> None:
     state_dir = _make_gate_state(
         tmp_path,
@@ -1086,6 +1200,31 @@ def test_report_summary_fails_when_files_changed_claims_inherited_dirty(tmp_path
     assert any("inherited dirty files" in error for error in result["errors"])
 
 
+def test_report_summary_fails_when_late_baseline_hides_source_test_diff(tmp_path: Path) -> None:
+    files_changed_without_source_test = [
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        *_archive_paths("round_gate"),
+    ]
+    state_dir = _make_report_summary_state(
+        tmp_path,
+        files_changed=files_changed_without_source_test,
+        baseline_dirty_files=["reverse_agent/project_gate.py", "tests/test_project_gate.py"],
+    )
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "FAILED"
+    assert any("baseline contains source/test dirty files" in error for error in result["errors"])
+    files_changed_diff = next(diff for diff in result["diffs"] if diff["field"] == "files_changed")
+    assert "reverse_agent/project_gate.py" in files_changed_diff["expected"]
+    assert "tests/test_project_gate.py" in files_changed_diff["expected"]
+
+
 def test_report_summary_fails_on_report_status_final_gate_contradiction(tmp_path: Path) -> None:
     state_dir = _make_report_summary_state(tmp_path, report_status="FAILED", acceptance="REWORK_REQUIRED")
 
@@ -1094,6 +1233,36 @@ def test_report_summary_fails_on_report_status_final_gate_contradiction(tmp_path
     assert result["synthesis_status"] == "FAILED"
     assert any(diff["field"] == "status" for diff in result["diffs"])
     assert any(diff["field"] == "acceptance_recommendation" for diff in result["diffs"])
+
+
+def test_report_summary_ignores_retriable_archived_pytest_drift_status_source(tmp_path: Path) -> None:
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_json(
+        state_dir / "gates" / "final_gate_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "FAILED",
+            "decision_id": "decision_report_summary",
+            "report_id": "codex_report_gate",
+            "round_id": "round_gate",
+            "checks": [
+                {
+                    "name": "archived_pytest_result_matches_live_pytest_result",
+                    "status": "FAIL",
+                    "detail": "archived pytest_result differs from live pytest_result",
+                }
+            ],
+        },
+    )
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "WARN"
+    assert result["diffs"] == []
+    assert result["errors"] == []
+    assert "status" not in result["synthesized_summary"]
+    assert any("retriable report-summary/archive drift failures" in warning for warning in result["warnings"])
 
 
 def test_report_summary_fails_when_command_plan_missing(tmp_path: Path) -> None:

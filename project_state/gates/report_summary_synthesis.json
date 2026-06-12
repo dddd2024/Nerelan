@@ -3,14 +3,14 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "PASSED",
-  "decision_id": "decision_20260612_engineering_report_summary_autogen_v1",
-  "round_id": "round_20260612_engineering_report_summary_autogen_v1",
-  "report_id": "codex_report_20260612_engineering_report_summary_autogen_v1",
-  "generated_at": "2026-06-12T13:19:12.368773Z",
+  "decision_id": "decision_20260612_engineering_baseline_lifecycle_guard_v1",
+  "round_id": "round_20260612_engineering_baseline_lifecycle_guard_v1",
+  "report_id": "codex_report_20260612_engineering_baseline_lifecycle_guard_v1",
+  "generated_at": "2026-06-12T13:42:46.281038Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260612_engineering_report_summary_autogen_v1",
-    "round_id": "round_20260612_engineering_report_summary_autogen_v1",
-    "based_on_decision_id": "decision_20260612_engineering_report_summary_autogen_v1",
+    "report_id": "codex_report_20260612_engineering_baseline_lifecycle_guard_v1",
+    "round_id": "round_20260612_engineering_baseline_lifecycle_guard_v1",
+    "based_on_decision_id": "decision_20260612_engineering_baseline_lifecycle_guard_v1",
     "files_changed": [
       "project_state/codex_execution_report.md",
       "project_state/gates/command_plan.json",
@@ -20,10 +20,12 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260612_engineering_report_summary_autogen_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260612_engineering_report_summary_autogen_v1/decision_packet.md",
-      "project_state/rounds/round_20260612_engineering_report_summary_autogen_v1/pytest_result.txt",
-      "project_state/rounds/round_20260612_engineering_report_summary_autogen_v1/round_manifest.json"
+      "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/decision_packet.md",
+      "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/pytest_result.txt",
+      "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/round_manifest.json",
+      "reverse_agent/project_gate.py",
+      "tests/test_project_gate.py"
     ],
     "tests_ran": [
       "pwd",
@@ -41,7 +43,7 @@
       "python -m reverse_agent.project_state doctor --state-dir project_state --json",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_engineering_report_summary_autogen_v1",
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_engineering_baseline_lifecycle_guard_v1",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
       "git status --short",
@@ -56,10 +58,10 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260612_engineering_report_summary_autogen_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260612_engineering_report_summary_autogen_v1/decision_packet.md",
-      "project_state/rounds/round_20260612_engineering_report_summary_autogen_v1/pytest_result.txt",
-      "project_state/rounds/round_20260612_engineering_report_summary_autogen_v1/round_manifest.json"
+      "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/decision_packet.md",
+      "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/pytest_result.txt",
+      "project_state/rounds/round_20260612_engineering_baseline_lifecycle_guard_v1/round_manifest.json"
     ],
     "status": "SUCCESS",
     "acceptance_recommendation": "ACCEPTED"
