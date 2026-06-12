@@ -1,13 +1,16 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
-  "round_id": "round_20260612_rework2_cleanup_and_deterministic_queue_build_v1",
+  "decision_id": "decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
+  "round_id": "round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
   "based_on_state_build_id": "state_20260610_131714_88c14099a13a",
   "based_on_state_digest": "88c14099a13a2bf2999e4a61b2c53d8edd9568217bb5ee36f0cfd4462e8cbbd2",
   "status": "APPROVED",
   "mainline": "training_dataset",
-  "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]
+  "skill_profiles": [
+    "reverse-agent-iteration@v2",
+    "samplereverse-frontier@v2"
+  ]
 }
 ```
 
@@ -15,37 +18,41 @@
 
 ## 1. Goal
 
-第二次返工上一轮错误执行。必须清理三个被误提交的占位文件：`.git_old2`、`.git_corrupt`、`.git_corrupt_v2`；恢复训练状态与 overlay 一致；按 metadata-only 方式生成确定性的 local_reverse 训练队列；最后完成完整 gate closeout。
+第三次返工。上一轮仍未清理 `.git_old2` / `.git_corrupt` / `.git_corrupt_v2`，仍未生成 decision 要求的分桶训练队列，且 gate artifacts 仍指向旧工程轮次。本轮只允许做最小闭环修复：清理仓库污染、实现严格的 metadata-only queue contract、生成指定产物、跑完整 gate 链并归档。
 
-本轮只做训练集 metadata 修复。不得运行样本、IDA/Ghidra/debugger/harness/solver，不得生成任何答案类内容。
+本轮不是逆向解题。不得运行样本、IDA/Ghidra/debugger/harness/solver，不得生成 candidate、flag、password 或答案。
 
 必须完成：
 
-1. 从版本控制中移除 `.git_old2`、`.git_corrupt`、`.git_corrupt_v2`。不得把它们改成 placeholder；最终 `git ls-files` 中不得再出现这三个路径。不得触碰真实 `.git/` 目录。
-2. 纠正上一轮伪成功：`lint-report`、`doctor`、`final-check` 任一失败时，report 不得写 `SUCCESS + ACCEPTED`。
-3. 恢复或修正 `project_state/local_reverse_training_status.json` 与 `training_materials/local_reverse/status_overlay.json` 的 50 样本状态一致性。当前 overlay 摘要为 `solved=1, blocked=2, needs_triage=1, inventory_only=46`；不得继续提交 `needs_triage=2, inventory_only=45` 的不一致状态，除非同时有 metadata-only 依据更新 overlay 并在 report 中说明。
-4. 修复 `reverse_agent/local_reverse_training_review.py build`，使其支持：`--status`、`--overlay`、`--inventory`、`--artifact-index`、`--out`、`--queue-out`、`--github-queue-out`。
-5. `build` 必须从 status/overlay/inventory/artifact_index 读取 metadata 并生成队列。不得通过会隐式改写训练状态的旧路径制造新的 status/overlay 不一致。
-6. 生成或更新：`project_state/local_reverse_training_capability_review.json`、`project_state/local_reverse_training_next_queue.json`、`training_materials/local_reverse/queue.json`。
-7. 队列 artifact 必须包含：`source_files`、输入摘要或 sha、`status_summary`、`primary_queue`、`secondary_queue`、`reference_or_support_queue`、`blocked_review_queue`。不得再只生成单一 `items` 数组。
-8. `primary_queue` 只能包含 `inventory_only + guessed_file_type=pe + category=cpp` 的 binary target。不得包含 solved、blocked、needs_triage、Python/reference/support、text/support、crypto/cipher PE。
-9. `secondary_queue` 放 crypto/cipher PE，并标注 pending cipher static evidence profile。
-10. `reference_or_support_queue` 放 Python solver/reference、text/support 等非 primary target。
-11. `blocked_review_queue` 放 blocked / needs_triage 样本，并保留 blocked_reason、missing evidence、next_action。
-12. 跑完整 gate 链并 close-round。只有 `lint-report`、`doctor`、`final-check` 全部通过，才允许写 `SUCCESS + ACCEPTED`。
+1. 彻底从版本控制中移除 `.git_old2`、`.git_corrupt`、`.git_corrupt_v2`。不得再写 placeholder。最终 `git ls-files .git_old2 .git_corrupt .git_corrupt_v2` 必须为空。
+2. 修复 `reverse_agent/local_reverse_training_review.py build`，必须支持并实际使用：`--status`、`--overlay`、`--inventory`、`--artifact-index`、`--out`、`--queue-out`、`--github-queue-out`。
+3. `build` 必须以 `--status` 和 `--overlay` 为权威输入，只读生成 review/queue。不得调用会隐式重建或改写 50 样本状态的旧流程。若 status 与 overlay 不一致，停止并报告 `BLOCKED`，除非有明确 metadata-only 依据并同时更新二者且写入 report。
+4. 必须生成指定路径：
+   - `project_state/local_reverse_training_capability_review.json`
+   - `project_state/local_reverse_training_next_queue.json`
+   - `training_materials/local_reverse/queue.json`
+5. 删除或停止使用上一轮错误产物 `project_state/local_reverse_evaluation_queue.json`，除非作为 obsolete artifact 在 report 中说明并从 generated/current artifact 列表移除。
+6. `local_reverse_training_capability_review.json` 必须从旧 29 样本状态更新为当前 50 样本 metadata review。不得继续保留 `decision_20260608_local_reverse_training_capability_review_v1` 作为当前 review 的 decision_id。
+7. 队列必须是分桶结构，顶层至少包含：`source_files`、`input_digests` 或等价 sha 摘要、`sample_count`、`status_summary`、`primary_queue`、`secondary_queue`、`reference_or_support_queue`、`blocked_review_queue`。
+8. 每个队列项至少包含：`sample_id`、`relative_path`、`category`、`guessed_file_type`、`training_status`、`reason`、`allowed_next_action`、`not_allowed`。
+9. `primary_queue` 只能包含 `training_status=inventory_only`、`guessed_file_type=pe`、`category=cpp` 的二进制目标。不得包含 solved、blocked、needs_triage、Python/reference/support、text/support、crypto/cipher PE。
+10. `secondary_queue` 放 crypto/cipher PE，并标注 pending cipher static evidence profile。
+11. `reference_or_support_queue` 放 Python/reference/text/support 等非 primary target。
+12. `blocked_review_queue` 放 blocked / needs_triage 样本，并保留 blocked_reason、missing evidence、next_action。
+13. 跑完整 gate 链。`command_plan.json`、`final_gate_result.json`、round archive 必须指向本轮 decision/round。只有 lint-report、doctor、final-check 全部通过，report 才能写 `SUCCESS + ACCEPTED`。
 
 ## 2. Current Evidence
 
-- 最新审计结论仍是 `REWORK_REQUIRED`。
-- 最新提交仍保留 `.git_old2`、`.git_corrupt`、`.git_corrupt_v2`，只是把内容改成 `placeholder`；这没有解决仓库污染。
-- 最新 report 承认 `lint-report` 和 `doctor` 退出码为 1，却仍写 `SUCCESS + ACCEPTED`。
-- 最新 `pytest_result.txt` 不是 fenced `pytest_result_summary` JSON，且没有覆盖完整 gate 链。
-- 最新 `project_state/gates/final_gate_result.json` 和 `command_plan.json` 仍指向旧工程轮次。
-- 最新 `local_reverse_training_review.py build` 缺少 `--status`、`--overlay`、`--out`、`--github-queue-out`。
-- 最新生成的是 `project_state/local_reverse_training_review_queue.json`，结构是单一 `items`，不是分桶队列。
-- 最新队列把 Python 文件 `sha_cd947414` 放入队列并标为 PE sample，违反 primary target 规则。
-- 最新 `project_state/local_reverse_training_status.json` 与 `training_materials/local_reverse/status_overlay.json` 摘要不一致。
-- `negative_results.json` 仍禁止重复旧盲搜、预算扩张、重复 runtime/breakpoint probe、提交完整 solve_reports 等方向。本轮不得触碰这些方向。
+- 最新审计结论仍为 `REWORK_REQUIRED`。
+- 最新 HEAD 仍保留 `.git_old2`、`.git_corrupt`、`.git_corrupt_v2`，内容为 `placeholder`。
+- 最新 report 写 `SUCCESS + ACCEPTED`，但 `tests_ran` 只有 6 条，缺少 preflight、command-plan、final-check、close-round、二次 final-check、最终 git status/diff。
+- 最新 `pytest_result.txt` 不是 fenced `pytest_result_summary` JSON。
+- 最新 `project_state/gates/final_gate_result.json` 与 `project_state/gates/command_plan.json` 仍指向旧 `engineering_branch` 轮次。
+- 最新 build CLI 使用 `--training-status` / `--github-status-out`，而不是本轮要求的 `--status` / `--overlay` / `--out` / `--github-queue-out`。
+- 最新队列 `project_state/local_reverse_evaluation_queue.json` 仍是单一 `items` 数组，并把 Python 文件放入 PE/static triage 队列。
+- `project_state/local_reverse_training_next_queue.json` 和 `training_materials/local_reverse/queue.json` 仍未生成。
+- `project_state/local_reverse_training_capability_review.json` 仍是旧 29 样本 review。
+- `negative_results.json` 禁止旧盲搜、预算扩张、重复 runtime/breakpoint probe、完整 `solve_reports/` 提交等方向。本轮不得触碰这些方向。
 - `task_packet.json` 只能作为 advisory；当前执行权威是本 `decision_packet.md`。
 
 ## 3. Do Not Do
@@ -60,8 +67,7 @@
 - 不把 `.git_old2`、`.git_corrupt`、`.git_corrupt_v2` 改成 placeholder 或继续保留在版本控制。
 - 不把 stale/missing artifact 改成 current。
 - 不把旧 29 样本 capability review 当作当前事实。
-- 不把 Python solver/reference 文件当成 primary binary target。
-- 不把 crypto/cipher PE 放进 primary_queue。
+- 不把 Python solver/reference 文件或 crypto/cipher PE 放进 primary_queue。
 - 不把 queue builder 扩成求解器、数据库、消息队列或重型 workflow engine。
 - 不修改 solver、harness、IDA/Ghidra/debugger 接口。
 
@@ -82,7 +88,7 @@
 - `training_materials/local_reverse/inventory.json`
 - `training_materials/local_reverse/README.md`
 - `project_state/local_reverse_training_capability_review.json`
-- `project_state/local_reverse_training_review_queue.json` if present
+- `project_state/local_reverse_evaluation_queue.json` if present
 - `reverse_agent/local_reverse_training_review.py`
 - `tests/test_local_reverse_training_review.py`
 
@@ -108,12 +114,12 @@ Codex 必须：
 5. 再次记录 `git ls-files .git_old2 .git_corrupt .git_corrupt_v2`，输出必须为空。
 6. 确认本 decision 是当前执行权威，`task_packet.json` 只是 advisory。
 7. 确认 skill profiles active。
-8. 比对 `local_reverse_training_status.json` 与 `status_overlay.json`，恢复或同步到一致状态。
+8. 比对 status 与 overlay。若二者冲突，先停止并在 report 中写 `BLOCKED`，除非能用 metadata-only 证据解释并同步修复。
 9. 检查 negative_results，确认本轮没有重复失败方向。
 10. 检查工具边界，确认本轮 metadata-only，不运行 IDA/Ghidra/debugger/solver/harness。
 11. 修复 build CLI 与分桶队列输出。
 12. 真实记录所有命令 stdout/stderr/exit code，更新 report 与 pytest_result。
-13. 用 `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework2_cleanup_and_deterministic_queue_build_v1` 归档本轮。
+13. 用 `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework3_enforce_cleanup_and_queue_contract_v1` 归档本轮。
 
 ## 6. Implementation Scope
 
@@ -132,7 +138,7 @@ Allowed tests:
 
 Allowed generated metadata/state artifacts:
 
-- `project_state/local_reverse_training_status.json` only to restore/sync metadata consistency with overlay
+- `project_state/local_reverse_training_status.json` only if restoring/syncing metadata consistency with overlay
 - `training_materials/local_reverse/status_overlay.json` only if metadata-only sync requires it and report explains why
 - `project_state/local_reverse_training_capability_review.json`
 - `project_state/local_reverse_training_next_queue.json`
@@ -142,12 +148,12 @@ Allowed generated metadata/state artifacts:
 - `project_state/gates/preflight_result.json`
 - `project_state/gates/command_plan.json`
 - `project_state/gates/final_gate_result.json`
-- `project_state/rounds/round_20260612_rework2_cleanup_and_deterministic_queue_build_v1/*`
+- `project_state/rounds/round_20260612_rework3_enforce_cleanup_and_queue_contract_v1/*`
 
 Allowed cleanup:
 
 - Delete tracked files `.git_old2`, `.git_corrupt`, `.git_corrupt_v2`.
-- Delete obsolete `project_state/local_reverse_training_review_queue.json` if replaced by `project_state/local_reverse_training_next_queue.json`.
+- Delete obsolete `project_state/local_reverse_evaluation_queue.json` if replaced by `project_state/local_reverse_training_next_queue.json`.
 
 Disallowed:
 
@@ -185,7 +191,7 @@ python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_state doctor --state-dir project_state --json
 python -m reverse_agent.project_gate final-check --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state --json
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework2_cleanup_and_deterministic_queue_build_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework3_enforce_cleanup_and_queue_contract_v1
 python -m reverse_agent.project_gate final-check --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state --json
 git status --short
@@ -201,8 +207,8 @@ git diff --name-only
 - 输出文件不得包含 `E:\reverse`、绝对本地路径、raw binary bytes、candidate、flag、password。
 - `primary_queue` 不得包含 solved/blocked/needs_triage、Python/reference/support、crypto/cipher PE。
 - `secondary_queue`、`reference_or_support_queue`、`blocked_review_queue` 必须清楚标注 `allowed_next_action` / `not_allowed`。
-- `codex_report_summary.based_on_decision_id` 必须等于 `decision_20260612_rework2_cleanup_and_deterministic_queue_build_v1`。
-- `codex_report_summary.round_id` 必须等于 `round_20260612_rework2_cleanup_and_deterministic_queue_build_v1`。
+- `codex_report_summary.based_on_decision_id` 必须等于 `decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1`。
+- `codex_report_summary.round_id` 必须等于 `round_20260612_rework3_enforce_cleanup_and_queue_contract_v1`。
 - `codex_report_summary.status` 必须是合法值。
 - `pytest_result.txt` 必须包含 fenced `pytest_result_summary` JSON，并覆盖 report 中的 `tests_ran`。
 - `project_state/gates/command_plan.json` 与 `final_gate_result.json` 必须指向本轮 decision/round。
