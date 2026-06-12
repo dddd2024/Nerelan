@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
-  "round_id": "round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
+  "gate_status": "BLOCKED",
+  "decision_id": "decision_20260612_rework4_final_gate_closeout_contract_v1",
+  "round_id": "round_20260612_rework4_final_gate_closeout_contract_v1",
   "mainline": "training_dataset",
-  "generated_at": "2026-06-12T11:41:27.998324Z",
+  "generated_at": "2026-06-12T12:19:45.319508Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -57,10 +57,10 @@
     },
     {
       "name": "decision_not_consumed_by_report",
-      "status": "PASS",
-      "detail": "decision has not been consumed by a report",
-      "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260612_rework2_cleanup_and_deterministic_queue_build_v1"
+      "status": "FAIL",
+      "detail": "decision already appears consumed by report",
+      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+      "report_id": "codex_report_20260612_rework4_final_gate_closeout_contract_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -75,26 +75,19 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "Delete obsolete `project_state/local_reverse_evaluation_queue.json` if replaced by `project_state/local_reverse_training_next_queue.json`.",
-        "Delete tracked files `.git_old2`, `.git_corrupt`, `.git_corrupt_v2`.",
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/local_reverse_training_capability_review.json",
-        "project_state/local_reverse_training_next_queue.json",
-        "project_state/local_reverse_training_status.json` only if restoring/syncing metadata consistency with overlay",
+        "project_state/model_gate.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_rework3_enforce_cleanup_and_queue_contract_v1/*",
-        "reverse_agent/local_reverse_inventory.py` only for tiny metadata-only compatibility reuse",
-        "reverse_agent/local_reverse_training_review.py",
-        "reverse_agent/project_state.py` only if tiny report/status integration is strictly required",
-        "tests/test_local_reverse_training_review.py",
-        "tests/test_local_reverse_training_status.py` only if status/overlay consistency tests are needed",
-        "tests/test_project_gate.py` only if gate/report generated artifact coverage requires adjustment",
-        "tests/test_project_state.py` only for project_state metadata/report integration checks",
-        "training_materials/local_reverse/queue.json",
-        "training_materials/local_reverse/status_overlay.json` only if metadata-only sync requires it and report explains why"
+        "project_state/rounds/round_20260612_rework4_final_gate_closeout_contract_v1/*",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ]
     },
     {
@@ -128,13 +121,15 @@
       "capability_required": true
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "decision_not_consumed_by_report: decision already appears consumed by report"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "do_not_start_consumed_or_stale_decision",
   "status_summary": {
-    "decision_execution_state": "READY_FOR_EXECUTION",
-    "decision_report_id_match": false,
-    "decision_consumed_by_report": false,
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_report_id_match": true,
+    "decision_consumed_by_report": true,
     "task": "repair_harness_case_result_materialization",
     "derived_task": "repair_harness_case_result_materialization",
     "current_state_round_id": "round_20260610_131714"

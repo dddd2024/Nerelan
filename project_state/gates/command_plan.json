@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "plan_name": "command-plan",
-  "plan_status": "WARN",
-  "decision_id": "decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
-  "round_id": "round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
+  "plan_status": "PASSED",
+  "decision_id": "decision_20260612_rework4_final_gate_closeout_contract_v1",
+  "round_id": "round_20260612_rework4_final_gate_closeout_contract_v1",
   "mainline": "training_dataset",
-  "generated_at": "2026-06-12T11:47:51.613315Z",
+  "generated_at": "2026-06-12T12:19:53.582174Z",
   "commands": [
     {
       "index": 1,
@@ -69,18 +69,6 @@
     },
     {
       "index": 6,
-      "command": "git ls-files .git_old2 .git_corrupt .git_corrupt_v2",
-      "phase": "unknown",
-      "kind": "unknown",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "unknown command kind; defaulting to zero exit"
-    },
-    {
-      "index": 7,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "phase": "preflight",
       "kind": "preflight",
@@ -92,31 +80,7 @@
       "notes": "preflight expected to exit 0"
     },
     {
-      "index": 8,
-      "command": "python -m pytest tests/test_local_reverse_training_review.py tests/test_local_reverse_training_status.py tests/test_project_state.py tests/test_project_gate.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 9,
-      "command": "python -m reverse_agent.local_reverse_training_review build --status project_state/local_reverse_training_status.json --overlay training_materials/local_reverse/status_overlay.json --inventory training_materials/local_reverse/inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_capability_review.json --queue-out project_state/local_reverse_training_next_queue.json --github-queue-out training_materials/local_reverse/queue.json",
-      "phase": "unknown",
-      "kind": "unknown",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "unknown command kind; defaulting to zero exit"
-    },
-    {
-      "index": 10,
+      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "phase": "gate",
       "kind": "command-plan",
@@ -128,7 +92,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 11,
+      "index": 8,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "phase": "gate",
       "kind": "command-plan",
@@ -140,7 +104,19 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 12,
+      "index": 9,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py tests/test_local_reverse_training_review.py tests/test_local_reverse_training_status.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 10,
       "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "phase": "status",
       "kind": "lint-report",
@@ -152,19 +128,7 @@
       "notes": "lint-report expected to exit 0"
     },
     {
-      "index": 13,
-      "command": "python -m reverse_agent.project_state status --state-dir project_state",
-      "phase": "status",
-      "kind": "status",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "status expected to exit 0"
-    },
-    {
-      "index": 14,
+      "index": 11,
       "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
       "phase": "status",
       "kind": "doctor",
@@ -176,7 +140,7 @@
       "notes": "doctor expected to exit 0"
     },
     {
-      "index": 15,
+      "index": 12,
       "command": "python -m reverse_agent.project_state doctor --state-dir project_state --json",
       "phase": "status",
       "kind": "doctor",
@@ -186,6 +150,42 @@
       ],
       "records_stdout_stderr": true,
       "notes": "doctor expected to exit 0"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 14,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework4_final_gate_closeout_contract_v1",
+      "phase": "gate",
+      "kind": "close-round",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "close-round expected to exit 0"
     },
     {
       "index": 16,
@@ -213,42 +213,6 @@
     },
     {
       "index": 18,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
-      "phase": "gate",
-      "kind": "close-round",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "close-round expected to exit 0"
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 21,
       "command": "git status --short",
       "phase": "status",
       "kind": "git status",
@@ -260,7 +224,7 @@
       "notes": "git status expected to exit 0"
     },
     {
-      "index": 22,
+      "index": 19,
       "command": "git diff --name-only",
       "phase": "status",
       "kind": "git diff",
@@ -272,10 +236,7 @@
       "notes": "git diff expected to exit 0"
     }
   ],
-  "warnings": [
-    "command 6 has unknown kind: git ls-files .git_old2 .git_corrupt .git_corrupt_v2",
-    "command 9 has unknown kind: python -m reverse_agent.local_reverse_training_review build --status project_state/local_reverse_training_status.json --overlay training_materials/local_reverse/status_overlay.json --inventory training_materials/local_reverse/inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_capability_review.json --queue-out project_state/local_reverse_training_next_queue.json --github-queue-out training_materials/local_reverse/queue.json"
-  ],
+  "warnings": [],
   "blocking_reasons": [],
-  "recommended_next_action": "review_command_plan_warnings_before_execution"
+  "recommended_next_action": "record_and_follow_command_plan_manually"
 }

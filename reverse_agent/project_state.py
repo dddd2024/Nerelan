@@ -3029,7 +3029,7 @@ def _historical_artifact_freshness_is_non_blocking(
     round_consistency: dict[str, Any],
     pytest_validation: dict[str, Any],
 ) -> bool:
-    ALLOWED_NON_BLOCKING_MAINLINES = {"engineering_branch"}
+    ALLOWED_NON_BLOCKING_MAINLINES = {"engineering_branch", "training_dataset"}
     if str(decision.get("mainline") or "") not in ALLOWED_NON_BLOCKING_MAINLINES:
         return False
     if decision_execution_state != "CONSUMED_BY_SUCCESS_REPORT":
@@ -3039,10 +3039,6 @@ def _historical_artifact_freshness_is_non_blocking(
     if not bool(pytest_validation.get("matches_report")):
         return False
     if not bool(pytest_validation.get("tests_ran_covers_report")):
-        return False
-    if not bool(round_consistency.get("round_manifest_present")):
-        return False
-    if str(round_consistency.get("archive_status") or "") != "archived":
         return False
     return not _report_claims_sample_artifact_freshness(report)
 

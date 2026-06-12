@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
-  "report_id": "codex_report_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
-  "round_id": "round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
-  "generated_at": "2026-06-12T11:48:33.592692Z",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260612_rework4_final_gate_closeout_contract_v1",
+  "report_id": "codex_report_20260612_rework4_final_gate_closeout_contract_v1",
+  "round_id": "round_20260612_rework4_final_gate_closeout_contract_v1",
+  "generated_at": "2026-06-12T12:33:34.477415Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -20,41 +20,25 @@
     },
     {
       "name": "pytest_result_covers_report_tests",
-      "status": "WARN",
-      "detail": "pytest_result coverage is incomplete or unknown",
-      "missing_report_tests": [
-        "git ls-files .git_old2 .git_corrupt .git_corrupt_v2",
-        "git rm -f .git_old2 .git_corrupt .git_corrupt_v2",
-        "git rm -f project_state/local_reverse_evaluation_queue.json",
-        "pytest tests/test_local_reverse_training_review.py tests/test_local_reverse_training_status.py tests/test_project_state.py tests/test_project_gate.py -q",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state",
-        "python -m reverse_agent.local_reverse_training_review build --status ... --overlay ... --inventory ... --artifact-index ... --out ... --queue-out ... --github-queue-out ...",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m reverse_agent.project_state lint-report --state-dir project_state",
-        "python -m reverse_agent.project_state status --state-dir project_state",
-        "python -m reverse_agent.project_state doctor --state-dir project_state",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state",
-        "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
-        "python -c queue schema/count/primary validation",
-        "python -c capability_review decision_id/round_id/schema check",
-        "python -c status/overlay match check"
-      ]
+      "status": "PASS",
+      "detail": "pytest_result covers report tests",
+      "missing_report_tests": []
     },
     {
       "name": "round_manifest_present",
-      "status": "FAIL",
-      "detail": "round manifest is missing",
-      "round_manifest_path": "project_state\\rounds\\round_20260612_rework3_enforce_cleanup_and_queue_contract_v1\\round_manifest.json"
+      "status": "PASS",
+      "detail": "round manifest is present",
+      "round_manifest_path": "project_state\\rounds\\round_20260612_rework4_final_gate_closeout_contract_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "FAIL",
-      "detail": "archived report differs from live report"
+      "status": "PASS",
+      "detail": "archived report matches live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "FAIL",
-      "detail": "archived pytest_result differs from live pytest_result"
+      "status": "PASS",
+      "detail": "archived pytest_result matches live pytest_result"
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -70,28 +54,25 @@
         "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/preflight_result.json",
-        "project_state/local_reverse_evaluation_queue.json",
-        "project_state/local_reverse_training_capability_review.json",
-        "project_state/local_reverse_training_next_queue.json",
-        "project_state/local_reverse_training_status.json",
         "project_state/model_gate.json",
         "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260612_rework4_final_gate_closeout_contract_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260612_rework4_final_gate_closeout_contract_v1/decision_packet.md",
+        "project_state/rounds/round_20260612_rework4_final_gate_closeout_contract_v1/pytest_result.txt",
+        "project_state/rounds/round_20260612_rework4_final_gate_closeout_contract_v1/round_manifest.json",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
-        "reverse_agent/local_reverse_training_review.py",
+        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
-        "tests/test_project_state.py",
-        "training_materials/local_reverse/queue.json",
-        "training_materials/local_reverse/status_overlay.json"
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ]
     },
     {
       "name": "generated_artifacts_cover_round_archive",
-      "status": "FAIL",
-      "detail": "generated_artifacts omits round archive files",
-      "missing_artifacts": [
-        "project_state/rounds/round_20260612_rework3_enforce_cleanup_and_queue_contract_v1/round_manifest.json"
-      ]
+      "status": "PASS",
+      "detail": "generated_artifacts covers round archive files",
+      "missing_artifacts": []
     },
     {
       "name": "command_plan_present",
@@ -102,152 +83,30 @@
     },
     {
       "name": "command_plan_ids_match",
-      "status": "FAIL",
-      "detail": "command_plan ids, round_id, or status do not match",
-      "plan_status": "WARN",
-      "command_plan_decision_id": "decision_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
-      "command_plan_round_id": "round_20260612_rework3_enforce_cleanup_and_queue_contract_v1"
+      "status": "PASS",
+      "detail": "command_plan ids and status match current decision/report",
+      "plan_status": "PASSED",
+      "command_plan_decision_id": "decision_20260612_rework4_final_gate_closeout_contract_v1",
+      "command_plan_round_id": "round_20260612_rework4_final_gate_closeout_contract_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
-      "status": "FAIL",
-      "detail": "command_plan commands do not cover report or pytest_result tests",
-      "missing_report_tests": [
-        "git rm -f .git_old2 .git_corrupt .git_corrupt_v2",
-        "git rm -f project_state/local_reverse_evaluation_queue.json",
-        "pytest tests/test_local_reverse_training_review.py tests/test_local_reverse_training_status.py tests/test_project_state.py tests/test_project_gate.py -q",
-        "python -c capability_review decision_id/round_id/schema check",
-        "python -c queue schema/count/primary validation",
-        "python -c status/overlay match check",
-        "python -m reverse_agent.local_reverse_training_review build --status ... --overlay ... --inventory ... --artifact-index ... --out ... --queue-out ... --github-queue-out ..."
-      ],
+      "status": "PASS",
+      "detail": "command_plan commands cover report and pytest_result tests",
+      "missing_report_tests": [],
       "missing_pytest_result_tests": []
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
-      "status": "FAIL",
-      "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
-      "errors": [
-        {
-          "command": "pwd",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "powershell -NoProfile -Command \"Test-Path F:\\reverse-agent\"",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "git rev-parse --show-toplevel",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "git status --short",
-          "error": "missing recorded command block",
-          "expected_count": 2,
-          "recorded_count": 0
-        },
-        {
-          "command": "git diff --name-only",
-          "error": "missing recorded command block",
-          "expected_count": 2,
-          "recorded_count": 0
-        },
-        {
-          "command": "git ls-files .git_old2 .git_corrupt .git_corrupt_v2",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m pytest tests/test_local_reverse_training_review.py tests/test_local_reverse_training_status.py tests/test_project_state.py tests/test_project_gate.py -q",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.local_reverse_training_review build --status project_state/local_reverse_training_status.json --overlay training_materials/local_reverse/status_overlay.json --inventory training_materials/local_reverse/inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_capability_review.json --queue-out project_state/local_reverse_training_next_queue.json --github-queue-out training_materials/local_reverse/queue.json",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_state status --state-dir project_state",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_state doctor --state-dir project_state --json",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-          "error": "missing recorded command block",
-          "expected_count": 2,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-          "error": "missing recorded command block",
-          "expected_count": 2,
-          "recorded_count": 0
-        },
-        {
-          "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_rework3_enforce_cleanup_and_queue_contract_v1",
-          "error": "missing recorded command block",
-          "expected_count": 1,
-          "recorded_count": 0
-        }
-      ]
+      "status": "PASS",
+      "detail": "recorded command exit codes match command_plan expected_exit_codes",
+      "errors": []
     },
     {
       "name": "command_plan_json_stdout_full",
-      "status": "FAIL",
-      "detail": "command-plan --json recorded stdout is missing a full commands array",
-      "errors": [
-        {
-          "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-          "error": "missing recorded stdout"
-        }
-      ]
+      "status": "PASS",
+      "detail": "command-plan --json recorded stdout contains full commands array",
+      "errors": []
     },
     {
       "name": "command_plan_generated_artifact_recorded",
@@ -263,40 +122,23 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "WARN",
-      "detail": "PARTIAL report is internally consistent",
+      "status": "PASS",
+      "detail": "SUCCESS report passes lint and doctor",
       "lint_errors": [],
-      "warnings": [
-        "pytest_result tests_ran does not cover codex_report_summary.tests_ran",
-        "report_status is PARTIAL",
-        "report round not archived yet",
-        "doctor status is WARN"
-      ],
-      "doctor_status": "WARN",
-      "report_status": "PARTIAL"
+      "warnings": [],
+      "doctor_status": "PASS",
+      "report_status": "SUCCESS"
     }
   ],
-  "blocking_reasons": [
-    "round_manifest_present: round manifest is missing",
-    "archived_report_matches_live_report: archived report differs from live report",
-    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
-    "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
-    "command_plan_ids_match: command_plan ids, round_id, or status do not match",
-    "command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests",
-    "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
-    "command_plan_json_stdout_full: command-plan --json recorded stdout is missing a full commands array"
-  ],
-  "warnings": [
-    "pytest_result_covers_report_tests: pytest_result coverage is incomplete or unknown",
-    "status_policy_valid: PARTIAL report is internally consistent"
-  ],
-  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
+  "blocking_reasons": [],
+  "warnings": [],
+  "recommended_next_action": "no_action_required",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
-    "archive_status": "not_archived",
-    "report_status": "PARTIAL",
-    "report_acceptance_recommendation": "NEEDS_REVIEW"
+    "archive_status": "archived",
+    "report_status": "SUCCESS",
+    "report_acceptance_recommendation": "ACCEPTED"
   }
 }

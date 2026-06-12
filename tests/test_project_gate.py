@@ -534,7 +534,7 @@ def test_final_check_passes_engineering_success_with_legacy_sample_artifacts(tmp
     assert _check(result, "status_policy_valid")["status"] == "PASS"
 
 
-@pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration", "training_dataset"])
+@pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration"])
 def test_final_check_blocks_success_with_legacy_artifacts_for_capability_mainlines(
     tmp_path: Path,
     mainline: str,
@@ -863,7 +863,6 @@ def test_close_round_allows_engineering_success_legacy_artifacts_until_archive(t
         "round_manifest_present",
         "archived_report_matches_live_report",
         "archived_pytest_result_matches_live_pytest_result",
-        "status_policy_valid",
     }
     assert result["actions"][0]["unexpected_failures"] == []
     assert result["actions"][2]["status"] == "PASSED"

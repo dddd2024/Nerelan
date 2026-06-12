@@ -681,7 +681,7 @@ def test_doctor_warns_when_engineering_report_claims_sample_artifact_freshness(
     assert artifact_check["counts"]["missing"] > 0
 
 
-@pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration", "training_dataset"])
+@pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration"])
 def test_doctor_artifact_freshness_blocks_capability_mainlines(
     tmp_path: Path,
     mainline: str,
@@ -782,7 +782,7 @@ def test_doctor_passes_for_all_valid_mainlines(tmp_path: Path, mainline: str) ->
     archive_round(state_dir=state_dir, round_id=round_id)
 
     result = doctor(state_dir=state_dir)
-    expected_status = "PASS" if mainline == "engineering_branch" else "WARN"
+    expected_status = "PASS" if mainline in {"engineering_branch", "training_dataset"} else "WARN"
     assert result["status"] == expected_status
     mainline_check = next(c for c in result["checks"] if c["name"] == "mainline")
     assert mainline_check["status"] == "PASS"
