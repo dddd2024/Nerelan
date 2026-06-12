@@ -5,7 +5,7 @@
   "decision_id": "decision_20260612_engineering_close_round_design_only_v1",
   "report_id": "report_20260612_engineering_close_round_design_only_v1",
   "round_id": "round_20260612_engineering_close_round_design_only_v1",
-  "generated_at": "2026-06-12T02:07:11.387577Z",
+  "generated_at": "2026-06-12T02:08:42.246827Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -45,17 +45,7 @@
       "status": "PASS",
       "detail": "files_changed covers git status files",
       "missing_files": [],
-      "git_changed_files": [
-        "project_state/close_round_design.md",
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_close_round_design_only_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260612_engineering_close_round_design_only_v1/decision_packet.md",
-        "project_state/rounds/round_20260612_engineering_close_round_design_only_v1/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_close_round_design_only_v1/round_manifest.json"
-      ]
+      "git_changed_files": []
     },
     {
       "name": "generated_artifacts_cover_round_archive",
