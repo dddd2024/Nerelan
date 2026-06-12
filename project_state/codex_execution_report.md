@@ -1,83 +1,96 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1",
-  "round_id": "round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1",
-  "based_on_decision_id": "decision_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1",
-  "status": "SUCCESS",
+  "report_id": "report-2026-06-12-training-dataset-local-reverse-review-001",
+  "round_id": "2026-06-12-r1",
+  "based_on_decision_id": "decision-2026-06-12-training-dataset-local-reverse-review-001",
+  "status": "completed",
   "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
-    "reverse_agent/project_state.py",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_state.py",
-    "tests/test_project_gate.py",
-    "project_state/codex_execution_report.md",
+    "reverse_agent/local_reverse_training_review.py",
+    "tests/test_local_reverse_training_review.py",
     "project_state/pytest_result.txt",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/rounds/round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1/decision_packet.md",
-    "project_state/rounds/round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1/pytest_result.txt",
-    "project_state/rounds/round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1/round_manifest.json"
+    "project_state/codex_execution_report.md"
   ],
   "tests_ran": [
-    "pwd",
-    "powershell -NoProfile -Command \"Test-Path F:\\reverse-agent\"",
-    "git rev-parse --show-toplevel",
-    "git status --short",
-    "git diff --name-only",
-    "python -m reverse_agent.project_gate preflight --state-dir project_state",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state status --state-dir project_state",
-    "python -m reverse_agent.project_state doctor --state-dir project_state",
-    "python -m reverse_agent.project_state doctor --state-dir project_state --json",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-    "git status --short",
-    "git diff --name-only"
+    "python -m pytest tests/test_local_reverse_training_review.py -v --tb=short",
+    "python -m pytest tests/test_local_reverse_training_review.py tests/test_local_reverse_training_status.py -v --tb=short",
+    "python -m reverse_agent.local_reverse_training_review --help",
+    "python -m reverse_agent.local_reverse_training_review --review-type completeness --sample-id cpp1_bcbd9979"
   ],
   "generated_artifacts": [
-    "project_state/codex_execution_report.md",
+    "reverse_agent/local_reverse_training_review.py",
+    "tests/test_local_reverse_training_review.py",
     "project_state/pytest_result.txt",
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/final_gate_result.json",
-    "project_state/rounds/round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1/decision_packet.md",
-    "project_state/rounds/round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1/pytest_result.txt",
-    "project_state/rounds/round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1/round_manifest.json"
-  ],
-  "verified_artifacts": [
-    "project_state/gates/preflight_result.json",
-    "project_state/gates/command_plan.json",
-    "project_state/gates/final_gate_result.json"
+    "project_state/codex_execution_report.md"
   ]
 }
 ```
 
-# Round Report: `round_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1`
+# Codex Execution Report
+
+## Decision Reference
+- **Decision ID**: `decision-2026-06-12-training-dataset-local-reverse-review-001`
+- **Round ID**: `2026-06-12-r1`
+- **Mainline**: `training_dataset`
 
 ## Summary
 
-- Decision: `decision_20260612_engineering_gate_success_policy_for_legacy_artifacts_v1`
-- Mainline: `engineering_branch`
-- Status: `SUCCESS`
-- Acceptance Recommendation: `ACCEPTED`
+This round implemented the `local_reverse_training_review` module as specified in the decision packet. The module provides review capabilities for local reverse engineering training samples, supporting two review types:
 
-## What Was Done
+1. **completeness**: Checks if samples have all required metadata, artifacts, and status-specific fields
+2. **quality**: Evaluates the quality of training data annotations, tags, categories, and classifications
 
-- Limited legacy sample artifact freshness non-blocking treatment to pure `engineering_branch` closeout.
-- Kept `reverse_solving`, `tool_integration`, and `training_dataset` strict for stale/missing sample artifacts.
-- Allowed `close-round` to bridge the pre-archive engineering SUCCESS state only when `status_policy_valid` is failing solely because legacy artifact freshness is still archive-pending.
-- Added regression coverage for final-check, doctor, and close-round behavior.
+## Implementation Details
 
-## Verification
+### New Files Created
 
-All command-plan commands exited 0. Full stdout/stderr transcripts are recorded in `project_state/pytest_result.txt`.
+1. **`reverse_agent/local_reverse_training_review.py`** (664 lines)
+   - `review_sample(sample_id, review_type, training_status, inventory, artifact_index)` - Single sample review
+   - `review_batch(sample_ids, review_type, training_status, inventory, artifact_index)` - Batch review
+   - `generate_review_report(review_type, training_status, inventory, artifact_index)` - Full report generation
+   - CLI interface with argparse supporting `--sample-id`, `--sample-ids`, `--review-type`, `--out`, `--refresh-status`
+   - Five severity levels: critical, high, medium, low, info
+   - Status-aware completeness checks (solved/blocked/needs_triage/inventory_only)
+   - Quality checks for categories, tags, classifications, evidence sources, file metadata
+
+2. **`tests/test_local_reverse_training_review.py`** (890 lines)
+   - 30 test cases covering all major functionality
+   - Tests for completeness review (missing samples, missing candidates, blocked reasons, inventory checks)
+   - Tests for quality review (categories, tags, classifications, validation sources, file sizes)
+   - Tests for batch review and report generation
+   - CLI tests (single sample, batch, full report, invalid args)
+   - Integration tests with realistic data structures
+
+## Test Results
+
+All tests passed successfully:
+
+| Command | Exit Code | Result |
+|---------|-----------|--------|
+| `pytest tests/test_local_reverse_training_review.py` | 0 | 30 passed |
+| `pytest tests/test_local_reverse_training_review.py tests/test_local_reverse_training_status.py` | 0 | 75 passed |
+| `python -m reverse_agent.local_reverse_training_review --help` | 0 | CLI help OK |
+| `python -m reverse_agent.local_reverse_training_review --review-type completeness --sample-id cpp1_bcbd9979` | 0 | Single sample review OK |
+
+## Design Decisions
+
+1. **Read-only operation**: The module only reads from existing JSON files and produces review reports. It does not modify any source data.
+
+2. **Dependency reuse**: The module imports from `local_reverse_training_status` for status constants and `build_training_status` for `--refresh-status` CLI option, avoiding duplication.
+
+3. **Graceful degradation**: When inventory or artifact_index is missing/empty, the module continues to operate using only training_status data.
+
+4. **Short SHA matching**: Supports matching samples by short SHA (first 16 chars) for compatibility with existing records.
+
+5. **No external uploads**: As specified in decision constraints, the module does not upload data to external systems.
+
+## Compliance with Decision Constraints
+
+- [x] Only created files authorized by Implementation Scope
+- [x] Did not modify `.codex-skills/`
+- [x] Did not create duplicate scanner or database
+- [x] Did not expand scope beyond training dataset review
+- [x] Tests ran and passed
+- [x] pytest_result.txt updated with real test output
+- [x] codex_execution_report.md updated with accurate metadata
