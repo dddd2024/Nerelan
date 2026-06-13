@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-12T11:39:36Z",
+  "generated_at": "2026-06-13T06:20:53Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
-  "sample_count": 50,
+  "sample_count": 65,
   "status_summary": {
     "solved": 1,
     "blocked": 2,
-    "needs_triage": 1,
-    "inventory_only": 46
+    "needs_triage": 0,
+    "inventory_only": 62
   },
   "samples": [
     {
@@ -88,6 +88,26 @@
     },
     {
       "sample_id": "affine_8cfebe03",
+      "relative_path": "逆向课程2022春补考03/affine.exe",
+      "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+      "size_bytes": 196688,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "affine_8cfebe03",
       "relative_path": "逆向课程2024春补考03/affine.exe",
       "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
       "size_bytes": 196688,
@@ -99,31 +119,44 @@
         "reverse",
         "pe"
       ],
-      "training_status": "needs_triage",
+      "training_status": "inventory_only",
       "known_candidate": "",
-      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
-      "classification": "single_sample_static_triage",
-      "evidence_sources": [
-        "source:local_reverse_affine_8cfebe03_static_triage.json",
-        "static_tool_blocked",
-        "tool_status:blocked",
-        "source_tool:IDA"
-      ],
-      "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
     },
     {
-      "sample_id": "cpp1_2f6fcb63",
-      "relative_path": "逆向课程2023春01/CPP1.exe",
-      "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
-      "size_bytes": 196700,
+      "sample_id": "affineenc_333f8ca9",
+      "relative_path": "逆向课程2020秋04/affineenc.exe",
+      "sha256": "333f8ca9f47e5e705b6dcdbcfbb6b24898dba01f6c518f51515d36618e7add9f",
+      "size_bytes": 196691,
       "extension": ".exe",
       "guessed_file_type": "pe",
-      "category": "cpp",
+      "category": "unknown",
       "tags": [
         "local",
         "reverse",
-        "cpp",
         "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "ascii_table_chinese_46efc7ea",
+      "relative_path": "ascii_table_chinese.pdf",
+      "sha256": "46efc7ea2cd29d8c364198c53a6f146aed679d3e6977753a6984a9771748543a",
+      "size_bytes": 13485,
+      "extension": ".pdf",
+      "guessed_file_type": "unknown",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",
@@ -144,6 +177,27 @@
         "local",
         "reverse",
         "python"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "cpp1_2f6fcb63",
+      "relative_path": "逆向课程2023春01/CPP1.exe",
+      "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+      "size_bytes": 196700,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
       ],
       "training_status": "inventory_only",
       "known_candidate": "",
@@ -178,6 +232,48 @@
       "relative_path": "逆向课程2023春补考01/Cpp1.exe",
       "sha256": "7b504c54c165100549a0eacb7eb7cad26bc235ec0c4bed5c38c95a827ff81a3c",
       "size_bytes": 184398,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "cpp2_06917482",
+      "relative_path": "逆向课程2021春01/Cpp2.exe",
+      "sha256": "06917482e895dbe5c93d3e24392730b14e6b4393834470a7085bf167c62de39c",
+      "size_bytes": 184401,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "cpp2_1264f47d",
+      "relative_path": "逆向课程2022春补考02/Cpp2.exe",
+      "sha256": "1264f47de95d60cd19d6738e46d94ad73c1356ae966c340d132c202da998b88f",
+      "size_bytes": 196686,
       "extension": ".exe",
       "guessed_file_type": "pe",
       "category": "cpp",
@@ -321,6 +417,27 @@
       "next_action": "static triage and manual evaluation required"
     },
     {
+      "sample_id": "cpp2_651d2ef7",
+      "relative_path": "逆向课程2024春05/Cpp2.exe",
+      "sha256": "651d2ef7d18121dbe5b25e0dd715cc07b52933edc7ddb8f46cf3b895bb522323",
+      "size_bytes": 196689,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
       "sample_id": "cpp2_6a58f5f7",
       "relative_path": "逆向课程2019秋01/Cpp2.exe",
       "sha256": "6a58f5f714b4d8ad5d03f70e7dd2dda6aee782cb45f239556c4e3431b5a16782",
@@ -426,6 +543,27 @@
       "next_action": "static triage and manual evaluation required"
     },
     {
+      "sample_id": "cpp2_b7377e96",
+      "relative_path": "逆向课程2024春补考01/Cpp2.exe",
+      "sha256": "b7377e96dcbf1f90062ae53c8ac65b3a6d4327578b34c22c5c7a4931a056c064",
+      "size_bytes": 184398,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
       "sample_id": "cpp2_f2738577",
       "relative_path": "逆向课程2021春02/Cpp2.exe",
       "sha256": "f2738577f6d38a499eeaf24e6d7c04668f591b89b751f38dda88bdb069d34564",
@@ -510,10 +648,52 @@
       "next_action": "static triage and manual evaluation required"
     },
     {
+      "sample_id": "cpp3_356dbdc7",
+      "relative_path": "逆向课程2022春03/Cpp3.exe",
+      "sha256": "356dbdc78b6d268ef1c2fad9fdeaae3261d8b845ccd9d167fea377bd2236f2c9",
+      "size_bytes": 196688,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
       "sample_id": "cpp3_5c3b34d5",
       "relative_path": "逆向课程2023春补考03/Cpp3.exe",
       "sha256": "5c3b34d5f728ff4d5b8a5f33f8b63d5b53e7dedccb5a7811523e6ba96c3058b8",
       "size_bytes": 196691,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "cpp3_e5a33e0b",
+      "relative_path": "逆向课程2022春补考03/cpp3.exe",
+      "sha256": "e5a33e0b6f82114882d2141469a3bef3b793c8672c0372e491c082494dc6362d",
+      "size_bytes": 196686,
       "extension": ".exe",
       "guessed_file_type": "pe",
       "category": "cpp",
@@ -577,6 +757,27 @@
       "relative_path": "逆向课程2023春04/CPP4.exe",
       "sha256": "c7cb6b0e970e8c2ab68f8bfb19051628ce89a7f233ff9a4b1513b1114b968424",
       "size_bytes": 200796,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "cpp",
+      "tags": [
+        "local",
+        "reverse",
+        "cpp",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "cpp4_d420b8a8",
+      "relative_path": "逆向课程2022春04/CPP4.exe",
+      "sha256": "d420b8a895247583daf451bff358206ab3e9dac9af3e1eb439e1ff8b8e433c5c",
+      "size_bytes": 196689,
       "extension": ".exe",
       "guessed_file_type": "pe",
       "category": "cpp",
@@ -945,10 +1146,94 @@
       "next_action": "static triage and manual evaluation required"
     },
     {
+      "sample_id": "rc4_interactive_solver_v2_962a7427",
+      "relative_path": "rc4_interactive_solver_v2.py",
+      "sha256": "962a7427efb6c6ee9dca71b68b943408f6b2c1cb0672f0b2bae0b45e869caf8f",
+      "size_bytes": 16717,
+      "extension": ".py",
+      "guessed_file_type": "python",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "python"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "rc4enc_210a1f33",
+      "relative_path": "逆向课程2022春补考05/rc4enc.exe",
+      "sha256": "210a1f332f4d2a53d642c0cfc076b1183b171263e9bbde0c9378cb2054311808",
+      "size_bytes": 196688,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "rc4enc_2348c3cb",
+      "relative_path": "逆向课程2024春03/rc4enc.exe",
+      "sha256": "2348c3cb5a563bf8c0555299d354aec686984678a0868821a79f253d1575f955",
+      "size_bytes": 196691,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
       "sample_id": "rc4enc_3480917d",
       "relative_path": "逆向课程2019秋03/rc4enc.exe",
       "sha256": "3480917ddedce512f76e97c26df3b3ad12b71b34db472fa8836ba67528bcb09f",
       "size_bytes": 196693,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "crypto/cipher",
+      "tags": [
+        "local",
+        "reverse",
+        "crypto_cipher",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "rc4enc_a1897c10",
+      "relative_path": "逆向课程2019春03/rc4enc.exe",
+      "sha256": "a1897c10b3fd081972f8e0d5fc9854f8f0b2ff94c394673c1a046129fcbf407a",
+      "size_bytes": 196684,
       "extension": ".exe",
       "guessed_file_type": "pe",
       "category": "crypto/cipher",
@@ -977,6 +1262,26 @@
         "local",
         "reverse",
         "crypto_cipher",
+        "pe"
+      ],
+      "training_status": "inventory_only",
+      "known_candidate": "",
+      "blocked_reason": "",
+      "classification": "",
+      "evidence_sources": [],
+      "next_action": "static triage and manual evaluation required"
+    },
+    {
+      "sample_id": "samplereverse_ca74a786",
+      "relative_path": "samplereverse.exe",
+      "sha256": "ca74a7867fe97e54e003970d627891cdb6df41c5ad953632fe49e9bce9c619c1",
+      "size_bytes": 1762304,
+      "extension": ".exe",
+      "guessed_file_type": "pe",
+      "category": "unknown",
+      "tags": [
+        "local",
+        "reverse",
         "pe"
       ],
       "training_status": "inventory_only",

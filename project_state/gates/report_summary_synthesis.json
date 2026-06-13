@@ -3,56 +3,33 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "FAILED",
-  "decision_id": "decision_20260613_samplereverse_path_resolution_static_evidence_v2",
-  "round_id": "round_20260613_samplereverse_path_resolution_static_evidence_v2",
-  "report_id": "report_20260613_samplereverse_path_resolution_static_evidence_v2",
-  "generated_at": "2026-06-13T05:50:49.242069Z",
+  "decision_id": "decision_20260613_run_one_local_reverse_static_triage_v1",
+  "round_id": "round_20260613_run_one_local_reverse_static_triage_v1",
+  "report_id": "report_20260613_run_one_local_reverse_static_triage_v1",
+  "generated_at": "2026-06-13T06:35:41.027854Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260613_samplereverse_path_resolution_static_evidence_v2",
-    "round_id": "round_20260613_samplereverse_path_resolution_static_evidence_v2",
-    "based_on_decision_id": "decision_20260613_samplereverse_path_resolution_static_evidence_v2",
+    "report_id": "codex_report_20260613_run_one_local_reverse_static_triage_v1",
+    "round_id": "round_20260613_run_one_local_reverse_static_triage_v1",
+    "based_on_decision_id": "decision_20260613_run_one_local_reverse_static_triage_v1",
     "files_changed": [
-      "project_state/artifact_index.json",
       "project_state/codex_execution_report.md",
-      "project_state/current_state.json",
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/local_reverse_inventory.json",
-      "project_state/model_gate.json",
+      "project_state/local_reverse_evaluation_queue.json",
+      "project_state/local_reverse_selected_static_triage_target.json",
+      "project_state/local_reverse_training_status.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/codex_execution_report.md",
-      "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/decision_packet.md",
-      "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/pytest_result.txt",
-      "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/round_manifest.json",
-      "project_state/samplereverse_sample_path_resolution.json",
-      "project_state/samplereverse_static_evidence_rebuild_summary.json",
-      "reverse_agent/project_state.py",
-      "tests/test_project_state.py"
+      "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/decision_packet.md",
+      "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/pytest_result.txt",
+      "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/round_manifest.json"
     ],
     "tests_ran": [
-      "pwd",
-      "powershell -NoProfile -Command \"Test-Path F:\\reverse-agent\"",
-      "powershell -NoProfile -Command \"Test-Path E:\\reverse\"",
-      "git rev-parse --show-toplevel",
-      "git status --short",
-      "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "python -c \"from pathlib import Path; from reverse_agent.local_reverse_inventory import scan_samples; scan_samples(Path(r'E:\\reverse'), Path('project_state/local_reverse_inventory.json'), None, None)\"",
-      "python -m reverse_agent.project_state build",
-      "python -m reverse_agent.project_state doctor --state-dir project_state",
-      "python -m reverse_agent.project_state doctor --state-dir project_state --json",
-      "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
-      "python -m reverse_agent.project_state lint-report --state-dir project_state",
-      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-      "git status --short",
-      "git diff --name-only"
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -63,85 +40,65 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/codex_execution_report.md",
-      "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/decision_packet.md",
-      "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/pytest_result.txt",
-      "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/round_manifest.json"
+      "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/decision_packet.md",
+      "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/pytest_result.txt",
+      "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/round_manifest.json"
     ]
   },
   "diffs": [
     {
       "field": "report_id",
-      "expected": "codex_report_20260613_samplereverse_path_resolution_static_evidence_v2",
-      "actual": "report_20260613_samplereverse_path_resolution_static_evidence_v2"
+      "expected": "codex_report_20260613_run_one_local_reverse_static_triage_v1",
+      "actual": "report_20260613_run_one_local_reverse_static_triage_v1"
     },
     {
       "field": "files_changed",
       "expected": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/current_state.json",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_inventory.json",
-        "project_state/model_gate.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_selected_static_triage_target.json",
+        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/decision_packet.md",
-        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/pytest_result.txt",
-        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/round_manifest.json",
-        "project_state/samplereverse_sample_path_resolution.json",
-        "project_state/samplereverse_static_evidence_rebuild_summary.json",
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/decision_packet.md",
+        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/pytest_result.txt",
+        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/round_manifest.json"
       ],
       "actual": [
         "project_state/codex_execution_report.md",
-        "project_state/local_reverse_inventory.json",
-        "project_state/pytest_result.txt",
-        "project_state/samplereverse_sample_path_resolution.json",
-        "project_state/samplereverse_static_evidence_rebuild_summary.json"
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_selected_static_triage_target.json",
+        "project_state/local_reverse_training_status.json",
+        "project_state/pytest_result.txt"
       ]
     },
     {
       "field": "tests_ran",
       "expected": [
-        "git diff --name-only",
-        "git rev-parse --show-toplevel",
-        "git status --short",
-        "git status --short",
-        "powershell -NoProfile -Command \"Test-Path E:\\reverse\"",
-        "powershell -NoProfile -Command \"Test-Path F:\\reverse-agent\"",
-        "pwd",
-        "python -c \"from pathlib import Path; from reverse_agent.local_reverse_inventory import scan_samples; scan_samples(Path(r'E:\\reverse'), Path('project_state/local_reverse_inventory.json'), None, None)\"",
-        "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state",
-        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-        "python -m reverse_agent.project_state build",
-        "python -m reverse_agent.project_state doctor --state-dir project_state",
-        "python -m reverse_agent.project_state doctor --state-dir project_state --json",
-        "python -m reverse_agent.project_state lint-report --state-dir project_state"
+        "python -m reverse_agent.project_gate report-summary --state-dir project_state"
       ],
       "actual": [
-        "python -c scan_samples E:\\reverse -> project_state/local_reverse_inventory.json",
+        "Test-Path E:\\reverse",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "pwd",
         "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
+        "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03",
+        "python -m reverse_agent.local_reverse_training_status (via build_training_status with github_status_path=None)",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
         "python -m reverse_agent.project_gate preflight --state-dir project_state",
-        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-        "python -m reverse_agent.project_state build",
         "python -m reverse_agent.project_state doctor --state-dir project_state",
-        "python -m reverse_agent.project_state doctor --state-dir project_state --json",
         "python -m reverse_agent.project_state lint-report --state-dir project_state"
       ]
     },
@@ -156,24 +113,26 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/decision_packet.md",
-        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/pytest_result.txt",
-        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/round_manifest.json"
+        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/decision_packet.md",
+        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/pytest_result.txt",
+        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/round_manifest.json"
       ],
       "actual": [
         "project_state/codex_execution_report.md",
-        "project_state/local_reverse_inventory.json",
-        "project_state/pytest_result.txt",
-        "project_state/samplereverse_sample_path_resolution.json",
-        "project_state/samplereverse_static_evidence_rebuild_summary.json"
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_selected_static_triage_target.json",
+        "project_state/local_reverse_training_status.json",
+        "project_state/pytest_result.txt"
       ]
     }
   ],
   "errors": [
     "baseline contains source/test dirty files not allowed as inherited baseline",
-    "pytest_result_summary.tests_ran omits command_plan commands: ['git diff --name-only', 'git rev-parse --show-toplevel', 'git status --short', 'powershell -NoProfile -Command \"Test-Path E:\\\\reverse\"', 'powershell -NoProfile -Command \"Test-Path F:\\\\reverse-agent\"', 'pwd', 'python -c \"from pathlib import Path; from reverse_agent.local_reverse_inventory import scan_samples; scan_samples(Path(r\\'E:\\\\reverse\\'), Path(\\'project_state/local_reverse_inventory.json\\'), None, None)\"', 'python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q']",
-    "files_changed includes inherited dirty files: ['project_state/codex_execution_report.md', 'project_state/local_reverse_inventory.json', 'project_state/pytest_result.txt', 'project_state/samplereverse_sample_path_resolution.json', 'project_state/samplereverse_static_evidence_rebuild_summary.json']"
+    "files_changed includes inherited dirty files: ['project_state/codex_execution_report.md', 'project_state/local_reverse_affine_8cfebe03_static_triage.json', 'project_state/local_reverse_evaluation_queue.json', 'project_state/local_reverse_selected_static_triage_target.json', 'project_state/local_reverse_training_status.json', 'project_state/pytest_result.txt']"
   ],
   "warnings": [
     "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"

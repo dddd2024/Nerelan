@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-13T06:18:33Z",
+  "decision_id": "decision_20260613_run_one_local_reverse_static_triage_v1",
+  "round_id": "round_20260613_run_one_local_reverse_static_triage_v1",
+  "selected_sample_id": "affine_8cfebe03",
+  "relative_path": "逆向课程2022春补考03/affine.exe",
+  "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+  "queue_rank": 1,
+  "queue_policy": "simple_static_first_unsolved_only",
+  "allowed_actions": ["static_triage"],
+  "forbidden_actions": ["runtime_probe", "bruteforce", "upload_binary"],
+  "selection_rationale": "rank=1 from evaluation queue; not samplereverse; PE sample with static triage tags",
+  "is_samplereverse": false
+}

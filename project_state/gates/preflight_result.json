@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260613_samplereverse_path_resolution_static_evidence_v2",
-  "round_id": "round_20260613_samplereverse_path_resolution_static_evidence_v2",
-  "mainline": "reverse_solving",
-  "generated_at": "2026-06-13T05:41:45.791919Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260613_run_one_local_reverse_static_triage_v1",
+  "round_id": "round_20260613_run_one_local_reverse_static_triage_v1",
+  "mainline": "training_dataset",
+  "generated_at": "2026-06-13T06:20:29.520415Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -21,7 +21,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is reverse_solving",
+      "detail": "mainline is training_dataset",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -42,15 +42,6 @@
           "registry_status": "active",
           "registry_scope": "generic_workflow",
           "registry_version": 2
-        },
-        {
-          "profile": "samplereverse-frontier@v2",
-          "skill_name": "samplereverse-frontier",
-          "version": 2,
-          "draft": false,
-          "registry_status": "active",
-          "registry_scope": "sample_profile",
-          "registry_version": 2
         }
       ],
       "errors": []
@@ -60,7 +51,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "report_20260613_samplereverse_bounded_static_evidence_rebuild_v1"
+      "report_id": "report_20260613_samplereverse_path_resolution_static_evidence_v2"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -75,31 +66,27 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/current_state.json",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_inventory.json",
-        "project_state/model_gate.json",
+        "project_state/gates/*.json",
+        "project_state/local_reverse_<selected_sample_id>_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_selected_static_triage_target.json",
+        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/*",
-        "project_state/samplereverse_sample_path_resolution.json",
-        "project_state/samplereverse_static_evidence_rebuild_summary.json",
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py",
-        "\u4e0e sample path resolution / static evidence summary \u76f4\u63a5\u76f8\u5173\u7684\u6700\u5c0f\u6d4b\u8bd5"
+        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/*",
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
+        "reverse_agent/local_reverse_training_status.py",
+        "\u5bf9\u5e94\u6700\u5c0f\u6d4b\u8bd5"
       ]
     },
     {
       "name": "forbidden_paths_not_allowed",
-      "status": "PASS",
-      "detail": "allowed scope contains no forbidden paths",
-      "forbidden_paths": []
+      "status": "FAIL",
+      "detail": "allowed scope includes forbidden paths",
+      "forbidden_paths": [
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
+        "reverse_agent/local_reverse_training_status.py"
+      ]
     },
     {
       "name": "mainline_scope_policy",
@@ -124,9 +111,11 @@
       "capability_required": true
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "forbidden_paths_not_allowed: allowed scope includes forbidden paths"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
@@ -134,18 +123,20 @@
       "project_state/codex_execution_report.md",
       "project_state/current_state.json",
       "project_state/decision_packet.md",
-      "project_state/local_reverse_inventory.json",
+      "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+      "project_state/local_reverse_evaluation_queue.json",
+      "project_state/local_reverse_selected_static_triage_target.json",
+      "project_state/local_reverse_training_status.json",
       "project_state/model_gate.json",
       "project_state/negative_results.json",
       "project_state/pytest_result.txt",
-      "project_state/samplereverse_sample_path_resolution.json",
-      "project_state/samplereverse_static_evidence_rebuild_summary.json",
       "project_state/task_packet.json",
       "reverse_agent/harness.py",
       "reverse_agent/project_state.py",
-      "tests/test_project_state.py"
+      "tests/test_project_state.py",
+      "training_materials/local_reverse/status_overlay.json"
     ],
-    "head_commit": "464e752662f0"
+    "head_commit": "8b91fcd6caf1"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",
@@ -153,6 +144,6 @@
     "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
-    "current_state_round_id": "round_20260613_051950"
+    "current_state_round_id": "round_20260613_054156"
   }
 }
