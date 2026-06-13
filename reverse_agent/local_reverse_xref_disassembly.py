@@ -761,5 +761,4 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+if __nam

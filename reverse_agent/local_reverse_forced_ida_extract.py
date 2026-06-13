@@ -487,9 +487,4 @@ def main() -> None:
         handoff_path=args.handoff,
         out_path=args.out,
         policy_path=args.policy,
-        ida_timeout_seconds=args.ida_timeout,
-    )
-
-
-if __name__ == "__main__":
-    main()
+        ida_timeout_seconds=args.id

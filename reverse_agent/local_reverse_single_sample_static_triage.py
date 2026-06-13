@@ -445,24 +445,4 @@ def main() -> int:
     parser.add_argument("--queue", default="project_state/local_reverse_evaluation_queue.json")
     parser.add_argument("--inventory", default="project_state/local_reverse_inventory.json")
     parser.add_argument("--artifact-index", default="project_state/artifact_index.json")
-    parser.add_argument("--mainline", default="", help="Decision mainline to record in artifact (optional)")
-    parser.add_argument("--out", default="project_state/local_reverse_cpp1_2f6fcb63_static_triage.json")
-    args = parser.parse_args()
-
-    try:
-        run_static_triage(
-            sample_id=args.sample_id,
-            queue_path=Path(args.queue),
-            inventory_path=Path(args.inventory),
-            artifact_index_path=Path(args.artifact_index),
-            out_path=Path(args.out),
-            mainline=args.mainline,
-        )
-    except ValueError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+    parser.add_argument("--mainline", default="", help="Decision mainline to record in artifact (opt

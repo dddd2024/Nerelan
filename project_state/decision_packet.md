@@ -164,18 +164,4 @@ Allowed only for metadata consistency if required by final gate, without changin
 - `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_tool_integration_artifact_policy_closeout_v1`
 - close-round 后重新运行或记录最终 `report-summary` / `final-check` 状态，确保 archive 后状态一致
 
-`project_state/pytest_result.txt` 必须包含本轮 `decision_20260613_tool_integration_artifact_policy_closeout_v1`、`round_20260613_tool_integration_artifact_policy_closeout_v1`、真实命令、退出码和最终结果。
-
-`project_state/codex_execution_report.md` 顶部必须包含合法 `codex_report_summary`，其中 `based_on_decision_id=decision_20260613_tool_integration_artifact_policy_closeout_v1`，`round_id=round_20260613_tool_integration_artifact_policy_closeout_v1`，并列出实际 files_changed、tests_ran、generated_artifacts。
-
-## 8. Stop Conditions
-
-如果需要重跑 IDA/static triage、solver、runtime validation、debugger、emulator、hook、harness campaign，停止并报告 BLOCKED。
-
-如果需要修改 `.codex-skills/`、training materials、solve_reports 历史目录或 raw sample 文件，停止。
-
-如果需要把 `affineenc_333f8ca9` 标成 solved、写入 candidate、或继续做约束恢复/运行时验证，停止。
-
-如果无法在不削弱 reverse_solving 严格性的前提下让 historical missing artifacts 在 tool_integration closeout 中降级为 non-blocking limitation，停止并报告 REWORK_REQUIRED，给出更小的 policy 设计方案。
-
-如果 report-summary/final-check/close-round/archive 仍存在 FAIL，`codex_execution_report.md` 必须标记 FAILED/REWORK_REQUIRED 或 BLOCKED，不能写 SUCCESS/ACCEPTED。
+`project_state/pytest_result.txt` 必须包含本轮 `decision_20260613_tool_integration_artifact_policy_closeout_v1`、`round_20260613_

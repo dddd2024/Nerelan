@@ -9,7 +9,4 @@
     "summary"
   ],
   "next_local_action": "collect_artifacts",
-  "reason": "artifact evidence is incomplete; do not ask the model to guess",
-  "recommended_packet": "project_state/task_packet.json",
-  "should_call_model": false
-}
+  "reason": "artifact evidence is
