@@ -1,47 +1,180 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260613_archive_closeout_after_gate_consistency_v1",
-  "report_id": "codex_report_20260613_archive_closeout_after_gate_consistency_v1",
-  "round_id": "round_20260613_archive_closeout_after_gate_consistency_v1",
-  "generated_at": "2026-06-13T09:40:00.000000Z",
+  "decision_id": "decision_20260613_static_tool_blocker_triage_v1",
+  "report_id": "codex_report_20260613_static_tool_blocker_triage_v1",
+  "round_id": "round_20260613_static_tool_blocker_triage_v1",
+  "generated_at": "2026-06-13T10:10:00.000000Z",
   "status": "PASSED",
   "tests_ran": [
-    "python -m pytest -q --rootdir F:\\reverse-agent\\tests",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+    "pwd",
+    "Test-Path F:\\reverse-agent",
+    "git rev-parse --show-toplevel",
+    "git status --short",
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_state doctor --state-dir project_state",
+    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "git diff --name-only"
   ]
 }
 ```
 
-===== COMMAND: python -m pytest -q --rootdir F:\reverse-agent\tests =====
+===== COMMAND: pwd =====
 
-..............s......................................................... [  5%]
-........................................................................ [ 11%]
-........................................................................ [ 17%]
-........................................................................ [ 22%]
-........................................................................ [ 28%]
-........................................................................ [ 34%]
-........................................................................ [ 39%]
-........................................................................ [ 45%]
-........................................................................ [ 51%]
-........................................................................ [ 56%]
-........................................................................ [ 62%]
-........................................................................ [ 68%]
-........................................................................ [ 73%]
-........................................................................ [ 79%]
-........................................................................ [ 85%]
-........................................................................ [ 91%]
-........................................................................ [ 96%]
-.........................................                                [100%]
-1264 passed, 1 skipped in 344.37s (0:05:44)
+F:\reverse-agent
+===== EXIT: 0 =====
+
+===== COMMAND: Test-Path F:\reverse-agent =====
+
+True
+===== EXIT: 0 =====
+
+===== COMMAND: git rev-parse --show-toplevel =====
+
+F:/reverse-agent
+===== EXIT: 0 =====
+
+===== COMMAND: git status --short =====
+
+ M project_state/artifact_index.json
+ M project_state/codex_execution_report.md
+ M project_state/current_state.json
+ M project_state/decision_packet.md
+ M project_state/gates/command_plan.json
+ M project_state/gates/preflight_result.json
+ M project_state/gates/report_summary_synthesis.json
+ M project_state/gates/round_baseline.json
+ M project_state/gates/round_delta_summary.json
+ M project_state/model_gate.json
+ M project_state/negative_results.json
+ M project_state/pytest_result.txt
+ M project_state/task_packet.json
+ M reverse_agent/harness.py
+ M reverse_agent/local_reverse_forced_ida_extract.py
+ M reverse_agent/local_reverse_single_sample_static_triage.py
+ M reverse_agent/local_reverse_xref_disassembly.py
+ M reverse_agent/project_gate.py
+ M reverse_agent/project_state.py
+ M tests/test_project_state.py
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
+
+preflight: PASSED
+decision_id: decision_20260613_static_tool_blocker_triage_v1
+round_id: round_20260613_static_tool_blocker_triage_v1
+mainline: tool_integration
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
+
+command-plan: PASSED
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
+
+{
+  "schema_version": 1,
+  "plan_name": "command-plan",
+  "plan_status": "PASSED",
+  "decision_id": "decision_20260613_static_tool_blocker_triage_v1",
+  "round_id": "round_20260613_static_tool_blocker_triage_v1",
+  "mainline": "tool_integration",
+  "generated_at": "2026-06-13T10:06:54.556982Z",
+  "commands": [
+    {"index": 1, "command": "pwd", "phase": "status", "kind": "pwd", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "pwd expected to exit 0"},
+    {"index": 2, "command": "Test-Path F:\\reverse-agent", "phase": "status", "kind": "test-path", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "test-path expected to exit 0"},
+    {"index": 3, "command": "git rev-parse --show-toplevel", "phase": "status", "kind": "git rev-parse", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "git rev-parse expected to exit 0"},
+    {"index": 4, "command": "git status --short", "phase": "status", "kind": "git status", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "git status expected to exit 0"},
+    {"index": 5, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state", "phase": "preflight", "kind": "preflight", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "preflight expected to exit 0"},
+    {"index": 6, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "command-plan expected to exit 0"},
+    {"index": 7, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "phase": "gate", "kind": "command-plan", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "command-plan expected to exit 0"},
+    {"index": 8, "command": "python -m reverse_agent.project_state doctor --state-dir project_state", "phase": "status", "kind": "doctor", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "doctor expected to exit 0"},
+    {"index": 9, "command": "python -m reverse_agent.project_state lint-report --state-dir project_state", "phase": "status", "kind": "lint-report", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "lint-report expected to exit 0"},
+    {"index": 10, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state", "phase": "gate", "kind": "report-summary", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "report-summary expected to exit 0"},
+    {"index": 11, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "phase": "gate", "kind": "final-check", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "final-check expected to exit 0"},
+    {"index": 12, "command": "git diff --name-only", "phase": "status", "kind": "git diff", "required": true, "expected_exit_codes": [0], "records_stdout_stderr": true, "notes": "git diff expected to exit 0"}
+  ],
+  "warnings": [],
+  "blocking_reasons": [],
+  "recommended_next_action": "record_and_follow_command_plan_manually"
+}
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
+
+doctor: PASS
+  [PASS] decision_approval: decision is APPROVED
+  [PASS] mainline: mainline is tool_integration
+  [PASS] skill_profiles: skill profiles active
+  [PASS] report_parse: report status is SUCCESS
+  [PASS] report_decision_match: report decision_id matches
+  [PASS] pytest_result: pytest_result.txt matches report
+  [WARN] archive: decision consumed but round manifest not present
+  [WARN] artifacts: 50 missing, 0 stale artifacts
+  [PASS] state_package_classification: correct
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_state lint-report --state-dir project_state =====
+
+lint-report: OK
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
 
-report-summary: WARN
-decision_id: decision_20260613_archive_closeout_after_gate_consistency_v1
-report_id: codex_report_20260613_archive_closeout_after_gate_consistency_v1
-round_id: round_20260613_archive_closeout_after_gate_consistency_v1
-  [WARN] final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet
+report-summary: PASSED
+decision_id: decision_20260613_static_tool_blocker_triage_v1
+report_id: codex_report_20260613_static_tool_blocker_triage_v1
+round_id: round_20260613_static_tool_blocker_triage_v1
 artifact: project_state/gates/report_summary_synthesis.json
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
+
+final-check: WARN
+decision_id: decision_20260613_static_tool_blocker_triage_v1
+report_id: codex_report_20260613_static_tool_blocker_triage_v1
+round_id: round_20260613_static_tool_blocker_triage_v1
+  [PASS] decision_report_match: decision/report ids and round_id match
+  [PASS] pytest_result_match: pytest_result matches report
+  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
+  [WARN] round_manifest_present: round manifest is missing
+  [WARN] archived_report_matches_live_report: archived report differs from live report
+  [WARN] archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result
+  [PASS] round_delta_summary_present: round delta summary is baseline-aware
+  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
+  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
+  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
+  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
+  [PASS] baseline_inherited_allowlist_explained: no source/test inherited baseline explanation is required
+  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
+  [PASS] command_plan_present: command_plan.json is present
+  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
+  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
+  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
+  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
+  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
+  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
+  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
+  [PASS] forbidden_paths_absent: no forbidden paths detected
+  [WARN] status_policy_valid: FAILED report is internally consistent
+recommended_next_action: review_warnings_before_closeout
+===== EXIT: 0 =====
+
+===== COMMAND: git diff --name-only =====
+
+project_state/codex_execution_report.md
+project_state/gates/command_plan.json
+project_state/gates/final_gate_result.json
+project_state/gates/preflight_result.json
+project_state/gates/report_summary_synthesis.json
+project_state/gates/round_baseline.json
+project_state/gates/round_delta_summary.json
+project_state/pytest_result.txt
+reverse_agent/local_reverse_single_sample_static_triage.py
 ===== EXIT: 0 =====

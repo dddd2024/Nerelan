@@ -311,7 +311,11 @@ def run_static_triage(
         return result
 
     # Run IDA static triage
-    output_dir = out_path.parent / f"triage_{sample_id}"
+    # Use system temp directory to avoid IDA GetDiskFreeSpaceEx issues
+    # with long/unicode paths on NTFS (8.3 short name resolution failures
+    # cause IDA to report 0 available disk space and refuse to write DB files).
+    import tempfile as _tf
+    output_dir = Path(_tf.gettempdir()) / f"reverse_agent_triage_{sample_id}"
     ida_result = _run_ida_static_triage(binary_path, output_dir)
 
     # Build artifact

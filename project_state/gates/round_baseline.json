@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260613_archive_closeout_after_gate_consistency_v1",
-  "round_id": "round_20260613_archive_closeout_after_gate_consistency_v1",
-  "head_commit": "6cd565e6f0ff",
+  "decision_id": "decision_20260613_static_tool_blocker_triage_v1",
+  "round_id": "round_20260613_static_tool_blocker_triage_v1",
+  "head_commit": "e6301dbcde7b",
   "baseline_git_status_short": [
     " M project_state/artifact_index.json",
     " M project_state/codex_execution_report.md",
@@ -52,5 +52,5 @@
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
-  "generated_at": "2026-06-13T09:30:40.608843Z"
+  "generated_at": "2026-06-13T10:06:54.419658Z"
 }
