@@ -5285,8 +5285,11 @@ def _build_summary_error_detail(
     """
     latest_run = artifact_index.get("latest_harness_run")
     latest_summary_path = artifact_index.get("latest_summary")
+    latest_run_path = _path_from_json(latest_run) if latest_run else None
+    latest_run_dir_exists = latest_run_path is not None and latest_run_path.is_dir()
     detail: dict[str, Any] = {
         "latest_harness_run": latest_run,
+        "latest_harness_run_dir_exists": latest_run_dir_exists,
         "summary_present": latest_summary_path is not None,
         "case_results_count": len(case_paths),
         "case_results_missing": len(case_paths) == 0,
@@ -5300,13 +5303,22 @@ def _build_summary_error_detail(
             detail["summary_error_cases"] = summary_data.get("error_cases")
     # Classify the root cause for downstream consumers
     if len(case_paths) == 0:
-        detail["diagnosis"] = "case_results_directory_absent"
-        detail["diagnosis_detail"] = (
-            "The latest harness run has no case_results/ directory. "
-            "The summary may report error_cases if cases were resumed from a prior incomplete run "
-            "or the run completed without executing any case."
-        )
-        detail["latest_harness_run_status"] = "invalid_or_incomplete"
+        if not latest_run_dir_exists:
+            detail["diagnosis"] = "latest_harness_run_directory_absent"
+            detail["diagnosis_detail"] = (
+                "The latest harness run directory recorded in artifact_index.json does not exist locally. "
+                "The run may have been cleaned or never synchronized to this workspace. "
+                "Re-run the harness or restore the run directory to resolve."
+            )
+            detail["latest_harness_run_status"] = "run_directory_absent"
+        else:
+            detail["diagnosis"] = "case_results_directory_absent"
+            detail["diagnosis_detail"] = (
+                "The latest harness run has no case_results/ directory. "
+                "The summary may report error_cases if cases were resumed from a prior incomplete run "
+                "or the run completed without executing any case."
+            )
+            detail["latest_harness_run_status"] = "invalid_or_incomplete"
     else:
         detail["diagnosis"] = "case_results_contain_errors"
         detail["diagnosis_detail"] = (

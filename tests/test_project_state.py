@@ -9,6 +9,7 @@ import pytest
 from reverse_agent.project_state import (
     CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS,
     CODEX_REPORT_STATUSES,
+    _build_summary_error_detail,
     _classify_artifact_freshness,
     _historical_artifact_freshness_is_non_blocking,
     archive_round,
@@ -6474,3 +6475,98 @@ class TestHistoricalArtifactFreshnessNonBlocking:
             round_consistency={},
             pytest_validation={"matches_report": False, "tests_ran_covers_report": False},
         ) is False
+
+
+class TestBuildSummaryErrorDetailRunDirAbsent:
+    """Tests for _build_summary_error_detail diagnosing absent latest harness run directory."""
+
+    def test_run_dir_absent_diagnosis(self, tmp_path: Path) -> None:
+        """When latest_harness_run points to a nonexistent directory, diagnosis is run_directory_absent."""
+        artifact_index = {
+            "latest_harness_run": str(tmp_path / "nonexistent_run"),
+            "latest_summary": None,
+        }
+        detail = _build_summary_error_detail(
+            artifact_index=artifact_index,
+            case_paths=[],
+            reports_dir=tmp_path,
+        )
+        assert detail["latest_harness_run_dir_exists"] is False
+        assert detail["diagnosis"] == "latest_harness_run_directory_absent"
+        assert detail["latest_harness_run_status"] == "run_directory_absent"
+        assert "does not exist locally" in detail["diagnosis_detail"]
+
+    def test_run_dir_exists_but_no_case_results(self, tmp_path: Path) -> None:
+        """When run dir exists but has no case_results/, diagnosis is case_results_directory_absent."""
+        run_dir = tmp_path / "existing_run"
+        run_dir.mkdir()
+        artifact_index = {
+            "latest_harness_run": str(run_dir),
+            "latest_summary": None,
+        }
+        detail = _build_summary_error_detail(
+            artifact_index=artifact_index,
+            case_paths=[],
+            reports_dir=tmp_path,
+        )
+        assert detail["latest_harness_run_dir_exists"] is True
+        assert detail["diagnosis"] == "case_results_directory_absent"
+        assert detail["latest_harness_run_status"] == "invalid_or_incomplete"
+
+    def test_run_dir_has_case_results_with_errors(self, tmp_path: Path) -> None:
+        """When case_results exist with error status, diagnosis is case_results_contain_errors."""
+        run_dir = tmp_path / "run_with_errors"
+        run_dir.mkdir()
+        case_dir = run_dir / "case_results"
+        case_dir.mkdir()
+        case_file = case_dir / "case1.json"
+        case_file.write_text(json.dumps({"status": "error", "error": "timeout"}), encoding="utf-8")
+        artifact_index = {
+            "latest_harness_run": str(run_dir),
+            "latest_summary": None,
+        }
+        detail = _build_summary_error_detail(
+            artifact_index=artifact_index,
+            case_paths=[case_file],
+            reports_dir=tmp_path,
+        )
+        assert detail["latest_harness_run_dir_exists"] is True
+        assert detail["diagnosis"] == "case_results_contain_errors"
+        assert detail["latest_harness_run_status"] == "case_results_have_errors"
+
+    def test_backward_compat_dir_exists_field_absent_when_not_set(self, tmp_path: Path) -> None:
+        """Existing consumers that do not read latest_harness_run_dir_exists still work."""
+        run_dir = tmp_path / "existing_run"
+        run_dir.mkdir()
+        artifact_index = {
+            "latest_harness_run": str(run_dir),
+            "latest_summary": None,
+        }
+        detail = _build_summary_error_detail(
+            artifact_index=artifact_index,
+            case_paths=[],
+            reports_dir=tmp_path,
+        )
+        # All legacy fields still present
+        assert "latest_harness_run" in detail
+        assert "summary_present" in detail
+        assert "case_results_count" in detail
+        assert "case_results_missing" in detail
+        assert "diagnosis" in detail
+        assert "diagnosis_detail" in detail
+        assert "latest_harness_run_status" in detail
+
+    def test_run_dir_absent_no_fallback_available(self, tmp_path: Path) -> None:
+        """When run dir is absent and no fallback exists, fallback_available is False."""
+        artifact_index = {
+            "latest_harness_run": str(tmp_path / "nonexistent_run"),
+            "latest_summary": None,
+        }
+        detail = _build_summary_error_detail(
+            artifact_index=artifact_index,
+            case_paths=[],
+            reports_dir=tmp_path,
+        )
+        # run_directory_absent is not "invalid_or_incomplete" so fallback logic
+        # is not triggered for this diagnosis
+        assert detail["diagnosis"] == "latest_harness_run_directory_absent"
