@@ -559,6 +559,8 @@ def build_xref_candidates(
 ) -> list[dict[str, str]]:
     candidates: list[dict[str, str]] = []
     for window in windows:
+        if window is None:
+            continue
         for instruction in window.get("interesting_instructions", []):
             for immediate in extract_immediates(str(instruction.get("op_str", ""))):
                 raw_offset = resolve_immediate_to_raw(immediate, mapping)

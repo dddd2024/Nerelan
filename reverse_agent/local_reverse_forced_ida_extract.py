@@ -249,6 +249,7 @@ def run_forced_extraction(
         else:
             output_dir = Path("project_state")
         output_path = output_dir / f"{binary_path.stem}_forced_extract.json"
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         # Run forced IDA extraction for sub_401005 first
         artifact = _run_forced_ida_extraction(

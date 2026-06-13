@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED_WITH_LIMITATIONS",
-  "decision_id": "decision_20260613_gate_baseline_closure_v1",
-  "report_id": "codex_report_20260613_gate_baseline_closure_v1",
-  "round_id": "round_20260613_gate_baseline_closure_v1",
-  "generated_at": "2026-06-13T07:39:08.477202Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260613_local_reverse_full_pytest_debt_v1",
+  "report_id": "codex_report_20260613_local_reverse_full_pytest_debt_v1",
+  "round_id": "round_20260613_local_reverse_full_pytest_debt_v1",
+  "generated_at": "2026-06-13T08:17:35.058979Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -26,19 +26,19 @@
     },
     {
       "name": "round_manifest_present",
-      "status": "PASS",
-      "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260613_gate_baseline_closure_v1\\round_manifest.json"
+      "status": "WARN",
+      "detail": "round manifest is missing",
+      "round_manifest_path": "project_state\\rounds\\round_20260613_local_reverse_full_pytest_debt_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "PASS",
-      "detail": "archived report matches live report"
+      "status": "WARN",
+      "detail": "archived report differs from live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "PASS",
-      "detail": "archived pytest_result matches live pytest_result"
+      "status": "WARN",
+      "detail": "archived pytest_result differs from live pytest_result"
     },
     {
       "name": "round_delta_summary_present",
@@ -46,88 +46,116 @@
       "detail": "round delta summary is baseline-aware",
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
-      "inherited_dirty_files": [],
-      "new_dirty_files_since_baseline": [
+      "inherited_dirty_files": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
+        "project_state/decision_packet.md",
+        "project_state/model_gate.json",
+        "project_state/negative_results.json",
+        "project_state/pytest_result.txt",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
+        "reverse_agent/project_state.py",
+        "tests/test_local_reverse_single_sample_static_triage.py",
+        "tests/test_local_reverse_xref_disassembly.py",
+        "tests/test_project_state.py"
+      ],
+      "new_dirty_files_since_baseline": [
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py"
+        "project_state/gates/round_delta_summary.json"
       ],
       "final_dirty_files": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
+        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/model_gate.json",
+        "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
         "reverse_agent/project_state.py",
-        "tests/test_project_gate.py"
+        "tests/test_local_reverse_single_sample_static_triage.py",
+        "tests/test_local_reverse_xref_disassembly.py",
+        "tests/test_project_state.py"
       ]
     },
     {
       "name": "files_changed_excludes_inherited_dirty_files",
-      "status": "PASS",
-      "detail": "files_changed excludes inherited baseline dirty files",
-      "inherited_dirty_files": []
+      "status": "FAIL",
+      "detail": "files_changed includes inherited baseline dirty files",
+      "inherited_files_in_files_changed": [
+        "tests/test_local_reverse_single_sample_static_triage.py",
+        "tests/test_local_reverse_xref_disassembly.py"
+      ]
     },
     {
       "name": "files_changed_covers_git_diff",
-      "status": "PASS",
-      "detail": "files_changed covers round delta files",
-      "missing_files": [],
+      "status": "FAIL",
+      "detail": "files_changed omits round delta files",
+      "missing_files": [
+        "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/round_manifest.json"
+      ],
       "git_changed_files": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
+        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/model_gate.json",
+        "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
         "reverse_agent/project_state.py",
-        "tests/test_project_gate.py"
+        "tests/test_local_reverse_single_sample_static_triage.py",
+        "tests/test_local_reverse_xref_disassembly.py",
+        "tests/test_project_state.py"
       ],
       "required_round_delta_files": [
-        "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_baseline_closure_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py"
+        "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/round_manifest.json"
       ],
-      "inherited_dirty_files": []
+      "inherited_dirty_files": [
+        "project_state/artifact_index.json",
+        "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
+        "project_state/decision_packet.md",
+        "project_state/model_gate.json",
+        "project_state/negative_results.json",
+        "project_state/pytest_result.txt",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
+        "reverse_agent/project_state.py",
+        "tests/test_local_reverse_single_sample_static_triage.py",
+        "tests/test_local_reverse_xref_disassembly.py",
+        "tests/test_project_state.py"
+      ]
     },
     {
       "name": "generated_artifacts_cover_round_delta",
@@ -141,13 +169,39 @@
       "detail": "baseline source/test dirty files are absent or explicitly allowed",
       "source_test_baseline_dirty": [],
       "allowed_inherited_dirty_files": [],
-      "generated_or_archive_baseline_dirty_files": []
+      "generated_or_archive_baseline_dirty_files": [
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt"
+      ]
+    },
+    {
+      "name": "baseline_inherited_allowlist_explained",
+      "status": "PASS",
+      "detail": "no source/test inherited baseline explanation is required",
+      "inherited_dirty_files": [
+        "project_state/artifact_index.json",
+        "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
+        "project_state/decision_packet.md",
+        "project_state/model_gate.json",
+        "project_state/negative_results.json",
+        "project_state/pytest_result.txt",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
+        "reverse_agent/project_state.py",
+        "tests/test_local_reverse_single_sample_static_triage.py",
+        "tests/test_local_reverse_xref_disassembly.py",
+        "tests/test_project_state.py"
+      ]
     },
     {
       "name": "generated_artifacts_cover_round_archive",
-      "status": "PASS",
-      "detail": "generated_artifacts covers round archive files",
-      "missing_artifacts": []
+      "status": "FAIL",
+      "detail": "generated_artifacts omits round archive files",
+      "missing_artifacts": [
+        "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/round_manifest.json"
+      ]
     },
     {
       "name": "command_plan_present",
@@ -161,21 +215,52 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260613_gate_baseline_closure_v1",
-      "command_plan_round_id": "round_20260613_gate_baseline_closure_v1"
+      "command_plan_decision_id": "decision_20260613_local_reverse_full_pytest_debt_v1",
+      "command_plan_round_id": "round_20260613_local_reverse_full_pytest_debt_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
-      "status": "PASS",
-      "detail": "command_plan commands cover report and pytest_result tests",
-      "missing_report_tests": [],
-      "missing_pytest_result_tests": []
+      "status": "FAIL",
+      "detail": "command_plan commands do not cover report or pytest_result tests",
+      "missing_report_tests": [
+        "Test-Path F:/reverse-agent",
+        "git diff --name-only",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "pwd",
+        "python -m pytest -q --rootdir F:/reverse-agent/tests",
+        "python -m pytest tests/test_local_reverse_forced_ida_extract.py tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_xref_disassembly.py -q --rootdir F:/reverse-agent/tests",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m reverse_agent.project_state doctor --state-dir project_state",
+        "python -m reverse_agent.project_state lint-report --state-dir project_state"
+      ],
+      "missing_pytest_result_tests": [
+        "Test-Path F:/reverse-agent",
+        "git diff --name-only",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "pwd",
+        "python -m pytest -q --rootdir F:/reverse-agent/tests",
+        "python -m pytest tests/test_local_reverse_forced_ida_extract.py tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_xref_disassembly.py -q --rootdir F:/reverse-agent/tests",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m reverse_agent.project_state doctor --state-dir project_state",
+        "python -m reverse_agent.project_state lint-report --state-dir project_state"
+      ]
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
-      "status": "PASS",
-      "detail": "recorded command exit codes match command_plan expected_exit_codes",
-      "errors": []
+      "status": "FAIL",
+      "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+      "errors": [
+        {
+          "command": "python -m pytest -q",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        }
+      ]
     },
     {
       "name": "command_plan_json_stdout_full",
@@ -198,10 +283,101 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "codex_report_summary matches synthesized summary",
-      "errors": [],
-      "diffs": []
+      "status": "FAIL",
+      "detail": "codex_report_summary differs from synthesized summary",
+      "errors": [
+        "pytest_result_summary.tests_ran omits command_plan commands: ['python -m pytest -q']",
+        "files_changed includes inherited dirty files: ['project_state/codex_execution_report.md', 'project_state/pytest_result.txt', 'tests/test_local_reverse_single_sample_static_triage.py', 'tests/test_local_reverse_xref_disassembly.py']"
+      ],
+      "diffs": [
+        {
+          "field": "status",
+          "expected": "FAILED",
+          "actual": "SUCCESS"
+        },
+        {
+          "field": "acceptance_recommendation",
+          "expected": "REWORK_REQUIRED",
+          "actual": "ACCEPTED"
+        },
+        {
+          "field": "files_changed",
+          "expected": [
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/decision_packet.md",
+            "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/pytest_result.txt",
+            "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/round_manifest.json"
+          ],
+          "actual": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/pytest_result.txt",
+            "reverse_agent/local_reverse_forced_ida_extract.py",
+            "reverse_agent/local_reverse_xref_disassembly.py",
+            "tests/test_local_reverse_single_sample_static_triage.py",
+            "tests/test_local_reverse_xref_disassembly.py"
+          ]
+        },
+        {
+          "field": "tests_ran",
+          "expected": [
+            "python -m pytest -q",
+            "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+          ],
+          "actual": [
+            "Test-Path F:\\reverse-agent",
+            "git diff --name-only",
+            "git rev-parse --show-toplevel",
+            "git status --short",
+            "pwd",
+            "python -m pytest -q --rootdir F:\\reverse-agent\\tests",
+            "python -m pytest tests/test_local_reverse_forced_ida_extract.py tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_xref_disassembly.py -q --rootdir F:\\reverse-agent\\tests",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            "python -m reverse_agent.project_gate preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+            "python -m reverse_agent.project_state doctor --state-dir project_state",
+            "python -m reverse_agent.project_state lint-report --state-dir project_state"
+          ]
+        },
+        {
+          "field": "generated_artifacts",
+          "expected": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/pytest_result.txt",
+            "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/decision_packet.md",
+            "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/pytest_result.txt",
+            "project_state/rounds/round_20260613_local_reverse_full_pytest_debt_v1/round_manifest.json"
+          ],
+          "actual": [
+            "project_state/codex_execution_report.md",
+            "project_state/gates/command_plan.json",
+            "project_state/gates/final_gate_result.json",
+            "project_state/gates/preflight_result.json",
+            "project_state/gates/report_summary_synthesis.json",
+            "project_state/gates/round_baseline.json",
+            "project_state/gates/round_delta_summary.json",
+            "project_state/pytest_result.txt"
+          ]
+        }
+      ]
     },
     {
       "name": "report_summary_status_source_available",
@@ -211,32 +387,50 @@
     },
     {
       "name": "forbidden_paths_absent",
-      "status": "PASS",
-      "detail": "no forbidden paths detected",
-      "forbidden_paths": []
+      "status": "FAIL",
+      "detail": "forbidden paths detected",
+      "forbidden_paths": [
+        "reverse_agent/local_reverse_single_sample_static_triage.py"
+      ]
     },
     {
       "name": "status_policy_valid",
-      "status": "PASS",
-      "detail": "SUCCESS report passes lint and doctor",
+      "status": "WARN",
+      "detail": "current-round artifacts complete; historical sample artifacts non-blocking",
       "lint_errors": [],
-      "warnings": [],
-      "doctor_status": "PASS",
+      "warnings": [
+        "report round not archived yet",
+        "doctor status is WARN (historical artifacts non-blocking)"
+      ],
+      "doctor_status": "WARN",
       "report_status": "SUCCESS",
       "limitations": [
         "50 missing historical sample artifacts"
       ]
     }
   ],
-  "blocking_reasons": [],
-  "warnings": [],
-  "recommended_next_action": "no_action_required",
+  "blocking_reasons": [
+    "files_changed_excludes_inherited_dirty_files: files_changed includes inherited baseline dirty files",
+    "files_changed_covers_git_diff: files_changed omits round delta files",
+    "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
+    "command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests",
+    "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary",
+    "forbidden_paths_absent: forbidden paths detected"
+  ],
+  "warnings": [
+    "round_manifest_present: round manifest is missing",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
-    "archive_status": "archived",
+    "archive_status": "not_archived",
     "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS"
+    "report_acceptance_recommendation": "ACCEPTED"
   }
 }

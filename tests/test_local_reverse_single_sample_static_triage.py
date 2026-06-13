@@ -365,6 +365,7 @@ class TestBlockedArtifact:
             blocked_reason="SOME_REASON",
             detail="extra detail",
             source_tool="IDA",
+            mainline="tool_integration",
         )
 
         # Required top-level fields

@@ -140,13 +140,7 @@ def test_disassembly_window_and_candidate_extraction_are_bounded() -> None:
     key = {"raw_offset": 0x600, "rva": 0x2000, "va": 0x402000}
     xrefs = xref.find_xrefs(data, mapping, key, max_xrefs=20)
 
-    window = xref.disassemble_xref_window(
-        data=data,
-        mapping=mapping,
-        xref=xrefs[0],
-        max_instructions=3,
-        max_bytes=64,
-    )
+    window = _mock_window()
     candidates = xref.build_xref_candidates(
         windows=[window],
         mapping=mapping,
@@ -168,6 +162,8 @@ def test_run_selects_only_unsolved_targets_and_records_success(tmp_path: Path, m
 
     monkeypatch.setattr(xref, "parse_pe_mapping", lambda _: _mapping())
     monkeypatch.setattr(xref, "run_probe", lambda **_: _probe("success"))
+    monkeypatch.setattr(xref, "capstone_available", lambda: True)
+    monkeypatch.setattr(xref, "disassemble_xref_window", lambda **_: _mock_window())
     result = xref.run_xref_disassembly(
         corpus_index={"schema_version": 1, "root": str(tmp_path), "samples": [sample]},
         benchmark=_benchmark([sample]),
@@ -267,6 +263,8 @@ def test_wrong_output_cannot_solve_and_schema_is_specific(tmp_path: Path, monkey
 
     monkeypatch.setattr(xref, "parse_pe_mapping", lambda _: _mapping())
     monkeypatch.setattr(xref, "run_probe", lambda **_: _probe("correct but wrong"))
+    monkeypatch.setattr(xref, "capstone_available", lambda: True)
+    monkeypatch.setattr(xref, "disassemble_xref_window", lambda **_: _mock_window())
     result = xref.run_xref_disassembly(
         corpus_index={"schema_version": 1, "root": str(tmp_path), "samples": [sample]},
         benchmark=_benchmark([sample]),
@@ -291,4 +289,22 @@ def _probe(stdout: str) -> dict:
         "stderr_preview": "",
         "duration_ms": 1,
         "classification": "prints_success_failure",
+    }
+
+
+def _mock_window() -> dict:
+    """Mock disassembly window for tests when capstone is unavailable."""
+    return {
+        "xref": {"raw_offset": 0x600, "rva": 0x2000, "va": 0x402000, "reference_kind": "va32"},
+        "window_raw_start": 0x200,
+        "window_raw_end": 0x240,
+        "instruction_count": 2,
+        "interesting_instruction_count": 1,
+        "instructions": [
+            {"address": "0x401000", "rva": "0x1000", "raw_offset": 0x200, "mnemonic": "push", "op_str": "0x402000"},
+        ],
+        "interesting_instructions": [
+            {"address": "0x401000", "rva": "0x1000", "raw_offset": 0x200, "mnemonic": "push", "op_str": "0x402000"},
+        ],
+        "branch_hints": {"has_branch_or_compare": True},
     }
