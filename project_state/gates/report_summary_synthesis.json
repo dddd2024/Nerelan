@@ -3,14 +3,14 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "FAILED",
-  "decision_id": "decision_20260613_affine_audit_closure_v1",
-  "round_id": "round_20260613_affine_audit_closure_v1",
-  "report_id": "codex_report_20260613_affine_audit_closure_v1",
-  "generated_at": "2026-06-13T11:53:45.871768Z",
+  "decision_id": "decision_20260613_affine_audit_closure_rework_v1",
+  "round_id": "round_20260613_affine_audit_closure_rework_v1",
+  "report_id": "codex_report_20260613_affine_audit_closure_rework_v1",
+  "generated_at": "2026-06-13T12:12:11.694790Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260613_affine_audit_closure_v1",
-    "round_id": "round_20260613_affine_audit_closure_v1",
-    "based_on_decision_id": "decision_20260613_affine_audit_closure_v1",
+    "report_id": "codex_report_20260613_affine_audit_closure_rework_v1",
+    "round_id": "round_20260613_affine_audit_closure_rework_v1",
+    "based_on_decision_id": "decision_20260613_affine_audit_closure_rework_v1",
     "files_changed": [
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
@@ -18,16 +18,22 @@
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/rounds/round_20260613_affine_audit_closure_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260613_affine_audit_closure_v1/decision_packet.md",
-      "project_state/rounds/round_20260613_affine_audit_closure_v1/pytest_result.txt",
-      "project_state/rounds/round_20260613_affine_audit_closure_v1/round_manifest.json"
+      "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/round_manifest.json"
     ],
     "tests_ran": [
       "Test-Path F:\\reverse-agent",
       "git status --short",
+      "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
-      "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+      "python -m reverse_agent.project_state doctor --state-dir project_state",
+      "python -m reverse_agent.project_state lint-report --state-dir project_state",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+      "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "python -m reverse_agent.project_gate close-round --state-dir project_state"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -38,11 +44,13 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260613_affine_audit_closure_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260613_affine_audit_closure_v1/decision_packet.md",
-      "project_state/rounds/round_20260613_affine_audit_closure_v1/pytest_result.txt",
-      "project_state/rounds/round_20260613_affine_audit_closure_v1/round_manifest.json"
-    ]
+      "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/round_manifest.json"
+    ],
+    "status": "FAILED",
+    "acceptance_recommendation": "REWORK_REQUIRED"
   },
   "diffs": [
     {
@@ -54,14 +62,16 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/rounds/round_20260613_affine_audit_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_affine_audit_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_affine_audit_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_affine_audit_closure_v1/round_manifest.json"
+        "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/round_manifest.json"
       ],
       "actual": [
         "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -75,18 +85,26 @@
         "Test-Path F:\\reverse-agent",
         "git status --short",
         "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
-        "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+        "python -m reverse_agent.project_gate close-round --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+        "python -m reverse_agent.project_state doctor --state-dir project_state",
+        "python -m reverse_agent.project_state lint-report --state-dir project_state"
       ],
       "actual": [
         "Test-Path F:\\reverse-agent",
         "git status --short",
-        "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q --ignore=.git_old2 --ignore=.git_corrupt_v2 --ignore=.git_corrupt --ignore=.git_bak --ignore=.git",
+        "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
+        "python -m reverse_agent.project_gate close-round --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
         "python -m reverse_agent.project_gate preflight --state-dir project_state",
         "python -m reverse_agent.project_gate report-summary --state-dir project_state",
         "python -m reverse_agent.project_state doctor --state-dir project_state",
         "python -m reverse_agent.project_state lint-report --state-dir project_state",
-        "python verify_audit.py (evidence_summary_intact, training_status_affine_not_solved, artifact_index, diagnostic)"
+        "python verify_audit.py (affine evidence_summary, training_status, artifact_index, diagnostic)"
       ]
     },
     {
@@ -100,14 +118,16 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_affine_audit_closure_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_affine_audit_closure_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_affine_audit_closure_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_affine_audit_closure_v1/round_manifest.json"
+        "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/round_manifest.json"
       ],
       "actual": [
         "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
@@ -116,12 +136,9 @@
       ]
     }
   ],
-  "errors": [
-    "pytest_result_summary.tests_ran omits command_plan commands: ['python -m pytest tests/test_project_state.py tests/test_project_gate.py -q']"
-  ],
+  "errors": [],
   "warnings": [
-    "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet",
-    "files_changed includes inherited dirty files (may have been modified this round): ['project_state/codex_execution_report.md', 'project_state/pytest_result.txt']"
+    "files_changed includes inherited dirty files (may have been modified this round): ['project_state/codex_execution_report.md', 'project_state/decision_packet.md', 'project_state/pytest_result.txt']"
   ],
   "sources": {
     "decision_meta": "project_state/decision_packet.md",

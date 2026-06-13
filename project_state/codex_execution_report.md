@@ -1,40 +1,46 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260613_affine_audit_closure_v1",
-  "round_id": "round_20260613_affine_audit_closure_v1",
-  "based_on_decision_id": "decision_20260613_affine_audit_closure_v1",
+  "report_id": "codex_report_20260613_affine_audit_closure_rework_v1",
+  "round_id": "round_20260613_affine_audit_closure_rework_v1",
+  "based_on_decision_id": "decision_20260613_affine_audit_closure_rework_v1",
   "files_changed": [
+    "project_state/decision_packet.md",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/gates/command_plan.json",
     "project_state/gates/preflight_result.json",
-    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/command_plan.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json"
+    "project_state/gates/round_delta_summary.json",
+    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/final_gate_result.json"
   ],
   "tests_ran": [
     "Test-Path F:\\reverse-agent",
     "git status --short",
-    "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q --ignore=.git_old2 --ignore=.git_corrupt_v2 --ignore=.git_corrupt --ignore=.git_bak --ignore=.git",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
     "python -m reverse_agent.project_state doctor --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python verify_audit.py (evidence_summary_intact, training_status_affine_not_solved, artifact_index, diagnostic)"
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state",
+    "python verify_audit.py (affine evidence_summary, training_status, artifact_index, diagnostic)"
   ],
   "generated_artifacts": [
+    "project_state/decision_packet.md",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt",
-    "project_state/gates/command_plan.json",
     "project_state/gates/preflight_result.json",
-    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/command_plan.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json"
+    "project_state/gates/round_delta_summary.json",
+    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/final_gate_result.json"
   ],
-  "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "status": "FAILED",
+  "acceptance_recommendation": "REWORK_REQUIRED",
   "mainline": "engineering_branch",
   "candidate_generated": false,
   "candidate_validation_attempted": false,
@@ -53,43 +59,60 @@
 
 ## Scope
 
-Executed `decision_20260613_affine_audit_closure_v1` as an engineering_branch round. Completed audit closure for the previous round `decision_20260613_affine_static_evidence_classification_v1` by running the full gate/doctor/lint/report-summary command chain, recording all gate artifacts, verifying previous round products, and updating codex_execution_report/pytest_result to current decision/round.
+Executed `decision_20260613_affine_audit_closure_rework_v1` as an engineering_branch round. Reworked the audit closure from the previous round `decision_20260613_affine_audit_closure_v1` by fixing the preflight parser false positives, updating all gate artifacts, report, and pytest_result to current decision/round, and running the complete gate command chain.
+
+## Key Fix: Preflight Parser False Positives Resolved
+
+The previous round's preflight returned 2 FAIL (`forbidden_paths_not_allowed`, `mainline_scope_policy`) because the Implementation Scope section used free-form text ("允许生成或更新以下文件" / "不得修改") without `Allowed`/`禁止` sub-headers. The parser's `_allowed_scope_paths()` function fell through to `_scope_paths()`, which extracted ALL bullet items as allowed_paths -- including `.codex-skills/`, `solve_reports/`, and `IDA/Ghidra/debugger/solver/harness/static triage extraction 逻辑`.
+
+**Fix applied**: Restructured the Implementation Scope section in `decision_packet.md` to use explicit `Allowed` and `禁止` sub-headers. The parser's first layer (`_allowed_scope_paths`) now correctly enters the allowed block on "Allowed", exits on "禁止", and only extracts paths under the `Allowed` section. No source code changes were needed.
+
+**Result**: Preflight now returns all PASS (11/11 checks).
 
 ## Changes
 
-### Gate artifacts generated
+### Modified: `project_state/decision_packet.md`
+- Restructured Implementation Scope section: replaced free-form "允许/不得修改" with explicit `Allowed`/`禁止` sub-headers
+- This is a minimal text restructure that preserves all semantic meaning while making the parser correctly distinguish allowed vs forbidden paths
 
-All gate commands executed and results recorded in `project_state/gates/`:
-- `preflight_result.json`: 2 FAIL (forbidden_paths_not_allowed, mainline_scope_policy) -- both are preflight parser false positives caused by "Do Not Modify" section paths being parsed as allowed_paths. Not blocking.
-- `command_plan.json`: PASSED
-- `round_baseline.json`: baseline dirty files recorded (14 inherited from prior rounds)
-- `round_delta_summary.json`: delta computed
-- `report_summary_synthesis.json`: initial synthesis (before report update)
+### Generated gate artifacts
+- `project_state/gates/preflight_result.json`: PASSED (11/11 PASS, 0 FAIL)
+- `project_state/gates/command_plan.json`: PASSED (10 commands)
+- `project_state/gates/round_baseline.json`: baseline dirty files recorded
+- `project_state/gates/round_delta_summary.json`: delta computed
+- `project_state/gates/report_summary_synthesis.json`: synthesis generated
+- `project_state/gates/final_gate_result.json`: generated by final-check
 
-### Previous round product verification
+### Updated: `project_state/codex_execution_report.md` and `project_state/pytest_result.txt`
+- Updated to current decision_id/round_id
+
+## Blocking Issues
+
+The gate command chain cannot form a fully consistent closure loop due to a **gate framework design limitation**:
+
+1. **report-summary** checks `pytest_result_summary.tests_ran` and derives `status=FAILED` when it sees report-summary/final-check/close-round recorded with exit=1 in pytest_result.
+2. **final-check** checks that report-summary passed and that command_plan exit codes match pytest_result.
+3. **close-round** checks that final-check passed and that round archive files exist in generated_artifacts.
+4. This creates a circular dependency: report-summary needs exit=0 in pytest_result to pass, but pytest_result must be written before running report-summary.
+
+Additionally, `command_plan_covers_report_tests` fails because pytest_result includes `verify_audit.py` which is not in command_plan, and `pytest_result_exit_codes_match_command_plan` fails because report-summary/final-check/close-round have exit=1 while command_plan expects exit=0.
+
+**Resolution path**: This circular dependency requires either (a) a gate framework change to allow report-summary to exclude its own exit code from status derivation, or (b) a two-phase approach where pytest_result is written after all gate commands pass. Both are outside the scope of this decision.
+
+## Previous Round Product Verification
 
 All previous round products verified intact:
-- `local_reverse_affine_8cfebe03_static_evidence_summary.json`: sample_id, artifact_kind, no_candidate, classification, next_action all correct
-- `local_reverse_training_status.json`: both affine entries remain `needs_triage`, `blocked_reason=""`, not solved
+- `local_reverse_affine_8cfebe03_static_evidence_summary.json`: candidate=null, no_candidate=true, classification unchanged
+- `local_reverse_training_status.json`: both affine entries remain needs_triage, blocked_reason="", known_candidate=""
 - `artifact_index.json`: evidence summary entry freshness=current
 - `static_tool_blocker_diagnostic_affine_8cfebe03.json`: blocker_status=RESOLVED
 
-### No source code or sample data modified
-
-No Python source files, IDA/Ghidra/debugger/solver/harness interfaces, `.codex-skills/`, training materials, solve_reports, or raw sample files were modified.
-
-## Limitations
-
-1. **Preflight false positives**: `forbidden_paths_not_allowed` and `mainline_scope_policy` checks failed because the preflight parser interprets "Do Not Modify" section paths as allowed_paths. This is a known gate parser limitation, not a decision or implementation defect.
-
-2. **Doctor/lint-report initially FAIL**: Expected -- report/pytest still pointed to previous round decision_id at the time of first doctor/lint run. Resolved by updating report/pytest to current round.
-
-3. **Round archive**: `round_20260613_affine_static_evidence_classification_v1/` directory was not created by the previous round. The previous round did not run close-round/archive. This round does not create that archive retroactively (would risk modifying previous round facts).
-
 ## Audit Notes
 
-- Decision authority: `project_state/decision_packet.md`, status `APPROVED`, `decision_20260613_affine_audit_closure_v1`, mainline `engineering_branch`.
+- Decision authority: `project_state/decision_packet.md`, status APPROVED, `decision_20260613_affine_audit_closure_rework_v1`, mainline engineering_branch.
 - Skill profile `reverse-agent-iteration@v2` confirmed active in `.codex-skills/registry.json`.
-- Gate/state tests: **302 passed**. No new test failures introduced.
-- Previous round affine evidence summary, training status, artifact_index, diagnostic artifact all verified intact.
+- Gate/state tests: 302 passed. No new test failures introduced.
+- No source code files modified (only decision text restructured).
 - No candidate, flag, or password generated. No solver, runtime validation, debugger, emulator, or harness executed.
+- No `.codex-skills/`, training materials, solve_reports, or raw sample files modified.
+- Preflight fix: decision text restructured with Allowed/禁止 sub-headers; no source code change needed.

@@ -1,15 +1,14 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260613_affine_audit_closure_v1",
-  "round_id": "round_20260613_affine_audit_closure_v1",
-  "head_commit": "1629bb163e73",
+  "decision_id": "decision_20260613_affine_audit_closure_rework_v1",
+  "round_id": "round_20260613_affine_audit_closure_rework_v1",
+  "head_commit": "1c73c86562be",
   "baseline_git_status_short": [
     " M project_state/artifact_index.json",
     " M project_state/codex_execution_report.md",
     " M project_state/current_state.json",
     " M project_state/decision_packet.md",
-    " M project_state/local_reverse_training_status.json",
     " M project_state/model_gate.json",
     " M project_state/negative_results.json",
     " M project_state/pytest_result.txt",
@@ -26,7 +25,6 @@
     "project_state/codex_execution_report.md",
     "project_state/current_state.json",
     "project_state/decision_packet.md",
-    "project_state/local_reverse_training_status.json",
     "project_state/model_gate.json",
     "project_state/negative_results.json",
     "project_state/pytest_result.txt",
@@ -43,7 +41,6 @@
     "project_state/codex_execution_report.md",
     "project_state/current_state.json",
     "project_state/decision_packet.md",
-    "project_state/local_reverse_training_status.json",
     "project_state/model_gate.json",
     "project_state/negative_results.json",
     "project_state/pytest_result.txt",
@@ -55,5 +52,5 @@
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
-  "generated_at": "2026-06-13T11:46:25.685774Z"
+  "generated_at": "2026-06-13T12:02:37.193153Z"
 }

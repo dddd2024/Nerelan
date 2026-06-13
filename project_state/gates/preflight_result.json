@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260613_affine_audit_closure_v1",
-  "round_id": "round_20260613_affine_audit_closure_v1",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260613_affine_audit_closure_rework_v1",
+  "round_id": "round_20260613_affine_audit_closure_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-13T11:46:25.687384Z",
+  "generated_at": "2026-06-13T12:02:37.193153Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -51,7 +51,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260613_affine_static_evidence_classification_v1"
+      "report_id": "codex_report_20260613_affine_audit_closure_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -66,38 +66,29 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        ".codex-skills/",
-        "IDA/Ghidra/debugger/solver/harness/static triage extraction \u903b\u8f91",
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
+        "project_state/decision_packet.md",
         "project_state/gates/*.json",
-        "project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json",
-        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_affine_audit_closure_v1/*",
-        "project_state/rounds/round_20260613_affine_static_evidence_classification_v1/*",
-        "raw sample \u6587\u4ef6",
-        "solve_reports/",
-        "training_materials/"
+        "project_state/rounds/round_20260613_affine_audit_closure_rework_v1/*",
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "\u4e0e project_gate/project_state \u76f4\u63a5\u76f8\u5173\u7684\u6d4b\u8bd5"
       ]
     },
     {
       "name": "forbidden_paths_not_allowed",
-      "status": "FAIL",
-      "detail": "allowed scope includes forbidden paths",
-      "forbidden_paths": [
-        ".codex-skills/",
-        "solve_reports/"
-      ]
+      "status": "PASS",
+      "detail": "allowed scope contains no forbidden paths",
+      "forbidden_paths": []
     },
     {
       "name": "mainline_scope_policy",
-      "status": "FAIL",
-      "detail": "engineering_branch decision includes sample-solving/runtime terms",
+      "status": "PASS",
+      "detail": "mainline scope policy is satisfied",
       "matched_terms": [],
-      "matched_paths": [
-        "IDA/Ghidra/debugger/solver/harness/static triage extraction \u903b\u8f91"
-      ]
+      "matched_paths": []
     },
     {
       "name": "artifact_freshness_policy",
@@ -116,12 +107,9 @@
       "capability_required": false
     }
   ],
-  "blocking_reasons": [
-    "forbidden_paths_not_allowed: allowed scope includes forbidden paths",
-    "mainline_scope_policy: engineering_branch decision includes sample-solving/runtime terms"
-  ],
+  "blocking_reasons": [],
   "warnings": [],
-  "recommended_next_action": "fix_preflight_failures_before_starting",
+  "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
@@ -129,7 +117,6 @@
       "project_state/codex_execution_report.md",
       "project_state/current_state.json",
       "project_state/decision_packet.md",
-      "project_state/local_reverse_training_status.json",
       "project_state/model_gate.json",
       "project_state/negative_results.json",
       "project_state/pytest_result.txt",
@@ -141,7 +128,7 @@
       "reverse_agent/project_state.py",
       "tests/test_project_state.py"
     ],
-    "head_commit": "1629bb163e73"
+    "head_commit": "1c73c86562be"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

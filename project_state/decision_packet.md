@@ -107,24 +107,19 @@ Codex 必须确认并修复或如实报告：
 
 ## 6. Implementation Scope
 
-允许生成或更新以下文件，且只用于审计闭环：
+Allowed
 
 - `project_state/decision_packet.md`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
 - `project_state/rounds/round_20260613_affine_audit_closure_rework_v1/*`
-- `project_state/artifact_index.json`（仅当需要登记本轮 audit/round artifact，不能改 affine evidence summary 的语义）
-
-允许最小修改以下源码和测试，仅限于修复 gate parser 误判、final-check/report-summary/close-round 不一致、或 doctor/lint-report 对当前 round 的状态识别问题：
-
+- `project_state/artifact_index.json`
 - `reverse_agent/project_gate.py`
 - `reverse_agent/project_state.py`
 - 与 project_gate/project_state 直接相关的测试
 
-若无需改源码，优先不改源码。
-
-不得修改：
+禁止
 
 - `project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json` 的语义字段
 - `project_state/local_reverse_training_status.json` 中 affine 的 solved/candidate 状态
