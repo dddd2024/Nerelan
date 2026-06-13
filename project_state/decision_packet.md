@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260613_select_non_samplereverse_target_v1",
-  "round_id": "round_20260613_select_non_samplereverse_target_v1",
+  "decision_id": "decision_20260613_run_one_local_reverse_static_triage_v1",
+  "round_id": "round_20260613_run_one_local_reverse_static_triage_v1",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
@@ -15,32 +15,34 @@
 
 ## 1. Goal
 
-本轮只做本地样本选择，不解题。
+本轮不再重复建立本地样本清单，也不再继续选择非 `samplereverse` 目标这一前置步骤。仓库已经有本地 inventory、training status overlay、queue builder 和 single-sample static triage adapter。
 
-用户已确认：当前目标不是 `samplereverse`；当前目标来自 `E:\reverse` 中除 `samplereverse` 以外的题目。`samplereverse` 以后若再处理，必须继承已有历史结论，不能从零重做。
+本轮目标：刷新或恢复 `project_state/local_reverse_evaluation_queue.json`，从队列中选择 rank=1 的非 `samplereverse` 样本，运行一次有界单样本静态 triage，生成 current metadata artifact。
 
-本轮目标：扫描或读取 `E:\reverse` 的 metadata，排除 `samplereverse`，生成非 `samplereverse` 队列，并选出一个明确的 next target sample，供下一轮单样本分析使用。
+本轮不解题，不生成 candidate/flag/password，不运行 runtime、debugger、solver 或 harness campaign。
 
 ## 2. Current Evidence
 
-- 当前 `task_packet.json` 和 `current_state.json` 仍指向 `samplereverse`，与用户新约束冲突。
-- 当前 `artifact_index.json` 里的缺失项属于旧 sample state，不能作为新样本证据。
-- `negative_results.json` 中的禁止方向仍有效：不得盲目扩大搜索、不得重复旧失败方向、不得提交完整历史输出。
-- `reverse-agent-iteration@v2` 为 active skill。
-- 已有本地 inventory、静态摘要、project_state、artifact_index、报告和 gate 能力；本轮只复用，不重写。
+- `task_packet.json` 和 `current_state.json` 仍是旧 `samplereverse` sample state，不能作为当前样本权威。
+- `project_state/local_reverse_inventory.json` 已存在，已经扫描到 `E:\reverse` 的本地样本 metadata。
+- `training_materials/local_reverse/status_overlay.json` 已存在，显示 50 个 metadata 条目，其中 1 solved、2 blocked、1 needs_triage、46 inventory_only。
+- `project_state/local_reverse_training_inventory_audit.md` 已说明下一步应从 `local_reverse_evaluation_queue.json` 选择 exactly one queue item 做 static triage，而不是批量求解。
+- `reverse_agent/local_reverse_training_status.py` 已能生成 training status、evaluation queue 和 status overlay。
+- `reverse_agent/local_reverse_single_sample_static_triage.py` 已能读取 queue/inventory，复用 IDA evidence collector，生成 compact triage artifact；它不执行目标二进制、不生成 candidate。
+- `negative_results.json` 的禁止方向仍有效：不得回到 blind search、不得单纯扩大预算、不得提交完整运行目录、不得重复旧失败方向。
 - `decision_packet.md` 是当前执行权威，`task_packet.json` 只是建议。
 
 ## 3. Do Not Do
 
-- 不继续把 `samplereverse` 当当前目标。
-- 不删除 `samplereverse` 历史记录。
-- 不批量解所有题。
-- 不运行求解、验证、动态执行或调试流程。
-- 不读取完整 `solve_reports/` 或 `PROJECT_PROGRESS_LOG.txt`。
-- 不提交本地样本文件或大体积产物。
-- 不修改 `.codex-skills/` 或 `training_materials/`。
-- 不重复实现已有工具接口。
-- 不把旧 artifact 当新样本 current evidence。
+- 不继续围绕 `samplereverse` 推进。
+- 不重复实现 inventory、queue builder 或 static triage adapter。
+- 不批量跑 `E:\reverse` 下所有样本。
+- 不运行 solver、candidate search、runtime validation、debugger、emulator 或 harness campaign。
+- 不读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
+- 不提交 raw sample、IDA database、debug trace 或大体积本地产物。
+- 不修改 `.codex-skills/`。
+- 不修改 `training_materials/`，除非本轮报告只读取它作为已有 overlay 证据。
+- 不把旧 `samplereverse` artifact 当作当前样本证据。
 
 ## 4. Files To Inspect
 
@@ -53,65 +55,68 @@
 - `project_state/codex_execution_report.md`
 - `project_state/decision_packet.md`
 - `project_state/pytest_result.txt`
-- `.codex-skills/registry.json`
-- `reverse_agent/local_reverse_inventory.py`
-- `reverse_agent/static_feature_extractor.py`
+- `project_state/local_reverse_inventory.json`
+- `training_materials/local_reverse/status_overlay.json`
+- `project_state/local_reverse_training_inventory_audit.md`
+- `reverse_agent/local_reverse_training_status.py`
+- `reverse_agent/local_reverse_single_sample_static_triage.py`
+- `reverse_agent/tool_runners.py`
+- `reverse_agent/ida_scripts/collect_evidence.py`
 - `reverse_agent/project_state.py`
 - `reverse_agent/project_gate.py`
 
 可生成或更新：
 
-- `project_state/local_reverse_inventory.json`
-- `project_state/local_reverse_non_samplereverse_queue.json`
-- `project_state/local_reverse_non_samplereverse_selection.json`
+- `project_state/local_reverse_training_status.json`
+- `project_state/local_reverse_evaluation_queue.json`
+- `project_state/local_reverse_selected_static_triage_target.json`
+- `project_state/local_reverse_<selected_sample_id>_static_triage.json`
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260613_select_non_samplereverse_target_v1/*`
-
-不得默认读取完整历史目录或样本大文件内容。
+- `project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/*`
 
 ## 5. Required Audit
 
 Codex 必须：
 
-1. 确认工作目录是 `F:\reverse-agent`。
+1. 确认当前目录是 `F:\reverse-agent`。
 2. 确认 `E:\reverse` 存在。
-3. 校验 decision_meta：status=`APPROVED`，mainline=`training_dataset`，skill active。
-4. 记录 `task_packet.json` 不是当前权威，不能继续按 `samplereverse` 执行。
-5. 检查现有 inventory/static/project_state 能力，不能重复实现。
-6. 生成或更新 `project_state/local_reverse_inventory.json`，只写 project_state，不写 training_materials。
-7. 从 inventory 中排除所有 `sample_id`、`display_name`、`relative_path` 或文件名 stem 含 `samplereverse` 的条目，并排除 sha256=`ca74a7867fe97e54e003970d627891cdb6df41c5ad953632fe49e9bce9c619c1`。
-8. 生成 `project_state/local_reverse_non_samplereverse_queue.json`，列出最多 30 个 ranked candidates。
-9. 生成 `project_state/local_reverse_non_samplereverse_selection.json`，选择一个 next target，且必须标记 `is_samplereverse=false`。
-10. 如更新 `current_state.json`、`task_packet.json` 或 `artifact_index.json`，只能写 selected sample 的 metadata，不能伪造已完成证据。
-
-选择规则：优先未解决样本；优先可执行/二进制类文件；优先类别已知；优先 1KB 到 20MB；最后按 relative_path 和 sha256 稳定排序。
+3. 校验本 decision：status=`APPROVED`，mainline=`training_dataset`，skill active。
+4. 明确记录 `task_packet.json/current_state.json` 是旧 `samplereverse` 状态，不能作为本轮样本权威。
+5. 使用现有 `local_reverse_training_status.py` 生成或刷新 `project_state/local_reverse_training_status.json` 和 `project_state/local_reverse_evaluation_queue.json`。
+6. 从 `local_reverse_evaluation_queue.json` 选择 rank=1 的样本作为本轮唯一 target。
+7. 若 rank=1 是 `samplereverse`，停止并报告 queue 构建错误。
+8. 写入 `project_state/local_reverse_selected_static_triage_target.json`，记录 selected sample_id、relative_path、sha256、queue_rank、allowed_actions、forbidden_actions。
+9. 对 selected sample 运行一次 `local_reverse_single_sample_static_triage.py`。
+10. triage artifact 必须是 metadata artifact，必须记录 `executed_sample=false`、`static_only=true`、`runtime_validated=false`。
+11. 若 IDA 不可用、超时或无输出，记录为 static tool blocker；不得改写为样本语义失败。
+12. 报告必须说明本轮输出是 one-sample static triage，不是解题结果。
 
 ## 6. Implementation Scope
 
 允许修改或生成：
 
-- `project_state/local_reverse_inventory.json`
-- `project_state/local_reverse_non_samplereverse_queue.json`
-- `project_state/local_reverse_non_samplereverse_selection.json`
-- `project_state/current_state.json`
-- `project_state/task_packet.json`
-- `project_state/artifact_index.json`
-- `project_state/model_gate.json`
+- `project_state/local_reverse_training_status.json`
+- `project_state/local_reverse_evaluation_queue.json`
+- `project_state/local_reverse_selected_static_triage_target.json`
+- `project_state/local_reverse_<selected_sample_id>_static_triage.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260613_select_non_samplereverse_target_v1/*`
+- `project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/*`
 
-只有 schema 不足时，才允许最小修改：
+仅当当前工具无法生成 queue 或 triage artifact 时，才允许最小修改：
 
-- `reverse_agent/project_state.py`
-- `tests/test_project_state.py`
+- `reverse_agent/local_reverse_training_status.py`
+- `reverse_agent/local_reverse_single_sample_static_triage.py`
+- 对应最小测试
 
-不允许修改：`.codex-skills/`、`solve_reports/`、`PROJECT_PROGRESS_LOG.txt`、`training_materials/`、求解器、运行器、GUI、原始样本文件。
+不允许修改：`.codex-skills/`、`training_materials/`、`solve_reports/`、`PROJECT_PROGRESS_LOG.txt`、solver 模块、harness 模块、debugger/olly scripts、IDA scripts、raw sample 文件。
 
 ## 7. Tests
 
-必须至少运行并记录：
+必须运行并记录：
 
 - `pwd`
 - `Test-Path F:\reverse-agent`
@@ -120,7 +125,8 @@ Codex 必须：
 - `git status --short`
 - `python -m reverse_agent.project_gate preflight --state-dir project_state`
 - `python -m reverse_agent.project_gate command-plan --state-dir project_state`
-- inventory 扫描到 `project_state/local_reverse_inventory.json`
+- `python -m reverse_agent.local_reverse_training_status`
+- `python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id <rank1_sample_id> --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_<rank1_sample_id>_static_triage.json`
 - `python -m reverse_agent.project_state doctor --state-dir project_state`
 - `python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q`
 - `python -m reverse_agent.project_state lint-report --state-dir project_state`
@@ -128,17 +134,18 @@ Codex 必须：
 - `python -m reverse_agent.project_gate final-check --state-dir project_state`
 - `git diff --name-only`
 
-若 `project_state build` 会把状态重置回 `samplereverse`，本轮不要运行它；只有能明确指定 selected sample 时才允许运行。
+验收标准：queue 生成成功；selected sample 不是 `samplereverse`；只处理一个 sample；static triage artifact 已生成；没有 candidate/flag/password；没有 runtime/debugger/harness/solver 运行。
 
 ## 8. Stop Conditions
 
 必须停止并报告：
 
 - `E:\reverse` 不存在。
-- inventory 扫描失败。
-- 排除 `samplereverse` 后没有候选。
-- 无法生成 queue 或 selection。
-- selected sample 仍是 `samplereverse`。
-- 需要进入解题、验证、动态执行或深度分析才能继续。
-- 需要读取完整历史目录才能继续。
-- 实现试图重复已有工具能力。
+- queue 生成失败或为空。
+- rank=1 是 `samplereverse`。
+- selected sample 无法在 inventory 中定位。
+- selected sample 文件不存在。
+- static triage 需要 runtime/debugger/solver 才能继续。
+- IDA 工具故障但未记录为 static tool blocker。
+- 实现试图批量处理多个样本。
+- 实现试图把 `samplereverse` 继续作为当前目标。
