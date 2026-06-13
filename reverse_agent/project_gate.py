@@ -60,6 +60,9 @@ FORBIDDEN_PATHS = {
     "reverse_agent/local_reverse_training_status.py",
     "reverse_agent/local_reverse_single_sample_static_triage.py",
 }
+MAINLINE_FORBIDDEN_PATH_EXCEPTIONS = {
+    "training_dataset": {"reverse_agent/local_reverse_training_status.py"},
+}
 FORBIDDEN_PREFIXES = (
     ".codex-skills/",
     "solve_reports/",
@@ -1509,9 +1512,12 @@ def _report_summary_checks(
     ]
 
 
-def _forbidden_hits(paths: set[str]) -> list[str]:
+def _forbidden_hits(paths: set[str], *, mainline: str = "") -> list[str]:
     hits: list[str] = []
+    mainline_exceptions = MAINLINE_FORBIDDEN_PATH_EXCEPTIONS.get(mainline, set())
     for path in sorted(paths):
+        if path in mainline_exceptions:
+            continue
         if path in FORBIDDEN_PATHS or any(path.startswith(prefix) for prefix in FORBIDDEN_PREFIXES):
             hits.append(path)
     return hits
@@ -1731,7 +1737,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
     )
 
     path_claims = forbidden_claim_set | generated_artifacts | archive_paths
-    forbidden_hits = _forbidden_hits(path_claims)
+    forbidden_hits = _forbidden_hits(path_claims, mainline=str(decision.get("mainline") or ""))
     manifest_forbidden = list(round_consistency.get("round_manifest_forbidden_files") or [])
     if manifest_forbidden:
         forbidden_hits.extend(f"round_manifest:{name}" for name in manifest_forbidden)
@@ -2228,7 +2234,10 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         )
     )
 
-    forbidden_hits = _forbidden_hits(forbidden_claim_set | generated_artifacts | archive_paths)
+    forbidden_hits = _forbidden_hits(
+        forbidden_claim_set | generated_artifacts | archive_paths,
+        mainline=str(decision.get("mainline") or ""),
+    )
     manifest_forbidden = list(round_consistency.get("round_manifest_forbidden_files") or [])
     if manifest_forbidden:
         forbidden_hits.extend(f"round_manifest:{name}" for name in manifest_forbidden)
@@ -2716,7 +2725,7 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
         )
     )
 
-    forbidden_allowed = _forbidden_hits(allowed_paths)
+    forbidden_allowed = _forbidden_hits(allowed_paths, mainline=mainline)
     checks.append(
         _check(
             "forbidden_paths_not_allowed",

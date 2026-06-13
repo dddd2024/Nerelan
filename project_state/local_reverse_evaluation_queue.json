@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-13T06:55:22Z",
+  "generated_at": "2026-06-13T15:09:56Z",
   "queue_policy": "simple_static_first_unsolved_only",
   "items": [
     {
       "rank": 1,
-      "sample_id": "affineenc_333f8ca9",
-      "relative_path": "逆向课程2020秋04/affineenc.exe",
-      "reason": "pe sample (196691 bytes), static triage tags: local, pe, reverse; static triage completed: 50 strings, 30 functions, 2 compare contexts, hypotheses: string_compare_password_checker, standard_input_based, strcmp_direct_compare",
+      "sample_id": "cpp1_2f6fcb63",
+      "relative_path": "逆向课程2023春01/CPP1.exe",
+      "reason": "pe sample (196700 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -16,15 +16,13 @@
         "runtime_probe",
         "bruteforce",
         "upload_binary"
-      ],
-      "static_triage_completed": true,
-      "static_triage_run": "round_20260613_affineenc_static_triage_v1"
+      ]
     },
     {
       "rank": 2,
-      "sample_id": "ascii_table_chinese_46efc7ea",
-      "relative_path": "ascii_table_chinese.pdf",
-      "reason": "unknown sample (13485 bytes), static triage tags: local, reverse",
+      "sample_id": "cpp1_378eeffd",
+      "relative_path": "逆向课程2022春01/CPP1.exe",
+      "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -37,9 +35,9 @@
     },
     {
       "rank": 3,
-      "sample_id": "cpp1_2f6fcb63",
-      "relative_path": "逆向课程2023春01/CPP1.exe",
-      "reason": "pe sample (196700 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp1_7b504c54",
+      "relative_path": "逆向课程2023春补考01/Cpp1.exe",
+      "reason": "pe sample (184398 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -52,9 +50,9 @@
     },
     {
       "rank": 4,
-      "sample_id": "cpp1_378eeffd",
-      "relative_path": "逆向课程2022春01/CPP1.exe",
-      "reason": "pe sample (196689 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_06917482",
+      "relative_path": "逆向课程2021春01/Cpp2.exe",
+      "reason": "pe sample (184401 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -67,9 +65,9 @@
     },
     {
       "rank": 5,
-      "sample_id": "cpp1_7b504c54",
-      "relative_path": "逆向课程2023春补考01/Cpp1.exe",
-      "reason": "pe sample (184398 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_1264f47d",
+      "relative_path": "逆向课程2022春补考02/Cpp2.exe",
+      "reason": "pe sample (196686 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -82,9 +80,9 @@
     },
     {
       "rank": 6,
-      "sample_id": "cpp2_06917482",
-      "relative_path": "逆向课程2021春01/Cpp2.exe",
-      "reason": "pe sample (184401 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_29ebb670",
+      "relative_path": "逆向课程2021春03/Cpp2.exe",
+      "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -97,9 +95,9 @@
     },
     {
       "rank": 7,
-      "sample_id": "cpp2_1264f47d",
-      "relative_path": "逆向课程2022春补考02/Cpp2.exe",
-      "reason": "pe sample (196686 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_2f64e68d",
+      "relative_path": "逆向课程2025春03/CPP2.exe",
+      "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -112,9 +110,9 @@
     },
     {
       "rank": 8,
-      "sample_id": "cpp2_29ebb670",
-      "relative_path": "逆向课程2021春03/Cpp2.exe",
-      "reason": "pe sample (196689 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_32f1713e",
+      "relative_path": "逆向课程2023春补考02/Cpp2.exe",
+      "reason": "pe sample (196686 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -127,9 +125,9 @@
     },
     {
       "rank": 9,
-      "sample_id": "cpp2_2f64e68d",
-      "relative_path": "逆向课程2025春03/CPP2.exe",
-      "reason": "pe sample (196689 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_35310f79",
+      "relative_path": "逆向课程2023春02/CPP2.exe",
+      "reason": "pe sample (196700 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -142,9 +140,9 @@
     },
     {
       "rank": 10,
-      "sample_id": "cpp2_32f1713e",
-      "relative_path": "逆向课程2023春补考02/Cpp2.exe",
-      "reason": "pe sample (196686 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_561edd9a",
+      "relative_path": "逆向课程2024春补考02/Cpp2.exe",
+      "reason": "pe sample (196686 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -157,9 +155,9 @@
     },
     {
       "rank": 11,
-      "sample_id": "cpp2_35310f79",
-      "relative_path": "逆向课程2023春02/CPP2.exe",
-      "reason": "pe sample (196700 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_5910fe3b",
+      "relative_path": "新建文件夹/Cpp2.exe",
+      "reason": "pe sample (176202 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -172,9 +170,9 @@
     },
     {
       "rank": 12,
-      "sample_id": "cpp2_561edd9a",
-      "relative_path": "逆向课程2024春补考02/Cpp2.exe",
-      "reason": "pe sample (196686 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_651d2ef7",
+      "relative_path": "逆向课程2024春05/Cpp2.exe",
+      "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -187,9 +185,9 @@
     },
     {
       "rank": 13,
-      "sample_id": "cpp2_5910fe3b",
-      "relative_path": "新建文件夹/Cpp2.exe",
-      "reason": "pe sample (176202 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_6a58f5f7",
+      "relative_path": "逆向课程2019秋01/Cpp2.exe",
+      "reason": "pe sample (184406 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -202,9 +200,9 @@
     },
     {
       "rank": 14,
-      "sample_id": "cpp2_651d2ef7",
-      "relative_path": "逆向课程2024春05/Cpp2.exe",
-      "reason": "pe sample (196689 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_883e67b9",
+      "relative_path": "逆向课程2024春02/CPP2.exe",
+      "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -217,9 +215,9 @@
     },
     {
       "rank": 15,
-      "sample_id": "cpp2_6a58f5f7",
-      "relative_path": "逆向课程2019秋01/Cpp2.exe",
-      "reason": "pe sample (184406 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_8c0d2ad4",
+      "relative_path": "逆向课程2025春01/Cpp2.exe",
+      "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -232,9 +230,9 @@
     },
     {
       "rank": 16,
-      "sample_id": "cpp2_883e67b9",
-      "relative_path": "逆向课程2024春02/CPP2.exe",
-      "reason": "pe sample (196689 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_aa2b785b",
+      "relative_path": "逆向课程2021春04/Cpp2.exe",
+      "reason": "pe sample (200785 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -247,9 +245,9 @@
     },
     {
       "rank": 17,
-      "sample_id": "cpp2_8c0d2ad4",
-      "relative_path": "逆向课程2025春01/Cpp2.exe",
-      "reason": "pe sample (196689 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_b210bced",
+      "relative_path": "逆向课程2019秋02/Cpp2.exe",
+      "reason": "pe sample (196691 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -262,9 +260,9 @@
     },
     {
       "rank": 18,
-      "sample_id": "cpp2_aa2b785b",
-      "relative_path": "逆向课程2021春04/Cpp2.exe",
-      "reason": "pe sample (200785 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_b7377e96",
+      "relative_path": "逆向课程2024春补考01/Cpp2.exe",
+      "reason": "pe sample (184398 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -277,9 +275,9 @@
     },
     {
       "rank": 19,
-      "sample_id": "cpp2_b210bced",
-      "relative_path": "逆向课程2019秋02/Cpp2.exe",
-      "reason": "pe sample (196691 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_f2738577",
+      "relative_path": "逆向课程2021春02/Cpp2.exe",
+      "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -292,9 +290,9 @@
     },
     {
       "rank": 20,
-      "sample_id": "cpp2_b7377e96",
-      "relative_path": "逆向课程2024春补考01/Cpp2.exe",
-      "reason": "pe sample (184398 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_f53fb951",
+      "relative_path": "逆向课程2025春02/Cpp2.exe",
+      "reason": "pe sample (200785 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -307,9 +305,9 @@
     },
     {
       "rank": 21,
-      "sample_id": "cpp2_f2738577",
-      "relative_path": "逆向课程2021春02/Cpp2.exe",
-      "reason": "pe sample (196689 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp2_fc735338",
+      "relative_path": "Cpp2.exe",
+      "reason": "pe sample (196682 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -322,9 +320,9 @@
     },
     {
       "rank": 22,
-      "sample_id": "cpp2_f53fb951",
-      "relative_path": "逆向课程2025春02/Cpp2.exe",
-      "reason": "pe sample (200785 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp3_019fcdc8",
+      "relative_path": "逆向课程2023春03/CPP3.exe",
+      "reason": "pe sample (184412 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -337,9 +335,9 @@
     },
     {
       "rank": 23,
-      "sample_id": "cpp2_fc735338",
-      "relative_path": "Cpp2.exe",
-      "reason": "pe sample (196682 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp3_356dbdc7",
+      "relative_path": "逆向课程2022春03/Cpp3.exe",
+      "reason": "pe sample (196688 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -352,9 +350,9 @@
     },
     {
       "rank": 24,
-      "sample_id": "cpp3_019fcdc8",
-      "relative_path": "逆向课程2023春03/CPP3.exe",
-      "reason": "pe sample (184412 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp3_5c3b34d5",
+      "relative_path": "逆向课程2023春补考03/Cpp3.exe",
+      "reason": "pe sample (196691 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -367,9 +365,9 @@
     },
     {
       "rank": 25,
-      "sample_id": "cpp3_356dbdc7",
-      "relative_path": "逆向课程2022春03/Cpp3.exe",
-      "reason": "pe sample (196688 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp3_e5a33e0b",
+      "relative_path": "逆向课程2022春补考03/cpp3.exe",
+      "reason": "pe sample (196686 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -382,9 +380,9 @@
     },
     {
       "rank": 26,
-      "sample_id": "cpp3_5c3b34d5",
-      "relative_path": "逆向课程2023春补考03/Cpp3.exe",
-      "reason": "pe sample (196691 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp3_e5a33e0b",
+      "relative_path": "逆向课程2024春补考03/cpp3.exe",
+      "reason": "pe sample (196686 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -397,9 +395,9 @@
     },
     {
       "rank": 27,
-      "sample_id": "cpp3_e5a33e0b",
-      "relative_path": "逆向课程2022春补考03/cpp3.exe",
-      "reason": "pe sample (196686 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp4_ab1b6104",
+      "relative_path": "逆向课程2023春补考04/Cpp4.exe",
+      "reason": "pe sample (200782 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -412,9 +410,9 @@
     },
     {
       "rank": 28,
-      "sample_id": "cpp3_e5a33e0b",
-      "relative_path": "逆向课程2024春补考03/cpp3.exe",
-      "reason": "pe sample (196686 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp4_c7cb6b0e",
+      "relative_path": "逆向课程2023春04/CPP4.exe",
+      "reason": "pe sample (200796 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -427,9 +425,9 @@
     },
     {
       "rank": 29,
-      "sample_id": "cpp4_ab1b6104",
-      "relative_path": "逆向课程2023春补考04/Cpp4.exe",
-      "reason": "pe sample (200782 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp4_d420b8a8",
+      "relative_path": "逆向课程2022春04/CPP4.exe",
+      "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -442,9 +440,9 @@
     },
     {
       "rank": 30,
-      "sample_id": "cpp4_c7cb6b0e",
-      "relative_path": "逆向课程2023春04/CPP4.exe",
-      "reason": "pe sample (200796 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp5_2ea076a7",
+      "relative_path": "逆向课程2022春05/CPP5.exe",
+      "reason": "pe sample (196689 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -457,9 +455,9 @@
     },
     {
       "rank": 31,
-      "sample_id": "cpp4_d420b8a8",
-      "relative_path": "逆向课程2022春04/CPP4.exe",
-      "reason": "pe sample (196689 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp5_79788295",
+      "relative_path": "逆向课程2023春05/CPP5.exe",
+      "reason": "pe sample (200796 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -472,9 +470,9 @@
     },
     {
       "rank": 32,
-      "sample_id": "cpp5_2ea076a7",
-      "relative_path": "逆向课程2022春05/CPP5.exe",
-      "reason": "pe sample (196689 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp5_8fae8fac",
+      "relative_path": "逆向课程2023春补考05/Cpp5.exe",
+      "reason": "pe sample (200784 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -487,9 +485,9 @@
     },
     {
       "rank": 33,
-      "sample_id": "cpp5_79788295",
-      "relative_path": "逆向课程2023春05/CPP5.exe",
-      "reason": "pe sample (200796 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "cpp_6af7c7f1",
+      "relative_path": "逆向课程2019秋05/cpp.exe",
+      "reason": "pe sample (196690 bytes), static triage tags: reverse, local, cpp, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -502,9 +500,9 @@
     },
     {
       "rank": 34,
-      "sample_id": "cpp5_8fae8fac",
-      "relative_path": "逆向课程2023春补考05/Cpp5.exe",
-      "reason": "pe sample (200784 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "desenc_0e0b5203",
+      "relative_path": "逆向课程2019春04/desenc.exe",
+      "reason": "pe sample (200780 bytes), static triage tags: reverse, local, crypto_cipher, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -517,9 +515,9 @@
     },
     {
       "rank": 35,
-      "sample_id": "cpp_6af7c7f1",
-      "relative_path": "逆向课程2019秋05/cpp.exe",
-      "reason": "pe sample (196690 bytes), static triage tags: local, cpp, pe, reverse",
+      "sample_id": "desenc_14c58fcd",
+      "relative_path": "逆向课程2019秋04/desenc.exe",
+      "reason": "pe sample (200789 bytes), static triage tags: reverse, local, crypto_cipher, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -532,9 +530,9 @@
     },
     {
       "rank": 36,
-      "sample_id": "desenc_0e0b5203",
-      "relative_path": "逆向课程2019春04/desenc.exe",
-      "reason": "pe sample (200780 bytes), static triage tags: local, crypto_cipher, pe, reverse",
+      "sample_id": "desenc_40cba418",
+      "relative_path": "DES/desenc.exe",
+      "reason": "pe sample (200784 bytes), static triage tags: reverse, local, crypto_cipher, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -547,9 +545,9 @@
     },
     {
       "rank": 37,
-      "sample_id": "desenc_14c58fcd",
-      "relative_path": "逆向课程2019秋04/desenc.exe",
-      "reason": "pe sample (200789 bytes), static triage tags: local, crypto_cipher, pe, reverse",
+      "sample_id": "desenc_fd9d0af6",
+      "relative_path": "逆向课程2024春04/DESEnc.exe",
+      "reason": "pe sample (200787 bytes), static triage tags: reverse, local, crypto_cipher, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -562,9 +560,9 @@
     },
     {
       "rank": 38,
-      "sample_id": "desenc_40cba418",
-      "relative_path": "DES/desenc.exe",
-      "reason": "pe sample (200784 bytes), static triage tags: local, crypto_cipher, pe, reverse",
+      "sample_id": "main_36c51ec1",
+      "relative_path": "逆向课程2025春04/main.exe",
+      "reason": "pe sample (200791 bytes), static triage tags: reverse, local, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -577,9 +575,9 @@
     },
     {
       "rank": 39,
-      "sample_id": "desenc_fd9d0af6",
-      "relative_path": "逆向课程2024春04/DESEnc.exe",
-      "reason": "pe sample (200787 bytes), static triage tags: local, crypto_cipher, pe, reverse",
+      "sample_id": "main_6ae5a26d",
+      "relative_path": "逆向课程2025春05/main.exe",
+      "reason": "pe sample (184401 bytes), static triage tags: reverse, local, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -592,9 +590,9 @@
     },
     {
       "rank": 40,
-      "sample_id": "main_36c51ec1",
-      "relative_path": "逆向课程2025春04/main.exe",
-      "reason": "pe sample (200791 bytes), static triage tags: local, pe, reverse",
+      "sample_id": "main_ab1b6104",
+      "relative_path": "逆向课程2024春补考04/main.exe",
+      "reason": "pe sample (200782 bytes), static triage tags: reverse, local, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -607,9 +605,9 @@
     },
     {
       "rank": 41,
-      "sample_id": "main_6ae5a26d",
-      "relative_path": "逆向课程2025春05/main.exe",
-      "reason": "pe sample (184401 bytes), static triage tags: local, pe, reverse",
+      "sample_id": "main_d44edbfe",
+      "relative_path": "逆向课程2020秋03/main.exe",
+      "reason": "pe sample (200782 bytes), static triage tags: reverse, local, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -622,9 +620,9 @@
     },
     {
       "rank": 42,
-      "sample_id": "main_ab1b6104",
-      "relative_path": "逆向课程2024春补考04/main.exe",
-      "reason": "pe sample (200782 bytes), static triage tags: local, pe, reverse",
+      "sample_id": "main_fb1f8cc0",
+      "relative_path": "逆向课程2022春补考04/main.exe",
+      "reason": "pe sample (200791 bytes), static triage tags: reverse, local, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -637,9 +635,9 @@
     },
     {
       "rank": 43,
-      "sample_id": "main_d44edbfe",
-      "relative_path": "逆向课程2020秋03/main.exe",
-      "reason": "pe sample (200782 bytes), static triage tags: local, pe, reverse",
+      "sample_id": "rc4enc_210a1f33",
+      "relative_path": "逆向课程2022春补考05/rc4enc.exe",
+      "reason": "pe sample (196688 bytes), static triage tags: reverse, local, crypto_cipher, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -652,9 +650,9 @@
     },
     {
       "rank": 44,
-      "sample_id": "main_fb1f8cc0",
-      "relative_path": "逆向课程2022春补考04/main.exe",
-      "reason": "pe sample (200791 bytes), static triage tags: local, pe, reverse",
+      "sample_id": "rc4enc_2348c3cb",
+      "relative_path": "逆向课程2024春03/rc4enc.exe",
+      "reason": "pe sample (196691 bytes), static triage tags: reverse, local, crypto_cipher, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -667,9 +665,9 @@
     },
     {
       "rank": 45,
-      "sample_id": "pwd_030127ca",
-      "relative_path": "逆向课程2022春补考01/pwd.txt",
-      "reason": "text sample (7 bytes), static triage tags: local, text, reverse",
+      "sample_id": "rc4enc_3480917d",
+      "relative_path": "逆向课程2019秋03/rc4enc.exe",
+      "reason": "pe sample (196693 bytes), static triage tags: reverse, local, crypto_cipher, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -682,9 +680,9 @@
     },
     {
       "rank": 46,
-      "sample_id": "rc4_add1978d",
-      "relative_path": "逆向课程2019秋03/rc4.py",
-      "reason": "python sample (2255 bytes), static triage tags: local, crypto_cipher, python, reverse",
+      "sample_id": "rc4enc_a1897c10",
+      "relative_path": "逆向课程2019春03/rc4enc.exe",
+      "reason": "pe sample (196684 bytes), static triage tags: reverse, local, crypto_cipher, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -697,9 +695,9 @@
     },
     {
       "rank": 47,
-      "sample_id": "rc4enc_210a1f33",
-      "relative_path": "逆向课程2022春补考05/rc4enc.exe",
-      "reason": "pe sample (196688 bytes), static triage tags: local, crypto_cipher, pe, reverse",
+      "sample_id": "rc4enc_f93c785f",
+      "relative_path": "逆向课程2024春补考05/rc4enc.exe",
+      "reason": "pe sample (196688 bytes), static triage tags: reverse, local, crypto_cipher, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -712,9 +710,9 @@
     },
     {
       "rank": 48,
-      "sample_id": "rc4enc_2348c3cb",
-      "relative_path": "逆向课程2024春03/rc4enc.exe",
-      "reason": "pe sample (196691 bytes), static triage tags: local, crypto_cipher, pe, reverse",
+      "sample_id": "samplereverse_ca74a786",
+      "relative_path": "samplereverse.exe",
+      "reason": "pe sample (1762304 bytes), static triage tags: reverse, local, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -727,84 +725,9 @@
     },
     {
       "rank": 49,
-      "sample_id": "rc4enc_3480917d",
-      "relative_path": "逆向课程2019秋03/rc4enc.exe",
-      "reason": "pe sample (196693 bytes), static triage tags: local, crypto_cipher, pe, reverse",
-      "proposed_next_mainline": "tool_integration",
-      "allowed_actions": [
-        "static_triage"
-      ],
-      "forbidden_actions": [
-        "runtime_probe",
-        "bruteforce",
-        "upload_binary"
-      ]
-    },
-    {
-      "rank": 50,
-      "sample_id": "rc4enc_a1897c10",
-      "relative_path": "逆向课程2019春03/rc4enc.exe",
-      "reason": "pe sample (196684 bytes), static triage tags: local, crypto_cipher, pe, reverse",
-      "proposed_next_mainline": "tool_integration",
-      "allowed_actions": [
-        "static_triage"
-      ],
-      "forbidden_actions": [
-        "runtime_probe",
-        "bruteforce",
-        "upload_binary"
-      ]
-    },
-    {
-      "rank": 51,
-      "sample_id": "rc4enc_f93c785f",
-      "relative_path": "逆向课程2024春补考05/rc4enc.exe",
-      "reason": "pe sample (196688 bytes), static triage tags: local, crypto_cipher, pe, reverse",
-      "proposed_next_mainline": "tool_integration",
-      "allowed_actions": [
-        "static_triage"
-      ],
-      "forbidden_actions": [
-        "runtime_probe",
-        "bruteforce",
-        "upload_binary"
-      ]
-    },
-    {
-      "rank": 52,
-      "sample_id": "samplereverse_ca74a786",
-      "relative_path": "samplereverse.exe",
-      "reason": "pe sample (1762304 bytes), static triage tags: local, pe, reverse",
-      "proposed_next_mainline": "tool_integration",
-      "allowed_actions": [
-        "static_triage"
-      ],
-      "forbidden_actions": [
-        "runtime_probe",
-        "bruteforce",
-        "upload_binary"
-      ]
-    },
-    {
-      "rank": 53,
       "sample_id": "seh_52be8d5c",
       "relative_path": "逆向课程2020秋02/SEH.exe",
-      "reason": "pe sample (196685 bytes), static triage tags: local, pe, reverse",
-      "proposed_next_mainline": "tool_integration",
-      "allowed_actions": [
-        "static_triage"
-      ],
-      "forbidden_actions": [
-        "runtime_probe",
-        "bruteforce",
-        "upload_binary"
-      ]
-    },
-    {
-      "rank": 54,
-      "sample_id": "sha_cd947414",
-      "relative_path": "逆向课程2022春02/sha.py",
-      "reason": "python sample (11437 bytes), static triage tags: local, python, reverse",
+      "reason": "pe sample (196685 bytes), static triage tags: reverse, local, pe",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"

@@ -71,6 +71,35 @@ _STATIC_BLOCKED_ARTIFACT_PRIORITY = (
     ("ida_summary", 5),
 )
 
+STATIC_TRIAGE_TARGET_EXTENSIONS = {
+    ".exe",
+    ".dll",
+    ".sys",
+    ".com",
+    ".bin",
+    ".dat",
+    ".elf",
+    ".so",
+}
+
+STATIC_TRIAGE_TARGET_FILE_TYPES = {"pe", "elf", "raw"}
+
+STATIC_TRIAGE_EXCLUDED_EXTENSIONS = {
+    ".pdf",
+    ".txt",
+    ".md",
+    ".doc",
+    ".docx",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".conf",
+    ".config",
+}
+
 
 def main(argv: list[str] | None = None) -> int:
     parser = _build_parser()
@@ -128,6 +157,7 @@ def build_training_status(
     runtime_blocked_map = _build_runtime_blocked_overlay(artifact_index_path)
     mature_backend_blocked_map = _build_mature_backend_blocked_overlay(artifact_index_path)
     static_handoff_map = _build_static_handoff_overlay(artifact_index_path)
+    static_triage_success_map = _build_static_triage_success_overlay(artifact_index_path)
     static_tool_blocked_map = _build_static_tool_blocked_overlay(artifact_index_path)
 
     # Merge with inventory entries
@@ -178,6 +208,10 @@ def build_training_status(
             status = overlay.get("training_status", TRAINING_STATUS_NEEDS_TRIAGE)
             info = overlay
             counts[status] = counts.get(status, 0) + 1
+        elif sample_id in static_triage_success_map:
+            status = TRAINING_STATUS_NEEDS_TRIAGE
+            info = static_triage_success_map[sample_id]
+            counts["needs_triage"] += 1
         elif sample_id in static_tool_blocked_map:
             status = TRAINING_STATUS_NEEDS_TRIAGE
             info = static_tool_blocked_map[sample_id]
@@ -655,6 +689,79 @@ def _build_static_tool_blocked_overlay(
     return overlay
 
 
+def _build_static_triage_success_overlay(
+    artifact_index_path: Path,
+) -> dict[str, dict[str, Any]]:
+    """Scan artifact_index for successful current static triage artifacts.
+
+    A successful static triage means the sample has enough current static
+    evidence to leave the static-triage queue, but it is not solved until a
+    later constraint-recovery or validation round proves a candidate.
+    """
+    if not artifact_index_path.exists():
+        return {}
+
+    artifact_index = _load_json(artifact_index_path, "artifact_index")
+    v2 = artifact_index.get("latest_artifacts_v2", {})
+
+    overlay: dict[str, dict[str, Any]] = {}
+    for key, meta in v2.items():
+        if meta.get("freshness") != "current":
+            continue
+        if meta.get("kind") != "local_reverse_single_sample_static_triage":
+            continue
+
+        artifact_path_text = meta.get("path", "")
+        if not artifact_path_text:
+            continue
+        artifact_path = _resolve_artifact_path(artifact_path_text, artifact_index_path)
+
+        artifact = _load_json(artifact_path, f"artifact:{key}")
+        if not artifact:
+            continue
+
+        sample_id = artifact.get("sample_id") or meta.get("sample_id", "")
+        if not sample_id:
+            continue
+
+        if artifact.get("static_only") is not True:
+            continue
+        if artifact.get("executed_sample") is not False:
+            continue
+        if artifact.get("runtime_validated") is not False:
+            continue
+        if artifact.get("candidate") is not None:
+            continue
+        if artifact.get("tool_status") != "success":
+            continue
+
+        triage = artifact.get("triage", {})
+        triage = triage if isinstance(triage, dict) else {}
+        hypotheses = triage.get("solver_profile_hypotheses", [])
+        hypotheses = [str(item) for item in hypotheses if item]
+        source_tool = artifact.get("source_tool", "")
+
+        evidence_sources = [
+            f"source:{artifact_path.name}",
+            "static_triage_completed",
+            "tool_status:success",
+        ]
+        if source_tool:
+            evidence_sources.append(f"source_tool:{source_tool}")
+        evidence_sources.extend(f"hypothesis:{item}" for item in hypotheses[:5])
+
+        classification = "; ".join(hypotheses) or artifact.get("analysis_mode", "")
+        overlay[sample_id] = {
+            "training_status": TRAINING_STATUS_NEEDS_TRIAGE,
+            "blocked_reason": "",
+            "classification": classification,
+            "evidence_sources": evidence_sources,
+            "next_action": "constraint recovery or targeted decompilation; runtime validation required",
+        }
+
+    return overlay
+
+
 def _resolve_artifact_path(artifact_path_text: str, artifact_index_path: Path) -> Path:
     artifact_path = Path(artifact_path_text)
     if artifact_path.is_absolute() or artifact_path.exists():
@@ -795,32 +902,35 @@ def _build_evaluation_queue(samples: list[dict[str, Any]]) -> dict[str, Any]:
     eligible: list[tuple[dict[str, Any], int]] = []  # (sample, priority_rank)
     for sample in samples:
         status = sample.get("training_status", "")
-        if status in (TRAINING_STATUS_SOLVED, TRAINING_STATUS_BLOCKED):
+        if status != TRAINING_STATUS_INVENTORY_ONLY:
             continue
-        if status == TRAINING_STATUS_INVENTORY_ONLY:
-            tags = set(sample.get("tags", []))
-            # Skip obvious solver scripts
-            name = sample.get("sample_id", "").lower()
-            rel = sample.get("relative_path", "").lower()
-            if any(kw in name for kw in ("solver", "script", "decrypt", "encrypt")):
-                continue
-            if any(kw in rel for kw in ("solver", "script", "decrypt", "encrypt", "interactive")):
-                continue
-            # Skip DES interactive solver
-            if "des" in tags and "interactive" in rel:
-                continue
+        tags = set(sample.get("tags", []))
+        # Skip obvious solver scripts and support files.
+        name = sample.get("sample_id", "").lower()
+        rel = sample.get("relative_path", "").lower()
+        if any(kw in name for kw in ("solver", "script", "decrypt", "encrypt")):
+            continue
+        if any(kw in rel for kw in ("solver", "script", "decrypt", "encrypt", "interactive")):
+            continue
+        if EXCLUDED_ROLES & tags:
+            continue
+        # Skip DES interactive solver and non-target support documents.
+        if "des" in tags and "interactive" in rel:
+            continue
+        if not _is_static_triage_queue_target(sample):
+            continue
 
-            # Determine priority rank based on tags
-            if SIMPLE_TAGS & tags:
-                priority_rank = 0
-            elif SECOND_BATCH_TAGS & tags:
-                priority_rank = 1
-            elif DEFERRED_TAGS & tags:
-                priority_rank = 3
-            else:
-                priority_rank = 2
+        # Determine priority rank based on tags.
+        if SIMPLE_TAGS & tags:
+            priority_rank = 0
+        elif SECOND_BATCH_TAGS & tags:
+            priority_rank = 1
+        elif DEFERRED_TAGS & tags:
+            priority_rank = 3
+        else:
+            priority_rank = 2
 
-            eligible.append((sample, priority_rank))
+        eligible.append((sample, priority_rank))
 
     # Sort by priority rank, then by sample_id for stability
     eligible.sort(key=lambda x: (x[1], x[0]["sample_id"]))
@@ -849,6 +959,23 @@ def _build_evaluation_queue(samples: list[dict[str, Any]]) -> dict[str, Any]:
         "queue_policy": QUEUE_POLICY,
         "items": queue_items,
     }
+
+
+def _is_static_triage_queue_target(sample: dict[str, Any]) -> bool:
+    rel = str(sample.get("relative_path", ""))
+    extension = str(sample.get("extension", "") or Path(rel).suffix).lower()
+    guessed_file_type = str(sample.get("guessed_file_type", "")).lower()
+    tags = {str(tag).lower() for tag in sample.get("tags", [])}
+
+    if extension in STATIC_TRIAGE_EXCLUDED_EXTENSIONS:
+        return False
+    if extension in STATIC_TRIAGE_TARGET_EXTENSIONS:
+        return True
+    if guessed_file_type in STATIC_TRIAGE_TARGET_FILE_TYPES:
+        return True
+    if "pe" in tags or "elf" in tags:
+        return True
+    return False
 
 
 def _extract_tags_from_reason(reason: str) -> list[str]:

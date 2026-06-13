@@ -1727,6 +1727,33 @@ Allowed tests:
     assert ".codex-skills/registry.json" in forbidden["forbidden_paths"]
 
 
+def test_preflight_allows_training_dataset_status_generator_scope(tmp_path: Path) -> None:
+    scope = """Allowed source files:
+
+- `reverse_agent/local_reverse_training_status.py`
+
+Allowed tests:
+
+- `tests/test_local_reverse_training_status.py`
+
+Allowed generated files:
+
+- `project_state/local_reverse_training_status.json`
+- `project_state/local_reverse_evaluation_queue.json`
+"""
+    state_dir = _make_preflight_state(
+        tmp_path,
+        mainline="training_dataset",
+        skill_profiles=["reverse-agent-iteration@v2"],
+        goal="Audit tool capability and update training dataset queue hygiene.",
+        implementation_scope=scope,
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert _check(result, "forbidden_paths_not_allowed")["status"] == "PASS"
+
+
 def test_preflight_fails_engineering_branch_sample_solver_scope(tmp_path: Path) -> None:
     state_dir = _make_preflight_state(tmp_path, goal="Run sample solver and runtime probe for this round.")
 

@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-13T12:00:00Z",
+  "generated_at": "2026-06-13T15:09:56Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 65,
   "status_summary": {
     "solved": 1,
     "blocked": 2,
-    "needs_triage": 2,
-    "inventory_only": 60
+    "needs_triage": 3,
+    "inventory_only": 59
   },
   "samples": [
     {
@@ -105,13 +105,13 @@
       "classification": "string_compare_password_checker; standard_input_based",
       "evidence_sources": [
         "source:local_reverse_affine_8cfebe03_static_triage.json",
-        "source:local_reverse_affine_8cfebe03_static_evidence_summary.json",
-        "source_tool:IDA",
+        "static_triage_completed",
         "tool_status:success",
+        "source_tool:IDA",
         "hypothesis:string_compare_password_checker",
         "hypothesis:standard_input_based"
       ],
-      "next_action": "constraint recovery or targeted decompilation of compare context (_strncmp at 0x40620E); runtime validation required"
+      "next_action": "constraint recovery or targeted decompilation; runtime validation required"
     },
     {
       "sample_id": "affine_8cfebe03",
@@ -132,13 +132,13 @@
       "classification": "string_compare_password_checker; standard_input_based",
       "evidence_sources": [
         "source:local_reverse_affine_8cfebe03_static_triage.json",
-        "source:local_reverse_affine_8cfebe03_static_evidence_summary.json",
-        "source_tool:IDA",
+        "static_triage_completed",
         "tool_status:success",
+        "source_tool:IDA",
         "hypothesis:string_compare_password_checker",
         "hypothesis:standard_input_based"
       ],
-      "next_action": "constraint recovery or targeted decompilation of compare context (_strncmp at 0x40620E); runtime validation required"
+      "next_action": "constraint recovery or targeted decompilation; runtime validation required"
     },
     {
       "sample_id": "affineenc_333f8ca9",
@@ -159,8 +159,9 @@
       "classification": "string_compare_password_checker; standard_input_based; strcmp_direct_compare",
       "evidence_sources": [
         "source:local_reverse_affineenc_333f8ca9_static_triage.json",
-        "source_tool:IDA",
+        "static_triage_completed",
         "tool_status:success",
+        "source_tool:IDA",
         "hypothesis:string_compare_password_checker",
         "hypothesis:standard_input_based",
         "hypothesis:strcmp_direct_compare"

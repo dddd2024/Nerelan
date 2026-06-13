@@ -6,6 +6,7 @@ import pytest
 from reverse_agent.local_reverse_training_status import (
     TRAINING_STATUS_BLOCKED,
     TRAINING_STATUS_INVENTORY_ONLY,
+    TRAINING_STATUS_NEEDS_TRIAGE,
     TRAINING_STATUS_SOLVED,
     _build_blocked_map,
     _build_evaluation_queue,
@@ -15,6 +16,7 @@ from reverse_agent.local_reverse_training_status import (
     _build_sample_entry,
     _build_solved_map,
     _build_static_handoff_overlay,
+    _build_static_triage_success_overlay,
     _build_static_tool_blocked_overlay,
     build_training_status,
     main,
@@ -156,6 +158,177 @@ def test_build_evaluation_queue_excludes_solver_scripts() -> None:
     ids = {item["sample_id"] for item in queue["items"]}
     assert "des_interactive_solver" not in ids
     assert "rc4enc" in ids
+
+
+def test_build_evaluation_queue_excludes_needs_triage_and_support_docs() -> None:
+    samples = [
+        {
+            "sample_id": "affineenc_333f8ca9",
+            "relative_path": "affineenc.exe",
+            "training_status": TRAINING_STATUS_NEEDS_TRIAGE,
+            "tags": ["local", "reverse", "pe"],
+            "size_bytes": 196691,
+            "extension": ".exe",
+            "guessed_file_type": "pe",
+        },
+        {
+            "sample_id": "ascii_table_chinese_46efc7ea",
+            "relative_path": "ascii_table_chinese.pdf",
+            "training_status": TRAINING_STATUS_INVENTORY_ONLY,
+            "tags": ["local", "reverse"],
+            "size_bytes": 13485,
+            "extension": ".pdf",
+            "guessed_file_type": "unknown",
+        },
+        {
+            "sample_id": "cpp1_2f6fcb63",
+            "relative_path": "CPP1.exe",
+            "training_status": TRAINING_STATUS_INVENTORY_ONLY,
+            "tags": ["local", "reverse", "cpp", "pe"],
+            "size_bytes": 196700,
+            "extension": ".exe",
+            "guessed_file_type": "pe",
+        },
+    ]
+
+    queue = _build_evaluation_queue(samples)
+
+    assert [item["sample_id"] for item in queue["items"]] == ["cpp1_2f6fcb63"]
+
+
+def test_build_static_triage_success_overlay_marks_needs_triage(tmp_path: Path) -> None:
+    artifact_file = tmp_path / "local_reverse_affineenc_333f8ca9_static_triage.json"
+    _write_json(artifact_file, {
+        "sample_id": "affineenc_333f8ca9",
+        "static_only": True,
+        "executed_sample": False,
+        "runtime_validated": False,
+        "tool_status": "success",
+        "source_tool": "IDA",
+        "candidate": None,
+        "analysis_mode": "single_sample_static_triage",
+        "triage": {
+            "solver_profile_hypotheses": [
+                "string_compare_password_checker",
+                "standard_input_based",
+                "strcmp_direct_compare",
+            ],
+        },
+    })
+    index_path = tmp_path / "artifact_index.json"
+    _write_json(index_path, {
+        "latest_artifacts_v2": {
+            "local_reverse_affineenc_333f8ca9_static_triage": {
+                "kind": "local_reverse_single_sample_static_triage",
+                "freshness": "current",
+                "path": str(artifact_file),
+                "sample_id": "affineenc_333f8ca9",
+            }
+        }
+    })
+
+    result = _build_static_triage_success_overlay(index_path)
+
+    entry = result["affineenc_333f8ca9"]
+    assert entry["training_status"] == TRAINING_STATUS_NEEDS_TRIAGE
+    assert entry["blocked_reason"] == ""
+    assert "static_triage_completed" in entry["evidence_sources"]
+    assert "tool_status:success" in entry["evidence_sources"]
+    assert "source_tool:IDA" in entry["evidence_sources"]
+    assert "string_compare_password_checker" in entry["classification"]
+
+
+def test_build_training_status_static_triage_success_exits_queue(tmp_path: Path) -> None:
+    inventory = {
+        "schema_version": 1,
+        "entries": [
+            {
+                "sample_id": "affineenc_333f8ca9",
+                "display_name": "affineenc.exe",
+                "relative_path": "affineenc.exe",
+                "sha256": "333f8ca9f47e5e705b6dcdbcfbb6b24898dba01f6c518f51515d36618e7add9f",
+                "size_bytes": 196691,
+                "extension": ".exe",
+                "guessed_file_type": "pe",
+                "category": "unknown",
+                "tags": ["local", "reverse", "pe"],
+            },
+            {
+                "sample_id": "ascii_table_chinese_46efc7ea",
+                "display_name": "ascii_table_chinese.pdf",
+                "relative_path": "ascii_table_chinese.pdf",
+                "sha256": "46efc7ea2cd29d8c364198c53a6f146aed679d3e6977753a6984a9771748543a",
+                "size_bytes": 13485,
+                "extension": ".pdf",
+                "guessed_file_type": "unknown",
+                "category": "unknown",
+                "tags": ["local", "reverse"],
+            },
+            {
+                "sample_id": "cpp1_2f6fcb63",
+                "display_name": "CPP1.exe",
+                "relative_path": "CPP1.exe",
+                "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+                "size_bytes": 196700,
+                "extension": ".exe",
+                "guessed_file_type": "pe",
+                "category": "cpp",
+                "tags": ["local", "reverse", "cpp", "pe"],
+            },
+        ],
+    }
+    artifact_file = tmp_path / "local_reverse_affineenc_333f8ca9_static_triage.json"
+    _write_json(artifact_file, {
+        "sample_id": "affineenc_333f8ca9",
+        "static_only": True,
+        "executed_sample": False,
+        "runtime_validated": False,
+        "tool_status": "success",
+        "source_tool": "IDA",
+        "candidate": None,
+        "analysis_mode": "single_sample_static_triage",
+        "triage": {"solver_profile_hypotheses": ["string_compare_password_checker"]},
+    })
+    artifact_index = {
+        "latest_artifacts_v2": {
+            "local_reverse_affineenc_333f8ca9_static_triage": {
+                "kind": "local_reverse_single_sample_static_triage",
+                "freshness": "current",
+                "path": str(artifact_file),
+                "sample_id": "affineenc_333f8ca9",
+            }
+        }
+    }
+
+    inv_path = tmp_path / "inventory.json"
+    artifact_index_path = tmp_path / "artifact_index.json"
+    out_path = tmp_path / "status.json"
+    queue_path = tmp_path / "queue.json"
+    _write_json(inv_path, inventory)
+    _write_json(artifact_index_path, artifact_index)
+
+    result = build_training_status(
+        inventory_path=inv_path,
+        validated_path=tmp_path / "missing_validated.json",
+        constraint_path=tmp_path / "missing_constraint.json",
+        solver_result_path=tmp_path / "missing_solver.json",
+        artifact_index_path=artifact_index_path,
+        out_path=out_path,
+        queue_out_path=queue_path,
+    )
+
+    assert result["status_summary"]["needs_triage"] == 1
+    assert result["status_summary"]["inventory_only"] == 2
+
+    status_data = json.loads(out_path.read_text(encoding="utf-8"))
+    samples_by_id = {item["sample_id"]: item for item in status_data["samples"]}
+    affineenc = samples_by_id["affineenc_333f8ca9"]
+    assert affineenc["training_status"] == TRAINING_STATUS_NEEDS_TRIAGE
+    assert affineenc["known_candidate"] == ""
+    assert affineenc["blocked_reason"] == ""
+
+    queue_data = json.loads(queue_path.read_text(encoding="utf-8"))
+    assert [item["sample_id"] for item in queue_data["items"]] == ["cpp1_2f6fcb63"]
 
 
 def test_build_training_status_end_to_end(tmp_path: Path) -> None:
