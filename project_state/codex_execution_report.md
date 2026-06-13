@@ -1,35 +1,45 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "report_20260610_audit_latest_failed_harness_case_state_gap_v1",
-  "round_id": "round_20260610_audit_latest_failed_harness_case_state_gap_v1",
-  "based_on_decision_id": "decision_20260610_audit_latest_failed_harness_case_state_gap_v1",
+  "report_id": "report_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
+  "round_id": "round_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
+  "based_on_decision_id": "decision_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
   "status": "BLOCKED",
   "acceptance_recommendation": "NOT_ACCEPTED",
-  "mainline": "engineering_branch",
+  "mainline": "reverse_solving",
   "sample_id": "samplereverse",
   "candidate_generated": false,
   "candidate_validation_attempted": false,
   "runtime_validation_attempted": false,
   "debugger_attached": false,
   "emulator_used": false,
-  "ida_ghidra_static_extraction_attempted": false,
+  "ida_static_extraction_attempted": false,
+  "pure_python_static_extraction_attempted": false,
   "full_solve_reports_read": false,
   "training_status_modified": false,
   "status_overlay_modified": false,
   "files_changed": [
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py",
     "project_state/codex_execution_report.md",
     "project_state/pytest_result.txt"
   ],
   "tests_ran": [
-    "python -m reverse_agent.project_state status",
-    "python -m reverse_agent.project_state lint-decision",
-    "python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q --rootdir=F:\\reverse-agent\\tests"
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_state build",
+    "python -m reverse_agent.project_state doctor --state-dir project_state",
+    "python -m reverse_agent.project_state doctor --state-dir project_state --json",
+    "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q --rootdir=F:\\reverse-agent\\tests",
+    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state --json"
   ],
-  "generated_artifacts": [],
-  "block_reason": "decision_packet.md was externally modified during execution from decision_20260610_audit_latest_failed_harness_case_state_gap_v1 (engineering_branch) to decision_20260613_samplereverse_bounded_static_evidence_rebuild_v1 (reverse_solving). lint-report cannot pass because based_on_decision_id will not match the current decision_id."
+  "generated_artifacts": [
+    "project_state/codex_execution_report.md",
+    "project_state/pytest_result.txt"
+  ],
+  "block_reason": "Sample path for samplereverse cannot be located from existing state/metadata/config. samples/samplereverse.exe does not exist, REVERSE_AGENT_SAMPLE_PATH env var is not set, LOCAL_REVERSE_ROOT (E:\\reverse) contains no file named samplereverse, and local_reverse_inventory.json has no samplereverse entry. Per decision_packet Stop Conditions section item 4, execution must stop and report BLOCKED."
 }
 ```
 
@@ -37,112 +47,130 @@
 
 ## 1. Decision Authority Check
 
-- [x] `project_state/decision_packet.md` was the execution authority at start of round.
-- [x] Active decision at start: `decision_20260610_audit_latest_failed_harness_case_state_gap_v1`.
-- [x] Active round: `round_20260610_audit_latest_failed_harness_case_state_gap_v1`.
-- [x] Mainline was `engineering_branch`; this is a diagnostic/repair round.
+- [x] `project_state/decision_packet.md` is the execution authority.
+- [x] Active decision: `decision_20260613_samplereverse_bounded_static_evidence_rebuild_v1`.
+- [x] Active round: `round_20260613_samplereverse_bounded_static_evidence_rebuild_v1`.
+- [x] Mainline: `reverse_solving`; scope is bounded static evidence rebuild only.
+- [x] `decision_meta.status` == `APPROVED`.
+- [x] `decision_meta.mainline` == `reverse_solving`.
+- [x] Skill profiles `reverse-agent-iteration@v2` and `samplereverse-frontier@v2` both active in `.codex-skills/registry.json`.
+- [x] `task_packet.json` treated as advisory only; `decision_packet.md` is authoritative.
 - [x] No sample binary was executed.
-- [x] No candidate, solver, search, runtime probe, debugger, emulator, hook, winpty, or sidecar work was run.
+- [x] No candidate, solver, search, runtime probe, debugger, emulator, hook, or sidecar work was run.
 - [x] `.codex-skills/` was not modified.
-- [x] `training_status`, status overlay, sample metadata, and source modules (except project_state.py) were not modified.
-- [x] Changes are within allowed scope (project_state.py, test_project_state.py, reports only).
+- [x] `training_status`, status overlay, sample metadata, and source modules were not modified.
 - [x] Full `solve_reports/` and full `PROJECT_PROGRESS_LOG.txt` were not read.
-- [!] **BLOCKED**: `decision_packet.md` was externally modified during execution to a different decision.
+- [!] **BLOCKED**: Sample path cannot be located.
 
 ## 2. Scope
 
-Audit and repair the state gap behind `latest harness case has errors` / missing `case_results`.
+Bounded static evidence rebuild for `samplereverse`. Goal was to collect current static evidence using IDA or pure-Python fallback, register provenance/freshness in artifact_index, and produce evidence summaries.
 
-### Diagnostic Findings
+## 3. Audit Results
 
-1. `artifact_index.json` records `latest_harness_run: solve_reports\harness_runs\samplereverse_exact1_projected_vs_neighbor_20260424`
-2. That directory does NOT exist locally (confirmed via `Test-Path` returning `False`)
-3. `solve_reports/` is in `.gitignore` -- it is a local runtime artifact, not tracked by git
-4. Only 5 harness run directories exist locally under `solve_reports/harness_runs/`:
-   - `samplereverse_material_hook_runtime_validation_20260512_rerun3/`
-   - `samplereverse_material_hook_runtime_validation_20260512_rerun4/`
-   - `samplereverse_material_hook_runtime_validation_20260512_rerun5/`
-   - `samplereverse_material_hook_runtime_validation_20260512_rerun6/`
-   - `sr_lhs_last_writer_sidecar_hook_install_vs_compareprobe_divergence_20260521_r1/`
-5. None of these match the recorded `latest_harness_run`
-6. None have `case_results/` or `summary.json`
-7. **Root cause**: real absent runtime artifact (directory was cleaned or never synchronized), NOT a project_state.py builder bug
-8. **Diagnostic gap found**: `_build_summary_error_detail()` did not distinguish "run directory absent" from "run directory exists but case_results/ missing"
+### 3.1 Tool Capability Audit
 
-### Fix Applied
+| Capability | Status | Notes |
+|---|---|---|
+| IDA / IDAPython | implemented | `idat64.exe` at `E:\Program Files\ida_pro\idat64.exe`; `ida_scripts/collect_evidence.py` exists |
+| Ghidra | missing | Not available |
+| OllyDbg / x64dbg / debugger | implemented | Exists but not used this round (decision forbids runtime) |
+| strings / file / objdump / radare2 | partial | `static_feature_extractor.py` available as pure-Python fallback |
+| solver templates | implemented | Not used this round |
+| symbolic / constraint solver | implemented | Not used this round |
+| harness | implemented | Not used this round |
+| sample metadata | implemented | Inventory exists but no samplereverse entry |
+| artifact_index | implemented | All artifacts currently `missing` |
+| StructuredEvidence conversion | implemented | `evidence.py` available |
+| GUI / CLI configuration | implemented | Not relevant this round |
 
-Minimal schema-compatible fix in `reverse_agent/project_state.py`:
+### 3.2 IDA Availability
 
-1. Added `latest_harness_run_dir_exists` field to `_build_summary_error_detail()` output
-2. Added `latest_harness_run_directory_absent` diagnosis when run dir does not exist
-3. Added `run_directory_absent` status distinct from `invalid_or_incomplete`
-4. All changes are backward-compatible -- existing consumers that do not read the new field continue to work
+- IDA executable resolved: `E:\Program Files\ida_pro\idat64.exe` (confirmed via `_resolve_ida_executable`)
+- IDA script: `reverse_agent/ida_scripts/collect_evidence.py` (exists, read-only)
+- **IDA cannot be used because sample binary path is unknown**
 
-### Tests Added
+### 3.3 Sample Path Investigation
 
-5 new tests in `tests/test_project_state.py`:
-- `test_run_dir_absent_diagnosis` -- verifies `latest_harness_run_directory_absent` when dir missing
-- `test_run_dir_exists_but_no_case_results` -- verifies `case_results_directory_absent` when dir exists
-- `test_run_dir_has_case_results_with_errors` -- verifies `case_results_contain_errors` path
-- `test_backward_compat_dir_exists_field_absent_when_not_set` -- verifies legacy fields still present
-- `test_run_dir_absent_no_fallback_available` -- verifies fallback behavior
+Checked all known sample location mechanisms:
 
-## 3. Block Reason
+1. `F:\reverse-agent\samples\samplereverse.exe` -- **does not exist** (`Test-Path` = False)
+2. `REVERSE_AGENT_SAMPLE_PATH` environment variable -- **not set**
+3. `LOCAL_REVERSE_ROOT` = `E:\reverse` (exists, contains course subdirectories)
+4. Recursive search for `*samplereverse*` in `E:\reverse` -- **no results**
+5. `project_state/local_reverse_inventory.json` -- **no samplereverse entry** (contains cpp2, des, rc4, seh, etc.)
+6. `reverse_agent/ollydbg_preflight.py` default path: `samples/samplereverse.exe` -- **does not exist**
+7. `_looks_like_samplereverse()` in `sample_solver.py` checks filename or `SAMPLEREVERSE_ENC_CONST[:24]` in file content -- no candidate file identified
 
-During execution, `project_state/decision_packet.md` was externally modified from:
-- `decision_20260610_audit_latest_failed_harness_case_state_gap_v1` (mainline: `engineering_branch`)
-to:
-- `decision_20260613_samplereverse_bounded_static_evidence_rebuild_v1` (mainline: `reverse_solving`)
+**Conclusion**: The samplereverse sample binary cannot be located through any existing mechanism. Per decision_packet Stop Conditions section item 4: "样本路径无法从现有状态/metadata/config 中定位" → must stop and report BLOCKED.
 
-This prevents `lint-report` from passing because `based_on_decision_id` in the report will not match the current `decision_id` in `decision_packet.md`.
+## 4. Block Reason
 
-Per the execution protocol, this round must report `BLOCKED`.
+**Primary blocker**: Sample path for `samplereverse` cannot be located.
 
-## 4. Tests
+The sample binary is required for both IDA static evidence extraction and pure-Python static feature extraction. Without a sample file path, no static evidence can be generated, no artifact_index entries can be created, and no evidence summary can be produced.
 
-### Test Suite
+Per decision_packet.md Stop Conditions:
+> "样本路径无法从现有状态/metadata/config 中定位。"
 
-`tests/test_project_state.py tests/test_harness_artifact_manifest.py` -- **207/207 passed** (including 5 new tests)
+This is a hard stop condition. Execution must not continue to solver, candidate search, or any other activity.
+
+**Secondary observations** (not blockers themselves but noted for completeness):
+- `preflight` gate FAIL on `forbidden_paths_not_allowed`: decision Implementation Scope includes `solve_reports/` which is a FORBIDDEN_PREFIX in project_gate.py. This is a decision/gate configuration conflict, not a code issue.
+- `doctor` FAIL on report/decision mismatch (stale report from previous round).
+- `pytest` has 2 pre-existing test failures in `test_project_gate.py` (baseline issue, not caused by this round).
+
+## 5. Tests
 
 ### Test Commands
 
-| Command | Exit Code | Result |
-|---------|-----------|--------|
-| `python -m reverse_agent.project_state status` | 0 | PASSED |
-| `python -m reverse_agent.project_state lint-decision` | 0 | PASSED |
-| `python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q --rootdir=F:\reverse-agent\tests` | 0 | PASSED (207 passed) |
-| `python -m reverse_agent.project_state lint-report` | NOT RUN | BLOCKED |
+| # | Command | Exit Code | Result |
+|---|---------|-----------|--------|
+| 1 | `python -m reverse_agent.project_gate preflight --state-dir project_state` | 1 | FAIL (forbidden_paths_not_allowed) |
+| 2 | `python -m reverse_agent.project_gate command-plan --state-dir project_state` | 0 | PASSED |
+| 3 | `python -m reverse_agent.project_gate command-plan --state-dir project_state --json` | 0 | PASSED |
+| 4 | `python -m reverse_agent.project_state build` | 0 | PASSED |
+| 5 | `python -m reverse_agent.project_state doctor --state-dir project_state` | 1 | FAIL (report_parse, report_decision_match, pytest_result) |
+| 6 | `python -m reverse_agent.project_state doctor --state-dir project_state --json` | 1 | FAIL (same as above) |
+| 7 | `python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q --rootdir=F:\reverse-agent\tests` | 1 | FAIL (2 pre-existing test failures) |
+| 8 | `python -m reverse_agent.project_state lint-report --state-dir project_state` | 1 | FAIL (decision/report mismatch) |
+| 9 | `python -m reverse_agent.project_gate report-summary --state-dir project_state` | 1 | FAIL |
+| 10 | `python -m reverse_agent.project_gate final-check --state-dir project_state` | 1 | FAIL |
+| 11 | `python -m reverse_agent.project_gate final-check --state-dir project_state --json` | 1 | FAIL |
 
-Note: pytest requires `--rootdir=F:\reverse-agent\tests` due to pre-existing broken junction points (`.git_old2`, `.git_corrupt`, `.git_corrupt_v2`) in the workspace root that cause collection errors. This is a baseline issue, not caused by this round.
+Note: Tests 1, 5-11 fail due to stale report/decision mismatch from previous round and gate configuration issues. These are expected given the BLOCKED status. Test 7 has 2 pre-existing failures in baseline (`test_final_check_passes_engineering_success_with_legacy_sample_artifacts`, `test_close_round_allows_engineering_success_legacy_artifacts_until_archive`) unrelated to this round.
 
-## 5. negative_results.json Cross-Check
+## 6. negative_results.json Cross-Check
 
-This round does not repeat any blocked solver/probe direction:
+This round does not repeat any blocked direction:
 - No compare-aware search executed
 - No candidate validation performed
 - No runtime probe launched
 - No full solve_reports commit attempted
+- No exact2 basin value-pool evaluation
+- No H1/H3 fixed contrast set
+- No transform trace consistency audit without new evidence
 - All negative-result prohibitions respected
 
-## 6. Required Audit Checklist
+## 7. Required Audit Checklist
 
 | # | Check | Result |
 |---|-------|--------|
-| 1 | decision_packet.md has fenced JSON decision_meta block | PASS (at start) |
-| 2 | decision_meta.status == APPROVED | PASS (at start) |
-| 3 | decision_meta.mainline == engineering_branch | PASS (at start) |
+| 1 | decision_packet.md has fenced JSON decision_meta block | PASS |
+| 2 | decision_meta.status == APPROVED | PASS |
+| 3 | decision_meta.mainline == reverse_solving | PASS |
 | 4 | Both skill profiles active in registry | PASS |
-| 5 | decision_packet.md is execution authority; task_packet.json advisory | PASS (at start) |
-| 6 | decision based_on_state_digest matches current state | PASS (at start) |
+| 5 | decision_packet.md is execution authority; task_packet.json advisory | PASS |
+| 6 | decision based_on_state_digest matches current state | PASS |
 | 7 | Stale artifacts remain stale | PASS |
 | 8 | No negative-result direction repeated | PASS |
-| 9 | Report updated to this decision/round | BLOCKED (decision externally modified) |
+| 9 | Report updated to this decision/round | PASS (this report) |
 | 10 | pytest_result.txt records this round's real outputs | PASS |
 | 11 | No sample/tool/debugger/solver/probe execution | PASS |
 | 12 | No `.codex-skills/` changes | PASS |
-| 13 | Source changes minimal and tested | PASS |
-| 14 | lint-report passes | BLOCKED (decision externally modified) |
+| 13 | No source code changes (only reports updated) | PASS |
+| 14 | Sample path locatable | **FAIL -- BLOCKED** |
 
-## 7. Stop Conditions
+## 8. Stop Conditions
 
-**BLOCKED**: `decision_packet.md` was externally modified during execution. The current `decision_packet.md` contains `decision_20260613_samplereverse_bounded_static_evidence_rebuild_v1` (mainline: `reverse_solving`), which differs from the decision under which this round started (`decision_20260610_audit_latest_failed_harness_case_state_gap_v1`, mainline: `engineering_branch`). Per protocol Section 2, the decision_packet is the sole execution authority, and its external modification during execution makes report/decision consistency unachievable.
+**BLOCKED**: Sample path for `samplereverse` cannot be located from any existing mechanism (default path, env var, inventory, recursive search). Per decision_packet.md Stop Conditions section item 4, execution must stop. No static evidence was generated. No artifact_index entries were created. No code was modified (only report files updated).

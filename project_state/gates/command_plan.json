@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260612_engineering_status_policy_limitations_v1",
-  "round_id": "round_20260612_engineering_status_policy_limitations_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-12T17:13:27.741162Z",
+  "decision_id": "decision_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
+  "round_id": "round_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
+  "mainline": "reverse_solving",
+  "generated_at": "2026-06-13T05:19:50.290209Z",
   "commands": [
     {
       "index": 1,
@@ -57,30 +57,6 @@
     },
     {
       "index": 5,
-      "command": "git diff --name-only",
-      "phase": "status",
-      "kind": "git diff",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "git diff expected to exit 0"
-    },
-    {
-      "index": 6,
-      "command": "python -m reverse_agent.project_state build",
-      "phase": "status",
-      "kind": "status",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "status expected to exit 0"
-    },
-    {
-      "index": 7,
       "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "phase": "preflight",
       "kind": "preflight",
@@ -92,7 +68,7 @@
       "notes": "preflight expected to exit 0"
     },
     {
-      "index": 8,
+      "index": 6,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "phase": "gate",
       "kind": "command-plan",
@@ -104,7 +80,7 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 9,
+      "index": 7,
       "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "phase": "gate",
       "kind": "command-plan",
@@ -116,31 +92,19 @@
       "notes": "command-plan expected to exit 0"
     },
     {
-      "index": 10,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "phase": "test",
-      "kind": "pytest",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "pytest expected to exit 0"
-    },
-    {
-      "index": 11,
-      "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
+      "index": 8,
+      "command": "python -m reverse_agent.project_state build",
       "phase": "status",
-      "kind": "lint-report",
+      "kind": "status",
       "required": true,
       "expected_exit_codes": [
         0
       ],
       "records_stdout_stderr": true,
-      "notes": "lint-report expected to exit 0"
+      "notes": "status expected to exit 0"
     },
     {
-      "index": 12,
+      "index": 9,
       "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
       "phase": "status",
       "kind": "doctor",
@@ -152,7 +116,7 @@
       "notes": "doctor expected to exit 0"
     },
     {
-      "index": 13,
+      "index": 10,
       "command": "python -m reverse_agent.project_state doctor --state-dir project_state --json",
       "phase": "status",
       "kind": "doctor",
@@ -164,7 +128,31 @@
       "notes": "doctor expected to exit 0"
     },
     {
-      "index": 14,
+      "index": 11,
+      "command": "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 12,
+      "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
+      "phase": "status",
+      "kind": "lint-report",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "lint-report expected to exit 0"
+    },
+    {
+      "index": 13,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -176,8 +164,20 @@
       "notes": "report-summary expected to exit 0"
     },
     {
-      "index": 15,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 15,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
       "phase": "gate",
       "kind": "final-check",
       "required": true,
@@ -189,66 +189,6 @@
     },
     {
       "index": 16,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 17,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260612_engineering_status_policy_limitations_v1",
-      "phase": "gate",
-      "kind": "close-round",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "close-round expected to exit 0"
-    },
-    {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "phase": "gate",
-      "kind": "report-summary",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "report-summary expected to exit 0"
-    },
-    {
-      "index": 19,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 20,
-      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
-      "phase": "gate",
-      "kind": "final-check",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "final-check expected to exit 0"
-    },
-    {
-      "index": 21,
       "command": "git status --short",
       "phase": "status",
       "kind": "git status",
@@ -260,7 +200,7 @@
       "notes": "git status expected to exit 0"
     },
     {
-      "index": 22,
+      "index": 17,
       "command": "git diff --name-only",
       "phase": "status",
       "kind": "git diff",

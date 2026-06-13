@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "BLOCKED",
-  "decision_id": "decision_20260612_engineering_status_policy_limitations_v1",
-  "round_id": "round_20260612_engineering_status_policy_limitations_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-12T17:13:26.810438Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
+  "round_id": "round_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
+  "mainline": "reverse_solving",
+  "generated_at": "2026-06-13T05:19:05.183671Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -21,7 +21,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is engineering_branch",
+      "detail": "mainline is reverse_solving",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -57,10 +57,10 @@
     },
     {
       "name": "decision_not_consumed_by_report",
-      "status": "FAIL",
-      "detail": "decision already appears consumed by report",
-      "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-      "report_id": "codex_report_20260612_engineering_status_policy_limitations_v1"
+      "status": "PASS",
+      "detail": "decision has not been consumed by a report",
+      "decision_execution_state": "READY_FOR_EXECUTION",
+      "report_id": "report_20260610_audit_latest_failed_harness_case_state_gap_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -86,25 +86,29 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/model_gate.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260612_engineering_status_policy_limitations_v1/*",
-        "project_state/task_packet.json",
-        "reverse_agent/project_gate.py",
+        "project_state/rounds/round_20260613_samplereverse_bounded_static_evidence_rebuild_v1/*",
+        "project_state/samplereverse_static_evidence_rebuild_summary.json",
         "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "solve_reports/",
+        "tests/test_project_state.py",
+        "\u4e0e artifact_index \u767b\u8bb0/\u9759\u6001\u8bc1\u636e\u6458\u8981\u76f4\u63a5\u76f8\u5173\u7684\u6700\u5c0f\u6d4b\u8bd5"
       ]
     },
     {
       "name": "forbidden_paths_not_allowed",
-      "status": "PASS",
-      "detail": "allowed scope contains no forbidden paths",
-      "forbidden_paths": []
+      "status": "FAIL",
+      "detail": "allowed scope includes forbidden paths",
+      "forbidden_paths": [
+        "solve_reports/"
+      ]
     },
     {
       "name": "mainline_scope_policy",
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
-      "matched_terms": [],
+      "matched_terms": [
+        "solver"
+      ],
       "matched_paths": []
     },
     {
@@ -120,41 +124,35 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": false
+      "capability_required": true
     }
   ],
   "blocking_reasons": [
-    "decision_not_consumed_by_report: decision already appears consumed by report"
+    "forbidden_paths_not_allowed: allowed scope includes forbidden paths"
   ],
   "warnings": [],
-  "recommended_next_action": "do_not_start_consumed_or_stale_decision",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
-      ".git_corrupt",
-      ".git_corrupt_v2",
-      ".git_old2",
       "project_state/artifact_index.json",
       "project_state/codex_execution_report.md",
       "project_state/current_state.json",
       "project_state/decision_packet.md",
-      "project_state/gates/preflight_result.json",
       "project_state/model_gate.json",
       "project_state/negative_results.json",
       "project_state/pytest_result.txt",
       "project_state/task_packet.json",
       "reverse_agent/harness.py",
-      "reverse_agent/project_gate.py",
       "reverse_agent/project_state.py",
-      "tests/test_project_gate.py",
       "tests/test_project_state.py"
     ],
-    "head_commit": "2944aaf752ff"
+    "head_commit": "9ee474b99ac4"
   },
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
-    "decision_report_id_match": true,
-    "decision_consumed_by_report": true,
+    "decision_execution_state": "READY_FOR_EXECUTION",
+    "decision_report_id_match": false,
+    "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
     "current_state_round_id": "round_20260612_171323"
