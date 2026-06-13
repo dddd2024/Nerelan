@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-13T10:44:50Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260613_static_tool_validation_state_closure_v1\\codex_execution_report.md",
+      "sha256": "ca6d8937bb7a1fe08d3d85d81979803bcb4066eeeba5e3e9765e4465ca36d28e",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260613_static_tool_validation_state_closure_v1\\decision_packet.md",
+      "sha256": "0fa260f656e4894a347f9234bca0acc8722bfd8572ff2402016167721914fa17",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260613_static_tool_validation_state_closure_v1\\pytest_result.txt",
+      "sha256": "2d1a8250932e4eb64a6526a8bf969ed53e1b9f2e2b2a99a75f6bc58107ccc6a2",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260613_static_tool_validation_state_closure_v1",
+  "schema_version": 1,
+  "source_git_commit": "6e8a3170dbe4",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260613_054156_2729a02c7407",
+  "state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
+  "workflow_status": "REPORT_AVAILABLE"
+}

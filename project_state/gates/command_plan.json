@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260613_static_tool_blocker_validation_rework_v1",
-  "round_id": "round_20260613_static_tool_blocker_validation_rework_v1",
+  "decision_id": "decision_20260613_static_tool_validation_state_closure_v1",
+  "round_id": "round_20260613_static_tool_validation_state_closure_v1",
   "mainline": "tool_integration",
-  "generated_at": "2026-06-13T10:26:59.087708Z",
+  "generated_at": "2026-06-13T10:38:23.477966Z",
   "commands": [
     {
       "index": 1,
@@ -105,6 +105,18 @@
     },
     {
       "index": 9,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 10,
       "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "phase": "status",
       "kind": "lint-report",
@@ -116,7 +128,7 @@
       "notes": "lint-report expected to exit 0"
     },
     {
-      "index": 10,
+      "index": 11,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -128,7 +140,7 @@
       "notes": "report-summary expected to exit 0"
     },
     {
-      "index": 11,
+      "index": 12,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -140,7 +152,7 @@
       "notes": "final-check expected to exit 0"
     },
     {
-      "index": 12,
+      "index": 13,
       "command": "git diff --name-only",
       "phase": "status",
       "kind": "git diff",
