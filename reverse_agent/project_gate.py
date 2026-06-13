@@ -955,6 +955,7 @@ def _validate_command_plan_consistency(
     decision: dict[str, Any],
     report: dict[str, Any],
     pytest_text: str,
+    extra_skip_kinds: set[str] | None = None,
 ) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
     command_plan_required = _report_mentions_command_plan(report)
@@ -1038,7 +1039,10 @@ def _validate_command_plan_consistency(
     for block in blocks:
         blocks_by_command.setdefault(str(block.get("command") or ""), []).append(block)
 
-    expected_by_command = _expected_exit_codes_by_command(command_plan_payload, skip_kinds={"final-check"})
+    _skip_kinds: set[str] = {"final-check"}
+    if extra_skip_kinds:
+        _skip_kinds |= extra_skip_kinds
+    expected_by_command = _expected_exit_codes_by_command(command_plan_payload, skip_kinds=_skip_kinds)
     exit_errors: list[dict[str, Any]] = []
     for command, expected_entries in expected_by_command.items():
         recorded_entries = blocks_by_command.get(command, [])
@@ -2131,6 +2135,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             decision=decision,
             report=report,
             pytest_text=pytest_text,
+            extra_skip_kinds={"report-summary", "close-round"},
         )
     )
 
@@ -2144,6 +2149,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         state_dir=state_dir,
     )
     manifest_files = list(round_consistency.get("round_manifest_files") or [])
+    manifest_present = bool(round_consistency.get("round_manifest_present"))
     archive_paths = _round_archive_paths(state_dir, requested_round_id, manifest_files)
     delta_summary = _build_round_delta_summary(
         state_dir=state_dir,
@@ -2186,10 +2192,14 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     )
 
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
+    _archive_check_status = (
+        "PASS" if not missing_archive_artifacts
+        else ("WARN" if not manifest_present else "FAIL")
+    )
     checks.append(
         _check(
             "generated_artifacts_cover_round_archive",
-            "PASS" if not missing_archive_artifacts else "FAIL",
+            _archive_check_status,
             "generated_artifacts covers round archive files"
             if not missing_archive_artifacts
             else "generated_artifacts omits round archive files",

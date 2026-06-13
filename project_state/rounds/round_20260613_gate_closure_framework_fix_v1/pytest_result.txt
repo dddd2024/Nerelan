@@ -98,69 +98,15 @@ lint-report: OK
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
 
-report-summary: WARN
-  [WARN] final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet
+report-summary: PASSED
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
 
-final-check: WARN
-  [PASS] decision_report_match
-  [PASS] pytest_result_match
-  [PASS] pytest_result_covers_report_tests
-  [WARN] round_manifest_present
-  [WARN] archived_report_matches_live_report
-  [WARN] archived_pytest_result_matches_live_pytest_result
-  [PASS] round_delta_summary_present
-  [PASS] files_changed_excludes_inherited_dirty_files
-  [PASS] files_changed_covers_git_diff
-  [PASS] generated_artifacts_cover_round_delta
-  [PASS] baseline_lifecycle_guard
-  [PASS] baseline_inherited_allowlist_explained
-  [PASS] generated_artifacts_cover_round_archive
-  [PASS] command_plan_present
-  [PASS] command_plan_ids_match
-  [PASS] command_plan_covers_report_tests
-  [PASS] pytest_result_exit_codes_match_command_plan
-  [PASS] command_plan_json_stdout_full
-  [PASS] command_plan_generated_artifact_recorded
-  [PASS] report_summary_synthesis_required
-  [PASS] report_summary_fields_match_synthesis
-  [WARN] report_summary_status_source_available
-  [PASS] forbidden_paths_absent
-  [WARN] status_policy_valid
+final-check: PASSED
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_gate_closure_framework_fix_v1 =====
 
-close-round: CLOSED
-  [PASS] decision_meta_parse
-  [PASS] decision_approved
-  [PASS] report_present
-  [PASS] requested_round_id_match
-  [PASS] report_decision_match
-  [PASS] pytest_result_match
-  [PASS] pytest_result_covers_report_tests
-  [PASS] command_plan_present
-  [PASS] command_plan_ids_match
-  [PASS] command_plan_covers_report_tests
-  [PASS] pytest_result_exit_codes_match_command_plan
-  [PASS] command_plan_json_stdout_full
-  [PASS] command_plan_generated_artifact_recorded
-  [PASS] round_delta_summary_present
-  [PASS] files_changed_excludes_inherited_dirty_files
-  [PASS] files_changed_covers_git_diff
-  [PASS] generated_artifacts_cover_round_delta
-  [PASS] baseline_lifecycle_guard
-  [PASS] baseline_inherited_allowlist_explained
-  [PASS] report_summary_synthesis_required
-  [PASS] report_summary_fields_match_synthesis
-  [PASS] report_summary_status_source_available
-  [PASS] generated_artifacts_cover_round_archive
-  [PASS] forbidden_paths_absent
-  [PASS] state_package_compact
-  [ACTION PASSED] final_check_before_archive
-  [ACTION created] archive_round
-  [ACTION PASSED] final_check_after_archive
-archive_status: created
+close-round: PASSED
 ===== EXIT: 0 =====

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260613_affine_audit_closure_rework_v1",
-  "round_id": "round_20260613_affine_audit_closure_rework_v1",
-  "head_commit": "1c73c86562be",
+  "decision_id": "decision_20260613_gate_closure_framework_fix_v1",
+  "round_id": "round_20260613_gate_closure_framework_fix_v1",
+  "head_commit": "55c9cb4d980a",
   "baseline_git_status_short": [
     " M project_state/artifact_index.json",
     " M project_state/codex_execution_report.md",
@@ -17,6 +17,7 @@
     " M reverse_agent/local_reverse_forced_ida_extract.py",
     " M reverse_agent/local_reverse_single_sample_static_triage.py",
     " M reverse_agent/local_reverse_xref_disassembly.py",
+    " M reverse_agent/project_gate.py",
     " M reverse_agent/project_state.py",
     " M tests/test_project_state.py"
   ],
@@ -33,6 +34,7 @@
     "reverse_agent/local_reverse_forced_ida_extract.py",
     "reverse_agent/local_reverse_single_sample_static_triage.py",
     "reverse_agent/local_reverse_xref_disassembly.py",
+    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
@@ -49,8 +51,9 @@
     "reverse_agent/local_reverse_forced_ida_extract.py",
     "reverse_agent/local_reverse_single_sample_static_triage.py",
     "reverse_agent/local_reverse_xref_disassembly.py",
+    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
-  "generated_at": "2026-06-13T12:02:37.193153Z"
+  "generated_at": "2026-06-13T12:29:18.467776Z"
 }
