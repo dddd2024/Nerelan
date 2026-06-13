@@ -1,31 +1,41 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260613_affine_static_evidence_classification_v1",
-  "round_id": "round_20260613_affine_static_evidence_classification_v1",
-  "based_on_decision_id": "decision_20260613_affine_static_evidence_classification_v1",
+  "report_id": "codex_report_20260613_affine_audit_closure_v1",
+  "round_id": "round_20260613_affine_audit_closure_v1",
+  "based_on_decision_id": "decision_20260613_affine_audit_closure_v1",
   "files_changed": [
-    "project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json",
-    "project_state/local_reverse_training_status.json",
-    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/round_baseline.json",
+    "project_state/gates/round_delta_summary.json"
   ],
   "tests_ran": [
+    "Test-Path F:\\reverse-agent",
+    "git status --short",
     "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q --ignore=.git_old2 --ignore=.git_corrupt_v2 --ignore=.git_corrupt --ignore=.git_bak --ignore=.git",
-    "python -c evidence_summary_schema_validation",
-    "python verify_round.py (training_status, artifact_index, file existence)"
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m reverse_agent.project_state doctor --state-dir project_state",
+    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python verify_audit.py (evidence_summary_intact, training_status_affine_not_solved, artifact_index, diagnostic)"
   ],
   "generated_artifacts": [
-    "project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json",
-    "project_state/local_reverse_training_status.json",
-    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "project_state/gates/command_plan.json",
+    "project_state/gates/preflight_result.json",
+    "project_state/gates/report_summary_synthesis.json",
+    "project_state/gates/round_baseline.json",
+    "project_state/gates/round_delta_summary.json"
   ],
   "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED",
-  "mainline": "training_dataset",
+  "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+  "mainline": "engineering_branch",
   "candidate_generated": false,
   "candidate_validation_attempted": false,
   "runtime_validation_attempted": false,
@@ -34,7 +44,7 @@
   "ida_static_extraction_attempted": false,
   "pure_python_static_extraction_attempted": false,
   "full_solve_reports_read": false,
-  "training_status_modified": true,
+  "training_status_modified": false,
   "status_overlay_modified": false
 }
 ```
@@ -43,42 +53,43 @@
 
 ## Scope
 
-Executed `decision_20260613_affine_static_evidence_classification_v1` as a training_dataset round. Completed bounded static evidence structuring and training status update for `affine_8cfebe03`. Removed the stale `STATIC_TOOL_NO_OUTPUT` blocker from training status, generated a static evidence summary artifact, and updated artifact_index.
+Executed `decision_20260613_affine_audit_closure_v1` as an engineering_branch round. Completed audit closure for the previous round `decision_20260613_affine_static_evidence_classification_v1` by running the full gate/doctor/lint/report-summary command chain, recording all gate artifacts, verifying previous round products, and updating codex_execution_report/pytest_result to current decision/round.
 
 ## Changes
 
-### New artifact: `project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json`
+### Gate artifacts generated
 
-Generated a structured evidence summary from the successful IDA static triage artifact (`local_reverse_affine_8cfebe03_static_triage.json`, 22282 bytes, sha256=`1d79d992...`). The summary captures:
-- Classification: `string_compare_password_checker`, `standard_input_based` hypotheses
-- Evidence: 50 interesting strings, 30 functions, 1 compare context (`_strncmp` at `0x40620E`)
-- Solver hints: `direct_strcmp`, `gui_input`
-- Blocker history: `STATIC_TOOL_NO_OUTPUT` -> `RESOLVED`
-- Next action: `constraint_recovery_or_targeted_decompilation`
-- `candidate`: null, `no_candidate`: true (no candidate generated per decision)
+All gate commands executed and results recorded in `project_state/gates/`:
+- `preflight_result.json`: 2 FAIL (forbidden_paths_not_allowed, mainline_scope_policy) -- both are preflight parser false positives caused by "Do Not Modify" section paths being parsed as allowed_paths. Not blocking.
+- `command_plan.json`: PASSED
+- `round_baseline.json`: baseline dirty files recorded (14 inherited from prior rounds)
+- `round_delta_summary.json`: delta computed
+- `report_summary_synthesis.json`: initial synthesis (before report update)
 
-### Updated: `project_state/local_reverse_training_status.json`
+### Previous round product verification
 
-Updated both `affine_8cfebe03` entries (逆向课程2022春补考03 and 逆向课程2024春补考03):
-- `blocked_reason`: changed from `STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON` to `""`
-- `classification`: changed from `single_sample_static_triage` to `string_compare_password_checker; standard_input_based`
-- `evidence_sources`: updated to reference successful triage artifact, evidence summary, and hypotheses
-- `next_action`: changed from `resolve static tool blocker` to `constraint recovery or targeted decompilation of compare context (_strncmp at 0x40620E); runtime validation required`
-- `training_status` remains `needs_triage` (not changed to solved; no candidate generated)
+All previous round products verified intact:
+- `local_reverse_affine_8cfebe03_static_evidence_summary.json`: sample_id, artifact_kind, no_candidate, classification, next_action all correct
+- `local_reverse_training_status.json`: both affine entries remain `needs_triage`, `blocked_reason=""`, not solved
+- `artifact_index.json`: evidence summary entry freshness=current
+- `static_tool_blocker_diagnostic_affine_8cfebe03.json`: blocker_status=RESOLVED
 
-### Updated: `project_state/artifact_index.json`
+### No source code or sample data modified
 
-Added `local_reverse_affine_8cfebe03_static_evidence_summary` entry with freshness=current, sha256=`dfe231e5...`, size=3017 bytes, source_run=`round_20260613_affine_static_evidence_classification_v1`.
+No Python source files, IDA/Ghidra/debugger/solver/harness interfaces, `.codex-skills/`, training materials, solve_reports, or raw sample files were modified.
+
+## Limitations
+
+1. **Preflight false positives**: `forbidden_paths_not_allowed` and `mainline_scope_policy` checks failed because the preflight parser interprets "Do Not Modify" section paths as allowed_paths. This is a known gate parser limitation, not a decision or implementation defect.
+
+2. **Doctor/lint-report initially FAIL**: Expected -- report/pytest still pointed to previous round decision_id at the time of first doctor/lint run. Resolved by updating report/pytest to current round.
+
+3. **Round archive**: `round_20260613_affine_static_evidence_classification_v1/` directory was not created by the previous round. The previous round did not run close-round/archive. This round does not create that archive retroactively (would risk modifying previous round facts).
 
 ## Audit Notes
 
-- Decision authority: `project_state/decision_packet.md`, status `APPROVED`, `decision_20260613_affine_static_evidence_classification_v1`, mainline `training_dataset`.
+- Decision authority: `project_state/decision_packet.md`, status `APPROVED`, `decision_20260613_affine_audit_closure_v1`, mainline `engineering_branch`.
 - Skill profile `reverse-agent-iteration@v2` confirmed active in `.codex-skills/registry.json`.
-- `affine_8cfebe03` current static triage artifact confirmed successful (tool_status=success, 22282 bytes).
-- Diagnostic artifact `static_tool_blocker_diagnostic_affine_8cfebe03.json` preserved with `blocker_status=RESOLVED`.
-- No candidate, flag, or password generated. No solver, runtime validation, debugger, emulator, or harness executed.
-- No `.codex-skills/`, training materials, solve_reports, or raw sample files modified.
-- Baseline dirty files from previous rounds were not modified (except `project_state/` reporting/training files within decision scope).
 - Gate/state tests: **302 passed**. No new test failures introduced.
-- Evidence summary schema validated: sample_id, source_artifact, classification, next_action, no_candidate all correct.
-- Training status verified: both `affine_8cfebe03` entries have empty `blocked_reason`, no `STATIC_TOOL_NO_OUTPUT` present.
+- Previous round affine evidence summary, training status, artifact_index, diagnostic artifact all verified intact.
+- No candidate, flag, or password generated. No solver, runtime validation, debugger, emulator, or harness executed.

@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260613_gate_status_policy_for_static_tool_success_v1",
-  "round_id": "round_20260613_gate_status_policy_for_static_tool_success_v1",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260613_affine_audit_closure_v1",
+  "round_id": "round_20260613_affine_audit_closure_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-13T11:12:19.555954Z",
+  "generated_at": "2026-06-13T11:46:25.687384Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -51,7 +51,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260613_static_tool_validation_state_closure_v1"
+      "report_id": "codex_report_20260613_affine_static_evidence_classification_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -66,29 +66,45 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py"
+        ".codex-skills/",
+        "IDA/Ghidra/debugger/solver/harness/static triage extraction \u903b\u8f91",
+        "project_state/artifact_index.json",
+        "project_state/codex_execution_report.md",
+        "project_state/gates/*.json",
+        "project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json",
+        "project_state/local_reverse_training_status.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260613_affine_audit_closure_v1/*",
+        "project_state/rounds/round_20260613_affine_static_evidence_classification_v1/*",
+        "raw sample \u6587\u4ef6",
+        "solve_reports/",
+        "training_materials/"
       ]
     },
     {
       "name": "forbidden_paths_not_allowed",
-      "status": "PASS",
-      "detail": "allowed scope contains no forbidden paths",
-      "forbidden_paths": []
+      "status": "FAIL",
+      "detail": "allowed scope includes forbidden paths",
+      "forbidden_paths": [
+        ".codex-skills/",
+        "solve_reports/"
+      ]
     },
     {
       "name": "mainline_scope_policy",
-      "status": "PASS",
-      "detail": "mainline scope policy is satisfied",
+      "status": "FAIL",
+      "detail": "engineering_branch decision includes sample-solving/runtime terms",
       "matched_terms": [],
-      "matched_paths": []
+      "matched_paths": [
+        "IDA/Ghidra/debugger/solver/harness/static triage extraction \u903b\u8f91"
+      ]
     },
     {
       "name": "artifact_freshness_policy",
       "status": "PASS",
       "detail": "stale/missing artifacts are not claimed as current evidence",
       "artifact_freshness": {
-        "current": 1,
+        "current": 2,
         "missing": 50
       },
       "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6"
@@ -100,9 +116,12 @@
       "capability_required": false
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "forbidden_paths_not_allowed: allowed scope includes forbidden paths",
+    "mainline_scope_policy: engineering_branch decision includes sample-solving/runtime terms"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
@@ -110,6 +129,7 @@
       "project_state/codex_execution_report.md",
       "project_state/current_state.json",
       "project_state/decision_packet.md",
+      "project_state/local_reverse_training_status.json",
       "project_state/model_gate.json",
       "project_state/negative_results.json",
       "project_state/pytest_result.txt",
@@ -118,11 +138,10 @@
       "reverse_agent/local_reverse_forced_ida_extract.py",
       "reverse_agent/local_reverse_single_sample_static_triage.py",
       "reverse_agent/local_reverse_xref_disassembly.py",
-      "reverse_agent/project_gate.py",
       "reverse_agent/project_state.py",
       "tests/test_project_state.py"
     ],
-    "head_commit": "db86932e51dc"
+    "head_commit": "1629bb163e73"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",
