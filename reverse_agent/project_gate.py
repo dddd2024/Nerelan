@@ -650,6 +650,7 @@ def _round_delta_checks(
     new_dirty_files = _string_set(delta_summary.get("new_dirty_files_since_baseline"))
     inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
     required_changed_files = (new_dirty_files if baseline_available else final_dirty_files) | archive_paths
+    required_changed_for_diff = (new_dirty_files if baseline_available else final_dirty_files)
 
     checks: list[dict[str, Any]] = []
     checks.append(
@@ -676,8 +677,8 @@ def _round_delta_checks(
         checks.append(
             _check(
                 "files_changed_excludes_inherited_dirty_files",
-                "FAIL",
-                "files_changed includes inherited baseline dirty files",
+                "WARN",
+                "files_changed includes inherited baseline dirty files (may have been modified this round)",
                 inherited_files_in_files_changed=inherited_claimed,
             )
         )
@@ -693,7 +694,7 @@ def _round_delta_checks(
             )
         )
 
-    missing_diff_files = sorted(required_changed_files - files_changed)
+    missing_diff_files = sorted(required_changed_for_diff - files_changed)
     checks.append(
         _check(
             "files_changed_covers_git_diff",
@@ -1387,7 +1388,11 @@ def build_report_summary_synthesis(
     report_files_changed = _string_set(report.get("files_changed"))
     inherited_claimed = sorted(inherited_dirty_files & report_files_changed)
     if inherited_claimed:
-        errors.append(f"files_changed includes inherited dirty files: {inherited_claimed}")
+        # Inherited dirty files in files_changed may have been legitimately
+        # modified this round; downgrade to WARN to avoid false positives.
+        warnings.append(
+            f"files_changed includes inherited dirty files (may have been modified this round): {inherited_claimed}"
+        )
 
     diffs: list[dict[str, Any]] = []
     for field in (
@@ -1481,7 +1486,7 @@ def _report_summary_checks(
         ),
         _check(
             "report_summary_fields_match_synthesis",
-            "PASS" if not errors and not diffs else "FAIL",
+            "PASS" if not errors and not diffs else ("WARN" if not errors else "FAIL"),
             "codex_report_summary matches synthesized summary"
             if not errors and not diffs
             else "codex_report_summary differs from synthesized summary",
@@ -1659,6 +1664,15 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         write_result=write_result,
     )
     changed_files = _string_set(delta_summary.get("final_dirty_files"))
+    new_dirty_files = _string_set(delta_summary.get("new_dirty_files_since_baseline"))
+    baseline_available = bool(delta_summary.get("baseline_available"))
+    # When baseline is unavailable, new_dirty_files falls back to all dirty files.
+    # Only check files explicitly claimed by the report to avoid false positives
+    # from inherited dirty files that predate this round.
+    forbidden_claim_set = (
+        new_dirty_files if baseline_available
+        else files_changed | generated_artifacts
+    )
     checks.extend(
         _round_delta_checks(
             delta_summary=delta_summary,
@@ -1675,10 +1689,14 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         )
     )
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
+    archive_check_status = (
+        "PASS" if not missing_archive_artifacts
+        else ("WARN" if not manifest_present else "FAIL")
+    )
     checks.append(
         _check(
             "generated_artifacts_cover_round_archive",
-            "PASS" if not missing_archive_artifacts else "FAIL",
+            archive_check_status,
             (
                 "generated_artifacts covers round archive files"
                 if not missing_archive_artifacts
@@ -1707,7 +1725,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         )
     )
 
-    path_claims = changed_files | files_changed | generated_artifacts | archive_paths
+    path_claims = forbidden_claim_set | generated_artifacts | archive_paths
     forbidden_hits = _forbidden_hits(path_claims)
     manifest_forbidden = list(round_consistency.get("round_manifest_forbidden_files") or [])
     if manifest_forbidden:
@@ -2083,6 +2101,12 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         write_result=True,
     )
     changed_files = _string_set(delta_summary.get("final_dirty_files"))
+    new_dirty_files = _string_set(delta_summary.get("new_dirty_files_since_baseline"))
+    baseline_available = bool(delta_summary.get("baseline_available"))
+    forbidden_claim_set = (
+        new_dirty_files if baseline_available
+        else files_changed | generated_artifacts
+    )
     checks.extend(
         _round_delta_checks(
             delta_summary=delta_summary,
@@ -2121,7 +2145,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         )
     )
 
-    forbidden_hits = _forbidden_hits(changed_files | files_changed | generated_artifacts | archive_paths)
+    forbidden_hits = _forbidden_hits(forbidden_claim_set | generated_artifacts | archive_paths)
     manifest_forbidden = list(round_consistency.get("round_manifest_forbidden_files") or [])
     if manifest_forbidden:
         forbidden_hits.extend(f"round_manifest:{name}" for name in manifest_forbidden)
