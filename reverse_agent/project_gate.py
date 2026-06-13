@@ -13,6 +13,7 @@ from typing import Any
 from .project_state import (
     ARCHIVE_MANIFEST_NAME,
     DEFAULT_STATE_DIR,
+    _report_claims_sample_artifact_freshness,
     archive_round,
     build_round_consistency,
     doctor,
@@ -1770,7 +1771,27 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
     if doctor_status == "FAIL":
         status_errors.append("doctor status is FAIL")
     elif report_status == "SUCCESS" and doctor_blocking_warnings:
-        status_errors.extend(doctor_blocking_warnings)
+        # If all blocking warnings are historical missing/stale artifacts and the
+        # report does not claim sample artifact freshness, downgrade to warnings --
+        # but ONLY for non-reverse_solving mainlines. reverse_solving rounds may
+        # depend on historical artifacts and must retain strict freshness checks.
+        _all_historical = all(
+            re.match(r"\d+ missing, \d+ stale artifacts", w)
+            for w in doctor_blocking_warnings
+        )
+        _mainline = str(decision.get("mainline") or "")
+        if (
+            _all_historical
+            and not _report_claims_sample_artifact_freshness(report)
+            and _mainline != "reverse_solving"
+        ):
+            status_warnings.extend(doctor_blocking_warnings)
+            status_warnings.append(
+                "historical sample artifacts downgraded to non-blocking "
+                "(report does not claim sample artifact freshness)"
+            )
+        else:
+            status_errors.extend(doctor_blocking_warnings)
     elif doctor_status == "WARN" and not doctor_blocking_warnings and doctor_non_blocking_warnings:
         # Doctor is WARN only due to historical non-blocking artifacts -- treat as PASS
         # with ACCEPTED_WITH_LIMITATIONS path

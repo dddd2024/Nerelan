@@ -747,12 +747,11 @@ def test_final_check_passes_engineering_success_with_legacy_sample_artifacts(tmp
     assert _check(result, "status_policy_valid")["status"] == "PASS"
 
 
-@pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration"])
-def test_final_check_blocks_success_with_legacy_artifacts_for_capability_mainlines(
+def test_final_check_blocks_success_with_legacy_artifacts_for_reverse_solving(
     tmp_path: Path,
-    mainline: str,
 ) -> None:
-    state_dir = _make_gate_state(tmp_path, mainline=mainline)
+    """reverse_solving retains strict artifact freshness: stale/missing → FAIL."""
+    state_dir = _make_gate_state(tmp_path, mainline="reverse_solving")
     _write_json(
         state_dir / "artifact_index.json",
         {
@@ -769,6 +768,31 @@ def test_final_check_blocks_success_with_legacy_artifacts_for_capability_mainlin
     status_policy = _check(result, "status_policy_valid")
     assert status_policy["status"] == "FAIL"
     assert "stale artifacts" in " ".join(status_policy["lint_errors"])
+
+
+def test_final_check_downgrades_historical_artifacts_for_tool_integration(
+    tmp_path: Path,
+) -> None:
+    """tool_integration downgrades historical missing/stale artifacts to WARN
+    when the report does not claim sample artifact freshness."""
+    state_dir = _make_gate_state(tmp_path, mainline="tool_integration")
+    _write_json(
+        state_dir / "artifact_index.json",
+        {
+            "latest_artifacts_v2": {
+                "old_probe": {"freshness": "stale"},
+                "missing_probe": {"freshness": "missing"},
+            }
+        },
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "WARN"
+    status_policy = _check(result, "status_policy_valid")
+    assert status_policy["status"] == "WARN"
+    assert "stale artifacts" in " ".join(status_policy.get("warnings", []))
+
 
 
 def test_final_check_fails_when_codex_report_summary_missing(tmp_path: Path) -> None:

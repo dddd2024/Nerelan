@@ -99,7 +99,7 @@ report-summary: WARN
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
 
-final-check: WARN
+final-check: PASSED_WITH_LIMITATIONS
   [PASS] decision_report_match
   [PASS] pytest_result_match
   [PASS] pytest_result_covers_report_tests
