@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260613_static_tool_validation_state_closure_v1",
-  "round_id": "round_20260613_static_tool_validation_state_closure_v1",
-  "mainline": "tool_integration",
-  "generated_at": "2026-06-13T10:38:22.371020Z",
+  "decision_id": "decision_20260613_gate_status_policy_for_static_tool_success_v1",
+  "round_id": "round_20260613_gate_status_policy_for_static_tool_success_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-13T11:12:19.555954Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -21,7 +21,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is tool_integration",
+      "detail": "mainline is engineering_branch",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -51,7 +51,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260613_static_tool_blocker_validation_rework_v1"
+      "report_id": "codex_report_20260613_static_tool_validation_state_closure_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -97,7 +97,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": true
+      "capability_required": false
     }
   ],
   "blocking_reasons": [],
@@ -118,10 +118,11 @@
       "reverse_agent/local_reverse_forced_ida_extract.py",
       "reverse_agent/local_reverse_single_sample_static_triage.py",
       "reverse_agent/local_reverse_xref_disassembly.py",
+      "reverse_agent/project_gate.py",
       "reverse_agent/project_state.py",
       "tests/test_project_state.py"
     ],
-    "head_commit": "6e8a3170dbe4"
+    "head_commit": "db86932e51dc"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",
