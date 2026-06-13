@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260613_static_tool_blocker_triage_v1",
-  "round_id": "round_20260613_static_tool_blocker_triage_v1",
+  "decision_id": "decision_20260613_static_tool_blocker_validation_rework_v1",
+  "round_id": "round_20260613_static_tool_blocker_validation_rework_v1",
   "mainline": "tool_integration",
-  "generated_at": "2026-06-13T10:06:54.420736Z",
+  "generated_at": "2026-06-13T10:16:36.637609Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -51,7 +51,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260613_ida_tool_integration_blocker_v1"
+      "report_id": "codex_report_20260613_static_tool_blocker_triage_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -66,9 +66,9 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "project_state/codex_execution_report.md",
-        "project_state/pytest_result.txt",
-        "reverse_agent/project_state.py"
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ]
     },
     {
@@ -122,7 +122,7 @@
       "reverse_agent/project_state.py",
       "tests/test_project_state.py"
     ],
-    "head_commit": "e6301dbcde7b"
+    "head_commit": "4fdabaf74984"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

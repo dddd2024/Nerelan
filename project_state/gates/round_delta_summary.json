@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260613_static_tool_blocker_triage_v1",
-  "round_id": "round_20260613_static_tool_blocker_triage_v1",
-  "head_commit": "e6301dbcde7b",
+  "decision_id": "decision_20260613_static_tool_blocker_validation_rework_v1",
+  "round_id": "round_20260613_static_tool_blocker_validation_rework_v1",
+  "head_commit": "4fdabaf74984",
   "baseline_available": true,
   "baseline_git_status_short": [
     " M project_state/artifact_index.json",
@@ -64,6 +64,7 @@
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
+    " M project_state/local_reverse_affine_8cfebe03_static_triage.json",
     " M project_state/model_gate.json",
     " M project_state/negative_results.json",
     " M project_state/pytest_result.txt",
@@ -73,7 +74,12 @@
     " M reverse_agent/local_reverse_single_sample_static_triage.py",
     " M reverse_agent/local_reverse_xref_disassembly.py",
     " M reverse_agent/project_state.py",
-    " M tests/test_project_state.py"
+    " M tests/test_project_state.py",
+    "?? project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/round_manifest.json",
+    "?? project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json"
   ],
   "final_git_diff_name_only": [
     "project_state/artifact_index.json",
@@ -86,6 +92,7 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
+    "project_state/local_reverse_affine_8cfebe03_static_triage.json",
     "project_state/model_gate.json",
     "project_state/negative_results.json",
     "project_state/pytest_result.txt",
@@ -108,9 +115,15 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
+    "project_state/local_reverse_affine_8cfebe03_static_triage.json",
     "project_state/model_gate.json",
     "project_state/negative_results.json",
     "project_state/pytest_result.txt",
+    "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/round_manifest.json",
+    "project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json",
     "project_state/task_packet.json",
     "reverse_agent/harness.py",
     "reverse_agent/local_reverse_forced_ida_extract.py",
@@ -125,7 +138,13 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_delta_summary.json"
+    "project_state/gates/round_delta_summary.json",
+    "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+    "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/round_manifest.json",
+    "project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json"
   ],
   "inherited_dirty_files": [
     "project_state/artifact_index.json",
@@ -144,5 +163,5 @@
     "tests/test_project_state.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-13T10:10:14.753788Z"
+  "generated_at": "2026-06-13T10:30:54.878722Z"
 }

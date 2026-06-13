@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260613_static_tool_blocker_triage_v1",
-  "round_id": "round_20260613_static_tool_blocker_triage_v1",
+  "decision_id": "decision_20260613_static_tool_blocker_validation_rework_v1",
+  "round_id": "round_20260613_static_tool_blocker_validation_rework_v1",
   "mainline": "tool_integration",
-  "generated_at": "2026-06-13T10:06:54.556982Z",
+  "generated_at": "2026-06-13T10:26:59.087708Z",
   "commands": [
     {
       "index": 1,

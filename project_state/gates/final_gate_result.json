@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "WARN",
-  "decision_id": "decision_20260613_static_tool_blocker_triage_v1",
-  "report_id": "codex_report_20260613_static_tool_blocker_triage_v1",
-  "round_id": "round_20260613_static_tool_blocker_triage_v1",
-  "generated_at": "2026-06-13T10:10:14.779955Z",
+  "decision_id": "decision_20260613_static_tool_blocker_validation_rework_v1",
+  "report_id": "codex_report_20260613_static_tool_blocker_validation_rework_v1",
+  "round_id": "round_20260613_static_tool_blocker_validation_rework_v1",
+  "generated_at": "2026-06-13T10:30:54.898270Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -26,19 +26,19 @@
     },
     {
       "name": "round_manifest_present",
-      "status": "WARN",
-      "detail": "round manifest is missing",
-      "round_manifest_path": "project_state\\rounds\\round_20260613_static_tool_blocker_triage_v1\\round_manifest.json"
+      "status": "PASS",
+      "detail": "round manifest is present",
+      "round_manifest_path": "project_state\\rounds\\round_20260613_static_tool_blocker_validation_rework_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "WARN",
-      "detail": "archived report differs from live report"
+      "status": "PASS",
+      "detail": "archived report matches live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "WARN",
-      "detail": "archived pytest_result differs from live pytest_result"
+      "status": "PASS",
+      "detail": "archived pytest_result matches live pytest_result"
     },
     {
       "name": "round_delta_summary_present",
@@ -68,7 +68,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json"
+        "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/round_manifest.json",
+        "project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json"
       ],
       "final_dirty_files": [
         "project_state/artifact_index.json",
@@ -81,9 +87,15 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_affine_8cfebe03_static_triage.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/round_manifest.json",
+        "project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
         "reverse_agent/local_reverse_forced_ida_extract.py",
@@ -130,9 +142,15 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_affine_8cfebe03_static_triage.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/round_manifest.json",
+        "project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
         "reverse_agent/local_reverse_forced_ida_extract.py",
@@ -148,7 +166,12 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/rounds/round_20260613_static_tool_blocker_triage_v1/round_manifest.json"
+        "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260613_static_tool_blocker_validation_rework_v1/round_manifest.json",
+        "project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json"
       ],
       "inherited_dirty_files": [
         "project_state/artifact_index.json",
@@ -223,8 +246,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260613_static_tool_blocker_triage_v1",
-      "command_plan_round_id": "round_20260613_static_tool_blocker_triage_v1"
+      "command_plan_decision_id": "decision_20260613_static_tool_blocker_validation_rework_v1",
+      "command_plan_round_id": "round_20260613_static_tool_blocker_validation_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -260,10 +283,21 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "codex_report_summary matches synthesized summary",
+      "status": "WARN",
+      "detail": "codex_report_summary differs from synthesized summary",
       "errors": [],
-      "diffs": []
+      "diffs": [
+        {
+          "field": "status",
+          "expected": "PARTIAL",
+          "actual": "FAILED"
+        },
+        {
+          "field": "acceptance_recommendation",
+          "expected": "NEEDS_REVIEW",
+          "actual": "REWORK_REQUIRED"
+        }
+      ]
     },
     {
       "name": "report_summary_status_source_available",
@@ -283,8 +317,8 @@
       "detail": "FAILED report is internally consistent",
       "lint_errors": [],
       "warnings": [
+        "pytest_result header status is FAILED but body contains no failure markers",
         "report_status is FAILED",
-        "report round not archived yet",
         "doctor status is WARN"
       ],
       "doctor_status": "WARN",
@@ -294,9 +328,7 @@
   ],
   "blocking_reasons": [],
   "warnings": [
-    "round_manifest_present: round manifest is missing",
-    "archived_report_matches_live_report: archived report differs from live report",
-    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary",
     "status_policy_valid: FAILED report is internally consistent"
   ],
   "recommended_next_action": "review_warnings_before_closeout",
@@ -304,7 +336,7 @@
     "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
-    "archive_status": "not_archived",
+    "archive_status": "archived",
     "report_status": "FAILED",
     "report_acceptance_recommendation": "REWORK_REQUIRED"
   }

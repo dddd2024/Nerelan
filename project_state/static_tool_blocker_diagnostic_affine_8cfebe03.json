@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "static_tool_blocker_diagnostic",
+  "sample_id": "affine_8cfebe03",
+  "generated_at": "2026-06-13T11:00:00Z",
+  "decision_id": "decision_20260613_static_tool_blocker_validation_rework_v1",
+  "round_id": "round_20260613_static_tool_blocker_validation_rework_v1",
+  "previous_blocker": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+  "previous_root_cause": "IDA GetDiskFreeSpaceEx failed to resolve NTFS 8.3 short path name for F:\\reverse-agent\\project_state\\triage_affine_8cfebe03, reporting 0 available disk space",
+  "fix_applied": "Changed IDA output directory from project_state/triage_{sample_id} to tempfile.gettempdir()/reverse_agent_triage_{sample_id}",
+  "fix_file": "reverse_agent/local_reverse_single_sample_static_triage.py",
+  "fix_line": 318,
+  "validation_result": "SUCCESS",
+  "validation_details": {
+    "ida_tool_status": "success",
+    "ida_evidence_generated": true,
+    "ida_evidence_size_bytes": 82596,
+    "ida_evidence_path": "C:\\Users\\wjc27\\AppData\\Local\\Temp\\reverse_agent_triage_affine_8cfebe03\\ida_evidence.json",
+    "elapsed_seconds": 6.8,
+    "strings_found": 50,
+    "functions_found": 30,
+    "compare_contexts_found": 1,
+    "hypotheses": ["string_compare_password_checker", "standard_input_based"]
+  },
+  "blocker_status": "RESOLVED",
+  "next_action": "proceed with full static triage pipeline for affine_8cfebe03"
+}
