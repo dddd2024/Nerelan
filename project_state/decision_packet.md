@@ -125,7 +125,7 @@ Allowed only if strictly necessary for existing tool compatibility, with focused
 - `reverse_agent/local_reverse_xref_disassembly.py`
 - tests directly covering the touched static triage/tool integration path
 
-Forbidden
+禁止
 
 - solver、harness、debugger、emulator、runtime probe、candidate validation 相关代码
 - `reverse_agent/strategies/`、`reverse_agent/transforms/`、IDA/Ghidra/debugger 新接口

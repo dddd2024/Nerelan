@@ -1,22 +1,22 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260613_gate_closure_framework_fix_v1",
-  "report_id": "codex_report_20260613_gate_closure_framework_fix_v1",
-  "round_id": "round_20260613_gate_closure_framework_fix_v1",
-  "generated_at": "2026-06-13T14:00:00.000000Z",
+  "decision_id": "decision_20260613_affineenc_static_triage_v1",
+  "report_id": "codex_report_20260613_affineenc_static_triage_v1",
+  "round_id": "round_20260613_affineenc_static_triage_v1",
+  "generated_at": "2026-06-13T13:10:00.000000Z",
   "status": "PASSED",
   "tests_ran": [
     "Test-Path F:\\reverse-agent",
     "git status --short",
-    "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
     "python -m reverse_agent.project_state doctor --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_gate_closure_framework_fix_v1"
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_affineenc_static_triage_v1"
   ]
 }
 ```
@@ -32,11 +32,7 @@ True
  M project_state/codex_execution_report.md
  M project_state/current_state.json
  M project_state/decision_packet.md
- M project_state/gates/command_plan.json
- M project_state/gates/preflight_result.json
- M project_state/gates/report_summary_synthesis.json
- M project_state/gates/round_baseline.json
- M project_state/gates/round_delta_summary.json
+ M project_state/local_reverse_evaluation_queue.json
  M project_state/local_reverse_training_status.json
  M project_state/model_gate.json
  M project_state/negative_results.json
@@ -49,11 +45,7 @@ True
  M reverse_agent/project_gate.py
  M reverse_agent/project_state.py
  M tests/test_project_state.py
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_state.py tests/test_project_gate.py -q =====
-
-302 passed in 128.53s (0:02:08)
+?? project_state/local_reverse_affineenc_333f8ca9_static_triage.json
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
@@ -77,6 +69,20 @@ preflight: PASSED
 command-plan: PASSED (10 commands)
 ===== EXIT: 0 =====
 
+===== COMMAND: python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affineenc_333f8ca9 --mainline tool_integration --out project_state/local_reverse_affineenc_333f8ca9_static_triage.json =====
+
+static triage: status=success sample_id=affineenc_333f8ca9
+  strings: 50
+  functions: 30
+  compare_contexts: 2
+  hypotheses: ['string_compare_password_checker', 'standard_input_based', 'strcmp_direct_compare']
+===== EXIT: 0 =====
+
+===== COMMAND: python -m pytest tests/test_project_state.py tests/test_project_gate.py -q =====
+
+302 passed in 128.45s (0:02:08)
+===== EXIT: 0 =====
+
 ===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
 
 doctor: WARN
@@ -98,13 +104,15 @@ lint-report: OK
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
 
-report-summary: WARN
-  [WARN] final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet
-===== EXIT: 0 =====
+report-summary: FAILED
+  [DIFF] status
+  [DIFF] acceptance_recommendation
+===== EXIT: 1 =====
+NOTE: synthesis derives status=FAILED from final_gate_result gate_status. Report set to FAILED to match.
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
 
-final-check: WARN
+final-check: FAILED
   [PASS] decision_report_match
   [PASS] pytest_result_match
   [PASS] pytest_result_covers_report_tests
@@ -125,15 +133,16 @@ final-check: WARN
   [PASS] command_plan_json_stdout_full
   [PASS] command_plan_generated_artifact_recorded
   [PASS] report_summary_synthesis_required
-  [PASS] report_summary_fields_match_synthesis
-  [WARN] report_summary_status_source_available
+  [WARN] report_summary_fields_match_synthesis
+  [PASS] report_summary_status_source_available
   [PASS] forbidden_paths_absent
-  [WARN] status_policy_valid
-===== EXIT: 0 =====
+  [FAIL] status_policy_valid
+===== EXIT: 1 =====
+NOTE: status_policy_valid FAIL due to 50 historical missing artifacts (non-blocking for this round but gate treats as blocking for tool_integration mainline).
 
-===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_gate_closure_framework_fix_v1 =====
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_affineenc_static_triage_v1 =====
 
-close-round: CLOSED
+close-round: FAILED
   [PASS] decision_meta_parse
   [PASS] decision_approved
   [PASS] report_present
@@ -159,8 +168,8 @@ close-round: CLOSED
   [PASS] generated_artifacts_cover_round_archive
   [PASS] forbidden_paths_absent
   [PASS] state_package_compact
-  [ACTION PASSED] final_check_before_archive
-  [ACTION created] archive_round
-  [ACTION PASSED] final_check_after_archive
-archive_status: created
-===== EXIT: 0 =====
+  [BLOCK] final_check_before_archive
+archive_status: not_attempted
+  [BLOCK] status_policy_valid
+===== EXIT: 1 =====
+NOTE: close-round BLOCKED due to final-check FAIL (status_policy_valid).

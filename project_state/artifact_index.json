@@ -520,6 +520,15 @@
       "sha256": "dfe231e5dc7d6288345496dbde8f7c0c7ec64296bb676a011601514f2bd98a8f",
       "size_bytes": 3017,
       "source_run": "round_20260613_affine_static_evidence_classification_v1"
+    },
+    "local_reverse_affineenc_333f8ca9_static_triage": {
+      "freshness": "current",
+      "kind": "local_reverse_single_sample_static_triage",
+      "modified_at": "2026-06-13T13:00:00Z",
+      "path": "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+      "sha256": "dfae90d584401dafd52c736c349f05f14e22c8475e54339de1b5a1c573f4ac40",
+      "size_bytes": 22651,
+      "source_run": "round_20260613_affineenc_static_triage_v1"
     }
   },
   "latest_case_results": [],

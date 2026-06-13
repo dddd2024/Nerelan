@@ -7,7 +7,7 @@
       "rank": 1,
       "sample_id": "affineenc_333f8ca9",
       "relative_path": "逆向课程2020秋04/affineenc.exe",
-      "reason": "pe sample (196691 bytes), static triage tags: local, pe, reverse",
+      "reason": "pe sample (196691 bytes), static triage tags: local, pe, reverse; static triage completed: 50 strings, 30 functions, 2 compare contexts, hypotheses: string_compare_password_checker, standard_input_based, strcmp_direct_compare",
       "proposed_next_mainline": "tool_integration",
       "allowed_actions": [
         "static_triage"
@@ -16,7 +16,9 @@
         "runtime_probe",
         "bruteforce",
         "upload_binary"
-      ]
+      ],
+      "static_triage_completed": true,
+      "static_triage_run": "round_20260613_affineenc_static_triage_v1"
     },
     {
       "rank": 2,

@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260613_gate_closure_framework_fix_v1",
-  "round_id": "round_20260613_gate_closure_framework_fix_v1",
-  "head_commit": "55c9cb4d980a",
+  "decision_id": "decision_20260613_affineenc_static_triage_v1",
+  "round_id": "round_20260613_affineenc_static_triage_v1",
+  "head_commit": "f2f7fab60496",
   "baseline_available": true,
   "baseline_git_status_short": [
     " M project_state/artifact_index.json",
@@ -18,7 +18,6 @@
     " M reverse_agent/local_reverse_forced_ida_extract.py",
     " M reverse_agent/local_reverse_single_sample_static_triage.py",
     " M reverse_agent/local_reverse_xref_disassembly.py",
-    " M reverse_agent/project_gate.py",
     " M reverse_agent/project_state.py",
     " M tests/test_project_state.py"
   ],
@@ -35,7 +34,6 @@
     "reverse_agent/local_reverse_forced_ida_extract.py",
     "reverse_agent/local_reverse_single_sample_static_triage.py",
     "reverse_agent/local_reverse_xref_disassembly.py",
-    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
@@ -52,7 +50,6 @@
     "reverse_agent/local_reverse_forced_ida_extract.py",
     "reverse_agent/local_reverse_single_sample_static_triage.py",
     "reverse_agent/local_reverse_xref_disassembly.py",
-    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
@@ -67,6 +64,8 @@
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
+    " M project_state/local_reverse_evaluation_queue.json",
+    " M project_state/local_reverse_training_status.json",
     " M project_state/model_gate.json",
     " M project_state/negative_results.json",
     " M project_state/pytest_result.txt",
@@ -78,10 +77,7 @@
     " M reverse_agent/project_gate.py",
     " M reverse_agent/project_state.py",
     " M tests/test_project_state.py",
-    "?? project_state/rounds/round_20260613_gate_closure_framework_fix_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260613_gate_closure_framework_fix_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260613_gate_closure_framework_fix_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260613_gate_closure_framework_fix_v1/round_manifest.json"
+    "?? project_state/local_reverse_affineenc_333f8ca9_static_triage.json"
   ],
   "final_git_diff_name_only": [
     "project_state/artifact_index.json",
@@ -94,6 +90,8 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
+    "project_state/local_reverse_evaluation_queue.json",
+    "project_state/local_reverse_training_status.json",
     "project_state/model_gate.json",
     "project_state/negative_results.json",
     "project_state/pytest_result.txt",
@@ -117,13 +115,12 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
+    "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+    "project_state/local_reverse_evaluation_queue.json",
+    "project_state/local_reverse_training_status.json",
     "project_state/model_gate.json",
     "project_state/negative_results.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/decision_packet.md",
-    "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/pytest_result.txt",
-    "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/round_manifest.json",
     "project_state/task_packet.json",
     "reverse_agent/harness.py",
     "reverse_agent/local_reverse_forced_ida_extract.py",
@@ -140,10 +137,10 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/decision_packet.md",
-    "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/pytest_result.txt",
-    "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/round_manifest.json"
+    "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+    "project_state/local_reverse_evaluation_queue.json",
+    "project_state/local_reverse_training_status.json",
+    "reverse_agent/project_gate.py"
   ],
   "inherited_dirty_files": [
     "project_state/artifact_index.json",
@@ -158,10 +155,9 @@
     "reverse_agent/local_reverse_forced_ida_extract.py",
     "reverse_agent/local_reverse_single_sample_static_triage.py",
     "reverse_agent/local_reverse_xref_disassembly.py",
-    "reverse_agent/project_gate.py",
     "reverse_agent/project_state.py",
     "tests/test_project_state.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-13T12:32:21.976421Z"
+  "generated_at": "2026-06-13T13:19:02.795783Z"
 }

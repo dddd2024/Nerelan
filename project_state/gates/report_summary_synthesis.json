@@ -2,15 +2,15 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "PASSED",
-  "decision_id": "decision_20260613_gate_closure_framework_fix_v1",
-  "round_id": "round_20260613_gate_closure_framework_fix_v1",
-  "report_id": "codex_report_20260613_gate_closure_framework_fix_v1",
-  "generated_at": "2026-06-13T12:32:21.981981Z",
+  "synthesis_status": "FAILED",
+  "decision_id": "decision_20260613_affineenc_static_triage_v1",
+  "round_id": "round_20260613_affineenc_static_triage_v1",
+  "report_id": "codex_report_20260613_affineenc_static_triage_v1",
+  "generated_at": "2026-06-13T13:19:02.804365Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260613_gate_closure_framework_fix_v1",
-    "round_id": "round_20260613_gate_closure_framework_fix_v1",
-    "based_on_decision_id": "decision_20260613_gate_closure_framework_fix_v1",
+    "report_id": "codex_report_20260613_affineenc_static_triage_v1",
+    "round_id": "round_20260613_affineenc_static_triage_v1",
+    "based_on_decision_id": "decision_20260613_affineenc_static_triage_v1",
     "files_changed": [
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
@@ -18,22 +18,26 @@
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/decision_packet.md",
-      "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/pytest_result.txt",
-      "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/round_manifest.json"
+      "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+      "project_state/local_reverse_evaluation_queue.json",
+      "project_state/local_reverse_training_status.json",
+      "project_state/rounds/round_20260613_affineenc_static_triage_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260613_affineenc_static_triage_v1/decision_packet.md",
+      "project_state/rounds/round_20260613_affineenc_static_triage_v1/pytest_result.txt",
+      "project_state/rounds/round_20260613_affineenc_static_triage_v1/round_manifest.json",
+      "reverse_agent/project_gate.py"
     ],
     "tests_ran": [
       "Test-Path F:\\reverse-agent",
       "git status --short",
-      "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
       "python -m reverse_agent.project_state doctor --state-dir project_state",
       "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_gate_closure_framework_fix_v1"
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_affineenc_static_triage_v1"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -44,15 +48,26 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/decision_packet.md",
-      "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/pytest_result.txt",
-      "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/round_manifest.json"
+      "project_state/rounds/round_20260613_affineenc_static_triage_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260613_affineenc_static_triage_v1/decision_packet.md",
+      "project_state/rounds/round_20260613_affineenc_static_triage_v1/pytest_result.txt",
+      "project_state/rounds/round_20260613_affineenc_static_triage_v1/round_manifest.json"
     ],
-    "status": "SUCCESS",
-    "acceptance_recommendation": "ACCEPTED"
+    "status": "FAILED",
+    "acceptance_recommendation": "REWORK_REQUIRED"
   },
-  "diffs": [],
+  "diffs": [
+    {
+      "field": "status",
+      "expected": "FAILED",
+      "actual": "SUCCESS"
+    },
+    {
+      "field": "acceptance_recommendation",
+      "expected": "REWORK_REQUIRED",
+      "actual": "ACCEPTED"
+    }
+  ],
   "errors": [],
   "warnings": [],
   "sources": {

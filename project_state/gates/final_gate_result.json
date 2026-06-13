@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED_WITH_LIMITATIONS",
-  "decision_id": "decision_20260613_gate_closure_framework_fix_v1",
-  "report_id": "codex_report_20260613_gate_closure_framework_fix_v1",
-  "round_id": "round_20260613_gate_closure_framework_fix_v1",
-  "generated_at": "2026-06-13T12:32:22.000409Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260613_affineenc_static_triage_v1",
+  "report_id": "codex_report_20260613_affineenc_static_triage_v1",
+  "round_id": "round_20260613_affineenc_static_triage_v1",
+  "generated_at": "2026-06-13T13:19:02.822250Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -26,19 +26,19 @@
     },
     {
       "name": "round_manifest_present",
-      "status": "PASS",
-      "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260613_gate_closure_framework_fix_v1\\round_manifest.json"
+      "status": "WARN",
+      "detail": "round manifest is missing",
+      "round_manifest_path": "project_state\\rounds\\round_20260613_affineenc_static_triage_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "PASS",
-      "detail": "archived report matches live report"
+      "status": "WARN",
+      "detail": "archived report differs from live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "PASS",
-      "detail": "archived pytest_result matches live pytest_result"
+      "status": "WARN",
+      "detail": "archived pytest_result differs from live pytest_result"
     },
     {
       "name": "round_delta_summary_present",
@@ -59,7 +59,6 @@
         "reverse_agent/local_reverse_forced_ida_extract.py",
         "reverse_agent/local_reverse_single_sample_static_triage.py",
         "reverse_agent/local_reverse_xref_disassembly.py",
-        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ],
@@ -70,10 +69,10 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/round_manifest.json"
+        "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
+        "reverse_agent/project_gate.py"
       ],
       "final_dirty_files": [
         "project_state/artifact_index.json",
@@ -86,13 +85,12 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/round_manifest.json",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
         "reverse_agent/local_reverse_forced_ida_extract.py",
@@ -120,7 +118,6 @@
         "reverse_agent/local_reverse_forced_ida_extract.py",
         "reverse_agent/local_reverse_single_sample_static_triage.py",
         "reverse_agent/local_reverse_xref_disassembly.py",
-        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ]
@@ -141,13 +138,12 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/round_manifest.json",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
         "reverse_agent/local_reverse_forced_ida_extract.py",
@@ -164,10 +160,11 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_gate_closure_framework_fix_v1/round_manifest.json"
+        "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
+        "project_state/rounds/round_20260613_affineenc_static_triage_v1/round_manifest.json",
+        "reverse_agent/project_gate.py"
       ],
       "inherited_dirty_files": [
         "project_state/artifact_index.json",
@@ -182,7 +179,6 @@
         "reverse_agent/local_reverse_forced_ida_extract.py",
         "reverse_agent/local_reverse_single_sample_static_triage.py",
         "reverse_agent/local_reverse_xref_disassembly.py",
-        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ]
@@ -221,7 +217,6 @@
         "reverse_agent/local_reverse_forced_ida_extract.py",
         "reverse_agent/local_reverse_single_sample_static_triage.py",
         "reverse_agent/local_reverse_xref_disassembly.py",
-        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ]
@@ -244,8 +239,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260613_gate_closure_framework_fix_v1",
-      "command_plan_round_id": "round_20260613_gate_closure_framework_fix_v1"
+      "command_plan_decision_id": "decision_20260613_affineenc_static_triage_v1",
+      "command_plan_round_id": "round_20260613_affineenc_static_triage_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -281,10 +276,21 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "codex_report_summary matches synthesized summary",
+      "status": "WARN",
+      "detail": "codex_report_summary differs from synthesized summary",
       "errors": [],
-      "diffs": []
+      "diffs": [
+        {
+          "field": "status",
+          "expected": "FAILED",
+          "actual": "SUCCESS"
+        },
+        {
+          "field": "acceptance_recommendation",
+          "expected": "REWORK_REQUIRED",
+          "actual": "ACCEPTED"
+        }
+      ]
     },
     {
       "name": "report_summary_status_source_available",
@@ -300,25 +306,34 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "PASS",
-      "detail": "SUCCESS report passes lint and doctor",
-      "lint_errors": [],
-      "warnings": [],
-      "doctor_status": "PASS",
+      "status": "FAIL",
+      "detail": "status policy found blocking issues",
+      "lint_errors": [
+        "50 missing, 0 stale artifacts"
+      ],
+      "warnings": [
+        "report round not archived yet"
+      ],
+      "doctor_status": "WARN",
       "report_status": "SUCCESS",
-      "limitations": [
-        "50 missing historical sample artifacts"
-      ]
+      "limitations": null
     }
   ],
-  "blocking_reasons": [],
-  "warnings": [],
-  "recommended_next_action": "no_action_required",
+  "blocking_reasons": [
+    "status_policy_valid: status policy found blocking issues"
+  ],
+  "warnings": [
+    "round_manifest_present: round manifest is missing",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
-    "archive_status": "archived",
+    "archive_status": "not_archived",
     "report_status": "SUCCESS",
     "report_acceptance_recommendation": "ACCEPTED"
   }

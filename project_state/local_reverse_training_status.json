@@ -153,12 +153,19 @@
         "reverse",
         "pe"
       ],
-      "training_status": "inventory_only",
+      "training_status": "needs_triage",
       "known_candidate": "",
       "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
+      "classification": "string_compare_password_checker; standard_input_based; strcmp_direct_compare",
+      "evidence_sources": [
+        "source:local_reverse_affineenc_333f8ca9_static_triage.json",
+        "source_tool:IDA",
+        "tool_status:success",
+        "hypothesis:string_compare_password_checker",
+        "hypothesis:standard_input_based",
+        "hypothesis:strcmp_direct_compare"
+      ],
+      "next_action": "constraint recovery or targeted decompilation; runtime validation required"
     },
     {
       "sample_id": "ascii_table_chinese_46efc7ea",
