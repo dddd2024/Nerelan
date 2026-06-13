@@ -7,6 +7,10 @@ from pathlib import Path
 import pytest
 
 from reverse_agent.project_state import (
+    CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS,
+    CODEX_REPORT_STATUSES,
+    _classify_artifact_freshness,
+    _historical_artifact_freshness_is_non_blocking,
     archive_round,
     build_project_state,
     doctor,
@@ -6346,3 +6350,127 @@ def test_pack_contains_only_allowed_project_state_files(tmp_path: Path) -> None:
     assert not any(name.startswith("solve_reports/") for name in names)
     assert not any(name.endswith(".exe") for name in names)
     assert ".env" not in names
+
+
+# ---------------------------------------------------------------------------
+# Tests for ACCEPTED_WITH_LIMITATIONS status support
+# ---------------------------------------------------------------------------
+
+
+class TestAcceptedWithLimitationsStatusSets:
+    """Verify ACCEPTED_WITH_LIMITATIONS is in the canonical status/acceptance sets."""
+
+    def test_accepted_with_limitations_in_report_statuses(self) -> None:
+        assert "ACCEPTED_WITH_LIMITATIONS" in CODEX_REPORT_STATUSES
+
+    def test_accepted_with_limitations_in_acceptance_recommendations(self) -> None:
+        assert "ACCEPTED_WITH_LIMITATIONS" in CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS
+
+
+class TestClassifyArtifactFreshnessLimitations:
+    """Verify _classify_artifact_freshness returns limitations list when historical artifacts are non-blocking."""
+
+    def test_limitations_included_when_historical_non_blocking(self) -> None:
+        result = _classify_artifact_freshness(
+            freshness={"missing": 2, "stale": 1},
+            decision={"mainline": "engineering_branch"},
+            report={"status": "PARTIAL", "generated_artifacts": [], "verified_artifacts": []},
+            decision_execution_state="READY_FOR_EXECUTION",
+            round_consistency={},
+            pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
+        )
+        assert result["status"] == "INFO"
+        assert result["blocking"] is False
+        assert result["classification"] == "historical_sample_artifacts_non_blocking"
+        assert "limitations" in result
+        assert len(result["limitations"]) == 2
+        assert any("2 missing" in l for l in result["limitations"])
+        assert any("1 stale" in l for l in result["limitations"])
+
+    def test_no_limitations_when_freshness_ok(self) -> None:
+        result = _classify_artifact_freshness(
+            freshness={"fresh": 5},
+            decision={"mainline": "engineering_branch"},
+            report={"status": "SUCCESS", "generated_artifacts": [], "verified_artifacts": []},
+            decision_execution_state="CONSUMED_BY_SUCCESS_REPORT",
+            round_consistency={},
+            pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
+        )
+        assert result["status"] == "PASS"
+        assert "limitations" not in result
+
+    def test_limitations_only_missing(self) -> None:
+        result = _classify_artifact_freshness(
+            freshness={"missing": 3},
+            decision={"mainline": "engineering_branch"},
+            report={"status": "PARTIAL", "generated_artifacts": [], "verified_artifacts": []},
+            decision_execution_state="READY_FOR_EXECUTION",
+            round_consistency={},
+            pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
+        )
+        assert result["status"] == "INFO"
+        assert len(result["limitations"]) == 1
+        assert "3 missing" in result["limitations"][0]
+
+
+class TestHistoricalArtifactFreshnessNonBlocking:
+    """Verify _historical_artifact_freshness_is_non_blocking relaxes conditions for engineering_branch."""
+
+    def test_returns_true_for_engineering_branch_non_success(self) -> None:
+        assert _historical_artifact_freshness_is_non_blocking(
+            decision={"mainline": "engineering_branch"},
+            report={"status": "PARTIAL", "generated_artifacts": [], "verified_artifacts": []},
+            decision_execution_state="READY_FOR_EXECUTION",
+            round_consistency={},
+            pytest_validation={"matches_report": False, "tests_ran_covers_report": False},
+        ) is True
+
+    def test_returns_true_for_engineering_branch_failed(self) -> None:
+        assert _historical_artifact_freshness_is_non_blocking(
+            decision={"mainline": "engineering_branch"},
+            report={"status": "FAILED", "generated_artifacts": [], "verified_artifacts": []},
+            decision_execution_state="CONSUMED_BY_NON_SUCCESS_REPORT",
+            round_consistency={},
+            pytest_validation={"matches_report": False, "tests_ran_covers_report": False},
+        ) is True
+
+    def test_returns_false_when_report_claims_sample_artifacts(self) -> None:
+        assert _historical_artifact_freshness_is_non_blocking(
+            decision={"mainline": "engineering_branch"},
+            report={
+                "status": "PARTIAL",
+                "generated_artifacts": ["solve_reports/sample_run"],
+                "verified_artifacts": [],
+            },
+            decision_execution_state="READY_FOR_EXECUTION",
+            round_consistency={},
+            pytest_validation={"matches_report": False, "tests_ran_covers_report": False},
+        ) is False
+
+    def test_existing_consumed_by_success_path_still_works(self) -> None:
+        assert _historical_artifact_freshness_is_non_blocking(
+            decision={"mainline": "engineering_branch"},
+            report={"status": "SUCCESS", "generated_artifacts": [], "verified_artifacts": []},
+            decision_execution_state="CONSUMED_BY_SUCCESS_REPORT",
+            round_consistency={},
+            pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
+        ) is True
+
+    def test_returns_false_for_reverse_solving_non_success(self) -> None:
+        assert _historical_artifact_freshness_is_non_blocking(
+            decision={"mainline": "reverse_solving"},
+            report={"status": "PARTIAL", "generated_artifacts": [], "verified_artifacts": []},
+            decision_execution_state="READY_FOR_EXECUTION",
+            round_consistency={},
+            pytest_validation={"matches_report": False, "tests_ran_covers_report": False},
+        ) is False
+
+    def test_returns_false_for_training_dataset_non_success(self) -> None:
+        """training_dataset only gets non-blocking via Path 1 (CONSUMED_BY_SUCCESS_REPORT)."""
+        assert _historical_artifact_freshness_is_non_blocking(
+            decision={"mainline": "training_dataset"},
+            report={"status": "PARTIAL", "generated_artifacts": [], "verified_artifacts": []},
+            decision_execution_state="READY_FOR_EXECUTION",
+            round_consistency={},
+            pytest_validation={"matches_report": False, "tests_ran_covers_report": False},
+        ) is False

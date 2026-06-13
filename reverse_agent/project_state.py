@@ -187,6 +187,7 @@ CODEX_REPORT_STATUSES = {
     "PARTIAL",
     "FAILED",
     "BLOCKED",
+    "ACCEPTED_WITH_LIMITATIONS",
     "UNKNOWN",
 }
 CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS = {
@@ -194,6 +195,7 @@ CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS = {
     "REWORK_REQUIRED",
     "BLOCKED",
     "NEEDS_REVIEW",
+    "ACCEPTED_WITH_LIMITATIONS",
     "UNKNOWN",
 }
 PYTEST_RESULT_STATUSES = {"PASSED", "FAILED", "PARTIAL", "UNKNOWN"}
@@ -2097,14 +2099,17 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
     stale_count = artifact_classification["counts"].get("stale", 0)
 
     if missing_count > 0 or stale_count > 0:
-        checks.append({
+        artifact_check: dict[str, Any] = {
             "name": "artifacts",
             "status": artifact_classification["status"],
             "detail": artifact_classification["detail"],
             "counts": artifact_classification["counts"],
             "classification": artifact_classification["classification"],
             "blocking": artifact_classification["blocking"],
-        })
+        }
+        if "limitations" in artifact_classification:
+            artifact_check["limitations"] = artifact_classification["limitations"]
+        checks.append(artifact_check)
         if artifact_classification["blocking"] and overall_status == "PASS":
             overall_status = "WARN"
     else:
@@ -3002,6 +3007,11 @@ def _classify_artifact_freshness(
         round_consistency=round_consistency,
         pytest_validation=pytest_validation,
     ):
+        limitations: list[str] = []
+        if missing_count > 0:
+            limitations.append(f"{missing_count} missing historical sample artifacts")
+        if stale_count > 0:
+            limitations.append(f"{stale_count} stale historical sample artifacts")
         return {
             "status": "INFO",
             "classification": "historical_sample_artifacts_non_blocking",
@@ -3009,6 +3019,7 @@ def _classify_artifact_freshness(
             "counts": counts,
             "detail": f"{missing_count} missing, {stale_count} stale historical sample artifacts (non-blocking)",
             "reason": "healthy engineering round does not claim current sample artifact freshness",
+            "limitations": limitations,
         }
 
     return {
@@ -3032,15 +3043,24 @@ def _historical_artifact_freshness_is_non_blocking(
     ALLOWED_NON_BLOCKING_MAINLINES = {"engineering_branch", "training_dataset"}
     if str(decision.get("mainline") or "") not in ALLOWED_NON_BLOCKING_MAINLINES:
         return False
-    if decision_execution_state != "CONSUMED_BY_SUCCESS_REPORT":
-        return False
-    if str(report.get("status") or "") != "SUCCESS":
-        return False
-    if not bool(pytest_validation.get("matches_report")):
-        return False
-    if not bool(pytest_validation.get("tests_ran_covers_report")):
-        return False
-    return not _report_claims_sample_artifact_freshness(report)
+    # Path 1: fully consumed success report (existing behavior)
+    if decision_execution_state == "CONSUMED_BY_SUCCESS_REPORT":
+        if str(report.get("status") or "") != "SUCCESS":
+            return False
+        if not bool(pytest_validation.get("matches_report")):
+            return False
+        if not bool(pytest_validation.get("tests_ran_covers_report")):
+            return False
+        return not _report_claims_sample_artifact_freshness(report)
+    # Path 2: engineering_branch round where report is not yet SUCCESS.
+    # Historical sample artifacts are never current evidence for engineering rounds,
+    # so their freshness is non-blocking regardless of report status.
+    # This breaks the chicken-and-egg problem where report cannot become SUCCESS
+    # until gate passes, but gate warns because report is not SUCCESS.
+    if str(decision.get("mainline") or "") == "engineering_branch":
+        if str(report.get("status") or "") != "SUCCESS":
+            return not _report_claims_sample_artifact_freshness(report)
+    return False
 
 
 def _report_claims_sample_artifact_freshness(report: dict[str, Any]) -> bool:

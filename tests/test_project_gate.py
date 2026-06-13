@@ -5,6 +5,9 @@ import pytest
 
 from reverse_agent.project_gate import (
     _close_round_exit_code,
+    _report_status_from_gate,
+    _report_status_from_gate_payload,
+    _result_status,
     build_report_summary_synthesis,
     close_round,
     command_plan,
@@ -1794,6 +1797,188 @@ git status --short
     assert commands[6]["expected_exit_codes"] == [0]
     assert result["blocking_reasons"] == []
     assert result["warnings"] == []
+
+
+# ---------------------------------------------------------------------------
+# Tests for ACCEPTED_WITH_LIMITATIONS / PASSED_WITH_LIMITATIONS support
+# ---------------------------------------------------------------------------
+
+
+class TestReportStatusFromGateWithLimitations:
+    """Verify _report_status_from_gate handles PASSED_WITH_LIMITATIONS."""
+
+    def test_passed_with_limitations_maps_correctly(self) -> None:
+        result = _report_status_from_gate("PASSED_WITH_LIMITATIONS")
+        assert result == ("SUCCESS", "ACCEPTED_WITH_LIMITATIONS")
+
+    def test_passed_maps_to_accepted(self) -> None:
+        result = _report_status_from_gate("PASSED")
+        assert result == ("SUCCESS", "ACCEPTED")
+
+    def test_warn_maps_to_partial(self) -> None:
+        result = _report_status_from_gate("WARN")
+        assert result == ("PARTIAL", "NEEDS_REVIEW")
+
+
+class TestReportStatusFromGatePayloadWithLimitations:
+    """Verify _report_status_from_gate_payload returns SUCCESS/ACCEPTED_WITH_LIMITATIONS
+    when only historical limitations exist."""
+
+    def test_warn_with_status_policy_limitations_returns_accepted_with_limitations(self) -> None:
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "WARN",
+                    "limitations": ["2 missing historical sample artifacts"],
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload)
+        assert result == ("SUCCESS", "ACCEPTED_WITH_LIMITATIONS")
+
+    def test_passed_with_limitations_gate_status(self) -> None:
+        payload = {
+            "gate_status": "PASSED_WITH_LIMITATIONS",
+            "status_summary": {},
+            "checks": [],
+        }
+        result = _report_status_from_gate_payload(payload)
+        assert result == ("SUCCESS", "ACCEPTED_WITH_LIMITATIONS")
+
+    def test_warn_without_limitations_and_success_report_returns_accepted(self) -> None:
+        """When report is SUCCESS and status_policy_valid is WARN without limitations,
+        it falls through to the existing prearchive path returning SUCCESS/ACCEPTED."""
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "WARN",
+                },
+            ],
+        }
+        result = _report_status_from_gate_payload(payload)
+        assert result == ("SUCCESS", "ACCEPTED")
+
+
+class TestResultStatusWithLimitations:
+    """Verify _result_status returns PASSED_WITH_LIMITATIONS when only historical non-blocking."""
+
+    def test_all_pass_returns_passed(self) -> None:
+        checks = [{"name": "a", "status": "PASS"}, {"name": "b", "status": "PASS"}]
+        assert _result_status(checks, "SUCCESS") == "PASSED"
+
+    def test_warn_with_limitations_returns_passed_with_limitations(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "limitations": ["missing historical"]},
+        ]
+        assert _result_status(checks, "SUCCESS") == "PASSED_WITH_LIMITATIONS"
+
+    def test_warn_without_limitations_returns_warn(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN"},
+        ]
+        assert _result_status(checks, "SUCCESS") == "WARN"
+
+    def test_fail_returns_failed(self) -> None:
+        checks = [
+            {"name": "a", "status": "PASS"},
+            {"name": "b", "status": "FAIL"},
+        ]
+        assert _result_status(checks, "SUCCESS") == "FAILED"
+
+    def test_mixed_warn_with_and_without_limitations_returns_warn(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "limitations": ["missing historical"]},
+            {"name": "other_check", "status": "WARN"},
+        ]
+        assert _result_status(checks, "SUCCESS") == "WARN"
+
+
+class TestFinalCheckWithHistoricalLimitations:
+    """Verify final_check produces PASSED_WITH_LIMITATIONS when only historical artifacts are missing."""
+
+    def test_engineering_partial_with_historical_only_limitations(self, tmp_path: Path) -> None:
+        """When report is PARTIAL but doctor WARN is only from historical non-blocking artifacts,
+        gate should be PASSED_WITH_LIMITATIONS."""
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        # Add stale/missing artifacts to artifact_index
+        _write_json(
+            state_dir / "artifact_index.json",
+            {
+                "missing": [],
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    "old_probe": {"freshness": "stale"},
+                    "missing_probe": {"freshness": "missing"},
+                },
+            },
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+        assert result["blocking_reasons"] == []
+        status_policy = _check(result, "status_policy_valid")
+        assert status_policy["status"] == "WARN"
+        assert status_policy.get("limitations") is not None
+        assert len(status_policy["limitations"]) > 0
+
+    def test_status_policy_valid_still_fails_for_current_round_missing(self, tmp_path: Path) -> None:
+        """When current-round required artifacts are missing (lint errors), status_policy_valid should FAIL."""
+        state_dir = _make_gate_state(tmp_path)
+        # Corrupt the report to trigger lint failure
+        (state_dir / "codex_execution_report.md").write_text(
+            "# CODEX_EXECUTION_REPORT\nNo summary block.\n",
+            encoding="utf-8",
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        status_policy = _check(result, "status_policy_valid")
+        assert status_policy["status"] == "FAIL"
+        assert status_policy.get("limitations") is None
+
+
+class TestReportSummarySynthesisWithLimitations:
+    """Verify build_report_summary_synthesis includes limitations when status is ACCEPTED_WITH_LIMITATIONS."""
+
+    def test_synthesis_includes_limitations_from_gate(self, tmp_path: Path) -> None:
+        """When final gate has PASSED_WITH_LIMITATIONS and status_policy_valid has limitations,
+        synthesis should include limitations in synthesized_summary."""
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        _write_json(
+            state_dir / "artifact_index.json",
+            {
+                "missing": [],
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    "old_probe": {"freshness": "stale"},
+                    "missing_probe": {"freshness": "missing"},
+                },
+            },
+        )
+
+        # Run final_check first to produce the gate result
+        final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        # Now run synthesis
+        result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+        synthesized = result["synthesized_summary"]
+        assert synthesized.get("acceptance_recommendation") == "ACCEPTED_WITH_LIMITATIONS"
+        assert "limitations" in synthesized
+        assert len(synthesized["limitations"]) > 0
 
 
 def test_command_plan_fails_when_tests_section_missing(tmp_path: Path) -> None:

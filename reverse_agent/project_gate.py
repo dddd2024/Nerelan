@@ -1029,6 +1029,7 @@ def _expected_report_id(round_id: str) -> str:
 def _report_status_from_gate(gate_status: str) -> tuple[str, str] | None:
     mapping = {
         "PASSED": ("SUCCESS", "ACCEPTED"),
+        "PASSED_WITH_LIMITATIONS": ("SUCCESS", "ACCEPTED_WITH_LIMITATIONS"),
         "WARN": ("PARTIAL", "NEEDS_REVIEW"),
         "FAILED": ("FAILED", "REWORK_REQUIRED"),
         "BLOCKED": ("BLOCKED", "BLOCKED"),
@@ -1038,6 +1039,8 @@ def _report_status_from_gate(gate_status: str) -> tuple[str, str] | None:
 
 def _report_status_from_gate_payload(payload: dict[str, Any]) -> tuple[str, str] | None:
     gate_status = str(payload.get("gate_status") or "")
+    if gate_status == "PASSED_WITH_LIMITATIONS":
+        return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
     if gate_status == "WARN":
         status_summary_payload = payload.get("status_summary")
         status_summary_map = status_summary_payload if isinstance(status_summary_payload, dict) else {}
@@ -1052,8 +1055,30 @@ def _report_status_from_gate_payload(payload: dict[str, Any]) -> tuple[str, str]
             "report_summary_status_source_available",
             "status_policy_valid",
         }
+        # Check if the only WARN is status_policy_valid with historical-only limitations
+        # This must be checked before the general SUCCESS prearchive path
+        if warn_check_names == {"status_policy_valid"}:
+            for check in payload.get("checks", []):
+                if (
+                    isinstance(check, dict)
+                    and check.get("name") == "status_policy_valid"
+                    and check.get("status") == "WARN"
+                    and check.get("limitations")
+                ):
+                    return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
         if report_status == "SUCCESS" and warn_check_names and warn_check_names <= allowed_prearchive_warnings:
             return "SUCCESS", acceptance if acceptance else "ACCEPTED"
+    # Check if PASSED gate has status_policy_valid with limitations (post-archive scenario
+    # where doctor is PASS but historical artifacts are still missing)
+    if gate_status == "PASSED":
+        for check in payload.get("checks", []):
+            if (
+                isinstance(check, dict)
+                and check.get("name") == "status_policy_valid"
+                and check.get("status") == "PASS"
+                and check.get("limitations")
+            ):
+                return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
     return _report_status_from_gate(gate_status)
 
 
@@ -1239,6 +1264,14 @@ def build_report_summary_synthesis(
     if status_pair is not None:
         synthesized_summary["status"] = status_pair[0]
         synthesized_summary["acceptance_recommendation"] = status_pair[1]
+        # When status is ACCEPTED_WITH_LIMITATIONS, include limitations from gate
+        if status_pair[1] == "ACCEPTED_WITH_LIMITATIONS" and final_gate_matches:
+            gate_limitations: list[str] = []
+            for check in final_gate_payload.get("checks", []):
+                if isinstance(check, dict) and check.get("limitations"):
+                    gate_limitations.extend(check["limitations"])
+            if gate_limitations:
+                synthesized_summary["limitations"] = gate_limitations
 
     if not isinstance(pytest_header.get("tests_ran"), list) or not pytest_header.get("tests_ran"):
         errors.append("pytest_result_summary.tests_ran missing or empty")
@@ -1377,15 +1410,36 @@ def _result_status(checks: list[dict[str, Any]], report_status: str) -> str:
         return "FAILED"
     if report_status == "BLOCKED":
         return "BLOCKED"
+    # Check if WARNs are only from historical non-blocking artifacts
+    # This must be checked before the general FAILED/PARTIAL report status check
+    # to allow PASSED_WITH_LIMITATIONS even when report is PARTIAL
+    warn_checks = [check for check in checks if check.get("status") == "WARN"]
+    if warn_checks:
+        all_non_blocking = all(
+            check.get("name") == "status_policy_valid" and check.get("limitations")
+            for check in warn_checks
+        )
+        if all_non_blocking:
+            return "PASSED_WITH_LIMITATIONS"
+    # Also check if a PASS status_policy_valid has limitations (post-archive scenario
+    # where doctor is PASS but historical artifacts are still missing)
+    for check in checks:
+        if (
+            isinstance(check, dict)
+            and check.get("name") == "status_policy_valid"
+            and check.get("status") == "PASS"
+            and check.get("limitations")
+        ):
+            return "PASSED_WITH_LIMITATIONS"
     if report_status in {"FAILED", "PARTIAL"}:
         return "WARN"
-    if any(check.get("status") == "WARN" for check in checks):
+    if warn_checks:
         return "WARN"
     return "PASSED"
 
 
 def _recommended_next_action(gate_status: str) -> str:
-    if gate_status == "PASSED":
+    if gate_status in ("PASSED", "PASSED_WITH_LIMITATIONS"):
         return "no_action_required"
     if gate_status == "BLOCKED":
         return "keep_blocked_report_and_continue_from_next_decision"
@@ -1576,16 +1630,40 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         for check in doctor_result.get("checks", [])
         if check.get("status") == "WARN" and check.get("blocking") is True
     ]
+    # Detect whether doctor WARN is solely due to historical non-blocking artifacts
+    doctor_non_blocking_warnings = [
+        str(check.get("detail") or check.get("name"))
+        for check in doctor_result.get("checks", [])
+        if check.get("status") in ("WARN", "INFO") and check.get("blocking") is False
+        and check.get("name") == "artifacts"
+        and check.get("classification") == "historical_sample_artifacts_non_blocking"
+    ]
+    limitations: list[str] = []
+    for check in doctor_result.get("checks", []):
+        if isinstance(check, dict) and check.get("limitations"):
+            limitations.extend(check["limitations"])
+
     if doctor_status == "FAIL":
         status_errors.append("doctor status is FAIL")
     elif report_status == "SUCCESS" and doctor_blocking_warnings:
         status_errors.extend(doctor_blocking_warnings)
+    elif doctor_status == "WARN" and not doctor_blocking_warnings and doctor_non_blocking_warnings:
+        # Doctor is WARN only due to historical non-blocking artifacts -- treat as PASS
+        # with ACCEPTED_WITH_LIMITATIONS path
+        status_warnings.append("doctor status is WARN (historical artifacts non-blocking)")
     elif doctor_status == "WARN":
         status_warnings.append("doctor status is WARN")
     if report_status == "SUCCESS" and not status_errors and doctor_status == "PASS":
         status_detail = "SUCCESS report passes lint and doctor"
     elif report_status == "BLOCKED" and not status_errors:
         status_detail = "BLOCKED report is internally consistent"
+    elif (
+        doctor_status == "WARN"
+        and not doctor_blocking_warnings
+        and doctor_non_blocking_warnings
+        and not status_errors
+    ):
+        status_detail = "current-round artifacts complete; historical sample artifacts non-blocking"
     elif report_status in {"FAILED", "PARTIAL"} and not status_errors:
         status_detail = f"{report_status} report is internally consistent"
     else:
@@ -1600,6 +1678,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
             warnings=status_warnings,
             doctor_status=doctor_status,
             report_status=report_status,
+            limitations=limitations if limitations else None,
         )
     )
 
