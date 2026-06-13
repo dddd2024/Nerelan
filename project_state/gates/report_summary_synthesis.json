@@ -2,41 +2,30 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "FAILED",
-  "decision_id": "decision_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1",
-  "round_id": "round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1",
-  "report_id": "codex_report_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1",
-  "generated_at": "2026-06-13T09:21:41.675029Z",
+  "synthesis_status": "PASSED",
+  "decision_id": "decision_20260613_archive_closeout_after_gate_consistency_v1",
+  "round_id": "round_20260613_archive_closeout_after_gate_consistency_v1",
+  "report_id": "codex_report_20260613_archive_closeout_after_gate_consistency_v1",
+  "generated_at": "2026-06-13T09:44:44.992908Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1",
-    "round_id": "round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1",
-    "based_on_decision_id": "decision_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1",
+    "report_id": "codex_report_20260613_archive_closeout_after_gate_consistency_v1",
+    "round_id": "round_20260613_archive_closeout_after_gate_consistency_v1",
+    "based_on_decision_id": "decision_20260613_archive_closeout_after_gate_consistency_v1",
     "files_changed": [
+      "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/decision_packet.md",
-      "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/pytest_result.txt",
-      "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/round_manifest.json",
-      "tests/test_project_gate.py"
+      "project_state/rounds/round_20260613_archive_closeout_after_gate_consistency_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260613_archive_closeout_after_gate_consistency_v1/decision_packet.md",
+      "project_state/rounds/round_20260613_archive_closeout_after_gate_consistency_v1/pytest_result.txt",
+      "project_state/rounds/round_20260613_archive_closeout_after_gate_consistency_v1/round_manifest.json"
     ],
     "tests_ran": [
-      "pwd",
-      "Test-Path F:\\reverse-agent",
-      "git rev-parse --show-toplevel",
-      "git status --short",
-      "python -m reverse_agent.project_gate preflight --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "python -m reverse_agent.project_state doctor --state-dir project_state",
-      "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-      "python -m reverse_agent.project_state lint-report --state-dir project_state",
-      "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-      "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "git diff --name-only"
+      "python -m pytest -q --rootdir F:\\reverse-agent\\tests",
+      "python -m reverse_agent.project_gate report-summary --state-dir project_state"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -47,71 +36,17 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/decision_packet.md",
-      "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/pytest_result.txt",
-      "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/round_manifest.json"
-    ]
+      "project_state/rounds/round_20260613_archive_closeout_after_gate_consistency_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260613_archive_closeout_after_gate_consistency_v1/decision_packet.md",
+      "project_state/rounds/round_20260613_archive_closeout_after_gate_consistency_v1/pytest_result.txt",
+      "project_state/rounds/round_20260613_archive_closeout_after_gate_consistency_v1/round_manifest.json"
+    ],
+    "status": "SUCCESS",
+    "acceptance_recommendation": "ACCEPTED"
   },
-  "diffs": [
-    {
-      "field": "files_changed",
-      "expected": [
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/round_manifest.json",
-        "tests/test_project_gate.py"
-      ],
-      "actual": [
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ]
-    },
-    {
-      "field": "generated_artifacts",
-      "expected": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/decision_packet.md",
-        "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/pytest_result.txt",
-        "project_state/rounds/round_20260613_closeout_gate_consistency_after_local_reverse_pytest_v1/round_manifest.json"
-      ],
-      "actual": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/round_manifest.json",
-        "project_state/pytest_result.txt"
-      ]
-    }
-  ],
+  "diffs": [],
   "errors": [],
-  "warnings": [
-    "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet",
-    "files_changed includes inherited dirty files (may have been modified this round): ['reverse_agent/project_gate.py']"
-  ],
+  "warnings": [],
   "sources": {
     "decision_meta": "project_state/decision_packet.md",
     "command_plan": "project_state/gates/command_plan.json",
