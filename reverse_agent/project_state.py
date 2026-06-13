@@ -1294,7 +1294,7 @@ def write_pytest_result(
     if body.strip():
         content += f"\n{body.rstrip()}\n"
     path = state_dir / "pytest_result.txt"
-    path.write_text(content, encoding="utf-8")
+    path.write_text(content, encoding="utf-8", newline="\n")
     return path
 
 

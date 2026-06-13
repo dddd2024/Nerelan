@@ -742,7 +742,7 @@ def test_final_check_passes_engineering_success_with_legacy_sample_artifacts(tmp
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-    assert result["gate_status"] == "PASSED"
+    assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
     assert result["blocking_reasons"] == []
     assert _check(result, "status_policy_valid")["status"] == "PASS"
 
@@ -1254,6 +1254,11 @@ def test_report_summary_ignores_retriable_archived_pytest_drift_status_source(tm
                     "name": "archived_pytest_result_matches_live_pytest_result",
                     "status": "FAIL",
                     "detail": "archived pytest_result differs from live pytest_result",
+                },
+                {
+                    "name": "pytest_result_exit_codes_match_command_plan",
+                    "status": "FAIL",
+                    "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
                 }
             ],
         },
@@ -1345,7 +1350,7 @@ def test_close_round_allows_engineering_success_legacy_artifacts_until_archive(t
     assert result["actions"][0]["allowed_archive_pending_failures"] == []
     assert result["actions"][0]["unexpected_failures"] == []
     assert result["actions"][2]["status"] == "PASSED"
-    assert result["actions"][2]["gate_status"] == "PASSED"
+    assert result["actions"][2]["gate_status"] == "PASSED_WITH_LIMITATIONS"
 
 
 def test_close_round_is_idempotent_for_existing_matching_archive(tmp_path: Path) -> None:
@@ -1471,6 +1476,41 @@ def test_close_round_fails_when_recorded_exit_code_mismatches_command_plan(tmp_p
 
     assert result["close_status"] == "FAILED"
     assert _check(result, "pytest_result_exit_codes_match_command_plan")["status"] == "FAIL"
+
+
+def test_final_check_does_not_require_self_recorded_exit_block(tmp_path: Path) -> None:
+    commands = [
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    ]
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        pytest_body="\n\n".join(
+            [
+                _command_block(commands[0], "301 passed"),
+                _command_block(commands[1], "command-plan: PASSED"),
+                _command_block(
+                    commands[2],
+                    json.dumps(
+                        {
+                            "commands": [
+                                {"command": commands[0]},
+                                {"command": commands[1]},
+                                {"command": commands[2]},
+                                {"command": commands[3]},
+                            ]
+                        }
+                    ),
+                ),
+            ]
+        ),
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert _check(result, "pytest_result_exit_codes_match_command_plan")["status"] == "PASS"
 
 
 def test_close_round_fails_when_command_plan_json_stdout_is_abbreviated(tmp_path: Path) -> None:
@@ -1687,6 +1727,26 @@ Allowed generated files:
 
     assert result["gate_status"] == "PASSED"
     assert _check(result, "mainline_scope_policy")["status"] == "PASS"
+
+
+def test_preflight_allows_chinese_natural_language_gate_scope(tmp_path: Path) -> None:
+    scope = "允许最小修改 project gate/state 逻辑、对应测试、project_state 报告和 gate 输出。"
+    state_dir = _make_preflight_state(tmp_path, implementation_scope=scope)
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    scope_check = _check(result, "implementation_scope_present")
+    assert scope_check["status"] == "PASS"
+    assert set(scope_check["allowed_paths"]) == {
+        "project_state/codex_execution_report.md",
+        "project_state/gates/",
+        "project_state/pytest_result.txt",
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py",
+    }
 
 
 def test_preflight_fails_reverse_mainline_without_tool_capability_audit(tmp_path: Path) -> None:
@@ -1990,7 +2050,7 @@ def test_command_plan_fails_when_tests_section_missing(tmp_path: Path) -> None:
     assert "Tests section is missing" in result["blocking_reasons"]
 
 
-def test_command_plan_fails_when_tests_section_has_no_fenced_bash_block(tmp_path: Path) -> None:
+def test_command_plan_extracts_unfenced_backtick_commands(tmp_path: Path) -> None:
     state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest -q")
     text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
     text = text.replace("```bash\npython -m pytest -q\n```", "- `python -m pytest -q`")
@@ -1998,8 +2058,38 @@ def test_command_plan_fails_when_tests_section_has_no_fenced_bash_block(tmp_path
 
     result = command_plan(state_dir=state_dir)
 
-    assert result["plan_status"] == "FAILED"
-    assert "Tests section has no fenced bash command block" in result["blocking_reasons"]
+    assert result["plan_status"] == "PASSED"
+    assert [command["command"] for command in result["commands"]] == ["python -m pytest -q"]
+
+
+def test_command_plan_extracts_chinese_natural_language_gate_checklist(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(tmp_path, tests_block="placeholder")
+    text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    text = text.replace(
+        "```bash\nplaceholder\n```",
+        "必须记录位置确认、git 状态、preflight、command-plan、doctor、pytest 指定集合、lint-report、"
+        "report-summary、final-check、diff 文件名。",
+    )
+    (state_dir / "decision_packet.md").write_text(text, encoding="utf-8")
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert [command["command"] for command in result["commands"]] == [
+        "pwd",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_state doctor --state-dir project_state",
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_state lint-report --state-dir project_state",
+        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "git diff --name-only",
+    ]
 
 
 def test_command_plan_fails_when_bash_block_empty(tmp_path: Path) -> None:

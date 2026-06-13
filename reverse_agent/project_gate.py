@@ -107,6 +107,26 @@ COMMAND_PLAN_KINDS = {
     "pwd",
 }
 
+NATURAL_LANGUAGE_COMMANDS = {
+    "position": [
+        "pwd",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+    ],
+    "git_status": ["git status --short"],
+    "preflight": ["python -m reverse_agent.project_gate preflight --state-dir project_state"],
+    "command-plan": [
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    ],
+    "doctor": ["python -m reverse_agent.project_state doctor --state-dir project_state"],
+    "pytest": ["python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"],
+    "lint-report": ["python -m reverse_agent.project_state lint-report --state-dir project_state"],
+    "report-summary": ["python -m reverse_agent.project_gate report-summary --state-dir project_state"],
+    "final-check": ["python -m reverse_agent.project_gate final-check --state-dir project_state"],
+    "git_diff": ["git diff --name-only"],
+}
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -207,6 +227,9 @@ def _extract_bash_commands(text: str) -> tuple[list[str], str | None]:
     blocks = _fenced_code_blocks(text)
     bash_blocks = [body for language, body in blocks if language in {"bash", "sh", "shell"}]
     if not bash_blocks:
+        commands = _extract_unfenced_commands(text)
+        if commands:
+            return commands, None
         return [], "Tests section has no fenced bash command block"
     commands = [
         line.strip()
@@ -217,6 +240,51 @@ def _extract_bash_commands(text: str) -> tuple[list[str], str | None]:
     if not commands:
         return [], "fenced bash command block is empty"
     return commands, None
+
+
+def _dedupe_commands(commands: list[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for command in commands:
+        normalized = command.strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        result.append(normalized)
+    return result
+
+
+def _extract_unfenced_commands(text: str) -> list[str]:
+    commands: list[str] = []
+    for match in re.finditer(r"`([^`]+)`", text):
+        candidate = match.group(1).strip()
+        if candidate and _command_kind(candidate) != "unknown":
+            commands.append(candidate)
+    if commands:
+        return _dedupe_commands(commands)
+
+    lowered = text.lower()
+    if "位置确认" in text or "location confirmation" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["position"])
+    if "git 状态" in text or "git status" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["git_status"])
+    if "preflight" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["preflight"])
+    if "command-plan" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["command-plan"])
+    if "doctor" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["doctor"])
+    if "pytest" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["pytest"])
+    if "lint-report" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["lint-report"])
+    if "report-summary" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["report-summary"])
+    if "final-check" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["final-check"])
+    if "diff 文件名" in text or "diff filenames" in lowered or "git diff" in lowered:
+        commands.extend(NATURAL_LANGUAGE_COMMANDS["git_diff"])
+    return _dedupe_commands(commands)
 
 
 def _scope_paths(scope_text: str) -> set[str]:
@@ -261,7 +329,30 @@ def _allowed_scope_paths(scope_text: str) -> set[str]:
             paths.add(_norm_path(item))
     if paths:
         return paths
-    return _scope_paths(scope_text)
+    paths = _scope_paths(scope_text)
+    if paths:
+        return paths
+    return _natural_language_scope_paths(scope_text)
+
+
+def _natural_language_scope_paths(scope_text: str) -> set[str]:
+    lowered = scope_text.lower()
+    paths: set[str] = set()
+    if "project gate" in lowered or "project_gate" in lowered:
+        paths.add("reverse_agent/project_gate.py")
+    if "project gate/state" in lowered or "project_state" in lowered or "state 逻辑" in lowered:
+        paths.add("reverse_agent/project_state.py")
+    if "对应测试" in scope_text or "related tests" in lowered:
+        paths.update({"tests/test_project_gate.py", "tests/test_project_state.py"})
+    if "project_state 报告" in scope_text or "project_state report" in lowered:
+        paths.update({"project_state/codex_execution_report.md", "project_state/pytest_result.txt"})
+    if "gate 输出" in scope_text or "gate output" in lowered:
+        paths.add("project_state/gates/")
+    return paths
+
+
+def _path_under_any(path: str, roots: set[str]) -> bool:
+    return any(root.endswith("/") and path.startswith(root) for root in roots)
 
 
 def _allowed_source_test_scope_paths(scope_text: str) -> set[str]:
@@ -766,8 +857,13 @@ def _report_summary_required(
     )
 
 
-def _expected_exit_codes_by_command(command_plan_payload: dict[str, Any]) -> dict[str, list[list[int]]]:
+def _expected_exit_codes_by_command(
+    command_plan_payload: dict[str, Any],
+    *,
+    skip_kinds: set[str] | None = None,
+) -> dict[str, list[list[int]]]:
     expected: dict[str, list[list[int]]] = {}
+    skip = skip_kinds or set()
     commands = command_plan_payload.get("commands")
     if not isinstance(commands, list):
         return expected
@@ -775,6 +871,9 @@ def _expected_exit_codes_by_command(command_plan_payload: dict[str, Any]) -> dic
         if not isinstance(item, dict):
             continue
         command = str(item.get("command") or "")
+        kind = str(item.get("kind") or "") or _command_kind(command)
+        if kind in skip:
+            continue
         codes = item.get("expected_exit_codes")
         if not command or not isinstance(codes, list):
             continue
@@ -938,7 +1037,7 @@ def _validate_command_plan_consistency(
     for block in blocks:
         blocks_by_command.setdefault(str(block.get("command") or ""), []).append(block)
 
-    expected_by_command = _expected_exit_codes_by_command(command_plan_payload)
+    expected_by_command = _expected_exit_codes_by_command(command_plan_payload, skip_kinds={"final-check"})
     exit_errors: list[dict[str, Any]] = []
     for command, expected_entries in expected_by_command.items():
         recorded_entries = blocks_by_command.get(command, [])
@@ -1101,7 +1200,10 @@ def _final_gate_is_retriable_status_source_failure(payload: dict[str, Any]) -> b
         for check in payload.get("checks", [])
         if isinstance(check, dict) and check.get("status") == "FAIL"
     }
-    retriable_checks = ARCHIVE_PENDING_CHECKS | {"report_summary_fields_match_synthesis"}
+    retriable_checks = ARCHIVE_PENDING_CHECKS | {
+        "report_summary_fields_match_synthesis",
+        "pytest_result_exit_codes_match_command_plan",
+    }
     return bool(failed_check_names) and failed_check_names <= retriable_checks
 
 
