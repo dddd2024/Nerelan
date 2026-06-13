@@ -511,6 +511,15 @@
       "sha256": "1d79d992dfad3bcf0a1071caea2fc8a7daa299301fb7cbe8d058a29b64c91ed9",
       "size_bytes": 22282,
       "source_run": "round_20260613_static_tool_blocker_validation_rework_v1"
+    },
+    "local_reverse_affine_8cfebe03_static_evidence_summary": {
+      "freshness": "current",
+      "kind": "static_evidence_summary",
+      "modified_at": "2026-06-13T12:00:00Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json",
+      "sha256": "dfe231e5dc7d6288345496dbde8f7c0c7ec64296bb676a011601514f2bd98a8f",
+      "size_bytes": 3017,
+      "source_run": "round_20260613_affine_static_evidence_classification_v1"
     }
   },
   "latest_case_results": [],

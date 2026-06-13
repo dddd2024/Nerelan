@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "static_evidence_summary",
+  "sample_id": "affine_8cfebe03",
+  "generated_at": "2026-06-13T12:00:00Z",
+  "decision_id": "decision_20260613_affine_static_evidence_classification_v1",
+  "round_id": "round_20260613_affine_static_evidence_classification_v1",
+  "source_artifact": "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+  "source_artifact_sha256": "1d79d992dfad3bcf0a1071caea2fc8a7daa299301fb7cbe8d058a29b64c91ed9",
+  "source_artifact_size_bytes": 22282,
+  "source_run": "round_20260613_static_tool_blocker_validation_rework_v1",
+  "source_tool": "IDA",
+  "tool_status": "success",
+  "classification": {
+    "file_type": "pe",
+    "category": "unknown",
+    "size_bytes": 196688,
+    "sha256": "8cfebe030f2d9fced106881e5aa6b2d81d162d31230dd3418b8fc3b15a5ef659",
+    "analysis_mode": "single_sample_static_triage",
+    "static_only": true,
+    "runtime_validated": false,
+    "solver_profile_hypotheses": [
+      "string_compare_password_checker",
+      "standard_input_based"
+    ],
+    "solver_hints": [
+      {
+        "kind": "direct_strcmp",
+        "reason": "compare API context recovered"
+      },
+      {
+        "kind": "gui_input",
+        "reason": "input-oriented strings recovered"
+      }
+    ]
+  },
+  "evidence_summary": {
+    "interesting_strings_count": 50,
+    "key_strings": [
+      "please input a string:",
+      "flag == 0 || flag == 1",
+      "a_cmp.c",
+      "input.c",
+      "%.2X ",
+      "700WP\\u0007",
+      " (8PX\\u0007\\b"
+    ],
+    "functions_count": 30,
+    "compare_contexts_count": 1,
+    "compare_contexts": [
+      {
+        "call_ea": "0x40620E",
+        "caller_func": "sub_406150",
+        "callee": "_strncmp",
+        "ref_strings": "__GLOBAL_HEAP_SELECTED"
+      }
+    ],
+    "top_validation_candidates": [
+      {
+        "function": "sub_407A90",
+        "score": 107,
+        "reason": "local_check_context | interesting_string_xref"
+      },
+      {
+        "function": "__CrtDbgReport",
+        "score": 81,
+        "reason": "local_check_context | interesting_string_xref"
+      }
+    ],
+    "decompiler_snippets_available": true,
+    "decompiler_snippets_count": 6
+  },
+  "blocker_history": {
+    "previous_blocker": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+    "previous_root_cause": "IDA GetDiskFreeSpaceEx failed to resolve NTFS 8.3 short path name",
+    "blocker_resolution_decision": "decision_20260613_static_tool_blocker_validation_rework_v1",
+    "blocker_status": "RESOLVED",
+    "diagnostic_artifact": "project_state/static_tool_blocker_diagnostic_affine_8cfebe03.json"
+  },
+  "next_action": "constraint_recovery_or_targeted_decompilation",
+  "next_action_detail": "Compare context found (_strncmp at 0x40620E). Consider constraint recovery or targeted decompilation of sub_407A90 and surrounding functions to extract affine cipher parameters. Runtime validation required before candidate generation.",
+  "candidate": null,
+  "known_candidate": "",
+  "no_candidate": true
+}

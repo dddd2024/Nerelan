@@ -1,29 +1,35 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260613_gate_status_policy_for_static_tool_success_v1",
-  "report_id": "codex_report_20260613_gate_status_policy_for_static_tool_success_v1",
-  "round_id": "round_20260613_gate_status_policy_for_static_tool_success_v1",
-  "generated_at": "2026-06-13T11:15:00.000000Z",
+  "decision_id": "decision_20260613_affine_static_evidence_classification_v1",
+  "report_id": "codex_report_20260613_affine_static_evidence_classification_v1",
+  "round_id": "round_20260613_affine_static_evidence_classification_v1",
+  "generated_at": "2026-06-13T12:10:00.000000Z",
   "status": "PASSED",
   "tests_ran": [
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+    "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q --ignore=.git_old2 --ignore=.git_corrupt_v2 --ignore=.git_corrupt --ignore=.git_bak --ignore=.git",
+    "python -c evidence_summary_schema_validation",
+    "python verify_round.py (training_status, artifact_index, file existence)"
   ]
 }
 ```
 
-===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q =====
+===== COMMAND: python -m pytest tests/test_project_state.py tests/test_project_gate.py -q --ignore=.git_old2 --ignore=.git_corrupt_v2 --ignore=.git_corrupt --ignore=.git_bak --ignore=.git =====
 
-302 passed in 139.73s (0:02:19)
+302 passed in 246.33s (0:04:06)
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
+===== COMMAND: python -c evidence_summary_schema_validation =====
 
-report-summary: WARN
-decision_id: decision_20260613_gate_status_policy_for_static_tool_success_v1
-report_id: codex_report_20260613_gate_status_policy_for_static_tool_success_v1
-round_id: round_20260613_gate_status_policy_for_static_tool_success_v1
-  [WARN] final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet
-artifact: project_state/gates/report_summary_synthesis.json
+evidence_summary_schema: PASS
+===== EXIT: 0 =====
+
+===== COMMAND: python verify_round.py (training_status, artifact_index, file existence) =====
+
+path=逆向课程2022春补考03/affine.exe blocked_reason='' classification='string_compare_password_checker; standard_input_based'
+path=逆向课程2024春补考03/affine.exe blocked_reason='' classification='string_compare_password_checker; standard_input_based'
+training_status_no_blocker: PASS
+artifact_index_evidence_summary: PASS
+evidence_summary_file_exists: PASS
+ALL CHECKS PASSED
 ===== EXIT: 0 =====

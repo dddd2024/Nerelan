@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-13T06:55:22Z",
+  "generated_at": "2026-06-13T12:00:00Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 65,
   "status_summary": {
@@ -101,15 +101,17 @@
       ],
       "training_status": "needs_triage",
       "known_candidate": "",
-      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
-      "classification": "single_sample_static_triage",
+      "blocked_reason": "",
+      "classification": "string_compare_password_checker; standard_input_based",
       "evidence_sources": [
         "source:local_reverse_affine_8cfebe03_static_triage.json",
-        "static_tool_blocked",
-        "tool_status:blocked",
-        "source_tool:IDA"
+        "source:local_reverse_affine_8cfebe03_static_evidence_summary.json",
+        "source_tool:IDA",
+        "tool_status:success",
+        "hypothesis:string_compare_password_checker",
+        "hypothesis:standard_input_based"
       ],
-      "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+      "next_action": "constraint recovery or targeted decompilation of compare context (_strncmp at 0x40620E); runtime validation required"
     },
     {
       "sample_id": "affine_8cfebe03",
@@ -126,15 +128,17 @@
       ],
       "training_status": "needs_triage",
       "known_candidate": "",
-      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
-      "classification": "single_sample_static_triage",
+      "blocked_reason": "",
+      "classification": "string_compare_password_checker; standard_input_based",
       "evidence_sources": [
         "source:local_reverse_affine_8cfebe03_static_triage.json",
-        "static_tool_blocked",
-        "tool_status:blocked",
-        "source_tool:IDA"
+        "source:local_reverse_affine_8cfebe03_static_evidence_summary.json",
+        "source_tool:IDA",
+        "tool_status:success",
+        "hypothesis:string_compare_password_checker",
+        "hypothesis:standard_input_based"
       ],
-      "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+      "next_action": "constraint recovery or targeted decompilation of compare context (_strncmp at 0x40620E); runtime validation required"
     },
     {
       "sample_id": "affineenc_333f8ca9",
