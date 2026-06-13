@@ -2,71 +2,75 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
-  "report_id": "report_20260610_audit_latest_failed_harness_case_state_gap_v1",
-  "round_id": "round_20260610_audit_latest_failed_harness_case_state_gap_v1",
-  "generated_at": "2026-06-13T05:25:16.824901Z",
+  "decision_id": "decision_20260613_samplereverse_path_resolution_static_evidence_v2",
+  "report_id": "report_20260613_samplereverse_path_resolution_static_evidence_v2",
+  "round_id": "round_20260613_samplereverse_path_resolution_static_evidence_v2",
+  "generated_at": "2026-06-13T05:50:49.263428Z",
   "checks": [
     {
       "name": "decision_report_match",
-      "status": "FAIL",
-      "detail": "decision/report id or round_id mismatch"
+      "status": "PASS",
+      "detail": "decision/report ids and round_id match"
     },
     {
       "name": "pytest_result_match",
-      "status": "FAIL",
-      "detail": "pytest_result does not match report",
-      "errors": [
-        "pytest_result_summary invalid: invalid status: BLOCKED"
-      ]
+      "status": "PASS",
+      "detail": "pytest_result matches report",
+      "errors": []
     },
     {
       "name": "pytest_result_covers_report_tests",
-      "status": "PASS",
-      "detail": "pytest_result covers report tests",
-      "missing_report_tests": []
+      "status": "WARN",
+      "detail": "pytest_result coverage is incomplete or unknown",
+      "missing_report_tests": [
+        "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q"
+      ]
     },
     {
       "name": "round_manifest_present",
-      "status": "PASS",
-      "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260610_audit_latest_failed_harness_case_state_gap_v1\\round_manifest.json"
+      "status": "WARN",
+      "detail": "round manifest is missing",
+      "round_manifest_path": "project_state\\rounds\\round_20260613_samplereverse_path_resolution_static_evidence_v2\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "FAIL",
+      "status": "WARN",
       "detail": "archived report differs from live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "FAIL",
+      "status": "WARN",
       "detail": "archived pytest_result differs from live pytest_result"
     },
     {
       "name": "round_delta_summary_present",
-      "status": "WARN",
-      "detail": "round baseline is missing; falling back to legacy git diff coverage",
+      "status": "PASS",
+      "detail": "round delta summary is baseline-aware",
       "path": "project_state/gates/round_delta_summary.json",
-      "baseline_available": false,
-      "inherited_dirty_files": [],
-      "new_dirty_files_since_baseline": [
+      "baseline_available": true,
+      "inherited_dirty_files": [
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/current_state.json",
         "project_state/decision_packet.md",
+        "project_state/local_reverse_inventory.json",
+        "project_state/model_gate.json",
+        "project_state/negative_results.json",
+        "project_state/pytest_result.txt",
+        "project_state/samplereverse_sample_path_resolution.json",
+        "project_state/samplereverse_static_evidence_rebuild_summary.json",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_state.py"
+      ],
+      "new_dirty_files_since_baseline": [
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/model_gate.json",
-        "project_state/negative_results.json",
-        "project_state/pytest_result.txt",
-        "project_state/task_packet.json",
-        "reverse_agent/harness.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "project_state/gates/round_delta_summary.json"
       ],
       "final_dirty_files": [
         "project_state/artifact_index.json",
@@ -79,9 +83,12 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_inventory.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
+        "project_state/samplereverse_sample_path_resolution.json",
+        "project_state/samplereverse_static_evidence_rebuild_summary.json",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
         "reverse_agent/project_state.py",
@@ -90,29 +97,26 @@
     },
     {
       "name": "files_changed_excludes_inherited_dirty_files",
-      "status": "WARN",
-      "detail": "no baseline summary is available for inherited dirty file classification",
-      "inherited_dirty_files": []
+      "status": "FAIL",
+      "detail": "files_changed includes inherited baseline dirty files",
+      "inherited_files_in_files_changed": [
+        "project_state/local_reverse_inventory.json",
+        "project_state/samplereverse_sample_path_resolution.json",
+        "project_state/samplereverse_static_evidence_rebuild_summary.json"
+      ]
     },
     {
       "name": "files_changed_covers_git_diff",
       "status": "FAIL",
       "detail": "files_changed omits round delta files",
       "missing_files": [
-        "project_state/artifact_index.json",
-        "project_state/current_state.json",
-        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/model_gate.json",
-        "project_state/negative_results.json",
-        "project_state/rounds/round_20260610_audit_latest_failed_harness_case_state_gap_v1/round_manifest.json",
-        "project_state/task_packet.json",
-        "reverse_agent/harness.py"
+        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/round_manifest.json"
       ],
       "git_changed_files": [
         "project_state/artifact_index.json",
@@ -125,48 +129,69 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_inventory.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
+        "project_state/samplereverse_sample_path_resolution.json",
+        "project_state/samplereverse_static_evidence_rebuild_summary.json",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ],
       "required_round_delta_files": [
-        "project_state/artifact_index.json",
-        "project_state/codex_execution_report.md",
-        "project_state/current_state.json",
-        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/round_manifest.json"
+      ],
+      "inherited_dirty_files": [
+        "project_state/artifact_index.json",
+        "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
+        "project_state/decision_packet.md",
+        "project_state/local_reverse_inventory.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260610_audit_latest_failed_harness_case_state_gap_v1/round_manifest.json",
+        "project_state/samplereverse_sample_path_resolution.json",
+        "project_state/samplereverse_static_evidence_rebuild_summary.json",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
-      ],
-      "inherited_dirty_files": []
+      ]
     },
     {
       "name": "generated_artifacts_cover_round_delta",
       "status": "FAIL",
       "detail": "generated_artifacts omits round baseline/delta artifacts",
       "missing_artifacts": [
+        "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json"
       ]
     },
     {
       "name": "baseline_lifecycle_guard",
-      "status": "WARN",
-      "detail": "round baseline is unavailable; legacy lifecycle guard is advisory only",
+      "status": "FAIL",
+      "detail": "baseline contains source/test dirty files not allowed as inherited baseline",
+      "unauthorized_inherited_source_test_files": [
+        "project_state/artifact_index.json",
+        "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
+        "project_state/local_reverse_inventory.json",
+        "project_state/model_gate.json",
+        "project_state/pytest_result.txt",
+        "project_state/samplereverse_sample_path_resolution.json",
+        "project_state/samplereverse_static_evidence_rebuild_summary.json",
+        "reverse_agent/project_state.py",
+        "tests/test_project_state.py"
+      ],
+      "allowed_inherited_dirty_files": [],
       "source_test_scope": [
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
@@ -177,14 +202,36 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/local_reverse_inventory.json",
         "project_state/model_gate.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_samplereverse_bounded_static_evidence_rebuild_v1/*",
+        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/*",
+        "project_state/samplereverse_sample_path_resolution.json",
         "project_state/samplereverse_static_evidence_rebuild_summary.json",
         "reverse_agent/project_state.py",
-        "solve_reports/",
         "tests/test_project_state.py",
-        "\u4e0e artifact_index \u767b\u8bb0/\u9759\u6001\u8bc1\u636e\u6458\u8981\u76f4\u63a5\u76f8\u5173\u7684\u6700\u5c0f\u6d4b\u8bd5"
+        "\u4e0e sample path resolution / static evidence summary \u76f4\u63a5\u76f8\u5173\u7684\u6700\u5c0f\u6d4b\u8bd5"
+      ]
+    },
+    {
+      "name": "baseline_inherited_allowlist_explained",
+      "status": "PASS",
+      "detail": "no source/test inherited baseline explanation is required",
+      "inherited_dirty_files": [
+        "project_state/artifact_index.json",
+        "project_state/codex_execution_report.md",
+        "project_state/current_state.json",
+        "project_state/decision_packet.md",
+        "project_state/local_reverse_inventory.json",
+        "project_state/model_gate.json",
+        "project_state/negative_results.json",
+        "project_state/pytest_result.txt",
+        "project_state/samplereverse_sample_path_resolution.json",
+        "project_state/samplereverse_static_evidence_rebuild_summary.json",
+        "project_state/task_packet.json",
+        "reverse_agent/harness.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_state.py"
       ]
     },
     {
@@ -192,14 +239,167 @@
       "status": "FAIL",
       "detail": "generated_artifacts omits round archive files",
       "missing_artifacts": [
-        "project_state/rounds/round_20260610_audit_latest_failed_harness_case_state_gap_v1/round_manifest.json"
+        "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/round_manifest.json"
       ]
     },
     {
       "name": "command_plan_present",
       "status": "PASS",
-      "detail": "command-plan consistency is not required for this report",
-      "required": false
+      "detail": "command_plan.json is present",
+      "path": "project_state/gates/command_plan.json",
+      "required": true
+    },
+    {
+      "name": "command_plan_ids_match",
+      "status": "PASS",
+      "detail": "command_plan ids and status match current decision/report",
+      "plan_status": "PASSED",
+      "command_plan_decision_id": "decision_20260613_samplereverse_path_resolution_static_evidence_v2",
+      "command_plan_round_id": "round_20260613_samplereverse_path_resolution_static_evidence_v2"
+    },
+    {
+      "name": "command_plan_covers_report_tests",
+      "status": "FAIL",
+      "detail": "command_plan commands do not cover report or pytest_result tests",
+      "missing_report_tests": [
+        "python -c scan_samples E:/reverse -> project_state/local_reverse_inventory.json"
+      ],
+      "missing_pytest_result_tests": [
+        "python -c scan_samples E:/reverse -> project_state/local_reverse_inventory.json",
+        "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q --rootdir=F:/reverse-agent/tests"
+      ]
+    },
+    {
+      "name": "pytest_result_exit_codes_match_command_plan",
+      "status": "FAIL",
+      "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+      "errors": [
+        {
+          "command": "pwd",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "powershell -NoProfile -Command \"Test-Path F:\\reverse-agent\"",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "powershell -NoProfile -Command \"Test-Path E:\\reverse\"",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "git rev-parse --show-toplevel",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "git status --short",
+          "error": "missing recorded command block",
+          "expected_count": 2,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -c \"from pathlib import Path; from reverse_agent.local_reverse_inventory import scan_samples; scan_samples(Path(r'E:\\reverse'), Path('project_state/local_reverse_inventory.json'), None, None)\"",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_state build",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_state doctor --state-dir project_state --json",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "git diff --name-only",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        }
+      ]
+    },
+    {
+      "name": "command_plan_json_stdout_full",
+      "status": "FAIL",
+      "detail": "command-plan --json recorded stdout is missing a full commands array",
+      "errors": [
+        {
+          "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+          "error": "missing recorded stdout"
+        }
+      ]
+    },
+    {
+      "name": "command_plan_generated_artifact_recorded",
+      "status": "FAIL",
+      "detail": "report generated_artifacts omits command_plan.json",
+      "path": "project_state/gates/command_plan.json"
     },
     {
       "name": "report_summary_synthesis_required",
@@ -214,24 +414,14 @@
       "detail": "codex_report_summary differs from synthesized summary",
       "errors": [
         "baseline contains source/test dirty files not allowed as inherited baseline",
-        "pytest_result_summary.tests_ran omits command_plan commands: ['git diff --name-only', 'git rev-parse --show-toplevel', 'git status --short', 'powershell -NoProfile -Command \"Test-Path F:\\\\reverse-agent\"', 'pwd', 'python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q', 'python -m reverse_agent.project_gate command-plan --state-dir project_state', 'python -m reverse_agent.project_gate command-plan --state-dir project_state --json', 'python -m reverse_agent.project_gate final-check --state-dir project_state', 'python -m reverse_agent.project_gate final-check --state-dir project_state --json', 'python -m reverse_agent.project_gate preflight --state-dir project_state', 'python -m reverse_agent.project_gate report-summary --state-dir project_state', 'python -m reverse_agent.project_state build', 'python -m reverse_agent.project_state doctor --state-dir project_state', 'python -m reverse_agent.project_state doctor --state-dir project_state --json', 'python -m reverse_agent.project_state lint-report --state-dir project_state']",
-        "files_changed includes inherited dirty files: ['project_state/codex_execution_report.md', 'project_state/pytest_result.txt', 'reverse_agent/project_state.py', 'tests/test_project_state.py']"
+        "pytest_result_summary.tests_ran omits command_plan commands: ['git diff --name-only', 'git rev-parse --show-toplevel', 'git status --short', 'powershell -NoProfile -Command \"Test-Path E:\\\\reverse\"', 'powershell -NoProfile -Command \"Test-Path F:\\\\reverse-agent\"', 'pwd', 'python -c \"from pathlib import Path; from reverse_agent.local_reverse_inventory import scan_samples; scan_samples(Path(r\\'E:\\\\reverse\\'), Path(\\'project_state/local_reverse_inventory.json\\'), None, None)\"', 'python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q']",
+        "files_changed includes inherited dirty files: ['project_state/codex_execution_report.md', 'project_state/local_reverse_inventory.json', 'project_state/pytest_result.txt', 'project_state/samplereverse_sample_path_resolution.json', 'project_state/samplereverse_static_evidence_rebuild_summary.json']"
       ],
       "diffs": [
         {
           "field": "report_id",
-          "expected": "codex_report_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
-          "actual": "report_20260610_audit_latest_failed_harness_case_state_gap_v1"
-        },
-        {
-          "field": "round_id",
-          "expected": "round_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
-          "actual": "round_20260610_audit_latest_failed_harness_case_state_gap_v1"
-        },
-        {
-          "field": "based_on_decision_id",
-          "expected": "decision_20260613_samplereverse_bounded_static_evidence_rebuild_v1",
-          "actual": "decision_20260610_audit_latest_failed_harness_case_state_gap_v1"
+          "expected": "codex_report_20260613_samplereverse_path_resolution_static_evidence_v2",
+          "actual": "report_20260613_samplereverse_path_resolution_static_evidence_v2"
         },
         {
           "field": "files_changed",
@@ -245,17 +435,24 @@
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
+            "project_state/local_reverse_inventory.json",
             "project_state/model_gate.json",
             "project_state/pytest_result.txt",
-            "project_state/rounds/round_20260613_samplereverse_bounded_static_evidence_rebuild_v1/round_manifest.json",
+            "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/codex_execution_report.md",
+            "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/decision_packet.md",
+            "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/pytest_result.txt",
+            "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/round_manifest.json",
+            "project_state/samplereverse_sample_path_resolution.json",
+            "project_state/samplereverse_static_evidence_rebuild_summary.json",
             "reverse_agent/project_state.py",
             "tests/test_project_state.py"
           ],
           "actual": [
             "project_state/codex_execution_report.md",
+            "project_state/local_reverse_inventory.json",
             "project_state/pytest_result.txt",
-            "reverse_agent/project_state.py",
-            "tests/test_project_state.py"
+            "project_state/samplereverse_sample_path_resolution.json",
+            "project_state/samplereverse_static_evidence_rebuild_summary.json"
           ]
         },
         {
@@ -265,8 +462,10 @@
             "git rev-parse --show-toplevel",
             "git status --short",
             "git status --short",
+            "powershell -NoProfile -Command \"Test-Path E:\\reverse\"",
             "powershell -NoProfile -Command \"Test-Path F:\\reverse-agent\"",
             "pwd",
+            "python -c \"from pathlib import Path; from reverse_agent.local_reverse_inventory import scan_samples; scan_samples(Path(r'E:\\reverse'), Path('project_state/local_reverse_inventory.json'), None, None)\"",
             "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
@@ -280,9 +479,18 @@
             "python -m reverse_agent.project_state lint-report --state-dir project_state"
           ],
           "actual": [
-            "python -m pytest tests/test_project_state.py tests/test_harness_artifact_manifest.py -q --rootdir=F:\\reverse-agent\\tests",
-            "python -m reverse_agent.project_state lint-decision",
-            "python -m reverse_agent.project_state status"
+            "python -c scan_samples E:\\reverse -> project_state/local_reverse_inventory.json",
+            "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state --json",
+            "python -m reverse_agent.project_gate preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+            "python -m reverse_agent.project_state build",
+            "python -m reverse_agent.project_state doctor --state-dir project_state",
+            "python -m reverse_agent.project_state doctor --state-dir project_state --json",
+            "python -m reverse_agent.project_state lint-report --state-dir project_state"
           ]
         },
         {
@@ -296,9 +504,18 @@
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
             "project_state/pytest_result.txt",
-            "project_state/rounds/round_20260613_samplereverse_bounded_static_evidence_rebuild_v1/round_manifest.json"
+            "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/codex_execution_report.md",
+            "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/decision_packet.md",
+            "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/pytest_result.txt",
+            "project_state/rounds/round_20260613_samplereverse_path_resolution_static_evidence_v2/round_manifest.json"
           ],
-          "actual": []
+          "actual": [
+            "project_state/codex_execution_report.md",
+            "project_state/local_reverse_inventory.json",
+            "project_state/pytest_result.txt",
+            "project_state/samplereverse_sample_path_resolution.json",
+            "project_state/samplereverse_static_evidence_rebuild_summary.json"
+          ]
         }
       ]
     },
@@ -318,48 +535,47 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "FAIL",
-      "detail": "status policy found blocking issues",
-      "lint_errors": [
-        "based_on_decision_id does not match current decision_id",
-        "report round_id does not match current decision round_id",
-        "pytest_result_summary invalid: invalid status: BLOCKED",
-        "doctor status is FAIL"
-      ],
+      "status": "WARN",
+      "detail": "PARTIAL report is internally consistent",
+      "lint_errors": [],
       "warnings": [
-        "acceptance_recommendation is UNKNOWN",
-        "report_status is BLOCKED",
-        "round_manifest is non-minimal: missing required files: codex_execution_report.md, pytest_result.txt"
+        "pytest_result tests_ran does not cover codex_report_summary.tests_ran",
+        "report_status is PARTIAL",
+        "report round not archived yet",
+        "doctor status is WARN"
       ],
-      "doctor_status": "FAIL",
-      "report_status": "BLOCKED",
+      "doctor_status": "WARN",
+      "report_status": "PARTIAL",
       "limitations": null
     }
   ],
   "blocking_reasons": [
-    "decision_report_match: decision/report id or round_id mismatch",
-    "pytest_result_match: pytest_result does not match report",
-    "archived_report_matches_live_report: archived report differs from live report",
-    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "files_changed_excludes_inherited_dirty_files: files_changed includes inherited baseline dirty files",
     "files_changed_covers_git_diff: files_changed omits round delta files",
     "generated_artifacts_cover_round_delta: generated_artifacts omits round baseline/delta artifacts",
+    "baseline_lifecycle_guard: baseline contains source/test dirty files not allowed as inherited baseline",
     "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
-    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary",
-    "status_policy_valid: status policy found blocking issues"
+    "command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests",
+    "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+    "command_plan_json_stdout_full: command-plan --json recorded stdout is missing a full commands array",
+    "command_plan_generated_artifact_recorded: report generated_artifacts omits command_plan.json",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
   ],
   "warnings": [
-    "round_delta_summary_present: round baseline is missing; falling back to legacy git diff coverage",
-    "files_changed_excludes_inherited_dirty_files: no baseline summary is available for inherited dirty file classification",
-    "baseline_lifecycle_guard: round baseline is unavailable; legacy lifecycle guard is advisory only",
-    "report_summary_status_source_available: report summary synthesis has source warnings"
+    "pytest_result_covers_report_tests: pytest_result coverage is incomplete or unknown",
+    "round_manifest_present: round manifest is missing",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "report_summary_status_source_available: report summary synthesis has source warnings",
+    "status_policy_valid: PARTIAL report is internally consistent"
   ],
   "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
-    "decision_execution_state": "STALE_WITHOUT_MATCHING_REPORT",
-    "decision_report_id_match": false,
-    "decision_consumed_by_report": false,
-    "archive_status": "non_minimal",
-    "report_status": "BLOCKED",
-    "report_acceptance_recommendation": "UNKNOWN"
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
+    "decision_report_id_match": true,
+    "decision_consumed_by_report": true,
+    "archive_status": "not_archived",
+    "report_status": "PARTIAL",
+    "report_acceptance_recommendation": "BLOCKED"
   }
 }

@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-13T05:41:35Z",
+  "tool_name": "static_feature_extractor.py (pure-Python)",
+  "tool_version": "existing",
+  "attempted": true,
+  "success": true,
+  "error": null,
+  "sample_relative_path": "samplereverse.exe",
+  "sample_absolute_path": "E:\\reverse\\samplereverse.exe",
+  "sample_sha256": "ca74a7867fe97e54e003970d627891cdb6df41c5ad953632fe49e9bce9c619c1",
+  "sample_size_bytes": 1762304,
+  "ida_attempted": false,
+  "ida_reason": "pure-Python fallback used; IDA headless not attempted in this round to avoid long runtime",
+  "static_features": {
+    "format": "pe",
+    "file_size": 1762304,
+    "ascii_strings_sample": [
+      "!This program cannot be run in DOS mode.",
+      "6'!K4&!",
+      "6&!Rich",
+      ".text",
+      "`.rdata",
+      "@.data",
+      ".rsrc",
+      "@.reloc",
+      "VUUU",
+      "QSVW3",
+      "hFHR",
+      "p^[]",
+      "SVWP",
+      "Y_^[",
+      "PjRhp",
+      " jRhp",
+      "hFHR",
+      "PQSVW",
+      "=(xR",
+      "N Pj"
+    ],
+    "utf16_strings_sample": [
+      "Rjjh",
+      "jjjjj",
+      "pPreviewPages",
+      "Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer",
+      "NoRun",
+      "NoDrives",
+      "RestrictRun",
+      "NoNetConnectDisconnect",
+      "NoRecentDocsHistory",
+      "NoClose"
+    ],
+    "keyword_hits": [
+      {
+        "keyword": "des",
+        "source": "accDescription",
+        "context": "accDescription"
+      },
+      {
+        "keyword": "key",
+        "source": "accKeyboardShortcut",
+        "context": "accKeyboardShortcut"
+      },
+      {
+        "keyword": "write",
+        "source": "yDWrite.dll",
+        "context": "yDWrite.dll"
+      }
+    ],
+    "crypto_hints": [
+      {
+        "keyword": "des",
+        "source": "accDescription",
+        "context": "accDescription"
+      }
+    ],
+    "compare_hints": [
+      {
+        "keyword": "key",
+        "source": "accKeyboardShortcut",
+        "context": "accKeyboardShortcut"
+      }
+    ],
+    "interesting_constants": [
+      {
+        "hex": "0123456789",
+        "offset": 1362487,
+        "length": 10,
+        "kind": "unknown"
+      },
+      {
+        "hex": "0123456789",
+        "offset": 1372688,
+        "length": 10,
+        "kind": "unknown"
+      },
+      {
+        "hex": "0123456789",
+        "offset": 1373072,
+        "length": 10,
+        "kind": "unknown"
+      },
+      {
+        "hex": "6595b64144ccf1df",
+        "offset": 1592674,
+        "length": 16,
+        "kind": "unknown"
+      },
+      {
+        "hex": "20d03142",
+        "offset": 1626936,
+        "length": 8,
+        "kind": "unknown"
+      },
+      {
+        "hex": "50585D5d5",
+        "offset": 1693513,
+        "length": 9,
+        "kind": "unknown"
+      },
+      {
+        "hex": "90989D9d9",
+        "offset": 1696919,
+        "length": 9,
+        "kind": "unknown"
+      },
+      {
+        "hex": "40484D4d4",
+        "offset": 1698855,
+        "length": 9,
+        "kind": "unknown"
+      },
+      {
+        "hex": "90989D9d9",
+        "offset": 1699547,
+        "length": 9,
+        "kind": "unknown"
+      }
+    ],
+    "entropy_hint": "medium"
+  },
+  "structured_evidence_produced": false,
+  "structured_evidence_reason": "static_feature_extractor produces StaticFeatures dict, not StructuredEvidence objects. StructuredEvidence conversion would require tool_runners.py IDA pipeline.",
+  "artifact_path": "project_state/samplereverse_static_evidence_rebuild_summary.json",
+  "artifact_sha256": "cf96dd15a2597ac6a4f8db5947b28a863e9bf82332350699f307adb9f6f0cb83",
+  "artifact_size_bytes": 1683
+}

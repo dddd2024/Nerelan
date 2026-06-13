@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-06-13T05:41:08Z",
+  "root": "E:\\reverse",
+  "selected_relative_path": "samplereverse.exe",
+  "selected_absolute_path": "E:\\reverse\\samplereverse.exe",
+  "sha256": "ca74a7867fe97e54e003970d627891cdb6df41c5ad953632fe49e9bce9c619c1",
+  "size_bytes": 1762304,
+  "guessed_file_type": "pe",
+  "evidence_score": {
+    "filename_contains_samplereverse": true,
+    "is_pe_format": true,
+    "looks_like_samplereverse": true,
+    "has_enc_const_prefix_in_raw_bytes": false,
+    "has_key_prompt_in_ascii_strings": false,
+    "has_wrong_key_in_ascii_strings": false
+  },
+  "matched_signals": [
+    "filename_contains_samplereverse",
+    "is_pe_format",
+    "looks_like_samplereverse"
+  ],
+  "candidate_count": 1,
+  "rejected_candidate_count": 0,
+  "total_scanned": 65,
+  "selection_method": "unique_filename_match_in_inventory_scan",
+  "notes": "File is 1.7MB PE executable. Chinese string signals and SAMPLEREVERSE_ENC_CONST not found in ASCII string extraction (may be encoded or require deeper analysis). Filename match is sufficient per _looks_like_samplereverse() first-priority rule."
+}
