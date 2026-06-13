@@ -1,14 +1,146 @@
 {
   "schema_version": 1,
   "plan_name": "command-plan",
-  "plan_status": "FAILED",
-  "decision_id": "decision_20260613_run_one_local_reverse_static_triage_v1",
-  "round_id": "round_20260613_run_one_local_reverse_static_triage_v1",
+  "plan_status": "WARN",
+  "decision_id": "decision_20260613_rework_static_triage_state_closure_v1",
+  "round_id": "round_20260613_rework_static_triage_state_closure_v1",
   "mainline": "training_dataset",
-  "generated_at": "2026-06-13T06:21:36.384921Z",
+  "generated_at": "2026-06-13T06:55:53.858701Z",
   "commands": [
     {
       "index": 1,
+      "command": "pwd",
+      "phase": "status",
+      "kind": "pwd",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "pwd expected to exit 0"
+    },
+    {
+      "index": 2,
+      "command": "Test-Path F:\\reverse-agent",
+      "phase": "status",
+      "kind": "test-path",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "test-path expected to exit 0"
+    },
+    {
+      "index": 3,
+      "command": "git rev-parse --show-toplevel",
+      "phase": "status",
+      "kind": "git rev-parse",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "git rev-parse expected to exit 0"
+    },
+    {
+      "index": 4,
+      "command": "git status --short",
+      "phase": "status",
+      "kind": "git status",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "git status expected to exit 0"
+    },
+    {
+      "index": 5,
+      "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+      "phase": "preflight",
+      "kind": "preflight",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "preflight expected to exit 0"
+    },
+    {
+      "index": 6,
+      "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "phase": "gate",
+      "kind": "command-plan",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "command-plan expected to exit 0"
+    },
+    {
+      "index": 7,
+      "command": "python -m reverse_agent.local_reverse_training_status --github-status-out \"\"",
+      "phase": "unknown",
+      "kind": "unknown",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "unknown command kind; defaulting to zero exit"
+    },
+    {
+      "index": 8,
+      "command": "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_affine_8cfebe03_static_triage.json",
+      "phase": "unknown",
+      "kind": "unknown",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "unknown command kind; defaulting to zero exit"
+    },
+    {
+      "index": 9,
+      "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+      "phase": "status",
+      "kind": "doctor",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "doctor expected to exit 0"
+    },
+    {
+      "index": 10,
+      "command": "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 11,
+      "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
+      "phase": "status",
+      "kind": "lint-report",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "lint-report expected to exit 0"
+    },
+    {
+      "index": 12,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -18,11 +150,36 @@
       ],
       "records_stdout_stderr": true,
       "notes": "report-summary expected to exit 0"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+      "phase": "gate",
+      "kind": "final-check",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "final-check expected to exit 0"
+    },
+    {
+      "index": 14,
+      "command": "git diff --name-only",
+      "phase": "status",
+      "kind": "git diff",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "git diff expected to exit 0"
     }
   ],
-  "warnings": [],
-  "blocking_reasons": [
-    "Tests section has no fenced bash command block"
+  "warnings": [
+    "command 7 has unknown kind: python -m reverse_agent.local_reverse_training_status --github-status-out \"\"",
+    "command 8 has unknown kind: python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_affine_8cfebe03_static_triage.json"
   ],
-  "recommended_next_action": "fix_decision_tests_block_before_execution"
+  "blocking_reasons": [],
+  "recommended_next_action": "review_command_plan_warnings_before_execution"
 }

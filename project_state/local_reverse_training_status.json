@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-06-13T06:20:53Z",
+  "generated_at": "2026-06-13T06:55:22Z",
   "source_inventory": "project_state\\local_reverse_inventory.json",
   "sample_count": 65,
   "status_summary": {
     "solved": 1,
     "blocked": 2,
-    "needs_triage": 0,
-    "inventory_only": 62
+    "needs_triage": 2,
+    "inventory_only": 60
   },
   "samples": [
     {
@@ -99,12 +99,17 @@
         "reverse",
         "pe"
       ],
-      "training_status": "inventory_only",
+      "training_status": "needs_triage",
       "known_candidate": "",
-      "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
+      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+      "classification": "single_sample_static_triage",
+      "evidence_sources": [
+        "source:local_reverse_affine_8cfebe03_static_triage.json",
+        "static_tool_blocked",
+        "tool_status:blocked",
+        "source_tool:IDA"
+      ],
+      "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
     },
     {
       "sample_id": "affine_8cfebe03",
@@ -119,12 +124,17 @@
         "reverse",
         "pe"
       ],
-      "training_status": "inventory_only",
+      "training_status": "needs_triage",
       "known_candidate": "",
-      "blocked_reason": "",
-      "classification": "",
-      "evidence_sources": [],
-      "next_action": "static triage and manual evaluation required"
+      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+      "classification": "single_sample_static_triage",
+      "evidence_sources": [
+        "source:local_reverse_affine_8cfebe03_static_triage.json",
+        "static_tool_blocked",
+        "tool_status:blocked",
+        "source_tool:IDA"
+      ],
+      "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
     },
     {
       "sample_id": "affineenc_333f8ca9",

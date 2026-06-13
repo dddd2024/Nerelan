@@ -3,11 +3,10 @@
   "sample_id": "affine_8cfebe03",
   "relative_path": "逆向课程2022春补考03/affine.exe",
   "analysis_mode": "single_sample_static_triage",
-  "mainline": "tool_integration",
   "executed_sample": false,
   "static_only": true,
   "runtime_validated": false,
-  "generated_at": "2026-06-13T06:19:55Z",
+  "generated_at": "2026-06-13T06:55:33Z",
   "tool_status": "blocked",
   "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
   "blocked_detail": "",
@@ -31,5 +30,6 @@
   },
   "candidate": null,
   "known_candidate": "",
-  "recommended_next_action": "Resolve blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON"
+  "recommended_next_action": "Resolve blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+  "mainline": "training_dataset"
 }

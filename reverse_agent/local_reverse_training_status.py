@@ -876,8 +876,9 @@ def _propose_solver_family(tags: list[str]) -> str:
 
 def _queue_reason(sample: dict[str, Any], tags: list[str]) -> str:
     size = sample.get("size_bytes", 0)
+    file_type = sample.get("guessed_file_type", "unknown")
     tag_str = ", ".join(tags[:4]) if tags else "unknown"
-    return f"PE sample ({size} bytes), static triage tags: {tag_str}"
+    return f"{file_type} sample ({size} bytes), static triage tags: {tag_str}"
 
 
 def _load_json(path: Path, label: str) -> dict[str, Any]:

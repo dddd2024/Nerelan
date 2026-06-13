@@ -270,6 +270,7 @@ def run_static_triage(
     inventory_path: Path,
     artifact_index_path: Path | None,
     out_path: Path,
+    mainline: str = "",
 ) -> dict[str, Any]:
     """Main logic: locate sample, run IDA triage, produce artifact."""
     # Locate sample
@@ -286,6 +287,7 @@ def run_static_triage(
             category=sample_info["category"],
             tags=sample_info["tags"],
             blocked_reason="SAMPLE_NOT_FOUND_IN_QUEUE_OR_INVENTORY",
+            mainline=mainline,
         )
         _save_json(out_path, result)
         return result
@@ -303,6 +305,7 @@ def run_static_triage(
             tags=sample_info["tags"],
             blocked_reason="BINARY_NOT_FOUND",
             detail=f"Could not resolve path: {relative_path}",
+            mainline=mainline,
         )
         _save_json(out_path, result)
         return result
@@ -326,6 +329,7 @@ def run_static_triage(
             tags=sample_info["tags"],
             blocked_reason=blocked_reason,
             source_tool=ida_result.get("source_tool", "IDA"),
+            mainline=mainline,
         )
         _save_json(out_path, result)
         return result
@@ -342,7 +346,6 @@ def run_static_triage(
         "sample_id": sample_id,
         "relative_path": relative_path,
         "analysis_mode": "single_sample_static_triage",
-        "mainline": "tool_integration",
         "executed_sample": False,
         "static_only": True,
         "runtime_validated": False,
@@ -356,6 +359,7 @@ def run_static_triage(
         "category": sample_info["category"],
         "tags": sample_info["tags"],
         "queue_rank": sample_info["queue_rank"],
+        **({"mainline": mainline} if mainline else {}),
         "triage": {
             "input_apis": ida_result.get("input_apis", []),
             "interesting_strings": ida_result.get("interesting_strings", []),
@@ -392,13 +396,13 @@ def _blocked_artifact(
     blocked_reason: str,
     detail: str = "",
     source_tool: str = "",
+    mainline: str = "",
 ) -> dict[str, Any]:
-    return {
+    result: dict[str, Any] = {
         "schema_version": 1,
         "sample_id": sample_id,
         "relative_path": relative_path,
         "analysis_mode": "single_sample_static_triage",
-        "mainline": "tool_integration",
         "executed_sample": False,
         "static_only": True,
         "runtime_validated": False,
@@ -424,6 +428,9 @@ def _blocked_artifact(
         "known_candidate": "",
         "recommended_next_action": f"Resolve blocker: {blocked_reason}",
     }
+    if mainline:
+        result["mainline"] = mainline
+    return result
 
 
 def main() -> int:
@@ -434,6 +441,7 @@ def main() -> int:
     parser.add_argument("--queue", default="project_state/local_reverse_evaluation_queue.json")
     parser.add_argument("--inventory", default="project_state/local_reverse_inventory.json")
     parser.add_argument("--artifact-index", default="project_state/artifact_index.json")
+    parser.add_argument("--mainline", default="", help="Decision mainline to record in artifact (optional)")
     parser.add_argument("--out", default="project_state/local_reverse_cpp1_2f6fcb63_static_triage.json")
     args = parser.parse_args()
 
@@ -444,6 +452,7 @@ def main() -> int:
             inventory_path=Path(args.inventory),
             artifact_index_path=Path(args.artifact_index),
             out_path=Path(args.out),
+            mainline=args.mainline,
         )
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

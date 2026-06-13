@@ -502,6 +502,15 @@
       "sha256": null,
       "size_bytes": null,
       "source_run": ""
+    },
+    "local_reverse_affine_8cfebe03_static_triage": {
+      "freshness": "current",
+      "kind": "local_reverse_single_sample_static_triage",
+      "modified_at": "2026-06-13T06:19:55Z",
+      "path": "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+      "sha256": "2de0d8cee87bc0cc663ba6906dc5854677099eca0224fd4b6acf89aae46e8043",
+      "size_bytes": 1064,
+      "source_run": "round_20260613_rework_static_triage_state_closure_v1"
     }
   },
   "latest_case_results": [],

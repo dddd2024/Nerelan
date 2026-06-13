@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "FAILED",
-  "decision_id": "decision_20260613_run_one_local_reverse_static_triage_v1",
-  "report_id": "report_20260613_run_one_local_reverse_static_triage_v1",
-  "round_id": "round_20260613_run_one_local_reverse_static_triage_v1",
-  "generated_at": "2026-06-13T06:35:41.053678Z",
+  "decision_id": "decision_20260613_rework_static_triage_state_closure_v1",
+  "report_id": "report_20260613_rework_static_triage_state_closure_v1",
+  "round_id": "round_20260613_rework_static_triage_state_closure_v1",
+  "generated_at": "2026-06-13T07:04:54.296680Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -20,18 +20,15 @@
     },
     {
       "name": "pytest_result_covers_report_tests",
-      "status": "WARN",
-      "detail": "pytest_result coverage is incomplete or unknown",
-      "missing_report_tests": [
-        "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03",
-        "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q"
-      ]
+      "status": "PASS",
+      "detail": "pytest_result covers report tests",
+      "missing_report_tests": []
     },
     {
       "name": "round_manifest_present",
       "status": "WARN",
       "detail": "round manifest is missing",
-      "round_manifest_path": "project_state\\rounds\\round_20260613_run_one_local_reverse_static_triage_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260613_rework_static_triage_state_closure_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -56,13 +53,13 @@
         "project_state/decision_packet.md",
         "project_state/local_reverse_affine_8cfebe03_static_triage.json",
         "project_state/local_reverse_evaluation_queue.json",
-        "project_state/local_reverse_selected_static_triage_target.json",
         "project_state/local_reverse_training_status.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_training_status.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ],
@@ -87,13 +84,13 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/local_reverse_affine_8cfebe03_static_triage.json",
         "project_state/local_reverse_evaluation_queue.json",
-        "project_state/local_reverse_selected_static_triage_target.json",
         "project_state/local_reverse_training_status.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_training_status.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ]
@@ -103,10 +100,11 @@
       "status": "FAIL",
       "detail": "files_changed includes inherited baseline dirty files",
       "inherited_files_in_files_changed": [
+        "project_state/artifact_index.json",
         "project_state/local_reverse_affine_8cfebe03_static_triage.json",
         "project_state/local_reverse_evaluation_queue.json",
-        "project_state/local_reverse_selected_static_triage_target.json",
-        "project_state/local_reverse_training_status.json"
+        "project_state/local_reverse_training_status.json",
+        "reverse_agent/local_reverse_training_status.py"
       ]
     },
     {
@@ -116,9 +114,11 @@
       "missing_files": [
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
+        "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/round_manifest.json"
+        "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/round_manifest.json"
       ],
       "git_changed_files": [
         "project_state/artifact_index.json",
@@ -133,13 +133,13 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/local_reverse_affine_8cfebe03_static_triage.json",
         "project_state/local_reverse_evaluation_queue.json",
-        "project_state/local_reverse_selected_static_triage_target.json",
         "project_state/local_reverse_training_status.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_training_status.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ],
@@ -150,7 +150,7 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/round_manifest.json"
+        "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
         "project_state/artifact_index.json",
@@ -159,13 +159,13 @@
         "project_state/decision_packet.md",
         "project_state/local_reverse_affine_8cfebe03_static_triage.json",
         "project_state/local_reverse_evaluation_queue.json",
-        "project_state/local_reverse_selected_static_triage_target.json",
         "project_state/local_reverse_training_status.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_training_status.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ]
@@ -175,33 +175,19 @@
       "status": "FAIL",
       "detail": "generated_artifacts omits round baseline/delta artifacts",
       "missing_artifacts": [
+        "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json"
       ]
     },
     {
       "name": "baseline_lifecycle_guard",
-      "status": "FAIL",
-      "detail": "baseline contains source/test dirty files not allowed as inherited baseline",
-      "unauthorized_inherited_source_test_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/local_reverse_evaluation_queue.json",
-        "project_state/local_reverse_selected_static_triage_target.json",
-        "project_state/local_reverse_training_status.json",
-        "project_state/pytest_result.txt"
-      ],
+      "status": "PASS",
+      "detail": "baseline source/test dirty files are absent or explicitly allowed",
+      "source_test_baseline_dirty": [],
       "allowed_inherited_dirty_files": [],
-      "source_test_scope": [
+      "generated_or_archive_baseline_dirty_files": [
         "project_state/codex_execution_report.md",
-        "project_state/gates/*.json",
-        "project_state/local_reverse_<selected_sample_id>_static_triage.json",
-        "project_state/local_reverse_evaluation_queue.json",
-        "project_state/local_reverse_selected_static_triage_target.json",
-        "project_state/local_reverse_training_status.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/*",
-        "reverse_agent/local_reverse_single_sample_static_triage.py",
-        "reverse_agent/local_reverse_training_status.py",
-        "\u5bf9\u5e94\u6700\u5c0f\u6d4b\u8bd5"
+        "project_state/pytest_result.txt"
       ]
     },
     {
@@ -215,13 +201,13 @@
         "project_state/decision_packet.md",
         "project_state/local_reverse_affine_8cfebe03_static_triage.json",
         "project_state/local_reverse_evaluation_queue.json",
-        "project_state/local_reverse_selected_static_triage_target.json",
         "project_state/local_reverse_training_status.json",
         "project_state/model_gate.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
         "project_state/task_packet.json",
         "reverse_agent/harness.py",
+        "reverse_agent/local_reverse_training_status.py",
         "reverse_agent/project_state.py",
         "tests/test_project_state.py"
       ]
@@ -231,7 +217,7 @@
       "status": "FAIL",
       "detail": "generated_artifacts omits round archive files",
       "missing_artifacts": [
-        "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/round_manifest.json"
+        "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/round_manifest.json"
       ]
     },
     {
@@ -245,43 +231,21 @@
       "name": "command_plan_ids_match",
       "status": "FAIL",
       "detail": "command_plan ids, round_id, or status do not match",
-      "plan_status": "FAILED",
-      "command_plan_decision_id": "decision_20260613_run_one_local_reverse_static_triage_v1",
-      "command_plan_round_id": "round_20260613_run_one_local_reverse_static_triage_v1"
+      "plan_status": "WARN",
+      "command_plan_decision_id": "decision_20260613_rework_static_triage_state_closure_v1",
+      "command_plan_round_id": "round_20260613_rework_static_triage_state_closure_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
       "status": "FAIL",
       "detail": "command_plan commands do not cover report or pytest_result tests",
       "missing_report_tests": [
-        "Test-Path E:/reverse",
-        "Test-Path F:/reverse-agent",
-        "git rev-parse --show-toplevel",
-        "git status --short",
-        "pwd",
-        "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
-        "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03",
-        "python -m reverse_agent.local_reverse_training_status (via build_training_status with github_status_path=None)",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state",
-        "python -m reverse_agent.project_state doctor --state-dir project_state",
-        "python -m reverse_agent.project_state lint-report --state-dir project_state"
+        "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --mainline training_dataset",
+        "python -m reverse_agent.local_reverse_training_status (via build_training_status with github_status_path=None)"
       ],
       "missing_pytest_result_tests": [
-        "Test-Path E:/reverse",
-        "Test-Path F:/reverse-agent",
-        "git diff --name-only",
-        "git rev-parse --show-toplevel",
-        "git status --short",
-        "pwd",
-        "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q --ignore=.git_old2 --ignore=.git_corrupt_v2 --ignore=.git_corrupt --ignore=.git_bak --ignore=.git",
-        "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_affine_8cfebe03_static_triage.json",
-        "python -m reverse_agent.local_reverse_training_status (via build_training_status with github_status_path=None)",
-        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-        "python -m reverse_agent.project_gate final-check --state-dir project_state",
-        "python -m reverse_agent.project_gate preflight --state-dir project_state",
-        "python -m reverse_agent.project_state doctor --state-dir project_state",
-        "python -m reverse_agent.project_state lint-report --state-dir project_state"
+        "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --mainline training_dataset",
+        "python -m reverse_agent.local_reverse_training_status (via build_training_status with github_status_path=None)"
       ]
     },
     {
@@ -290,7 +254,85 @@
       "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
       "errors": [
         {
+          "command": "pwd",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "Test-Path F:\\reverse-agent",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "git rev-parse --show-toplevel",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "git status --short",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.local_reverse_training_status --github-status-out \"\"",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_affine_8cfebe03_static_triage.json",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
           "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
+          "error": "missing recorded command block",
+          "expected_count": 1,
+          "recorded_count": 0
+        },
+        {
+          "command": "git diff --name-only",
           "error": "missing recorded command block",
           "expected_count": 1,
           "recorded_count": 0
@@ -321,58 +363,65 @@
       "status": "FAIL",
       "detail": "codex_report_summary differs from synthesized summary",
       "errors": [
-        "baseline contains source/test dirty files not allowed as inherited baseline",
-        "files_changed includes inherited dirty files: ['project_state/codex_execution_report.md', 'project_state/local_reverse_affine_8cfebe03_static_triage.json', 'project_state/local_reverse_evaluation_queue.json', 'project_state/local_reverse_selected_static_triage_target.json', 'project_state/local_reverse_training_status.json', 'project_state/pytest_result.txt']"
+        "files_changed includes inherited dirty files: ['project_state/artifact_index.json', 'project_state/codex_execution_report.md', 'project_state/local_reverse_affine_8cfebe03_static_triage.json', 'project_state/local_reverse_evaluation_queue.json', 'project_state/local_reverse_training_status.json', 'project_state/pytest_result.txt', 'reverse_agent/local_reverse_training_status.py']"
       ],
       "diffs": [
         {
           "field": "report_id",
-          "expected": "codex_report_20260613_run_one_local_reverse_static_triage_v1",
-          "actual": "report_20260613_run_one_local_reverse_static_triage_v1"
+          "expected": "codex_report_20260613_rework_static_triage_state_closure_v1",
+          "actual": "report_20260613_rework_static_triage_state_closure_v1"
         },
         {
           "field": "files_changed",
           "expected": [
-            "project_state/codex_execution_report.md",
             "project_state/gates/command_plan.json",
             "project_state/gates/final_gate_result.json",
             "project_state/gates/preflight_result.json",
             "project_state/gates/report_summary_synthesis.json",
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
-            "project_state/local_reverse_evaluation_queue.json",
-            "project_state/local_reverse_selected_static_triage_target.json",
-            "project_state/local_reverse_training_status.json",
-            "project_state/pytest_result.txt",
-            "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/codex_execution_report.md",
-            "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/decision_packet.md",
-            "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/pytest_result.txt",
-            "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/round_manifest.json"
+            "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/decision_packet.md",
+            "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/pytest_result.txt",
+            "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/round_manifest.json"
           ],
           "actual": [
+            "project_state/artifact_index.json",
             "project_state/codex_execution_report.md",
-            "project_state/gates/preflight_result.json",
-            "project_state/gates/round_baseline.json",
             "project_state/local_reverse_affine_8cfebe03_static_triage.json",
             "project_state/local_reverse_evaluation_queue.json",
             "project_state/local_reverse_selected_static_triage_target.json",
             "project_state/local_reverse_training_status.json",
-            "project_state/pytest_result.txt"
+            "project_state/pytest_result.txt",
+            "reverse_agent/local_reverse_single_sample_static_triage.py",
+            "reverse_agent/local_reverse_training_status.py"
           ]
         },
         {
           "field": "tests_ran",
           "expected": [
-            "python -m reverse_agent.project_gate report-summary --state-dir project_state"
+            "Test-Path F:\\reverse-agent",
+            "git diff --name-only",
+            "git rev-parse --show-toplevel",
+            "git status --short",
+            "pwd",
+            "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
+            "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --queue project_state/local_reverse_evaluation_queue.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_affine_8cfebe03_static_triage.json",
+            "python -m reverse_agent.local_reverse_training_status --github-status-out \"\"",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            "python -m reverse_agent.project_gate preflight --state-dir project_state",
+            "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+            "python -m reverse_agent.project_state doctor --state-dir project_state",
+            "python -m reverse_agent.project_state lint-report --state-dir project_state"
           ],
           "actual": [
-            "Test-Path E:\\reverse",
             "Test-Path F:\\reverse-agent",
             "git rev-parse --show-toplevel",
             "git status --short",
             "pwd",
             "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_tool_capability_inventory.py -q",
-            "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03",
+            "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id affine_8cfebe03 --mainline training_dataset",
             "python -m reverse_agent.local_reverse_training_status (via build_training_status with github_status_path=None)",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state",
             "python -m reverse_agent.project_gate preflight --state-dir project_state",
@@ -391,18 +440,15 @@
             "project_state/gates/round_baseline.json",
             "project_state/gates/round_delta_summary.json",
             "project_state/pytest_result.txt",
-            "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/codex_execution_report.md",
-            "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/decision_packet.md",
-            "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/pytest_result.txt",
-            "project_state/rounds/round_20260613_run_one_local_reverse_static_triage_v1/round_manifest.json"
+            "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/codex_execution_report.md",
+            "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/decision_packet.md",
+            "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/pytest_result.txt",
+            "project_state/rounds/round_20260613_rework_static_triage_state_closure_v1/round_manifest.json"
           ],
           "actual": [
             "project_state/codex_execution_report.md",
-            "project_state/gates/preflight_result.json",
-            "project_state/gates/round_baseline.json",
             "project_state/local_reverse_affine_8cfebe03_static_triage.json",
             "project_state/local_reverse_evaluation_queue.json",
-            "project_state/local_reverse_selected_static_triage_target.json",
             "project_state/local_reverse_training_status.json",
             "project_state/pytest_result.txt"
           ]
@@ -419,9 +465,12 @@
     },
     {
       "name": "forbidden_paths_absent",
-      "status": "PASS",
-      "detail": "no forbidden paths detected",
-      "forbidden_paths": []
+      "status": "FAIL",
+      "detail": "forbidden paths detected",
+      "forbidden_paths": [
+        "reverse_agent/local_reverse_single_sample_static_triage.py",
+        "reverse_agent/local_reverse_training_status.py"
+      ]
     },
     {
       "name": "status_policy_valid",
@@ -429,7 +478,6 @@
       "detail": "PARTIAL report is internally consistent",
       "lint_errors": [],
       "warnings": [
-        "pytest_result tests_ran does not cover codex_report_summary.tests_ran",
         "report_status is PARTIAL",
         "report round not archived yet",
         "doctor status is WARN"
@@ -443,16 +491,15 @@
     "files_changed_excludes_inherited_dirty_files: files_changed includes inherited baseline dirty files",
     "files_changed_covers_git_diff: files_changed omits round delta files",
     "generated_artifacts_cover_round_delta: generated_artifacts omits round baseline/delta artifacts",
-    "baseline_lifecycle_guard: baseline contains source/test dirty files not allowed as inherited baseline",
     "generated_artifacts_cover_round_archive: generated_artifacts omits round archive files",
     "command_plan_ids_match: command_plan ids, round_id, or status do not match",
     "command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests",
     "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
     "command_plan_generated_artifact_recorded: report generated_artifacts omits command_plan.json",
-    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary",
+    "forbidden_paths_absent: forbidden paths detected"
   ],
   "warnings": [
-    "pytest_result_covers_report_tests: pytest_result coverage is incomplete or unknown",
     "round_manifest_present: round manifest is missing",
     "archived_report_matches_live_report: archived report differs from live report",
     "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",

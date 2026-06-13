@@ -1,26 +1,25 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260613_run_one_local_reverse_static_triage_v1",
-  "round_id": "round_20260613_run_one_local_reverse_static_triage_v1",
-  "head_commit": "8b91fcd6caf1",
+  "decision_id": "decision_20260613_rework_static_triage_state_closure_v1",
+  "round_id": "round_20260613_rework_static_triage_state_closure_v1",
+  "head_commit": "9690781b865f",
   "baseline_git_status_short": [
     " M project_state/artifact_index.json",
     " M project_state/codex_execution_report.md",
     " M project_state/current_state.json",
     " M project_state/decision_packet.md",
     " M project_state/local_reverse_affine_8cfebe03_static_triage.json",
+    " M project_state/local_reverse_evaluation_queue.json",
     " M project_state/local_reverse_training_status.json",
     " M project_state/model_gate.json",
     " M project_state/negative_results.json",
     " M project_state/pytest_result.txt",
     " M project_state/task_packet.json",
     " M reverse_agent/harness.py",
+    " M reverse_agent/local_reverse_training_status.py",
     " M reverse_agent/project_state.py",
-    " M tests/test_project_state.py",
-    " M training_materials/local_reverse/status_overlay.json",
-    "?? project_state/local_reverse_evaluation_queue.json",
-    "?? project_state/local_reverse_selected_static_triage_target.json"
+    " M tests/test_project_state.py"
   ],
   "baseline_git_diff_name_only": [
     "project_state/artifact_index.json",
@@ -28,15 +27,16 @@
     "project_state/current_state.json",
     "project_state/decision_packet.md",
     "project_state/local_reverse_affine_8cfebe03_static_triage.json",
+    "project_state/local_reverse_evaluation_queue.json",
     "project_state/local_reverse_training_status.json",
     "project_state/model_gate.json",
     "project_state/negative_results.json",
     "project_state/pytest_result.txt",
     "project_state/task_packet.json",
     "reverse_agent/harness.py",
+    "reverse_agent/local_reverse_training_status.py",
     "reverse_agent/project_state.py",
-    "tests/test_project_state.py",
-    "training_materials/local_reverse/status_overlay.json"
+    "tests/test_project_state.py"
   ],
   "baseline_dirty_files": [
     "project_state/artifact_index.json",
@@ -45,16 +45,15 @@
     "project_state/decision_packet.md",
     "project_state/local_reverse_affine_8cfebe03_static_triage.json",
     "project_state/local_reverse_evaluation_queue.json",
-    "project_state/local_reverse_selected_static_triage_target.json",
     "project_state/local_reverse_training_status.json",
     "project_state/model_gate.json",
     "project_state/negative_results.json",
     "project_state/pytest_result.txt",
     "project_state/task_packet.json",
     "reverse_agent/harness.py",
+    "reverse_agent/local_reverse_training_status.py",
     "reverse_agent/project_state.py",
-    "tests/test_project_state.py",
-    "training_materials/local_reverse/status_overlay.json"
+    "tests/test_project_state.py"
   ],
-  "generated_at": "2026-06-13T06:20:29.518415Z"
+  "generated_at": "2026-06-13T06:55:49.672036Z"
 }
