@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260614_gate_status_semantics_rework_v1",
-  "round_id": "round_20260614_gate_status_semantics_rework_v1",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_target_bytes_current_reextract_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_target_bytes_current_reextract_v1",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
-  "mainline": "engineering_branch",
+  "mainline": "tool_integration",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,60 +15,59 @@
 
 ## 1. Goal
 
-修复当前工程状态闸门中的 report/gate 状态语义不一致问题，使 `codex_report_summary`、`project_state/gates/report_summary_synthesis.json`、`project_state/gates/final_gate_result.json`、`pytest_result.txt` 中的 CLI 输出和 round archive 对同一轮执行给出一致、可审计、不可误读的状态结论。
+基于 current 的 `cpp1_2f6fcb63` IDA static triage 产物，重新提取并登记当前轮的 `byte_429A30` target bytes、`_main_0` 伪代码、长度约束、compare expression 与 transform 语义，形成可审计、可复现、可进入后续 solver 的 current StructuredEvidence。
 
-本轮主线是 `engineering_branch`。目标是状态机、报告合成、final gate、测试和 round closeout 合约修复；不是 `reverse_solving`，不是 `tool_integration`，不是继续求解或重跑 `cpp1_2f6fcb63`。
+本轮主线是 `tool_integration`。目标是修复/完成现有 target-byte extraction 工具链和 artifact_index 登记，不是 `reverse_solving`，不是生成 candidate、flag、password，也不是运行样本。
 
-本轮成功标准：当 `report_summary_synthesis.json` 判定 synthesized summary 与 `codex_report_summary` 不一致时，系统必须给出一致的非通过语义，或者要求 Codex 把 report summary 调整到合成状态；不得出现 CLI 显示 `final-check: PASSED`、但 `final_gate_result.json` 为 `WARN`，同时 report 仍写 `SUCCESS/ACCEPTED_WITH_LIMITATIONS` 的矛盾组合。
+如果 IDA 或 extract script 不可用，或者不能提取 `byte_429A30`，必须生成带真实 blocker/provenance 的 blocked artifact，并在 artifact_index 中登记为本轮 current blocked artifact；不得伪造 target bytes 或复用旧 target bytes 当 current。
 
 ## 2. Current Evidence
 
-上一轮审计结论为 `ACCEPTED_WITH_LIMITATIONS`：`cpp1_2f6fcb63` 的 IDA 静态 triage 工具链已经成功，artifact 为 current，且未运行样本、未生成 candidate、未标记 solved。因此下一轮不应继续工具接入或解题，而应修复工程状态闸门暴露出的报告语义问题。
+上一轮 `decision_20260614_gate_status_semantics_rework_v1` 已达到可接受状态：当前 report 绑定该 decision/round，`status=SUCCESS`、`acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS`；`report_summary_synthesis.json` 为 `PASSED`，final gate 为 `PASSED_WITH_LIMITATIONS`，blocking reasons 为空，archive 已生成。该轮主线已收口，不应继续围绕 gate 状态语义返工。
 
-`project_state/task_packet.json` 与 `project_state/current_state.json` 仍保留旧 `samplereverse` sample_state 背景：`task_packet.task=collect_missing_evidence`、`sample=samplereverse`、`current_state.workflow_status=REPORT_AVAILABLE`。这些只能作为历史背景，不能覆盖本 decision。当前轮执行权威是本 `decision_packet.md`。
+`project_state/task_packet.json` 与 `project_state/current_state.json` 仍保留旧 `samplereverse` sample_state 背景：`task_packet.task=collect_missing_evidence`、`sample=samplereverse`、`current_state.workflow_status=REPORT_AVAILABLE`。这些只能作为历史背景，不能覆盖本 decision。当前执行权威是本 `project_state/decision_packet.md`。
 
-`project_state/decision_packet.md` 上一轮为 `decision_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1`，主线 `tool_integration`，状态 `APPROVED`。该轮已经被 `codex_report_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1` 消耗。
+`project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` 是 current 静态 triage 证据，来自 `round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1`，字段显示：`executed_sample=false`、`static_only=true`、`runtime_validated=false`、`tool_status=success`、`source_tool=IDA`、`queue_rank=1`、`candidate=null`、`known_candidate=""`。该 artifact 可作为当前静态证据入口，但不能被解读为 solved。
 
-`project_state/codex_execution_report.md` 顶部 `codex_report_summary` 写入：`status=SUCCESS`，`acceptance_recommendation=ACCEPTED_WITH_LIMITATIONS`。但 `project_state/gates/report_summary_synthesis.json` 的 `synthesis_status=FAILED`，并给出 synthesized summary：`status=PARTIAL`，`acceptance_recommendation=NEEDS_REVIEW`，差异字段为 `status` 和 `acceptance_recommendation`。
+该 current triage 产物中的 `_main_0` decompiler snippet 显示：程序读取 `%s` 到 `Str`，检查 `strlen(Str) != 18`，`strncpy(Destination, Str, 0x10u)`，随后对 `Destination[i]` 应用位运算公式，并与 `byte_429A30[i]` 比较；当 `i == 16` 时输出成功。该证据说明需要当前 target bytes 和 transform 语义，但还不足以直接提交 candidate。
 
-`project_state/gates/final_gate_result.json` 当前 `gate_status=WARN`，`status_summary.report_status=PARTIAL`，`status_summary.report_acceptance_recommendation=NEEDS_REVIEW`；但 `project_state/pytest_result.txt` 中记录的 final-check CLI 输出为 `final-check: PASSED`，这说明 CLI 输出、JSON artifact、报告 summary 三者状态语义未完全统一。
+`project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json` 是旧产物，`generated_at=2026-06-05T09:11:46Z`，虽然含有 `byte_429A30`、target bytes 和 `_main_0` 伪代码，但不是当前 round 产物，不能直接作为本轮 current evidence。旧 inverse handoff 也不能作为 current 求解依据。
 
-`project_state/pytest_result.txt` 已绑定上一轮 decision/report/round，命令记录完整，测试通过，包括：
+`reverse_agent/local_reverse_cpp1_target_byte_extract.py` 已存在，目标是读取 static triage artifact、复用 IDA 的 `extract_named_data.py` 提取 `byte_429A30` 和 `_main_0` pseudocode，并生成 target-bytes artifact。该脚本声明不执行样本、不生成 candidate。不得新建重复 extractor。
 
-- `python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py -q`
-- `python -m pytest tests/test_project_state.py tests/test_project_gate.py -q`
-- IDA resolver verification
-- static triage command
-- artifact_index verification
-- doctor / lint-report / report-summary / final-check / close-round
+当前脚本存在需要审计的工程问题：
 
-`project_state/artifact_index.json` 已包含 `local_reverse_cpp1_2f6fcb63_static_triage`，freshness 为 `current`，source_run 为 `round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1`，tool_status 为 `success`。这不是本轮要重建的对象。
+- `run_target_byte_extraction()` 生成 target bytes artifact 后看起来没有同步更新 `artifact_index.json`；本轮必须修复，使 `local_reverse_cpp1_2f6fcb63_target_bytes` 在 `latest_artifacts_v2` 中登记为 `freshness=current`，`source_run=round_20260614_cpp1_2f6fcb63_target_bytes_current_reextract_v1`。
+- provenance recheck 相关常量 `TARGET_PROVENANCE_SOURCE_RUN` 仍硬编码为旧 round；本轮如果触碰 provenance recheck 逻辑，必须改为从参数或当前 round 推导，不得再写旧 source_run。
+- blocked artifact 当前应包含足够 provenance：IDA executable/script resolution、command args、exit code、expected output path、log path/log tail、stdout/stderr 摘要、target symbol、target length。不能只写一个笼统 blocker。
 
-`project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` 显示 `executed_sample=false`、`static_only=true`、`runtime_validated=false`、`tool_status=success`、`candidate=null`、`known_candidate=""`。说明上一轮工具接入成功但仍不是 solved 状态；本轮不得把该静态 evidence 升级为 solved。
+`negative_results.json` 仍禁止旧 `sample_solver` 盲搜、只扩大 beam/budget、使用 compare_semantics_agree=false candidates 作为主 frontier、提交完整 solve_reports、重复旧 `samplereverse` 失败方向。本轮不触碰这些方向。对 `cpp1_2f6fcb63`，也不得重复旧 `STATIC_CANDIDATE_NONPRINTABLE` inverse handoff 方向，除非本轮获得 current target bytes 与 transform 证据。
 
-`negative_results.json` 仍禁止旧 sample_solver 盲搜、只扩大 beam/budget、使用 compare_semantics_agree=false 作为主 frontier、提交完整 solve_reports、重复旧 samplereverse 失败方向。本轮不触碰这些方向。
+现有能力必须优先复用：IDA / IDAPython / `tool_runners` / `ida_scripts/extract_named_data.py` / `local_reverse_single_sample_static_triage.py` / `local_reverse_cpp1_target_byte_extract.py` / `artifact_index.json` / project_gate closeout。不得重写反汇编器，不得新建第二套 IDA runner。
 
-`.codex-skills/registry.json` 中 `reverse-agent-iteration` 为 active，version=2；本 decision 的 `skill_profiles=["reverse-agent-iteration@v2"]` 合法。
-
-已有相关能力：`reverse_agent/project_gate.py`、`reverse_agent/project_state.py`、`tests/test_project_gate.py`、`tests/test_project_state.py`、`project_state/gates/report_summary_synthesis.json`、`project_state/gates/final_gate_result.json`、round closeout 机制。不得新建第二套 gate/report 状态系统。
+允许读取重型 artifact：不允许读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。只允许有界读取与 `cpp1_2f6fcb63` target bytes re-extraction 直接相关的 project_state artifact、现有 extractor、IDA script、tool_runner、tests 和当前 gate/report 文件。
 
 ## 3. Do Not Do
 
-不得运行任何逆向样本二进制；不得运行 IDA、Ghidra、debugger、emulator、hook、harness campaign、solver、bruteforce、SMT 或 runtime probe。
+不得运行目标样本二进制；不得做 runtime probe、debugger、emulator、hook、harness campaign、动态验证、bruteforce、SMT、solver、sample_solver 或 candidate validation。
 
-不得继续分析、求解、验证 `cpp1_2f6fcb63`；不得生成 candidate、flag、password；不得修改 `local_reverse_training_status.json` 将样本标记为 solved。
+不得生成 candidate、flag、password；不得把 `cpp1_2f6fcb63` 标记为 solved。
 
-不得读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
+不得把旧 `project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json` 或旧 inverse handoff 当作 current evidence；旧文件只能作为对比线索。
 
-不得重建或覆盖 `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`，除非测试 fixture 需要在临时目录中构造样例。
+不得重复实现 IDA、Ghidra、radare2、objdump 的反汇编/反编译功能；本轮只修复或增强现有 IDA extraction 编排、provenance、artifact_index 登记和测试。
 
-不得修改 `.codex-skills/`、raw sample 文件、`training_materials/`、solver、strategy、transform、IDA runner 或 local reverse triage adapter。
+不得新建重复 IDA runner 或重复 `tool_runners` 能力。若 `_resolve_ida_executable()`、`extract_named_data.py` 或 extractor 参数有缺陷，修复现有接口。
 
-不得通过手工编辑 gate output 掩盖问题。必须修复生成逻辑和测试，使下一轮真实命令自然产生一致状态。
+不得修改 raw sample 文件，不得上传本地二进制，不得提交完整 `solve_reports/`。
 
-不得把 `task_packet.task=collect_missing_evidence` 当作当前任务；该字段是旧背景。
+不得手工伪造 IDA 输出、伪造 `named_data_extract.json`、伪造 target bytes、伪造 stdout/stderr、伪造 tool success。
 
-不得把 `report-summary` 的 `synthesis_status=FAILED` 降级为无意义 warning，除非规则中明确说明何时允许，并有测试覆盖。
+不得手工修改 `local_reverse_training_status.json` 或 `local_reverse_evaluation_queue.json` 来改变样本状态。若需要读取，只读核验即可。
+
+不得扩大到其他样本；本轮只允许 `cpp1_2f6fcb63`。
+
+不得推进 solver 或 inverse-transform candidate。若 current target bytes 成功提取，下一轮再基于 current evidence 生成 solver/reverse_solving decision。
 
 ## 4. Files To Inspect
 
@@ -85,59 +84,68 @@
 
 还必须有界读取：
 
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/command_plan.json`
-- `project_state/gates/round_delta_summary.json`
-- `project_state/gates/round_baseline.json`
-- `project_state/rounds/round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1/round_manifest.json`
-- `project_state/rounds/round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1/codex_execution_report.md`
-- `project_state/rounds/round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1/pytest_result.txt`
-- `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py`
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json`，只作为 stale baseline
+- `project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json`，只作为 stale blocked/negative context
+- `project_state/local_reverse_training_status.json`，只读
+- `project_state/local_reverse_evaluation_queue.json`，只读
+- `project_state/local_reverse_inventory.json`，只读
+- `reverse_agent/local_reverse_cpp1_target_byte_extract.py`
+- `reverse_agent/ida_scripts/extract_named_data.py`
+- `reverse_agent/tool_runners.py`
+- `tests/test_local_reverse_cpp1_target_byte_extract.py`
+- `tests/test_local_reverse_single_sample_static_triage.py`
 - `tests/test_project_gate.py`
 - `tests/test_project_state.py`
 
-只允许在需要理解状态语义时有界读取上一轮 live/archived gate artifacts；不得扩大到 solve_reports 或样本分析产物。
+必要时读取但不得修改：
+
+- `project_state/rounds/round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1/round_manifest.json`
+- `project_state/rounds/round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1/codex_execution_report.md`
+- `project_state/rounds/round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1/pytest_result.txt`
 
 ## 5. Required Audit
 
 Codex 必须先确认：
 
-- 当前 decision_meta 合法，`status=APPROVED`，`mainline=engineering_branch`，`skill_profiles` 来自 active registry。
-- `task_packet.json/current_state.json` 是旧 samplereverse 背景，不能覆盖本 decision。
-- 上一轮 `cpp1_2f6fcb63` static triage artifact 已经 current，不是本轮目标。
-- `report_summary_synthesis.json` 的 `synthesis_status=FAILED` 与 `codex_report_summary` 的 `SUCCESS/ACCEPTED_WITH_LIMITATIONS` 存在状态口径冲突。
-- `final_gate_result.json` 的 `gate_status=WARN` 与 `pytest_result.txt` 中 `final-check: PASSED` 存在 CLI/artifact 输出口径冲突。
-- `round_delta_summary.json` 中 inherited dirty files 已被记录；本轮不得把 inherited dirty source/test 文件当成新修改，除非实际修改并在 report 中说明。
+- 当前 decision_meta 合法，`status=APPROVED`，`mainline=tool_integration`，`skill_profiles` 来自 active registry。
+- `task_packet.json/current_state.json` 是旧 `samplereverse` 背景，不能覆盖本 decision。
+- 上一轮 gate semantics round 已收口；本轮不继续工程 gate 语义返工。
+- `cpp1_2f6fcb63` current static triage artifact 为 success、source_tool=IDA、runtime_validated=false、candidate=null。
+- 当前 target bytes artifact 不是 current；必须重新提取或生成 truthful blocked artifact。
+- 现有 `local_reverse_cpp1_target_byte_extract.py` 和 `ida_scripts/extract_named_data.py` 已存在；不得新建重复 extractor/runner。
 
 必须完成或如实报告：
 
-- 明确 `report-summary` 的合成失败是否应阻断 final-check，或是否应要求 report 顶部 summary 使用 synthesized status。规则必须可测试、可解释。
-- 修复 `project_gate final-check` 的 CLI 输出与 `final_gate_result.json.gate_status` 一致性：如果 artifact 为 WARN，CLI 不得显示纯 `PASSED`；可以显示 `WARN` 并 exit 0，或按规则 exit nonzero，但必须有测试。
-- 修复或扩展 report-summary/final-check 状态策略，使 `codex_report_summary`、synthesized summary、final gate status、pytest command evidence 的关系稳定。
-- 如果 `report_summary_synthesis.json.synthesis_status=FAILED` 仍允许 close-round，必须在 final gate result 中明确 `recommended_next_action` 和 limitation，不得同时给出无条件通过语义。
-- 若修改 report status policy，必须更新 tests 覆盖以下场景：
-  - report summary 与 synthesized summary 完全一致；
-  - report summary 的 status/acceptance_recommendation 与 synthesized summary 不一致；
-  - final gate JSON 为 WARN 时 CLI 输出也为 WARN 或等价非纯通过状态；
-  - archived report/pytest 与 live report/pytest 一致性不被破坏。
-- 本轮 codex_execution_report 必须按实际 gate 结果填写 status。若仍存在 synthesis mismatch，不得写 `SUCCESS/ACCEPTED`。
+- 修复 `run_target_byte_extraction()`，使成功或 blocked 产物都带真实 provenance，并把 `project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json` 登记到 `project_state/artifact_index.json` 的 `latest_artifacts_v2`，freshness 必须为 `current`，source_run 必须为本轮 round id。
+- 若提取成功，artifact 必须包含：sample_id、relative_path、target_symbol、target_address、target_length、target_bytes_hex、target_bytes、main_function、main_function_address、main_pseudocode 摘要、forward_transform、compare_expression、loop_context、evidence_notes、tool_provenance、executed_sample=false、static_only=true、runtime_validated=false、candidate=null、known_candidate=""。
+- 若提取 blocked，artifact 必须包含：blocked_reason、IDA/script resolver 结果、command args、exit code、expected output path、log path/log tail、stdout/stderr 摘要、target symbol、expected_target_length，并且 artifact_index 仍登记为 current blocked artifact。
+- 如果需要调整 `TARGET_PROVENANCE_SOURCE_RUN` 或相关 artifact_index 更新逻辑，必须使 source_run 动态来自 CLI 参数或当前 decision/round，不得保留旧硬编码 source_run。
+- 不得运行 `--provenance-recheck`，除非它依赖的 target_bytes、transform_recheck、signed_transform_recheck、ida_control_flow 四个 source artifact 都是 current；否则只记录 blocked reason，不得把旧依赖提升为 current。
+- `codex_execution_report.md` 必须明确说明 target extraction 的 tool outcome：success、blocked 或 partial；不能写 solved。
+- `pytest_result.txt` 必须记录真实命令、stdout/stderr 摘要和 exit code，close-round 仍必须是最后 command block。
+- `report_summary_synthesis.json`、`final_gate_result.json`、round archive 必须与 live report/pytest 一致。
 
 ## 6. Implementation Scope
 
 Allowed source files:
 
-- `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py`，仅限 report/gate/status policy 与 lint/doctor 输出口径必要修复
+- `reverse_agent/local_reverse_cpp1_target_byte_extract.py`
+- `reverse_agent/ida_scripts/extract_named_data.py`，仅限修复现有 named data / function / compare context extraction 输出
+- `reverse_agent/tool_runners.py`，仅限现有 IDA executable/script resolution 的兼容修复
+- `reverse_agent/project_state.py`，仅限 artifact_index 登记或 lint/doctor 兼容必要修复
 
 Allowed tests:
 
-- `tests/test_project_gate.py`
+- `tests/test_local_reverse_cpp1_target_byte_extract.py`
+- `tests/test_local_reverse_single_sample_static_triage.py`
 - `tests/test_project_state.py`
+- `tests/test_project_gate.py`，仅当 gate/report contract 受影响时修改
 
 Allowed generated/state files:
 
+- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json`
+- `project_state/artifact_index.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/command_plan.json`
@@ -146,27 +154,28 @@ Allowed generated/state files:
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/rounds/round_20260614_gate_status_semantics_rework_v1/*`
+- `project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_reextract_v1/*`
 
 Read-only only:
 
-- `project_state/artifact_index.json`
 - `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json`
 - `project_state/local_reverse_training_status.json`
 - `project_state/local_reverse_evaluation_queue.json`
-- previous round archives
+- `project_state/local_reverse_inventory.json`
+- old cpp1 round archives
 
 Forbidden:
 
-- `.codex-skills/`
-- `solve_reports/`
-- `PROJECT_PROGRESS_LOG.txt`
 - raw sample files
+- `solve_reports/`
+- `.codex-skills/`
 - `training_materials/`
-- IDA/Ghidra/debugger/tool runner code
-- local reverse triage adapter
-- solver/strategy/transform/runtime/harness modules
-- any sample candidate/flag/password artifacts
+- solver/harness/runtime/debugger/emulator code
+- `reverse_agent/strategies/`
+- `reverse_agent/transforms/`
+- any new candidate/flag/password artifact
+- any change that marks `cpp1_2f6fcb63` solved
 
 ## 7. Tests
 
@@ -179,35 +188,38 @@ Forbidden:
 - `python -m reverse_agent.project_gate preflight --state-dir project_state`
 - `python -m reverse_agent.project_gate command-plan --state-dir project_state`
 - `python -m reverse_agent.project_gate command-plan --state-dir project_state --json`
-- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`
+- `python -m pytest tests/test_local_reverse_cpp1_target_byte_extract.py tests/test_local_reverse_single_sample_static_triage.py -q`
+- 若修改 project_state/project_gate：`python -m pytest tests/test_project_state.py tests/test_project_gate.py -q`
+- current static triage verification：确认 `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` 为 current、tool_status=success、candidate=null、runtime_validated=false
+- target extraction command：`python -m reverse_agent.local_reverse_cpp1_target_byte_extract --sample-id cpp1_2f6fcb63 --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --inventory project_state/local_reverse_inventory.json --out project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json`
+- artifact_index verification：确认 `local_reverse_cpp1_2f6fcb63_target_bytes` 在 `latest_artifacts_v2` 中为 current，path 指向 `project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json`，source_run 为本轮 round id
 - `python -m reverse_agent.project_state doctor --state-dir project_state`
 - `python -m reverse_agent.project_state lint-report --state-dir project_state`
 - `python -m reverse_agent.project_gate report-summary --state-dir project_state`
 - `python -m reverse_agent.project_gate final-check --state-dir project_state`
-- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_gate_status_semantics_rework_v1`
+- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_target_bytes_current_reextract_v1`
 
-如果修复引入新的 CLI 状态文本，测试必须断言 stdout 与生成的 JSON artifact 状态一致。
+必须新增或更新测试覆盖：
 
-如果 final-check 对 WARN 选择 exit 0，必须在 stdout 中明确 `final-check: WARN`，并在 JSON 中给出 `recommended_next_action`；不能显示 `PASSED`。
+- target byte extraction success writes artifact_index current metadata with dynamic source_run;
+- blocked extraction still writes artifact and artifact_index current metadata;
+- no candidate / known_candidate is produced;
+- provenance fields are present when IDA output is missing or parse fails.
 
-如果 final-check 对 synthesis mismatch 选择 exit nonzero，必须停止 close-round，并在 report 中写 `REWORK_REQUIRED`。
-
-`close-round` 只能在 final-check 符合新状态规则后执行；若 final-check 失败，不得创建 round archive。
+`close-round` 必须是 live 与 archived pytest 中最后一个 command block。
 
 ## 8. Stop Conditions
 
-如果需要运行 IDA、样本、debugger、emulator、hook、runtime probe、solver、bruteforce 或 harness，立即停止并报告 `BLOCKED`。
+如果需要执行目标样本、runtime probe、debugger/emulator/hook/harness/solver/bruteforce，立即停止并报告 `BLOCKED`。
 
-如果需要修改 forbidden paths，立即停止并报告 `BLOCKED`。
+如果 IDA executable 或 `extract_named_data.py` 无法定位，生成 truthful blocked artifact and stop；不得新建重复 runner 或伪造 evidence。
 
-如果无法复现 `report_summary_synthesis.json` 与 `codex_report_summary` 的 mismatch，先在 report 中说明原因，不得盲改 gate 逻辑。
+如果 IDA 运行但没有 extraction JSON，必须保留真实 blocker/provenance；不得把空 target bytes 写成 success。
 
-如果修复后 `report-summary`、`final-check`、`pytest_result`、`codex_execution_report` 仍出现状态口径不一致，必须报告 `REWORK_REQUIRED`，不得写 `SUCCESS/ACCEPTED`。
+如果 artifact_index 无法登记 current provenance，停止并报告 `REWORK_REQUIRED`，不得只提交裸 target bytes JSON。
 
-如果 `pytest_result.txt` 缺失、未覆盖本 decision，或 report/decision/round 不匹配，必须报告 `REWORK_REQUIRED`。
+如果测试或 gate 失败，`codex_execution_report.md` 必须标记 `FAILED/REWORK_REQUIRED` 或 `BLOCKED`，不能写 `SUCCESS/ACCEPTED`。
 
-如果发现当前状态文件需要整体重建才能继续，停止源码修改，建议运行：
+如果发现当前 static triage 不是 current 或不属于 `cpp1_2f6fcb63`，停止并报告 `BLOCKED`。
 
-```bash
-python -m reverse_agent.project_state build
-```
+如果需要修改 forbidden paths 或触碰多个样本，停止并报告 `BLOCKED`。
