@@ -601,6 +601,28 @@ def _is_generated_state_or_archive_path(path: str) -> bool:
     )
 
 
+def _is_implementation_file(path: str) -> bool:
+    if _is_generated_state_or_archive_path(path):
+        return False
+    normalized = _norm_path(path)
+    if normalized.startswith("reverse_agent/") and normalized.endswith(".py"):
+        return True
+    if normalized.startswith("tests/") and normalized.endswith(".py"):
+        return True
+    if (
+        normalized.startswith("project_state/")
+        and normalized.endswith(".json")
+        and not normalized.startswith("project_state/gates/")
+        and not normalized.startswith("project_state/rounds/")
+    ):
+        return True
+    return False
+
+
+def _is_substantive_change(path: str) -> bool:
+    return _is_implementation_file(path)
+
+
 def _baseline_matches_round(payload: dict[str, Any], decision_id: str, round_id: str) -> bool:
     return (
         bool(payload)
@@ -622,15 +644,27 @@ def _capture_round_baseline(
     if _baseline_matches_round(existing, decision_id, round_id):
         return existing
 
+    baseline_git_status_short = _git_status_short_lines(repo_root)
+    baseline_untracked_files = [
+        _norm_path(line[3:].strip().strip('"'))
+        for line in baseline_git_status_short
+        if line.startswith("?? ")
+    ]
+    baseline_has_untracked_implementation_files = any(
+        _is_implementation_file(path) for path in baseline_untracked_files
+    )
+
     baseline = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "artifact_name": ROUND_BASELINE_RESULT_NAME,
         "decision_id": decision_id,
         "round_id": round_id,
         "head_commit": _git_head_commit(repo_root),
-        "baseline_git_status_short": _git_status_short_lines(repo_root),
+        "baseline_git_status_short": baseline_git_status_short,
         "baseline_git_diff_name_only": _git_diff_name_only(repo_root),
         "baseline_dirty_files": _git_changed_files(repo_root),
+        "baseline_untracked_files": sorted(baseline_untracked_files),
+        "baseline_has_untracked_implementation_files": baseline_has_untracked_implementation_files,
         "generated_at": _now_iso(),
     }
     if write_result:
@@ -673,6 +707,8 @@ def _build_round_delta_summary(
         "baseline_git_status_short": baseline.get("baseline_git_status_short") if baseline_available else [],
         "baseline_git_diff_name_only": baseline.get("baseline_git_diff_name_only") if baseline_available else [],
         "baseline_dirty_files": sorted(baseline_dirty_files),
+        "baseline_untracked_files": baseline.get("baseline_untracked_files") if baseline_available else [],
+        "baseline_has_untracked_implementation_files": baseline.get("baseline_has_untracked_implementation_files") if baseline_available else False,
         "final_git_status_short": _git_status_short_lines(repo_root),
         "final_git_diff_name_only": _git_diff_name_only(repo_root),
         "final_dirty_files": sorted(final_dirty_files),
@@ -763,6 +799,28 @@ def _round_delta_checks(
         )
     )
 
+    substantive_dirty_files = {path for path in required_changed_for_diff if _is_substantive_change(path)}
+    missing_substantive = sorted(substantive_dirty_files - files_changed)
+    if missing_substantive:
+        checks.append(
+            _check(
+                "files_changed_covers_substantive_changes",
+                "FAIL",
+                "files_changed omits substantive source/test/artifact changes",
+                missing_substantive_files=missing_substantive,
+                substantive_dirty_files=sorted(substantive_dirty_files),
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "files_changed_covers_substantive_changes",
+                "PASS",
+                "files_changed covers substantive source/test/artifact changes",
+                substantive_dirty_files=sorted(substantive_dirty_files),
+            )
+        )
+
     required_delta_artifacts = {ROUND_DELTA_OUTPUT_PATH}
     if baseline_available:
         required_delta_artifacts.add(ROUND_BASELINE_OUTPUT_PATH)
@@ -803,6 +861,40 @@ def _baseline_lifecycle_checks(
     allowed_claimed = sorted((baseline_dirty_files & source_test_scope) & allowed_inherited)
     generated_or_archive_dirty = sorted(path for path in baseline_dirty_files if _is_generated_state_or_archive_path(path))
     checks: list[dict[str, Any]] = []
+
+    # --- baseline_lifecycle_violation check (before baseline_lifecycle_guard) ---
+    baseline_has_untracked_impl = bool(delta_summary.get("baseline_has_untracked_implementation_files"))
+    baseline_untracked_files = list(delta_summary.get("baseline_untracked_files") or [])
+    untracked_impl_files = [path for path in baseline_untracked_files if _is_implementation_file(path)]
+
+    if baseline_available and baseline_has_untracked_impl:
+        checks.append(
+            _check(
+                "baseline_lifecycle_violation",
+                "FAIL",
+                "baseline was captured after implementation started; untracked implementation files found in baseline",
+                baseline_untracked_implementation_files=sorted(untracked_impl_files),
+            )
+        )
+    elif baseline_available and not baseline_has_untracked_impl:
+        checks.append(
+            _check(
+                "baseline_lifecycle_violation",
+                "PASS",
+                "baseline was captured before implementation; no untracked implementation files in baseline",
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "baseline_lifecycle_violation",
+                "WARN",
+                "baseline is unavailable; lifecycle violation cannot be checked",
+            )
+        )
+
+    lifecycle_violation_failed = baseline_available and baseline_has_untracked_impl
+
     if not baseline_available:
         checks.append(
             _check(
@@ -825,38 +917,70 @@ def _baseline_lifecycle_checks(
             )
         )
     else:
-        checks.append(
-            _check(
-                "baseline_lifecycle_guard",
-                "PASS",
-                "baseline source/test dirty files are absent or explicitly allowed",
-                source_test_baseline_dirty=source_test_baseline_dirty,
-                allowed_inherited_dirty_files=sorted(allowed_inherited),
-                generated_or_archive_baseline_dirty_files=generated_or_archive_dirty,
+        if lifecycle_violation_failed:
+            checks.append(
+                _check(
+                    "baseline_lifecycle_guard",
+                    "WARN",
+                    "baseline source/test dirty files are absent or explicitly allowed; baseline_lifecycle_violation is present; inherited dirty classification may be unreliable",
+                    source_test_baseline_dirty=source_test_baseline_dirty,
+                    allowed_inherited_dirty_files=sorted(allowed_inherited),
+                    generated_or_archive_baseline_dirty_files=generated_or_archive_dirty,
+                )
             )
-        )
+        else:
+            checks.append(
+                _check(
+                    "baseline_lifecycle_guard",
+                    "PASS",
+                    "baseline source/test dirty files are absent or explicitly allowed",
+                    source_test_baseline_dirty=source_test_baseline_dirty,
+                    allowed_inherited_dirty_files=sorted(allowed_inherited),
+                    generated_or_archive_baseline_dirty_files=generated_or_archive_dirty,
+                )
+            )
     if allowed_claimed:
         report_lower = report_text.lower()
         explains = "baseline" in report_lower and "inherited" in report_lower
-        checks.append(
-            _check(
-                "baseline_inherited_allowlist_explained",
-                "PASS" if explains else "FAIL",
-                "report explains explicitly allowed inherited baseline files"
-                if explains
-                else "report does not explain explicitly allowed inherited baseline files",
-                allowed_inherited_source_test_files=allowed_claimed,
+        if explains and lifecycle_violation_failed:
+            checks.append(
+                _check(
+                    "baseline_inherited_allowlist_explained",
+                    "WARN",
+                    "report explains explicitly allowed inherited baseline files; baseline_lifecycle_violation is present; inherited dirty classification may be unreliable",
+                    allowed_inherited_source_test_files=allowed_claimed,
+                )
             )
-        )
+        else:
+            checks.append(
+                _check(
+                    "baseline_inherited_allowlist_explained",
+                    "PASS" if explains else "FAIL",
+                    "report explains explicitly allowed inherited baseline files"
+                    if explains
+                    else "report does not explain explicitly allowed inherited baseline files",
+                    allowed_inherited_source_test_files=allowed_claimed,
+                )
+            )
     elif inherited_dirty_files:
-        checks.append(
-            _check(
-                "baseline_inherited_allowlist_explained",
-                "PASS",
-                "no source/test inherited baseline explanation is required",
-                inherited_dirty_files=sorted(inherited_dirty_files),
+        if lifecycle_violation_failed:
+            checks.append(
+                _check(
+                    "baseline_inherited_allowlist_explained",
+                    "WARN",
+                    "no source/test inherited baseline explanation is required; baseline_lifecycle_violation is present; inherited dirty classification may be unreliable",
+                    inherited_dirty_files=sorted(inherited_dirty_files),
+                )
             )
-        )
+        else:
+            checks.append(
+                _check(
+                    "baseline_inherited_allowlist_explained",
+                    "PASS",
+                    "no source/test inherited baseline explanation is required",
+                    inherited_dirty_files=sorted(inherited_dirty_files),
+                )
+            )
     return checks
 
 
@@ -1144,6 +1268,31 @@ def _validate_command_plan_consistency(
             else "command_plan commands do not cover report or pytest_result tests",
             missing_report_tests=missing_report_tests,
             missing_pytest_result_tests=missing_pytest_tests,
+        )
+    )
+
+    REQUIRED_STARTUP_PATTERNS: list[tuple[str, str]] = [
+        ("Set-Location", "Set-Location"),
+        ("Get-Location", "Get-Location"),
+        ("Test-Path", "Test-Path"),
+        ("git rev-parse", "git rev-parse --show-toplevel"),
+        ("git status", "git status"),
+    ]
+
+    missing_startup: list[dict[str, str]] = []
+    all_commands = pytest_tests | plan_commands
+    for pattern, description in REQUIRED_STARTUP_PATTERNS:
+        if not any(pattern in cmd for cmd in all_commands):
+            missing_startup.append({"pattern": pattern, "description": description})
+
+    checks.append(
+        _check(
+            "startup_command_coverage",
+            "PASS" if not missing_startup else "FAIL",
+            "pytest_result covers required startup commands"
+            if not missing_startup
+            else "pytest_result is missing required startup commands",
+            missing_startup_commands=missing_startup,
         )
     )
 

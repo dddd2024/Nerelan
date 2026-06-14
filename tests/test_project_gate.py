@@ -73,6 +73,8 @@ def _write_round_baseline(
             "baseline_git_status_short": [],
             "baseline_git_diff_name_only": [],
             "baseline_dirty_files": baseline_dirty_files if baseline_dirty_files is not None else [],
+            "baseline_untracked_files": [],
+            "baseline_has_untracked_implementation_files": False,
             "generated_at": "2026-06-12T00:00:00Z",
         },
     )
@@ -421,6 +423,15 @@ def _command_block(command: str, stdout: str, *, exit_code: int = 0, stderr: str
     return "\n".join(lines)
 
 
+_STARTUP_COMMAND_BLOCKS = [
+    _command_block("Set-Location F:\\reverse-agent", "F:\\reverse-agent"),
+    _command_block("Get-Location", "F:\\reverse-agent"),
+    _command_block("Test-Path F:\\reverse-agent", "True"),
+    _command_block("git rev-parse --show-toplevel", "F:\\reverse-agent"),
+    _command_block("git status --short", ""),
+]
+
+
 def _make_command_plan_gate_state(
     tmp_path: Path,
     *,
@@ -463,6 +474,11 @@ def _make_command_plan_gate_state(
     report_id = "report_gate"
     round_id = "round_gate"
     commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
@@ -533,10 +549,15 @@ def _make_command_plan_gate_state(
     if body is None:
         body = "\n\n".join(
             [
-                _command_block(commands[0], "212 passed in 1.00s"),
-                _command_block(commands[1], "command-plan: PASSED"),
-                _command_block(commands[2], json.dumps(plan_payload, indent=2)),
-                _command_block(commands[3], f"final-check: {final_check_stdout_status}"),
+                _command_block(commands[0], "F:\\reverse-agent"),
+                _command_block(commands[1], "F:\\reverse-agent"),
+                _command_block(commands[2], "True"),
+                _command_block(commands[3], "F:\\reverse-agent"),
+                _command_block(commands[4], ""),
+                _command_block(commands[5], "212 passed in 1.00s"),
+                _command_block(commands[6], "command-plan: PASSED"),
+                _command_block(commands[7], json.dumps(plan_payload, indent=2)),
+                _command_block(commands[8], f"final-check: {final_check_stdout_status}"),
             ]
         )
     _write_pytest(
@@ -569,6 +590,11 @@ def _make_report_summary_state(
     round_id = "round_gate"
     report_id = "codex_report_gate"
     commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
@@ -829,6 +855,7 @@ def test_final_check_fails_when_recorded_stdout_status_is_stale(tmp_path: Path) 
         acceptance="NEEDS_REVIEW",
         pytest_body="\n\n".join(
             [
+                *_STARTUP_COMMAND_BLOCKS,
                 _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "312 passed"),
                 _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
                 _command_block(
@@ -891,6 +918,7 @@ def test_project_gate_final_check_cli_prints_warn_when_gate_is_warn(
         acceptance="NEEDS_REVIEW",
         pytest_body="\n\n".join(
             [
+                *_STARTUP_COMMAND_BLOCKS,
                 _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "312 passed"),
                 _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
                 _command_block(
@@ -1209,6 +1237,11 @@ def test_final_check_fails_when_command_plan_missing_report_test(tmp_path: Path)
     state_dir = _make_command_plan_gate_state(
         tmp_path,
         report_tests=[
+            "Set-Location F:\\reverse-agent",
+            "Get-Location",
+            "Test-Path F:\\reverse-agent",
+            "git rev-parse --show-toplevel",
+            "git status --short",
             "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
@@ -1217,6 +1250,7 @@ def test_final_check_fails_when_command_plan_missing_report_test(tmp_path: Path)
         ],
         pytest_body="\n\n".join(
             [
+                *_STARTUP_COMMAND_BLOCKS,
                 _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "212 passed"),
                 _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
                 _command_block(
@@ -1259,6 +1293,7 @@ def test_final_check_fails_when_recorded_exit_code_mismatches_command_plan(tmp_p
         tmp_path,
         pytest_body="\n\n".join(
             [
+                *_STARTUP_COMMAND_BLOCKS,
                 _command_block(command, "pytest completed", exit_code=2),
                 _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
                 _command_block(
@@ -1283,6 +1318,7 @@ def test_final_check_fails_when_command_plan_json_stdout_is_abbreviated(tmp_path
         tmp_path,
         pytest_body="\n\n".join(
             [
+                *_STARTUP_COMMAND_BLOCKS,
                 _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "212 passed"),
                 _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
                 _command_block(
@@ -1591,13 +1627,19 @@ def test_close_round_is_idempotent_for_existing_matching_archive(tmp_path: Path)
 
 def test_final_check_ignores_pre_close_round_final_check_stdout_after_archive(tmp_path: Path) -> None:
     commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
         "python -m reverse_agent.project_gate final-check --state-dir project_state",
         "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_gate",
     ]
     body = "\n\n".join(
         [
-            _command_block(commands[0], "final-check: FAILED"),
-            _command_block(commands[1], "close-round: CLOSED"),
+            *_STARTUP_COMMAND_BLOCKS,
+            _command_block(commands[5], "final-check: FAILED"),
+            _command_block(commands[6], "close-round: CLOSED"),
         ]
     )
     state_dir = _make_command_plan_gate_state(
@@ -1713,6 +1755,7 @@ def test_close_round_fails_when_recorded_exit_code_mismatches_command_plan(tmp_p
         archived=False,
         pytest_body="\n\n".join(
             [
+                *_STARTUP_COMMAND_BLOCKS,
                 _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "pytest completed", exit_code=2),
                 _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
                 _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state --json", json.dumps({"commands": []})),
@@ -1729,6 +1772,11 @@ def test_close_round_fails_when_recorded_exit_code_mismatches_command_plan(tmp_p
 
 def test_final_check_does_not_require_self_recorded_exit_block(tmp_path: Path) -> None:
     commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
@@ -1738,17 +1786,18 @@ def test_final_check_does_not_require_self_recorded_exit_block(tmp_path: Path) -
         tmp_path,
         pytest_body="\n\n".join(
             [
-                _command_block(commands[0], "301 passed"),
-                _command_block(commands[1], "command-plan: PASSED"),
+                *_STARTUP_COMMAND_BLOCKS,
+                _command_block(commands[5], "301 passed"),
+                _command_block(commands[6], "command-plan: PASSED"),
                 _command_block(
-                    commands[2],
+                    commands[7],
                     json.dumps(
                         {
                             "commands": [
-                                {"command": commands[0]},
-                                {"command": commands[1]},
-                                {"command": commands[2]},
-                                {"command": commands[3]},
+                                {"command": commands[5]},
+                                {"command": commands[6]},
+                                {"command": commands[7]},
+                                {"command": commands[8]},
                             ]
                         }
                     ),
@@ -1764,6 +1813,11 @@ def test_final_check_does_not_require_self_recorded_exit_block(tmp_path: Path) -
 
 def test_final_check_fails_after_archive_when_close_round_declared_but_command_block_missing(tmp_path: Path) -> None:
     base_commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
@@ -1807,10 +1861,11 @@ def test_final_check_fails_after_archive_when_close_round_declared_but_command_b
     # pytest body intentionally omits the close-round command block.
     body_without_close_round = "\n\n".join(
         [
-            _command_block(base_commands[0], "301 passed"),
-            _command_block(base_commands[1], "command-plan: PASSED"),
-            _command_block(base_commands[2], json.dumps(plan_payload)),
-            _command_block(base_commands[3], "final-check: PASSED"),
+            *_STARTUP_COMMAND_BLOCKS,
+            _command_block(base_commands[5], "301 passed"),
+            _command_block(base_commands[6], "command-plan: PASSED"),
+            _command_block(base_commands[7], json.dumps(plan_payload)),
+            _command_block(base_commands[8], "final-check: PASSED"),
         ]
     )
     state_dir = _make_command_plan_gate_state(
@@ -1831,6 +1886,11 @@ def test_final_check_fails_after_archive_when_close_round_declared_but_command_b
 
 def test_final_check_passes_when_close_round_command_block_present(tmp_path: Path) -> None:
     base_commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
@@ -1872,11 +1932,12 @@ def test_final_check_passes_when_close_round_command_block_present(tmp_path: Pat
     }
     body_with_close_round = "\n\n".join(
         [
-            _command_block(base_commands[0], "301 passed"),
-            _command_block(base_commands[1], "command-plan: PASSED"),
-            _command_block(base_commands[2], json.dumps(plan_payload)),
-            _command_block(base_commands[3], "final-check: PASSED"),
-            _command_block(base_commands[4], "close-round: CLOSED"),
+            *_STARTUP_COMMAND_BLOCKS,
+            _command_block(base_commands[5], "301 passed"),
+            _command_block(base_commands[6], "command-plan: PASSED"),
+            _command_block(base_commands[7], json.dumps(plan_payload)),
+            _command_block(base_commands[8], "final-check: PASSED"),
+            _command_block(base_commands[9], "close-round: CLOSED"),
         ]
     )
     state_dir = _make_command_plan_gate_state(
@@ -1900,6 +1961,11 @@ def test_final_check_fails_when_command_block_after_close_round(tmp_path: Path) 
     close_round_is_last_command_block check must FAIL.
     """
     base_commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
         "python -m reverse_agent.project_gate final-check --state-dir project_state",
@@ -1942,11 +2008,12 @@ def test_final_check_fails_when_command_block_after_close_round(tmp_path: Path) 
     # Body has command-plan AFTER close-round — this must FAIL.
     body_with_post_close_round_command = "\n\n".join(
         [
-            _command_block(base_commands[0], "301 passed"),
-            _command_block(base_commands[1], json.dumps(plan_payload)),
-            _command_block(base_commands[2], "final-check: PASSED"),
-            _command_block(base_commands[3], "close-round: CLOSED"),
-            _command_block(base_commands[4], "command-plan: PASSED"),
+            *_STARTUP_COMMAND_BLOCKS,
+            _command_block(base_commands[5], "301 passed"),
+            _command_block(base_commands[6], json.dumps(plan_payload)),
+            _command_block(base_commands[7], "final-check: PASSED"),
+            _command_block(base_commands[8], "close-round: CLOSED"),
+            _command_block(base_commands[9], "command-plan: PASSED"),
         ]
     )
     state_dir = _make_command_plan_gate_state(
@@ -1972,6 +2039,7 @@ def test_close_round_fails_when_command_plan_json_stdout_is_abbreviated(tmp_path
         archived=False,
         pytest_body="\n\n".join(
             [
+                *_STARTUP_COMMAND_BLOCKS,
                 _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "pytest completed"),
                 _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
                 _command_block(
@@ -2877,11 +2945,16 @@ def test_final_check_failed_status_summary_uses_gate_status(tmp_path: Path) -> N
     state_dir = _make_command_plan_gate_state(
         tmp_path,
         report_tests=[
+            "Set-Location F:\\reverse-agent",
+            "Get-Location",
+            "Test-Path F:\\reverse-agent",
+            "git rev-parse --show-toplevel",
+            "git status --short",
             "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state",
             "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
             "python -m reverse_agent.project_gate final-check --state-dir project_state",
-            "Get-Location",
+            "echo unexpected-extra-command",
         ],
     )
 
@@ -2894,6 +2967,11 @@ def test_final_check_failed_status_summary_uses_gate_status(tmp_path: Path) -> N
 
 def test_final_check_requires_close_round_command_block_when_declared(tmp_path: Path) -> None:
     commands = [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
