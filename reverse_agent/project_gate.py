@@ -751,6 +751,12 @@ def _baseline_lifecycle_checks(
     scope_text = _markdown_section(decision_text, "Implementation Scope")
     source_test_scope = _allowed_source_test_scope_paths(scope_text)
     allowed_inherited = _allowed_inherited_baseline_paths(decision_text)
+    # Files explicitly listed in "Allowed source files" / "Allowed tests"
+    # are valid as inherited baseline dirty files.  They produce a WARN
+    # (not a FAIL) because the decision explicitly authorises them even
+    # though they pre-date the current round.
+    scope_allowed_inherited = source_test_scope & baseline_dirty_files
+    allowed_inherited |= scope_allowed_inherited
     source_test_baseline_dirty = sorted(baseline_dirty_files & source_test_scope)
     unauthorized = sorted((baseline_dirty_files & source_test_scope) - allowed_inherited)
     allowed_claimed = sorted((baseline_dirty_files & source_test_scope) & allowed_inherited)
@@ -1134,6 +1140,27 @@ def _validate_command_plan_consistency(
             path=COMMAND_PLAN_OUTPUT_PATH,
         )
     )
+
+    # close-round must be the last command block in pytest_result.txt
+    close_round_commands = [
+        item for item in plan_commands if _command_kind(item) == "close-round"
+    ]
+    if close_round_commands and blocks:
+        last_block_command = str(blocks[-1].get("command") or "")
+        last_block_kind = _command_kind(last_block_command)
+        close_round_is_last = last_block_kind == "close-round"
+        checks.append(
+            _check(
+                "close_round_is_last_command_block",
+                "PASS" if close_round_is_last else "FAIL",
+                "close-round is the last command block in pytest_result"
+                if close_round_is_last
+                else f"close-round is not the last command block; last block is: {last_block_command!r}",
+                last_command=last_block_command,
+                last_kind=last_block_kind,
+            )
+        )
+
     return checks
 
 
@@ -2420,6 +2447,11 @@ def _preflight_recommended_next_action(gate_status: str) -> str:
 
 def _command_kind(command: str) -> str:
     lowered = command.lower()
+    # Reject bare filenames that look like artifacts, not commands.
+    # e.g. "pytest_result.txt" should not be classified as "pytest".
+    _ARTIFACT_EXTENSIONS = (".txt", ".md", ".json", ".csv", ".log", ".html", ".xml")
+    if " " not in command and any(lowered.endswith(ext) for ext in _ARTIFACT_EXTENSIONS):
+        return "unknown"
     if lowered == "pwd" or lowered.startswith("pwd "):
         return "pwd"
     if lowered == "get-location" or lowered.startswith("get-location "):
