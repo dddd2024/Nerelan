@@ -1,0 +1,293 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_2f6fcb63",
+  "relative_path": "逆向课程2023春01/CPP1.exe",
+  "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+  "analysis_mode": "alternative_static_semantics_review",
+  "mainline": "reverse_solving",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "authoritative": false,
+  "generated_at": "2026-06-14T14:40:55Z",
+  "source_artifacts": {
+    "target_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+    "static_inverse_handoff": "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+    "static_triage": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+    "artifact_index": "project_state/artifact_index.json",
+    "negative_results": "project_state/negative_results.json"
+  },
+  "source_artifact_freshness": {
+    "target_revalidation": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "static_inverse_handoff": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_static_inverse_handoff",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "static_triage": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_static_triage",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    }
+  },
+  "negative_results_considered": [
+    {
+      "direction": "cpp1_2f6fcb63 current target bytes printable inverse path",
+      "do_not_repeat": true,
+      "severity": "soft_block",
+      "reason": "current revalidation artifact local_reverse_cpp1_2f6fcb63_target_bytes_revalidation is PASSED/current, but static inverse handoff over byte_429A30 target bytes has no complete printable ASCII preimage; missing printable indices: 2, 3, 4, 5, 7, 8, 9, 10, 12, 13",
+      "effect": "printable inverse path treated as consumed negative evidence, not rerun"
+    }
+  ],
+  "input_domain_review": {
+    "scanf_percent_s_requires_printable_ascii": false,
+    "scanf_percent_s_token_constraints": [
+      "NUL terminates C strings and cannot be embedded in the scanned token",
+      "ASCII whitespace terminates a %s token",
+      "printable ASCII is not a semantic requirement of %s or strlen"
+    ],
+    "strlen_required_length": 18,
+    "strncpy_copied_length": 16,
+    "first_16_target_constrained": true,
+    "suffix_bytes_17_18_target_constrained": false,
+    "suffix_bytes_17_18_review": "They are not part of the 16-byte target preimage. Because the compare loop succeeds only when it stops at i == 16, suffix bytes should be chosen so the transformed byte at index 16 does not accidentally match adjacent data.",
+    "all_byte_preimage_has_scanf_hard_blocker": false,
+    "raw_stdin_or_file_redirected_delivery_possible": true,
+    "windows_console_delivery_risk": "high"
+  },
+  "transform_semantics_review": {
+    "current_formula": "(x & 3) | (16 * (x & 0x0C)) | ((x & 0xF0) >> 2)",
+    "is_single_byte_bit_permutation": true,
+    "bit_mapping": [
+      "y0=x0",
+      "y1=x1",
+      "y2=x4",
+      "y3=x5",
+      "y4=x6",
+      "y5=x7",
+      "y6=x2",
+      "y7=x3"
+    ],
+    "signed_unsigned_equivalent_after_u8_truncation": true,
+    "forward_inverse_direction_review": "The current handoff inverts the forward transform from byte_429A30 target bytes to input bytes. The unique all-byte preimage reproduces the target under the current forward formula, so the printable failure is not caused by simply using the inverse in the wrong direction.",
+    "extra_operation_evidence": {
+      "xor_add_sub_table_lookup_or_previous_byte_dependency_seen": false,
+      "basis": "current revalidation and static triage only; no new IDA/tool run in this round"
+    },
+    "interpretation": "A unique full-byte preimage with an incomplete printable preimage is more consistent with raw-byte input semantics than with a printable password, subject to input-delivery review."
+  },
+  "target_symbol_review": {
+    "target_symbol": "byte_429A30",
+    "target_address": "0x00429A30",
+    "target_length": 16,
+    "target_bytes_hex": "d596c4f60745577776e5f64847f74817",
+    "target_length_matches_success_boundary": true,
+    "current_revalidation_status": "PASSED",
+    "current_revalidation_sufficient_for_this_review": true,
+    "needs_target_xref_tool_recheck": false,
+    "tool_recheck_not_run_this_round": true,
+    "notes": [
+      "Current target revalidation confirms byte_429A30, target length 16, and matching transform/compare fragments.",
+      "No current-artifact conflict was found that would justify rerunning IDA in this round."
+    ]
+  },
+  "all_byte_preimage_review": {
+    "target_bytes_hex": "d596c4f60745577776e5f64847f74817",
+    "all_byte_unique_preimage": true,
+    "nonprintable_static_preimage_preview_hex": "5d5a1cde131557d7d69dde2417df2453",
+    "printable_positions": [
+      0,
+      1,
+      6,
+      11,
+      14,
+      15
+    ],
+    "missing_printable_positions": [
+      2,
+      3,
+      4,
+      5,
+      7,
+      8,
+      9,
+      10,
+      12,
+      13
+    ],
+    "byte_classes": {
+      "nul_indices": [],
+      "whitespace_indices": [],
+      "control_indices": [
+        2,
+        4,
+        5,
+        12
+      ],
+      "high_bit_indices": [
+        3,
+        7,
+        8,
+        9,
+        10,
+        13
+      ],
+      "printable_ascii_indices": [
+        0,
+        1,
+        6,
+        11,
+        14,
+        15
+      ]
+    },
+    "per_byte": [
+      {
+        "index": 0,
+        "byte": 93,
+        "byte_hex": "5d",
+        "class": "printable_ascii",
+        "printable_text": "]"
+      },
+      {
+        "index": 1,
+        "byte": 90,
+        "byte_hex": "5a",
+        "class": "printable_ascii",
+        "printable_text": "Z"
+      },
+      {
+        "index": 2,
+        "byte": 28,
+        "byte_hex": "1c",
+        "class": "control",
+        "printable_text": ""
+      },
+      {
+        "index": 3,
+        "byte": 222,
+        "byte_hex": "de",
+        "class": "high_bit",
+        "printable_text": ""
+      },
+      {
+        "index": 4,
+        "byte": 19,
+        "byte_hex": "13",
+        "class": "control",
+        "printable_text": ""
+      },
+      {
+        "index": 5,
+        "byte": 21,
+        "byte_hex": "15",
+        "class": "control",
+        "printable_text": ""
+      },
+      {
+        "index": 6,
+        "byte": 87,
+        "byte_hex": "57",
+        "class": "printable_ascii",
+        "printable_text": "W"
+      },
+      {
+        "index": 7,
+        "byte": 215,
+        "byte_hex": "d7",
+        "class": "high_bit",
+        "printable_text": ""
+      },
+      {
+        "index": 8,
+        "byte": 214,
+        "byte_hex": "d6",
+        "class": "high_bit",
+        "printable_text": ""
+      },
+      {
+        "index": 9,
+        "byte": 157,
+        "byte_hex": "9d",
+        "class": "high_bit",
+        "printable_text": ""
+      },
+      {
+        "index": 10,
+        "byte": 222,
+        "byte_hex": "de",
+        "class": "high_bit",
+        "printable_text": ""
+      },
+      {
+        "index": 11,
+        "byte": 36,
+        "byte_hex": "24",
+        "class": "printable_ascii",
+        "printable_text": "$"
+      },
+      {
+        "index": 12,
+        "byte": 23,
+        "byte_hex": "17",
+        "class": "control",
+        "printable_text": ""
+      },
+      {
+        "index": 13,
+        "byte": 223,
+        "byte_hex": "df",
+        "class": "high_bit",
+        "printable_text": ""
+      },
+      {
+        "index": 14,
+        "byte": 36,
+        "byte_hex": "24",
+        "class": "printable_ascii",
+        "printable_text": "$"
+      },
+      {
+        "index": 15,
+        "byte": 83,
+        "byte_hex": "53",
+        "class": "printable_ascii",
+        "printable_text": "S"
+      }
+    ],
+    "runtime_validated": false,
+    "authoritative": false,
+    "requires_input_delivery_review": true
+  },
+  "nonprintable_input_delivery_risk": {
+    "risk_level": "medium",
+    "console_unfriendly": true,
+    "stdin_raw_possible": true,
+    "requires_runtime_input_delivery_review": true,
+    "scanf_hard_blockers": {
+      "contains_nul": false,
+      "contains_whitespace": false,
+      "indices": []
+    },
+    "recommended_delivery_hypothesis": "raw stdin/file-redirection byte delivery with printable non-whitespace suffix bytes"
+  },
+  "candidate": null,
+  "known_candidate": "",
+  "recommended_next_action": "NEEDS_INPUT_DELIVERY_REVIEW",
+  "stop_conditions_for_next_round": [
+    "Do not call the nonprintable preview a password or solved answer without runtime proof.",
+    "Do not repeat the current target bytes printable inverse path.",
+    "If runtime is proposed, require a separate bounded validation decision and an input-delivery plan.",
+    "If target or transform evidence is contradicted, stop for tool/xref recheck rather than rerunning IDA ad hoc."
+  ]
+}

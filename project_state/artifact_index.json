@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-14T13:39:32Z",
+  "generated_at": "2026-06-14T14:40:55Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": null,
@@ -52,7 +52,8 @@
     "summary": null,
     "transform_trace_consistency": null,
     "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
-    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json"
+    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+    "local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -562,6 +563,16 @@
       "size_bytes": 30050,
       "modified_at": "2026-06-14T13:39:32Z",
       "sample_id": "cpp1_2f6fcb63"
+    },
+    "local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review": {
+      "kind": "alternative_static_semantics_review",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
+      "sha256": "aca4d7fcd6f7a679d22588b1151aec238bf1af8290862f118ad12bc0626d44a2",
+      "size_bytes": 9713,
+      "modified_at": "2026-06-14T14:40:55Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [],
@@ -579,6 +590,7 @@
   "sample": "samplereverse",
   "artifact_refs": {
     "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
-    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json"
+    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+    "local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json"
   }
 }

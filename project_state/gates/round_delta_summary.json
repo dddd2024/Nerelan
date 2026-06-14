@@ -1,29 +1,27 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260614_gate_close_round_idempotency_status_policy_rework_v1",
-  "round_id": "round_20260614_gate_close_round_idempotency_status_policy_rework_v1",
-  "head_commit": "2114a1a85c93",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
+  "head_commit": "91cca3f205f1",
   "baseline_available": true,
   "baseline_git_status_short": [
-    " M reverse_agent/project_gate.py",
-    " M reverse_agent/project_state.py",
-    " M tests/test_project_gate.py",
-    " M tests/test_project_state.py"
+    " M project_state/artifact_index.json",
+    "?? project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+    "?? reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
+    "?? tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
   ],
   "baseline_git_diff_name_only": [
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_state.py"
+    "project_state/artifact_index.json"
   ],
   "baseline_dirty_files": [
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_state.py"
+    "project_state/artifact_index.json",
+    "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+    "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
+    "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
   ],
   "final_git_status_short": [
+    " M project_state/artifact_index.json",
     " M project_state/codex_execution_report.md",
     " M project_state/gates/command_plan.json",
     " M project_state/gates/final_gate_result.json",
@@ -32,16 +30,16 @@
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
     " M project_state/pytest_result.txt",
-    " M reverse_agent/project_gate.py",
-    " M reverse_agent/project_state.py",
-    " M tests/test_project_gate.py",
-    " M tests/test_project_state.py",
-    "?? project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json"
+    "?? project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+    "?? project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/round_manifest.json",
+    "?? reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
+    "?? tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
   ],
   "final_git_diff_name_only": [
+    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
@@ -49,13 +47,10 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_state.py"
+    "project_state/pytest_result.txt"
   ],
   "final_dirty_files": [
+    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
@@ -63,15 +58,14 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
+    "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json",
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_state.py"
+    "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/decision_packet.md",
+    "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/pytest_result.txt",
+    "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/round_manifest.json",
+    "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
+    "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -82,17 +76,17 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json"
+    "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/decision_packet.md",
+    "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/pytest_result.txt",
+    "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/round_manifest.json"
   ],
   "inherited_dirty_files": [
-    "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_state.py"
+    "project_state/artifact_index.json",
+    "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+    "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
+    "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-14T14:28:45.801119Z"
+  "generated_at": "2026-06-14T14:47:08.316557Z"
 }
