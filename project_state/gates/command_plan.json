@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-  "mainline": "tool_integration",
-  "generated_at": "2026-06-14T09:34:13.946287Z",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+  "mainline": "reverse_solving",
+  "generated_at": "2026-06-14T13:38:57.053117Z",
   "commands": [
     {
       "index": 1,
@@ -105,7 +105,7 @@
     },
     {
       "index": 9,
-      "command": "python -m pytest tests/test_local_reverse_cpp1_target_byte_extract.py tests/test_local_reverse_single_sample_static_triage.py -q",
+      "command": "python -m pytest tests/test_local_reverse_cpp1_signed_transform_recheck.py tests/test_local_reverse_cpp1_target_byte_extract.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -129,31 +129,7 @@
     },
     {
       "index": 11,
-      "command": "current static triage verification (cpp1_2f6fcb63 static-only current IDA success)",
-      "phase": "status",
-      "kind": "current-static-triage-verification",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "current-static-triage-verification expected to exit 0"
-    },
-    {
-      "index": 12,
-      "command": "python -m reverse_agent.local_reverse_cpp1_target_byte_extract --current-revalidation --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
-      "phase": "status",
-      "kind": "target-bytes-revalidation",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "target-bytes-revalidation expected to exit 0"
-    },
-    {
-      "index": 13,
-      "command": "artifact_index verification (cpp1 target bytes current revalidation provenance)",
+      "command": "artifact_index verification (cpp1 static triage current provenance)",
       "phase": "status",
       "kind": "artifact-index-verification",
       "required": true,
@@ -164,7 +140,7 @@
       "notes": "artifact-index-verification expected to exit 0"
     },
     {
-      "index": 14,
+      "index": 12,
       "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
       "phase": "status",
       "kind": "doctor",
@@ -176,7 +152,7 @@
       "notes": "doctor expected to exit 0"
     },
     {
-      "index": 15,
+      "index": 13,
       "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "phase": "status",
       "kind": "lint-report",
@@ -188,7 +164,7 @@
       "notes": "lint-report expected to exit 0"
     },
     {
-      "index": 16,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -200,7 +176,7 @@
       "notes": "report-summary expected to exit 0"
     },
     {
-      "index": 17,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -212,8 +188,8 @@
       "notes": "final-check expected to exit 0"
     },
     {
-      "index": 18,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,

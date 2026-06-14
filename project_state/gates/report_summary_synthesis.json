@@ -3,26 +3,26 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "PASSED",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-  "report_id": "codex_report_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-  "generated_at": "2026-06-14T09:38:24.555358Z",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+  "report_id": "codex_report_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+  "generated_at": "2026-06-14T13:43:51.066241Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-    "round_id": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-    "based_on_decision_id": "decision_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+    "report_id": "codex_report_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+    "round_id": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+    "based_on_decision_id": "decision_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
     "files_changed": [
-      "project_state/artifact_index.json",
       "project_state/codex_execution_report.md",
       "project_state/gates/final_gate_result.json",
+      "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
+      "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/decision_packet.md",
-      "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/pytest_result.txt",
-      "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json"
+      "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/decision_packet.md",
+      "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/pytest_result.txt",
+      "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/round_manifest.json"
     ],
     "tests_ran": [
       "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
@@ -33,16 +33,14 @@
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state",
       "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-      "python -m pytest tests/test_local_reverse_cpp1_target_byte_extract.py tests/test_local_reverse_single_sample_static_triage.py -q",
+      "python -m pytest tests/test_local_reverse_cpp1_signed_transform_recheck.py tests/test_local_reverse_cpp1_target_byte_extract.py -q",
       "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
-      "current static triage verification (cpp1_2f6fcb63 static-only current IDA success)",
-      "python -m reverse_agent.local_reverse_cpp1_target_byte_extract --current-revalidation --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
-      "artifact_index verification (cpp1 target bytes current revalidation provenance)",
+      "artifact_index verification (cpp1 static triage current provenance)",
       "python -m reverse_agent.project_state doctor --state-dir project_state",
       "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1"
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -53,13 +51,16 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/decision_packet.md",
-      "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/pytest_result.txt",
-      "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json"
+      "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/decision_packet.md",
+      "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/pytest_result.txt",
+      "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/round_manifest.json"
     ],
-    "status": "PARTIAL",
-    "acceptance_recommendation": "NEEDS_REVIEW"
+    "status": "SUCCESS",
+    "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+    "limitations": [
+      "historical sample artifacts missing; non-blocking for non-sample-solving closeout"
+    ]
   },
   "diffs": [],
   "errors": [],

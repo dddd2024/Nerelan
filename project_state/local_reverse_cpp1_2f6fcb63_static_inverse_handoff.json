@@ -1,0 +1,1024 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_2f6fcb63",
+  "relative_path": "逆向课程2023春01/CPP1.exe",
+  "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+  "analysis_mode": "static_inverse_transform_handoff",
+  "mainline": "reverse_solving",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "authoritative": false,
+  "requires_runtime_validation": true,
+  "generated_at": "2026-06-14T13:39:32Z",
+  "status": "BLOCKED",
+  "blocked_reason": "NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_CURRENT_TARGET_BYTES",
+  "source_artifacts": {
+    "current_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+    "artifact_index": "project_state/artifact_index.json"
+  },
+  "source_artifact_freshness": {
+    "current_revalidation": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    }
+  },
+  "target_symbol": "byte_429A30",
+  "target_address": "0x00429A30",
+  "target_length": 16,
+  "target_bytes_hex": "d596c4f60745577776e5f64847f74817",
+  "target_bytes": [
+    213,
+    150,
+    196,
+    246,
+    7,
+    69,
+    87,
+    119,
+    118,
+    229,
+    246,
+    72,
+    71,
+    247,
+    72,
+    23
+  ],
+  "transform_models": {
+    "unsigned_formula": {
+      "formula": "u8((x & 0x03) | ((x & 0x0C) << 4) | ((x & 0xF0) >> 2))",
+      "domain": "0x00..0xff"
+    },
+    "signed_instruction": {
+      "formula": "u8((sar32((s8(x) & 0xF0), 2)) | ((s8(x) & 0x0C) << 4) | (s8(x) & 0x03))",
+      "domain": "0x00..0xff"
+    }
+  },
+  "model_equivalence": {
+    "input_count": 256,
+    "difference_count": 0,
+    "models_equivalent_after_u8_truncation": true
+  },
+  "per_byte_preimages": {
+    "all_byte_domain": {
+      "signed_instruction": {
+        "model": "signed_instruction",
+        "domain": "0x00..0xff",
+        "target_length": 16,
+        "all_target_bytes_have_preimage": true,
+        "all_target_bytes_have_unique_preimage": true,
+        "per_byte": [
+          {
+            "index": 0,
+            "target_byte": 213,
+            "target_byte_hex": "d5",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 93,
+            "preimages": [
+              93
+            ],
+            "preimages_hex": [
+              "5d"
+            ],
+            "preimages_text": "]"
+          },
+          {
+            "index": 1,
+            "target_byte": 150,
+            "target_byte_hex": "96",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 90,
+            "preimages": [
+              90
+            ],
+            "preimages_hex": [
+              "5a"
+            ],
+            "preimages_text": "Z"
+          },
+          {
+            "index": 2,
+            "target_byte": 196,
+            "target_byte_hex": "c4",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 28,
+            "preimages": [
+              28
+            ],
+            "preimages_hex": [
+              "1c"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 3,
+            "target_byte": 246,
+            "target_byte_hex": "f6",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 222,
+            "preimages": [
+              222
+            ],
+            "preimages_hex": [
+              "de"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 4,
+            "target_byte": 7,
+            "target_byte_hex": "07",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 19,
+            "preimages": [
+              19
+            ],
+            "preimages_hex": [
+              "13"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 5,
+            "target_byte": 69,
+            "target_byte_hex": "45",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 21,
+            "preimages": [
+              21
+            ],
+            "preimages_hex": [
+              "15"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 6,
+            "target_byte": 87,
+            "target_byte_hex": "57",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 87,
+            "preimages": [
+              87
+            ],
+            "preimages_hex": [
+              "57"
+            ],
+            "preimages_text": "W"
+          },
+          {
+            "index": 7,
+            "target_byte": 119,
+            "target_byte_hex": "77",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 215,
+            "preimages": [
+              215
+            ],
+            "preimages_hex": [
+              "d7"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 8,
+            "target_byte": 118,
+            "target_byte_hex": "76",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 214,
+            "preimages": [
+              214
+            ],
+            "preimages_hex": [
+              "d6"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 9,
+            "target_byte": 229,
+            "target_byte_hex": "e5",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 157,
+            "preimages": [
+              157
+            ],
+            "preimages_hex": [
+              "9d"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 10,
+            "target_byte": 246,
+            "target_byte_hex": "f6",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 222,
+            "preimages": [
+              222
+            ],
+            "preimages_hex": [
+              "de"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 11,
+            "target_byte": 72,
+            "target_byte_hex": "48",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 36,
+            "preimages": [
+              36
+            ],
+            "preimages_hex": [
+              "24"
+            ],
+            "preimages_text": "$"
+          },
+          {
+            "index": 12,
+            "target_byte": 71,
+            "target_byte_hex": "47",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 23,
+            "preimages": [
+              23
+            ],
+            "preimages_hex": [
+              "17"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 13,
+            "target_byte": 247,
+            "target_byte_hex": "f7",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 223,
+            "preimages": [
+              223
+            ],
+            "preimages_hex": [
+              "df"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 14,
+            "target_byte": 72,
+            "target_byte_hex": "48",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 36,
+            "preimages": [
+              36
+            ],
+            "preimages_hex": [
+              "24"
+            ],
+            "preimages_text": "$"
+          },
+          {
+            "index": 15,
+            "target_byte": 23,
+            "target_byte_hex": "17",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 83,
+            "preimages": [
+              83
+            ],
+            "preimages_hex": [
+              "53"
+            ],
+            "preimages_text": "S"
+          }
+        ]
+      },
+      "unsigned_formula": {
+        "model": "unsigned_formula",
+        "domain": "0x00..0xff",
+        "target_length": 16,
+        "all_target_bytes_have_preimage": true,
+        "all_target_bytes_have_unique_preimage": true,
+        "per_byte": [
+          {
+            "index": 0,
+            "target_byte": 213,
+            "target_byte_hex": "d5",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 93,
+            "preimages": [
+              93
+            ],
+            "preimages_hex": [
+              "5d"
+            ],
+            "preimages_text": "]"
+          },
+          {
+            "index": 1,
+            "target_byte": 150,
+            "target_byte_hex": "96",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 90,
+            "preimages": [
+              90
+            ],
+            "preimages_hex": [
+              "5a"
+            ],
+            "preimages_text": "Z"
+          },
+          {
+            "index": 2,
+            "target_byte": 196,
+            "target_byte_hex": "c4",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 28,
+            "preimages": [
+              28
+            ],
+            "preimages_hex": [
+              "1c"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 3,
+            "target_byte": 246,
+            "target_byte_hex": "f6",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 222,
+            "preimages": [
+              222
+            ],
+            "preimages_hex": [
+              "de"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 4,
+            "target_byte": 7,
+            "target_byte_hex": "07",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 19,
+            "preimages": [
+              19
+            ],
+            "preimages_hex": [
+              "13"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 5,
+            "target_byte": 69,
+            "target_byte_hex": "45",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 21,
+            "preimages": [
+              21
+            ],
+            "preimages_hex": [
+              "15"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 6,
+            "target_byte": 87,
+            "target_byte_hex": "57",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 87,
+            "preimages": [
+              87
+            ],
+            "preimages_hex": [
+              "57"
+            ],
+            "preimages_text": "W"
+          },
+          {
+            "index": 7,
+            "target_byte": 119,
+            "target_byte_hex": "77",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 215,
+            "preimages": [
+              215
+            ],
+            "preimages_hex": [
+              "d7"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 8,
+            "target_byte": 118,
+            "target_byte_hex": "76",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 214,
+            "preimages": [
+              214
+            ],
+            "preimages_hex": [
+              "d6"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 9,
+            "target_byte": 229,
+            "target_byte_hex": "e5",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 157,
+            "preimages": [
+              157
+            ],
+            "preimages_hex": [
+              "9d"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 10,
+            "target_byte": 246,
+            "target_byte_hex": "f6",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 222,
+            "preimages": [
+              222
+            ],
+            "preimages_hex": [
+              "de"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 11,
+            "target_byte": 72,
+            "target_byte_hex": "48",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 36,
+            "preimages": [
+              36
+            ],
+            "preimages_hex": [
+              "24"
+            ],
+            "preimages_text": "$"
+          },
+          {
+            "index": 12,
+            "target_byte": 71,
+            "target_byte_hex": "47",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 23,
+            "preimages": [
+              23
+            ],
+            "preimages_hex": [
+              "17"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 13,
+            "target_byte": 247,
+            "target_byte_hex": "f7",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 223,
+            "preimages": [
+              223
+            ],
+            "preimages_hex": [
+              "df"
+            ],
+            "preimages_text": "."
+          },
+          {
+            "index": 14,
+            "target_byte": 72,
+            "target_byte_hex": "48",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 36,
+            "preimages": [
+              36
+            ],
+            "preimages_hex": [
+              "24"
+            ],
+            "preimages_text": "$"
+          },
+          {
+            "index": 15,
+            "target_byte": 23,
+            "target_byte_hex": "17",
+            "preimage_count": 1,
+            "has_preimage": true,
+            "unique_preimage": 83,
+            "preimages": [
+              83
+            ],
+            "preimages_hex": [
+              "53"
+            ],
+            "preimages_text": "S"
+          }
+        ]
+      }
+    },
+    "printable_ascii_domain": {
+      "signed_instruction": {
+        "model": "signed_instruction",
+        "printable_domain": "0x20..0x7e",
+        "target_length": 16,
+        "all_target_bytes_have_printable_preimage": false,
+        "all_target_bytes_have_unique_printable_preimage": false,
+        "per_byte": [
+          {
+            "index": 0,
+            "target_byte": 213,
+            "target_byte_hex": "d5",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 93,
+            "printable_preimages": [
+              93
+            ],
+            "printable_preimages_hex": [
+              "5d"
+            ],
+            "printable_preimages_text": "]"
+          },
+          {
+            "index": 1,
+            "target_byte": 150,
+            "target_byte_hex": "96",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 90,
+            "printable_preimages": [
+              90
+            ],
+            "printable_preimages_hex": [
+              "5a"
+            ],
+            "printable_preimages_text": "Z"
+          },
+          {
+            "index": 2,
+            "target_byte": 196,
+            "target_byte_hex": "c4",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 3,
+            "target_byte": 246,
+            "target_byte_hex": "f6",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 4,
+            "target_byte": 7,
+            "target_byte_hex": "07",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 5,
+            "target_byte": 69,
+            "target_byte_hex": "45",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 6,
+            "target_byte": 87,
+            "target_byte_hex": "57",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 87,
+            "printable_preimages": [
+              87
+            ],
+            "printable_preimages_hex": [
+              "57"
+            ],
+            "printable_preimages_text": "W"
+          },
+          {
+            "index": 7,
+            "target_byte": 119,
+            "target_byte_hex": "77",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 8,
+            "target_byte": 118,
+            "target_byte_hex": "76",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 9,
+            "target_byte": 229,
+            "target_byte_hex": "e5",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 10,
+            "target_byte": 246,
+            "target_byte_hex": "f6",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 11,
+            "target_byte": 72,
+            "target_byte_hex": "48",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 36,
+            "printable_preimages": [
+              36
+            ],
+            "printable_preimages_hex": [
+              "24"
+            ],
+            "printable_preimages_text": "$"
+          },
+          {
+            "index": 12,
+            "target_byte": 71,
+            "target_byte_hex": "47",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 13,
+            "target_byte": 247,
+            "target_byte_hex": "f7",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 14,
+            "target_byte": 72,
+            "target_byte_hex": "48",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 36,
+            "printable_preimages": [
+              36
+            ],
+            "printable_preimages_hex": [
+              "24"
+            ],
+            "printable_preimages_text": "$"
+          },
+          {
+            "index": 15,
+            "target_byte": 23,
+            "target_byte_hex": "17",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 83,
+            "printable_preimages": [
+              83
+            ],
+            "printable_preimages_hex": [
+              "53"
+            ],
+            "printable_preimages_text": "S"
+          }
+        ],
+        "static_preimage_preview_hex": "",
+        "static_preimage_preview_ascii_if_printable": ""
+      },
+      "unsigned_formula": {
+        "model": "unsigned_formula",
+        "printable_domain": "0x20..0x7e",
+        "target_length": 16,
+        "all_target_bytes_have_printable_preimage": false,
+        "all_target_bytes_have_unique_printable_preimage": false,
+        "per_byte": [
+          {
+            "index": 0,
+            "target_byte": 213,
+            "target_byte_hex": "d5",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 93,
+            "printable_preimages": [
+              93
+            ],
+            "printable_preimages_hex": [
+              "5d"
+            ],
+            "printable_preimages_text": "]"
+          },
+          {
+            "index": 1,
+            "target_byte": 150,
+            "target_byte_hex": "96",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 90,
+            "printable_preimages": [
+              90
+            ],
+            "printable_preimages_hex": [
+              "5a"
+            ],
+            "printable_preimages_text": "Z"
+          },
+          {
+            "index": 2,
+            "target_byte": 196,
+            "target_byte_hex": "c4",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 3,
+            "target_byte": 246,
+            "target_byte_hex": "f6",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 4,
+            "target_byte": 7,
+            "target_byte_hex": "07",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 5,
+            "target_byte": 69,
+            "target_byte_hex": "45",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 6,
+            "target_byte": 87,
+            "target_byte_hex": "57",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 87,
+            "printable_preimages": [
+              87
+            ],
+            "printable_preimages_hex": [
+              "57"
+            ],
+            "printable_preimages_text": "W"
+          },
+          {
+            "index": 7,
+            "target_byte": 119,
+            "target_byte_hex": "77",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 8,
+            "target_byte": 118,
+            "target_byte_hex": "76",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 9,
+            "target_byte": 229,
+            "target_byte_hex": "e5",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 10,
+            "target_byte": 246,
+            "target_byte_hex": "f6",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 11,
+            "target_byte": 72,
+            "target_byte_hex": "48",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 36,
+            "printable_preimages": [
+              36
+            ],
+            "printable_preimages_hex": [
+              "24"
+            ],
+            "printable_preimages_text": "$"
+          },
+          {
+            "index": 12,
+            "target_byte": 71,
+            "target_byte_hex": "47",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 13,
+            "target_byte": 247,
+            "target_byte_hex": "f7",
+            "preimage_count": 0,
+            "has_printable_preimage": false,
+            "unique_printable_preimage": null,
+            "printable_preimages": [],
+            "printable_preimages_hex": [],
+            "printable_preimages_text": null
+          },
+          {
+            "index": 14,
+            "target_byte": 72,
+            "target_byte_hex": "48",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 36,
+            "printable_preimages": [
+              36
+            ],
+            "printable_preimages_hex": [
+              "24"
+            ],
+            "printable_preimages_text": "$"
+          },
+          {
+            "index": 15,
+            "target_byte": 23,
+            "target_byte_hex": "17",
+            "preimage_count": 1,
+            "has_printable_preimage": true,
+            "unique_printable_preimage": 83,
+            "printable_preimages": [
+              83
+            ],
+            "printable_preimages_hex": [
+              "53"
+            ],
+            "printable_preimages_text": "S"
+          }
+        ],
+        "static_preimage_preview_hex": "",
+        "static_preimage_preview_ascii_if_printable": ""
+      }
+    }
+  },
+  "printable_preimage_status": {
+    "domain": "0x20..0x7e",
+    "complete_printable_preimage": false,
+    "unique_printable_preimage": false,
+    "missing_printable_indices": [
+      2,
+      3,
+      4,
+      5,
+      7,
+      8,
+      9,
+      10,
+      12,
+      13
+    ],
+    "printable_available_count": 6,
+    "target_length": 16,
+    "static_candidate_preview": "",
+    "authoritative": false,
+    "runtime_validated": false,
+    "requires_runtime_validation": true
+  },
+  "candidate": null,
+  "known_candidate": "",
+  "static_candidate_preview": "",
+  "evidence_notes": [
+    "computed from current target-bytes revalidation artifact",
+    "old inverse handoff and signed transform artifacts are stale context only",
+    "no sample execution, debugger, emulator, harness, brute force, or runtime validation was used"
+  ],
+  "recommended_next_action": "Perform alternative static review of transform/target semantics; do not repeat printable inverse under current target bytes without new evidence."
+}

@@ -7,9 +7,13 @@ import tempfile
 from pathlib import Path
 
 from reverse_agent.local_reverse_cpp1_signed_transform_recheck import (
+    STATIC_INVERSE_SOURCE_RUN,
+    build_static_inverse_handoff_from_revalidation,
     build_signed_transform_report,
+    byte_preimages_for_target,
     compare_models_all_256,
     printable_preimages_for_target,
+    run_static_inverse_handoff_from_revalidation,
     run_signed_transform_recheck,
     s8,
     sar32,
@@ -39,6 +43,46 @@ def _target_bytes() -> dict:
         "runtime_validated": False,
         "candidate": None,
         "known_candidate": "",
+    }
+
+
+def _current_revalidation(target_bytes: list[int] | None = None) -> dict:
+    target = target_bytes or _target_bytes()["target_bytes"]
+    return {
+        "schema_version": 1,
+        "sample_id": "cpp1_2f6fcb63",
+        "relative_path": "逆向课程2023春01/CPP1.exe",
+        "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+        "analysis_mode": "target_bytes_current_revalidation",
+        "mainline": "tool_integration",
+        "executed_sample": False,
+        "static_only": True,
+        "runtime_validated": False,
+        "revalidation_status": "PASSED",
+        "candidate": None,
+        "known_candidate": "",
+        "target_symbol": "byte_429A30",
+        "target_address": "0x00429A30",
+        "target_length": len(target),
+        "target_bytes_hex": bytes(target).hex(),
+        "target_bytes": target,
+    }
+
+
+def _artifact_index_for_revalidation(revalidation_path: Path) -> dict:
+    return {
+        "schema_version": 1,
+        "latest_artifacts": {},
+        "artifact_refs": {},
+        "latest_artifacts_v2": {
+            "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": {
+                "kind": "target_bytes_current_revalidation",
+                "path": str(revalidation_path).replace("\\", "/"),
+                "freshness": "current",
+                "source_run": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+                "sample_id": "cpp1_2f6fcb63",
+            }
+        },
     }
 
 
@@ -142,6 +186,15 @@ def test_printable_preimages_real_target_remain_incomplete() -> None:
     assert result["static_preimage_preview_hex"] == ""
 
 
+def test_full_byte_preimages_real_target_are_recorded() -> None:
+    result = byte_preimages_for_target(_target_bytes()["target_bytes"])
+    assert result["target_length"] == 16
+    assert result["all_target_bytes_have_preimage"] is True
+    assert result["all_target_bytes_have_unique_preimage"] is True
+    assert result["per_byte"][0]["unique_preimage"] == 0x5D
+    assert result["per_byte"][2]["unique_preimage"] == 0x1C
+
+
 def test_build_report_uses_ida_signed_instruction_evidence() -> None:
     report = build_signed_transform_report(
         target_bytes=_target_bytes(),
@@ -222,3 +275,87 @@ def test_cli_writes_artifact_and_updates_index() -> None:
     entry = index["latest_artifacts_v2"]["local_reverse_cpp1_2f6fcb63_signed_transform_recheck"]
     assert entry["freshness"] == "current"
     assert entry["source_run"] == "round_20260605_cpp1_signed_transform_semantics_recheck_v1"
+
+
+def test_static_inverse_handoff_from_current_revalidation_blocks_without_printable_preimage(tmp_path: Path) -> None:
+    revalidation_path = tmp_path / "project_state" / "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
+    artifact_index_path = tmp_path / "project_state" / "artifact_index.json"
+    revalidation = _current_revalidation()
+    artifact_index = _artifact_index_for_revalidation(revalidation_path)
+
+    report = build_static_inverse_handoff_from_revalidation(
+        revalidation=revalidation,
+        artifact_index=artifact_index,
+        revalidation_path=revalidation_path,
+        artifact_index_path=artifact_index_path,
+        generated_at="2026-06-14T00:00:00Z",
+    )
+
+    assert report["analysis_mode"] == "static_inverse_transform_handoff"
+    assert report["mainline"] == "reverse_solving"
+    assert report["executed_sample"] is False
+    assert report["runtime_validated"] is False
+    assert report["authoritative"] is False
+    assert report["candidate"] is None
+    assert report["known_candidate"] == ""
+    assert report["status"] == "BLOCKED"
+    assert report["blocked_reason"] == "NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_CURRENT_TARGET_BYTES"
+    assert report["model_equivalence"]["difference_count"] == 0
+    assert report["per_byte_preimages"]["all_byte_domain"]["signed_instruction"]["per_byte"][2]["unique_preimage"] == 0x1C
+    assert report["per_byte_preimages"]["printable_ascii_domain"]["signed_instruction"]["per_byte"][2]["has_printable_preimage"] is False
+    assert report["printable_preimage_status"]["missing_printable_indices"] == [2, 3, 4, 5, 7, 8, 9, 10, 12, 13]
+
+
+def test_static_inverse_handoff_preview_is_non_authoritative_for_unique_printable_preimage(tmp_path: Path) -> None:
+    preview = "AbC123XYZxyz09!?"
+    target = [signed_instruction_transform(ord(ch)) for ch in preview]
+    revalidation_path = tmp_path / "project_state" / "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
+    artifact_index_path = tmp_path / "project_state" / "artifact_index.json"
+    revalidation = _current_revalidation(target)
+    artifact_index = _artifact_index_for_revalidation(revalidation_path)
+
+    report = build_static_inverse_handoff_from_revalidation(
+        revalidation=revalidation,
+        artifact_index=artifact_index,
+        revalidation_path=revalidation_path,
+        artifact_index_path=artifact_index_path,
+        generated_at="2026-06-14T00:00:00Z",
+    )
+
+    assert report["status"] == "STATIC_CANDIDATE_PREVIEW_NEEDS_RUNTIME_VALIDATION"
+    assert report["candidate"] == preview
+    assert report["known_candidate"] == ""
+    assert report["static_candidate_preview"] == preview
+    assert report["runtime_validated"] is False
+    assert report["authoritative"] is False
+    assert report["requires_runtime_validation"] is True
+    assert report["printable_preimage_status"]["complete_printable_preimage"] is True
+    assert report["printable_preimage_status"]["unique_printable_preimage"] is True
+
+
+def test_static_inverse_cli_writes_artifact_and_updates_current_index(tmp_path: Path) -> None:
+    root = tmp_path / "project_state"
+    revalidation_path = root / "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
+    artifact_index_path = root / "artifact_index.json"
+    out_path = root / "local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json"
+    root.mkdir()
+    revalidation_path.write_text(json.dumps(_current_revalidation()), encoding="utf-8")
+    artifact_index_path.write_text(
+        json.dumps(_artifact_index_for_revalidation(revalidation_path)),
+        encoding="utf-8",
+    )
+
+    result = run_static_inverse_handoff_from_revalidation(
+        revalidation_path=revalidation_path,
+        artifact_index_path=artifact_index_path,
+        out_path=out_path,
+    )
+    written = json.loads(out_path.read_text(encoding="utf-8"))
+    index = json.loads(artifact_index_path.read_text(encoding="utf-8"))
+
+    assert result["candidate"] is None
+    assert written["blocked_reason"] == "NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_CURRENT_TARGET_BYTES"
+    entry = index["latest_artifacts_v2"]["local_reverse_cpp1_2f6fcb63_static_inverse_handoff"]
+    assert entry["freshness"] == "current"
+    assert entry["source_run"] == STATIC_INVERSE_SOURCE_RUN
+    assert entry["sample_id"] == "cpp1_2f6fcb63"

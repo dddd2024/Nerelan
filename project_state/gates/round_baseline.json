@@ -1,20 +1,31 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-  "head_commit": "a9503f65eec7",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+  "head_commit": "b8418f44d36e",
   "baseline_git_status_short": [
-    " M reverse_agent/local_reverse_cpp1_target_byte_extract.py",
-    " M tests/test_local_reverse_cpp1_target_byte_extract.py"
+    " M project_state/artifact_index.json",
+    " M project_state/gates/command_plan.json",
+    " M project_state/negative_results.json",
+    " M reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
+    " M tests/test_local_reverse_cpp1_signed_transform_recheck.py",
+    "?? project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json"
   ],
   "baseline_git_diff_name_only": [
-    "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
-    "tests/test_local_reverse_cpp1_target_byte_extract.py"
+    "project_state/artifact_index.json",
+    "project_state/gates/command_plan.json",
+    "project_state/negative_results.json",
+    "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
+    "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
   ],
   "baseline_dirty_files": [
-    "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
-    "tests/test_local_reverse_cpp1_target_byte_extract.py"
+    "project_state/artifact_index.json",
+    "project_state/gates/command_plan.json",
+    "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+    "project_state/negative_results.json",
+    "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
+    "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
   ],
-  "generated_at": "2026-06-14T09:19:53.301917Z"
+  "generated_at": "2026-06-14T13:35:05.514882Z"
 }

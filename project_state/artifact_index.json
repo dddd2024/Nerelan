@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-14T09:34:50Z",
+  "generated_at": "2026-06-14T13:39:32Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": null,
@@ -51,7 +51,8 @@
     "strata_summary": null,
     "summary": null,
     "transform_trace_consistency": null,
-    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
+    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -551,6 +552,16 @@
       "size_bytes": 9467,
       "modified_at": "2026-06-14T09:34:50Z",
       "sample_id": "cpp1_2f6fcb63"
+    },
+    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": {
+      "kind": "static_inverse_transform_handoff",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+      "sha256": "11e412b98fc39729f0c16443d0aae3cbaa52cf93d1773629f2295205c4bec7f8",
+      "size_bytes": 30050,
+      "modified_at": "2026-06-14T13:39:32Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [],
@@ -567,6 +578,7 @@
   "reports_dir": "solve_reports",
   "sample": "samplereverse",
   "artifact_refs": {
-    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
+    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json"
   }
 }

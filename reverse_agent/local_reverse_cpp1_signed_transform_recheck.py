@@ -18,6 +18,9 @@ from typing import Any
 ARTIFACT_KEY = "local_reverse_cpp1_2f6fcb63_signed_transform_recheck"
 ARTIFACT_KIND = "local_reverse_cpp1_signed_transform_recheck"
 SOURCE_RUN = "round_20260605_cpp1_signed_transform_semantics_recheck_v1"
+STATIC_INVERSE_ARTIFACT_KEY = "local_reverse_cpp1_2f6fcb63_static_inverse_handoff"
+STATIC_INVERSE_ARTIFACT_KIND = "static_inverse_transform_handoff"
+STATIC_INVERSE_SOURCE_RUN = "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1"
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -49,18 +52,22 @@ def _update_artifact_index(
     out_path: Path,
     sample_id: str,
     generated_at: str,
+    *,
+    artifact_key: str = ARTIFACT_KEY,
+    artifact_kind: str = ARTIFACT_KIND,
+    source_run: str = SOURCE_RUN,
 ) -> None:
     if not artifact_index_path.exists():
         return
     artifact_index = _load_json(artifact_index_path)
     normalized_path = str(out_path).replace("/", "\\")
-    artifact_index.setdefault("latest_artifacts", {})[ARTIFACT_KEY] = normalized_path
-    artifact_index.setdefault("artifact_refs", {})[ARTIFACT_KEY] = normalized_path
-    artifact_index.setdefault("latest_artifacts_v2", {})[ARTIFACT_KEY] = {
-        "kind": ARTIFACT_KIND,
+    artifact_index.setdefault("latest_artifacts", {})[artifact_key] = normalized_path
+    artifact_index.setdefault("artifact_refs", {})[artifact_key] = normalized_path
+    artifact_index.setdefault("latest_artifacts_v2", {})[artifact_key] = {
+        "kind": artifact_kind,
         "path": normalized_path,
         "freshness": "current",
-        "source_run": SOURCE_RUN,
+        "source_run": source_run,
         "sha256": _sha256_file(out_path),
         "size_bytes": out_path.stat().st_size,
         "modified_at": generated_at,
@@ -177,6 +184,257 @@ def printable_preimages_for_target(
         if len(preview) == len(target_bytes)
         else "",
     }
+
+
+def byte_preimages_for_target(
+    target_bytes: list[int],
+    model: str = "signed_instruction",
+    domain: range = range(256),
+) -> dict[str, Any]:
+    transform = signed_instruction_transform if model == "signed_instruction" else unsigned_formula_transform
+    per_byte = []
+    all_have = True
+    all_unique = True
+    for index, target in enumerate(target_bytes):
+        preimages = [x for x in domain if transform(x) == u8(target)]
+        if not preimages:
+            all_have = False
+        if len(preimages) != 1:
+            all_unique = False
+        per_byte.append(
+            {
+                "index": index,
+                "target_byte": u8(target),
+                "target_byte_hex": f"{u8(target):02x}",
+                "preimage_count": len(preimages),
+                "has_preimage": bool(preimages),
+                "unique_preimage": preimages[0] if len(preimages) == 1 else None,
+                "preimages": preimages,
+                "preimages_hex": [f"{item:02x}" for item in preimages],
+                "preimages_text": "".join(chr(item) if 0x20 <= item <= 0x7E else "." for item in preimages)
+                if preimages
+                else None,
+            }
+        )
+    return {
+        "model": model,
+        "domain": "0x00..0xff",
+        "target_length": len(target_bytes),
+        "all_target_bytes_have_preimage": all_have,
+        "all_target_bytes_have_unique_preimage": all_have and all_unique,
+        "per_byte": per_byte,
+    }
+
+
+def _artifact_index_entry(artifact_index: dict[str, Any], key: str) -> dict[str, Any]:
+    entry = artifact_index.get("latest_artifacts_v2", {}).get(key)
+    if isinstance(entry, dict):
+        return entry
+    return {}
+
+
+def _normalized_path(path: Path) -> str:
+    return str(path).replace("\\", "/")
+
+
+def _validate_current_revalidation(
+    revalidation: dict[str, Any],
+    artifact_index: dict[str, Any],
+    revalidation_path: Path,
+) -> dict[str, Any]:
+    sample_id = str(revalidation.get("sample_id", ""))
+    if sample_id != "cpp1_2f6fcb63":
+        raise ValueError(f"current revalidation sample_id mismatch: {sample_id!r}")
+    if revalidation.get("analysis_mode") != "target_bytes_current_revalidation":
+        raise ValueError("source artifact is not target_bytes_current_revalidation")
+    if revalidation.get("revalidation_status") != "PASSED":
+        raise ValueError("current revalidation artifact did not pass")
+    if revalidation.get("runtime_validated") is not False:
+        raise ValueError("current revalidation runtime_validated must be false")
+    if revalidation.get("executed_sample") is not False:
+        raise ValueError("current revalidation executed_sample must be false")
+    if revalidation.get("candidate") is not None:
+        raise ValueError("current revalidation candidate must be null")
+    if revalidation.get("known_candidate") != "":
+        raise ValueError("current revalidation known_candidate must be empty")
+    target = revalidation.get("target_bytes", [])
+    if len(target) != 16:
+        raise ValueError(f"target_bytes length must be 16, got {len(target)}")
+
+    entry = _artifact_index_entry(artifact_index, "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation")
+    if entry.get("freshness") != "current":
+        raise ValueError("target bytes revalidation artifact is not current in artifact_index")
+    if entry.get("sample_id") != "cpp1_2f6fcb63":
+        raise ValueError("target bytes revalidation artifact_index sample_id mismatch")
+    indexed_path = str(entry.get("path", "")).replace("\\", "/")
+    expected_suffix = _normalized_path(revalidation_path)
+    if indexed_path and indexed_path != expected_suffix:
+        raise ValueError(f"artifact_index path mismatch: {indexed_path!r} != {expected_suffix!r}")
+    return entry
+
+
+def build_static_inverse_handoff_from_revalidation(
+    revalidation: dict[str, Any],
+    artifact_index: dict[str, Any],
+    *,
+    revalidation_path: Path,
+    artifact_index_path: Path,
+    generated_at: str | None = None,
+) -> dict[str, Any]:
+    generated = generated_at or _now_iso()
+    revalidation_entry = _validate_current_revalidation(
+        revalidation,
+        artifact_index,
+        revalidation_path,
+    )
+    target = [u8(x) for x in revalidation["target_bytes"]]
+    model_comparison = compare_models_all_256()
+    signed_all_byte = byte_preimages_for_target(target, model="signed_instruction")
+    unsigned_all_byte = byte_preimages_for_target(target, model="unsigned_formula")
+    signed_printable = printable_preimages_for_target(target, model="signed_instruction")
+    unsigned_printable = printable_preimages_for_target(target, model="unsigned_formula")
+    missing_printable_indices = [
+        row["index"]
+        for row in signed_printable["per_byte"]
+        if not row["has_printable_preimage"]
+    ]
+    complete_unique_printable = signed_printable["all_target_bytes_have_unique_printable_preimage"]
+    static_candidate_preview = (
+        signed_printable["static_preimage_preview_ascii_if_printable"]
+        if complete_unique_printable
+        else ""
+    )
+    status = "STATIC_CANDIDATE_PREVIEW_NEEDS_RUNTIME_VALIDATION" if complete_unique_printable else "BLOCKED"
+    blocked_reason = "" if complete_unique_printable else "NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_CURRENT_TARGET_BYTES"
+
+    return {
+        "schema_version": 1,
+        "sample_id": "cpp1_2f6fcb63",
+        "relative_path": revalidation.get("relative_path", ""),
+        "sha256": revalidation.get("sha256", ""),
+        "analysis_mode": "static_inverse_transform_handoff",
+        "mainline": "reverse_solving",
+        "executed_sample": False,
+        "static_only": True,
+        "runtime_validated": False,
+        "authoritative": False,
+        "requires_runtime_validation": True,
+        "generated_at": generated,
+        "status": status,
+        "blocked_reason": blocked_reason,
+        "source_artifacts": {
+            "current_revalidation": _normalized_path(revalidation_path),
+            "artifact_index": _normalized_path(artifact_index_path),
+        },
+        "source_artifact_freshness": {
+            "current_revalidation": {
+                "artifact_key": "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation",
+                "path": revalidation_entry.get("path", ""),
+                "freshness": revalidation_entry.get("freshness", ""),
+                "source_run": revalidation_entry.get("source_run", ""),
+                "sample_id": revalidation_entry.get("sample_id", ""),
+            }
+        },
+        "target_symbol": revalidation.get("target_symbol", "byte_429A30"),
+        "target_address": revalidation.get("target_address", "0x00429A30"),
+        "target_length": len(target),
+        "target_bytes_hex": "".join(f"{item:02x}" for item in target),
+        "target_bytes": target,
+        "transform_models": {
+            "unsigned_formula": {
+                "formula": "u8((x & 0x03) | ((x & 0x0C) << 4) | ((x & 0xF0) >> 2))",
+                "domain": "0x00..0xff",
+            },
+            "signed_instruction": {
+                "formula": "u8((sar32((s8(x) & 0xF0), 2)) | ((s8(x) & 0x0C) << 4) | (s8(x) & 0x03))",
+                "domain": "0x00..0xff",
+            },
+        },
+        "model_equivalence": {
+            "input_count": model_comparison["input_count"],
+            "difference_count": model_comparison["difference_count"],
+            "models_equivalent_after_u8_truncation": model_comparison[
+                "models_equivalent_after_u8_truncation"
+            ],
+        },
+        "per_byte_preimages": {
+            "all_byte_domain": {
+                "signed_instruction": signed_all_byte,
+                "unsigned_formula": unsigned_all_byte,
+            },
+            "printable_ascii_domain": {
+                "signed_instruction": signed_printable,
+                "unsigned_formula": unsigned_printable,
+            },
+        },
+        "printable_preimage_status": {
+            "domain": "0x20..0x7e",
+            "complete_printable_preimage": signed_printable[
+                "all_target_bytes_have_printable_preimage"
+            ],
+            "unique_printable_preimage": complete_unique_printable,
+            "missing_printable_indices": missing_printable_indices,
+            "printable_available_count": len(target) - len(missing_printable_indices),
+            "target_length": len(target),
+            "static_candidate_preview": static_candidate_preview,
+            "authoritative": False,
+            "runtime_validated": False,
+            "requires_runtime_validation": True,
+        },
+        "candidate": static_candidate_preview if complete_unique_printable else None,
+        "known_candidate": "",
+        "static_candidate_preview": static_candidate_preview if complete_unique_printable else "",
+        "evidence_notes": [
+            "computed from current target-bytes revalidation artifact",
+            "old inverse handoff and signed transform artifacts are stale context only",
+            "no sample execution, debugger, emulator, harness, brute force, or runtime validation was used",
+        ],
+        "recommended_next_action": (
+            "Request a bounded runtime validation decision before accepting this static candidate preview."
+            if complete_unique_printable
+            else "Perform alternative static review of transform/target semantics; do not repeat printable inverse under current target bytes without new evidence."
+        ),
+    }
+
+
+def run_static_inverse_handoff_from_revalidation(
+    revalidation_path: Path,
+    artifact_index_path: Path,
+    out_path: Path,
+) -> dict[str, Any]:
+    generated_at = _now_iso()
+    artifact_index = _load_json(artifact_index_path)
+    result = build_static_inverse_handoff_from_revalidation(
+        revalidation=_load_json(revalidation_path),
+        artifact_index=artifact_index,
+        revalidation_path=revalidation_path,
+        artifact_index_path=artifact_index_path,
+        generated_at=generated_at,
+    )
+    _save_json(out_path, result)
+    _update_artifact_index(
+        artifact_index_path,
+        out_path,
+        result["sample_id"],
+        generated_at,
+        artifact_key=STATIC_INVERSE_ARTIFACT_KEY,
+        artifact_kind=STATIC_INVERSE_ARTIFACT_KIND,
+        source_run=STATIC_INVERSE_SOURCE_RUN,
+    )
+    print(f"cpp1 static inverse handoff: status={result['status']} sample_id={result['sample_id']}")
+    print(f"  model_difference_count={result['model_equivalence']['difference_count']}")
+    print(
+        "  complete_printable_preimage="
+        f"{result['printable_preimage_status']['complete_printable_preimage']}"
+    )
+    print(
+        "  missing_printable_indices="
+        f"{result['printable_preimage_status']['missing_printable_indices']}"
+    )
+    print(f"  candidate={result['candidate']}")
+    print(f"  known_candidate={result['known_candidate']!r}")
+    print(f"  runtime_validated={result['runtime_validated']}")
+    return result
 
 
 def _all_instructions(ida_control_flow: dict[str, Any]) -> list[dict[str, Any]]:
@@ -504,9 +762,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Static signed-instruction transform recheck for cpp1_2f6fcb63.",
     )
-    parser.add_argument("--target-bytes", type=Path, required=True)
-    parser.add_argument("--ida-control-flow", type=Path, required=True)
-    parser.add_argument("--transform-recheck", type=Path, required=True)
+    parser.add_argument("--target-bytes", type=Path)
+    parser.add_argument("--ida-control-flow", type=Path)
+    parser.add_argument("--transform-recheck", type=Path)
+    parser.add_argument("--from-revalidation", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument(
         "--artifact-index",
@@ -515,13 +774,31 @@ def main() -> int:
     )
     args = parser.parse_args()
     try:
-        run_signed_transform_recheck(
-            target_bytes_path=args.target_bytes,
-            ida_control_flow_path=args.ida_control_flow,
-            transform_recheck_path=args.transform_recheck,
-            out_path=args.out,
-            artifact_index_path=args.artifact_index,
-        )
+        if args.from_revalidation:
+            run_static_inverse_handoff_from_revalidation(
+                revalidation_path=args.from_revalidation,
+                artifact_index_path=args.artifact_index,
+                out_path=args.out,
+            )
+        else:
+            missing = [
+                name
+                for name, value in (
+                    ("--target-bytes", args.target_bytes),
+                    ("--ida-control-flow", args.ida_control_flow),
+                    ("--transform-recheck", args.transform_recheck),
+                )
+                if value is None
+            ]
+            if missing:
+                raise ValueError("missing required arguments for signed recheck: " + ", ".join(missing))
+            run_signed_transform_recheck(
+                target_bytes_path=args.target_bytes,
+                ida_control_flow_path=args.ida_control_flow,
+                transform_recheck_path=args.transform_recheck,
+                out_path=args.out,
+                artifact_index_path=args.artifact_index,
+            )
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
