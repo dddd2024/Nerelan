@@ -9,20 +9,15 @@
   "files_changed": [
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
-    "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
-    "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
     "project_state/pytest_result.txt",
     "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/codex_execution_report.md",
     "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/decision_packet.md",
     "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/pytest_result.txt",
-    "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json",
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json"
   ],
   "tests_ran": [
     "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",

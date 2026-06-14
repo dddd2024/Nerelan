@@ -5,7 +5,7 @@
   "decision_id": "decision_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
   "report_id": "codex_report_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
   "round_id": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-  "generated_at": "2026-06-14T09:36:14.827706Z",
+  "generated_at": "2026-06-14T09:38:24.562627Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -46,57 +46,37 @@
       "detail": "round delta summary is baseline-aware",
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
-      "inherited_dirty_files": [
-        "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
-        "tests/test_local_reverse_cpp1_target_byte_extract.py"
-      ],
+      "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
         "project_state/pytest_result.txt",
         "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/decision_packet.md",
         "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json"
       ],
       "final_dirty_files": [
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
         "project_state/pytest_result.txt",
         "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/decision_packet.md",
         "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json",
-        "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
-        "reverse_agent/project_gate.py",
-        "tests/test_local_reverse_cpp1_target_byte_extract.py",
-        "tests/test_project_gate.py"
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json"
       ]
     },
     {
       "name": "files_changed_excludes_inherited_dirty_files",
       "status": "PASS",
       "detail": "files_changed excludes inherited baseline dirty files",
-      "inherited_dirty_files": [
-        "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
-        "tests/test_local_reverse_cpp1_target_byte_extract.py"
-      ]
+      "inherited_dirty_files": []
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -106,45 +86,29 @@
       "git_changed_files": [
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
         "project_state/pytest_result.txt",
         "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/decision_packet.md",
         "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json",
-        "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
-        "reverse_agent/project_gate.py",
-        "tests/test_local_reverse_cpp1_target_byte_extract.py",
-        "tests/test_project_gate.py"
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json"
       ],
       "required_round_delta_files": [
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
         "project_state/pytest_result.txt",
         "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/codex_execution_report.md",
         "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/decision_packet.md",
         "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/round_manifest.json"
       ],
-      "inherited_dirty_files": [
-        "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
-        "tests/test_local_reverse_cpp1_target_byte_extract.py"
-      ]
+      "inherited_dirty_files": []
     },
     {
       "name": "generated_artifacts_cover_round_delta",
