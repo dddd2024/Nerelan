@@ -429,6 +429,7 @@ def _make_command_plan_gate_state(
     acceptance: str = "ACCEPTED",
     report_tests: list[str] | None = None,
     pytest_body: str | None = None,
+    final_check_stdout_status: str = "PASSED",
     generated_artifacts: list[str] | None = None,
     archived: bool = True,
 ) -> Path:
@@ -535,7 +536,7 @@ def _make_command_plan_gate_state(
                 _command_block(commands[0], "212 passed in 1.00s"),
                 _command_block(commands[1], "command-plan: PASSED"),
                 _command_block(commands[2], json.dumps(plan_payload, indent=2)),
-                _command_block(commands[3], "final-check: PASSED"),
+                _command_block(commands[3], f"final-check: {final_check_stdout_status}"),
             ]
         )
     _write_pytest(
@@ -792,6 +793,102 @@ def test_final_check_downgrades_historical_artifacts_for_tool_integration(
     status_policy = _check(result, "status_policy_valid")
     assert status_policy["status"] == "WARN"
     assert "stale artifacts" in " ".join(status_policy.get("warnings", []))
+
+
+def test_final_check_fails_when_recorded_stdout_status_is_stale(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        status="PARTIAL",
+        acceptance="NEEDS_REVIEW",
+        pytest_body="\n\n".join(
+            [
+                _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "312 passed"),
+                _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
+                _command_block(
+                    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "plan_name": "command-plan",
+                            "plan_status": "PASSED",
+                            "commands": [],
+                        }
+                    ),
+                ),
+                _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: PASSED"),
+            ]
+        ),
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    stdout_check = _check(result, "final_check_stdout_matches_gate_status")
+    assert stdout_check["status"] == "FAIL"
+    assert stdout_check["expected_gate_status"] == "WARN"
+    assert stdout_check["recorded_stdout_status"] == "PASSED"
+
+
+def test_final_check_accepts_conservative_warn_for_limitations(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        final_check_stdout_status="WARN",
+    )
+    _write_json(
+        state_dir / "artifact_index.json",
+        {
+            "latest_artifacts_v2": {
+                "old_probe": {"freshness": "stale"},
+                "missing_probe": {"freshness": "missing"},
+            }
+        },
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+    stdout_check = _check(result, "final_check_stdout_matches_gate_status")
+    assert stdout_check["status"] == "PASS"
+    assert stdout_check["expected_gate_status"] == "PASSED_WITH_LIMITATIONS"
+    assert stdout_check["recorded_stdout_status"] == "WARN"
+    assert stdout_check["conservative_warn_accepted"] is True
+
+
+def test_project_gate_final_check_cli_prints_warn_when_gate_is_warn(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        status="PARTIAL",
+        acceptance="NEEDS_REVIEW",
+        pytest_body="\n\n".join(
+            [
+                _command_block("python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "312 passed"),
+                _command_block("python -m reverse_agent.project_gate command-plan --state-dir project_state", "command-plan: PASSED"),
+                _command_block(
+                    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+                    json.dumps(
+                        {
+                            "schema_version": 1,
+                            "plan_name": "command-plan",
+                            "plan_status": "PASSED",
+                            "commands": [],
+                        }
+                    ),
+                ),
+                _command_block("python -m reverse_agent.project_gate final-check --state-dir project_state", "final-check: WARN"),
+            ]
+        ),
+    )
+
+    assert main(["final-check", "--state-dir", str(state_dir)]) == 0
+
+    output = capsys.readouterr().out
+    assert "final-check: WARN" in output
+    result = json.loads((state_dir / "gates" / "final_gate_result.json").read_text(encoding="utf-8"))
+    assert result["gate_status"] == "WARN"
+    assert result["recommended_next_action"] == "review_warnings_before_closeout"
 
 
 
@@ -1428,7 +1525,11 @@ def test_close_round_archives_unarchived_consistent_round(tmp_path: Path) -> Non
 
 
 def test_close_round_allows_engineering_success_legacy_artifacts_until_archive(tmp_path: Path) -> None:
-    state_dir = _make_command_plan_gate_state(tmp_path, archived=False)
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        archived=False,
+        final_check_stdout_status="PASSED_WITH_LIMITATIONS",
+    )
     _write_json(
         state_dir / "artifact_index.json",
         {
@@ -1467,6 +1568,7 @@ def test_close_round_closes_consistent_partial_report(tmp_path: Path) -> None:
         status="PARTIAL",
         acceptance="NEEDS_REVIEW",
         archived=False,
+        final_check_stdout_status="WARN",
     )
 
     result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
@@ -1487,6 +1589,7 @@ def test_close_round_closes_consistent_blocked_report(tmp_path: Path) -> None:
         status="BLOCKED",
         acceptance="BLOCKED",
         archived=False,
+        final_check_stdout_status="BLOCKED",
     )
 
     result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)

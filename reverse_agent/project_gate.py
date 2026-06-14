@@ -987,6 +987,46 @@ def _parse_recorded_command_blocks(pytest_text: str) -> dict[str, Any]:
     return {"blocks": blocks, "malformed_commands": malformed}
 
 
+def _recorded_final_check_status(pytest_text: str) -> str:
+    recorded = _parse_recorded_command_blocks(pytest_text)
+    final_blocks = [
+        block
+        for block in recorded.get("blocks", [])
+        if isinstance(block, dict) and _command_kind(str(block.get("command") or "")) == "final-check"
+    ]
+    if not final_blocks:
+        return ""
+    stdout = str(final_blocks[-1].get("stdout") or "")
+    first_line = next((line.strip() for line in stdout.splitlines() if line.strip()), "")
+    prefix = f"{FINAL_GATE_NAME}: "
+    if first_line.startswith(prefix):
+        return first_line[len(prefix) :].strip()
+    return ""
+
+
+def _final_check_stdout_status_check(pytest_text: str, expected_gate_status: str) -> dict[str, Any]:
+    recorded_status = _recorded_final_check_status(pytest_text)
+    if not recorded_status:
+        return _check(
+            "final_check_stdout_matches_gate_status",
+            "PASS",
+            "no recorded final-check stdout status to compare",
+            required=False,
+        )
+    conservative_warn = recorded_status == "WARN" and expected_gate_status == "PASSED_WITH_LIMITATIONS"
+    matches = recorded_status == expected_gate_status or conservative_warn
+    return _check(
+        "final_check_stdout_matches_gate_status",
+        "PASS" if matches else "FAIL",
+        "recorded final-check stdout matches gate_status"
+        if matches
+        else "recorded final-check stdout does not match gate_status",
+        expected_gate_status=expected_gate_status,
+        recorded_stdout_status=recorded_status,
+        conservative_warn_accepted=conservative_warn,
+    )
+
+
 def _validate_command_plan_consistency(
     *,
     state_dir: Path,
@@ -1888,6 +1928,24 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         )
     )
 
+    gate_status = _result_status(checks, report_status)
+    pre_stdout_failed_checks = {
+        str(check.get("name") or "")
+        for check in checks
+        if isinstance(check, dict) and check.get("status") == "FAIL"
+    }
+    if not manifest_present or (gate_status == "FAILED" and pre_stdout_failed_checks & ARCHIVE_PENDING_CHECKS):
+        checks.append(
+            _check(
+                "final_check_stdout_matches_gate_status",
+                "PASS",
+                "archive-pending final-check status is allowed to differ before close-round",
+                required=False,
+                skipped_reason="archive_pending_pre_close_round",
+            )
+        )
+    else:
+        checks.append(_final_check_stdout_status_check(pytest_text, gate_status))
     gate_status = _result_status(checks, report_status)
     warnings = [
         f"{check['name']}: {check['detail']}"
