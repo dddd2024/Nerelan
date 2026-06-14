@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
@@ -15,64 +15,84 @@
 
 ## 1. Goal
 
-对 `cpp1_2f6fcb63` 做一轮 2–3 小时工作量的替代静态语义审查，目标不是重复当前 target bytes printable inverse path，而是系统性审计为什么 current target bytes 下 printable ASCII preimage 不完整，并判断下一步应走哪条不同证据路线。
+对 `cpp1_2f6fcb63` 做一轮小步、可审计的 **nonprintable input-delivery review**。
 
-本轮以 current artifacts 为入口：
+目标不是重新求 printable password，也不是运行样本验证答案，而是围绕上一轮 current artifact 中的非打印 all-byte preimage，审查它是否存在可交付的输入形式，并生成一个新的 current artifact：
 
-- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json`
 
-需要生成新的 current artifact：
+该 artifact 必须回答：
 
-- `project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json`
+1. 当前非打印 16-byte preimage 是否含有 `%s` 的硬阻断字节：NUL、ASCII whitespace、CR/LF、tab、space；
+2. `scanf("%s", Str)`、`strlen(Str)==18`、`strncpy(Destination, Str, 0x10u)` 对前 16 字节和后 2 字节的真实输入约束是什么；
+3. 第 17、18 字节是否只用于满足 `strlen==18`，是否不参与 `strncpy(Destination, Str, 0x10u)` 复制；
+4. 成功边界 `i == 16` 是否需要额外审查 `Destination[16]` 与 `byte_429A30[16]` 的 mismatch 条件，避免把后缀字节误认为能控制 index 16；
+5. 哪些输入交付方式是静态上可行的：Windows console 手输、PowerShell 写 raw bytes 后重定向、Python subprocess raw stdin、文件重定向、调试器内存写入；
+6. 哪些方式只是下一轮 runtime validation 的候选，不得在本轮直接执行；
+7. 下一轮是否可以进入 `READY_FOR_BOUNDED_RUNTIME_VALIDATION_DECISION`，还是应先做 `NEEDS_SUCCESS_BOUNDARY_STATIC_RECHECK` / `NEEDS_TARGET_ADJACENT_BYTE_RECHECK` / `BLOCKED_INPUT_DELIVERY_HARD_BLOCKER`。
 
-该 artifact 应回答：
-
-1. 当前 `byte_429A30` target bytes 是否仍是最合理比较目标；
-2. transform 方向、signed/unsigned 解释、位运算公式是否存在可替代语义；
-3. `strlen(Str) == 18` 与 `strncpy(Destination, Str, 0x10u)` 只处理前 16 字节之间的关系是什么；
-4. 输入是否实际要求 printable ASCII，还是 `%s` + `strlen` 仅要求非空白/非 NUL 字节；
-5. 旧 `STATIC_CANDIDATE_NONPRINTABLE` 和当前 `NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_CURRENT_TARGET_BYTES` 是否意味着“题目应允许非打印输入”、还是说明 target/transform/compare 语义仍有缺口；
-6. 下一轮应选择：nonprintable-input handling / alternative target symbol review / transform-direction review / IDA cross-reference recheck / bounded runtime validation decision，还是保持 blocked。
-
-本轮允许产生静态候选预览，但不得把它称为 flag/password/solved answer；不得运行样本，不得 runtime validate，不得调用 debugger/emulator/harness。若产生非打印 all-byte preimage，应记录为 `nonprintable_static_preimage_preview`，并标记 `runtime_validated=false`、`authoritative=false`、`requires_input_delivery_review=true`。
+本轮允许生成 raw-byte delivery plan、payload hex、payload construction recipe、PowerShell/Python 命令模板，但不得运行目标样本，不得把 payload 称为 flag/password/solved answer，不得做 runtime validation。
 
 ## 2. Current Evidence
 
-上一轮 `decision_20260614_gate_close_round_idempotency_status_policy_rework_v1` 已收口：final gate 为 `PASSED_WITH_LIMITATIONS`，blocking reasons 为空，historical `samplereverse` missing artifacts 已降级为 non-blocking limitation，close-round 幂等性已改善，archive no-op 路径可返回 success。工程 gate 线可暂停，不应继续围绕 closeout 返工。
+本轮主线为 `reverse_solving`。`task_packet.json` 与 `current_state.json` 仍可能含旧 `samplereverse` advisory/historical 背景；当前执行权威是本 `project_state/decision_packet.md`，不是 `task_packet.task`。
 
-当前 `project_state/artifact_index.json` 已登记 `local_reverse_cpp1_2f6fcb63_target_bytes_revalidation` 为 `freshness=current`，source_run 为 `round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1`；也已登记 `local_reverse_cpp1_2f6fcb63_static_inverse_handoff` 为 `freshness=current`，source_run 为 `round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1`。
+上一轮审计结论为 `ACCEPTED_WITH_LIMITATIONS`：`decision_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1` 完成了静态替代语义审查，但存在 baseline/provenance 限制。上一轮 `git status --short` 阶段已经出现实质性源码、测试和 artifact dirty/untracked，后续报告将它们解释为 inherited baseline。Codex 本轮必须先记录启动 baseline，再做任何修改，不能在 report 中含糊覆盖实质性变更来源。
 
-当前 `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json` 显示 target symbol 为 `byte_429A30`，target address 为 `0x00429A30`，target length 为 16，target bytes hex 为 `d596c4f60745577776e5f64847f74817`，main function 为 `_main_0`，并确认 `strlen(Str) != 18`、`strncpy(Destination, Str, 0x10u)`、transform formula fragments 和 `Destination[i] == byte_429A30[i]` 语义一致。
+当前 `artifact_index.json` 已登记以下 current artifacts：
 
-当前 `project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json` 显示 signed/unsigned transform model 在 0x00..0xff 域内等价；所有 target bytes 都有唯一 all-byte-domain preimage；但是 printable ASCII 0x20..0x7e 域不完整，missing printable indices 为 `2, 3, 4, 5, 7, 8, 9, 10, 12, 13`。因此它的 status 是 `BLOCKED`，blocked_reason 为 `NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_CURRENT_TARGET_BYTES`。
+- `local_reverse_cpp1_2f6fcb63_static_triage`：`freshness=current`，source_run 为 `round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1`；
+- `local_reverse_cpp1_2f6fcb63_target_bytes_revalidation`：`freshness=current`，source_run 为 `round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1`；
+- `local_reverse_cpp1_2f6fcb63_static_inverse_handoff`：`freshness=current`，source_run 为 `round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1`；
+- `local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review`：`freshness=current`，source_run 为 `round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1`。
 
-当前 `project_state/negative_results.json` 已新增 `cpp1_2f6fcb63 current target bytes printable inverse path`，要求不要重复当前 target bytes 下的 printable inverse 路线，除非有新的证据和明确 override reason。本轮必须尊重该 negative result。
+当前 `local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json` 显示：
 
-旧 `project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json` 是 stale/blocked context，不能作为 current solved evidence。旧 `local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json`、`local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json`、`local_reverse_cpp1_2f6fcb63_target_bytes.json` 只能作为 historical context，不得替代 current artifacts。
+- `executed_sample=false`；
+- `static_only=true`；
+- `runtime_validated=false`；
+- `authoritative=false`；
+- `candidate=null`；
+- `known_candidate=""`；
+- `recommended_next_action=NEEDS_INPUT_DELIVERY_REVIEW`；
+- `nonprintable_static_preimage_preview_hex=5d5a1cde131557d7d69dde2417df2453`；
+- byte classes：control indices 为 `2,4,5,12`，high-bit indices 为 `3,7,8,9,10,13`，NUL/whitespace indices 为空；
+- delivery risk 为 console-unfriendly，但 raw stdin/file-redirection 可能可行，需要单独审查。
 
-`task_packet.json` 与 `current_state.json` 仍可能含旧 `samplereverse` 背景，只能作为 advisory/historical background；本轮执行权威是本 `decision_packet.md`。
+当前 `local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json` 显示 target symbol 为 `byte_429A30`，target address 为 `0x00429A30`，target length 为 16，target bytes hex 为 `d596c4f60745577776e5f64847f74817`，main function 为 `_main_0`，并确认 `strlen(Str) != 18`、`strncpy(Destination, Str, 0x10u)`、transform formula fragments 和 `Destination[i] == byte_429A30[i]` 语义一致。
 
-已有相关能力必须优先复用：`local_reverse_cpp1_signed_transform_recheck.py` 的 transform/preimage 函数、`local_reverse_cpp1_target_byte_extract.py` 的 target/provenance 结构、IDA static triage artifact、artifact_index、negative_results、project_gate/report-summary/final-check/close-round。不得新建重复 solver 或重复 IDA runner。
+当前 `local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json` 显示 signed/unsigned transform model 在 0x00..0xff 域内等价；所有 target bytes 都有唯一 all-byte-domain preimage；printable ASCII 域不完整，blocked_reason 为 `NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_CURRENT_TARGET_BYTES`。
+
+当前 `negative_results.json` 已记录并禁止重复：
+
+- `cpp1_2f6fcb63 current target bytes printable inverse path`
+
+本轮必须消费该 negative result，不能继续重跑 printable inverse，也不能扩 beam/topN/budget 或切回旧 sample_solver 盲搜。
+
+已有相关能力必须优先复用：
+
+- `reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py` 的 preimage classification / review artifact 结构；
+- `reverse_agent/local_reverse_cpp1_signed_transform_recheck.py` 的 transform/preimage 函数；
+- `reverse_agent/local_reverse_cpp1_target_byte_extract.py` 的 target/provenance 结构；
+- IDA static triage artifact；
+- artifact_index、negative_results、project_gate/report-summary/final-check/close-round；
+- 现有 harness/runtime/debugger/IDA/Ghidra 接口只能作为 read-only capability survey，除非本 decision 明确允许，否则不得执行。
 
 ## 3. Do Not Do
 
-不得重复执行 current target bytes printable inverse path。也就是说，不得只重新运行同一 `--from-revalidation` inverse handoff 并再次报告 missing printable indices；这一点已在 negative_results 中记录。
+不得运行目标样本二进制；不得做 runtime probe、debugger、emulator、hook、harness campaign、candidate validation 或动态验证。
 
-不得运行目标样本二进制；不得做 runtime probe、debugger、emulator、hook、harness campaign、动态验证、bruteforce、SMT、sample_solver 或 candidate validation。
+不得运行 IDA/Ghidra/radare2/objdump 重新提取数据。若发现 current artifacts 无法回答 success-boundary 或 adjacent-byte 问题，应记录 `NEEDS_TARGET_ADJACENT_BYTE_RECHECK` 或 `NEEDS_TOOL_INTEGRATION_DECISION`，由下一轮单独决定是否跑工具。
 
-不得运行 IDA/Ghidra/radare2/objdump 重新提取 target bytes，除非本轮静态 review 发现明确的 current artifact 冲突；即便发现，也应先记录 `BLOCKED_NEEDS_TOOL_RECHECK`，由下一轮 tool_integration decision 决定是否重新跑工具。
+不得重复 current target bytes printable inverse path；不得只重新报告 missing printable indices；不得回退到旧 `sample_solver` 盲搜；不得仅扩大 beam/topN/budget。
 
-不得把非打印 all-byte preimage 直接称为 flag/password/solved answer；不得更新训练状态为 solved。
+不得把 `5d5a1cde131557d7d69dde2417df2453` 或任何 18-byte payload 称为 flag、password、candidate 或 solved answer。本轮最多可写为 `nonprintable_static_preimage_preview_hex` 或 `payload_preview_hex`，并且必须保持 `candidate=null`、`known_candidate=""`、`runtime_validated=false`、`authoritative=false`。
 
-不得手工伪造 candidate、stdout/stderr、tool success、artifact freshness 或 sample result。
-
-不得修改 raw sample 文件、`training_materials/`、`.codex-skills/`、完整 `solve_reports/`、训练状态/队列语义、solver/harness/runtime/debugger/emulator code。
+不得修改 raw sample 文件、`training_materials/`、`.codex-skills/`、完整 `solve_reports/`、训练状态 solved 字段、solver/harness/runtime/debugger/emulator code。
 
 不得扩大到其他样本；本轮只允许 `cpp1_2f6fcb63`。
 
-不得把旧 stale artifacts 当 current evidence；所有结论必须以 current revalidation/static inverse handoff/static triage 为主，旧 artifacts 只能作为对照。
+不得把 stale/missing/unknown artifact 当 current evidence。
 
 ## 4. Files To Inspect
 
@@ -89,92 +109,96 @@
 
 还必须有界读取：
 
-- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json`，只作 stale source context
-- `project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json`，只作 stale blocked/negative context
-- `project_state/local_reverse_cpp1_2f6fcb63_signed_transform_recheck.json`，只作 stale context
-- `project_state/local_reverse_cpp1_2f6fcb63_target_provenance_recheck.json`，只作 stale context
-- `project_state/local_reverse_training_status.json`，只读
-- `project_state/local_reverse_evaluation_queue.json`，只读
-- `reverse_agent/local_reverse_cpp1_signed_transform_recheck.py`
-- `reverse_agent/local_reverse_cpp1_target_byte_extract.py`
-- `tests/test_local_reverse_cpp1_signed_transform_recheck.py`
-- `tests/test_local_reverse_cpp1_target_byte_extract.py`
-- `tests/test_project_gate.py`
-- `tests/test_project_state.py`
+- `project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json`，若已存在，只作 stale/previous context，除非 artifact_index 已登记本轮 current；
+- `project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json`；
+- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`；
+- `project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json`；
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`；
+- `reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py`；
+- `reverse_agent/local_reverse_cpp1_signed_transform_recheck.py`；
+- `reverse_agent/local_reverse_cpp1_target_byte_extract.py`；
+- `tests/test_local_reverse_cpp1_alternative_static_semantics_review.py`；
+- `tests/test_local_reverse_cpp1_signed_transform_recheck.py`；
+- `tests/test_local_reverse_cpp1_target_byte_extract.py`；
+- `tests/test_project_gate.py`；
+- `tests/test_project_state.py`。
 
-必要时只读：
+允许 read-only capability survey，但不得执行：
 
-- `project_state/rounds/round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1/*`
-- `project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/*`
-- `project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/*`
+- 现有 runtime validation / harness / debugger / emulator / IDA / Ghidra 相关模块；
+- 只读目的是确认已有接口，避免重复实现或错误假设工具不存在。
+
+禁止默认读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
 
 ## 5. Required Audit
 
-Codex 必须先确认：
+Codex 必须先完成启动审计：
 
-- 当前 decision_meta 合法，`status=APPROVED`，`mainline=reverse_solving`，skill profile 来自 active registry。
-- 当前 gate closeout rework 已收口；本轮不继续修 gate。
-- 当前 required artifacts：target_bytes_revalidation 与 static_inverse_handoff 都是 current。
-- negative_results 已禁止重复 current target bytes printable inverse path。
-- 本轮目标是 alternative static semantics review，不是 repeat inverse handoff，不是 runtime validation。
+- 执行并记录 `Set-Location F:\reverse-agent`、`Get-Location`、`Test-Path F:\reverse-agent`、`git rev-parse --show-toplevel`、`git status --short`；
+- 若无法进入 `F:\reverse-agent`、路径不存在、不是 git 仓库，立即停止；
+- 若启动时已有 dirty/untracked 文件，必须写入 `project_state/gates/round_baseline.json` 或等效 baseline 记录，并在 report 中逐项说明 inherited baseline 与本轮新增 delta，不能把本轮新增源码/测试混入 inherited baseline；
+- 确认 decision_meta 合法，`status=APPROVED`，`mainline=reverse_solving`，skill profile 来自 active registry；
+- 确认 `task_packet.json` 只是 advisory，当前执行权威为本 `decision_packet.md`。
 
 必须完成的审查内容：
 
-### A. 输入域审查
+### A. 输入字节域审查
 
-审查 `%s`、`strlen(Str) == 18`、`strncpy(Destination, Str, 0x10u)` 对输入字节的真实约束：
+基于 current alternative review 的 `nonprintable_static_preimage_preview_hex`，重新分类 16-byte preimage：
 
-- 是否只是禁止 NUL/空白终止，而不是要求 printable ASCII；
-- static all-byte preimage 中的非打印字节是否包含 NUL、空白、CR/LF、tab、space 等会破坏 `%s` 或 `strlen` 的字节；
-- all-byte preimage 的 16 字节是否能作为某种 raw stdin / file redirected / escaped input 交付；
-- 第 17–18 字节是否完全不参与 transform/compare，是否只用于满足 `strlen == 18`；
-- 若输入包含非打印/高位字节，`strlen` 与 `scanf("%s")` 在 Windows 控制台/本地编码下的可交付性风险。
+- NUL indices；
+- ASCII whitespace indices，包括 `0x09,0x0a,0x0b,0x0c,0x0d,0x20`；
+- control indices；
+- high-bit indices；
+- printable ASCII indices；
+- `%s` token hard blockers；
+- `strlen` hard blockers；
+- Windows console manual entry risk。
 
-### B. transform 语义审查
+### B. 18-byte payload 约束审查
 
-审查 current transform formula 与 signed/unsigned model：
+明确区分：
 
-- 当前 formula 是否为单字节 bit permutation；
-- signed arithmetic shift 是否经过 u8 truncation 后与 unsigned formula 等价；
-- 是否可能误把 forward transform 当 inverse transform；
-- 是否可能还有 XOR/add/sub/table lookup/previous byte dependency 未纳入 current formula；
-- 若 full-byte preimage 唯一但 printable 不完整，是否反而证明 transform/target 组合更像 raw-byte 校验而非 printable key 校验。
+- 前 16 字节：由 `strncpy(Destination, Str, 0x10u)` 复制并参与 transform/compare；
+- 第 17、18 字节：只用于让 `strlen(Str)==18`，不能假设它们能控制 `Destination[16]` 或 `Destination[17]`；
+- payload 后缀必须是非 NUL、非 whitespace，建议 printable placeholder，例如 `AA`，但不得称为 candidate；
+- payload preview 可以记录为 `payload_preview_hex`，但必须标记 `runtime_validated=false`、`authoritative=false`。
 
-### C. target bytes / target symbol 审查
+### C. success-boundary 审查
 
-审查 `byte_429A30` 作为 compare target 的充分性：
+必须审查 `if (i == 16)` 的成功边界风险：
 
-- target length 16 是否与 loop exit `i == 16` 一致；
-- 是否存在邻近数据、字符串、xref 或相同地址 alias 可能导致 target bytes 读取偏移错误；
-- current revalidation 是否足以排除旧 target bytes path 的 stale 风险；
-- 如果证据不足，记录 `needs_target_xref_tool_recheck=true`，但本轮不得重跑 IDA。
+- compare loop 是 `i < v4 && Destination[i] == byte_429A30[i]`，当 `v4==18` 时，若 index 0..15 match 且 index 16 mismatch，则 loop 停在 `i==16` 并进入 success branch；
+- 若 index 16 也 match，loop 可能继续到 17/18，导致 `i != 16`，反而失败；
+- 因为 `strncpy(..., 0x10u)` 只复制 16 字节，输入后缀不应被错误建模为控制 `Destination[16]`；
+- 如果 current static artifacts 没有足够数据判断 `Destination[16]` 与 `byte_429A30[16]`，本轮必须记录 `success_boundary_status=UNKNOWN_NEEDS_STATIC_OR_TOOL_RECHECK`，不得伪造结论；
+- 如果 current artifacts 足够证明 index 16 mismatch 或 target length 16 boundary 安全，则记录证据路径和字段来源。
 
-### D. static candidate / nonprintable preimage 审查
+### D. 输入交付方式审查
 
-从 current static_inverse_handoff 中提取 all-byte unique preimage，生成静态说明：
+输出 delivery plan，不执行：
 
-- 16-byte all-byte preimage hex；
-- printable positions and missing positions；
-- nonprintable byte classes：control bytes, high-bit bytes, whitespace/NUL-sensitive bytes；
-- 可交付性风险分级：`console_unfriendly`、`stdin_raw_possible`、`requires_runtime_input_delivery_review` 等；
-- candidate 字段保持 null，或如果必须给出 preview，只能用 `nonprintable_static_preimage_preview_hex`，并明确非 authoritative。
+- Windows console manual entry：预计不可行或高风险，因为存在 control/high-bit bytes；
+- PowerShell raw-byte file creation + redirection：可作为下一轮 runtime validation 候选命令模板；
+- Python raw stdin/subprocess：可作为下一轮 runtime validation 候选命令模板；
+- file redirection：可作为下一轮 runtime validation 候选；
+- debugger memory patch / stdin hook：本轮不得执行，只有当 raw stdin/file redirection 不可行时才可建议下一轮 tool_integration decision。
+
+所有模板必须是 inert/template，不得在本轮调用目标 exe。
 
 ### E. 下一步路线选择
 
-输出一个明确的 next action，不得含糊写“继续完善”。可选结论包括：
+输出明确 `recommended_next_action`，只能从以下值中选择：
 
-- `NEEDS_INPUT_DELIVERY_REVIEW`：如果 all-byte preimage 无 NUL/空白等 `%s` 硬阻断，但不可打印，需要下一轮设计静态/受限 runtime 输入交付验证；
-- `NEEDS_TARGET_XREF_TOOL_RECHECK`：如果 target symbol/length/offset 证据不足；
-- `NEEDS_TRANSFORM_SEMANTICS_RECHECK`：如果 transform formula 可能缺少额外操作；
-- `BLOCKED_NO_PRINTABLE_SOLUTION_UNDER_CURRENT_SEMANTICS`：如果当前语义下只能得出非打印 raw-byte solution，且项目暂不允许运行样本或 raw input 验证；
-- `READY_FOR_BOUNDED_RUNTIME_VALIDATION_DECISION`：只有在静态证据说明 raw-byte input delivery 合理且无 NUL/whitespace blocker 时，才能建议下一轮单独生成 runtime validation decision。
+- `READY_FOR_BOUNDED_RUNTIME_VALIDATION_DECISION`：只有在无 NUL/whitespace hard blocker，且 success-boundary 风险已静态解释为可进入单独 runtime validation decision 时使用；
+- `NEEDS_SUCCESS_BOUNDARY_STATIC_RECHECK`：如果输入交付可行，但 index 16 boundary 证据不足；
+- `NEEDS_TARGET_ADJACENT_BYTE_RECHECK`：如果需要重新确认 `byte_429A30[16]` 或邻接数据；
+- `BLOCKED_INPUT_DELIVERY_HARD_BLOCKER`：如果 preimage 或必要 suffix 含 NUL/whitespace 等 `%s` 硬阻断；
+- `NEEDS_TOOL_INTEGRATION_DECISION`：如果必须调用 IDA/Ghidra/debugger/harness 才能继续。
 
 必须生成新 artifact：
 
-- `project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json`
 
 artifact 必须包含：
 
@@ -182,7 +206,7 @@ artifact 必须包含：
 - `sample_id`
 - `relative_path`
 - `sha256`
-- `analysis_mode=alternative_static_semantics_review`
+- `analysis_mode=input_delivery_review`
 - `mainline=reverse_solving`
 - `executed_sample=false`
 - `static_only=true`
@@ -191,11 +215,12 @@ artifact 必须包含：
 - `source_artifacts`
 - `source_artifact_freshness`
 - `negative_results_considered`
-- `input_domain_review`
-- `transform_semantics_review`
-- `target_symbol_review`
-- `all_byte_preimage_review`
-- `nonprintable_input_delivery_risk`
+- `preimage_input_domain_review`
+- `payload_length_review`
+- `suffix_policy`
+- `success_boundary_review`
+- `delivery_options_review`
+- `payload_preview_hex`
 - `candidate=null`
 - `known_candidate=""`
 - `recommended_next_action`
@@ -203,41 +228,43 @@ artifact 必须包含：
 
 必须将该 artifact 登记到 `project_state/artifact_index.json`：
 
-- key 建议为 `local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review`
-- `kind=alternative_static_semantics_review`
+- key：`local_reverse_cpp1_2f6fcb63_input_delivery_review`
+- `kind=input_delivery_review`
 - `freshness=current`
-- `source_run=round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1`
-- path 指向 `project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json`
+- `source_run=round_20260614_cpp1_2f6fcb63_input_delivery_review_v1`
+- path 指向 `project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json`
 - sample_id 为 `cpp1_2f6fcb63`
 
-可以有界更新 `negative_results.json`，但只在新 review 得出明确新禁止方向时允许。例如：
+可以有界更新 `negative_results.json`，但只在发现新的明确 hard blocker 或禁止方向时允许。例如：
 
-- 如果确定 printable route 无意义，保留已有 entry，不重复新增；
-- 如果确定 target-symbol review 必须先做，新增禁止“without target xref recheck, repeat raw-byte input validation decision”；
-- 如果确定 raw-byte preimage 包含 NUL/whitespace 硬阻断，新增相应 blocked direction。
+- 如果 success boundary 无证据，不要新增 solved/candidate；可新增禁止“without success-boundary evidence, run raw-byte validation as solved”；
+- 如果发现 NUL/whitespace hard blocker，可新增对应 blocked direction；
+- 不得重复新增 already-existing printable inverse prohibition。
 
 ## 6. Implementation Scope
 
 Allowed source files:
 
-- `reverse_agent/local_reverse_cpp1_signed_transform_recheck.py`，仅限新增或复用函数来从 current handoff artifact 读取 all-byte preimage / printable analysis，不改变已有 transform 语义
-- `reverse_agent/local_reverse_cpp1_target_byte_extract.py`，仅限复用/暴露 helper 读取 current target metadata，不重新提取 IDA 数据
-- 新文件 `reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py`，仅当现有两个模块无法容纳 review CLI 时允许；该文件不得运行样本或调用 IDA
-- `reverse_agent/project_state.py`，仅限 artifact_index 登记兼容修复
+- 新文件 `reverse_agent/local_reverse_cpp1_input_delivery_review.py`，仅当现有模块无法容纳 input-delivery review CLI 时允许；该文件不得运行样本、不得调用 IDA/Ghidra/debugger/emulator/harness；
+- `reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py`，仅限复用或暴露分类 helper，不改变上一轮 artifact 语义；
+- `reverse_agent/local_reverse_cpp1_signed_transform_recheck.py`，仅限复用 transform helper，不改变 transform 语义；
+- `reverse_agent/local_reverse_cpp1_target_byte_extract.py`，仅限复用 target/provenance helper，不重新提取 IDA 数据；
+- `reverse_agent/project_state.py`，仅限 artifact_index 登记兼容修复。
 
 Allowed tests:
 
-- `tests/test_local_reverse_cpp1_signed_transform_recheck.py`
-- `tests/test_local_reverse_cpp1_target_byte_extract.py`
-- 新文件 `tests/test_local_reverse_cpp1_alternative_static_semantics_review.py`，如果新增 review CLI
-- `tests/test_project_state.py`
-- `tests/test_project_gate.py`，仅当 gate/report contract 受影响时修改
+- 新文件 `tests/test_local_reverse_cpp1_input_delivery_review.py`；
+- `tests/test_local_reverse_cpp1_alternative_static_semantics_review.py`，仅当复用 helper contract 受影响；
+- `tests/test_local_reverse_cpp1_signed_transform_recheck.py`；
+- `tests/test_local_reverse_cpp1_target_byte_extract.py`；
+- `tests/test_project_state.py`；
+- `tests/test_project_gate.py`。
 
 Allowed generated/state files:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json`
 - `project_state/artifact_index.json`
-- `project_state/negative_results.json`，仅当新增明确不同的 blocked direction
+- `project_state/negative_results.json`，仅当新增明确不同 blocked direction
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/command_plan.json`
@@ -246,32 +273,32 @@ Allowed generated/state files:
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/*`
+- `project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/*`
 
 Read-only only:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
-- old cpp1 artifacts and old round archives
-- `project_state/local_reverse_training_status.json`
-- `project_state/local_reverse_evaluation_queue.json`
+- current cpp1 artifacts listed above；
+- old cpp1 artifacts and old round archives, only as bounded historical context；
+- `project_state/local_reverse_training_status.json`；
+- `project_state/local_reverse_evaluation_queue.json`；
+- existing runtime/harness/debugger/tool integration code, only for capability survey。
 
 Forbidden:
 
 - raw sample files
-- `solve_reports/`
+- complete `solve_reports/`
 - `.codex-skills/`
 - `training_materials/`
 - IDA/Ghidra/debugger/emulator/runtime/harness invocation
 - `reverse_agent/strategies/`
-- `reverse_agent/transforms/` unless only importing existing helpers is necessary and no file modifications occur
+- `reverse_agent/transforms/` unless importing existing helpers only and no file modifications occur
 - any artifact or state change that marks `cpp1_2f6fcb63` solved
 
 ## 7. Tests
 
 必须真实运行并记录到 `project_state/pytest_result.txt`：
 
+- `Set-Location F:\reverse-agent`
 - `Get-Location`
 - `Test-Path F:\reverse-agent`
 - `git rev-parse --show-toplevel`
@@ -279,44 +306,48 @@ Forbidden:
 - `python -m reverse_agent.project_gate preflight --state-dir project_state`
 - `python -m reverse_agent.project_gate command-plan --state-dir project_state`
 - `python -m reverse_agent.project_gate command-plan --state-dir project_state --json`
-- `python -m pytest tests/test_local_reverse_cpp1_signed_transform_recheck.py tests/test_local_reverse_cpp1_target_byte_extract.py -q`
-- 如果新增 review CLI：`python -m pytest tests/test_local_reverse_cpp1_alternative_static_semantics_review.py -q`
+- review command，例如：`python -m reverse_agent.local_reverse_cpp1_input_delivery_review --input-review project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json --target-revalidation project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json --inverse-handoff project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --artifact-index project_state/artifact_index.json --negative-results project_state/negative_results.json --out project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json`
+- `python -m pytest tests/test_local_reverse_cpp1_input_delivery_review.py -q`
+- `python -m pytest tests/test_local_reverse_cpp1_alternative_static_semantics_review.py tests/test_local_reverse_cpp1_signed_transform_recheck.py tests/test_local_reverse_cpp1_target_byte_extract.py -q`
 - 若修改 project_state/project_gate：`python -m pytest tests/test_project_state.py tests/test_project_gate.py -q`
-- current source verification：确认 target_bytes_revalidation 和 static_inverse_handoff 均为 current，sample_id 均为 `cpp1_2f6fcb63`，negative_results 中已存在 current printable inverse prohibition
-- review command，例如：`python -m reverse_agent.local_reverse_cpp1_alternative_static_semantics_review --target-revalidation project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json --inverse-handoff project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --artifact-index project_state/artifact_index.json --negative-results project_state/negative_results.json --out project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json`
-- artifact_index verification：确认 `local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review` 为 current，source_run 为本轮 round id
-- 如果更新 negative_results：验证只新增不同方向，不重复 current target bytes printable inverse path
+- artifact_index verification：确认 `local_reverse_cpp1_2f6fcb63_input_delivery_review` 为 current，source_run 为本轮 round id，sample_id 为 `cpp1_2f6fcb63`
+- negative_results verification：确认没有重复新增 printable inverse prohibition
 - `python -m reverse_agent.project_state doctor --state-dir project_state`
 - `python -m reverse_agent.project_state lint-report --state-dir project_state`
 - `python -m reverse_agent.project_gate report-summary --state-dir project_state`
 - `python -m reverse_agent.project_gate final-check --state-dir project_state`
-- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1`
+- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_input_delivery_review_v1`
 
 新增或更新测试覆盖：
 
-- review refuses to run if source revalidation or inverse handoff is not current;
-- review records negative_results_considered and does not repeat forbidden printable inverse route;
-- review classifies all-byte nonprintable preimage bytes into NUL/whitespace/control/high-bit/printable buckets;
-- review keeps candidate null and does not mark solved;
-- review writes artifact_index current metadata with dynamic source_run;
-- synthetic case can emit `READY_FOR_BOUNDED_RUNTIME_VALIDATION_DECISION` only when no NUL/whitespace hard blocker exists and sources are current.
+- review refuses stale/missing/non-current source artifacts；
+- review consumes `cpp1_2f6fcb63 current target bytes printable inverse path` negative result；
+- review classifies NUL/whitespace/control/high-bit/printable buckets correctly；
+- review keeps `candidate=null`、`known_candidate=""`、`runtime_validated=false`、`authoritative=false`；
+- review distinguishes first 16 copied bytes from suffix bytes 17–18；
+- review does not claim suffix controls `Destination[16]`；
+- review emits `NEEDS_SUCCESS_BOUNDARY_STATIC_RECHECK` when success-boundary evidence is insufficient；
+- review can emit `READY_FOR_BOUNDED_RUNTIME_VALIDATION_DECISION` only when no `%s` hard blocker exists and success-boundary evidence is adequate；
+- review writes artifact_index current metadata with dynamic source_run。
 
 `close-round` 必须是 live 与 archived pytest 中最后一个 command block。
 
 ## 8. Stop Conditions
 
-如果需要执行目标样本、runtime probe、debugger/emulator/hook/harness/bruteforce，立即停止并报告 `BLOCKED`。
+如果需要执行目标样本、runtime probe、debugger/emulator/hook/harness/candidate validation，立即停止并报告 `BLOCKED` 或 `NEEDS_SEPARATE_RUNTIME_VALIDATION_DECISION`。
 
-如果 current revalidation artifact 或 current static inverse handoff artifact 缺失、不是 current、sample_id 不匹配，停止并报告 `BLOCKED`。
+如果 current alternative review、target revalidation、static inverse handoff 或 static triage artifact 缺失、不是 current、sample_id 不匹配，停止并报告 `BLOCKED`。
 
-如果工作退化为重复 current target bytes printable inverse path，停止并报告 `REWORK_REQUIRED`。
+如果发现输入交付审查退化为重复 printable inverse path，停止并报告 `REWORK_REQUIRED`。
 
-如果需要重跑 IDA 或重新提取 `byte_429A30`，停止并输出 `NEEDS_TARGET_XREF_TOOL_RECHECK` 或 `NEEDS_TOOL_INTEGRATION_DECISION`，不要在本轮直接跑工具。
+如果需要重跑 IDA/Ghidra/radare2/objdump 或重新提取 `byte_429A30` adjacent bytes，停止并输出 `NEEDS_TARGET_ADJACENT_BYTE_RECHECK` 或 `NEEDS_TOOL_INTEGRATION_DECISION`，不要在本轮直接跑工具。
 
-如果 artifact_index 无法登记 current alternative review provenance，停止并报告 `REWORK_REQUIRED`，不得只提交裸 JSON。
+如果 success-boundary 无法从 current artifacts 判定，不得硬写 ready for runtime；必须输出 `NEEDS_SUCCESS_BOUNDARY_STATIC_RECHECK` 或 `NEEDS_TARGET_ADJACENT_BYTE_RECHECK`。
+
+如果 artifact_index 无法登记 current input-delivery review provenance，停止并报告 `REWORK_REQUIRED`，不得只提交裸 JSON。
 
 如果测试或 gate 失败，`codex_execution_report.md` 必须标记 `FAILED/REWORK_REQUIRED` 或 `BLOCKED`，不能写 `SUCCESS/ACCEPTED`。
 
-如果产生 static preview，必须保持 `runtime_validated=false`、`authoritative=false`、`candidate=null`，不得写 solved。若无法保证这一点，停止。
+如果产生 payload preview，必须保持 `runtime_validated=false`、`authoritative=false`、`candidate=null`，不得写 solved。若无法保证这一点，停止。
 
 如果需要修改 forbidden paths 或触碰多个样本，停止并报告 `BLOCKED`。
