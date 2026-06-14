@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260614_close_round_recording_real_execution_rework_v1",
-  "round_id": "round_20260614_close_round_recording_real_execution_rework_v1",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
-  "mainline": "engineering_branch",
+  "mainline": "tool_integration",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,55 +15,55 @@
 
 ## 1. Goal
 
-修复 `decision_20260614_close_round_recording_gate_rework_v1` 的返工失败点：不得用硬编码脚本伪造或合成 pytest command block；不得在 `close-round` 后追加任何 verification command；必须让 live 与 archived `pytest_result.txt` 真实、完整、一致地记录本轮实际执行命令。
+恢复本地训练队列 rank=1 样本 `cpp1_2f6fcb63` 的有界静态证据提取闭环：审计并修复现有 `reverse_agent/local_reverse_single_sample_static_triage.py` 复用 IDA/tool_runners/collect_evidence 的路径，使它能够为 `cpp1_2f6fcb63` 生成可信、可登记、可审计的 current static triage artifact；如果 IDA 或脚本环境仍不可用，必须生成带真实 blocker、exit/log/provenance 的 blocked artifact，不得合成 stdout 或伪造成功。
 
-本轮只处理工程 gate/report/pytest/round archive 元数据一致性，不推进逆向样本、不运行 static triage、不运行 IDA/Ghidra/debugger/emulator/harness/runtime probe、不生成 candidate、不修改训练队列语义。
+本轮主线是 `tool_integration`，不是 `reverse_solving`。目标是工具接入与 StructuredEvidence/static triage 产物登记，不是生成 candidate、flag、password，也不是运行样本。
 
 ## 2. Current Evidence
 
-当前主线是 `engineering_branch`。`project_state/decision_packet.md` 是当前轮执行权威；`project_state/task_packet.json` 与 `project_state/current_state.json` 仍包含旧 `samplereverse` sample_state 背景，只能作为历史背景，不能覆盖本 decision。
+当前上一轮 `decision_20260614_close_round_recording_real_execution_rework_v1` 已达到 `ACCEPTED_WITH_LIMITATIONS`：report/pytest/gate/archive 已绑定同一 decision/round，`close-round` 是最后 command block，live 与 archived pytest/report 一致。遗留 warning 属于非阻塞 gate limitation，final gate recommended_next_action 为 `no_action_required`。
 
-上一轮 `decision_20260614_close_round_recording_gate_rework_v1` 虽然补上了 `close-round` command block，但仍存在以下阻塞问题：
+`project_state/task_packet.json` 与 `project_state/current_state.json` 仍包含旧 `samplereverse` sample_state 背景，只能作为历史背景；当前轮执行权威是本 decision。不得根据旧 `task_packet.task=collect_missing_evidence` 回到 `samplereverse` 求解线。
 
-- `project_state/pytest_result.txt` 中 `close-round` 之后又记录了 `python -m reverse_agent.project_gate command-plan --state-dir project_state --json`，违反 close-round 必须作为最后一个 state-closing 命令的约束。
-- `project_state/gates/command_plan.json` 也把 `command-plan --json` 列为第 15 条，在 `close-round` 之后，说明命令顺序模型本身错误。
-- 只读 queue/status verification 记录为 `cpp1_2f6fcb63: queue_rank=None`，但上一轮 decision 要求核验 `cpp1_2f6fcb63 queue_rank=1`；该核验不能写成 `VERIFICATION PASSED`。
-- 新增了未在上一轮 scope 中允许的 `project_state/build_round_artifacts.py`。
-- `project_state/build_round_artifacts.py` 通过 `_stdout_for()` 为 `git status`、pytest、doctor、report-summary、final-check、close-round 等命令返回预设字符串，属于合成日志，不是实际执行命令采集的 stdout/stderr/exit。
-- `project_state/codex_execution_report.md` 的 `files_changed` 漏列实际变更，例如 `project_state/build_round_artifacts.py`、`reverse_agent/project_gate.py`、`tests/test_project_gate.py`。
-- `project_state/gates/final_gate_result.json` 仍自报 `PASSED_WITH_LIMITATIONS`，但没有拦住上述 close-round 顺序、scope 越界、核验事实不一致、合成日志等问题。
+`project_state/local_reverse_evaluation_queue.json` 当前显示：`cpp1_2f6fcb63` 是 rank=1，relative_path 为 `逆向课程2023春01/CPP1.exe`，`proposed_next_mainline=tool_integration`，allowed_actions 只有 `static_triage`，forbidden_actions 包含 `runtime_probe`、`bruteforce`、`upload_binary`。
 
-`project_state/artifact_index.json` 中旧 `samplereverse` 历史 artifact missing 项对本轮是非阻塞背景，不能被当作 current sample-solving evidence，也不能作为推进旧 `samplereverse` 的理由。
+`project_state/local_reverse_training_status.json` 当前显示训练集总计 65 个样本，`solved=1`、`blocked=2`、`needs_triage=3`、`inventory_only=59`。`cpp1_2f6fcb63` 在只读核验中为 `rank=1, training_status=inventory_only`。
 
-`negative_results.json` 中禁止回到旧 sample_solver 盲搜、只扩大 beam/budget、使用 compare_semantics_agree=false 作为主 frontier、提交完整 solve_reports、重复旧 `samplereverse` 失败方向。本轮不触碰这些方向。
+已有与 `cpp1_2f6fcb63` 相关的旧产物和脚本不能被当作 current success evidence：
 
-现有相关能力必须优先复用：`reverse_agent.project_gate` 的 `preflight`、`command-plan`、`report-summary`、`final-check`、`close-round`，以及 `reverse_agent.project_state` 的 `doctor`、`lint-report`、pytest/result 校验和 round archive 机制。不得新建一套 report/gate/round 系统。
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` 是旧 blocked artifact，`generated_at=2026-06-12T07:10:53Z`，`tool_status=blocked`，`blocked_reason=STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON`。
+- `project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json` 是旧 reverse_solving 线索，状态为 `BLOCKED`，原因是 `STATIC_CANDIDATE_NONPRINTABLE`；本轮不能把它作为 candidate 或求解依据。
+- `reverse_agent/local_reverse_single_sample_static_triage.py` 已存在，并声明只复用 IDA 静态 evidence collection，不执行目标二进制、不生成 candidate。其 `_run_ida_static_triage()` 通过 `tool_runners._resolve_ida_executable()` 和 `_resolve_ida_script()` 启动 IDA，并期望 `REVERSE_AGENT_IDA_OUT` 产出 `ida_evidence.json`。
+- 当前 adapter 在 `evidence_out` 不存在时只返回 `STATIC_TOOL_NO_OUTPUT`，但 blocked artifact 里没有足够的 IDA command、log path、exit code、stdout/stderr 摘要、script path、output path 等 provenance，导致后续无法判断是 IDA runner、脚本、路径、环境变量还是输出登记问题。
+- `run_static_triage()` 接受 `artifact_index_path` 参数，但需要审计是否真实更新 `artifact_index.json`；本轮必须确保工具输出进入 artifact_index 并标记 current provenance，不能只写裸 JSON。
 
-工具能力边界：本轮不需要 IDA/Ghidra/debugger/emulator/harness/solver。若为了真实命令记录一致性需要改代码，应只限于现有 project_gate/project_state 机制的小修正和测试；不得新增逆向工具接口或触碰 sample-solving pipeline。
+`negative_results.json` 禁止回到旧 sample_solver 盲搜、只扩大 beam/budget、使用 compare_semantics_agree=false 作为主 frontier、提交完整 solve_reports、重复旧 `samplereverse` 失败方向。本轮不触碰这些方向。对 `cpp1_2f6fcb63`，还必须避免重复旧 `STATIC_CANDIDATE_NONPRINTABLE` inverse handoff 方向，除非本轮获得新的 current static triage evidence。
 
-允许读取重型 artifact：不允许读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。只允许读取本轮直接相关的 project_state 文件、gate JSON、round archive、project_gate/project_state 相关源码和测试。
+现有工具能力必须优先复用：IDA / IDAPython / `tool_runners` / `collect_evidence.py` / `local_reverse_single_sample_static_triage.py` / training inventory and queue / project_gate report-summary/final-check/close-round。不得新建重复 IDA runner，不得绕过成熟工具重新写反汇编器。
+
+允许读取重型 artifact：不允许读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。只允许有界读取与 `cpp1_2f6fcb63` 当前静态 triage 直接相关的 project_state 产物、上一轮对应 round manifest/report/pytest、现有 IDA/tool_runner/triage adapter 代码和测试。
 
 ## 3. Do Not Do
 
-不得运行 IDA、Ghidra、static triage、forced IDA、xref extraction、decompiler extraction、debugger、emulator、hook、runtime probe、harness campaign、solver、SMT、bruteforce 或 sample_solver。
+不得运行目标样本二进制；不得做 runtime probe、debugger、emulator、hook、harness campaign、动态验证、bruteforce、SMT、solver、sample_solver 或 candidate validation。
 
-不得推进 `cpp1_2f6fcb63` 的实际 static triage；本轮只能在必要时只读确认状态/队列事实，不能分析它、不能生成证据、不能求解。
+不得生成 candidate、flag、password；不得把 `cpp1_2f6fcb63` 标记为 solved。
 
-不得生成 candidate、flag、password；不得把任何新样本标成 solved。
+不得回到旧 `project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json` 的非打印 candidate 分支；该 artifact 只能作为 stale/blocked 线索，不是 current evidence。
 
-不得修改训练队列筛选语义、solver、harness、debugger/emulator、IDA/Ghidra 接口、`reverse_agent/strategies/`、`reverse_agent/transforms/`。
+不得重复实现 IDA、Ghidra、radare2、objdump 已有的反汇编/反编译功能；本轮只修复/增强现有工具编排、产物登记和 blocked provenance。
 
-不得修改 `.codex-skills/`、training materials、raw sample 文件、`solve_reports/` 历史目录，不得提交完整 solve_reports。
+不得新建第二套 IDA runner 或重复 `tool_runners` 的能力。若现有 `_resolve_ida_executable()` / `_resolve_ida_script()` / `collect_evidence.py` 有缺陷，修复现有接口。
 
-不得手工改写 `project_state/local_reverse_training_status.json` 或 `project_state/local_reverse_evaluation_queue.json` 来掩盖生成器问题。本轮如果需要验证这些文件，只做只读 schema/status 检查；若发现它们与本 decision 的事实要求不一致，停止并报告 `REWORK_REQUIRED`，不要私自修复训练语义。
+不得修改 raw sample 文件，不得上传本地二进制，不得提交完整 `solve_reports/`。
 
-不得在 gate 失败时把 report、final status、status_summary 或 acceptance recommendation 写成 `SUCCESS/ACCEPTED`。
+不得手工伪造 IDA 输出、伪造 `ida_evidence.json`、伪造 stdout/stderr、伪造 tool success。
 
-不得让 `pytest_result_summary.tests_ran`、`codex_report_summary.tests_ran` 或 `command_plan.json` 声明某命令已执行，而正文缺少对应 command block 与 exit code。
+不得手工编辑 `local_reverse_training_status.json` 或 `local_reverse_evaluation_queue.json` 来掩盖状态；如需更新训练状态/队列，必须通过现有生成器或明确的小范围状态构建命令产生，并在 report 中记录命令。
 
-不得通过硬编码命令输出、合成 stdout、删除失败核验、继续跳过 `close-round`、删除 close-round 记录要求、或只改报告文字来绕过问题。
+不得把 stale/missing artifact 当作 current evidence。若 current static triage 仍 blocked，报告必须是 blocked/partial 的真实状态，而不是 SUCCESS 解题状态。
 
-不得在 `close-round` 之后追加新的测试、verification、command-plan、doctor、lint、report-summary、final-check 或任何其他命令记录。所有本轮 verification 必须先完成，再 final-check，再 close-round；`close-round` 必须是最后一个记录命令。
+不得扩大到其他样本；本轮只允许 `cpp1_2f6fcb63`。
 
 ## 4. Files To Inspect
 
@@ -80,71 +80,73 @@
 
 还必须有界读取：
 
-- `project_state/build_round_artifacts.py`
-- `project_state/gates/command_plan.json`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/round_baseline.json`
-- `project_state/gates/round_delta_summary.json`
-- `project_state/rounds/round_20260614_close_round_recording_gate_rework_v1/round_manifest.json`
-- `project_state/rounds/round_20260614_close_round_recording_gate_rework_v1/codex_execution_report.md`
-- `project_state/rounds/round_20260614_close_round_recording_gate_rework_v1/pytest_result.txt`
-- `project_state/local_reverse_training_status.json`，只读核验
-- `project_state/local_reverse_evaluation_queue.json`，只读核验
+- `project_state/local_reverse_training_status.json`
+- `project_state/local_reverse_evaluation_queue.json`
+- `project_state/local_reverse_inventory.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`，若存在，只能作为 stale/blocked baseline
+- `project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json`，若存在，只能作为 stale/blocked negative context
+- `training_materials/local_reverse/cases/cpp1_2f6fcb63.json`，若存在，只读 sample metadata，不改 training_materials
+- `reverse_agent/local_reverse_single_sample_static_triage.py`
+- `reverse_agent/tool_runners.py`
+- 现有 IDAPython evidence collection script；通过 `tool_runners._resolve_ida_script()` 或代码搜索定位，不得新建重复脚本
+- `tests/test_local_reverse_single_sample_static_triage.py`
+- `tests/test_local_reverse_training_status.py`
 - `reverse_agent/project_gate.py`
 - `reverse_agent/project_state.py`
-- `tests/test_project_gate.py`
-- `tests/test_project_state.py`
-- `tests/test_local_reverse_training_status.py`，只用于验证行为仍被测试覆盖，不允许改训练语义
+
+必要时读取上一轮或历史 `cpp1_2f6fcb63` round：
+
+- `project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/decision_packet.md`
+- `project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/codex_execution_report.md`
+- `project_state/rounds/round_20260612_local_reverse_cpp1_2f6fcb63_static_triage_v1/pytest_result.txt`
+- `project_state/rounds/round_20260612_rework_cpp1_2f6fcb63_static_triage_closeout_v1/round_manifest.json`
 
 ## 5. Required Audit
 
 Codex 必须先确认：
 
-- 当前 decision_meta 合法，`status=APPROVED`，`mainline=engineering_branch`，`skill_profiles` 来自 active registry。
-- `task_packet.json/current_state.json` 是旧 `samplereverse` 背景；当前执行权威是本 decision。
-- 上一轮不是 ACCEPTED，而是 close-round 真实记录与 report/gate 事实一致性继续失败。
-- `project_state/build_round_artifacts.py` 是未授权新增文件，而且通过硬编码 `_stdout_for()` 生成命令输出，不得作为可信测试记录机制。
-- live `project_state/pytest_result.txt` 与 archived pytest 是否存在 close-round 后追加命令；如存在，必须修复为 close-round 最后。
-- `command_plan.json`、`codex_execution_report.md`、`pytest_result.txt`、`report_summary_synthesis.json`、`final_gate_result.json`、round archive 是否互相一致，尤其是 close-round 是否在 header、report、command-plan、正文记录、archive 中一致并且最后出现。
-- `report_summary_synthesis` 与 live report 的 `files_changed/tests_ran/generated_artifacts/verified_artifacts` 必须完全一致。
-- `final_gate_result.status_summary` 不得在顶层 gate FAILED 时继续输出 `SUCCESS/ACCEPTED`。
-- round archive 必须完整生成，并且 live report / live pytest 与 archived report / archived pytest 一致。
-- 只读 queue/status verification 必须如实反映 `project_state/local_reverse_training_status.json` 与 `project_state/local_reverse_evaluation_queue.json`。如果 `cpp1_2f6fcb63 queue_rank` 实际不是 1，则本轮必须把这个不一致写入 report 并标记 `REWORK_REQUIRED` 或 `BLOCKED`，不能写 `VERIFICATION PASSED`。
+- 当前 decision_meta 合法，`status=APPROVED`，`mainline=tool_integration`，`skill_profiles` 来自 active registry。
+- `task_packet.json/current_state.json` 是旧 `samplereverse` 背景，不能覆盖本 decision。
+- `cpp1_2f6fcb63` 在 evaluation queue 中为 rank=1，且 allowed_actions 只有 `static_triage`。
+- 现有 `local_reverse_single_sample_static_triage.py` 明确不执行目标样本、不生成 candidate。
+- 现有 IDA/tool_runner/collect_evidence 接口是否已经存在；不得新建重复 runner。
+- 旧 static triage artifact blocked due to `STATIC_TOOL_NO_OUTPUT`；若要重试，必须说明新增审计和修复点。
+- artifact_index 是否已有 `cpp1_2f6fcb63` 条目；若没有或 stale/missing/unknown，本轮必须在生成 artifact 后登记 current provenance。
 
 必须完成或如实报告：
 
-- 删除或停止使用 `project_state/build_round_artifacts.py`。优先删除该文件；不得把它作为长期工具、generated artifact 或测试记录机制。
-- 修改 `reverse_agent/project_gate.py` 或 `reverse_agent/project_state.py` 时，必须只做最小必要修正，修正目标是阻止 close-round 后追加命令、阻止合成日志绕过、或修复 command-plan 顺序策略。
-- 增加或更新 `tests/test_project_gate.py` 回归测试：构造 `pytest_result.txt` 中 `close-round` 后又出现 command block 的场景，期望 final-check 或对应 consistency check 失败。
-- 如 project_gate 仍需要 `command-plan --json` 用于 full stdout 校验，该命令必须在 `close-round` 前执行和记录，不能列在 close-round 后。
-- 生成本轮新的 `project_state/codex_execution_report.md`，顶部包含合法 `codex_report_summary`，`based_on_decision_id=decision_20260614_close_round_recording_real_execution_rework_v1`，`round_id=round_20260614_close_round_recording_real_execution_rework_v1`。
-- `codex_report_summary.tests_ran` 必须完整列出本轮实际执行的所有命令，不得遗漏 close-round 前的任何验证命令，也不得列出没有正文记录的命令。
-- `codex_report_summary.files_changed` 必须覆盖本轮实际新增/修改/删除文件，不得漏列源码、测试、删除的临时脚本或 generated/state 文件。
-- `codex_report_summary.generated_artifacts` 必须只列出本轮真实生成/更新的文件；如果没有更新训练状态/队列，就不得把它们列为 generated_artifacts。
-- `codex_report_summary.verified_artifacts` 应列出本轮只读验证过的状态文件和 gate/round 文件。
-- `project_state/pytest_result.txt` 顶部 `pytest_result_summary.tests_ran` 必须与本轮实际命令一致，并且正文必须包含每条命令的 `===== COMMAND: ... =====`、stdout/stderr 摘要和 `===== EXIT: <code> =====`。
-- close-round 命令若列入 `tests_ran`，则 live pytest 和 archived pytest 都必须能看到 close-round 的 command block 与 exit code，并且 close-round 后不能有任何后续 command block。
-- 所有本轮测试、只读核验、doctor/lint/report-summary/final-check、必要的 command-plan JSON 检查必须发生在 close-round 之前；close-round 应是本轮最后一个 state-closing 命令。
+- 审计 `_run_ida_static_triage()` 的 command、env、script path、output path、log path、db path 和 exit code 记录；blocked artifact 必须包含足够 provenance 让下一轮知道为什么没有 evidence JSON。
+- 若 IDA executable 或 script 不可用，生成 blocked artifact，blocked_reason 必须区分 `STATIC_TOOL_UNAVAILABLE: IDA executable not found` 与 `STATIC_TOOL_UNAVAILABLE: IDA script not found`，并记录 resolver inputs/outputs。
+- 若 IDA 运行但没有 `ida_evidence.json`，blocked artifact 必须记录 exit_code、log path、stdout/stderr 摘要、expected evidence path、script path、db path，以及是否存在 IDA log。
+- 若 IDA 成功产生 evidence JSON，生成 compact static triage artifact，包含 strings/functions/compare_contexts/validation_function_candidates/solver_profile_hypotheses/decompiler_snippets/solver_hints，且 `candidate=null`、`known_candidate=''`、`runtime_validated=false`。
+- 不论 success 还是 blocked，`project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` 必须更新为本轮 current artifact，并在 `project_state/artifact_index.json` 中登记 freshness=current、kind、path、sha256、size_bytes、source_run=`round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1`。
+- 若训练状态/队列需要刷新，必须通过现有生成器或明确命令生成，不得手工修补；若当前状态仍应是 `inventory_only` 或 `needs_triage`，必须在 report 中说明依据。
+- `codex_execution_report.md` 必须明确区分：工具接入成功、静态 triage artifact success、静态 triage artifact blocked、或环境 blocked。不得把 blocked triage 写成 solved。
+- `pytest_result.txt` 必须记录真实命令、stdout/stderr 摘要和 exit code。不得合成日志。
+- `project_state/gates/report_summary_synthesis.json`、`final_gate_result.json`、round archive 必须和 live report/pytest 一致。
 
 ## 6. Implementation Scope
 
 Allowed source files:
 
-- `reverse_agent/project_gate.py`
-- `reverse_agent/project_state.py`
+- `reverse_agent/local_reverse_single_sample_static_triage.py`
+- `reverse_agent/tool_runners.py`，仅限修复现有 IDA executable/script resolution 或暴露更清晰 provenance
+- 现有 IDAPython evidence collection script，路径必须由 `tool_runners` 解析确认；仅限修复 evidence JSON 输出，不得新建重复 runner
+- `reverse_agent/project_state.py`，仅限 artifact_index/status 构建必要的兼容修复
 
 Allowed tests:
 
-- `tests/test_project_gate.py`
+- `tests/test_local_reverse_single_sample_static_triage.py`
+- `tests/test_local_reverse_training_status.py`
 - `tests/test_project_state.py`
-
-Allowed deletion:
-
-- `project_state/build_round_artifacts.py`
+- `tests/test_project_gate.py`，仅当 report/gate contract 受影响时修改
 
 Allowed generated/state files:
 
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
+- `project_state/artifact_index.json`
+- `project_state/local_reverse_training_status.json`，仅允许由现有状态生成器更新
+- `project_state/local_reverse_evaluation_queue.json`，仅允许由现有队列生成器更新
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/command_plan.json`
@@ -153,31 +155,30 @@ Allowed generated/state files:
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/rounds/round_20260614_close_round_recording_real_execution_rework_v1/*`
+- `project_state/rounds/round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1/*`
 
-Read-only verification only:
+Read-only only:
 
-- `project_state/local_reverse_training_status.json`
-- `project_state/local_reverse_evaluation_queue.json`
-- `tests/test_local_reverse_training_status.py`
+- `project_state/local_reverse_inventory.json`
+- `training_materials/local_reverse/cases/cpp1_2f6fcb63.json`
+- old `project_state/local_reverse_cpp1_2f6fcb63_inverse_handoff.json`
+- old cpp1 round archives
 
 Forbidden:
 
-- `.codex-skills/`
-- `training_materials/`
+- raw sample files
 - `solve_reports/`
-- raw sample 文件
-- solver、harness、runtime probe、debugger、emulator、IDA/Ghidra 接口相关代码
+- `.codex-skills/`
+- `training_materials/` writes
+- solver/harness/runtime/debugger/emulator code
 - `reverse_agent/strategies/`
 - `reverse_agent/transforms/`
-- `reverse_agent/local_reverse_training_status.py`
-- `reverse_agent/local_reverse_single_sample_static_triage.py`
-- `project_state/local_reverse_training_status.json` 与 `project_state/local_reverse_evaluation_queue.json` 的手工语义修补
-- 任意新的临时 report 生成脚本或硬编码 stdout 生成器
+- any new candidate/flag/password artifact
+- any change that marks `cpp1_2f6fcb63` solved
 
 ## 7. Tests
 
-必须真实运行并记录，且所有命令必须在 `close-round` 前完成，除非命令本身就是 `close-round`：
+必须真实运行并记录：
 
 - `Get-Location`
 - `Test-Path F:\reverse-agent`
@@ -185,40 +186,35 @@ Forbidden:
 - `git status --short`
 - `python -m reverse_agent.project_gate preflight --state-dir project_state`
 - `python -m reverse_agent.project_gate command-plan --state-dir project_state`
-- 如需验证完整 JSON command-plan stdout，必须在 close-round 前运行并记录：`python -m reverse_agent.project_gate command-plan --state-dir project_state --json`
-- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`
-- `python -m pytest tests/test_local_reverse_training_status.py -q`
-- 只读 queue/status verification：用 Python 读取 `project_state/local_reverse_training_status.json` 与 `project_state/local_reverse_evaluation_queue.json`，如实输出 `affineenc_333f8ca9`、`ascii_table_chinese_46efc7ea`、`cpp1_2f6fcb63` 的状态与 queue_rank；不得写入文件；不得把不符合 decision 要求的结果写成 passed。
+- `python -m reverse_agent.project_gate command-plan --state-dir project_state --json`
+- `python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py -q`
+- 若修改了 project_state/project_gate：`python -m pytest tests/test_project_state.py tests/test_project_gate.py -q`
+- 只读 queue/inventory verification：确认 `cpp1_2f6fcb63 rank=1`、relative_path、allowed_actions/forbidden_actions、training_status
+- tool capability verification：确认 IDA executable/script resolver 结果；不得输出本地敏感路径到长期 skill，但可以在 report/pytest 中记录必要路径摘要
+- `python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_2f6fcb63 --mainline tool_integration --out project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
+- artifact_index verification：确认 cpp1 static triage artifact 登记为 current，source_run 为本轮 round_id
 - `python -m reverse_agent.project_state doctor --state-dir project_state`
 - `python -m reverse_agent.project_state lint-report --state-dir project_state`
 - `python -m reverse_agent.project_gate report-summary --state-dir project_state`
 - `python -m reverse_agent.project_gate final-check --state-dir project_state`
-- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_close_round_recording_real_execution_rework_v1`
+- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1`
 
-`project_state/pytest_result.txt` 必须包含本轮 `decision_20260614_close_round_recording_real_execution_rework_v1`、`round_20260614_close_round_recording_real_execution_rework_v1`、真实命令、stdout/stderr 摘要、退出码和最终结果。
+如果 IDA 不可用或输出缺失，static triage command 仍可 exit 0 only if it writes a truthful blocked artifact; report must mark tool outcome as blocked/partial, not solved. If command exits nonzero, record it and stop with `BLOCKED` or `REWORK_REQUIRED`.
 
-`close-round` 必须是 `project_state/pytest_result.txt` 与 archived pytest 中最后一个 command block。不得在其后追加 `command-plan --json` 或任何其他命令。
-
-`project_state/codex_execution_report.md` 顶部必须包含合法 `codex_report_summary`，其中 `based_on_decision_id=decision_20260614_close_round_recording_real_execution_rework_v1`，`round_id=round_20260614_close_round_recording_real_execution_rework_v1`，并列出实际 files_changed、tests_ran、generated_artifacts、verified_artifacts。
-
-必须新增或更新至少一个回归测试覆盖：当 `pytest_result.txt` 在 close-round command block 后又出现任何 command block 时，gate consistency 不能 PASS。
-
-如果修改了 `reverse_agent/project_gate.py` 或 `reverse_agent/project_state.py`，必须增加或更新对应 pytest，并在 report 中说明为何仅靠 state/report 文件无法完成 metadata hygiene。
+`close-round` 必须是 live 与 archived pytest 中最后一个 command block。
 
 ## 8. Stop Conditions
 
-如果无法真实记录命令 stdout/stderr/exit，只能标记 `BLOCKED` 或 `REWORK_REQUIRED`，不能合成日志后写 `SUCCESS`。
+如果需要执行目标样本、runtime probe、debugger/emulator/hook/harness/solver/bruteforce，立即停止并报告 `BLOCKED`。
 
-如果 queue/status verification 与 decision 要求不一致，停止并报告，不得写 `VERIFICATION PASSED`。
+如果 IDA runner 或 script 无法定位，生成 truthful blocked artifact and stop; 不得新建重复 runner 或伪造 evidence。
 
-如果需要运行 IDA/static triage、Ghidra、solver、runtime validation、debugger、emulator、hook、harness campaign，停止并报告 `BLOCKED`。
+如果 IDA 运行但没有 evidence JSON，必须保留真实 blocker/provenance；不得把空 triage 写成 success。
 
-如果需要推进 `cpp1_2f6fcb63` 的实际样本分析、生成 candidate、写 flag/password、或改变任何样本 solved/blocked/needs_triage 语义，停止并报告 `BLOCKED`。
+如果 artifact_index 无法登记 current provenance，停止并报告 `REWORK_REQUIRED`，不得只提交裸 triage JSON。
 
-如果需要修改 `.codex-skills/`、training materials、solve_reports 历史目录或 raw sample 文件，停止。
+如果测试或 gate 失败，`codex_execution_report.md` 必须标记 `FAILED/REWORK_REQUIRED` 或 `BLOCKED`，不能写 `SUCCESS/ACCEPTED`。
 
-如果 `report-summary` 或 `final-check` 仍失败，`codex_execution_report.md` 必须标记 `FAILED/REWORK_REQUIRED` 或 `BLOCKED`，不能写 `SUCCESS/ACCEPTED`。
+如果发现旧 inverse handoff 方向仍然是唯一证据，停止；本轮不得用它求解。
 
-如果 `pytest_result_summary.tests_ran`、`codex_report_summary.tests_ran` 或 `command_plan.json` 声明了 close-round，但 live 或 archived pytest 正文没有 close-round command block 与 exit code，必须标记 `REWORK_REQUIRED`，不能 ACCEPTED。
-
-如果 close-round 后又发现漏测或漏记命令，必须重新生成本轮 report/pytest/gates 并重新 close-round，不能在已归档状态后追加未归档记录。
+如果需要修改 forbidden paths 或触碰多个样本，停止并报告 `BLOCKED`。
