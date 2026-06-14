@@ -111,6 +111,8 @@ COMMAND_PLAN_KINDS = {
     "read-only-verification",
     "tool-capability-verification",
     "static-triage",
+    "target-bytes-revalidation",
+    "current-static-triage-verification",
     "artifact-index-verification",
     "test-path",
     "pwd",
@@ -142,6 +144,12 @@ NATURAL_LANGUAGE_COMMANDS = {
     ],
     "artifact_index_verification": [
         "artifact_index verification (cpp1 static triage current provenance)"
+    ],
+    "target_bytes_artifact_index_verification": [
+        "artifact_index verification (cpp1 target bytes current revalidation provenance)"
+    ],
+    "current_static_triage_verification": [
+        "current static triage verification (cpp1_2f6fcb63 static-only current IDA success)"
     ],
 }
 
@@ -314,8 +322,13 @@ def _extract_unfenced_commands(text: str) -> list[str]:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["queue_status_verification"])
         if "tool capability verification" in lowered or "工具能力核验" in raw_line:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["tool_capability_verification"])
+        if "current static triage verification" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["current_static_triage_verification"])
         if "artifact_index verification" in lowered or "artifact_index 核验" in raw_line:
-            commands.extend(NATURAL_LANGUAGE_COMMANDS["artifact_index_verification"])
+            if "target bytes" in lowered or "revalidation" in lowered:
+                commands.extend(NATURAL_LANGUAGE_COMMANDS["target_bytes_artifact_index_verification"])
+            else:
+                commands.extend(NATURAL_LANGUAGE_COMMANDS["artifact_index_verification"])
     return _dedupe_commands(commands)
 
 
@@ -351,7 +364,15 @@ def _allowed_scope_paths(scope_text: str) -> set[str]:
         if lowered.startswith("allowed") or lowered.startswith("允许"):
             in_allowed_block = True
             continue
-        if lowered.startswith("disallowed") or lowered.startswith("forbidden") or lowered.startswith("不允许") or lowered.startswith("禁止"):
+        if (
+            lowered.startswith("disallowed")
+            or lowered.startswith("forbidden")
+            or lowered.startswith("read-only")
+            or lowered.startswith("read only")
+            or lowered.startswith("不允许")
+            or lowered.startswith("禁止")
+            or lowered.startswith("只读")
+        ):
             in_allowed_block = False
             continue
         if not in_allowed_block or not line.startswith("-"):
@@ -2537,6 +2558,11 @@ def _command_kind(command: str) -> str:
         return "pytest"
     if "python -m reverse_agent.local_reverse_single_sample_static_triage" in lowered:
         return "static-triage"
+    if (
+        "python -m reverse_agent.local_reverse_cpp1_target_byte_extract" in lowered
+        and "--current-revalidation" in lowered
+    ):
+        return "target-bytes-revalidation"
     if "project_gate" in lowered and "preflight" in lowered:
         return "preflight"
     if "project_gate" in lowered and "command-plan" in lowered:
@@ -2579,6 +2605,8 @@ def _command_kind(command: str) -> str:
         return "tool-capability-verification"
     if "artifact_index verification" in lowered:
         return "artifact-index-verification"
+    if "current static triage verification" in lowered:
+        return "current-static-triage-verification"
     if "test-path" in lowered:
         return "test-path"
     if lowered.startswith("powershell ") or lowered == "powershell":
@@ -2612,6 +2640,8 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         "read-only-verification",
         "tool-capability-verification",
         "static-triage",
+        "target-bytes-revalidation",
+        "current-static-triage-verification",
         "artifact-index-verification",
         "test-path",
         "pwd",

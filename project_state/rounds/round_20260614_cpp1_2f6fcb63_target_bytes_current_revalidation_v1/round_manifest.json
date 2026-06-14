@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-14T09:36:03Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1\\codex_execution_report.md",
+      "sha256": "e012b5a11c00e2c19c20a5974e9cceac859b3ec96675a846a7ea642c1ebab9e8",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1\\decision_packet.md",
+      "sha256": "035925459e9ff777afd214ef3572b552d3dff1bdabefe9d270d4b17c80bd7c09",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1\\pytest_result.txt",
+      "sha256": "6f097abd06015ed87c0c8c85a1beb56d4db9e32a0ee25aedd0a2d182176e0bff",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+  "schema_version": 1,
+  "source_git_commit": "a9503f65eec7",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260613_054156_2729a02c7407",
+  "state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
+  "workflow_status": "REPORT_AVAILABLE"
+}

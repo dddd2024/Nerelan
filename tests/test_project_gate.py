@@ -2537,6 +2537,39 @@ def test_command_plan_fails_when_tests_section_missing(tmp_path: Path) -> None:
     assert "Tests section is missing" in result["blocking_reasons"]
 
 
+def test_preflight_does_not_treat_read_only_scope_as_allowed(tmp_path: Path) -> None:
+    state_dir = _make_preflight_state(
+        tmp_path,
+        mainline="tool_integration",
+        skill_profiles=["reverse-agent-iteration@v2"],
+        implementation_scope="""Allowed source files:
+
+- `reverse_agent/local_reverse_cpp1_target_byte_extract.py`
+
+Allowed tests:
+
+- `tests/test_local_reverse_cpp1_target_byte_extract.py`
+
+Read-only only:
+
+- `reverse_agent/ida_scripts/extract_named_data.py`
+- `reverse_agent/tool_runners.py`
+
+Forbidden:
+
+- `solve_reports/`
+""",
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+    allowed = next(check for check in result["checks"] if check["name"] == "implementation_scope_present")
+    forbidden = next(check for check in result["checks"] if check["name"] == "forbidden_paths_not_allowed")
+
+    assert "reverse_agent/local_reverse_cpp1_target_byte_extract.py" in allowed["allowed_paths"]
+    assert "reverse_agent/ida_scripts/extract_named_data.py" not in allowed["allowed_paths"]
+    assert forbidden["status"] == "PASS"
+
+
 def test_command_plan_extracts_unfenced_backtick_commands(tmp_path: Path) -> None:
     state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest -q")
     text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
@@ -2601,6 +2634,31 @@ def test_command_plan_keeps_backticks_and_queue_status_verification(tmp_path: Pa
     assert result["commands"][9]["kind"] == "static-triage"
     assert result["commands"][10]["kind"] == "artifact-index-verification"
     assert result["commands"][10]["phase"] == "status"
+
+
+def test_command_plan_extracts_cpp1_target_bytes_revalidation_commands(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(tmp_path, tests_block="placeholder")
+    text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    text = text.replace(
+        "```bash\nplaceholder\n```",
+        """- current static triage verification：确认 `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` 为 current、tool_status=success、candidate=null、runtime_validated=false
+- target bytes revalidation command，例如：`python -m reverse_agent.local_reverse_cpp1_target_byte_extract --current-revalidation --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`
+- artifact_index verification：确认 `local_reverse_cpp1_2f6fcb63_target_bytes_revalidation` 在 `latest_artifacts_v2` 中为 current，path 指向 `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`，source_run 为本轮 round id
+""",
+    )
+    (state_dir / "decision_packet.md").write_text(text, encoding="utf-8")
+
+    result = command_plan(state_dir=state_dir)
+
+    commands = [command["command"] for command in result["commands"]]
+    assert commands == [
+        "current static triage verification (cpp1_2f6fcb63 static-only current IDA success)",
+        "python -m reverse_agent.local_reverse_cpp1_target_byte_extract --current-revalidation --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+        "artifact_index verification (cpp1 target bytes current revalidation provenance)",
+    ]
+    assert result["commands"][0]["kind"] == "current-static-triage-verification"
+    assert result["commands"][1]["kind"] == "target-bytes-revalidation"
+    assert result["commands"][2]["kind"] == "artifact-index-verification"
 
 
 def test_command_plan_extracts_chinese_natural_language_gate_checklist(tmp_path: Path) -> None:

@@ -16,6 +16,7 @@ from reverse_agent.local_reverse_cpp1_target_byte_extract import (
     _find_sample_root,
     _parse_extraction,
     _resolve_binary_path,
+    run_target_bytes_current_revalidation,
     run_target_provenance_recheck,
     run_target_byte_extraction,
 )
@@ -433,6 +434,196 @@ class TestRunTargetByteExtractionIntegration:
         assert result["candidate"] is None
         assert result["known_candidate"] == ""
         assert out_path.exists()
+
+
+class TestTargetBytesCurrentRevalidation:
+    def _write_sources(self, tmp_path: Path) -> dict[str, Path]:
+        target_bytes = [0xD5, 0x96, 0xC4, 0xF6, 0x07, 0x45, 0x57, 0x77, 0x76, 0xE5, 0xF6, 0x48, 0x47, 0xF7, 0x48, 0x17]
+        pseudocode = """int __cdecl main_0(int argc, const char **argv, const char **envp)
+{
+  signed int v4;
+  char Str[20];
+  int i;
+  printf("Please input the password : ");
+  scanf("%s", Str);
+  v4 = strlen(Str);
+  if ( v4 != 18 )
+    printf("Sorry,you are wrong!\\n");
+  strncpy(Destination, Str, 0x10u);
+  for ( i = 0; i < v4; ++i )
+    Destination[i] = Destination[i] & 3 | (16 * (Destination[i] & 0xC)) | ((Destination[i] & 0xF0) >> 2);
+  for ( i = 0; i < v4 && Destination[i] == byte_429A30[i]; ++i )
+    ;
+  if ( i == 16 )
+    printf("Congratulations! You are right!\\n");
+  return -1;
+}
+"""
+        triage_path = tmp_path / "project_state" / "local_reverse_cpp1_2f6fcb63_static_triage.json"
+        target_path = tmp_path / "project_state" / "local_reverse_cpp1_2f6fcb63_target_bytes.json"
+        index_path = tmp_path / "project_state" / "artifact_index.json"
+        out_path = tmp_path / "project_state" / "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
+        _write_json(
+            triage_path,
+            {
+                "schema_version": 1,
+                "sample_id": "cpp1_2f6fcb63",
+                "relative_path": "逆向课程2023春01/CPP1.exe",
+                "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+                "tool_status": "success",
+                "source_tool": "IDA",
+                "executed_sample": False,
+                "static_only": True,
+                "runtime_validated": False,
+                "candidate": None,
+                "known_candidate": "",
+                "triage": {
+                    "decompiler_snippets": [
+                        {
+                            "function": "_main_0",
+                            "entry_ea": "0x401190",
+                            "text": pseudocode,
+                        }
+                    ]
+                },
+            },
+        )
+        _write_json(
+            target_path,
+            {
+                "schema_version": 1,
+                "sample_id": "cpp1_2f6fcb63",
+                "relative_path": "逆向课程2023春01/CPP1.exe",
+                "analysis_mode": "target_compare_byte_extraction",
+                "mainline": "tool_integration",
+                "executed_sample": False,
+                "static_only": True,
+                "runtime_validated": False,
+                "tool_status": "success",
+                "blocked_reason": "",
+                "source_tool": "IDA",
+                "target_symbol": "byte_429A30",
+                "target_address": "0x00429A30",
+                "target_length": 16,
+                "target_bytes_hex": bytes(target_bytes).hex(),
+                "target_bytes": target_bytes,
+                "main_function": "_main_0",
+                "main_function_address": "0x00401190",
+                "main_pseudocode": pseudocode,
+                "forward_transform": {
+                    "input_buffer": "Str",
+                    "work_buffer": "Destination",
+                    "copy_length": 16,
+                    "formula_c": "(x & 3) | (16 * (x & 0x0C)) | ((x & 0xF0) >> 2)",
+                    "compare_expression": "Destination[i] == byte_429A30[i]",
+                    "notes": ["length check found: if ( v4 != 18 )"],
+                },
+                "compare_expression": "for ( i = 0; i < v4 && Destination[i] == byte_429A30[i]; ++i )",
+                "candidate": None,
+                "known_candidate": "",
+            },
+        )
+        _write_json(
+            index_path,
+            {
+                "schema_version": 1,
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    "local_reverse_cpp1_2f6fcb63_static_triage": {
+                        "kind": "local_reverse_single_sample_static_triage",
+                        "path": str(triage_path).replace("\\", "/"),
+                        "freshness": "current",
+                        "source_run": "round_static_triage",
+                        "sample_id": "cpp1_2f6fcb63",
+                    }
+                },
+                "artifact_refs": {},
+            },
+        )
+        return {
+            "triage": triage_path,
+            "target": target_path,
+            "index": index_path,
+            "out": out_path,
+        }
+
+    def test_current_revalidation_success_writes_artifact_without_ida_or_candidate(self, tmp_path: Path):
+        paths = self._write_sources(tmp_path)
+        before_target = paths["target"].read_text(encoding="utf-8")
+
+        with patch(
+            "reverse_agent.local_reverse_cpp1_target_byte_extract._now_iso",
+            return_value="2026-06-14T10:00:00Z",
+        ):
+            result = run_target_bytes_current_revalidation(
+                target_bytes_path=paths["target"],
+                triage_path=paths["triage"],
+                artifact_index_path=paths["index"],
+                out_path=paths["out"],
+                source_run="round_dynamic_revalidation",
+            )
+
+        assert result["analysis_mode"] == "target_bytes_current_revalidation"
+        assert result["mainline"] == "tool_integration"
+        assert result["revalidation_status"] == "PASSED"
+        assert result["executed_sample"] is False
+        assert result["static_only"] is True
+        assert result["runtime_validated"] is False
+        assert result["ida_used_this_round"] is False
+        assert result["sample_executed_this_round"] is False
+        assert result["candidate"] is None
+        assert result["known_candidate"] == ""
+        assert result["target_bytes_hex"] == "d596c4f60745577776e5f64847f74817"
+        assert result["forward_transform"]["copy_length"] == 16
+        assert all(check["status"] == "PASSED" for check in result["revalidation_checks"])
+        assert "solver/reverse_solving decision" in result["recommended_next_action"]
+        assert paths["target"].read_text(encoding="utf-8") == before_target
+        assert paths["out"].exists()
+
+    def test_current_revalidation_updates_artifact_index_with_dynamic_source_run(self, tmp_path: Path):
+        paths = self._write_sources(tmp_path)
+
+        result = run_target_bytes_current_revalidation(
+            target_bytes_path=paths["target"],
+            triage_path=paths["triage"],
+            artifact_index_path=paths["index"],
+            out_path=paths["out"],
+            source_run="round_custom_source",
+        )
+
+        index = json.loads(paths["index"].read_text(encoding="utf-8"))
+        entry = index["latest_artifacts_v2"]["local_reverse_cpp1_2f6fcb63_target_bytes_revalidation"]
+        assert entry["freshness"] == "current"
+        assert entry["kind"] == "target_bytes_current_revalidation"
+        assert entry["path"] == str(paths["out"]).replace("\\", "/")
+        assert entry["source_run"] == "round_custom_source"
+        assert entry["sample_id"] == "cpp1_2f6fcb63"
+        assert len(entry["sha256"]) == 64
+        assert result["source_artifact_freshness"]["current_static_triage"]["freshness"] == "current"
+        assert result["source_artifact_freshness"]["old_target_bytes"]["freshness"] == "not_registered"
+
+    def test_current_revalidation_mismatch_fails_not_success(self, tmp_path: Path):
+        paths = self._write_sources(tmp_path)
+        target = json.loads(paths["target"].read_text(encoding="utf-8"))
+        target["sample_id"] = "wrong_sample"
+        target["target_bytes"][0] = 0
+        paths["target"].write_text(json.dumps(target, indent=2), encoding="utf-8")
+
+        result = run_target_bytes_current_revalidation(
+            target_bytes_path=paths["target"],
+            triage_path=paths["triage"],
+            artifact_index_path=paths["index"],
+            out_path=paths["out"],
+            source_run="round_dynamic_revalidation",
+        )
+
+        assert result["revalidation_status"] == "FAILED"
+        assert result["tool_status"] == "blocked"
+        assert result["blocked_reason"] == "REVALIDATION_FIELD_MISMATCH"
+        assert "sample_id" in result["mismatched_fields"]
+        assert "target_bytes_hex" in result["mismatched_fields"]
+        assert result["candidate"] is None
+        assert result["known_candidate"] == ""
 
 
 class TestTargetProvenanceRecheck(TestRunTargetByteExtractionIntegration):

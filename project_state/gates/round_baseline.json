@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260614_gate_status_semantics_rework_v1",
-  "round_id": "round_20260614_gate_status_semantics_rework_v1",
-  "head_commit": "4ccb535ff05f",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+  "head_commit": "a9503f65eec7",
   "baseline_git_status_short": [
-    " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py"
+    " M reverse_agent/local_reverse_cpp1_target_byte_extract.py",
+    " M tests/test_local_reverse_cpp1_target_byte_extract.py"
   ],
   "baseline_git_diff_name_only": [
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
+    "tests/test_local_reverse_cpp1_target_byte_extract.py"
   ],
   "baseline_dirty_files": [
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
+    "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
+    "tests/test_local_reverse_cpp1_target_byte_extract.py"
   ],
-  "generated_at": "2026-06-14T08:50:26.312489Z"
+  "generated_at": "2026-06-14T09:19:53.301917Z"
 }

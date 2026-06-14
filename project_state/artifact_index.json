@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-13T05:41:56Z",
+  "generated_at": "2026-06-14T09:34:50Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": null,
@@ -50,7 +50,8 @@
     "smt_validation": null,
     "strata_summary": null,
     "summary": null,
-    "transform_trace_consistency": null
+    "transform_trace_consistency": null,
+    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -540,6 +541,16 @@
       "size_bytes": 25989,
       "source_run": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
       "tool_status": "success"
+    },
+    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": {
+      "kind": "target_bytes_current_revalidation",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+      "sha256": "6088954e340f9001e1d6f131ad06b60f7818bbc7a922f709fa3488746b322468",
+      "size_bytes": 9467,
+      "modified_at": "2026-06-14T09:34:50Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [],
@@ -554,5 +565,8 @@
   ],
   "recent_artifacts": [],
   "reports_dir": "solve_reports",
-  "sample": "samplereverse"
+  "sample": "samplereverse",
+  "artifact_refs": {
+    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
+  }
 }

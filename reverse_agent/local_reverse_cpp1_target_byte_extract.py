@@ -25,6 +25,11 @@ from reverse_agent.local_reverse_cpp1_signed_transform_recheck import printable_
 TARGET_PROVENANCE_ARTIFACT_KEY = "local_reverse_cpp1_2f6fcb63_target_provenance_recheck"
 TARGET_PROVENANCE_ARTIFACT_KIND = "local_reverse_cpp1_target_provenance_recheck"
 TARGET_PROVENANCE_SOURCE_RUN = "round_20260605_cpp1_target_byte_provenance_recheck_v1"
+TARGET_BYTES_REVALIDATION_ARTIFACT_KEY = "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation"
+TARGET_BYTES_REVALIDATION_ARTIFACT_KIND = "target_bytes_current_revalidation"
+TARGET_BYTES_REVALIDATION_DEFAULT_SOURCE_RUN = (
+    "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1"
+)
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -48,6 +53,28 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _extract_decision_meta_round_id(state_dir: Path | None = None) -> str:
+    state_dir = state_dir or Path("project_state")
+    decision_path = state_dir / "decision_packet.md"
+    if not decision_path.exists():
+        return TARGET_BYTES_REVALIDATION_DEFAULT_SOURCE_RUN
+    text = decision_path.read_text(encoding="utf-8")
+    start_marker = "```json decision_meta"
+    start = text.find(start_marker)
+    if start < 0:
+        return TARGET_BYTES_REVALIDATION_DEFAULT_SOURCE_RUN
+    start = text.find("\n", start)
+    end = text.find("```", start + 1)
+    if start < 0 or end < 0:
+        return TARGET_BYTES_REVALIDATION_DEFAULT_SOURCE_RUN
+    try:
+        payload = json.loads(text[start:end].strip())
+    except json.JSONDecodeError:
+        return TARGET_BYTES_REVALIDATION_DEFAULT_SOURCE_RUN
+    round_id = str(payload.get("round_id", "")).strip()
+    return round_id or TARGET_BYTES_REVALIDATION_DEFAULT_SOURCE_RUN
 
 
 def _parse_int(value: Any) -> int | None:
@@ -204,6 +231,245 @@ def _source_artifact_freshness(artifact_index: dict[str, Any], keys: list[str]) 
             "sample_id": meta.get("sample_id", ""),
         }
     return freshness
+
+
+def _artifact_freshness_for_path(artifact_index: dict[str, Any], path: Path) -> dict[str, Any]:
+    wanted = str(path).replace("\\", "/")
+    wanted_alt = str(path).replace("/", "\\")
+    for key, meta in artifact_index.get("latest_artifacts_v2", {}).items():
+        meta_path = str(meta.get("path", ""))
+        if meta_path in {wanted, wanted_alt} or meta_path.replace("\\", "/") == wanted:
+            return {
+                "artifact_key": key,
+                "path": meta.get("path", ""),
+                "freshness": meta.get("freshness", ""),
+                "source_run": meta.get("source_run", ""),
+                "sample_id": meta.get("sample_id", ""),
+            }
+    return {
+        "artifact_key": "",
+        "path": str(path).replace("\\", "/"),
+        "freshness": "not_registered",
+        "source_run": "",
+        "sample_id": "",
+    }
+
+
+def _check_equal(name: str, left: Any, right: Any) -> dict[str, Any]:
+    passed = left == right
+    return {
+        "name": name,
+        "status": "PASSED" if passed else "FAILED",
+        "expected": left,
+        "actual": right,
+    }
+
+
+def _check_present(name: str, value: Any) -> dict[str, Any]:
+    present = value is not None and value != "" and value != []
+    return {
+        "name": name,
+        "status": "PASSED" if present else "BLOCKED",
+        "value": value,
+    }
+
+
+def _contains_all(text: str, needles: list[str]) -> bool:
+    return all(needle in text for needle in needles)
+
+
+def _main_snippet_from_triage(triage: dict[str, Any], function_name: str = "_main_0") -> dict[str, Any]:
+    for snippet in triage.get("triage", {}).get("decompiler_snippets", []):
+        if snippet.get("function") == function_name:
+            return snippet
+    return {}
+
+
+def _target_bytes_checks(target_artifact: dict[str, Any], triage: dict[str, Any]) -> list[dict[str, Any]]:
+    target_bytes = target_artifact.get("target_bytes", [])
+    target_hex = str(target_artifact.get("target_bytes_hex", ""))
+    main_function = str(target_artifact.get("main_function", "_main_0"))
+    target_pseudocode = str(target_artifact.get("main_pseudocode", ""))
+    triage_snippet = _main_snippet_from_triage(triage, main_function)
+    triage_pseudocode = str(triage_snippet.get("text", ""))
+    forward_transform = target_artifact.get("forward_transform", {})
+
+    checks = [
+        _check_equal("sample_id", target_artifact.get("sample_id"), triage.get("sample_id")),
+        _check_equal("relative_path", target_artifact.get("relative_path"), triage.get("relative_path")),
+        _check_equal("sha256", target_artifact.get("sha256", triage.get("sha256")), triage.get("sha256")),
+        _check_equal("target_symbol", target_artifact.get("target_symbol"), "byte_429A30"),
+        _check_equal("target_address", target_artifact.get("target_address"), "0x00429A30"),
+        _check_equal("target_length", target_artifact.get("target_length"), 16),
+        _check_equal("target_bytes_len", len(target_bytes) if isinstance(target_bytes, list) else -1, 16),
+        _check_equal("target_bytes_hex", target_hex, bytes(target_bytes).hex() if isinstance(target_bytes, list) else ""),
+        _check_equal("main_function", main_function, "_main_0"),
+        _check_present("main_pseudocode_old_artifact", target_pseudocode),
+        _check_present("main_pseudocode_current_triage", triage_pseudocode),
+        _check_equal("current_triage_tool_status", triage.get("tool_status"), "success"),
+        _check_equal("current_triage_source_tool", triage.get("source_tool"), "IDA"),
+        _check_equal("current_triage_runtime_validated", triage.get("runtime_validated"), False),
+        _check_equal("current_triage_candidate", triage.get("candidate"), None),
+        _check_equal("target_candidate", target_artifact.get("candidate"), None),
+        _check_equal("target_known_candidate", target_artifact.get("known_candidate", ""), ""),
+    ]
+
+    semantic_patterns = [
+        ("length_check_current_triage", triage_pseudocode, ["strlen(Str)", "!= 18"]),
+        ("copy_length_current_triage", triage_pseudocode, ["strncpy(Destination, Str, 0x10u)"]),
+        ("transform_formula_current_triage", triage_pseudocode, ["Destination[i]", "& 3", "& 0xC", "& 0xF0", ">> 2"]),
+        ("compare_expression_current_triage", triage_pseudocode, ["Destination[i] == byte_429A30[i]"]),
+        ("success_length_current_triage", triage_pseudocode, ["if ( i == 16 )"]),
+        ("length_check_old_artifact", target_pseudocode, ["strlen(Str)", "!= 18"]),
+        ("copy_length_old_artifact", target_pseudocode, ["strncpy(Destination, Str, 0x10u)"]),
+        ("transform_formula_old_artifact", target_pseudocode, ["Destination[i]", "& 3", "& 0xC", "& 0xF0", ">> 2"]),
+        ("compare_expression_old_artifact", target_pseudocode, ["Destination[i] == byte_429A30[i]"]),
+    ]
+    for name, text, needles in semantic_patterns:
+        checks.append(
+            {
+                "name": name,
+                "status": "PASSED" if _contains_all(text, needles) else "BLOCKED",
+                "required_fragments": needles,
+            }
+        )
+
+    checks.extend(
+        [
+            _check_equal("forward_transform_copy_length", forward_transform.get("copy_length"), 16),
+            _check_equal(
+                "forward_transform_compare_expression",
+                forward_transform.get("compare_expression"),
+                "Destination[i] == byte_429A30[i]",
+            ),
+            {
+                "name": "forward_transform_formula",
+                "status": "PASSED"
+                if _contains_all(str(forward_transform.get("formula_c", "")), ["& 3", "& 0x0C", "& 0xF0", ">> 2"])
+                else "BLOCKED",
+                "value": forward_transform.get("formula_c", ""),
+            },
+        ]
+    )
+    return checks
+
+
+def _target_revalidation_status(checks: list[dict[str, Any]]) -> tuple[str, str, list[str]]:
+    failed = [str(check["name"]) for check in checks if check.get("status") == "FAILED"]
+    blocked = [str(check["name"]) for check in checks if check.get("status") == "BLOCKED"]
+    if failed:
+        return "FAILED", "REVALIDATION_FIELD_MISMATCH", failed
+    if blocked:
+        return "BLOCKED", "REVALIDATION_FIELD_MISSING_OR_UNCONFIRMED", blocked
+    return "PASSED", "", []
+
+
+def _update_target_bytes_revalidation_artifact_index(
+    artifact_index_path: Path,
+    out_path: Path,
+    sample_id: str,
+    generated_at: str,
+    source_run: str,
+) -> None:
+    artifact_index = _load_json(artifact_index_path)
+    normalized_path = str(out_path).replace("\\", "/")
+    artifact_index.setdefault("latest_artifacts", {})[TARGET_BYTES_REVALIDATION_ARTIFACT_KEY] = normalized_path
+    artifact_index.setdefault("artifact_refs", {})[TARGET_BYTES_REVALIDATION_ARTIFACT_KEY] = normalized_path
+    artifact_index.setdefault("latest_artifacts_v2", {})[TARGET_BYTES_REVALIDATION_ARTIFACT_KEY] = {
+        "kind": TARGET_BYTES_REVALIDATION_ARTIFACT_KIND,
+        "path": normalized_path,
+        "freshness": "current",
+        "source_run": source_run,
+        "sha256": _sha256_file(out_path),
+        "size_bytes": out_path.stat().st_size,
+        "modified_at": generated_at,
+        "sample_id": sample_id,
+    }
+    artifact_index["generated_at"] = generated_at
+    _save_json(artifact_index_path, artifact_index)
+
+
+def run_target_bytes_current_revalidation(
+    *,
+    target_bytes_path: Path,
+    triage_path: Path,
+    artifact_index_path: Path,
+    out_path: Path,
+    source_run: str | None = None,
+) -> dict[str, Any]:
+    artifact_index = _load_json(artifact_index_path)
+    target_artifact = _load_json(target_bytes_path)
+    triage = _load_json(triage_path)
+    generated_at = _now_iso()
+    source_run = source_run or _extract_decision_meta_round_id(artifact_index_path.parent)
+
+    checks = _target_bytes_checks(target_artifact, triage)
+    revalidation_status, blocked_reason, mismatched_fields = _target_revalidation_status(checks)
+    sample_id = str(target_artifact.get("sample_id", ""))
+    target_hex = str(target_artifact.get("target_bytes_hex", ""))
+
+    result: dict[str, Any] = {
+        "schema_version": 1,
+        "sample_id": sample_id,
+        "relative_path": target_artifact.get("relative_path", ""),
+        "sha256": target_artifact.get("sha256", triage.get("sha256", "")),
+        "analysis_mode": "target_bytes_current_revalidation",
+        "mainline": "tool_integration",
+        "executed_sample": False,
+        "static_only": True,
+        "runtime_validated": False,
+        "generated_at": generated_at,
+        "tool_status": "success" if revalidation_status == "PASSED" else "blocked",
+        "source_tool": "existing_static_artifacts",
+        "ida_used_this_round": False,
+        "sample_executed_this_round": False,
+        "candidate": None,
+        "known_candidate": "",
+        "source_artifacts": {
+            "current_static_triage": str(triage_path).replace("\\", "/"),
+            "old_target_bytes": str(target_bytes_path).replace("\\", "/"),
+            "artifact_index": str(artifact_index_path).replace("\\", "/"),
+        },
+        "source_artifact_freshness": {
+            "current_static_triage": _artifact_freshness_for_path(artifact_index, triage_path),
+            "old_target_bytes": _artifact_freshness_for_path(artifact_index, target_bytes_path),
+        },
+        "revalidation_checks": checks,
+        "revalidation_status": revalidation_status,
+        "blocked_reason": blocked_reason,
+        "mismatched_fields": mismatched_fields,
+        "target_symbol": target_artifact.get("target_symbol", "byte_429A30"),
+        "target_address": target_artifact.get("target_address", ""),
+        "target_length": target_artifact.get("target_length", 0),
+        "target_bytes_hex": target_hex,
+        "target_bytes": target_artifact.get("target_bytes", []),
+        "main_function": target_artifact.get("main_function", "_main_0"),
+        "main_function_address": target_artifact.get("main_function_address", ""),
+        "forward_transform": target_artifact.get("forward_transform", {}),
+        "compare_expression": target_artifact.get("compare_expression", ""),
+        "evidence_notes": target_artifact.get("evidence_notes", []),
+        "recommended_next_action": (
+            "Next round may use this current revalidation artifact as the evidence entry "
+            "for a solver/reverse_solving decision; do not treat this artifact as solved."
+            if revalidation_status == "PASSED"
+            else "Resolve revalidation blocker before any solver/reverse_solving decision; do not rerun IDA automatically."
+        ),
+    }
+
+    _save_json(out_path, result)
+    _update_target_bytes_revalidation_artifact_index(
+        artifact_index_path,
+        out_path,
+        sample_id,
+        generated_at,
+        source_run,
+    )
+    print(f"target bytes current revalidation: status={revalidation_status} sample_id={sample_id}")
+    print(f"  target_bytes_hex={target_hex}")
+    print(f"  candidate={result['candidate']}")
+    print(f"  known_candidate={result['known_candidate']!r}")
+    print(f"  runtime_validated={result['runtime_validated']}")
+    return result
 
 
 def _assert_current_artifacts(artifact_index: dict[str, Any], keys: list[str]) -> None:
@@ -882,6 +1148,11 @@ def main() -> int:
         action="store_true",
         help="Run bounded static target-byte provenance recheck from current artifacts.",
     )
+    parser.add_argument(
+        "--current-revalidation",
+        action="store_true",
+        help="Revalidate old target bytes against the current static triage artifact without running IDA.",
+    )
     parser.add_argument("--sample-id", default="cpp1_2f6fcb63", help="Sample ID")
     parser.add_argument("--triage", default="project_state/local_reverse_cpp1_2f6fcb63_static_triage.json")
     parser.add_argument("--inventory", default="project_state/local_reverse_inventory.json")
@@ -894,6 +1165,14 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
+        if args.current_revalidation:
+            run_target_bytes_current_revalidation(
+                target_bytes_path=args.target_bytes,
+                triage_path=Path(args.triage),
+                artifact_index_path=args.artifact_index,
+                out_path=Path(args.out),
+            )
+            return 0
         if args.provenance_recheck:
             run_target_provenance_recheck(
                 target_bytes_path=args.target_bytes,
