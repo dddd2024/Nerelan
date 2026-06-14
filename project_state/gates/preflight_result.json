@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
   "mainline": "reverse_solving",
-  "generated_at": "2026-06-14T14:41:31.751493Z",
+  "generated_at": "2026-06-14T16:09:14.246333Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -51,7 +51,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260614_gate_close_round_idempotency_status_policy_rework_v1"
+      "report_id": "codex_report_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -74,15 +74,17 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
         "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/*",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/*",
         "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
+        "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
         "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
         "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
         "reverse_agent/project_state.py",
         "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py",
+        "tests/test_local_reverse_cpp1_input_delivery_review.py",
         "tests/test_local_reverse_cpp1_signed_transform_recheck.py",
         "tests/test_local_reverse_cpp1_target_byte_extract.py",
         "tests/test_project_gate.py",
@@ -107,7 +109,7 @@
       "status": "PASS",
       "detail": "stale/missing artifacts are not claimed as current evidence",
       "artifact_freshness": {
-        "current": 7,
+        "current": 8,
         "missing": 50
       },
       "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6"
@@ -126,11 +128,11 @@
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
       "project_state/artifact_index.json",
-      "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
-      "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-      "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+      "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
+      "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+      "tests/test_local_reverse_cpp1_input_delivery_review.py"
     ],
-    "head_commit": "91cca3f205f1"
+    "head_commit": "63bd626ded09"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

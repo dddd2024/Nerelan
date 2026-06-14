@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
   "mainline": "reverse_solving",
-  "generated_at": "2026-06-14T14:41:37.326877Z",
+  "generated_at": "2026-06-14T16:15:04.227409Z",
   "commands": [
     {
       "index": 1,
@@ -105,7 +105,7 @@
     },
     {
       "index": 9,
-      "command": "python -m pytest tests/test_local_reverse_cpp1_signed_transform_recheck.py tests/test_local_reverse_cpp1_target_byte_extract.py -q",
+      "command": "python -m pytest tests/test_local_reverse_cpp1_input_delivery_review.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -117,7 +117,7 @@
     },
     {
       "index": 10,
-      "command": "python -m pytest tests/test_local_reverse_cpp1_alternative_static_semantics_review.py -q",
+      "command": "python -m pytest tests/test_local_reverse_cpp1_alternative_static_semantics_review.py tests/test_local_reverse_cpp1_signed_transform_recheck.py tests/test_local_reverse_cpp1_target_byte_extract.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -201,7 +201,7 @@
     },
     {
       "index": 17,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,

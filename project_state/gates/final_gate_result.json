@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED_WITH_LIMITATIONS",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-  "report_id": "codex_report_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-  "generated_at": "2026-06-14T14:47:08.330364Z",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
+  "report_id": "codex_report_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
+  "generated_at": "2026-06-14T16:16:06.276903Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260614_cpp1_2f6fcb63_input_delivery_review_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -50,9 +50,9 @@
       "baseline_available": true,
       "inherited_dirty_files": [
         "project_state/artifact_index.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
-        "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-        "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+        "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
+        "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+        "tests/test_local_reverse_cpp1_input_delivery_review.py"
       ],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
@@ -63,10 +63,10 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/decision_packet.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/round_manifest.json"
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/decision_packet.md",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/pytest_result.txt",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/round_manifest.json"
       ],
       "final_dirty_files": [
         "project_state/artifact_index.json",
@@ -77,14 +77,14 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/decision_packet.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/round_manifest.json",
-        "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-        "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/decision_packet.md",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/pytest_result.txt",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/round_manifest.json",
+        "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+        "tests/test_local_reverse_cpp1_input_delivery_review.py"
       ]
     },
     {
@@ -93,9 +93,9 @@
       "detail": "files_changed excludes inherited baseline dirty files",
       "inherited_dirty_files": [
         "project_state/artifact_index.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
-        "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-        "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+        "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
+        "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+        "tests/test_local_reverse_cpp1_input_delivery_review.py"
       ]
     },
     {
@@ -112,14 +112,14 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/decision_packet.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/round_manifest.json",
-        "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-        "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/decision_packet.md",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/pytest_result.txt",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/round_manifest.json",
+        "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+        "tests/test_local_reverse_cpp1_input_delivery_review.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
@@ -130,16 +130,16 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/decision_packet.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1/round_manifest.json"
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/decision_packet.md",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/pytest_result.txt",
+        "project_state/rounds/round_20260614_cpp1_2f6fcb63_input_delivery_review_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
         "project_state/artifact_index.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
-        "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-        "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+        "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
+        "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+        "tests/test_local_reverse_cpp1_input_delivery_review.py"
       ]
     },
     {
@@ -153,12 +153,12 @@
       "status": "PASS",
       "detail": "baseline source/test dirty files are absent or explicitly allowed",
       "source_test_baseline_dirty": [
-        "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-        "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+        "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+        "tests/test_local_reverse_cpp1_input_delivery_review.py"
       ],
       "allowed_inherited_dirty_files": [
-        "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-        "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+        "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+        "tests/test_local_reverse_cpp1_input_delivery_review.py"
       ],
       "generated_or_archive_baseline_dirty_files": []
     },
@@ -167,8 +167,8 @@
       "status": "PASS",
       "detail": "report explains explicitly allowed inherited baseline files",
       "allowed_inherited_source_test_files": [
-        "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-        "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+        "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+        "tests/test_local_reverse_cpp1_input_delivery_review.py"
       ]
     },
     {
@@ -189,8 +189,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-      "command_plan_round_id": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1"
+      "command_plan_decision_id": "decision_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
+      "command_plan_round_id": "round_20260614_cpp1_2f6fcb63_input_delivery_review_v1"
     },
     {
       "name": "command_plan_covers_report_tests",

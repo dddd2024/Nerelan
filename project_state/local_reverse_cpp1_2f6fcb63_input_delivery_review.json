@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "sample_id": "cpp1_2f6fcb63",
+  "relative_path": "逆向课程2023春01/CPP1.exe",
+  "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+  "analysis_mode": "input_delivery_review",
+  "mainline": "reverse_solving",
+  "executed_sample": false,
+  "static_only": true,
+  "runtime_validated": false,
+  "authoritative": false,
+  "generated_at": "2026-06-14T16:08:06Z",
+  "source_artifacts": {
+    "alternative_static_semantics_review": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+    "target_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+    "static_inverse_handoff": "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+    "static_triage": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+    "artifact_index": "project_state/artifact_index.json",
+    "negative_results": "project_state/negative_results.json"
+  },
+  "source_artifact_freshness": {
+    "alternative_static_semantics_review": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "target_revalidation": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "static_inverse_handoff": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_static_inverse_handoff",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "static_triage": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_static_triage",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "freshness": "current",
+      "source_run": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    }
+  },
+  "negative_results_considered": [
+    {
+      "direction": "cpp1_2f6fcb63 current target bytes printable inverse path",
+      "do_not_repeat": true,
+      "severity": "soft_block",
+      "reason": "current revalidation artifact local_reverse_cpp1_2f6fcb63_target_bytes_revalidation is PASSED/current, but static inverse handoff over byte_429A30 target bytes has no complete printable ASCII preimage; missing printable indices: 2, 3, 4, 5, 7, 8, 9, 10, 12, 13",
+      "effect": "printable inverse path treated as consumed negative evidence, not rerun"
+    }
+  ],
+  "preimage_input_domain_review": {
+    "nul_indices": [],
+    "whitespace_indices": [],
+    "control_indices": [
+      2,
+      4,
+      5,
+      12
+    ],
+    "high_bit_indices": [
+      3,
+      7,
+      8,
+      9,
+      10,
+      13
+    ],
+    "printable_ascii_indices": [
+      0,
+      1,
+      6,
+      11,
+      14,
+      15
+    ],
+    "scanf_percent_s_hard_blocker_indices": [],
+    "strlen_hard_blocker_indices": [],
+    "windows_console_manual_entry_risk": "high"
+  },
+  "payload_length_review": {
+    "first_16_bytes_copied_by_strncpy": true,
+    "strncpy_length": 16,
+    "strlen_required": 18,
+    "suffix_bytes_17_18_purpose": "satisfy_strlen_18_only",
+    "suffix_bytes_do_not_control_destination_16": true,
+    "suffix_must_be_non_nul_non_whitespace": true,
+    "suggested_suffix_placeholder": "AA",
+    "suggested_suffix_placeholder_hex": "4141"
+  },
+  "suffix_policy": {
+    "suffix_length": 2,
+    "suffix_must_not_contain_nul": true,
+    "suffix_must_not_contain_whitespace": true,
+    "suffix_suggested_hex": "4141",
+    "suffix_suggested_text": "AA",
+    "suffix_participates_in_transform": true,
+    "suffix_does_not_control_destination_16": true
+  },
+  "success_boundary_review": {
+    "compare_loop_condition": "i < v4 && Destination[i] == byte_429A30[i]",
+    "v4_equals_strlen": 18,
+    "success_condition": "i == 16",
+    "strncpy_copies_only_16_bytes": true,
+    "destination_index_16_source": "uninitialized/previous Destination buffer content, then transformed",
+    "byte_429A30_index_16_known": false,
+    "destination_16_equals_byte_429A30_16": "UNKNOWN",
+    "success_boundary_status": "UNKNOWN_NEEDS_STATIC_OR_TOOL_RECHECK",
+    "evidence_source": "current static artifacts only; byte_429A30[16] not available in target_bytes_revalidation (target_length=16)",
+    "risk_if_index_16_matches": "loop continues to i=17/18, i != 16 at exit, success condition fails"
+  },
+  "delivery_options_review": {
+    "windows_console_manual_entry": {
+      "feasible": false,
+      "risk": "high",
+      "reason": "control and high-bit bytes cannot be reliably typed",
+      "candidate_for_next_round": false
+    },
+    "powershell_raw_byte_file_redirection": {
+      "feasible": true,
+      "risk": "low",
+      "candidate_for_next_round": true,
+      "command_template": "$bytes = [byte[]]@(PREIMAGE_BYTES_PLACEHOLDER,0x41,0x41); [System.IO.File]::WriteAllBytes('input.bin', $bytes); Get-Content -Raw input.bin | .\\CPP1.exe"
+    },
+    "python_subprocess_raw_stdin": {
+      "feasible": true,
+      "risk": "low",
+      "candidate_for_next_round": true,
+      "command_template": "import subprocess; payload = bytes(PREIMAGE_BYTES_PLACEHOLDER + b'AA'); proc = subprocess.run(['CPP1.exe'], input=payload, capture_output=True)"
+    },
+    "file_redirection": {
+      "feasible": true,
+      "risk": "low",
+      "candidate_for_next_round": true,
+      "notes": "write raw bytes to file, redirect to stdin"
+    },
+    "debugger_memory_write": {
+      "feasible": "unknown",
+      "risk": "medium",
+      "candidate_for_next_round": false,
+      "notes": "only if raw stdin/file redirection fails; needs separate tool_integration decision"
+    }
+  },
+  "payload_preview_hex": "5d5a1cde131557d7d69dde2417df24534141",
+  "candidate": null,
+  "known_candidate": "",
+  "recommended_next_action": "NEEDS_SUCCESS_BOUNDARY_STATIC_RECHECK",
+  "stop_conditions_for_next_round": [
+    "Do not call the nonprintable preview a password or solved answer without runtime proof.",
+    "Do not repeat the current target bytes printable inverse path.",
+    "If runtime is proposed, require a separate bounded validation decision and an input-delivery plan.",
+    "If success boundary remains UNKNOWN, do not proceed to runtime validation without static or tool recheck of byte_429A30[16].",
+    "If target or transform evidence is contradicted, stop for tool/xref recheck rather than rerunning IDA ad hoc."
+  ]
+}

@@ -1,23 +1,23 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-  "head_commit": "91cca3f205f1",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
+  "head_commit": "63bd626ded09",
   "baseline_git_status_short": [
     " M project_state/artifact_index.json",
-    "?? project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
-    "?? reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-    "?? tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+    "?? project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
+    "?? reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+    "?? tests/test_local_reverse_cpp1_input_delivery_review.py"
   ],
   "baseline_git_diff_name_only": [
     "project_state/artifact_index.json"
   ],
   "baseline_dirty_files": [
     "project_state/artifact_index.json",
-    "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
-    "reverse_agent/local_reverse_cpp1_alternative_static_semantics_review.py",
-    "tests/test_local_reverse_cpp1_alternative_static_semantics_review.py"
+    "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
+    "reverse_agent/local_reverse_cpp1_input_delivery_review.py",
+    "tests/test_local_reverse_cpp1_input_delivery_review.py"
   ],
-  "generated_at": "2026-06-14T14:41:31.747408Z"
+  "generated_at": "2026-06-14T16:09:14.245173Z"
 }
