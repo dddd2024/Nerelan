@@ -1732,7 +1732,6 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
             decision=decision,
             report=report,
             pytest_text=pytest_text,
-            extra_skip_kinds={"close-round"},
         )
     )
 

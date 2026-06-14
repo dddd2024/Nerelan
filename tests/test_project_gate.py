@@ -1541,6 +1541,137 @@ def test_final_check_does_not_require_self_recorded_exit_block(tmp_path: Path) -
     assert _check(result, "pytest_result_exit_codes_match_command_plan")["status"] == "PASS"
 
 
+def test_final_check_fails_when_close_round_declared_but_command_block_missing(tmp_path: Path) -> None:
+    base_commands = [
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_gate",
+    ]
+    close_round_command = base_commands[-1]
+    plan_payload = {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "mainline": "engineering_branch",
+        "generated_at": "2026-06-14T00:00:00Z",
+        "commands": [
+            {
+                "index": i + 1,
+                "command": command,
+                "phase": "gate" if "project_gate" in command else "test",
+                "kind": (
+                    "close-round"
+                    if "close-round" in command
+                    else (
+                        "command-plan"
+                        if "command-plan" in command
+                        else ("final-check" if "final-check" in command else "pytest")
+                    )
+                ),
+                "required": True,
+                "expected_exit_codes": [0],
+                "records_stdout_stderr": True,
+                "notes": "expected to exit 0",
+            }
+            for i, command in enumerate(base_commands)
+        ],
+        "warnings": [],
+        "blocking_reasons": [],
+        "recommended_next_action": "record_and_follow_command_plan_manually",
+    }
+    # pytest body intentionally omits the close-round command block.
+    body_without_close_round = "\n\n".join(
+        [
+            _command_block(base_commands[0], "301 passed"),
+            _command_block(base_commands[1], "command-plan: PASSED"),
+            _command_block(base_commands[2], json.dumps(plan_payload)),
+            _command_block(base_commands[3], "final-check: PASSED"),
+        ]
+    )
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        archived=False,
+        command_plan_overrides=plan_payload,
+        report_tests=base_commands,
+        pytest_body=body_without_close_round,
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    exit_code_check = _check(result, "pytest_result_exit_codes_match_command_plan")
+    assert exit_code_check["status"] == "FAIL"
+    missing_errors = [err for err in exit_code_check.get("errors", []) if isinstance(err, dict) and close_round_command in str(err.get("command", ""))]
+    assert missing_errors, "expected close-round to be flagged as missing recorded command block"
+
+
+def test_final_check_passes_when_close_round_command_block_present(tmp_path: Path) -> None:
+    base_commands = [
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_gate",
+    ]
+    plan_payload = {
+        "schema_version": 1,
+        "plan_name": "command-plan",
+        "plan_status": "PASSED",
+        "decision_id": "decision_gate",
+        "round_id": "round_gate",
+        "mainline": "engineering_branch",
+        "generated_at": "2026-06-14T00:00:00Z",
+        "commands": [
+            {
+                "index": i + 1,
+                "command": command,
+                "phase": "gate" if "project_gate" in command else "test",
+                "kind": (
+                    "close-round"
+                    if "close-round" in command
+                    else (
+                        "command-plan"
+                        if "command-plan" in command
+                        else ("final-check" if "final-check" in command else "pytest")
+                    )
+                ),
+                "required": True,
+                "expected_exit_codes": [0],
+                "records_stdout_stderr": True,
+                "notes": "expected to exit 0",
+            }
+            for i, command in enumerate(base_commands)
+        ],
+        "warnings": [],
+        "blocking_reasons": [],
+        "recommended_next_action": "record_and_follow_command_plan_manually",
+    }
+    body_with_close_round = "\n\n".join(
+        [
+            _command_block(base_commands[0], "301 passed"),
+            _command_block(base_commands[1], "command-plan: PASSED"),
+            _command_block(base_commands[2], json.dumps(plan_payload)),
+            _command_block(base_commands[3], "final-check: PASSED"),
+            _command_block(base_commands[4], "close-round: CLOSED"),
+        ]
+    )
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        archived=False,
+        command_plan_overrides=plan_payload,
+        report_tests=base_commands,
+        pytest_body=body_with_close_round,
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    exit_code_check = _check(result, "pytest_result_exit_codes_match_command_plan")
+    assert exit_code_check["status"] == "PASS"
+
+
 def test_close_round_fails_when_command_plan_json_stdout_is_abbreviated(tmp_path: Path) -> None:
     state_dir = _make_command_plan_gate_state(
         tmp_path,
@@ -2370,7 +2501,7 @@ def test_final_check_failed_status_summary_uses_gate_status(tmp_path: Path) -> N
     assert result["status_summary"]["report_acceptance_recommendation"] == "REWORK_REQUIRED"
 
 
-def test_final_check_does_not_require_close_round_block_before_close_round(tmp_path: Path) -> None:
+def test_final_check_requires_close_round_command_block_when_declared(tmp_path: Path) -> None:
     commands = [
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
@@ -2403,4 +2534,7 @@ def test_final_check_does_not_require_close_round_block_before_close_round(tmp_p
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
     exit_check = next(check for check in result["checks"] if check["name"] == "pytest_result_exit_codes_match_command_plan")
-    assert exit_check["status"] == "PASS"
+    assert exit_check["status"] == "FAIL"
+    close_round_command = commands[-1]
+    errors = [err for err in exit_check.get("errors", []) if isinstance(err, dict) and close_round_command in str(err.get("command", ""))]
+    assert errors, "expected close-round to be flagged missing its recorded command block"
