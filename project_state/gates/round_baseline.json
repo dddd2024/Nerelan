@@ -1,11 +1,23 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260614_close_round_recording_real_execution_rework_v1",
-  "round_id": "round_20260614_close_round_recording_real_execution_rework_v1",
-  "head_commit": "e83bbae35c63",
-  "baseline_git_status_short": [],
-  "baseline_git_diff_name_only": [],
-  "baseline_dirty_files": [],
-  "generated_at": "2026-06-14T06:32:29.470260Z"
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+  "head_commit": "ee189fb7c2a4",
+  "baseline_git_status_short": [
+    " M project_state/gates/command_plan.json",
+    " M reverse_agent/local_reverse_single_sample_static_triage.py",
+    " M tests/test_local_reverse_single_sample_static_triage.py"
+  ],
+  "baseline_git_diff_name_only": [
+    "project_state/gates/command_plan.json",
+    "reverse_agent/local_reverse_single_sample_static_triage.py",
+    "tests/test_local_reverse_single_sample_static_triage.py"
+  ],
+  "baseline_dirty_files": [
+    "project_state/gates/command_plan.json",
+    "reverse_agent/local_reverse_single_sample_static_triage.py",
+    "tests/test_local_reverse_single_sample_static_triage.py"
+  ],
+  "generated_at": "2026-06-14T07:25:24.715762Z"
 }

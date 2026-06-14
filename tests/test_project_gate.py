@@ -2053,6 +2053,36 @@ Allowed generated files:
     assert _check(result, "forbidden_paths_not_allowed")["status"] == "PASS"
 
 
+def test_preflight_allows_tool_integration_static_triage_adapter_scope(tmp_path: Path) -> None:
+    scope = """Allowed source files:
+
+- `reverse_agent/local_reverse_single_sample_static_triage.py`
+- `reverse_agent/tool_runners.py`
+
+Allowed tests:
+
+- `tests/test_local_reverse_single_sample_static_triage.py`
+
+Allowed generated files:
+
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
+- `project_state/artifact_index.json`
+"""
+    state_dir = _make_preflight_state(
+        tmp_path,
+        mainline="tool_integration",
+        skill_profiles=["reverse-agent-iteration@v2"],
+        goal="Repair static triage tool integration without running the sample.",
+        current_evidence="IDA/tool capability audit is required before static triage execution.",
+        implementation_scope=scope,
+    )
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED"
+    assert _check(result, "forbidden_paths_not_allowed")["status"] == "PASS"
+
+
 def test_preflight_fails_engineering_branch_sample_solver_scope(tmp_path: Path) -> None:
     state_dir = _make_preflight_state(tmp_path, goal="Run sample solver and runtime probe for this round.")
 
@@ -2428,7 +2458,10 @@ def test_command_plan_keeps_backticks_and_queue_status_verification(tmp_path: Pa
 - `python -m reverse_agent.project_gate command-plan --state-dir project_state`
 - `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`
 - `python -m pytest tests/test_local_reverse_training_status.py -q`
-- 只读 queue/status verification：用 Python 读取状态和队列，不写入文件
+- 只读 queue/inventory verification：用 Python 读取状态和队列，不写入文件
+- tool capability verification：确认 IDA executable/script resolver 结果
+- `python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_2f6fcb63 --mainline tool_integration --out project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
+- artifact_index verification：确认 cpp1 static triage artifact 登记为 current
 - `python -m reverse_agent.project_state doctor --state-dir project_state`
 - `python -m reverse_agent.project_state lint-report --state-dir project_state`
 - `python -m reverse_agent.project_gate report-summary --state-dir project_state`
@@ -2450,6 +2483,9 @@ def test_command_plan_keeps_backticks_and_queue_status_verification(tmp_path: Pa
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m pytest tests/test_local_reverse_training_status.py -q",
         "read-only queue/status verification (affineenc_333f8ca9, ascii_table_chinese_46efc7ea, cpp1_2f6fcb63)",
+        "tool capability verification (IDA executable/script resolver)",
+        "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_2f6fcb63 --mainline tool_integration --out project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+        "artifact_index verification (cpp1 static triage current provenance)",
         "python -m reverse_agent.project_state doctor --state-dir project_state",
         "python -m reverse_agent.project_state lint-report --state-dir project_state",
         "python -m reverse_agent.project_gate report-summary --state-dir project_state",
@@ -2458,7 +2494,10 @@ def test_command_plan_keeps_backticks_and_queue_status_verification(tmp_path: Pa
     ]
     assert result["commands"][0]["kind"] == "pwd"
     assert result["commands"][7]["kind"] == "read-only-verification"
-    assert result["commands"][7]["phase"] == "status"
+    assert result["commands"][8]["kind"] == "tool-capability-verification"
+    assert result["commands"][9]["kind"] == "static-triage"
+    assert result["commands"][10]["kind"] == "artifact-index-verification"
+    assert result["commands"][10]["phase"] == "status"
 
 
 def test_command_plan_extracts_chinese_natural_language_gate_checklist(tmp_path: Path) -> None:

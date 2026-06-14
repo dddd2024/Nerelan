@@ -10,8 +10,10 @@ Does NOT execute the target binary. Does NOT generate candidates.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import shlex
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -25,12 +27,29 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 def _save_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as fh:
+    with open(path, "w", encoding="utf-8", newline="\n") as fh:
         json.dump(payload, fh, indent=2, ensure_ascii=False)
+        fh.write("\n")
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _summarize_text(value: str, *, limit: int = 2000) -> str:
+    value = (value or "").strip()
+    if len(value) <= limit:
+        return value
+    return value[:limit] + "...[truncated]"
+
+
+def _read_tail(path: Path, *, limit: int = 2000) -> str:
+    try:
+        if not path.exists():
+            return ""
+        return _summarize_text(path.read_text(encoding="utf-8", errors="replace"), limit=limit)
+    except OSError as exc:
+        return f"<unable to read log: {exc}>"
 
 
 def _find_sample_root() -> Path | None:
@@ -104,6 +123,45 @@ def _resolve_binary_path(relative_path: str) -> Path | None:
     return full_path if full_path.exists() else None
 
 
+def _tool_provenance(
+    *,
+    ida_exec: str = "",
+    ida_script: str = "",
+    evidence_out: Path | None = None,
+    log_out: Path | None = None,
+    db_out: Path | None = None,
+    command_args: list[str] | None = None,
+    exit_code: int | None = None,
+    stdout: str = "",
+    stderr: str = "",
+    timeout_seconds: int = 300,
+) -> dict[str, Any]:
+    log_tail = _read_tail(log_out) if log_out else ""
+    return {
+        "source_tool": "IDA",
+        "ida_executable": ida_exec,
+        "ida_script": ida_script,
+        "resolver": {
+            "ida_executable_user_path": "",
+            "ida_script_user_path": "",
+            "ida_executable_resolved": bool(ida_exec),
+            "ida_script_resolved": bool(ida_script),
+        },
+        "command": " ".join(shlex.quote(part) for part in command_args) if command_args else "",
+        "command_args": command_args or [],
+        "timeout_seconds": timeout_seconds,
+        "exit_code": exit_code,
+        "expected_evidence_path": str(evidence_out) if evidence_out else "",
+        "evidence_exists": bool(evidence_out and evidence_out.exists()),
+        "log_path": str(log_out) if log_out else "",
+        "log_exists": bool(log_out and log_out.exists()),
+        "log_tail": log_tail,
+        "database_path": str(db_out) if db_out else "",
+        "stdout_summary": _summarize_text(stdout),
+        "stderr_summary": _summarize_text(stderr),
+    }
+
+
 def _run_ida_static_triage(
     binary_path: Path,
     output_dir: Path,
@@ -117,11 +175,22 @@ def _run_ida_static_triage(
 
     ida_exec = _resolve_ida_executable("")
     ida_script = _resolve_ida_script("")
+    provenance = _tool_provenance(ida_exec=ida_exec, ida_script=ida_script)
 
     if not ida_exec:
-        return {"tool_status": "blocked", "blocked_reason": "STATIC_TOOL_UNAVAILABLE: IDA executable not found"}
+        return {
+            "tool_status": "blocked",
+            "blocked_reason": "STATIC_TOOL_UNAVAILABLE: IDA executable not found",
+            "source_tool": "IDA",
+            "tool_provenance": provenance,
+        }
     if not ida_script:
-        return {"tool_status": "blocked", "blocked_reason": "STATIC_TOOL_UNAVAILABLE: IDA script not found"}
+        return {
+            "tool_status": "blocked",
+            "blocked_reason": "STATIC_TOOL_UNAVAILABLE: IDA script not found",
+            "source_tool": "IDA",
+            "tool_provenance": provenance,
+        }
 
     import subprocess
 
@@ -146,11 +215,21 @@ def _run_ida_static_triage(
         f"-S{ida_script}",
         str(binary_path),
     ]
+    provenance = _tool_provenance(
+        ida_exec=ida_exec,
+        ida_script=ida_script,
+        evidence_out=evidence_out,
+        log_out=log_out,
+        db_out=db_out,
+        command_args=cmd,
+    )
 
     env = dict(os.environ)
     env["REVERSE_AGENT_IDA_OUT"] = str(evidence_out)
     env["REVERSE_AGENT_IDA_FORCE_FUNCS"] = ""  # No forced funcs for triage
 
+    stdout = ""
+    stderr = ""
     try:
         result = subprocess.run(
             cmd,
@@ -162,27 +241,68 @@ def _run_ida_static_triage(
             env=env,
         )
         exit_code = result.returncode
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
     except subprocess.TimeoutExpired:
-        return {"tool_status": "blocked", "blocked_reason": "STATIC_TOOL_TIMEOUT: IDA timed out after 300s"}
+        provenance = _tool_provenance(
+            ida_exec=ida_exec,
+            ida_script=ida_script,
+            evidence_out=evidence_out,
+            log_out=log_out,
+            db_out=db_out,
+            command_args=cmd,
+            exit_code=None,
+        )
+        provenance["timeout"] = True
+        return {
+            "tool_status": "blocked",
+            "blocked_reason": "STATIC_TOOL_TIMEOUT: IDA timed out after 300s",
+            "source_tool": "IDA",
+            "tool_provenance": provenance,
+        }
     except Exception as exc:
-        return {"tool_status": "blocked", "blocked_reason": f"STATIC_TOOL_ERROR: {exc}"}
+        provenance["exception"] = repr(exc)
+        return {
+            "tool_status": "blocked",
+            "blocked_reason": f"STATIC_TOOL_ERROR: {exc}",
+            "source_tool": "IDA",
+            "tool_provenance": provenance,
+        }
+
+    provenance = _tool_provenance(
+        ida_exec=ida_exec,
+        ida_script=ida_script,
+        evidence_out=evidence_out,
+        log_out=log_out,
+        db_out=db_out,
+        command_args=cmd,
+        exit_code=exit_code,
+        stdout=stdout,
+        stderr=stderr,
+    )
 
     # Parse IDA output
     if evidence_out.exists():
         try:
             evidence = _load_json(evidence_out)
-            return _parse_ida_evidence(evidence, exit_code)
+            parsed = _parse_ida_evidence(evidence, exit_code)
+            parsed["tool_provenance"] = provenance
+            return parsed
         except (json.JSONDecodeError, KeyError) as exc:
             return {
                 "tool_status": "blocked",
                 "blocked_reason": f"STATIC_TOOL_PARSE_ERROR: {exc}",
                 "exit_code": exit_code,
+                "source_tool": "IDA",
+                "tool_provenance": provenance,
             }
     else:
         return {
             "tool_status": "blocked",
             "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
             "exit_code": exit_code,
+            "source_tool": "IDA",
+            "tool_provenance": provenance,
         }
 
 
@@ -263,6 +383,58 @@ def _parse_ida_evidence(evidence: dict[str, Any], exit_code: int) -> dict[str, A
     return triage
 
 
+def _infer_source_run(artifact_index_path: Path | None) -> str:
+    decision_path = (
+        artifact_index_path.parent / "decision_packet.md"
+        if artifact_index_path is not None
+        else Path("project_state/decision_packet.md")
+    )
+    if not decision_path.exists():
+        return ""
+    text = decision_path.read_text(encoding="utf-8", errors="replace")
+    marker = "```json decision_meta"
+    start = text.find(marker)
+    if start < 0:
+        return ""
+    start = text.find("{", start)
+    end = text.find("```", start)
+    if start < 0 or end < 0:
+        return ""
+    try:
+        meta = json.loads(text[start:end].strip())
+    except json.JSONDecodeError:
+        return ""
+    return str(meta.get("round_id", "")).strip()
+
+
+def _update_artifact_index(
+    *,
+    artifact_index_path: Path | None,
+    sample_id: str,
+    out_path: Path,
+    artifact: dict[str, Any],
+    source_run: str,
+) -> None:
+    if artifact_index_path is None:
+        return
+    index = _load_json(artifact_index_path) if artifact_index_path.exists() else {}
+    latest = index.setdefault("latest_artifacts_v2", {})
+    data = out_path.read_bytes()
+    key = f"local_reverse_{sample_id}_static_triage"
+    latest[key] = {
+        "freshness": "current",
+        "kind": "local_reverse_single_sample_static_triage",
+        "modified_at": artifact.get("generated_at", _now_iso()),
+        "path": str(out_path).replace("\\", "/"),
+        "sample_id": sample_id,
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "size_bytes": len(data),
+        "source_run": source_run,
+        "tool_status": artifact.get("tool_status", ""),
+    }
+    _save_json(artifact_index_path, index)
+
+
 def run_static_triage(
     *,
     sample_id: str,
@@ -273,6 +445,7 @@ def run_static_triage(
     mainline: str = "",
 ) -> dict[str, Any]:
     """Main logic: locate sample, run IDA triage, produce artifact."""
+    source_run = _infer_source_run(artifact_index_path)
     # Locate sample
     sample_info = _locate_sample(sample_id, queue_path, inventory_path)
     relative_path = sample_info["relative_path"]
@@ -288,8 +461,16 @@ def run_static_triage(
             tags=sample_info["tags"],
             blocked_reason="SAMPLE_NOT_FOUND_IN_QUEUE_OR_INVENTORY",
             mainline=mainline,
+            source_run=source_run,
         )
         _save_json(out_path, result)
+        _update_artifact_index(
+            artifact_index_path=artifact_index_path,
+            sample_id=sample_id,
+            out_path=out_path,
+            artifact=result,
+            source_run=source_run,
+        )
         return result
 
     # Resolve binary path
@@ -306,8 +487,16 @@ def run_static_triage(
             blocked_reason="BINARY_NOT_FOUND",
             detail=f"Could not resolve path: {relative_path}",
             mainline=mainline,
+            source_run=source_run,
         )
         _save_json(out_path, result)
+        _update_artifact_index(
+            artifact_index_path=artifact_index_path,
+            sample_id=sample_id,
+            out_path=out_path,
+            artifact=result,
+            source_run=source_run,
+        )
         return result
 
     # Run IDA static triage
@@ -334,8 +523,22 @@ def run_static_triage(
             blocked_reason=blocked_reason,
             source_tool=ida_result.get("source_tool", "IDA"),
             mainline=mainline,
+            source_run=source_run,
+            tool_provenance=ida_result.get("tool_provenance", {}),
+            queue_rank=sample_info["queue_rank"],
+            allowed_actions=sample_info["allowed_actions"],
+            forbidden_actions=sample_info["forbidden_actions"],
         )
         _save_json(out_path, result)
+        _update_artifact_index(
+            artifact_index_path=artifact_index_path,
+            sample_id=sample_id,
+            out_path=out_path,
+            artifact=result,
+            source_run=source_run,
+        )
+        print(f"static triage: status=blocked sample_id={sample_id}")
+        print(f"  blocked_reason: {blocked_reason}")
         return result
 
     # Success - build triage artifact
@@ -363,6 +566,10 @@ def run_static_triage(
         "category": sample_info["category"],
         "tags": sample_info["tags"],
         "queue_rank": sample_info["queue_rank"],
+        "allowed_actions": sample_info["allowed_actions"],
+        "forbidden_actions": sample_info["forbidden_actions"],
+        "source_run": source_run,
+        "tool_provenance": ida_result.get("tool_provenance", {}),
         **({"mainline": mainline} if mainline else {}),
         "triage": {
             "input_apis": ida_result.get("input_apis", []),
@@ -380,6 +587,13 @@ def run_static_triage(
     }
 
     _save_json(out_path, result)
+    _update_artifact_index(
+        artifact_index_path=artifact_index_path,
+        sample_id=sample_id,
+        out_path=out_path,
+        artifact=result,
+        source_run=source_run,
+    )
     print(f"static triage: status=success sample_id={sample_id}")
     print(f"  strings: {len(result['triage']['interesting_strings'])}")
     print(f"  functions: {len(result['triage']['functions'])}")
@@ -401,6 +615,11 @@ def _blocked_artifact(
     detail: str = "",
     source_tool: str = "",
     mainline: str = "",
+    source_run: str = "",
+    tool_provenance: dict[str, Any] | None = None,
+    queue_rank: int | None = None,
+    allowed_actions: list[str] | None = None,
+    forbidden_actions: list[str] | None = None,
 ) -> dict[str, Any]:
     result: dict[str, Any] = {
         "schema_version": 1,
@@ -415,11 +634,16 @@ def _blocked_artifact(
         "blocked_reason": blocked_reason,
         "blocked_detail": detail,
         "source_tool": source_tool,
+        "source_run": source_run,
         "sha256": sha256,
         "size_bytes": size_bytes,
         "file_type": file_type,
         "category": category,
         "tags": tags,
+        "queue_rank": queue_rank,
+        "allowed_actions": allowed_actions or [],
+        "forbidden_actions": forbidden_actions or [],
+        "tool_provenance": tool_provenance or {},
         "triage": {
             "input_apis": [],
             "interesting_strings": [],
@@ -427,6 +651,8 @@ def _blocked_artifact(
             "compare_contexts": [],
             "validation_function_candidates": [],
             "solver_profile_hypotheses": [],
+            "decompiler_snippets": [],
+            "solver_hints": [],
         },
         "candidate": None,
         "known_candidate": "",

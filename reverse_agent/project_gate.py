@@ -62,6 +62,7 @@ FORBIDDEN_PATHS = {
 }
 MAINLINE_FORBIDDEN_PATH_EXCEPTIONS = {
     "training_dataset": {"reverse_agent/local_reverse_training_status.py"},
+    "tool_integration": {"reverse_agent/local_reverse_single_sample_static_triage.py"},
 }
 FORBIDDEN_PREFIXES = (
     ".codex-skills/",
@@ -108,6 +109,9 @@ COMMAND_PLAN_KINDS = {
     "python-inline",
     "powershell",
     "read-only-verification",
+    "tool-capability-verification",
+    "static-triage",
+    "artifact-index-verification",
     "test-path",
     "pwd",
 }
@@ -132,6 +136,12 @@ NATURAL_LANGUAGE_COMMANDS = {
     "git_diff": ["git diff --name-only"],
     "queue_status_verification": [
         "read-only queue/status verification (affineenc_333f8ca9, ascii_table_chinese_46efc7ea, cpp1_2f6fcb63)"
+    ],
+    "tool_capability_verification": [
+        "tool capability verification (IDA executable/script resolver)"
+    ],
+    "artifact_index_verification": [
+        "artifact_index verification (cpp1 static triage current provenance)"
     ],
 }
 
@@ -295,8 +305,17 @@ def _extract_unfenced_commands(text: str) -> list[str]:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["final-check"])
         if "diff 文件名" in raw_line or "diff filenames" in lowered or "git diff" in lowered:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["git_diff"])
-        if "queue/status verification" in lowered or "只读 queue/status" in lowered:
+        if (
+            "queue/status verification" in lowered
+            or "queue/inventory verification" in lowered
+            or "只读 queue/status" in lowered
+            or "只读 queue/inventory" in lowered
+        ):
             commands.extend(NATURAL_LANGUAGE_COMMANDS["queue_status_verification"])
+        if "tool capability verification" in lowered or "工具能力核验" in raw_line:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["tool_capability_verification"])
+        if "artifact_index verification" in lowered or "artifact_index 核验" in raw_line:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["artifact_index_verification"])
     return _dedupe_commands(commands)
 
 
@@ -2458,6 +2477,8 @@ def _command_kind(command: str) -> str:
         return "pwd"
     if "python -m pytest" in lowered or lowered.startswith("pytest"):
         return "pytest"
+    if "python -m reverse_agent.local_reverse_single_sample_static_triage" in lowered:
+        return "static-triage"
     if "project_gate" in lowered and "preflight" in lowered:
         return "preflight"
     if "project_gate" in lowered and "command-plan" in lowered:
@@ -2496,6 +2517,10 @@ def _command_kind(command: str) -> str:
         return "python-inline"
     if "read-only queue/status verification" in lowered:
         return "read-only-verification"
+    if "tool capability verification" in lowered:
+        return "tool-capability-verification"
+    if "artifact_index verification" in lowered:
+        return "artifact-index-verification"
     if "test-path" in lowered:
         return "test-path"
     if lowered.startswith("powershell ") or lowered == "powershell":
@@ -2527,6 +2552,9 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         "python-inline",
         "powershell",
         "read-only-verification",
+        "tool-capability-verification",
+        "static-triage",
+        "artifact-index-verification",
         "test-path",
         "pwd",
     }:

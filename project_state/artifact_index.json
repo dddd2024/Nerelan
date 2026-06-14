@@ -529,6 +529,17 @@
       "sha256": "dfae90d584401dafd52c736c349f05f14e22c8475e54339de1b5a1c573f4ac40",
       "size_bytes": 22651,
       "source_run": "round_20260613_affineenc_static_triage_v1"
+    },
+    "local_reverse_cpp1_2f6fcb63_static_triage": {
+      "freshness": "current",
+      "kind": "local_reverse_single_sample_static_triage",
+      "modified_at": "2026-06-14T07:30:18Z",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "sample_id": "cpp1_2f6fcb63",
+      "sha256": "7ee631310d1ea459015d685d09eeeb2f29229437f439cff300e38591f64913f4",
+      "size_bytes": 25989,
+      "source_run": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+      "tool_status": "success"
     }
   },
   "latest_case_results": [],

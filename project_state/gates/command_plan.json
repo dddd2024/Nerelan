@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260614_close_round_recording_real_execution_rework_v1",
-  "round_id": "round_20260614_close_round_recording_real_execution_rework_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-14T06:32:41.151556Z",
+  "decision_id": "decision_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+  "round_id": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+  "mainline": "tool_integration",
+  "generated_at": "2026-06-14T07:28:00.435111Z",
   "commands": [
     {
       "index": 1,
@@ -93,7 +93,7 @@
     },
     {
       "index": 8,
-      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "command": "python -m pytest tests/test_local_reverse_single_sample_static_triage.py tests/test_local_reverse_training_status.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -105,7 +105,7 @@
     },
     {
       "index": 9,
-      "command": "python -m pytest tests/test_local_reverse_training_status.py -q",
+      "command": "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -129,6 +129,54 @@
     },
     {
       "index": 11,
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "phase": "test",
+      "kind": "pytest",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "pytest expected to exit 0"
+    },
+    {
+      "index": 12,
+      "command": "tool capability verification (IDA executable/script resolver)",
+      "phase": "status",
+      "kind": "tool-capability-verification",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "tool-capability-verification expected to exit 0"
+    },
+    {
+      "index": 13,
+      "command": "python -m reverse_agent.local_reverse_single_sample_static_triage --sample-id cpp1_2f6fcb63 --mainline tool_integration --out project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "phase": "status",
+      "kind": "static-triage",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "static-triage expected to exit 0"
+    },
+    {
+      "index": 14,
+      "command": "artifact_index verification (cpp1 static triage current provenance)",
+      "phase": "status",
+      "kind": "artifact-index-verification",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "artifact-index-verification expected to exit 0"
+    },
+    {
+      "index": 15,
       "command": "python -m reverse_agent.project_state doctor --state-dir project_state",
       "phase": "status",
       "kind": "doctor",
@@ -140,7 +188,7 @@
       "notes": "doctor expected to exit 0"
     },
     {
-      "index": 12,
+      "index": 16,
       "command": "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "phase": "status",
       "kind": "lint-report",
@@ -152,7 +200,7 @@
       "notes": "lint-report expected to exit 0"
     },
     {
-      "index": 13,
+      "index": 17,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -164,7 +212,7 @@
       "notes": "report-summary expected to exit 0"
     },
     {
-      "index": 14,
+      "index": 18,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -176,8 +224,8 @@
       "notes": "final-check expected to exit 0"
     },
     {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_close_round_recording_real_execution_rework_v1",
+      "index": 19,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,

@@ -16,6 +16,7 @@ from reverse_agent.local_reverse_single_sample_static_triage import (
     _now_iso,
     _parse_ida_evidence,
     _resolve_binary_path,
+    _run_ida_static_triage,
     run_static_triage,
 )
 
@@ -389,6 +390,8 @@ class TestBlockedArtifact:
         assert result["blocked_reason"] == "SOME_REASON"
         assert result["blocked_detail"] == "extra detail"
         assert result["source_tool"] == "IDA"
+        assert result["source_run"] == ""
+        assert result["tool_provenance"] == {}
 
         # Metadata
         assert result["sha256"] == "abc123"
@@ -409,6 +412,8 @@ class TestBlockedArtifact:
         assert triage["compare_contexts"] == []
         assert triage["validation_function_candidates"] == []
         assert triage["solver_profile_hypotheses"] == []
+        assert triage["decompiler_snippets"] == []
+        assert triage["solver_hints"] == []
 
         # recommended_next_action mentions the blocked reason
         assert "SOME_REASON" in result["recommended_next_action"]
@@ -428,6 +433,23 @@ class TestBlockedArtifact:
 
         assert result["blocked_detail"] == ""
         assert result["source_tool"] == ""
+
+
+class TestRunIdaStaticTriage:
+    def test_ida_executable_missing_records_resolver_provenance(self, tmp_path: Path):
+        with patch("reverse_agent.tool_runners._resolve_ida_executable", return_value=""), patch(
+            "reverse_agent.tool_runners._resolve_ida_script",
+            return_value=str(tmp_path / "collect_evidence.py"),
+        ):
+            result = _run_ida_static_triage(tmp_path / "sample.exe", tmp_path / "out")
+
+        assert result["tool_status"] == "blocked"
+        assert result["blocked_reason"] == "STATIC_TOOL_UNAVAILABLE: IDA executable not found"
+        provenance = result["tool_provenance"]
+        assert provenance["source_tool"] == "IDA"
+        assert provenance["resolver"]["ida_executable_resolved"] is False
+        assert provenance["resolver"]["ida_script_resolved"] is True
+        assert provenance["ida_script"].endswith("collect_evidence.py")
 
 
 # ---------------------------------------------------------------------------
@@ -541,6 +563,11 @@ class TestRunStaticTriageIntegration:
             "tool_status": "blocked",
             "blocked_reason": "STATIC_TOOL_UNAVAILABLE: IDA executable not found",
             "source_tool": "IDA",
+            "tool_provenance": {
+                "source_tool": "IDA",
+                "ida_executable": "",
+                "ida_script": "collect_evidence.py",
+            },
         }
 
         with patch(
@@ -561,11 +588,69 @@ class TestRunStaticTriageIntegration:
         assert result["tool_status"] == "blocked"
         assert "STATIC_TOOL_UNAVAILABLE" in result["blocked_reason"]
         assert result["source_tool"] == "IDA"
+        assert result["tool_provenance"]["ida_script"] == "collect_evidence.py"
         assert result["static_only"] is True
         assert result["executed_sample"] is False
         assert result["runtime_validated"] is False
         assert result["candidate"] is None
         assert result["known_candidate"] == ""
+
+    def test_blocked_artifact_updates_artifact_index(self, tmp_path: Path):
+        """Blocked static triage is still registered as current provenance."""
+        queue_path, inv_path = self._make_queue_inv(
+            tmp_path, "cpp1_blocked", "samples/blocked.exe"
+        )
+        out_path = tmp_path / "project_state" / "local_reverse_cpp1_blocked_static_triage.json"
+        index_path = tmp_path / "project_state" / "artifact_index.json"
+        decision_path = tmp_path / "project_state" / "decision_packet.md"
+        decision_path.parent.mkdir(parents=True)
+        decision_path.write_text(
+            """```json decision_meta
+{"round_id": "round_test_static_triage_v1"}
+```
+""",
+            encoding="utf-8",
+        )
+
+        fake_root = tmp_path / "fake_root"
+        samples_dir = fake_root / "samples"
+        samples_dir.mkdir(parents=True)
+        (samples_dir / "blocked.exe").write_bytes(b"MZ")
+
+        with patch(
+            "reverse_agent.local_reverse_single_sample_static_triage._find_sample_root",
+            return_value=fake_root,
+        ), patch(
+            "reverse_agent.local_reverse_single_sample_static_triage._run_ida_static_triage",
+            return_value={
+                "tool_status": "blocked",
+                "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+                "source_tool": "IDA",
+                "tool_provenance": {"exit_code": 0, "expected_evidence_path": "ida_evidence.json"},
+            },
+        ), patch(
+            "reverse_agent.local_reverse_single_sample_static_triage._now_iso",
+            return_value="2026-06-14T00:00:00Z",
+        ):
+            result = run_static_triage(
+                sample_id="cpp1_blocked",
+                queue_path=queue_path,
+                inventory_path=inv_path,
+                artifact_index_path=index_path,
+                out_path=out_path,
+            )
+
+        assert result["tool_status"] == "blocked"
+        assert result["source_run"] == "round_test_static_triage_v1"
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        entry = index["latest_artifacts_v2"]["local_reverse_cpp1_blocked_static_triage"]
+        assert entry["freshness"] == "current"
+        assert entry["kind"] == "local_reverse_single_sample_static_triage"
+        assert entry["sample_id"] == "cpp1_blocked"
+        assert entry["source_run"] == "round_test_static_triage_v1"
+        assert entry["tool_status"] == "blocked"
+        assert entry["size_bytes"] == out_path.stat().st_size
+        assert len(entry["sha256"]) == 64
 
     def test_ida_success_full_artifact(self, tmp_path: Path):
         """When IDA succeeds, artifact has triage dict with all expected keys."""
@@ -573,6 +658,7 @@ class TestRunStaticTriageIntegration:
             tmp_path, "cpp1_ok", "samples/ok.exe"
         )
         out_path = tmp_path / "out.json"
+        index_path = tmp_path / "artifact_index.json"
 
         # Create the binary
         fake_root = tmp_path / "fake_root"
@@ -609,7 +695,7 @@ class TestRunStaticTriageIntegration:
                 sample_id="cpp1_ok",
                 queue_path=queue_path,
                 inventory_path=inv_path,
-                artifact_index_path=None,
+                artifact_index_path=index_path,
                 out_path=out_path,
             )
 
@@ -660,3 +746,9 @@ class TestRunStaticTriageIntegration:
 
         # Output file was written
         assert out_path.exists()
+        index = json.loads(index_path.read_text(encoding="utf-8"))
+        entry = index["latest_artifacts_v2"]["local_reverse_cpp1_ok_static_triage"]
+        assert entry["freshness"] == "current"
+        assert entry["kind"] == "local_reverse_single_sample_static_triage"
+        assert entry["path"] == str(out_path).replace("\\", "/")
+        assert entry["tool_status"] == "success"
