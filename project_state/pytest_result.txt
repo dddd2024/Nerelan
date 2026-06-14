@@ -1,25 +1,32 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260613_training_queue_static_triage_hygiene_v1",
-  "report_id": "codex_report_20260613_training_queue_static_triage_hygiene_v1",
-  "round_id": "round_20260613_training_queue_static_triage_hygiene_v1",
-  "generated_at": "2026-06-13T15:20:00.000000Z",
-  "status": "PASSED",
+  "decision_id": "decision_20260613_report_metadata_hygiene_v1",
+  "report_id": "codex_report_20260613_report_metadata_hygiene_v1",
+  "round_id": "round_20260613_report_metadata_hygiene_v1",
+  "generated_at": "2026-06-14T11:00:00.000000Z",
+  "status": "FAILED",
   "tests_ran": [
+    "Get-Location",
     "Test-Path F:\\reverse-agent",
     "git status --short",
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
+    "python -m pytest tests/test_local_reverse_training_status.py -q",
+    "read-only queue/status verification (affineenc_333f8ca9, ascii_table_chinese_46efc7ea, cpp1_2f6fcb63)",
     "python -m reverse_agent.project_state doctor --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_training_queue_static_triage_hygiene_v1"
+    "python -m reverse_agent.project_gate final-check --state-dir project_state"
   ]
 }
 ```
+
+===== COMMAND: Get-Location =====
+
+F:\reverse-agent
+===== EXIT: 0 =====
 
 ===== COMMAND: Test-Path F:\reverse-agent =====
 
@@ -28,27 +35,31 @@ True
 
 ===== COMMAND: git status --short =====
 
+ M project_state/codex_execution_report.md
  M project_state/decision_packet.md
  M project_state/gates/command_plan.json
  M project_state/gates/preflight_result.json
  M project_state/gates/round_baseline.json
- M project_state/local_reverse_evaluation_queue.json
- M project_state/local_reverse_training_status.json
- M reverse_agent/local_reverse_training_status.py
+ M project_state/pytest_result.txt
+ M reverse_agent/harness.py
+ M reverse_agent/local_reverse_forced_ida_extract.py
+ M reverse_agent/local_reverse_single_sample_static_triage.py
+ M reverse_agent/local_reverse_xref_disassembly.py
  M reverse_agent/project_gate.py
- M tests/test_local_reverse_training_status.py
  M tests/test_project_gate.py
+ M tests/test_project_state.py
+?? project_state/rounds/round_20260613_report_metadata_hygiene_v1/
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
 
 preflight: PASSED
-decision_id: decision_20260613_training_queue_static_triage_hygiene_v1
-round_id: round_20260613_training_queue_static_triage_hygiene_v1
-mainline: training_dataset
+decision_id: decision_20260613_report_metadata_hygiene_v1
+round_id: round_20260613_report_metadata_hygiene_v1
+mainline: engineering_branch
   [PASS] decision_meta_parse: decision_meta parsed
   [PASS] decision_approved: decision status is APPROVED
-  [PASS] mainline_valid: mainline is training_dataset
+  [PASS] mainline_valid: mainline is engineering_branch
   [PASS] skill_profiles_active: skill profiles are active
   [PASS] decision_not_consumed_by_report: decision has not been consumed by a report
   [PASS] task_packet_is_non_authoritative: decision_packet remains authoritative over task_packet suggestions
@@ -63,19 +74,20 @@ recommended_next_action: proceed_with_decision_scope
 ===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
 
 command-plan: PASSED
-decision_id: decision_20260613_training_queue_static_triage_hygiene_v1
-round_id: round_20260613_training_queue_static_triage_hygiene_v1
-mainline: training_dataset
+decision_id: decision_20260613_report_metadata_hygiene_v1
+round_id: round_20260613_report_metadata_hygiene_v1
+mainline: engineering_branch
   [1] status test-path: Test-Path F:\reverse-agent expected_exit=[0]
   [2] status git status: git status --short expected_exit=[0]
   [3] preflight preflight: python -m reverse_agent.project_gate preflight --state-dir project_state expected_exit=[0]
   [4] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state expected_exit=[0]
   [5] test pytest: python -m pytest tests/test_project_state.py tests/test_project_gate.py -q expected_exit=[0]
-  [6] status doctor: python -m reverse_agent.project_state doctor --state-dir project_state expected_exit=[0]
-  [7] status lint-report: python -m reverse_agent.project_state lint-report --state-dir project_state expected_exit=[0]
-  [8] gate report-summary: python -m reverse_agent.project_gate report-summary --state-dir project_state expected_exit=[0]
-  [9] gate final-check: python -m reverse_agent.project_gate final-check --state-dir project_state expected_exit=[0]
-  [10] gate close-round: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_training_queue_static_triage_hygiene_v1 expected_exit=[0]
+  [6] test pytest-extra: python -m pytest tests/test_local_reverse_training_status.py -q expected_exit=[0]
+  [7] status doctor: python -m reverse_agent.project_state doctor --state-dir project_state expected_exit=[0]
+  [8] status lint-report: python -m reverse_agent.project_state lint-report --state-dir project_state expected_exit=[0]
+  [9] gate report-summary: python -m reverse_agent.project_gate report-summary --state-dir project_state expected_exit=[0]
+  [10] gate final-check: python -m reverse_agent.project_gate final-check --state-dir project_state expected_exit=[0]
+  [11] gate close-round: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_report_metadata_hygiene_v1 expected_exit=[0]
 recommended_next_action: record_and_follow_command_plan_manually
 ===== EXIT: 0 =====
 
@@ -84,59 +96,63 @@ recommended_next_action: record_and_follow_command_plan_manually
 ........................................................................ [ 23%]
 ........................................................................ [ 47%]
 ........................................................................ [ 71%]
-........................................................................ [ 95%]
+........................................................................ [ 94%]
 ...............                                                          [100%]
-303 passed in 52.91s
+304 passed in 83.88s
+===== EXIT: 0 =====
+
+===== COMMAND: python -m pytest tests/test_local_reverse_training_status.py -q =====
+
+................................................                         [100%]
+48 passed in 0.71s
+===== EXIT: 0 =====
+
+===== COMMAND: read-only queue/status verification =====
+
+affineenc_333f8ca9: training_status=needs_triage, known_candidate='', queue_rank=None (NOT_IN_QUEUE)
+ascii_table_chinese_46efc7ea: training_status=inventory_only, queue_rank=None (NOT_IN_QUEUE)
+cpp1_2f6fcb63: training_status=inventory_only, rank=1 (IN_QUEUE)
+VERIFICATION PASSED: all three samples match expected state
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
 
 doctor: WARN
-  [PASS] decision_approval: decision decision_20260613_training_queue_static_triage_hygiene_v1 is APPROVED
-  [PASS] mainline: mainline is training_dataset
-  [PASS] skill_profiles: skill profiles active: [{'profile': 'reverse-agent-iteration@v2', 'skill_name': 'reverse-agent-iteration', 'version': 2, 'draft': False, 'registry_status': 'active', 'registry_scope': 'generic_workflow', 'registry_version': 2}]
-  [PASS] report_parse: report codex_report_20260613_training_queue_static_triage_hygiene_v1 status is SUCCESS
+  [PASS] decision_approval: decision decision_20260613_report_metadata_hygiene_v1 is APPROVED
+  [PASS] mainline: mainline is engineering_branch
+  [PASS] skill_profiles: skill profiles active
+  [PASS] report_parse: report codex_report_20260613_report_metadata_hygiene_v1 status is REWORK_REQUIRED
   [PASS] report_decision_match: report decision_id matches
   [PASS] pytest_result: pytest_result.txt matches report and covers all tests
   [WARN] archive: decision consumed but round manifest not present
-  [INFO] artifacts: 50 missing, 0 stale historical sample artifacts (non-blocking)
+  [WARN] artifacts: 50 missing, 0 stale artifacts
   [PASS] state_package_classification: task_packet.json advisory; decision_packet.md authoritative; gates/*.json derived_cache; rounds/<round_id>/* archive; solve_reports/ and PROJECT_PROGRESS_LOG.txt heavy_history
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_state lint-report --state-dir project_state =====
 
 lint-report: OK
-warning: report round not archived yet
-report_id: codex_report_20260613_training_queue_static_triage_hygiene_v1
-report_status: SUCCESS
-acceptance_recommendation: ACCEPTED_WITH_LIMITATIONS
-based_on_decision_id: decision_20260613_training_queue_static_triage_hygiene_v1
-decision_id: decision_20260613_training_queue_static_triage_hygiene_v1
+report_id: codex_report_20260613_report_metadata_hygiene_v1
+report_status: REWORK_REQUIRED
+acceptance_recommendation: REWORK_REQUIRED
+based_on_decision_id: decision_20260613_report_metadata_hygiene_v1
+decision_id: decision_20260613_report_metadata_hygiene_v1
 decision_report_id_match: True
-round_id: round_20260613_training_queue_static_triage_hygiene_v1
-report_round_id: round_20260613_training_queue_static_triage_hygiene_v1
-decision_round_id: round_20260613_training_queue_static_triage_hygiene_v1
-current_state_round_id: round_20260613_054156
-current_state_scope: sample_state
+round_id: round_20260613_report_metadata_hygiene_v1
+report_round_id: round_20260613_report_metadata_hygiene_v1
+decision_round_id: round_20260613_report_metadata_hygiene_v1
 report_decision_round_id_match: True
-report_current_state_round_relation: different_but_allowed_sample_state
-round_manifest_present: False
-archive_status: not_archived
-round_manifest_path: project_state\rounds\round_20260613_training_queue_static_triage_hygiene_v1\round_manifest.json
-round_manifest_files: []
-round_manifest_forbidden_files: []
-round_manifest_required_files_missing: []
-tests_ran_count: 10
-generated_artifacts_count: 12
-verified_artifacts_count: 4
+tests_ran_count: 12
+generated_artifacts_count: 8
+verified_artifacts_count: 10
 pytest_result_present: True
-pytest_result_status: PASSED
-pytest_result_decision_id: decision_20260613_training_queue_static_triage_hygiene_v1
-pytest_result_report_id: codex_report_20260613_training_queue_static_triage_hygiene_v1
-pytest_result_round_id: round_20260613_training_queue_static_triage_hygiene_v1
+pytest_result_status: FAILED
+pytest_result_decision_id: decision_20260613_report_metadata_hygiene_v1
+pytest_result_report_id: codex_report_20260613_report_metadata_hygiene_v1
+pytest_result_round_id: round_20260613_report_metadata_hygiene_v1
 pytest_result_matches_report: True
-report_tests_ran_count: 10
-pytest_result_tests_ran_count: 10
+report_tests_ran_count: 12
+pytest_result_tests_ran_count: 12
 pytest_result_tests_cover_report: True
 pytest_result_missing_report_tests: []
 pytest_result_parse_error: None
@@ -144,20 +160,24 @@ pytest_result_parse_error: None
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
 
-report-summary: WARN
-decision_id: decision_20260613_training_queue_static_triage_hygiene_v1
-report_id: codex_report_20260613_training_queue_static_triage_hygiene_v1
-round_id: round_20260613_training_queue_static_triage_hygiene_v1
+report-summary: FAILED
+decision_id: decision_20260613_report_metadata_hygiene_v1
+report_id: codex_report_20260613_report_metadata_hygiene_v1
+round_id: round_20260613_report_metadata_hygiene_v1
+  [ERROR] baseline contains source/test dirty files not allowed as inherited baseline
+  [DIFF] files_changed
+  [DIFF] tests_ran
   [WARN] final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet
+  [WARN] files_changed includes inherited dirty files (may have been modified this round): ['project_state/codex_execution_report.md', 'project_state/pytest_result.txt']
 artifact: project_state/gates/report_summary_synthesis.json
-===== EXIT: 0 =====
+===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
 
-final-check: WARN
-decision_id: decision_20260613_training_queue_static_triage_hygiene_v1
-report_id: codex_report_20260613_training_queue_static_triage_hygiene_v1
-round_id: round_20260613_training_queue_static_triage_hygiene_v1
+final-check: FAILED
+decision_id: decision_20260613_report_metadata_hygiene_v1
+report_id: codex_report_20260613_report_metadata_hygiene_v1
+round_id: round_20260613_report_metadata_hygiene_v1
   [PASS] decision_report_match: decision/report ids and round_id match
   [PASS] pytest_result_match: pytest_result matches report
   [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
@@ -168,86 +188,19 @@ round_id: round_20260613_training_queue_static_triage_hygiene_v1
   [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
   [PASS] files_changed_covers_git_diff: files_changed covers round delta files
   [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
-  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
+  [FAIL] baseline_lifecycle_guard: baseline contains source/test dirty files not allowed as inherited baseline
+  [PASS] baseline_inherited_allowlist_explained: no source/test inherited baseline explanation is required
   [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
   [PASS] command_plan_present: command_plan.json is present
   [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
-  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
+  [FAIL] command_plan_covers_report_tests: command_plan commands do not cover report or pytest_result tests
   [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
   [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
   [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
   [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
+  [FAIL] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
   [WARN] report_summary_status_source_available: report summary synthesis has source warnings
   [PASS] forbidden_paths_absent: no forbidden paths detected
   [WARN] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
-recommended_next_action: review_warnings_before_closeout
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260613_training_queue_static_triage_hygiene_v1 =====
-
-close-round: CLOSED
-decision_id: decision_20260613_training_queue_static_triage_hygiene_v1
-report_id: codex_report_20260613_training_queue_static_triage_hygiene_v1
-round_id: round_20260613_training_queue_static_triage_hygiene_v1
-  [PASS] decision_meta_parse: decision_meta parsed
-  [PASS] decision_approved: decision status is APPROVED
-  [PASS] report_present: codex report summary parsed
-  [PASS] requested_round_id_match: requested round_id matches decision and report
-  [PASS] report_decision_match: report is based on current decision
-  [PASS] pytest_result_match: pytest_result matches report
-  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
-  [PASS] command_plan_present: command_plan.json is present
-  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
-  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
-  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
-  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
-  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [PASS] round_delta_summary_present: round delta summary is baseline-aware
-  [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
-  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
-  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
-  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
-  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
-  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
-  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
-  [PASS] forbidden_paths_absent: no forbidden paths detected
-  [PASS] state_package_compact: state package classification is compact or non-blocking
-  [ACTION PASSED] final_check_before_archive
-  [ACTION created] archive_round
-  [ACTION PASSED] final_check_after_archive
-archive_status: created
-recommended_next_action: no_action_required
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_local_reverse_training_status.py -q =====
-
-................................................                         [100%]
-48 passed in 0.69s
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.local_reverse_training_status --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_training_status.json --queue-out project_state/local_reverse_evaluation_queue.json --github-status-out "" =====
-
-[training_status] samples=65 solved=1 blocked=2 needs_triage=3 inventory_only=59
-[training_status] status out: project_state\local_reverse_training_status.json
-[training_status] queue out: project_state\local_reverse_evaluation_queue.json
-[training_status] queue items: 49
-===== EXIT: 0 =====
-
-===== COMMAND: queue/status schema verification =====
-
-affineenc_333f8ca9 needs_triage known='' blocked='' queue_rank=None
-ascii_table_chinese_46efc7ea inventory_only known='' blocked='' queue_rank=None
-cpp1_2f6fcb63 inventory_only known='' blocked='' queue_rank=1
-cpp1_bcbd9979 solved known='hookapi' blocked='' queue_rank=None
-cpp2_4c69f173 blocked known='' blocked='MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005' queue_rank=None
-sha_256_18019fca blocked known='' blocked='NO_BOUNDED_HASH_PREIMAGE_DOMAIN' queue_rank=None
-queue_count 49
-top5
-1 cpp1_2f6fcb63 逆向课程2023春01/CPP1.exe
-2 cpp1_378eeffd 逆向课程2022春01/CPP1.exe
-3 cpp1_7b504c54 逆向课程2023春补考01/Cpp1.exe
-4 cpp2_06917482 逆向课程2021春01/Cpp2.exe
-5 cpp2_1264f47d 逆向课程2022春补考02/Cpp2.exe
-===== EXIT: 0 =====
+recommended_next_action: fix_gate_failures_before_archive_or_handoff
+===== EXIT: 1 =====

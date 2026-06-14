@@ -1727,6 +1727,34 @@ Allowed tests:
     assert ".codex-skills/registry.json" in forbidden["forbidden_paths"]
 
 
+def test_preflight_forbidden_english_heading_excludes_paths_from_allowed_scope(tmp_path: Path) -> None:
+    """Regression: 'Forbidden:' (English) must terminate the allowed block so that
+    forbidden paths listed under it are NOT treated as allowed."""
+    scope = """Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed generated files:
+
+- `project_state/codex_execution_report.md`
+
+Forbidden:
+
+- `.codex-skills/`
+- `reverse_agent/strategies/`
+- `solve_reports/`
+"""
+    state_dir = _make_preflight_state(tmp_path, implementation_scope=scope)
+
+    result = preflight(state_dir=state_dir, repo_root=tmp_path)
+
+    # After the fix, 'Forbidden:' terminates the allowed block, so the forbidden
+    # paths are NOT in the allowed scope and preflight should PASS.
+    assert result["gate_status"] == "PASSED"
+    forbidden_check = _check(result, "forbidden_paths_not_allowed")
+    assert forbidden_check["status"] == "PASS"
+
+
 def test_preflight_allows_training_dataset_status_generator_scope(tmp_path: Path) -> None:
     scope = """Allowed source files:
 

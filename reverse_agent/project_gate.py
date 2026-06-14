@@ -323,7 +323,7 @@ def _allowed_scope_paths(scope_text: str) -> set[str]:
         if lowered.startswith("allowed") or lowered.startswith("允许"):
             in_allowed_block = True
             continue
-        if lowered.startswith("disallowed") or lowered.startswith("不允许") or lowered.startswith("禁止"):
+        if lowered.startswith("disallowed") or lowered.startswith("forbidden") or lowered.startswith("不允许") or lowered.startswith("禁止"):
             in_allowed_block = False
             continue
         if not in_allowed_block or not line.startswith("-"):
