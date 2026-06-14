@@ -107,6 +107,7 @@ COMMAND_PLAN_KINDS = {
     "build",
     "python-inline",
     "powershell",
+    "read-only-verification",
     "test-path",
     "pwd",
 }
@@ -129,6 +130,9 @@ NATURAL_LANGUAGE_COMMANDS = {
     "report-summary": ["python -m reverse_agent.project_gate report-summary --state-dir project_state"],
     "final-check": ["python -m reverse_agent.project_gate final-check --state-dir project_state"],
     "git_diff": ["git diff --name-only"],
+    "queue_status_verification": [
+        "read-only queue/status verification (affineenc_333f8ca9, ascii_table_chinese_46efc7ea, cpp1_2f6fcb63)"
+    ],
 }
 
 
@@ -260,34 +264,39 @@ def _dedupe_commands(commands: list[str]) -> list[str]:
 
 def _extract_unfenced_commands(text: str) -> list[str]:
     commands: list[str] = []
-    for match in re.finditer(r"`([^`]+)`", text):
-        candidate = match.group(1).strip()
-        if candidate and _command_kind(candidate) != "unknown":
-            commands.append(candidate)
-    if commands:
-        return _dedupe_commands(commands)
+    for raw_line in text.splitlines():
+        line_commands: list[str] = []
+        for match in re.finditer(r"`([^`]+)`", raw_line):
+            candidate = match.group(1).strip()
+            if candidate and _command_kind(candidate) != "unknown":
+                line_commands.append(candidate)
+        if line_commands:
+            commands.extend(line_commands)
+            continue
 
-    lowered = text.lower()
-    if "位置确认" in text or "location confirmation" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["position"])
-    if "git 状态" in text or "git status" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["git_status"])
-    if "preflight" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["preflight"])
-    if "command-plan" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["command-plan"])
-    if "doctor" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["doctor"])
-    if "pytest" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["pytest"])
-    if "lint-report" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["lint-report"])
-    if "report-summary" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["report-summary"])
-    if "final-check" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["final-check"])
-    if "diff 文件名" in text or "diff filenames" in lowered or "git diff" in lowered:
-        commands.extend(NATURAL_LANGUAGE_COMMANDS["git_diff"])
+        lowered = raw_line.lower()
+        if "位置确认" in raw_line or "location confirmation" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["position"])
+        if "git 状态" in raw_line or "git status" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["git_status"])
+        if "preflight" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["preflight"])
+        if "command-plan" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["command-plan"])
+        if "doctor" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["doctor"])
+        if "pytest" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["pytest"])
+        if "lint-report" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["lint-report"])
+        if "report-summary" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["report-summary"])
+        if "final-check" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["final-check"])
+        if "diff 文件名" in raw_line or "diff filenames" in lowered or "git diff" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["git_diff"])
+        if "queue/status verification" in lowered or "只读 queue/status" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["queue_status_verification"])
     return _dedupe_commands(commands)
 
 
@@ -1723,6 +1732,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
             decision=decision,
             report=report,
             pytest_text=pytest_text,
+            extra_skip_kinds={"close-round"},
         )
     )
 
@@ -1845,6 +1855,21 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         if check.get("status") == "FAIL"
     ]
     status = status_summary(state_dir=state_dir)
+    status_summary_payload = {
+        key: status.get(key)
+        for key in (
+            "decision_execution_state",
+            "decision_report_id_match",
+            "decision_consumed_by_report",
+            "archive_status",
+            "report_status",
+            "report_acceptance_recommendation",
+        )
+    }
+    gate_status_pair = _report_status_from_gate(gate_status)
+    if gate_status_pair is not None:
+        status_summary_payload["report_status"] = gate_status_pair[0]
+        status_summary_payload["report_acceptance_recommendation"] = gate_status_pair[1]
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "gate_name": FINAL_GATE_NAME,
@@ -1857,17 +1882,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         "blocking_reasons": blocking_reasons,
         "warnings": warnings,
         "recommended_next_action": _recommended_next_action(gate_status),
-        "status_summary": {
-            key: status.get(key)
-            for key in (
-                "decision_execution_state",
-                "decision_report_id_match",
-                "decision_consumed_by_report",
-                "archive_status",
-                "report_status",
-                "report_acceptance_recommendation",
-            )
-        },
+        "status_summary": status_summary_payload,
     }
 
     if write_result:
@@ -2335,6 +2350,21 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                         state_dir=state_dir,
                         result=after,
                     )
+                    build_report_summary_synthesis(
+                        state_dir=state_dir,
+                        repo_root=repo_root,
+                        write_result=True,
+                    )
+                    after = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+                    after_failed = _failed_check_names(after)
+                else:
+                    build_report_summary_synthesis(
+                        state_dir=state_dir,
+                        repo_root=repo_root,
+                        write_result=True,
+                    )
+                    after = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+                    after_failed = _failed_check_names(after)
                 effective_after_failed = sorted(after_failed - after_tolerated)
                 actions.append(
                     {
@@ -2393,6 +2423,8 @@ def _command_kind(command: str) -> str:
     lowered = command.lower()
     if lowered == "pwd" or lowered.startswith("pwd "):
         return "pwd"
+    if lowered == "get-location" or lowered.startswith("get-location "):
+        return "pwd"
     if "python -m pytest" in lowered or lowered.startswith("pytest"):
         return "pytest"
     if "project_gate" in lowered and "preflight" in lowered:
@@ -2431,6 +2463,8 @@ def _command_kind(command: str) -> str:
         return "build"
     if "python -c" in lowered:
         return "python-inline"
+    if "read-only queue/status verification" in lowered:
+        return "read-only-verification"
     if "test-path" in lowered:
         return "test-path"
     if lowered.startswith("powershell ") or lowered == "powershell":
@@ -2461,6 +2495,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         "build",
         "python-inline",
         "powershell",
+        "read-only-verification",
         "test-path",
         "pwd",
     }:

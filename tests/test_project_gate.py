@@ -2145,6 +2145,51 @@ def test_command_plan_extracts_unfenced_backtick_commands(tmp_path: Path) -> Non
     assert [command["command"] for command in result["commands"]] == ["python -m pytest -q"]
 
 
+def test_command_plan_keeps_backticks_and_queue_status_verification(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(tmp_path, tests_block="placeholder")
+    text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    text = text.replace(
+        "```bash\nplaceholder\n```",
+        """- `Get-Location`
+- `Test-Path F:\\reverse-agent`
+- `git status --short`
+- `python -m reverse_agent.project_gate preflight --state-dir project_state`
+- `python -m reverse_agent.project_gate command-plan --state-dir project_state`
+- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`
+- `python -m pytest tests/test_local_reverse_training_status.py -q`
+- 只读 queue/status verification：用 Python 读取状态和队列，不写入文件
+- `python -m reverse_agent.project_state doctor --state-dir project_state`
+- `python -m reverse_agent.project_state lint-report --state-dir project_state`
+- `python -m reverse_agent.project_gate report-summary --state-dir project_state`
+- `python -m reverse_agent.project_gate final-check --state-dir project_state`
+- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_command_plan`
+""",
+    )
+    (state_dir / "decision_packet.md").write_text(text, encoding="utf-8")
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert [command["command"] for command in result["commands"]] == [
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git status --short",
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m pytest tests/test_local_reverse_training_status.py -q",
+        "read-only queue/status verification (affineenc_333f8ca9, ascii_table_chinese_46efc7ea, cpp1_2f6fcb63)",
+        "python -m reverse_agent.project_state doctor --state-dir project_state",
+        "python -m reverse_agent.project_state lint-report --state-dir project_state",
+        "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_command_plan",
+    ]
+    assert result["commands"][0]["kind"] == "pwd"
+    assert result["commands"][7]["kind"] == "read-only-verification"
+    assert result["commands"][7]["phase"] == "status"
+
+
 def test_command_plan_extracts_chinese_natural_language_gate_checklist(tmp_path: Path) -> None:
     state_dir = _make_command_plan_state(tmp_path, tests_block="placeholder")
     text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
@@ -2304,3 +2349,58 @@ powershell -NoProfile -Command "$x = 1; 'ok'"
     assert [command["phase"] for command in result["commands"]] == ["status", "status", "status"]
     assert result["blocking_reasons"] == []
     assert result["warnings"] == []
+
+
+def test_final_check_failed_status_summary_uses_gate_status(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        report_tests=[
+            "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+            "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+            "python -m reverse_agent.project_gate final-check --state-dir project_state",
+            "Get-Location",
+        ],
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "FAILED"
+    assert result["status_summary"]["report_status"] == "FAILED"
+    assert result["status_summary"]["report_acceptance_recommendation"] == "REWORK_REQUIRED"
+
+
+def test_final_check_does_not_require_close_round_block_before_close_round(tmp_path: Path) -> None:
+    commands = [
+        "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_gate",
+    ]
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        report_tests=commands,
+        command_plan_overrides={
+            "commands": [
+                {
+                    "index": index,
+                    "command": command,
+                    "phase": "gate" if "project_gate" in command else "test",
+                    "kind": "close-round"
+                    if "close-round" in command
+                    else ("command-plan" if "command-plan" in command else ("final-check" if "final-check" in command else "pytest")),
+                    "required": True,
+                    "expected_exit_codes": [0],
+                    "records_stdout_stderr": True,
+                    "notes": "expected to exit 0",
+                }
+                for index, command in enumerate(commands, start=1)
+            ],
+        },
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    exit_check = next(check for check in result["checks"] if check["name"] == "pytest_result_exit_codes_match_command_plan")
+    assert exit_check["status"] == "PASS"
