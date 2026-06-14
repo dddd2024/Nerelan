@@ -1,35 +1,29 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
-  "head_commit": "b8418f44d36e",
+  "decision_id": "decision_20260614_gate_close_round_idempotency_status_policy_rework_v1",
+  "round_id": "round_20260614_gate_close_round_idempotency_status_policy_rework_v1",
+  "head_commit": "2114a1a85c93",
   "baseline_available": true,
   "baseline_git_status_short": [
-    " M project_state/artifact_index.json",
-    " M project_state/gates/command_plan.json",
-    " M project_state/negative_results.json",
-    " M reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    " M tests/test_local_reverse_cpp1_signed_transform_recheck.py",
-    "?? project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json"
+    " M reverse_agent/project_gate.py",
+    " M reverse_agent/project_state.py",
+    " M tests/test_project_gate.py",
+    " M tests/test_project_state.py"
   ],
   "baseline_git_diff_name_only": [
-    "project_state/artifact_index.json",
-    "project_state/gates/command_plan.json",
-    "project_state/negative_results.json",
-    "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "tests/test_project_gate.py",
+    "tests/test_project_state.py"
   ],
   "baseline_dirty_files": [
-    "project_state/artifact_index.json",
-    "project_state/gates/command_plan.json",
-    "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-    "project_state/negative_results.json",
-    "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "tests/test_project_gate.py",
+    "tests/test_project_state.py"
   ],
   "final_git_status_short": [
-    " M project_state/artifact_index.json",
     " M project_state/codex_execution_report.md",
     " M project_state/gates/command_plan.json",
     " M project_state/gates/final_gate_result.json",
@@ -37,18 +31,17 @@
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
-    " M project_state/negative_results.json",
     " M project_state/pytest_result.txt",
-    " M reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    " M tests/test_local_reverse_cpp1_signed_transform_recheck.py",
-    "?? project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-    "?? project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/round_manifest.json"
+    " M reverse_agent/project_gate.py",
+    " M reverse_agent/project_state.py",
+    " M tests/test_project_gate.py",
+    " M tests/test_project_state.py",
+    "?? project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
-    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
@@ -56,13 +49,13 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/negative_results.json",
     "project_state/pytest_result.txt",
-    "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "tests/test_project_gate.py",
+    "tests/test_project_state.py"
   ],
   "final_dirty_files": [
-    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
@@ -70,37 +63,36 @@
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-    "project_state/negative_results.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/decision_packet.md",
-    "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/pytest_result.txt",
-    "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/round_manifest.json",
-    "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json",
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "tests/test_project_gate.py",
+    "tests/test_project_state.py"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
+    "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/decision_packet.md",
-    "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/pytest_result.txt",
-    "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/round_manifest.json"
+    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json"
   ],
   "inherited_dirty_files": [
-    "project_state/artifact_index.json",
-    "project_state/gates/command_plan.json",
-    "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-    "project_state/negative_results.json",
-    "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "tests/test_project_gate.py",
+    "tests/test_project_state.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-14T13:43:51.064510Z"
+  "generated_at": "2026-06-14T14:28:45.801119Z"
 }

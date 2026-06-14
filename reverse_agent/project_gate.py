@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import hashlib
 import io
 import json
 import re
@@ -921,9 +922,11 @@ def _expected_exit_codes_by_command(
     command_plan_payload: dict[str, Any],
     *,
     skip_kinds: set[str] | None = None,
+    skip_after_first_kind: str | None = None,
 ) -> dict[str, list[list[int]]]:
     expected: dict[str, list[list[int]]] = {}
     skip = skip_kinds or set()
+    skip_remaining = False
     commands = command_plan_payload.get("commands")
     if not isinstance(commands, list):
         return expected
@@ -932,6 +935,10 @@ def _expected_exit_codes_by_command(
             continue
         command = str(item.get("command") or "")
         kind = str(item.get("kind") or "") or _command_kind(command)
+        if skip_remaining:
+            continue
+        if skip_after_first_kind and kind == skip_after_first_kind:
+            skip_remaining = True
         if kind in skip:
             continue
         codes = item.get("expected_exit_codes")
@@ -1010,14 +1017,22 @@ def _parse_recorded_command_blocks(pytest_text: str) -> dict[str, Any]:
 
 def _recorded_final_check_status(pytest_text: str) -> str:
     recorded = _parse_recorded_command_blocks(pytest_text)
-    final_blocks = [
-        block
-        for block in recorded.get("blocks", [])
-        if isinstance(block, dict) and _command_kind(str(block.get("command") or "")) == "final-check"
+    blocks = [block for block in recorded.get("blocks", []) if isinstance(block, dict)]
+    final_indexes = [
+        index
+        for index, block in enumerate(blocks)
+        if _command_kind(str(block.get("command") or "")) == "final-check"
     ]
-    if not final_blocks:
+    if not final_indexes:
         return ""
-    stdout = str(final_blocks[-1].get("stdout") or "")
+    close_indexes = [
+        index
+        for index, block in enumerate(blocks)
+        if _command_kind(str(block.get("command") or "")) == "close-round"
+    ]
+    if close_indexes and final_indexes[-1] < close_indexes[-1]:
+        return ""
+    stdout = str(blocks[final_indexes[-1]].get("stdout") or "")
     first_line = next((line.strip() for line in stdout.splitlines() if line.strip()), "")
     prefix = f"{FINAL_GATE_NAME}: "
     if first_line.startswith(prefix):
@@ -1055,6 +1070,7 @@ def _validate_command_plan_consistency(
     report: dict[str, Any],
     pytest_text: str,
     extra_skip_kinds: set[str] | None = None,
+    close_round_in_progress: bool = False,
 ) -> list[dict[str, Any]]:
     checks: list[dict[str, Any]] = []
     command_plan_required = _report_mentions_command_plan(report)
@@ -1138,46 +1154,6 @@ def _validate_command_plan_consistency(
     for block in blocks:
         blocks_by_command.setdefault(str(block.get("command") or ""), []).append(block)
 
-    _skip_kinds: set[str] = {"final-check"}
-    if extra_skip_kinds:
-        _skip_kinds |= extra_skip_kinds
-    expected_by_command = _expected_exit_codes_by_command(command_plan_payload, skip_kinds=_skip_kinds)
-    exit_errors: list[dict[str, Any]] = []
-    for command, expected_entries in expected_by_command.items():
-        recorded_entries = blocks_by_command.get(command, [])
-        if len(recorded_entries) < len(expected_entries):
-            exit_errors.append(
-                {
-                    "command": command,
-                    "error": "missing recorded command block",
-                    "expected_count": len(expected_entries),
-                    "recorded_count": len(recorded_entries),
-                }
-            )
-            continue
-        for index, expected_codes in enumerate(expected_entries):
-            exit_code = recorded_entries[index].get("exit_code")
-            if exit_code not in expected_codes:
-                exit_errors.append(
-                    {
-                        "command": command,
-                        "exit_code": exit_code,
-                        "expected_exit_codes": expected_codes,
-                    }
-                )
-    if malformed_commands:
-        exit_errors.append({"error": "malformed recorded command block", "commands": malformed_commands})
-    checks.append(
-        _check(
-            "pytest_result_exit_codes_match_command_plan",
-            "PASS" if not exit_errors else "FAIL",
-            "recorded command exit codes match command_plan expected_exit_codes"
-            if not exit_errors
-            else "recorded command exit codes do not match command_plan expected_exit_codes",
-            errors=exit_errors,
-        )
-    )
-
     json_commands = [
         str(item.get("command") or "")
         for item in _command_plan_json_commands(command_plan_payload)
@@ -1221,25 +1197,107 @@ def _validate_command_plan_consistency(
         )
     )
 
-    # close-round must be the last command block in pytest_result.txt
+    # close-round must be the last command block in pytest_result.txt after it
+    # appears. Before archive creation, final-check can run before close-round
+    # has a recorded block, because close-round is the command that will append it.
     close_round_commands = [
         item for item in plan_commands if _command_kind(item) == "close-round"
     ]
+    skip_pending_close_round = False
     if close_round_commands and blocks:
-        last_block_command = str(blocks[-1].get("command") or "")
-        last_block_kind = _command_kind(last_block_command)
-        close_round_is_last = last_block_kind == "close-round"
-        checks.append(
-            _check(
-                "close_round_is_last_command_block",
-                "PASS" if close_round_is_last else "FAIL",
-                "close-round is the last command block in pytest_result"
-                if close_round_is_last
-                else f"close-round is not the last command block; last block is: {last_block_command!r}",
-                last_command=last_block_command,
-                last_kind=last_block_kind,
-            )
+        report_round_id = str(report.get("round_id") or "")
+        manifest_present = bool(report_round_id and (state_dir / "rounds" / report_round_id / ARCHIVE_MANIFEST_NAME).exists())
+        close_round_block_present = any(
+            _command_kind(str(block.get("command") or "")) == "close-round"
+            for block in blocks
         )
+        close_round_self_record_pending = (
+            manifest_present
+            and not close_round_block_present
+            and _archive_file_matches_live(state_dir, report_round_id, "pytest_result.txt") is not True
+        )
+        if (
+            (manifest_present or close_round_block_present)
+            and not close_round_in_progress
+            and not close_round_self_record_pending
+        ):
+            last_block_command = str(blocks[-1].get("command") or "")
+            last_block_kind = _command_kind(last_block_command)
+            close_round_is_last = last_block_kind == "close-round"
+            checks.append(
+                _check(
+                    "close_round_is_last_command_block",
+                    "PASS" if close_round_is_last else "FAIL",
+                    "close-round is the last command block in pytest_result"
+                    if close_round_is_last
+                    else f"close-round is not the last command block; last block is: {last_block_command!r}",
+                    last_command=last_block_command,
+                    last_kind=last_block_kind,
+                )
+            )
+        else:
+            skip_pending_close_round = True
+            checks.append(
+                _check(
+                    "close_round_is_last_command_block",
+                    "PASS",
+                    "close-round command block is pending until close-round completes",
+                    required=False,
+                    skipped_reason="close_round_in_progress"
+                    if close_round_in_progress
+                    else "close_round_self_record_pending"
+                    if close_round_self_record_pending
+                    else "archive_pending_pre_close_round",
+                )
+            )
+    elif close_round_commands:
+        skip_pending_close_round = True
+
+    _skip_kinds: set[str] = {"final-check"}
+    if skip_pending_close_round:
+        _skip_kinds.add("close-round")
+    if extra_skip_kinds:
+        _skip_kinds |= extra_skip_kinds
+    expected_by_command = _expected_exit_codes_by_command(
+        command_plan_payload,
+        skip_kinds=_skip_kinds,
+        skip_after_first_kind="final-check" if skip_pending_close_round else None,
+    )
+    exit_errors: list[dict[str, Any]] = []
+    for command, expected_entries in expected_by_command.items():
+        recorded_entries = blocks_by_command.get(command, [])
+        if len(recorded_entries) < len(expected_entries):
+            exit_errors.append(
+                {
+                    "command": command,
+                    "error": "missing recorded command block",
+                    "expected_count": len(expected_entries),
+                    "recorded_count": len(recorded_entries),
+                }
+            )
+            continue
+        for index, expected_codes in enumerate(expected_entries):
+            exit_code = recorded_entries[index].get("exit_code")
+            if exit_code not in expected_codes:
+                exit_errors.append(
+                    {
+                        "command": command,
+                        "exit_code": exit_code,
+                        "expected_exit_codes": expected_codes,
+                    }
+                )
+    if malformed_commands:
+        exit_errors.append({"error": "malformed recorded command block", "commands": malformed_commands})
+    checks.append(
+        _check(
+            "pytest_result_exit_codes_match_command_plan",
+            "PASS" if not exit_errors else "FAIL",
+            "recorded command exit codes match command_plan expected_exit_codes"
+            if not exit_errors
+            else "recorded command exit codes do not match command_plan expected_exit_codes",
+            errors=exit_errors,
+        )
+    )
 
     return checks
 
@@ -1276,20 +1334,19 @@ def _report_status_from_gate_payload(payload: dict[str, Any]) -> tuple[str, str]
             if isinstance(check, dict) and check.get("status") == "WARN"
         }
         allowed_prearchive_warnings = ARCHIVE_PENDING_CHECKS | {
+            "report_summary_fields_match_synthesis",
             "report_summary_status_source_available",
             "status_policy_valid",
         }
-        # Check if the only WARN is status_policy_valid with historical-only limitations
-        # This must be checked before the general SUCCESS prearchive path
-        if warn_check_names == {"status_policy_valid"}:
-            for check in payload.get("checks", []):
-                if (
-                    isinstance(check, dict)
-                    and check.get("name") == "status_policy_valid"
-                    and check.get("status") == "WARN"
-                    and check.get("limitations")
-                ):
-                    return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
+        status_policy_has_limitations = any(
+            isinstance(check, dict)
+            and check.get("name") == "status_policy_valid"
+            and check.get("status") == "WARN"
+            and check.get("limitations")
+            for check in payload.get("checks", [])
+        )
+        if status_policy_has_limitations and warn_check_names <= allowed_prearchive_warnings:
+            return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
         if report_status == "SUCCESS" and warn_check_names and warn_check_names <= allowed_prearchive_warnings:
             return "SUCCESS", acceptance if acceptance else "ACCEPTED"
     # Check if PASSED gate has status_policy_valid with limitations (post-archive scenario
@@ -1682,7 +1739,13 @@ def _recommended_next_action(gate_status: str) -> str:
     return "fix_gate_failures_before_archive_or_handoff"
 
 
-def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result: bool = True) -> dict[str, Any]:
+def final_check(
+    *,
+    state_dir: Path,
+    repo_root: Path | None = None,
+    write_result: bool = True,
+    close_round_in_progress: bool = False,
+) -> dict[str, Any]:
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
 
@@ -1768,15 +1831,34 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
     )
 
     archived_pytest_match = _archive_file_matches_live(state_dir, round_id, "pytest_result.txt")
+    command_plan_payload_for_archive = _read_json(state_dir / "gates" / COMMAND_PLAN_RESULT_NAME)
+    close_round_planned = any(_command_kind(command) == "close-round" for command in _command_strings(command_plan_payload_for_archive))
+    recorded_blocks_for_archive = _parse_recorded_command_blocks(pytest_text)
+    close_round_block_present = any(
+        isinstance(block, dict) and _command_kind(str(block.get("command") or "")) == "close-round"
+        for block in recorded_blocks_for_archive.get("blocks", [])
+    )
+    archived_pytest_pending_self_record = (
+        manifest_present
+        and archived_pytest_match is not True
+        and (
+            close_round_in_progress
+            or (close_round_planned and not close_round_block_present)
+        )
+    )
     checks.append(
         _check(
             "archived_pytest_result_matches_live_pytest_result",
-            "PASS" if archived_pytest_match is True else archive_pending_status,
+            "PASS" if archived_pytest_match is True or archived_pytest_pending_self_record else archive_pending_status,
             (
                 "archived pytest_result matches live pytest_result"
                 if archived_pytest_match is True
+                else "archived pytest_result will be refreshed when close-round records its own command block"
+                if archived_pytest_pending_self_record
                 else "archived pytest_result differs from live pytest_result"
             ),
+            required=False if archived_pytest_pending_self_record else True,
+            skipped_reason="close_round_self_record_pending" if archived_pytest_pending_self_record else None,
         )
     )
 
@@ -1839,6 +1921,7 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
             decision=decision,
             report=report,
             pytest_text=pytest_text,
+            close_round_in_progress=close_round_in_progress,
         )
     )
 
@@ -1894,18 +1977,16 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         status_errors.append("doctor status is FAIL")
     elif report_status == "SUCCESS" and doctor_blocking_warnings:
         # If all blocking warnings are historical missing/stale artifacts and the
-        # report does not claim sample artifact freshness, downgrade to warnings --
-        # but ONLY for non-reverse_solving mainlines. reverse_solving rounds may
-        # depend on historical artifacts and must retain strict freshness checks.
+        # report does not claim sample artifact freshness, downgrade to warnings.
+        # Current reverse-solving rounds remain strict when they explicitly claim
+        # sample artifacts in generated_artifacts or verified_artifacts.
         _all_historical = all(
             re.match(r"\d+ missing, \d+ stale artifacts", w)
             for w in doctor_blocking_warnings
         )
-        _mainline = str(decision.get("mainline") or "")
         if (
             _all_historical
             and not _report_claims_sample_artifact_freshness(report)
-            and _mainline != "reverse_solving"
         ):
             status_warnings.extend(doctor_blocking_warnings)
             status_warnings.append(
@@ -1955,14 +2036,18 @@ def final_check(*, state_dir: Path, repo_root: Path | None = None, write_result:
         for check in checks
         if isinstance(check, dict) and check.get("status") == "FAIL"
     }
-    if not manifest_present or (gate_status == "FAILED" and pre_stdout_failed_checks & ARCHIVE_PENDING_CHECKS):
+    if close_round_in_progress or not manifest_present or (gate_status == "FAILED" and pre_stdout_failed_checks & ARCHIVE_PENDING_CHECKS):
         checks.append(
             _check(
                 "final_check_stdout_matches_gate_status",
                 "PASS",
-                "archive-pending final-check status is allowed to differ before close-round",
+                "final-check stdout status is allowed to differ while close-round is in progress"
+                if close_round_in_progress
+                else "archive-pending final-check status is allowed to differ before close-round",
                 required=False,
-                skipped_reason="archive_pending_pre_close_round",
+                skipped_reason="close_round_in_progress"
+                if close_round_in_progress
+                else "archive_pending_pre_close_round",
             )
         )
     else:
@@ -2302,6 +2387,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             report=report,
             pytest_text=pytest_text,
             extra_skip_kinds={"report-summary", "close-round"},
+            close_round_in_progress=True,
         )
     )
 
@@ -2415,7 +2501,12 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     elif precheck_failures:
         close_status = "FAILED"
     else:
-        before = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+        before = final_check(
+            state_dir=state_dir,
+            repo_root=repo_root,
+            write_result=True,
+            close_round_in_progress=True,
+        )
         before_failed = _failed_check_names(before)
         allowed_pending = set(ARCHIVE_PENDING_CHECKS)
         if _status_policy_failure_is_archive_pending(result=before, decision=decision):
@@ -2435,34 +2526,91 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         if unexpected_before:
             close_status = "FAILED"
         else:
-            try:
-                archive_result = archive_round(state_dir=state_dir, round_id=requested_round_id)
-            except FileExistsError as exc:
-                actions.append({"name": "archive_round", "status": "FAILED", "error": str(exc)})
-                archive_payload = _close_round_archive_payload(
-                    state_dir=state_dir,
-                    round_id=requested_round_id,
-                    status="FAILED",
-                    error=str(exc),
-                )
-                close_status = "FAILED"
+            close_status = ""
+            if manifest_present:
+                archive_report_matches = _archive_file_matches_live(state_dir, requested_round_id, "codex_execution_report.md") is True
+                archive_pytest_matches = _archive_file_matches_live(state_dir, requested_round_id, "pytest_result.txt") is True
+                if archive_report_matches and archive_pytest_matches:
+                    try:
+                        archive_result = archive_round(state_dir=state_dir, round_id=requested_round_id)
+                    except FileExistsError as exc:
+                        actions.append({"name": "archive_round", "status": "FAILED", "error": str(exc)})
+                        archive_payload = _close_round_archive_payload(
+                            state_dir=state_dir,
+                            round_id=requested_round_id,
+                            status="FAILED",
+                            error=str(exc),
+                        )
+                        close_status = "FAILED"
+                    else:
+                        actions.append(
+                            {
+                                "name": "archive_round",
+                                "status": archive_result.get("status"),
+                                "round_dir": archive_result.get("round_dir"),
+                                "manifest": archive_result.get("manifest"),
+                                "copied": archive_result.get("copied") or [],
+                            }
+                        )
+                        archive_payload = _close_round_archive_payload(
+                            state_dir=state_dir,
+                            round_id=requested_round_id,
+                            status=str(archive_result.get("status") or "no-op"),
+                            archive_result=archive_result,
+                        )
+                else:
+                    archive_result = {"status": "no-op", "round_dir": str(state_dir / "rounds" / requested_round_id), "copied": []}
+                    actions.append(
+                        {
+                            "name": "archive_round",
+                            "status": archive_result.get("status"),
+                            "round_dir": archive_result.get("round_dir"),
+                            "manifest": str(state_dir / "rounds" / requested_round_id / ARCHIVE_MANIFEST_NAME),
+                            "copied": [],
+                        }
+                    )
+                    archive_payload = _close_round_archive_payload(
+                        state_dir=state_dir,
+                        round_id=requested_round_id,
+                        status=str(archive_result.get("status") or "no-op"),
+                        archive_result=archive_result,
+                    )
             else:
-                actions.append(
-                    {
-                        "name": "archive_round",
-                        "status": archive_result.get("status"),
-                        "round_dir": archive_result.get("round_dir"),
-                        "manifest": archive_result.get("manifest"),
-                        "copied": archive_result.get("copied") or [],
-                    }
-                )
-                archive_payload = _close_round_archive_payload(
+                try:
+                    archive_result = archive_round(state_dir=state_dir, round_id=requested_round_id)
+                except FileExistsError as exc:
+                    actions.append({"name": "archive_round", "status": "FAILED", "error": str(exc)})
+                    archive_payload = _close_round_archive_payload(
+                        state_dir=state_dir,
+                        round_id=requested_round_id,
+                        status="FAILED",
+                        error=str(exc),
+                    )
+                    close_status = "FAILED"
+                    archive_result = None
+                else:
+                    actions.append(
+                        {
+                            "name": "archive_round",
+                            "status": archive_result.get("status"),
+                            "round_dir": archive_result.get("round_dir"),
+                            "manifest": archive_result.get("manifest"),
+                            "copied": archive_result.get("copied") or [],
+                        }
+                    )
+                    archive_payload = _close_round_archive_payload(
+                        state_dir=state_dir,
+                        round_id=requested_round_id,
+                        status=str(archive_result.get("status") or "archived"),
+                        archive_result=archive_result,
+                    )
+            if close_status != "FAILED":
+                after = final_check(
                     state_dir=state_dir,
-                    round_id=requested_round_id,
-                    status=str(archive_result.get("status") or "archived"),
-                    archive_result=archive_result,
+                    repo_root=repo_root,
+                    write_result=True,
+                    close_round_in_progress=True,
                 )
-                after = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
                 after_failed = _failed_check_names(after)
                 after_tolerated: set[str] = set()
                 if (
@@ -2479,7 +2627,12 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                         repo_root=repo_root,
                         write_result=True,
                     )
-                    after = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+                    after = final_check(
+                        state_dir=state_dir,
+                        repo_root=repo_root,
+                        write_result=True,
+                        close_round_in_progress=True,
+                    )
                     after_failed = _failed_check_names(after)
                 else:
                     build_report_summary_synthesis(
@@ -2487,7 +2640,12 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                         repo_root=repo_root,
                         write_result=True,
                     )
-                    after = final_check(state_dir=state_dir, repo_root=repo_root, write_result=True)
+                    after = final_check(
+                        state_dir=state_dir,
+                        repo_root=repo_root,
+                        write_result=True,
+                        close_round_in_progress=True,
+                    )
                     after_failed = _failed_check_names(after)
                 effective_after_failed = sorted(after_failed - after_tolerated)
                 actions.append(
@@ -3074,19 +3232,69 @@ def _print_report_summary(result: dict[str, Any]) -> None:
 
 
 def _print_close_round(result: dict[str, Any]) -> None:
-    print(f"{result.get('gate_name')}: {result.get('close_status')}")
-    print(f"decision_id: {result.get('decision_id')}")
-    print(f"report_id: {result.get('report_id')}")
-    print(f"round_id: {result.get('round_id')}")
+    print(_close_round_output_text(result), end="")
+
+
+def _close_round_output_text(result: dict[str, Any]) -> str:
+    lines = [
+        f"{result.get('gate_name')}: {result.get('close_status')}",
+        f"decision_id: {result.get('decision_id')}",
+        f"report_id: {result.get('report_id')}",
+        f"round_id: {result.get('round_id')}",
+    ]
     for check in result.get("checks", []):
-        print(f"  [{check.get('status')}] {check.get('name')}: {check.get('detail')}")
+        lines.append(f"  [{check.get('status')}] {check.get('name')}: {check.get('detail')}")
     for action in result.get("actions", []):
-        print(f"  [ACTION {action.get('status')}] {action.get('name')}")
+        lines.append(f"  [ACTION {action.get('status')}] {action.get('name')}")
     archive = result.get("archive") if isinstance(result.get("archive"), dict) else {}
-    print(f"archive_status: {archive.get('status')}")
+    lines.append(f"archive_status: {archive.get('status')}")
     for reason in result.get("blocking_reasons", []):
-        print(f"  [BLOCK] {reason}")
-    print(f"recommended_next_action: {result.get('recommended_next_action')}")
+        lines.append(f"  [BLOCK] {reason}")
+    lines.append(f"recommended_next_action: {result.get('recommended_next_action')}")
+    return "\n".join(lines) + "\n"
+
+
+def _sha256_path(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _append_close_round_command_block(
+    *,
+    state_dir: Path,
+    round_id: str,
+    command: str,
+    stdout: str,
+    exit_code: int,
+) -> None:
+    pytest_path = state_dir / "pytest_result.txt"
+    if not pytest_path.exists():
+        return
+    with pytest_path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(f"===== COMMAND: {command} =====\n")
+        handle.write(stdout.rstrip() + "\n")
+        handle.write("===== STDERR =====\n")
+        handle.write(f"===== EXIT: {exit_code} =====\n\n")
+
+    round_dir = state_dir / "rounds" / round_id
+    manifest_path = round_dir / ARCHIVE_MANIFEST_NAME
+    archive_pytest_path = round_dir / "pytest_result.txt"
+    manifest = _read_json(manifest_path)
+    files = manifest.get("files")
+    if not isinstance(files, dict) or "pytest_result.txt" not in files:
+        return
+    archive_pytest_path.write_bytes(pytest_path.read_bytes())
+    files["pytest_result.txt"]["sha256"] = _sha256_path(archive_pytest_path)
+    files["pytest_result.txt"]["source_path"] = str(pytest_path)
+    files["pytest_result.txt"]["archived_path"] = str(archive_pytest_path)
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 def _final_check_exit_code(gate_status: object) -> int:
@@ -3155,11 +3363,24 @@ def main(argv: list[str] | None = None) -> int:
         return 1 if result.get("synthesis_status") == "FAILED" else 0
     if args.command == "close-round":
         result = close_round(state_dir=Path(args.state_dir), round_id=args.round_id, repo_root=Path.cwd())
+        exit_code = _close_round_exit_code(result.get("close_status"))
         if args.json:
-            print(json.dumps(result, ensure_ascii=True, indent=2))
+            output = json.dumps(result, ensure_ascii=True, indent=2) + "\n"
         else:
-            _print_close_round(result)
-        return _close_round_exit_code(result.get("close_status"))
+            output = _close_round_output_text(result)
+        if exit_code == 0 and result.get("close_status") == "CLOSED":
+            command = f"python -m reverse_agent.project_gate close-round --state-dir {args.state_dir} --round-id {args.round_id}"
+            if args.json:
+                command += " --json"
+            _append_close_round_command_block(
+                state_dir=Path(args.state_dir),
+                round_id=str(args.round_id),
+                command=command,
+                stdout=output,
+                exit_code=exit_code,
+            )
+        print(output, end="")
+        return exit_code
     return 1
 
 

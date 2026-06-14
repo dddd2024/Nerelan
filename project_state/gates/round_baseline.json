@@ -1,31 +1,26 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
-  "head_commit": "b8418f44d36e",
+  "decision_id": "decision_20260614_gate_close_round_idempotency_status_policy_rework_v1",
+  "round_id": "round_20260614_gate_close_round_idempotency_status_policy_rework_v1",
+  "head_commit": "2114a1a85c93",
   "baseline_git_status_short": [
-    " M project_state/artifact_index.json",
-    " M project_state/gates/command_plan.json",
-    " M project_state/negative_results.json",
-    " M reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    " M tests/test_local_reverse_cpp1_signed_transform_recheck.py",
-    "?? project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json"
+    " M reverse_agent/project_gate.py",
+    " M reverse_agent/project_state.py",
+    " M tests/test_project_gate.py",
+    " M tests/test_project_state.py"
   ],
   "baseline_git_diff_name_only": [
-    "project_state/artifact_index.json",
-    "project_state/gates/command_plan.json",
-    "project_state/negative_results.json",
-    "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "tests/test_project_gate.py",
+    "tests/test_project_state.py"
   ],
   "baseline_dirty_files": [
-    "project_state/artifact_index.json",
-    "project_state/gates/command_plan.json",
-    "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-    "project_state/negative_results.json",
-    "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-    "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+    "tests/test_project_gate.py",
+    "tests/test_project_state.py"
   ],
-  "generated_at": "2026-06-14T13:35:05.514882Z"
+  "generated_at": "2026-06-14T14:00:47.268905Z"
 }

@@ -1,0 +1,38 @@
+{
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-14T14:13:57Z",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260614_gate_close_round_idempotency_status_policy_rework_v1\\codex_execution_report.md",
+      "sha256": "833870a3ae94765555e0c67553d8968d78f4c5b1ef7042e28e9eecc857d3670b",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260614_gate_close_round_idempotency_status_policy_rework_v1\\decision_packet.md",
+      "sha256": "93a9e78ed9adbd7806509e84f757a88bafb012b639f6f933949a6659e5af8709",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260614_gate_close_round_idempotency_status_policy_rework_v1\\pytest_result.txt",
+      "sha256": "c04d4ce6e00ac713580b92c2251c5ec607845be346e600763c3879ba9d0624bc",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "round_id": "round_20260614_gate_close_round_idempotency_status_policy_rework_v1",
+  "schema_version": 1,
+  "source_git_commit": "2114a1a85c93",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260613_054156_2729a02c7407",
+  "state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
+  "workflow_status": "REPORT_AVAILABLE"
+}

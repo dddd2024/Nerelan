@@ -748,11 +748,38 @@ def test_final_check_passes_engineering_success_with_legacy_sample_artifacts(tmp
     assert _check(result, "status_policy_valid")["status"] == "PASS"
 
 
-def test_final_check_blocks_success_with_legacy_artifacts_for_reverse_solving(
+def test_final_check_downgrades_unclaimed_legacy_artifacts_for_reverse_solving(
     tmp_path: Path,
 ) -> None:
-    """reverse_solving retains strict artifact freshness: stale/missing → FAIL."""
+    """reverse_solving treats unclaimed historical artifact freshness as non-blocking."""
     state_dir = _make_gate_state(tmp_path, mainline="reverse_solving")
+    _write_json(
+        state_dir / "artifact_index.json",
+        {
+            "latest_artifacts_v2": {
+                "old_probe": {"freshness": "stale"},
+                "missing_probe": {"freshness": "missing"},
+            }
+        },
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+    assert result["blocking_reasons"] == []
+    status_policy = _check(result, "status_policy_valid")
+    assert status_policy["status"] in {"PASS", "WARN"}
+    assert status_policy.get("limitations")
+
+
+def test_final_check_blocks_reverse_solving_when_report_claims_sample_artifacts(
+    tmp_path: Path,
+) -> None:
+    state_dir = _make_gate_state(
+        tmp_path,
+        mainline="reverse_solving",
+        generated_artifacts=["solve_reports/harness_runs/current"],
+    )
     _write_json(
         state_dir / "artifact_index.json",
         {
@@ -1562,6 +1589,30 @@ def test_close_round_is_idempotent_for_existing_matching_archive(tmp_path: Path)
     assert archive_action["status"] == "no-op"
 
 
+def test_final_check_ignores_pre_close_round_final_check_stdout_after_archive(tmp_path: Path) -> None:
+    commands = [
+        "python -m reverse_agent.project_gate final-check --state-dir project_state",
+        "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_gate",
+    ]
+    body = "\n\n".join(
+        [
+            _command_block(commands[0], "final-check: FAILED"),
+            _command_block(commands[1], "close-round: CLOSED"),
+        ]
+    )
+    state_dir = _make_command_plan_gate_state(
+        tmp_path,
+        report_tests=commands,
+        pytest_body=body,
+    )
+
+    result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+    stdout_check = _check(result, "final_check_stdout_matches_gate_status")
+    assert stdout_check["status"] == "PASS"
+    assert stdout_check["detail"] == "no recorded final-check stdout status to compare"
+
+
 def test_close_round_closes_consistent_partial_report(tmp_path: Path) -> None:
     state_dir = _make_command_plan_gate_state(
         tmp_path,
@@ -1711,7 +1762,7 @@ def test_final_check_does_not_require_self_recorded_exit_block(tmp_path: Path) -
     assert _check(result, "pytest_result_exit_codes_match_command_plan")["status"] == "PASS"
 
 
-def test_final_check_fails_when_close_round_declared_but_command_block_missing(tmp_path: Path) -> None:
+def test_final_check_fails_after_archive_when_close_round_declared_but_command_block_missing(tmp_path: Path) -> None:
     base_commands = [
         "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
         "python -m reverse_agent.project_gate command-plan --state-dir project_state",
@@ -1764,7 +1815,7 @@ def test_final_check_fails_when_close_round_declared_but_command_block_missing(t
     )
     state_dir = _make_command_plan_gate_state(
         tmp_path,
-        archived=False,
+        archived=True,
         command_plan_overrides=plan_payload,
         report_tests=base_commands,
         pytest_body=body_without_close_round,

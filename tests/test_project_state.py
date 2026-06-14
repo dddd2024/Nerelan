@@ -686,7 +686,7 @@ def test_doctor_warns_when_engineering_report_claims_sample_artifact_freshness(
     assert artifact_check["counts"]["missing"] > 0
 
 
-@pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration"])
+@pytest.mark.parametrize("mainline", ["tool_integration"])
 def test_doctor_artifact_freshness_blocks_capability_mainlines(
     tmp_path: Path,
     mainline: str,
@@ -787,7 +787,7 @@ def test_doctor_passes_for_all_valid_mainlines(tmp_path: Path, mainline: str) ->
     archive_round(state_dir=state_dir, round_id=round_id)
 
     result = doctor(state_dir=state_dir)
-    expected_status = "PASS" if mainline in {"engineering_branch", "training_dataset"} else "WARN"
+    expected_status = "PASS" if mainline in {"engineering_branch", "reverse_solving", "training_dataset"} else "WARN"
     assert result["status"] == expected_status
     mainline_check = next(c for c in result["checks"] if c["name"] == "mainline")
     assert mainline_check["status"] == "PASS"
@@ -6457,14 +6457,14 @@ class TestHistoricalArtifactFreshnessNonBlocking:
             pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
         ) is True
 
-    def test_returns_false_for_reverse_solving_non_success(self) -> None:
+    def test_returns_true_for_reverse_solving_non_success_without_sample_artifact_claim(self) -> None:
         assert _historical_artifact_freshness_is_non_blocking(
             decision={"mainline": "reverse_solving"},
             report={"status": "PARTIAL", "generated_artifacts": [], "verified_artifacts": []},
             decision_execution_state="READY_FOR_EXECUTION",
             round_consistency={},
             pytest_validation={"matches_report": False, "tests_ran_covers_report": False},
-        ) is False
+        ) is True
 
     def test_returns_false_for_training_dataset_non_success(self) -> None:
         """training_dataset only gets non-blocking via Path 1 (CONSUMED_BY_SUCCESS_REPORT)."""

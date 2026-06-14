@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
-  "report_id": "codex_report_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
-  "round_id": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
-  "generated_at": "2026-06-14T13:43:51.072141Z",
+  "gate_status": "PASSED_WITH_LIMITATIONS",
+  "decision_id": "decision_20260614_gate_close_round_idempotency_status_policy_rework_v1",
+  "report_id": "codex_report_20260614_gate_close_round_idempotency_status_policy_rework_v1",
+  "round_id": "round_20260614_gate_close_round_idempotency_status_policy_rework_v1",
+  "generated_at": "2026-06-14T14:28:45.602818Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260614_gate_close_round_idempotency_status_policy_rework_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -38,7 +38,9 @@
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
       "status": "PASS",
-      "detail": "archived pytest_result matches live pytest_result"
+      "detail": "archived pytest_result matches live pytest_result",
+      "required": true,
+      "skipped_reason": null
     },
     {
       "name": "round_delta_summary_present",
@@ -47,28 +49,26 @@
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
       "inherited_dirty_files": [
-        "project_state/artifact_index.json",
-        "project_state/gates/command_plan.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-        "project_state/negative_results.json",
-        "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-        "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ],
       "new_dirty_files_since_baseline": [
         "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/decision_packet.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/round_manifest.json"
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json"
       ],
       "final_dirty_files": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -76,15 +76,15 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-        "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/decision_packet.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/round_manifest.json",
-        "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-        "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ]
     },
     {
@@ -92,12 +92,10 @@
       "status": "PASS",
       "detail": "files_changed excludes inherited baseline dirty files",
       "inherited_dirty_files": [
-        "project_state/artifact_index.json",
-        "project_state/gates/command_plan.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-        "project_state/negative_results.json",
-        "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-        "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ]
     },
     {
@@ -106,7 +104,6 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -114,36 +111,35 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-        "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/decision_packet.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/round_manifest.json",
-        "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-        "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ],
       "required_round_delta_files": [
         "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/decision_packet.md",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/pytest_result.txt",
-        "project_state/rounds/round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1/round_manifest.json"
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260614_gate_close_round_idempotency_status_policy_rework_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
-        "project_state/artifact_index.json",
-        "project_state/gates/command_plan.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-        "project_state/negative_results.json",
-        "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-        "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ]
     },
     {
@@ -157,24 +153,28 @@
       "status": "PASS",
       "detail": "baseline source/test dirty files are absent or explicitly allowed",
       "source_test_baseline_dirty": [
-        "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-        "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ],
       "allowed_inherited_dirty_files": [
-        "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-        "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ],
-      "generated_or_archive_baseline_dirty_files": [
-        "project_state/gates/command_plan.json"
-      ]
+      "generated_or_archive_baseline_dirty_files": []
     },
     {
       "name": "baseline_inherited_allowlist_explained",
       "status": "PASS",
       "detail": "report explains explicitly allowed inherited baseline files",
       "allowed_inherited_source_test_files": [
-        "reverse_agent/local_reverse_cpp1_signed_transform_recheck.py",
-        "tests/test_local_reverse_cpp1_signed_transform_recheck.py"
+        "reverse_agent/project_gate.py",
+        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
+        "tests/test_project_state.py"
       ]
     },
     {
@@ -195,8 +195,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
-      "command_plan_round_id": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1"
+      "command_plan_decision_id": "decision_20260614_gate_close_round_idempotency_status_policy_rework_v1",
+      "command_plan_round_id": "round_20260614_gate_close_round_idempotency_status_policy_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -204,12 +204,6 @@
       "detail": "command_plan commands cover report and pytest_result tests",
       "missing_report_tests": [],
       "missing_pytest_result_tests": []
-    },
-    {
-      "name": "pytest_result_exit_codes_match_command_plan",
-      "status": "PASS",
-      "detail": "recorded command exit codes match command_plan expected_exit_codes",
-      "errors": []
     },
     {
       "name": "command_plan_json_stdout_full",
@@ -227,8 +221,14 @@
       "name": "close_round_is_last_command_block",
       "status": "PASS",
       "detail": "close-round is the last command block in pytest_result",
-      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
+      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260614_gate_close_round_idempotency_status_policy_rework_v1",
       "last_kind": "close-round"
+    },
+    {
+      "name": "pytest_result_exit_codes_match_command_plan",
+      "status": "PASS",
+      "detail": "recorded command exit codes match command_plan expected_exit_codes",
+      "errors": []
     },
     {
       "name": "report_summary_synthesis_required",
@@ -258,36 +258,32 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "FAIL",
-      "detail": "status policy found blocking issues",
-      "lint_errors": [
-        "50 missing, 0 stale artifacts"
-      ],
+      "status": "PASS",
+      "detail": "SUCCESS report passes lint and doctor",
+      "lint_errors": [],
       "warnings": [],
-      "doctor_status": "WARN",
+      "doctor_status": "PASS",
       "report_status": "SUCCESS",
-      "limitations": null
+      "limitations": [
+        "50 missing historical sample artifacts"
+      ]
     },
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "recorded final-check stdout matches gate_status",
-      "expected_gate_status": "FAILED",
-      "recorded_stdout_status": "FAILED",
-      "conservative_warn_accepted": false
+      "detail": "no recorded final-check stdout status to compare",
+      "required": false
     }
   ],
-  "blocking_reasons": [
-    "status_policy_valid: status policy found blocking issues"
-  ],
+  "blocking_reasons": [],
   "warnings": [],
-  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
+  "recommended_next_action": "no_action_required",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
     "archive_status": "archived",
-    "report_status": "FAILED",
-    "report_acceptance_recommendation": "REWORK_REQUIRED"
+    "report_status": "SUCCESS",
+    "report_acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS"
   }
 }
