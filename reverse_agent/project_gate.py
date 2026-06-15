@@ -1019,6 +1019,7 @@ def _baseline_lifecycle_checks(
     decision_text: str,
     report_text: str,
     state_dir: Path | None = None,
+    current_decision_id: str = "",
 ) -> list[dict[str, Any]]:
     baseline_available = bool(delta_summary.get("baseline_available"))
     baseline_dirty_files = _string_set(delta_summary.get("baseline_dirty_files"))
@@ -1040,10 +1041,15 @@ def _baseline_lifecycle_checks(
 
     # Read close snapshot to determine baseline lifecycle state.
     close_snapshot = _read_round_close_snapshot(state_dir) if state_dir else {}
-    round_closed = bool(close_snapshot and close_snapshot.get("round_closed"))
+    # Only consider the round closed if the close snapshot belongs to the
+    # current decision; stale close snapshots from previous rounds should
+    # not affect the current round's lifecycle checks.
+    snapshot_decision_id = str(close_snapshot.get("decision_id") or "") if close_snapshot else ""
+    snapshot_matches_current = bool(current_decision_id and snapshot_decision_id == current_decision_id)
+    round_closed = bool(close_snapshot and close_snapshot.get("round_closed")) and snapshot_matches_current
     close_worktree_clean = bool(close_snapshot.get("close_worktree_clean")) if close_snapshot else False
     close_dirty_files = _string_set(close_snapshot.get("close_dirty_files")) if close_snapshot else set()
-    close_snapshot_available = bool(close_snapshot)
+    close_snapshot_available = bool(close_snapshot) and snapshot_matches_current
 
     # --- baseline_lifecycle_violation check (before baseline_lifecycle_guard) ---
     baseline_has_untracked_impl = bool(delta_summary.get("baseline_has_untracked_implementation_files"))
@@ -1900,6 +1906,7 @@ def build_report_summary_synthesis(
         decision_text=decision_text,
         report_text=report_text,
         state_dir=state_dir,
+        current_decision_id=decision_id,
     )
     unauthorized_lifecycle_files: set[str] = set()
     for check in lifecycle_checks:
@@ -2377,8 +2384,10 @@ def final_check(
             decision_text=decision_text,
             report_text=report_text,
             state_dir=state_dir,
+            current_decision_id=decision_id,
         )
     )
+
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
     archive_check_status = (
         "PASS" if not missing_archive_artifacts
@@ -2937,6 +2946,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             decision_text=decision_text,
             report_text=report_text,
             state_dir=state_dir,
+            current_decision_id=decision_id,
         )
     )
 

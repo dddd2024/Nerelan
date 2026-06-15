@@ -4043,6 +4043,7 @@ Disallowed:
         # Write close snapshot showing clean worktree
         _write_json(gates_dir / "round_close_snapshot.json", {
             "schema_version": 1,
+            "decision_id": "decision_test",
             "round_closed": True,
             "close_worktree_clean": True,
             "close_dirty_files": [],
@@ -4052,6 +4053,7 @@ Disallowed:
             decision_text=self.DECISION_TEXT,
             report_text="baseline inherited",
             state_dir=state_dir,
+            current_decision_id="decision_test",
         )
         guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
         assert guard_check["status"] == "PASS"
@@ -4069,6 +4071,7 @@ Disallowed:
         # in allowed_inherited).
         _write_json(gates_dir / "round_close_snapshot.json", {
             "schema_version": 1,
+            "decision_id": "decision_test",
             "round_closed": True,
             "close_worktree_clean": False,
             "close_dirty_files": ["reverse_agent/project_gate.py"],
@@ -4080,6 +4083,7 @@ Disallowed:
             decision_text=self.DECISION_TEXT,
             report_text="baseline inherited",
             state_dir=state_dir,
+            current_decision_id="decision_test",
         )
         guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
         assert guard_check["status"] == "FAIL"
@@ -4094,6 +4098,7 @@ Disallowed:
         gates_dir.mkdir()
         _write_json(gates_dir / "round_close_snapshot.json", {
             "schema_version": 1,
+            "decision_id": "decision_test",
             "round_closed": True,
             "close_worktree_clean": False,
             "close_dirty_files": ["reverse_agent/project_gate.py"],
@@ -4103,6 +4108,7 @@ Disallowed:
             decision_text=self.DECISION_TEXT,
             report_text="baseline inherited",
             state_dir=state_dir,
+            current_decision_id="decision_test",
         )
         guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
         assert guard_check["status"] == "PASS"

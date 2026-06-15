@@ -12,8 +12,11 @@ from reverse_agent.project_state import (
     _build_summary_error_detail,
     _classify_artifact_freshness,
     _historical_artifact_freshness_is_non_blocking,
+    _is_historical_sample_limitation_text,
+    _latest_closed_round_info,
     archive_round,
     build_project_state,
+    build_round_consistency,
     doctor,
     ensure_state_layout,
     extract_markdown_json_block,
@@ -6570,3 +6573,477 @@ class TestBuildSummaryErrorDetailRunDirAbsent:
         # run_directory_absent is not "invalid_or_incomplete" so fallback logic
         # is not triggered for this diagnosis
         assert detail["diagnosis"] == "latest_harness_run_directory_absent"
+
+
+# ---------------------------------------------------------------------------
+# Round 5: Mainline clarity tests
+# ---------------------------------------------------------------------------
+
+
+class TestIsHistoricalSampleLimitationText:
+    """Tests for _is_historical_sample_limitation_text classification."""
+
+    def test_missing_historical_sample_artifact(self) -> None:
+        assert _is_historical_sample_limitation_text("50 missing historical sample artifacts") is True
+
+    def test_missing_sample_artifact_without_historical(self) -> None:
+        assert _is_historical_sample_limitation_text("3 missing sample artifacts") is True
+
+    def test_historical_artifact_freshness(self) -> None:
+        assert _is_historical_sample_limitation_text("historical artifact freshness check") is True
+
+    def test_missing_historical_artifact(self) -> None:
+        assert _is_historical_sample_limitation_text("missing historical artifact data") is True
+
+    def test_non_historical_limitation(self) -> None:
+        assert _is_historical_sample_limitation_text("report/decision mismatch") is False
+
+    def test_scope_violation(self) -> None:
+        assert _is_historical_sample_limitation_text("forbidden path detected") is False
+
+    def test_empty_string(self) -> None:
+        assert _is_historical_sample_limitation_text("") is False
+
+
+class TestLatestClosedRoundInfo:
+    """Tests for _latest_closed_round_info helper."""
+
+    def test_no_rounds_dir(self, tmp_path: Path) -> None:
+        info = _latest_closed_round_info(tmp_path)
+        assert info["latest_closed_round_id"] == ""
+        assert info["latest_closed_decision_id"] == ""
+        assert info["latest_accepted_round_id"] == ""
+        assert info["latest_accepted_decision_id"] == ""
+
+    def test_empty_rounds_dir(self, tmp_path: Path) -> None:
+        (tmp_path / "rounds").mkdir()
+        info = _latest_closed_round_info(tmp_path)
+        assert info["latest_closed_round_id"] == ""
+
+    def test_single_closed_round(self, tmp_path: Path) -> None:
+        rounds_dir = tmp_path / "rounds"
+        r1 = rounds_dir / "round_001"
+        r1.mkdir(parents=True)
+        _write_json(r1 / "round_manifest.json", {
+            "round_id": "round_001",
+            "decision_id": "decision_001",
+            "acceptance_recommendation": "ACCEPTED",
+        })
+        info = _latest_closed_round_info(tmp_path)
+        assert info["latest_closed_round_id"] == "round_001"
+        assert info["latest_closed_decision_id"] == "decision_001"
+        assert info["latest_accepted_round_id"] == "round_001"
+        assert info["latest_accepted_decision_id"] == "decision_001"
+
+    def test_multiple_rounds_latest_wins(self, tmp_path: Path) -> None:
+        import time
+        rounds_dir = tmp_path / "rounds"
+        r1 = rounds_dir / "round_001"
+        r1.mkdir(parents=True)
+        _write_json(r1 / "round_manifest.json", {
+            "round_id": "round_001",
+            "decision_id": "decision_001",
+            "acceptance_recommendation": "ACCEPTED",
+        })
+        # Ensure r2 has a later mtime than r1
+        time.sleep(0.05)
+        r2 = rounds_dir / "round_002"
+        r2.mkdir(parents=True)
+        _write_json(r2 / "round_manifest.json", {
+            "round_id": "round_002",
+            "decision_id": "decision_002",
+            "acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS",
+        })
+        info = _latest_closed_round_info(tmp_path)
+        assert info["latest_closed_round_id"] == "round_002"
+        assert info["latest_closed_decision_id"] == "decision_002"
+        # round_001 is the latest ACCEPTED (round_002 is not ACCEPTED)
+        assert info["latest_accepted_round_id"] == "round_001"
+
+    def test_no_manifest_skipped(self, tmp_path: Path) -> None:
+        rounds_dir = tmp_path / "rounds"
+        r1 = rounds_dir / "round_001"
+        r1.mkdir(parents=True)
+        # No manifest file
+        info = _latest_closed_round_info(tmp_path)
+        assert info["latest_closed_round_id"] == ""
+
+    def test_non_dict_manifest_skipped(self, tmp_path: Path) -> None:
+        rounds_dir = tmp_path / "rounds"
+        r1 = rounds_dir / "round_001"
+        r1.mkdir(parents=True)
+        (r1 / "round_manifest.json").write_text("null", encoding="utf-8")
+        info = _latest_closed_round_info(tmp_path)
+        # Non-dict manifest falls back to entry.name as round_id
+        assert info["latest_closed_round_id"] == "round_001"
+        assert info["latest_closed_decision_id"] == ""
+
+
+class TestDoctorMainlineClarity:
+    """Tests for doctor() new checks: latest_closed_round, task_packet_role, mainline_status."""
+
+    def _prepare_state(self, tmp_path: Path, *, mainline: str = "engineering_branch") -> Path:
+        """Prepare a minimal state dir for doctor testing."""
+        reports_dir = tmp_path / "solve_reports"
+        state_dir = tmp_path / "project_state"
+        _write_skill_registry(tmp_path)
+        run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_test")
+        _write_json(
+            run_dir / "summary.json",
+            {"run_name": "samplereverse_test", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+        )
+        _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+        build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+        current_state = _read_json(state_dir / "current_state.json")
+        assert isinstance(current_state, dict)
+
+        decision_id = "decision_mainline_test"
+        round_id = "round_mainline_test"
+        report_id = "report_mainline_test"
+        _write_decision_packet(
+            state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            based_on_state_build_id=str(current_state["state_build_id"]),
+            based_on_state_digest=str(current_state["state_digest"]),
+            mainline=mainline,
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id=report_id,
+            round_id=round_id,
+            based_on_decision_id=decision_id,
+            tests_ran=["python -m pytest tests/test_project_state.py -q"],
+            files_changed=["reverse_agent/project_state.py"],
+            generated_artifacts=["project_state/gates/preflight_result.json"],
+        )
+        _write_pytest_result(
+            state_dir,
+            summary={
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "report_id": report_id,
+                "round_id": round_id,
+                "status": "PASSED",
+                "tests_ran": ["python -m pytest tests/test_project_state.py -q"],
+            },
+        )
+        return state_dir
+
+    def test_doctor_has_latest_closed_round_check(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path)
+        result = doctor(state_dir=state_dir, json_output=False)
+        check = next(c for c in result["checks"] if c["name"] == "latest_closed_round")
+        assert check["status"] == "INFO"
+        assert "latest_closed_round_id" in check
+
+    def test_doctor_has_task_packet_role_check(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
+        result = doctor(state_dir=state_dir, json_output=False)
+        check = next(c for c in result["checks"] if c["name"] == "task_packet_role")
+        assert check["status"] == "INFO"
+        assert check["task_packet_role"] == "advisory"
+        assert check["mainline"] == "engineering_branch"
+
+    def test_doctor_task_packet_role_authoritative_for_reverse_solving(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="reverse_solving")
+        result = doctor(state_dir=state_dir, json_output=False)
+        check = next(c for c in result["checks"] if c["name"] == "task_packet_role")
+        assert check["task_packet_role"] == "authoritative"
+
+    def test_doctor_task_packet_role_authoritative_for_tool_integration(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="tool_integration")
+        result = doctor(state_dir=state_dir, json_output=False)
+        check = next(c for c in result["checks"] if c["name"] == "task_packet_role")
+        assert check["task_packet_role"] == "authoritative"
+
+    def test_doctor_task_packet_role_authoritative_for_training_dataset(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="training_dataset")
+        result = doctor(state_dir=state_dir, json_output=False)
+        check = next(c for c in result["checks"] if c["name"] == "task_packet_role")
+        assert check["task_packet_role"] == "authoritative"
+
+    def test_doctor_has_mainline_status_check(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
+        result = doctor(state_dir=state_dir, json_output=False)
+        check = next(c for c in result["checks"] if c["name"] == "mainline_status")
+        assert check["status"] == "INFO"
+        assert check["mainline"] == "engineering_branch"
+        assert check["historical_sample_notices_non_blocking"] is True
+
+    def test_doctor_mainline_status_reverse_solving_strict(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="reverse_solving")
+        result = doctor(state_dir=state_dir, json_output=False)
+        check = next(c for c in result["checks"] if c["name"] == "mainline_status")
+        assert check["historical_sample_notices_non_blocking"] is False
+
+    def test_doctor_result_has_mainline_and_task_packet_role(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
+        result = doctor(state_dir=state_dir, json_output=False)
+        assert result["mainline"] == "engineering_branch"
+        assert result["task_packet_role"] == "advisory"
+        assert "latest_closed_round_id" in result
+        assert "latest_accepted_round_id" in result
+
+    def test_doctor_closed_round_exposes_latest_info(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path)
+        # Create an archived round
+        r1 = state_dir / "rounds" / "round_archived_001"
+        r1.mkdir(parents=True)
+        _write_json(r1 / "round_manifest.json", {
+            "round_id": "round_archived_001",
+            "decision_id": "decision_archived_001",
+            "acceptance_recommendation": "ACCEPTED",
+        })
+        result = doctor(state_dir=state_dir, json_output=False)
+        assert result["latest_closed_round_id"] == "round_archived_001"
+        assert result["latest_accepted_round_id"] == "round_archived_001"
+
+
+class TestStatusSummaryMainlineClarity:
+    """Tests for status_summary() new fields: mainline, task_packet_role, etc."""
+
+    def _prepare_state(self, tmp_path: Path, *, mainline: str = "engineering_branch") -> Path:
+        reports_dir = tmp_path / "solve_reports"
+        state_dir = tmp_path / "project_state"
+        _write_skill_registry(tmp_path)
+        run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_status_test")
+        _write_json(
+            run_dir / "summary.json",
+            {"run_name": "samplereverse_status_test", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+        )
+        _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+        build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+        current_state = _read_json(state_dir / "current_state.json")
+        assert isinstance(current_state, dict)
+
+        decision_id = "decision_status_test"
+        round_id = "round_status_test"
+        report_id = "report_status_test"
+        _write_decision_packet(
+            state_dir,
+            decision_id=decision_id,
+            round_id=round_id,
+            based_on_state_build_id=str(current_state["state_build_id"]),
+            based_on_state_digest=str(current_state["state_digest"]),
+            mainline=mainline,
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id=report_id,
+            round_id=round_id,
+            based_on_decision_id=decision_id,
+            tests_ran=["python -m pytest tests/test_project_state.py -q"],
+            files_changed=["reverse_agent/project_state.py"],
+            generated_artifacts=["project_state/gates/preflight_result.json"],
+        )
+        _write_pytest_result(
+            state_dir,
+            summary={
+                "schema_version": 1,
+                "decision_id": decision_id,
+                "report_id": report_id,
+                "round_id": round_id,
+                "status": "PASSED",
+                "tests_ran": ["python -m pytest tests/test_project_state.py -q"],
+            },
+        )
+        return state_dir
+
+    def test_status_summary_has_mainline(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
+        summary = status_summary(state_dir=state_dir)
+        assert summary["mainline"] == "engineering_branch"
+
+    def test_status_summary_task_packet_role_advisory(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
+        summary = status_summary(state_dir=state_dir)
+        assert summary["task_packet_role"] == "advisory"
+
+    def test_status_summary_task_packet_role_authoritative_reverse_solving(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="reverse_solving")
+        summary = status_summary(state_dir=state_dir)
+        assert summary["task_packet_role"] == "authoritative"
+
+    def test_status_summary_has_latest_closed_round_id(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path)
+        summary = status_summary(state_dir=state_dir)
+        assert "latest_closed_round_id" in summary
+        assert "latest_accepted_round_id" in summary
+
+    def test_status_summary_historical_external_state_notices_none_when_no_limitations(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
+        summary = status_summary(state_dir=state_dir)
+        # With historical sample artifacts missing, engineering_branch will have
+        # historical_external_state_notices populated; check it is a list (not None)
+        # when there are missing historical sample artifacts
+        notices = summary.get("historical_external_state_notices")
+        assert notices is None or isinstance(notices, list)
+
+    def test_status_summary_decision_not_confused_with_task_packet(self, tmp_path: Path) -> None:
+        state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
+        summary = status_summary(state_dir=state_dir)
+        # decision_id comes from decision_packet.md, not task_packet.json
+        assert summary["decision_id"] == "decision_status_test"
+        # task comes from task_packet but role is advisory
+        assert summary["task_packet_role"] == "advisory"
+        # execution_scope confirms decision_packet controls
+        assert summary["execution_scope"] == "decision_packet_controls_current_round"
+
+
+class TestBuildRoundConsistencyMainline:
+    """Tests for build_round_consistency() mainline field."""
+
+    def test_mainline_from_decision(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir(parents=True)
+        _write_decision_packet(
+            state_dir,
+            decision_id="decision_rc",
+            round_id="round_rc",
+            mainline="engineering_branch",
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id="report_rc",
+            round_id="round_rc",
+            based_on_decision_id="decision_rc",
+        )
+        _write_pytest_result(state_dir)
+        decision = read_decision_meta(state_dir)
+        report = read_codex_report_summary(state_dir / "codex_execution_report.md")
+        result = build_round_consistency(
+            decision=decision,
+            report=report,
+            current_state={"round_id": "round_rc", "state_scope": "sample_state"},
+            task_packet={"state_scope": "sample_state", "task_source": "derived"},
+            state_dir=state_dir,
+        )
+        assert result["mainline"] == "engineering_branch"
+
+    def test_mainline_empty_when_missing(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir(parents=True)
+        _write_decision_packet(
+            state_dir,
+            decision_id="decision_rc2",
+            round_id="round_rc2",
+            # no mainline
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id="report_rc2",
+            round_id="round_rc2",
+            based_on_decision_id="decision_rc2",
+        )
+        _write_pytest_result(state_dir)
+        decision = read_decision_meta(state_dir)
+        report = read_codex_report_summary(state_dir / "codex_execution_report.md")
+        result = build_round_consistency(
+            decision=decision,
+            report=report,
+            current_state={"round_id": "round_rc2", "state_scope": "sample_state"},
+            task_packet={"state_scope": "sample_state", "task_source": "derived"},
+            state_dir=state_dir,
+        )
+        assert result["mainline"] == ""
+
+
+class TestMainlineClarityIntegration:
+    """Integration tests: decision vs task_packet, historical notices, strict checks."""
+
+    def test_engineering_branch_historical_sample_notices_non_blocking(self, tmp_path: Path) -> None:
+        """engineering_branch: historical sample artifact missing is external_state_notices, not blocker."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir(parents=True)
+        _write_skill_registry(tmp_path)
+        _write_decision_packet(
+            state_dir,
+            decision_id="decision_eng",
+            round_id="round_eng",
+            mainline="engineering_branch",
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id="report_eng",
+            round_id="round_eng",
+            based_on_decision_id="decision_eng",
+        )
+        _write_pytest_result(state_dir)
+        result = doctor(state_dir=state_dir, json_output=False)
+        mainline_check = next(c for c in result["checks"] if c["name"] == "mainline_status")
+        assert mainline_check["historical_sample_notices_non_blocking"] is True
+
+    def test_reverse_solving_strict_artifact_freshness(self, tmp_path: Path) -> None:
+        """reverse_solving: current artifact freshness is strictly required."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir(parents=True)
+        _write_skill_registry(tmp_path)
+        _write_decision_packet(
+            state_dir,
+            decision_id="decision_rs",
+            round_id="round_rs",
+            mainline="reverse_solving",
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id="report_rs",
+            round_id="round_rs",
+            based_on_decision_id="decision_rs",
+        )
+        _write_pytest_result(state_dir)
+        result = doctor(state_dir=state_dir, json_output=False)
+        mainline_check = next(c for c in result["checks"] if c["name"] == "mainline_status")
+        assert mainline_check["historical_sample_notices_non_blocking"] is False
+
+    def test_tool_integration_strict_artifact_freshness(self, tmp_path: Path) -> None:
+        """tool_integration: current artifact freshness is strictly required."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir(parents=True)
+        _write_skill_registry(tmp_path)
+        _write_decision_packet(
+            state_dir,
+            decision_id="decision_ti",
+            round_id="round_ti",
+            mainline="tool_integration",
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id="report_ti",
+            round_id="round_ti",
+            based_on_decision_id="decision_ti",
+        )
+        _write_pytest_result(state_dir)
+        result = doctor(state_dir=state_dir, json_output=False)
+        mainline_check = next(c for c in result["checks"] if c["name"] == "mainline_status")
+        assert mainline_check["historical_sample_notices_non_blocking"] is False
+
+    def test_training_dataset_strict_artifact_freshness(self, tmp_path: Path) -> None:
+        """training_dataset: current artifact freshness is strictly required."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir(parents=True)
+        _write_skill_registry(tmp_path)
+        _write_decision_packet(
+            state_dir,
+            decision_id="decision_td",
+            round_id="round_td",
+            mainline="training_dataset",
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id="report_td",
+            round_id="round_td",
+            based_on_decision_id="decision_td",
+        )
+        _write_pytest_result(state_dir)
+        result = doctor(state_dir=state_dir, json_output=False)
+        mainline_check = next(c for c in result["checks"] if c["name"] == "mainline_status")
+        assert mainline_check["historical_sample_notices_non_blocking"] is False

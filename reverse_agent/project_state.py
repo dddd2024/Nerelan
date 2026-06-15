@@ -1621,6 +1621,65 @@ def classify_round_archive(*, manifest: dict[str, Any], manifest_present: bool) 
     }
 
 
+def _latest_closed_round_info(state_dir: Path) -> dict[str, str]:
+    """Scan rounds/ directory for the latest closed/accepted round info.
+
+    Returns a dict with:
+      - latest_closed_round_id: round_id of the most recent archived round
+      - latest_closed_decision_id: decision_id of that round
+      - latest_accepted_round_id: round_id of the most recent ACCEPTED round
+      - latest_accepted_decision_id: decision_id of that round
+
+    Empty strings if no rounds found.
+    """
+    rounds_dir = state_dir / "rounds"
+    if not rounds_dir.is_dir():
+        return {
+            "latest_closed_round_id": "",
+            "latest_closed_decision_id": "",
+            "latest_accepted_round_id": "",
+            "latest_accepted_decision_id": "",
+        }
+
+    latest_closed_round_id = ""
+    latest_closed_decision_id = ""
+    latest_accepted_round_id = ""
+    latest_accepted_decision_id = ""
+    latest_closed_mtime = 0.0
+    latest_accepted_mtime = 0.0
+
+    for entry in rounds_dir.iterdir():
+        if not entry.is_dir():
+            continue
+        manifest_path = entry / ARCHIVE_MANIFEST_NAME
+        if not manifest_path.exists():
+            continue
+        manifest = _read_json(manifest_path)
+        if not isinstance(manifest, dict):
+            continue
+        round_id = str(manifest.get("round_id") or entry.name)
+        decision_id = str(manifest.get("decision_id") or "")
+        acceptance = str(manifest.get("acceptance_recommendation") or "")
+        mtime = _safe_mtime(manifest_path)
+
+        if mtime > latest_closed_mtime:
+            latest_closed_mtime = mtime
+            latest_closed_round_id = round_id
+            latest_closed_decision_id = decision_id
+
+        if acceptance == "ACCEPTED" and mtime > latest_accepted_mtime:
+            latest_accepted_mtime = mtime
+            latest_accepted_round_id = round_id
+            latest_accepted_decision_id = decision_id
+
+    return {
+        "latest_closed_round_id": latest_closed_round_id,
+        "latest_closed_decision_id": latest_closed_decision_id,
+        "latest_accepted_round_id": latest_accepted_round_id,
+        "latest_accepted_decision_id": latest_accepted_decision_id,
+    }
+
+
 def build_round_consistency(
     *,
     decision: dict[str, Any],
@@ -1680,6 +1739,7 @@ def build_round_consistency(
         "report_decision_round_id_match": report_decision_round_id_match,
         "report_current_state_round_relation": report_current_state_round_relation,
         "round_manifest_path": _path_for_json(manifest_path) if manifest_path is not None else "",
+        "mainline": str(decision.get("mainline") or ""),
         **archive,
     }
 
@@ -2163,6 +2223,58 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
         })
         overall_status = "FAIL"
 
+    # Check 10: latest closed/accepted round
+    closed_round_info = _latest_closed_round_info(state_dir)
+    latest_closed_round_id = closed_round_info["latest_closed_round_id"]
+    latest_accepted_round_id = closed_round_info["latest_accepted_round_id"]
+    if latest_closed_round_id:
+        detail_parts = [f"latest closed round: {latest_closed_round_id}"]
+        if latest_accepted_round_id:
+            detail_parts.append(f"latest accepted round: {latest_accepted_round_id}")
+        checks.append({
+            "name": "latest_closed_round",
+            "status": "INFO",
+            "detail": "; ".join(detail_parts),
+            "latest_closed_round_id": latest_closed_round_id,
+            "latest_closed_decision_id": closed_round_info["latest_closed_decision_id"],
+            "latest_accepted_round_id": latest_accepted_round_id,
+            "latest_accepted_decision_id": closed_round_info["latest_accepted_decision_id"],
+        })
+    else:
+        checks.append({
+            "name": "latest_closed_round",
+            "status": "INFO",
+            "detail": "no closed rounds found",
+            "latest_closed_round_id": "",
+            "latest_accepted_round_id": "",
+        })
+
+    # Check 11: task_packet role classification
+    task_packet_role = "advisory"
+    if mainline in {"reverse_solving", "tool_integration", "training_dataset"}:
+        task_packet_role = "authoritative"
+    checks.append({
+        "name": "task_packet_role",
+        "status": "INFO",
+        "detail": f"task_packet.json is {task_packet_role} for mainline={mainline}",
+        "task_packet_role": task_packet_role,
+        "mainline": mainline,
+    })
+
+    # Check 12: mainline status summary
+    mainline_status_detail = f"current mainline: {mainline}"
+    if mainline == "engineering_branch":
+        mainline_status_detail += "; historical sample artifacts are external_state_notices, not blockers"
+    elif mainline in {"reverse_solving", "tool_integration", "training_dataset"}:
+        mainline_status_detail += "; current artifact freshness is strictly required"
+    checks.append({
+        "name": "mainline_status",
+        "status": "INFO",
+        "detail": mainline_status_detail,
+        "mainline": mainline,
+        "historical_sample_notices_non_blocking": mainline == "engineering_branch",
+    })
+
     if overall_status == "FAIL":
         next_action = "fix_project_state_issues"
 
@@ -2173,6 +2285,10 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
         "decision_id": decision_id,
         "report_id": report_id,
         "decision_execution_state": decision_execution_state,
+        "mainline": mainline,
+        "latest_closed_round_id": latest_closed_round_id,
+        "latest_accepted_round_id": latest_accepted_round_id,
+        "task_packet_role": task_packet_role,
         "artifact_freshness": artifact_classification,
         "state_package_classification": state_package_classification,
     }
@@ -2668,6 +2784,17 @@ def _artifact_metadata_entry(
         "sha256": _sha256_file(path),
         "freshness": _artifact_freshness(path, reports_dir=reports_dir, latest_run=latest_run),
     }
+
+
+def _is_historical_sample_limitation_text(text: str) -> bool:
+    """Return True if the text refers to historical sample artifact missing/stale."""
+    lowered = text.lower()
+    return bool(
+        re.search(r"\d+\s+missing\s+(historical\s+)?sample\s+artifact", lowered)
+        or re.search(r"historical\s+sample\s+artifact", lowered)
+        or re.search(r"missing.*historical.*artifact", lowered)
+        or re.search(r"historical\s+artifact\s+freshness", lowered)
+    )
 
 
 def _artifact_freshness_counts(artifact_index: dict[str, Any]) -> dict[str, int]:
@@ -6202,8 +6329,22 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         decision=decision,
         report=codex_report,
     )
+    mainline = str(decision.get("mainline") or "")
+    closed_round_info = _latest_closed_round_info(state_dir)
+    task_packet_role = "advisory"
+    if mainline in {"reverse_solving", "tool_integration", "training_dataset"}:
+        task_packet_role = "authoritative"
+    historical_external_state_notices: list[str] = []
+    if artifact_freshness_classification.get("limitations"):
+        for lim in artifact_freshness_classification["limitations"]:
+            if mainline == "engineering_branch" and _is_historical_sample_limitation_text(lim):
+                historical_external_state_notices.append(lim)
     return {
         "state_dir": _path_for_json(state_dir),
+        "mainline": mainline,
+        "task_packet_role": task_packet_role,
+        "latest_closed_round_id": closed_round_info["latest_closed_round_id"],
+        "latest_accepted_round_id": closed_round_info["latest_accepted_round_id"],
         "latest_harness_run": artifact_index.get("latest_harness_run"),
         "missing": artifact_index.get("missing", []),
         "artifact_freshness": artifact_freshness,
@@ -6251,12 +6392,17 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
         "decision_consumed_by_report": handoff_consistency.get("decision_consumed_by_report"),
         "decision_execution_state": handoff_consistency.get("decision_execution_state"),
         "decision_ready_for_execution": handoff_consistency.get("decision_ready_for_execution"),
+        "historical_external_state_notices": historical_external_state_notices if historical_external_state_notices else None,
         **round_consistency,
     }
 
 
 def _print_status(summary: dict[str, Any]) -> None:
     print(f"state_dir: {summary.get('state_dir')}")
+    print(f"mainline: {summary.get('mainline')}")
+    print(f"task_packet_role: {summary.get('task_packet_role')}")
+    print(f"latest_closed_round_id: {summary.get('latest_closed_round_id')}")
+    print(f"latest_accepted_round_id: {summary.get('latest_accepted_round_id')}")
     print(f"latest_harness_run: {summary.get('latest_harness_run')}")
     print(f"missing: {summary.get('missing')}")
     print(f"artifact_freshness: {summary.get('artifact_freshness')}")
@@ -6321,6 +6467,9 @@ def _print_status(summary: dict[str, Any]) -> None:
         "round_manifest_required_files_missing: "
         f"{summary.get('round_manifest_required_files_missing')}"
     )
+    notices = summary.get("historical_external_state_notices")
+    if notices:
+        print(f"historical_external_state_notices: {notices}")
 
 
 def _print_lint_decision(result: dict[str, Any]) -> None:
