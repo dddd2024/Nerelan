@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260615_project_gate_baseline_lifecycle_v1",
-  "round_id": "round_20260615_project_gate_baseline_lifecycle_v1",
+  "decision_id": "decision_20260615_project_gate_mainline_status_policy_v1",
+  "round_id": "round_20260615_project_gate_mainline_status_policy_v1",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
@@ -15,15 +15,16 @@
 
 ## 1. Goal
 
-本轮继续 `engineering_branch`，只修复 project gate 的 round baseline 生命周期语义，不推进样本求解、不继续扩大 `run-round --execute`、不做新的调度系统。
+本轮继续 `engineering_branch`，只修复 project gate 的 status policy 主线作用域问题，不推进样本求解、不继续扩大 `run-round --execute`、不做新的调度系统。
 
-目标是解决上一轮暴露的 baseline 残留问题：`preflight` 在当前 round 已有 baseline 时不会重新捕获，这是正确的；但 `close-round` 归档后没有写入“关闭快照 / baseline inactive”语义，导致旧 baseline 的 `dirty_files` 可能在 round 已关闭或工作区已变干净后仍被后续 gate 当作 active inherited dirty source，从而产生长期 `PASSED_WITH_LIMITATIONS` 噪声。
+目标是解决当前最后一个门禁噪声：在工程主线 round 已经无 blocking_reasons、无 gate warnings、report-summary 已 PASSED、baseline lifecycle 已闭环的情况下，final gate 仍因为历史样本 artifact 缺失显示 `PASSED_WITH_LIMITATIONS`。这些历史样本 artifact 缺失来自旧 `samplereverse` / artifact_index 压缩状态，不是当前 `engineering_branch` decision 的 current evidence，也不是本轮工程改动的验收依据。
 
-本轮要实现的是 baseline lifecycle 闭环，而不是覆盖原始 baseline：
+本轮要实现主线感知的 status policy：
 
-1. 保留原始 `round_baseline.json` 作为“本轮开始前状态”的审计证据，不清空、不覆盖、不重捕获。
-2. 在 `close-round` 阶段写入独立的 round close snapshot / lifecycle artifact，记录 close 时的 git 状态和 baseline 是否仍 active。
-3. 让 `final-check` / `report-summary` 区分 active baseline 与 closed baseline：round 已 closed/archived 后，不再把旧 baseline 的 dirty files 直接当成 active inherited dirty warning；只有 close snapshot 显示 close 时仍 dirty 且未解释时才继续 warning。
+1. 对 `engineering_branch`，历史样本 artifact 缺失只能作为 external state notice / historical context，不应导致当前工程 round 被降级为 `PASSED_WITH_LIMITATIONS`。
+2. 对 `reverse_solving`、`tool_integration`、`training_dataset`，如果 decision 当前依赖样本 artifact、工具 artifact、训练 inventory 或 current evidence，缺失仍应保留为 warning / limitation / blocking reason，不得被全局忽略。
+3. final-check、report-summary synthesis、lint-report / status policy 的结论应一致：当工程 round 只有历史样本缺失这一类外部限制时，允许 gate_status 变为 `PASSED`，recommended_next_action 仍为 `no_action_required`。
+4. 保留历史样本缺失的可见性：可以记录为 `external_state_notices`、`historical_limitations_ignored_for_mainline` 或等价字段，但不得伪装为已修复样本 artifact。
 
 ## 2. Current Evidence
 
@@ -33,22 +34,26 @@
 
 `negative_results.json` 中的失败方向仍约束样本求解路径：旧 `sample_solver` blind search、只扩 beam/budget、`compare_semantics_agree=false` frontier、提交完整 `solve_reports`、重复 cpp1 printable inverse path 等。本轮不触碰这些方向。
 
-上一轮 `decision_20260615_project_gate_noise_reduction_v1` 已被 `codex_report_20260615_project_gate_noise_reduction_v1` 消费，报告状态 `SUCCESS`，建议 `ACCEPTED_WITH_LIMITATIONS`。报告说明 command extraction noise reduction 和 report-summary files_changed alignment 已完成。
+上一轮 `decision_20260615_project_gate_baseline_lifecycle_v1` 已被 `codex_report_20260615_project_gate_baseline_lifecycle_v1` 消费，报告状态 `SUCCESS`，建议 `ACCEPTED_WITH_LIMITATIONS`。
 
-上一轮 `pytest_result.txt` 显示 `command-plan` 已降为 15 条，只有明确要求的 `python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json`，不再抽取 bare `python -m reverse_agent.project_gate run-round`。
+上一轮已完成 baseline lifecycle closure：
 
-上一轮 `final_gate_result.json` 显示：
+- `project_state/gates/round_close_snapshot.json` 已生成。
+- `round_closed=true`。
+- `baseline_active=false`。
+- `final-check` 中 `files_changed_excludes_inherited_dirty_files=PASS`。
+- `baseline_lifecycle_guard=PASS`。
+- `report_summary_fields_match_synthesis=PASS`。
+- `report_summary_status_source_available=PASS`。
+- `blocking_reasons=[]`。
+- `warnings=[]`。
 
-- `report_summary_fields_match_synthesis` 已为 PASS，`diffs=[]`。
-- `blocking_reasons=[]`，`recommended_next_action=no_action_required`。
-- 剩余 warnings 主要是 `files_changed_excludes_inherited_dirty_files` 和 `report_summary_status_source_available`，源头仍是 inherited baseline dirty files：`reverse_agent/project_gate.py`、`tests/test_project_gate.py`。
-
-这说明 `_allowed_inherited_files` 修复已解决 synthesis 对齐问题，但 baseline lifecycle 还未闭环。继续在 report-summary 层做对症补丁意义有限；下一步应处理 close-round 后 baseline active/closed 语义。
+上一轮 final gate 仍为 `PASSED_WITH_LIMITATIONS`，唯一可见限制是 `status_policy_valid` 中的 `limitations=["50 missing historical sample artifacts"]`。这说明剩余问题不是 baseline lifecycle，也不是 command-plan/report-summary mismatch，而是 status policy 对历史样本状态缺少 mainline scoping。
 
 当前相关实现集中在：
 
-- `reverse_agent/project_gate.py`：`_capture_round_baseline()`、`_build_round_delta_summary()`、`_round_delta_checks()`、`build_report_summary_synthesis()`、`final_check()`、`close_round()`。
-- `tests/test_project_gate.py`：已有 preflight、round baseline/delta、report-summary、final-check、close-round 测试，可扩展覆盖 baseline lifecycle。
+- `reverse_agent/project_gate.py`：`status_summary()` usage, `final_check()`, status policy checks, `_status_policy_failure_is_historical_artifacts_only()`, `_patch_gate_result_historical_artifacts()`, `build_report_summary_synthesis()`, report acceptance recommendation synthesis.
+- `tests/test_project_gate.py`：已有 final-check、report-summary、close-round、baseline lifecycle、status policy 相关测试，可扩展覆盖 mainline-scoped historical limitations。
 
 `.codex-skills/registry.json` 中 `reverse-agent-iteration` 为 active，version=2，可继续作为本轮 skill profile。
 
@@ -72,11 +77,11 @@
 
 不要在 live `project_state` 上执行 `python -m reverse_agent.project_gate run-round --state-dir project_state --execute`。
 
-不要通过重捕获、清空、覆盖或删除 `round_baseline.json` 来消除 warning。原始 baseline 必须作为审计证据保留。
+不要通过删除、伪造、清空 `artifact_index.json` 或历史 sample state 来消除 `50 missing historical sample artifacts`。
 
-不要把 baseline lifecycle 修成“总是忽略 inherited dirty files”。round 仍 active 或 close snapshot 显示仍 dirty 时，仍应保留真实 warning。
+不要把 historical sample missing artifacts 全局忽略。`reverse_solving`、`tool_integration`、`training_dataset` 仍需要严格检查 current artifact freshness。
 
-不要通过删除 source/test 文件记录来消除 `files_changed` warning；应修复 baseline active/closed 语义。
+不要为了得到 `PASSED` 而放宽真实 blocking_reasons、scope violations、report/decision mismatch、pytest mismatch、command-plan mismatch、baseline lifecycle failures。
 
 不要引入数据库、队列、workflow engine、后台任务、GitHub Actions 或重型调度系统。
 
@@ -100,12 +105,12 @@ Must inspect implementation files:
 
 May bounded-read, only for current evidence / compatibility checks:
 
-- `project_state/gates/round_baseline.json`
-- `project_state/gates/round_delta_summary.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/round_close_snapshot.json`
+- `project_state/gates/round_delta_summary.json`
 - `project_state/gates/command_plan.json`
-- `project_state/rounds/round_20260615_project_gate_noise_reduction_v1/round_manifest.json`
+- `project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/round_manifest.json`
 
 Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -128,37 +133,29 @@ Before changing code, verify:
 1. `decision_meta` is parseable, `status=APPROVED`, `mainline=engineering_branch`。
 2. `reverse-agent-iteration@v2` exists and is active in `.codex-skills/registry.json`。
 3. Current `decision_packet.md` is the execution authority; `task_packet.json` is advisory only。
-4. Previous noise-reduction report is consumed by a SUCCESS report with ACCEPTED_WITH_LIMITATIONS。
-5. Previous command-plan noise and report-summary mismatch are fixed: 15 commands, no bare `run-round`, `report_summary_fields_match_synthesis=PASS`。
-6. Remaining warning source is baseline lifecycle, specifically active use of inherited baseline dirty files after close/archive semantics are available.
+4. Previous baseline-lifecycle report is consumed by a SUCCESS report with ACCEPTED_WITH_LIMITATIONS。
+5. Previous baseline lifecycle issue is fixed: close snapshot exists, `baseline_active=false`, report-summary synthesis PASSED, final gate warnings empty。
+6. Remaining limitation is historical sample artifacts only, visible as `50 missing historical sample artifacts` under status policy limitations。
 
 Required implementation audit:
 
-- Preserve `_capture_round_baseline()` behavior: if current round already has matching baseline, do not recapture or overwrite it.
-- Add an explicit close snapshot / lifecycle artifact, for example `project_state/gates/round_close_snapshot.json` or equivalent, written during `close-round`.
-- The close snapshot must include at least:
-  - `schema_version`
-  - `artifact_name`
-  - `decision_id`
-  - `round_id`
-  - `closed_at`
-  - `round_closed: true`
-  - `baseline_active: false`
-  - `close_git_status_short`
-  - `close_git_diff_name_only`
-  - `close_dirty_files`
-  - `close_worktree_clean`
-  - `baseline_dirty_files`
-  - `inherited_dirty_files_at_close`
-  - `recommended_next_action`
-- `round_baseline.json` must remain unchanged as original start snapshot. Do not mutate it to fake a clean baseline.
-- Update round delta / final-check / report-summary logic to prefer close snapshot semantics when the requested round is closed/archived.
-- For an active round without close snapshot, existing inherited dirty warning behavior must remain.
-- For a closed/archived round with close snapshot and `close_worktree_clean=true`, do not warn solely because original baseline had dirty files.
-- For a closed/archived round with close snapshot and `close_worktree_clean=false`, warn based on `close_dirty_files`, not only on stale `baseline_dirty_files`.
-- If close snapshot is missing for an archived round, keep a conservative warning explaining that baseline lifecycle state is unknown.
-- Add tests proving baseline is preserved, close snapshot is written, and final-check/report-summary distinguish active baseline from closed baseline.
-- Preserve detection of real scope violations and real source/test dirty files. Do not make final-check always pass.
+- Identify where `50 missing historical sample artifacts` is derived and how it flows into:
+  - `status_policy_valid`
+  - final gate `gate_status`
+  - report-summary synthesis `limitations`
+  - report acceptance recommendation synthesis
+- Add a mainline-aware classification for historical sample artifact limitations.
+- For `engineering_branch`, if historical sample artifact missing is not referenced by the current decision's Files To Inspect / Implementation Scope / Tests / Current Evidence as required current evidence, classify it as non-blocking external state notice.
+- For `engineering_branch`, when there are no blocking reasons and no warnings besides historical sample artifact limitations, final gate should be allowed to return `PASSED` rather than `PASSED_WITH_LIMITATIONS`.
+- Preserve visibility by emitting structured data such as:
+  - `external_state_notices`
+  - `ignored_historical_limitations`
+  - `mainline_scoped_limitations`
+  - or equivalent field in final gate / report-summary output.
+- For `reverse_solving`, `tool_integration`, and `training_dataset`, missing current artifacts must remain warnings/limitations or blocking reasons according to existing freshness and decision evidence rules.
+- If a future engineering decision explicitly lists sample artifacts as current required evidence, do not ignore those missing artifacts.
+- Do not mutate `artifact_index.json` as part of the fix.
+- Do not hide actual project_state schema errors, report/decision mismatch, pytest mismatch, command-plan mismatch, baseline lifecycle failures, forbidden paths, or scope violations.
 
 ## 6. Implementation Scope
 
@@ -182,20 +179,21 @@ Allowed generated files:
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/run_round_result.json`
 - `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/*`
+- `project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/*`
 
 Disallowed:
 
 - `.codex-skills/`
 - `solve_reports/`
 - `PROJECT_PROGRESS_LOG.txt`
+- `project_state/artifact_index.json`
 - `reverse_agent/strategies/`
 - `reverse_agent/transforms/`
 - `reverse_agent/ida_scripts/`
 - `reverse_agent/olly_scripts/`
 - `reverse_agent/probes/`
 - `reverse_agent/project_state.py` unless a blocking test proves `project_gate.py` cannot own the fix
-- solver / harness / sample-specific modules unrelated to project gate baseline lifecycle
+- solver / harness / sample-specific modules unrelated to project gate status policy scoping
 
 ## 7. Tests
 
@@ -218,19 +216,19 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_gate_baseline_lifecycle_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_gate_mainline_status_policy_v1
 ```
 
 Unit test requirements:
 
-- Test preflight does not recapture or overwrite an existing matching `round_baseline.json`.
-- Test close-round writes a close snapshot / lifecycle artifact with required fields.
-- Test original `round_baseline.json` remains unchanged after close-round.
-- Test final-check for active round still warns when `files_changed` includes inherited dirty source/test files.
-- Test final-check for closed/archived round with `close_worktree_clean=true` does not warn solely from stale baseline dirty files.
-- Test final-check for closed/archived round with `close_worktree_clean=false` warns based on close snapshot dirty files.
-- Test report-summary synthesis uses close snapshot semantics and does not reintroduce `report_summary_fields_match_synthesis` false warnings.
-- Test real scope violations or unallowed inherited dirty files still produce warnings/failures.
+- Test engineering_branch final-check treats historical sample artifact missing as external state notice when not required by the current decision.
+- Test engineering_branch final-check can return `PASSED` when the only previous limitation is historical sample artifact missing and all gate checks pass.
+- Test report-summary synthesis for engineering_branch does not synthesize `ACCEPTED_WITH_LIMITATIONS` solely from historical sample artifact missing.
+- Test external/historical limitations remain visible in structured output.
+- Test reverse_solving does not ignore missing current sample artifacts.
+- Test tool_integration / training_dataset or capability mainline does not globally ignore missing current tool/sample/inventory artifacts.
+- Test explicit engineering decision references to sample artifacts as required current evidence preserve warning/limitation behavior.
+- Test real failures still fail: report/decision mismatch, pytest mismatch, forbidden paths, command-plan mismatch, baseline lifecycle failure.
 
 ## 8. Stop Conditions
 
@@ -244,9 +242,11 @@ If there are inherited dirty source/test files outside allowed scope, stop or re
 
 If implementing this requires changing solver, strategy, harness runtime, IDA/Ghidra/debugger, or sample-specific code, stop and report `BLOCKED`。
 
-If the only possible implementation is to overwrite or delete `round_baseline.json`, stop and report `REWORK_REQUIRED`。
+If the only possible implementation is to edit or remove historical sample artifact entries from `artifact_index.json`, stop and report `REWORK_REQUIRED`。
 
-If closed baseline semantics can only be achieved by ignoring all inherited dirty files, stop and report `REWORK_REQUIRED`。
+If status policy scoping can only be achieved by ignoring all limitations globally, stop and report `REWORK_REQUIRED`。
+
+If `reverse_solving` missing current artifact checks would be weakened, stop and report `REWORK_REQUIRED`。
 
 If live validation would require `run-round --execute`, stop; live command must remain `run-round --dry-run --json`。
 
