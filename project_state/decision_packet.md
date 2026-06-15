@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260615_baseline_report_negation_guard_rework_v1",
-  "round_id": "round_20260615_baseline_report_negation_guard_rework_v1",
+  "decision_id": "decision_20260615_baseline_report_negation_guard_rework_v2",
+  "round_id": "round_20260615_baseline_report_negation_guard_rework_v2",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
@@ -15,32 +15,41 @@
 
 ## 1. Goal
 
-修复 baseline inherited dirty report explanation 的否定语义漏检。
+修复 baseline report negation guard 的残留漏洞。
 
-当前 gate 只检查报告文本是否同时包含 `baseline` 和 `inherited`，这会把 `No inherited baseline dirty files` 错误识别为“已解释 inherited baseline files”。
+上一轮新增了 `_NEGATION_PHRASES`，但 `_report_explains_inherited_baseline_files()` 没有实际使用该 tuple。当前 helper 只检查 `Allowed Inherited Dirty Baseline Files` section 是否含列表项，因此如果 report 同时包含 allowlist section 和否定句，仍可能误判为解释有效。
 
 本轮目标：
 
-1. 报告中出现 `no inherited baseline dirty files`、`no inherited dirty files`、`working tree was clean`、`no baseline dirty files` 等否定性描述时，不能视为 allowlist explanation。
-2. 如果 `baseline_dirty_files` / `inherited_dirty_files` 中存在显式 allowed source/test files，而报告使用否定描述，应产生 `WARN` 或 `FAIL`。
-3. 保留上一轮已完成的显式 allowlist 机制：Implementation Scope 内文件不能自动变成 inherited dirty allowlist。
-4. 保留 artifact freshness strictness：只有 `engineering_branch` 可把 historical sample missing/stale artifacts 作为 non-blocking external state notices。
+1. `_report_explains_inherited_baseline_files()` 必须实际使用 `_NEGATION_PHRASES`。
+2. 如果 report 任意位置出现明确否定性 dirty/baseline/inherited 描述，应返回 `False`，除非该否定句位于测试说明/decision 引用等明确非报告结论区域；不要做复杂 NLP，保守处理即可。
+3. 至少拒绝：
+   - `no inherited baseline dirty files`
+   - `no inherited dirty files`
+   - `no baseline dirty files`
+   - `working tree was clean`
+   - `working tree clean`
+   - `no dirty files at round start`
+4. 覆盖“有 allowlist section + 有列表项 + 其他位置出现否定句”的冲突场景。
+5. 保留显式 allowlist 机制：Implementation Scope 内文件不能自动变成 inherited dirty allowlist。
+6. 保留 artifact freshness strictness：只有 `engineering_branch` 可把 historical sample missing/stale artifacts 作为 non-blocking external state notices。
 
 ## 2. Current Evidence
 
-上一轮已完成：
+当前已完成：
 
-- `_allowed_inherited_files()` 只读取 `Allowed Inherited Dirty Baseline Files`；
-- `_baseline_lifecycle_checks()` 不再自动允许 Implementation Scope 内 baseline dirty source/test files；
-- `files_changed_excludes_inherited_dirty_files` 会对 inherited source/test dirty files 产生 WARN；
-- `pytest` 为 `482 passed`；
-- `final_gate_result.json` 为 `PASSED`。
+- `decision_20260615_baseline_report_negation_guard_rework_v1` 已执行；
+- `pytest` 为 `488 passed`；
+- `final-check` 和 `close-round` 已完成；
+- `_NEGATION_PHRASES` 已定义；
+- `_report_explains_inherited_baseline_files()` 已替换旧的 keyword-only 判断。
 
-但当前仍有漏洞：
+但仍有缺口：
 
-- `baseline_inherited_allowlist_explained` 使用 `baseline in report_lower and inherited in report_lower` 判断解释是否存在；
-- 这会把否定句 `No inherited baseline dirty files` 误判为解释；
-- 测试没有覆盖该否定短语。
+- `_NEGATION_PHRASES` 没有被 helper 使用；
+- helper 只检查 allowlist section 是否有列表项；
+- 测试没有覆盖所有 decision 指定的否定短语；
+- 测试没有覆盖“section 有列表项但 report 其他位置否认 inherited dirty”的冲突文本。
 
 ## 3. Do Not Do
 
@@ -59,6 +68,8 @@
 不要回退 artifact freshness strictness 修复。
 
 不要把 Implementation Scope 重新当成 inherited dirty allowlist。
+
+不要用“section 有列表项”绕过明确否定句。
 
 ## 4. Files To Inspect
 
@@ -79,16 +90,18 @@
 - `tests/test_project_gate.py`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_delta_summary.json`
+- `project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/round_manifest.json`
 
 ## 5. Required Audit
 
 执行前确认：
 
-1. 当前 decision 是本轮 `decision_20260615_baseline_report_negation_guard_rework_v1`。
+1. 当前 decision 是 `decision_20260615_baseline_report_negation_guard_rework_v2`。
 2. `task_packet.json` 仍只是 advisory/state input。
 3. `Allowed Inherited Dirty Baseline Files` 是唯一 inherited dirty allowlist 来源。
-4. 报告中的否定性 baseline/inherited 语句不能被当作解释。
-5. 上一轮 artifact freshness strictness 行为不得削弱。
+4. `_NEGATION_PHRASES` 必须参与实际判断。
+5. 报告中的否定性 baseline/inherited/dirty 语句不能被 section list item 覆盖掉。
+6. 上一轮 artifact freshness strictness 行为不得削弱。
 
 ## 6. Implementation Scope
 
@@ -102,7 +115,7 @@
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/*`
+- `project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/*`
 
 只读，不得修改：
 
@@ -113,24 +126,22 @@
 
 具体要求：
 
-1. 新增 helper，例如 `_report_explains_inherited_baseline_files(report_text: str) -> bool`。
-2. 该 helper 至少要拒绝这些否定性短语：
-   - `no inherited baseline dirty files`
-   - `no inherited dirty files`
-   - `no baseline dirty files`
-   - `working tree was clean`
-   - `working tree clean`
-   - `no dirty files at round start`
-3. 用该 helper 替换当前的：
-   - `"baseline" in report_lower and "inherited" in report_lower`
-4. 增加测试：
-   - allowlist 存在 + 报告明确解释 inherited baseline dirty files → PASS；
-   - allowlist 存在 + 报告写 `No inherited baseline dirty files` → FAIL；
-   - allowlist 存在 + 报告写 `working tree was clean` → FAIL；
-   - allowlist 存在 + 报告不提 baseline/inherited → FAIL；
-   - 无 allowlist + baseline source/test dirty → 仍 FAIL；
-   - Implementation Scope 内文件不自动 allowed → 继续通过现有测试。
-5. 不要扩大 scope 到其他 gate 重构。
+1. 修改 `_report_explains_inherited_baseline_files(report_text: str) -> bool`。
+2. helper 必须实际检查 `_NEGATION_PHRASES`。
+3. 如果 report 文本中出现 `_NEGATION_PHRASES` 中任一短语，应返回 `False`，至少在当前简单实现中不要允许 section list item 覆盖否定句。
+4. 保留 positive case：存在 `Allowed Inherited Dirty Baseline Files` section 且包含列表项，且全文没有否定短语时，返回 `True`。
+5. 增加测试：
+   - allowlist section + list item + 正向解释 → `True`；
+   - `no inherited baseline dirty files` → `False`；
+   - `no inherited dirty files` → `False`；
+   - `no baseline dirty files` → `False`；
+   - `working tree was clean` → `False`；
+   - `working tree clean` → `False`；
+   - `no dirty files at round start` → `False`；
+   - allowlist section + list item + `No inherited baseline dirty files` → `False`；
+   - allowlist section + list item + `working tree was clean` → `False`；
+   - `_baseline_lifecycle_checks()` 在 allowlist 存在但 report 否认 inherited dirty 时产生 `FAIL`。
+6. 不要扩大 scope 到其他 gate 重构。
 
 ## 7. Tests
 
@@ -151,7 +162,7 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_baseline_report_negation_guard_rework_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_baseline_report_negation_guard_rework_v2
 ```
 
 ## 8. Stop Conditions
@@ -165,10 +176,3 @@ python -m reverse_agent.project_gate close-round --state-dir project_state --rou
 如果修改会让 Implementation Scope 文件重新自动成为 inherited dirty allowlist，停止并报告 `REWORK_REQUIRED`。
 
 如果 pytest、lint-report、report-summary、final-check 或 close-round 失败，不得提交 `SUCCESS` 报告。
-
-## Allowed Inherited Dirty Baseline Files
-
-本轮 baseline 在代码修改后捕获（late baseline capture），以下源码/测试文件在 baseline 捕获时已是 dirty 状态，属于本轮 Implementation Scope 内的合法修改，非外部继承的 dirty files：
-
-- `reverse_agent/project_gate.py`
-- `tests/test_project_gate.py`
