@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260615_project_state_mainline_clarity_v1",
-  "round_id": "round_20260615_project_state_mainline_clarity_v1",
+  "decision_id": "decision_20260615_project_state_mainline_clarity_rework_v2",
+  "round_id": "round_20260615_project_state_mainline_clarity_rework_v2",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
@@ -15,39 +15,22 @@
 
 ## 1. Goal
 
-本轮继续 `engineering_branch`，目标是改进 `project_state` / status 输出的主线归一化表达，使已经关闭并通过的工程 round 之后，状态包能明确区分：
+修复 `project_state` / `project_gate` 主线清晰度实现中的两个阻塞问题：
 
-1. 最新 accepted / closed engineering round；
-2. 当前 `decision_packet.md` 是否已经被消费；
-3. `task_packet.json` / `current_state.json` 中旧 sample 状态是否只是 advisory / historical；
-4. `artifact_index.json` 中历史 sample missing 是否只是 `external_state_notices`，而不是当前工程主线 blocker；
-5. 未来什么时候应切回 `reverse_solving`、`tool_integration` 或 `training_dataset`。
+1. 让真实 `archive_round()` 产出的 round manifest 或兼容 fallback 能正确支持 `latest_closed_round_id / latest_closed_decision_id / latest_accepted_round_id / latest_accepted_decision_id`。
+2. 移除或改名 `task_packet_role=authoritative` 语义。所有主线下，当前执行权威都必须是 `project_state/decision_packet.md`；非工程主线的严格性应通过 artifact freshness requirement 表达，而不是说 `task_packet` 是 authoritative。
 
-本轮不是样本求解，不修复 `samplereverse` / `cpp1_2f6fcb63` 的 candidate，不补 runtime evidence，不运行 solver。目标是让状态包和 CLI 输出减少歧义，避免后续 Codex 或其他 agent 被旧样本状态误导。
+本轮仍然是 `engineering_branch`。不推进任何样本求解。
 
 ## 2. Current Evidence
 
-当前 `project_state/decision_packet.md` 是本轮执行权威；`task_packet.json` 仍保留旧 `samplereverse` 压缩样本任务，例如 `task=collect_missing_evidence`，只能作为 advisory / historical，不得覆盖本 decision。
+当前上一轮报告为 `SUCCESS / ACCEPTED`，测试和 gate 记录完整，但审计发现实现与真实 archive manifest 不兼容，且 `task_packet_role` 命名违反长期规则。
 
-上一轮 `decision_20260615_project_gate_mainline_status_policy_v1` 已完成并被报告消费：`codex_execution_report.md` 状态为 `SUCCESS`，`acceptance_recommendation=ACCEPTED`，`final_gate_result.json` 显示 `gate_status=PASSED`，`blocking_reasons=[]`，`warnings=[]`，`recommended_next_action=no_action_required`。
-
-上一轮已实现主线感知 status policy：工程主线下的 `50 missing historical sample artifacts` 被保留为 `external_state_notices`，不再把当前工程 round 降级为 `PASSED_WITH_LIMITATIONS`。这些历史缺失仍必须可见，不得删除或伪装为已修复。
-
-`artifact_index.json` 仍包含大量旧 `samplereverse` missing artifact，也包含若干 `local_reverse_*` current artifact。旧 `samplereverse` missing 不是本轮 current evidence；`local_reverse_*` current artifact 也不是本轮要验证的样本求解证据，除非只读输出需要引用其 provenance。
-
-`negative_results.json` 仍约束样本求解路径：不要回旧 `sample_solver` blind search，不要只扩 beam / budget，不要使用 `compare_semantics_agree=false` candidate 作为 primary frontier，不要提交完整 `solve_reports`，不要重复 cpp1 printable inverse path。本轮不触碰这些方向。
-
-已有相关能力：
-
-- `reverse_agent/project_state.py`：状态构建、doctor、lint-report、status summary、round consistency、report / decision / pytest 校验。
-- `reverse_agent/project_gate.py`：preflight、command-plan、run-round、report-summary、final-check、close-round、mainline-aware historical sample limitation policy。
-- `tests/test_project_state.py` 和 `tests/test_project_gate.py`：状态包、报告、门禁和 round 闭环测试。
-
-本轮不需要 IDA / Ghidra / debugger / solver / harness 接口；涉及逆向工具能力的内容只允许作为“不得触碰”的边界检查。
+`negative_results.json` 仍然约束样本求解路径：不要回旧 `sample_solver` blind search，不要只扩大 beam/budget，不要使用 `compare_semantics_agree=false` candidate，不要提交完整 `solve_reports`。本轮不得触碰这些方向。
 
 ## 3. Do Not Do
 
-不要推进 `samplereverse`、`cpp1_2f6fcb63` 或任何其他样本求解。
+不要推进 `samplereverse`、`cpp1_2f6fcb63` 或任何样本求解。
 
 不要运行样本、runtime probe、debugger、hook、emulator、sidecar、solver search、旧 `sample_solver`、beam/topN/budget 扩张。
 
@@ -55,25 +38,17 @@
 
 不要读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
 
-不要修改 `.codex-skills/` 或 `.codex-skills/registry.json`。
+不要修改 `.codex-skills/`。
 
-不要把动态事实写入 `.codex-skills/`。
+不要清空、伪造或删除 `artifact_index.json` 中的 historical missing artifacts。
 
-不要把 stale / missing artifact 当作 current evidence。
+不要把 `task_packet.task` 重新定义为执行权威。
 
-不要把 `task_packet.task` 当作本轮执行权威。
-
-不要通过删除、伪造、清空 `artifact_index.json`、`current_state.json` 或历史 sample state 来消除历史 missing artifact 噪声。
-
-不要把 historical sample missing artifacts 全局忽略。`reverse_solving`、`tool_integration`、`training_dataset` 仍必须严格检查 current artifact freshness。
-
-不要为了得到 `PASSED` 而放宽真实 blocking_reasons、scope violations、report/decision mismatch、pytest mismatch、command-plan mismatch、baseline lifecycle failures。
-
-不要引入数据库、队列、workflow engine、后台任务、GitHub Actions 或重型调度系统。
+不要削弱 `reverse_solving / tool_integration / training_dataset` 下的 current artifact freshness 严格检查。
 
 ## 4. Files To Inspect
 
-Must read in order:
+按顺序读取：
 
 1. `project_state/task_packet.json`
 2. `project_state/current_state.json`
@@ -84,114 +59,77 @@ Must read in order:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-Must inspect current gate/status artifacts:
-
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/round_close_snapshot.json`
-- `project_state/gates/round_delta_summary.json`
-- `project_state/gates/command_plan.json`
-- `project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/round_manifest.json`
-
-Must inspect implementation files:
+必须重点检查：
 
 - `reverse_agent/project_state.py`
 - `reverse_agent/project_gate.py`
 - `tests/test_project_state.py`
 - `tests/test_project_gate.py`
-
-Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
+- `project_state/rounds/round_20260615_project_state_mainline_clarity_v1/round_manifest.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/gates/report_summary_synthesis.json`
 
 ## 5. Required Audit
 
-Startup commands must be recorded first:
+执行前确认：
 
-```powershell
-Set-Location F:\reverse-agent
-Get-Location
-Test-Path F:\reverse-agent
-git rev-parse --show-toplevel
-git status --short
-```
-
-If startup dirty files exist, capture them as baseline before implementation and do not classify inherited dirty files as current round work.
-
-Before changing code, verify:
-
-1. `decision_meta` is parseable, `status=APPROVED`, `mainline=engineering_branch`。
-2. `reverse-agent-iteration@v2` exists and is active in `.codex-skills/registry.json`。
-3. Current `decision_packet.md` is the execution authority; `task_packet.json` is advisory only。
-4. Previous round `decision_20260615_project_gate_mainline_status_policy_v1` was consumed by a `SUCCESS` / `ACCEPTED` report。
-5. Previous final gate is `PASSED` and exposes historical sample artifact missing as `external_state_notices`。
-6. Historical sample artifact missing remains visible; it must not be deleted from `artifact_index.json`。
-
-Required implementation audit:
-
-- Identify where `status_summary()` / `doctor()` / `build_round_consistency()` / build output currently expose decision consumption, active decision, current mainline, advisory task packet classification, and historical sample artifact notices.
-- Reuse existing state/status functions where possible. Do not create a parallel state system.
-- Prefer adding small, stable fields or check details that clarify mainline authority and historical/advisory status, for example:
-  - `active_decision_state`
-  - `latest_closed_round_id`
-  - `latest_accepted_round_id`
-  - `task_packet_role=advisory`
-  - `historical_external_state_notices`
-  - `current_mainline_status`
-  - or equivalent existing-schema-compatible names.
-- If existing fields already provide the information, improve CLI output and tests instead of adding redundant fields.
-- Preserve backward compatibility with existing `task_packet.json`, `current_state.json`, `artifact_index.json`, and gate artifacts.
-- Do not mutate `artifact_index.json` as part of the fix.
-- Do not hide actual project_state schema errors, report/decision mismatch, pytest mismatch, command-plan mismatch, baseline lifecycle failures, forbidden paths, or scope violations.
+1. `decision_meta` parseable，`status=APPROVED`，`mainline=engineering_branch`。
+2. `reverse-agent-iteration@v2` 在 registry 中存在且 active。
+3. `decision_packet.md` 是执行权威；`task_packet.json` 只能提供压缩状态、历史线索或 advisory 信息。
+4. 当前失败点不是 gate 缺失，而是实现语义缺陷。
+5. `archive_round()` 真实输出路径必须被测试覆盖。
+6. `latest accepted round` 不能依赖测试手写的 manifest 字段，必须对真实 manifest 生效。
+7. 非工程主线的严格 artifact freshness 仍然保留，但不能通过 `task_packet_role=authoritative` 表达。
 
 ## 6. Implementation Scope
 
-Allowed source files:
+允许修改：
 
 - `reverse_agent/project_state.py`
 - `reverse_agent/project_gate.py`
-
-Allowed tests:
-
 - `tests/test_project_state.py`
 - `tests/test_project_gate.py`
 
-Allowed generated files:
+允许生成：
 
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
-- `project_state/gates/command_plan.json`
-- `project_state/gates/preflight_result.json`
-- `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/final_gate_result.json`
-- `project_state/gates/round_baseline.json`
-- `project_state/gates/round_delta_summary.json`
-- `project_state/gates/run_round_result.json`
-- `project_state/gates/round_close_snapshot.json`
-- `project_state/rounds/round_20260615_project_state_mainline_clarity_v1/*`
+- `project_state/gates/*.json`
+- `project_state/rounds/round_20260615_project_state_mainline_clarity_rework_v2/*`
 
-Read-only / no mutation:
+只读，不得修改：
 
 - `project_state/artifact_index.json`
 - `project_state/current_state.json`
 - `project_state/task_packet.json`
 - `project_state/negative_results.json`
 
-Disallowed:
+具体实现要求：
 
-- `.codex-skills/`
-- `solve_reports/`
-- `PROJECT_PROGRESS_LOG.txt`
-- `reverse_agent/strategies/`
-- `reverse_agent/transforms/`
-- `reverse_agent/ida_scripts/`
-- `reverse_agent/olly_scripts/`
-- `reverse_agent/probes/`
-- solver / harness / sample-specific modules unrelated to project state and project gate status reporting
+1. 修复 latest round metadata：
+   - 优先方案：让 `_build_round_manifest()` 写入 `decision_id`、`report_id`、`report_status`、`acceptance_recommendation`。
+   - 兼容方案：`_latest_closed_round_info()` 在 manifest 缺少字段时，从 archived `decision_packet.md` 和 `codex_execution_report.md` 读取 fallback。
+   - 可以两者都做：新 archive 写字段，旧 archive fallback 读取归档文件。
+
+2. 修复 task_packet role 表达：
+   - 不得再输出 `task_packet_role=authoritative`。
+   - 建议改为：
+     - `execution_authority=decision_packet`
+     - `task_packet_role=advisory` 或 `task_packet_role=state_input`
+     - `artifact_freshness_requirement=strict` 用于 `reverse_solving / tool_integration / training_dataset`
+     - `artifact_freshness_requirement=historical_external_notices_non_blocking` 用于 `engineering_branch`
+   - 如果为了兼容保留旧字段，也必须避免其值为 `authoritative`，并在 CLI/JSON 中明确它不代表执行权威。
+
+3. 测试要求：
+   - 增加真实 `archive_round()` 生成 manifest 后，`_latest_closed_round_info()` 能识别 latest closed / latest accepted 的测试。
+   - 增加旧 manifest 缺字段 fallback 测试。
+   - 修改现有测试，禁止 `task_packet_role=authoritative`。
+   - 增加测试证明非工程主线仍保留 strict artifact freshness requirement。
+   - 保留 report/decision mismatch、pytest mismatch、forbidden path、scope violation 的失败测试。
 
 ## 7. Tests
 
-Must record commands, stdout/stderr, and exit code in `project_state/pytest_result.txt`.
-
-Required command sequence for this implementation round:
+必须记录命令、stdout/stderr、exit code 到 `project_state/pytest_result.txt`：
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -208,39 +146,15 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m pytest tests/test_project_state.py tests/test_project_gate.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_state_mainline_clarity_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_state_mainline_clarity_rework_v2
 ```
-
-Unit test requirements:
-
-- Test engineering_branch closed / accepted round exposes clear latest closed / accepted decision or equivalent status field.
-- Test consumed `decision_packet.md` is not confused with advisory `task_packet.json`.
-- Test old sample `task_packet.task=collect_missing_evidence` remains advisory / historical when current mainline is engineering_branch.
-- Test historical sample artifact missing remains visible as external / historical notice and does not block engineering_branch.
-- Test reverse_solving / tool_integration / training_dataset do not ignore current artifact freshness when the current decision depends on artifact evidence.
-- Test report/decision mismatch still fails.
-- Test pytest_result/report mismatch still fails.
-- Test forbidden path or scope violation still fails.
-- Test command-plan / report-summary / final-check remain consistent after any added field/output changes.
 
 ## 8. Stop Conditions
 
-If current working directory is not `F:\reverse-agent`, stop.
+如果需要运行样本、runtime probe、debugger、hook、emulator、sidecar、solver 或 harness，停止并报告 `BLOCKED`。
 
-If startup repository root is not `F:/reverse-agent` or equivalent, stop.
+如果只能通过删除或清空 historical missing artifacts 才能通过，停止并报告 `REWORK_REQUIRED`。
 
-If `decision_meta` is invalid or `reverse-agent-iteration@v2` is not active, stop.
+如果修复会让 `reverse_solving / tool_integration / training_dataset` 下的 current artifact freshness 检查变宽松，停止并报告 `REWORK_REQUIRED`。
 
-If there are inherited dirty source/test files outside allowed scope, stop or report baseline explicitly before modifying anything.
-
-If implementing this requires changing solver, strategy, harness runtime, IDA/Ghidra/debugger, or sample-specific code, stop and report `BLOCKED`。
-
-If the only possible implementation is to edit, delete, or clear historical sample artifact entries from `artifact_index.json`, stop and report `REWORK_REQUIRED`。
-
-If status clarity can only be achieved by ignoring all limitations globally, stop and report `REWORK_REQUIRED`。
-
-If `reverse_solving`, `tool_integration`, or `training_dataset` current artifact checks would be weakened, stop and report `REWORK_REQUIRED`。
-
-If live validation would require `run-round --execute`, stop; live command must remain `run-round --dry-run --json`。
-
-If pytest, lint-report, report-summary, final-check, or close-round fails, do not upload a `SUCCESS` report; mark `REWORK_REQUIRED` with blocking reasons。
+如果 pytest、lint-report、report-summary、final-check 或 close-round 失败，不得提交 `SUCCESS` 报告。
