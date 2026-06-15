@@ -1,13 +1,13 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260615_samplereverse_bounded_evidence_reanchor_v1",
-  "round_id": "round_20260615_samplereverse_bounded_evidence_reanchor_v1",
+  "decision_id": "decision_20260615_cpp1_success_boundary_static_recheck_v1",
+  "round_id": "round_20260615_cpp1_success_boundary_static_recheck_v1",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
   "mainline": "reverse_solving",
-  "skill_profiles": ["reverse-agent-iteration@v2", "samplereverse-frontier@v2"]
+  "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
 
@@ -15,58 +15,77 @@
 
 ## 1. Goal
 
-对 `samplereverse` 做一轮**有界证据重锚定**，目标是把当前可用证据、缺失证据、已有工具能力和下一步可执行的最小证据采集动作写清楚。
+纠正上一份误指向 `samplereverse` 的下一轮计划。本轮当前样本按近期 current artifact 和 negative_results 判定为 `cpp1_2f6fcb63`，相对路径为 `逆向课程2023春01/CPP1.exe`。
 
-本轮不是继续搜索 candidate，也不是扩大 solver 预算。核心产物应是一个当前轮可审计的 evidence gap / reanchor artifact，用来决定后续是否运行已有 IDA / OllyDbg / harness 接口补齐 `runtime_validation`、`case_results`、`frontier_summary`、`strata_summary`、`summary` 等缺失项。
+本轮目标是做 `cpp1_2f6fcb63` 的**成功边界静态重查**：确认 `byte_429A30[16]` / compare loop 在 `strlen(Str)==18`、`strncpy(..., 0x10u)`、`if (i == 16)` 组合下的边界语义，产出可审计 artifact，决定下一轮是否允许进行有界 raw stdin runtime validation。
+
+本轮不是解 `samplereverse`，不是重新做 target bytes printable inverse，不是 candidate blind search，也不是直接运行样本。
 
 ## 2. Current Evidence
 
-当前执行权威是本 `project_state/decision_packet.md`，不是 `project_state/task_packet.json`。`task_packet.json` 只能作为建议；其当前建议是 `collect_missing_evidence`，并且列出 `case_results`、`frontier_summary`、`runtime_validation`、`strata_summary`、`summary` 缺失。
+当前 `task_packet.json` 与 `current_state.json` 仍残留 `samplereverse` 压缩状态，因此不能把其中的 sample/profile 当成当前真实任务权威。`task_packet.json` 只能作为旧建议；当前轮执行权威是本 `project_state/decision_packet.md`。
 
-上一轮 `decision_20260615_gate_true_clean_start_validation_rework_v1` 已审计为 `ACCEPTED_WITH_LIMITATIONS`：clean-start gate validation 通过，但限制是历史样本 artifact 仍有 50 项 missing。该结论只证明工程门禁闭环有效，不证明样本证据已经恢复。
+`artifact_index.json` 的 current artifact 已显示 `cpp1_2f6fcb63` 是近期实际推进样本：
 
-`current_state.json` 当前仍指向 `samplereverse` / `CompareAwareSearchStrategy`，`known_transform` 为 `input -> UTF-16LE -> Base64 -> RC4 -> compare flag{ prefix`，但 `best_candidates` 为空，`review_status=PENDING_REVIEW`，并且多个 latest runtime/static artifact 字段为空。
+- `local_reverse_cpp1_2f6fcb63_static_triage`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1`。
+- `local_reverse_cpp1_2f6fcb63_target_bytes_revalidation`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1`。
+- `local_reverse_cpp1_2f6fcb63_static_inverse_handoff`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1`。
+- `local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1`。
+- `local_reverse_cpp1_2f6fcb63_input_delivery_review`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_input_delivery_review_v1`。
 
-`artifact_index.json` 的 `latest_artifacts_v2` 对当前样本的大量 compare / runtime / harness artifact 标记为 `missing`。这些 `missing` artifact 不能当 current 证据，只能作为后续采集目标。
+Current static triage confirms IDA static-only evidence for `cpp1_2f6fcb63`: sample path `逆向课程2023春01/CPP1.exe`, PE/cpp category, `tool_status=success`, `source_tool=IDA`, `executed_sample=false`, `runtime_validated=false`; allowed_actions only include `static_triage`, and forbidden_actions include `runtime_probe`, `bruteforce`, `upload_binary`.
 
-`negative_results.json` 必须遵守：不得回到 old `sample_solver` blind search；不得只扩大 guided_pool beam/budget；不得把 `compare_semantics_agree=false` candidate 当 primary frontier；不得提交完整 `solve_reports/`；不得重复已失败的 exact2 basin value-pool、H1/H3 fixed contrast set、无新增 runtime evidence 的 5-candidate transform trace consistency audit。
+Current target revalidation confirms:
 
-已有工具能力必须复用，不能重复造轮子：
+- target symbol: `byte_429A30`
+- target address: `0x00429A30`
+- target length: 16
+- target bytes hex: `d596c4f60745577776e5f64847f74817`
+- main function: `_main_0`
+- forward transform: `(x & 3) | (16 * (x & 0x0C)) | ((x & 0xF0) >> 2)`
+- static notes: input length check is `strlen(Str) != 18`, copy is `strncpy(Destination, Str, 0x10u)`, compare expression is `Destination[i] == byte_429A30[i]`.
 
-- IDA / IDAPython：已有 `tool_runners.py`、`ida_scripts/`、IDA JSON evidence 解析和 artifact freshness 规则，状态为 implemented。
-- Ghidra：当前 inventory 标记为 missing；本轮不得临时新建 Ghidra runner。
-- OllyDbg / debugger：已有 `tool_runners.py`、`ollydbg_preflight.py`、`olly_scripts/` 和 runtime compare/probe 产物通道，状态为 implemented。
-- solver templates：已有 `sample_solver.py`、`local_reverse_solver_profiles.py`、`local_reverse_string_solver.py`、`samplereverse_z3.py`、`advanced_solvers.py`，不得重复实现。
-- harness：已有 `harness.py`、harness CLI、case result / artifact manifest / run manifest / summary 产物通道，状态为 implemented。
-- artifact_index 与 StructuredEvidence：已有 freshness tracking 和 StructuredEvidence 数据结构/解析通道。
+Current static inverse handoff is BLOCKED with `NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_CURRENT_TARGET_BYTES`. It found a unique all-byte preimage but no complete printable ASCII preimage. This path is now recorded in `negative_results.json` and must not be repeated.
 
-本轮允许有界读取当前仓库和 project_state；不允许读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。只有当 artifact_index 明确指向某个当前相关的小型 artifact，并且本轮需要确认其 schema/freshness 时，才允许有界读取该 artifact。
+Current alternative static semantics review says the transform is a single-byte bit permutation, signed/unsigned models are equivalent after `u8` truncation, no xor/add/sub/table/previous-byte dependency was seen, and the nonprintable all-byte preview is `5d5a1cde131557d7d69dde2417df2453`.
+
+Current input delivery review says raw byte delivery appears feasible, suggested payload preview is `5d5a1cde131557d7d69dde2417df24534141`, but success boundary remains `UNKNOWN_NEEDS_STATIC_OR_TOOL_RECHECK` because `byte_429A30[16]` is not available in the current 16-byte target revalidation. It explicitly recommends `NEEDS_SUCCESS_BOUNDARY_STATIC_RECHECK` before runtime.
+
+`negative_results.json` must be respected. In particular, do not repeat `cpp1_2f6fcb63 current target bytes printable inverse path`; it already established no complete printable preimage under current target bytes, with missing printable indices `2, 3, 4, 5, 7, 8, 9, 10, 12, 13`.
+
+Existing tool capabilities must be reused, not reimplemented:
+
+- IDA / IDAPython interface already exists through `tool_runners.py` and `reverse_agent/ida_scripts/collect_evidence.py`.
+- artifact_index freshness tracking already exists in `project_state.py` / `project_gate.py`.
+- StructuredEvidence primitives already exist in `evidence.py`.
+- Harness exists, but this round must not run runtime validation unless the success boundary is first resolved and a later decision explicitly permits it.
+- Ghidra is not the required path for this round; do not create a Ghidra runner.
 
 ## 3. Do Not Do
 
-不得修改 `.codex-skills/`。
+Do not solve or analyze `samplereverse` in this round.
 
-不得提交完整 `solve_reports/`。
+Do not use `task_packet.sample=samplereverse` as current task authority.
 
-不得运行 old `sample_solver` blind search。
+Do not repeat the `cpp1_2f6fcb63 current target bytes printable inverse path`.
 
-不得只扩大 beam、topN、budget、timeout。
+Do not call the nonprintable preview or `5d5a1cde131557d7d69dde2417df24534141` a solved password without runtime proof.
 
-不得把 stale、missing、unknown artifact 当 current 证据。
+Do not run runtime_probe, dynamic debugger, hook, emulator, or sample execution in this round.
 
-不得重复 `negative_results.json` 中已记录的失败方向，除非报告中明确写出新增证据和重试理由。
+Do not run brute force, blind solver search, old `sample_solver`, or budget/beam/topN expansion.
 
-不得新建重复的 IDA / Ghidra / OllyDbg / debugger / harness / solver 接口。
+Do not create duplicate IDA / debugger / harness / solver interfaces.
 
-不得新增 Ghidra runner；当前 Ghidra 能力缺失只能记录为能力缺口。
+Do not modify `.codex-skills/`, `training_materials/`, or complete `solve_reports/`.
 
-不得运行动态调试、runtime probe、hook、emulator 或样本执行，除非本轮先完成只读 evidence reanchor，并且现有接口、命令、输入、输出路径、budget、artifact_index 登记方式都已在报告中明确；默认不运行。
+Do not treat stale/missing artifact as current evidence.
 
-不得把本轮产物写入长期 skill。
+Do not widen to other local samples such as `affineenc_333f8ca9` unless the inspected current artifact proves `cpp1_2f6fcb63` is not the active sample; if so, stop and report mismatch instead of guessing.
 
 ## 4. Files To Inspect
 
-必须按顺序读取：
+Must read in order:
 
 1. `project_state/task_packet.json`
 2. `project_state/current_state.json`
@@ -77,20 +96,28 @@
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-必须有界读取：
+Must bounded-read current cpp1 artifacts:
 
-- `reverse_agent/tool_capability_inventory.py`
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json`
+
+Must inspect existing tool/code only if needed for the static recheck:
+
 - `reverse_agent/tool_runners.py`
-- `reverse_agent/evidence.py`
-- `reverse_agent/harness.py`
-- 与 `samplereverse` 直接相关、且已在 artifact_index 或当前源码中被引用的 solver/profile/strategy 文件
-- `tests/` 中与本轮触达模块对应的测试
+- `reverse_agent/ida_scripts/collect_evidence.py`
+- `reverse_agent/local_reverse_single_sample_static_triage.py`
+- `reverse_agent/project_state.py`
+- `reverse_agent/project_gate.py`
+- directly relevant tests for any touched module
 
-只有在 artifact_index 显示 current/freshness 可确认时，才允许读取对应 artifact 内容；missing/stale artifact 只能读取索引元数据，不得当作当前样本证据。
+Do not read full `PROJECT_PROGRESS_LOG.txt` or full `solve_reports/`.
 
 ## 5. Required Audit
 
-启动后第一组命令必须是：
+Startup commands must be recorded first:
 
 - `Set-Location F:\reverse-agent`
 - `Get-Location`
@@ -98,45 +125,54 @@
 - `git rev-parse --show-toplevel`
 - `git status --short`
 
-如果工作目录不是 `F:\reverse-agent`，或者不是该仓库，立即停止并写入 `codex_execution_report.md`：`status=BLOCKED`，`acceptance_recommendation=BLOCKED`。
+If startup dirty files exist, record baseline before doing work and do not classify inherited dirty files as current round changes.
 
-如果启动时已有 dirty files，必须先记录 baseline，不得把 inherited dirty 当成本轮修改。
+Perform these checks before producing any result:
 
-必须执行只读能力核验：
+1. Verify `decision_meta` is parseable, `status=APPROVED`, `mainline=reverse_solving`, and `skill_profiles` are active in `.codex-skills/registry.json`.
+2. Verify the current cpp1 artifact paths in `artifact_index.json` have `freshness=current` and `sample_id=cpp1_2f6fcb63`.
+3. Verify the prior negative result for `cpp1_2f6fcb63 current target bytes printable inverse path` is not repeated.
+4. Verify no runtime execution is performed.
+5. Verify no new tool interface is created when existing IDA static extraction capability is available.
 
-- 确认 IDA / IDAPython 入口是否已经存在；
-- 确认 OllyDbg / debugger 入口是否已经存在；
-- 确认 harness、solver templates、artifact_index、StructuredEvidence 入口是否已经存在；
-- 明确 Ghidra 当前是否缺失；
-- 明确哪些能力不得重复实现。
+Required output artifact:
 
-必须输出一个新的有界 evidence reanchor artifact，建议路径：
+- `project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json`
 
-- `project_state/samplereverse_bounded_evidence_reanchor_v1.json`
+The artifact must include at least:
 
-该 artifact 至少包含：
-
+- `schema_version`
 - `decision_id`
 - `round_id`
-- `sample`
-- `mainline`
-- `artifact_freshness_summary`
-- `missing_evidence`
-- `negative_results_respected`
-- `existing_tool_capabilities`
-- `current_evidence_usable`
-- `stale_or_missing_not_used`
-- `recommended_next_action`
-- `allowed_next_commands`
-- `stop_reason_if_no_safe_action`
+- `sample_id`
+- `relative_path`
+- `sha256`
+- `analysis_mode="success_boundary_static_recheck"`
+- `mainline="reverse_solving"`
+- `executed_sample=false`
+- `runtime_validated=false`
+- `source_artifacts` with freshness for all cpp1 current artifacts used
+- `negative_results_considered`
+- `target_symbol`
+- `target_address`
+- `target_length_known=16`
+- `requested_boundary_indices=[16,17]` or explicit reason if only index 16 is relevant
+- `byte_429A30_index_16_status`: one of `KNOWN_MATCH_BLOCKER`, `KNOWN_MISMATCH_SAFE`, `UNKNOWN_REQUIRES_TOOL_RECHECK`, `CONTRADICTED_STOP`
+- `destination_index_16_source_review`
+- `compare_loop_exit_reason_review`
+- `payload_preview_hex` from current input_delivery_review, but not as solved answer
+- `recommended_next_action`: one of `ALLOW_SEPARATE_BOUNDED_RAW_STDIN_RUNTIME_VALIDATION`, `STOP_TARGET_OR_BOUNDARY_CONTRADICTION`, `NEEDS_TOOL_RECHECK`, `NO_SAFE_NEXT_ACTION`
+- `stop_conditions_for_next_round`
+
+If the current artifacts do not contain enough data to determine `byte_429A30[16]`, Codex may run only an existing bounded IDA static extraction path, using existing IDA runner/script, to extract adjacent bytes around `0x00429A30` or xrefs required for boundary semantics. If IDA cannot be run or configured, stop with `NEEDS_TOOL_RECHECK`; do not invent the byte.
 
 ## 6. Implementation Scope
 
-默认不修改源码。
+Default: no source code changes.
 
-允许生成或更新：
+Allowed generated/updated files:
 
-- `project_state/samplereverse_bounded_evidence_reanchor_v1.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/command_plan.json`
@@ -145,19 +181,21 @@
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/rounds/round_20260615_samplereverse_bounded_evidence_reanchor_v1/*`
+- `project_state/rounds/round_20260615_cpp1_success_boundary_static_recheck_v1/*`
 
-只有发现现有 project_state / gate 代码无法登记本轮只读 reanchor artifact，且问题根因在工程代码层时，才允许小范围修改：
+Only if existing code cannot register or validate this static recheck artifact, Codex may make minimal changes to:
 
 - `reverse_agent/project_state.py`
 - `reverse_agent/project_gate.py`
-- 对应测试文件
+- relevant tests
 
-若修改源码，必须在 `files_changed` 中列出，并重新运行相关 pytest。不得修改 sample solver、strategy、IDA/OllyDbg/harness 接口逻辑来绕过证据缺失。
+Do not modify solver logic, strategy logic, harness runtime behavior, IDA runner semantics, or sample-specific solver profiles in this round.
 
 ## 7. Tests
 
-必须记录并运行：
+Must record commands, stdout/stderr, and exit code in `project_state/pytest_result.txt`.
+
+Required commands:
 
 - `python -m reverse_agent.project_gate preflight --state-dir project_state`
 - `python -m reverse_agent.project_gate command-plan --state-dir project_state`
@@ -165,32 +203,34 @@
 - `python -m reverse_agent.project_state doctor --state-dir project_state`
 - `python -m reverse_agent.project_state lint-report --state-dir project_state`
 
-若未改源码，至少运行与状态/门禁相关的 pytest：
+If no source code is modified, run:
 
 - `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`
 
-若修改源码，必须运行对应新增/修改测试以及：
+If source code is modified, run the directly relevant focused tests plus:
 
 - `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`
 
-完成后必须运行：
+Finish with:
 
 - `python -m reverse_agent.project_gate report-summary --state-dir project_state`
 - `python -m reverse_agent.project_gate final-check --state-dir project_state`
-- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_samplereverse_bounded_evidence_reanchor_v1`
-
-`project_state/pytest_result.txt` 必须记录上述命令、stdout/stderr、exit code，并且 summary 中的 decision_id/report_id/round_id 必须匹配本轮。
+- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_cpp1_success_boundary_static_recheck_v1`
 
 ## 8. Stop Conditions
 
-如果无法确认当前工作目录为 `F:\reverse-agent`，停止。
+If startup path is not `F:\reverse-agent`, stop.
 
-如果 `decision_meta` 解析失败、status 不是 `APPROVED`、mainline 不合法、skill_profiles 不在 registry 中，停止。
+If `decision_meta` is invalid, stop.
 
-如果发现本轮需要运行动态调试、runtime probe、hook、emulator 或样本执行，但无法明确现有接口、命令、输入、输出路径、budget 和 artifact_index 登记方式，停止并把 `recommended_next_action` 写成下一轮独立 tool run decision。
+If registry does not contain active `reverse-agent-iteration@v2`, stop.
 
-如果 artifact_index 只有 missing/stale artifact，且没有安全的 current evidence 可用，不得猜 candidate；只输出 evidence gap / reanchor artifact。
+If current artifacts do not support `cpp1_2f6fcb63` as the active sample, stop and report state mismatch instead of falling back to `samplereverse`.
 
-如果触碰了 `.codex-skills/`、完整 `solve_reports/`、无关 solver/strategy 重写、或重复 negative_results 失败方向，报告 `REWORK_REQUIRED`。
+If success boundary remains unknown and existing IDA static extraction cannot safely resolve it, stop with `NEEDS_TOOL_RECHECK`.
 
-如果 pytest_result 缺失、不匹配当前 decision/report/round，或 final gate FAILED，报告 `REWORK_REQUIRED`。
+If runtime validation becomes necessary, do not run it in this round; write a separate next decision requiring bounded raw stdin delivery validation.
+
+If any forbidden path or negative-result repeat is touched, report `REWORK_REQUIRED`.
+
+If pytest_result/report/decision/round ids mismatch, report `REWORK_REQUIRED`.
