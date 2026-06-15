@@ -1,19 +1,22 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260615_project_gate_run_round_orchestrator_v1",
-  "round_id": "round_20260615_project_gate_run_round_orchestrator_v1",
-  "head_commit": "ff3283b1d720",
+  "decision_id": "decision_20260615_project_gate_run_round_execute_hardening_v1",
+  "round_id": "round_20260615_project_gate_run_round_execute_hardening_v1",
+  "head_commit": "bbb73670e303",
   "baseline_git_status_short": [
-    " M project_state/gates/command_plan.json"
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
-    "project_state/gates/command_plan.json"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
-    "project_state/gates/command_plan.json"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-15T05:52:43.631456Z"
+  "generated_at": "2026-06-15T06:53:10.915868Z"
 }

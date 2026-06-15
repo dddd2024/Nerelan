@@ -6,6 +6,8 @@ import pytest
 
 from reverse_agent.project_gate import (
     _close_round_exit_code,
+    _is_close_round_command,
+    _is_self_invocation,
     _report_status_from_gate,
     _report_status_from_gate_payload,
     _result_status,
@@ -3173,3 +3175,397 @@ def test_final_check_requires_close_round_command_block_when_declared(tmp_path: 
     close_round_command = commands[-1]
     errors = [err for err in exit_check.get("errors", []) if isinstance(err, dict) and close_round_command in str(err.get("command", ""))]
     assert errors, "expected close-round to be flagged missing its recorded command block"
+
+
+# ---------------------------------------------------------------------------
+# Tests for run-round execute hardening: self-invocation guard,
+# command-block recording, and close-round delegation
+# ---------------------------------------------------------------------------
+
+
+class TestIsSelfInvocation:
+    """Verify _is_self_invocation detects run-round recursive calls."""
+
+    def test_kind_run_round(self) -> None:
+        assert _is_self_invocation({"kind": "run-round", "command": "something"}) is True
+
+    def test_command_text_contains_run_round(self) -> None:
+        assert _is_self_invocation({
+            "kind": "unknown",
+            "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --execute",
+        }) is True
+
+    def test_command_text_dry_run(self) -> None:
+        assert _is_self_invocation({
+            "kind": "unknown",
+            "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+        }) is True
+
+    def test_non_run_round_command(self) -> None:
+        assert _is_self_invocation({
+            "kind": "preflight",
+            "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        }) is False
+
+    def test_empty_command(self) -> None:
+        assert _is_self_invocation({"kind": "", "command": ""}) is False
+
+
+class TestIsCloseRoundCommand:
+    """Verify _is_close_round_command detects close-round commands."""
+
+    def test_kind_close_round(self) -> None:
+        assert _is_close_round_command({"kind": "close-round", "command": "something"}) is True
+
+    def test_command_text_contains_close_round(self) -> None:
+        assert _is_close_round_command({
+            "kind": "unknown",
+            "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_1",
+        }) is True
+
+    def test_non_close_round_command(self) -> None:
+        assert _is_close_round_command({
+            "kind": "preflight",
+            "command": "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        }) is False
+
+
+class TestRunRoundSelfInvocationGuard:
+    """Verify run_round execute mode skips self-invocation commands."""
+
+    def test_execute_skips_run_round_kind_command(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m reverse_agent.project_gate run-round --state-dir project_state --execute",
+        )
+        seen: list[str] = []
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            seen.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+        result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+        assert result["skipped_commands"] == [
+            {
+                "index": 1,
+                "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --execute",
+                "kind": "run-round",
+                "phase": "gate",
+                "reason": "self-invocation guard: run-round must not invoke itself recursively",
+            }
+        ]
+        assert result["executed_commands"] == []
+        assert seen == []
+
+    def test_execute_skips_run_round_dry_run_command(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+        )
+        seen: list[str] = []
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            seen.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+        result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+        assert len(result["skipped_commands"]) == 1
+        assert result["skipped_commands"][0]["reason"] == "self-invocation guard: run-round must not invoke itself recursively"
+        assert seen == []
+
+    def test_execute_runs_non_run_round_commands(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        seen: list[str] = []
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            seen.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+        result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+        assert result["skipped_commands"] == []
+        assert len(result["executed_commands"]) == 1
+        assert result["executed_commands"][0]["exit_code"] == 0
+
+    def test_execute_mixed_skips_and_runs(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="""python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
+python -m reverse_agent.project_gate preflight --state-dir project_state
+""",
+        )
+        seen: list[str] = []
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            seen.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+        result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+        assert len(result["skipped_commands"]) == 1
+        assert result["skipped_commands"][0]["kind"] == "run-round"
+        assert len(result["executed_commands"]) == 2
+        assert result["executed_commands"][0]["kind"] == "pytest"
+        assert result["executed_commands"][1]["kind"] == "preflight"
+
+
+class TestRunRoundCloseRoundDelegation:
+    """Verify run_round execute mode skips close-round commands."""
+
+    def test_execute_skips_close_round_command(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_1",
+        )
+        seen: list[str] = []
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            seen.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+        result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+        assert len(result["skipped_commands"]) == 1
+        assert result["skipped_commands"][0]["reason"] == "close-round delegation: close-round subprocess owns its command block"
+        assert result["executed_commands"] == []
+        assert seen == []
+
+    def test_execute_mixed_run_round_and_close_round_skipped(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="""python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_1
+""",
+        )
+        seen: list[str] = []
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            seen.append(command)
+            return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+        result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+        assert len(result["skipped_commands"]) == 2
+        assert result["skipped_commands"][0]["reason"] == "self-invocation guard: run-round must not invoke itself recursively"
+        assert result["skipped_commands"][1]["reason"] == "close-round delegation: close-round subprocess owns its command block"
+        assert len(result["executed_commands"]) == 1
+        assert result["executed_commands"][0]["kind"] == "pytest"
+
+
+class TestRunRoundCommandBlockRecording:
+    """Verify run_round execute mode records command blocks to pytest_result.txt."""
+
+    def test_execute_records_command_block_to_pytest_result(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        pytest_path = tmp_path / "test_pytest_result.txt"
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(command, 0, stdout="3 passed\n", stderr="")
+
+        result = run_round(
+            state_dir=state_dir,
+            dry_run=False,
+            repo_root=tmp_path,
+            command_runner=fake_runner,
+            pytest_result_path=pytest_path,
+        )
+
+        assert result["recorded_command_blocks"] == ["python -m pytest tests/test_project_gate.py -q"]
+        assert pytest_path.exists()
+        content = pytest_path.read_text(encoding="utf-8")
+        assert "===== COMMAND: python -m pytest tests/test_project_gate.py -q =====" in content
+        assert "3 passed" in content
+        assert "===== EXIT: 0 =====" in content
+
+    def test_execute_records_stdout_stderr_and_exit_code(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -c \"print('hello')\"",
+        )
+        pytest_path = tmp_path / "test_pytest_result.txt"
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(command, 0, stdout="hello\n", stderr="warn\n")
+
+        result = run_round(
+            state_dir=state_dir,
+            dry_run=False,
+            repo_root=tmp_path,
+            command_runner=fake_runner,
+            pytest_result_path=pytest_path,
+        )
+
+        content = pytest_path.read_text(encoding="utf-8")
+        assert "hello" in content
+        assert "===== STDERR =====" in content
+        assert "warn" in content
+        assert "===== EXIT: 0 =====" in content
+
+    def test_execute_records_failed_command_block(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -c \"raise SystemExit(1)\"",
+        )
+        pytest_path = tmp_path / "test_pytest_result.txt"
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(command, 1, stdout="fail\n", stderr="error\n")
+
+        result = run_round(
+            state_dir=state_dir,
+            dry_run=False,
+            repo_root=tmp_path,
+            command_runner=fake_runner,
+            pytest_result_path=pytest_path,
+        )
+
+        content = pytest_path.read_text(encoding="utf-8")
+        assert "===== EXIT: 1 =====" in content
+        assert result["executed_commands"][0]["exit_code"] == 1
+
+    def test_execute_no_pytest_result_path_does_not_write(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+        result = run_round(
+            state_dir=state_dir,
+            dry_run=False,
+            repo_root=tmp_path,
+            command_runner=fake_runner,
+        )
+
+        assert result["recorded_command_blocks"] == []
+
+    def test_execute_skipped_commands_not_recorded_in_command_blocks(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="""python -m pytest tests/test_project_gate.py -q
+python -m reverse_agent.project_gate run-round --state-dir project_state --execute
+""",
+        )
+        pytest_path = tmp_path / "test_pytest_result.txt"
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(command, 0, stdout="ok\n", stderr="")
+
+        result = run_round(
+            state_dir=state_dir,
+            dry_run=False,
+            repo_root=tmp_path,
+            command_runner=fake_runner,
+            pytest_result_path=pytest_path,
+        )
+
+        assert result["recorded_command_blocks"] == ["python -m pytest tests/test_project_gate.py -q"]
+        content = pytest_path.read_text(encoding="utf-8")
+        assert "run-round" not in content
+
+
+class TestRunRoundDryRunPreservation:
+    """Verify dry-run behavior is preserved after hardening."""
+
+    def test_dry_run_leaves_executed_commands_empty(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+
+        result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path)
+
+        assert result["executed_commands"] == []
+        assert result["skipped_commands"] == []
+        assert result["recorded_command_blocks"] == []
+        assert result["mode"] == "dry-run"
+
+    def test_dry_run_does_not_append_command_blocks(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+        pytest_path = tmp_path / "test_pytest_result.txt"
+
+        result = run_round(
+            state_dir=state_dir,
+            dry_run=True,
+            repo_root=tmp_path,
+            pytest_result_path=pytest_path,
+        )
+
+        assert not pytest_path.exists()
+        assert result["recorded_command_blocks"] == []
+
+    def test_dry_run_json_still_returns_exit_code_zero(self, tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="python -m pytest tests/test_project_gate.py -q",
+        )
+
+        assert main(["run-round", "--state-dir", str(state_dir), "--dry-run", "--json"]) == 0
+        output = json.loads(capsys.readouterr().out)
+        assert output["run_status"] == "PASSED"
+        assert output["mode"] == "dry-run"
+        assert output["executed_commands"] == []
+        assert output["skipped_commands"] == []
+
+
+class TestRunRoundExecuteFailFast:
+    """Verify fail-fast behavior is preserved after hardening."""
+
+    def test_execute_still_stops_after_first_unexpected_exit(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="""python -c "raise SystemExit(7)"
+python -c "print('not reached')"
+""",
+        )
+        seen: list[str] = []
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            seen.append(command)
+            return subprocess.CompletedProcess(command, 7, stdout="failed\n", stderr="")
+
+        result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+        assert result["run_status"] == "FAILED"
+        assert seen == ['python -c "raise SystemExit(7)"']
+        assert len(result["executed_commands"]) == 1
+        assert result["executed_commands"][0]["exit_code"] == 7
+
+    def test_execute_records_failed_command_to_pytest_result(self, tmp_path: Path) -> None:
+        state_dir = _make_command_plan_state(
+            tmp_path,
+            tests_block="""python -c "raise SystemExit(7)"
+python -c "print('not reached')"
+""",
+        )
+        pytest_path = tmp_path / "test_pytest_result.txt"
+
+        def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(command, 7, stdout="failed\n", stderr="")
+
+        result = run_round(
+            state_dir=state_dir,
+            dry_run=False,
+            repo_root=tmp_path,
+            command_runner=fake_runner,
+            pytest_result_path=pytest_path,
+        )
+
+        content = pytest_path.read_text(encoding="utf-8")
+        assert "===== EXIT: 7 =====" in content
+        assert "not reached" not in content

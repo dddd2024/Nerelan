@@ -3426,6 +3426,48 @@ def _run_round_status(
     return "PASSED"
 
 
+def _is_self_invocation(command_info: dict[str, Any]) -> bool:
+    """Return True if the command would invoke run-round recursively."""
+    kind = str(command_info.get("kind") or "")
+    command_text = str(command_info.get("command") or "").lower()
+    if kind == "run-round":
+        return True
+    if "python -m reverse_agent.project_gate run-round" in command_text:
+        return True
+    return False
+
+
+def _is_close_round_command(command_info: dict[str, Any]) -> bool:
+    """Return True if the command would invoke close-round."""
+    kind = str(command_info.get("kind") or "")
+    command_text = str(command_info.get("command") or "").lower()
+    if kind == "close-round":
+        return True
+    if "python -m reverse_agent.project_gate close-round" in command_text:
+        return True
+    return False
+
+
+def _append_command_block_to_pytest_result(
+    pytest_path: Path,
+    *,
+    command: str,
+    stdout: str,
+    stderr: str,
+    exit_code: int,
+) -> None:
+    """Append a command block to a pytest_result.txt file."""
+    pytest_path.parent.mkdir(parents=True, exist_ok=True)
+    with pytest_path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(f"===== COMMAND: {command} =====\n")
+        if stdout:
+            handle.write(stdout.rstrip() + "\n")
+        if stderr:
+            handle.write("===== STDERR =====\n")
+            handle.write(stderr.rstrip() + "\n")
+        handle.write(f"===== EXIT: {exit_code} =====\n\n")
+
+
 def run_round(
     *,
     state_dir: Path,
@@ -3433,6 +3475,7 @@ def run_round(
     repo_root: Path | None = None,
     command_runner: CommandRunner | None = None,
     write_result: bool = True,
+    pytest_result_path: Path | None = None,
 ) -> dict[str, Any]:
     repo_root = repo_root or Path.cwd()
     state_dir = Path(state_dir)
@@ -3463,12 +3506,38 @@ def run_round(
         blocking_reasons.append("command-plan plan_status=FAILED")
 
     executed_commands: list[dict[str, Any]] = []
+    skipped_commands: list[dict[str, Any]] = []
+    recorded_command_blocks: list[str] = []
     runner = command_runner or (lambda command: _default_command_runner(command, cwd=repo_root))
     if not dry_run and not blocking_reasons:
         for command_info in commands:
             command = str(command_info.get("command") or "")
             expected_codes = command_info.get("expected_exit_codes")
             expected = [int(code) for code in expected_codes] if isinstance(expected_codes, list) else [0]
+
+            # Self-invocation guard: skip run-round commands to prevent recursion.
+            if _is_self_invocation(command_info):
+                skipped_commands.append({
+                    "index": command_info.get("index"),
+                    "command": command,
+                    "kind": command_info.get("kind"),
+                    "phase": command_info.get("phase"),
+                    "reason": "self-invocation guard: run-round must not invoke itself recursively",
+                })
+                continue
+
+            # Close-round delegation: skip close-round commands so that
+            # close-round remains the sole owner of its command block.
+            if _is_close_round_command(command_info):
+                skipped_commands.append({
+                    "index": command_info.get("index"),
+                    "command": command,
+                    "kind": command_info.get("kind"),
+                    "phase": command_info.get("phase"),
+                    "reason": "close-round delegation: close-round subprocess owns its command block",
+                })
+                continue
+
             proc = runner(command)
             executed = {
                 "index": command_info.get("index"),
@@ -3482,6 +3551,18 @@ def run_round(
                 "status": "PASSED" if proc.returncode in expected else "FAILED",
             }
             executed_commands.append(executed)
+
+            # Record command block to pytest_result.txt if a path is provided.
+            if pytest_result_path is not None:
+                _append_command_block_to_pytest_result(
+                    pytest_result_path,
+                    command=command,
+                    stdout=proc.stdout or "",
+                    stderr=proc.stderr or "",
+                    exit_code=proc.returncode,
+                )
+                recorded_command_blocks.append(command)
+
             if proc.returncode not in expected:
                 blocking_reasons.append(
                     f"command {command_info.get('index')} exited {proc.returncode}, expected {expected}: {command}"
@@ -3501,6 +3582,8 @@ def run_round(
         "command_count": len(commands),
         "commands": commands,
         "executed_commands": executed_commands,
+        "skipped_commands": skipped_commands,
+        "recorded_command_blocks": recorded_command_blocks,
         "blocking_reasons": blocking_reasons,
         "warnings": warnings,
         "recommended_next_action": _run_round_recommended_next_action(run_status, mode=mode),
