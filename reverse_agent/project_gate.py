@@ -9,7 +9,7 @@ import re
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from .project_state import (
     ARCHIVE_MANIFEST_NAME,
@@ -37,12 +37,15 @@ COMMAND_PLAN_NAME = "command-plan"
 COMMAND_PLAN_RESULT_NAME = "command_plan.json"
 REPORT_SUMMARY_NAME = "report-summary"
 REPORT_SUMMARY_RESULT_NAME = "report_summary_synthesis.json"
+RUN_ROUND_NAME = "run-round"
+RUN_ROUND_RESULT_NAME = "run_round_result.json"
 ROUND_BASELINE_RESULT_NAME = "round_baseline.json"
 ROUND_DELTA_SUMMARY_NAME = "round_delta_summary.json"
 SELF_OUTPUT_PATH = f"project_state/gates/{FINAL_GATE_RESULT_NAME}"
 PREFLIGHT_OUTPUT_PATH = f"project_state/gates/{PREFLIGHT_RESULT_NAME}"
 COMMAND_PLAN_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_RESULT_NAME}"
 REPORT_SUMMARY_OUTPUT_PATH = f"project_state/gates/{REPORT_SUMMARY_RESULT_NAME}"
+RUN_ROUND_OUTPUT_PATH = f"project_state/gates/{RUN_ROUND_RESULT_NAME}"
 ROUND_BASELINE_OUTPUT_PATH = f"project_state/gates/{ROUND_BASELINE_RESULT_NAME}"
 ROUND_DELTA_OUTPUT_PATH = f"project_state/gates/{ROUND_DELTA_SUMMARY_NAME}"
 CLOSE_ROUND_NAME = "close-round"
@@ -100,6 +103,7 @@ COMMAND_PLAN_KINDS = {
     "command-plan",
     "report-summary",
     "close-round",
+    "run-round",
     "pytest",
     "git status",
     "git rev-parse",
@@ -137,6 +141,7 @@ NATURAL_LANGUAGE_COMMANDS = {
     "lint-report": ["python -m reverse_agent.project_state lint-report --state-dir project_state"],
     "report-summary": ["python -m reverse_agent.project_gate report-summary --state-dir project_state"],
     "final-check": ["python -m reverse_agent.project_gate final-check --state-dir project_state"],
+    "run-round": ["python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json"],
     "git_diff": ["git diff --name-only"],
     "queue_status_verification": [
         "read-only queue/status verification (affineenc_333f8ca9, ascii_table_chinese_46efc7ea, cpp1_2f6fcb63)"
@@ -282,17 +287,51 @@ def _dedupe_commands(commands: list[str]) -> list[str]:
     return result
 
 
+def _looks_like_standalone_command(line: str) -> bool:
+    stripped = line.strip()
+    lowered = stripped.lower()
+    if "..." in stripped:
+        return False
+    return bool(
+        lowered == "pwd"
+        or lowered.startswith("pwd ")
+        or lowered == "get-location"
+        or lowered.startswith("get-location ")
+        or lowered == "set-location"
+        or lowered.startswith("set-location ")
+        or lowered == "test-path"
+        or lowered.startswith("test-path ")
+        or lowered.startswith("git ")
+        or lowered.startswith("python ")
+        or lowered.startswith("pytest")
+        or lowered.startswith("powershell ")
+    )
+
+
 def _extract_unfenced_commands(text: str) -> list[str]:
     commands: list[str] = []
     for raw_line in text.splitlines():
         line_commands: list[str] = []
         for match in re.finditer(r"`([^`]+)`", raw_line):
             candidate = match.group(1).strip()
-            if candidate and _command_kind(candidate) != "unknown":
+            if candidate and "..." not in candidate and _command_kind(candidate) != "unknown":
                 line_commands.append(candidate)
         if line_commands:
             commands.extend(line_commands)
             continue
+
+        stripped = raw_line.strip()
+        if (
+            stripped
+            and not stripped.startswith("```")
+            and not stripped.startswith("#")
+            and not stripped.startswith("-")
+            and _looks_like_standalone_command(stripped)
+        ):
+            kind = _command_kind(stripped)
+            if kind != "unknown":
+                commands.append(stripped)
+                continue
 
         lowered = raw_line.lower()
         if "位置确认" in raw_line or "location confirmation" in lowered:
@@ -317,6 +356,8 @@ def _extract_unfenced_commands(text: str) -> list[str]:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["report-summary"])
         if "final-check" in lowered:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["final-check"])
+        if "run-round" in lowered:
+            commands.extend(NATURAL_LANGUAGE_COMMANDS["run-round"])
         if "diff 文件名" in raw_line or "diff filenames" in lowered or "git diff" in lowered:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["git_diff"])
         if (
@@ -1658,19 +1699,20 @@ def build_report_summary_synthesis(
             unauthorized_lifecycle_files.update(_string_set(check.get("unauthorized_inherited_source_test_files")))
     round_delta_files |= unauthorized_lifecycle_files
     expected_files_changed = sorted(round_delta_files | archive_paths | {REPORT_SUMMARY_OUTPUT_PATH})
-    expected_generated_artifacts = sorted(
-        {
-            "project_state/codex_execution_report.md",
-            "project_state/pytest_result.txt",
-            PREFLIGHT_OUTPUT_PATH,
-            COMMAND_PLAN_OUTPUT_PATH,
-            REPORT_SUMMARY_OUTPUT_PATH,
-            SELF_OUTPUT_PATH,
-            ROUND_BASELINE_OUTPUT_PATH,
-            ROUND_DELTA_OUTPUT_PATH,
-            *archive_paths,
-        }
-    )
+    generated_artifact_set = {
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt",
+        PREFLIGHT_OUTPUT_PATH,
+        COMMAND_PLAN_OUTPUT_PATH,
+        REPORT_SUMMARY_OUTPUT_PATH,
+        SELF_OUTPUT_PATH,
+        ROUND_BASELINE_OUTPUT_PATH,
+        ROUND_DELTA_OUTPUT_PATH,
+        *archive_paths,
+    }
+    if RUN_ROUND_OUTPUT_PATH in round_delta_files or any(_command_kind(command) == "run-round" for command in command_strings):
+        generated_artifact_set.add(RUN_ROUND_OUTPUT_PATH)
+    expected_generated_artifacts = sorted(generated_artifact_set)
 
     final_gate_status = ""
     final_gate_matches = (
@@ -2855,6 +2897,16 @@ def _preflight_recommended_next_action(gate_status: str) -> str:
     return "fix_preflight_failures_before_starting"
 
 
+def _run_round_recommended_next_action(run_status: str, *, mode: str) -> str:
+    if run_status == "PASSED" and mode == "dry-run":
+        return "review_plan_before_execute"
+    if run_status == "PASSED":
+        return "no_action_required"
+    if run_status == "WARN":
+        return "review_run_round_warnings"
+    return "fix_run_round_failures_before_retry"
+
+
 def _command_kind(command: str) -> str:
     lowered = command.lower()
     # Reject bare filenames that look like artifacts, not commands.
@@ -2881,6 +2933,8 @@ def _command_kind(command: str) -> str:
         return "preflight"
     if "project_gate" in lowered and "command-plan" in lowered:
         return "command-plan"
+    if "project_gate" in lowered and "run-round" in lowered:
+        return "run-round"
     if "project_gate" in lowered and "report-summary" in lowered:
         return "report-summary"
     if "project_gate" in lowered and "close-round" in lowered:
@@ -2937,7 +2991,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         return "test"
     if kind == "archive-round":
         return "archive"
-    if kind in {"final-check", "command-plan", "report-summary", "close-round"}:
+    if kind in {"final-check", "command-plan", "report-summary", "close-round", "run-round"}:
         return "gate"
     if kind in {
         "lint-report",
@@ -3347,6 +3401,126 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
     return result
 
 
+CommandRunner = Callable[[str], subprocess.CompletedProcess[str]]
+
+
+def _default_command_runner(command: str, *, cwd: Path) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        command,
+        cwd=cwd,
+        shell=True,
+        text=True,
+        capture_output=True,
+    )
+
+
+def _run_round_status(
+    *,
+    blocking_reasons: list[str],
+    warnings: list[str],
+) -> str:
+    if blocking_reasons:
+        return "FAILED"
+    if warnings:
+        return "WARN"
+    return "PASSED"
+
+
+def run_round(
+    *,
+    state_dir: Path,
+    dry_run: bool = True,
+    repo_root: Path | None = None,
+    command_runner: CommandRunner | None = None,
+    write_result: bool = True,
+) -> dict[str, Any]:
+    repo_root = repo_root or Path.cwd()
+    state_dir = Path(state_dir)
+    mode = "dry-run" if dry_run else "execute"
+    preflight_result = preflight(state_dir=state_dir, repo_root=repo_root, write_result=write_result)
+    plan_result = command_plan(state_dir=state_dir, write_result=write_result)
+    commands = list(plan_result.get("commands") or [])
+
+    warnings = [
+        f"preflight: {warning}" for warning in preflight_result.get("warnings", []) if isinstance(warning, str)
+    ]
+    warnings.extend(
+        f"command-plan: {warning}" for warning in plan_result.get("warnings", []) if isinstance(warning, str)
+    )
+    blocking_reasons = [
+        f"preflight: {reason}"
+        for reason in preflight_result.get("blocking_reasons", [])
+        if isinstance(reason, str)
+    ]
+    blocking_reasons.extend(
+        f"command-plan: {reason}"
+        for reason in plan_result.get("blocking_reasons", [])
+        if isinstance(reason, str)
+    )
+    if preflight_result.get("gate_status") in {"BLOCKED", "FAILED"}:
+        blocking_reasons.append(f"preflight gate_status={preflight_result.get('gate_status')}")
+    if plan_result.get("plan_status") == "FAILED":
+        blocking_reasons.append("command-plan plan_status=FAILED")
+
+    executed_commands: list[dict[str, Any]] = []
+    runner = command_runner or (lambda command: _default_command_runner(command, cwd=repo_root))
+    if not dry_run and not blocking_reasons:
+        for command_info in commands:
+            command = str(command_info.get("command") or "")
+            expected_codes = command_info.get("expected_exit_codes")
+            expected = [int(code) for code in expected_codes] if isinstance(expected_codes, list) else [0]
+            proc = runner(command)
+            executed = {
+                "index": command_info.get("index"),
+                "command": command,
+                "kind": command_info.get("kind"),
+                "phase": command_info.get("phase"),
+                "expected_exit_codes": expected,
+                "exit_code": proc.returncode,
+                "stdout": proc.stdout or "",
+                "stderr": proc.stderr or "",
+                "status": "PASSED" if proc.returncode in expected else "FAILED",
+            }
+            executed_commands.append(executed)
+            if proc.returncode not in expected:
+                blocking_reasons.append(
+                    f"command {command_info.get('index')} exited {proc.returncode}, expected {expected}: {command}"
+                )
+                break
+
+    run_status = _run_round_status(blocking_reasons=blocking_reasons, warnings=warnings)
+    result = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "gate_name": RUN_ROUND_NAME,
+        "run_status": run_status,
+        "decision_id": plan_result.get("decision_id") or preflight_result.get("decision_id"),
+        "round_id": plan_result.get("round_id") or preflight_result.get("round_id"),
+        "mainline": plan_result.get("mainline") or preflight_result.get("mainline"),
+        "generated_at": _now_iso(),
+        "mode": mode,
+        "command_count": len(commands),
+        "commands": commands,
+        "executed_commands": executed_commands,
+        "blocking_reasons": blocking_reasons,
+        "warnings": warnings,
+        "recommended_next_action": _run_round_recommended_next_action(run_status, mode=mode),
+        "artifacts": {
+            "preflight": PREFLIGHT_OUTPUT_PATH,
+            "command_plan": COMMAND_PLAN_OUTPUT_PATH,
+            "run_round_result": RUN_ROUND_OUTPUT_PATH,
+        },
+    }
+    if write_result:
+        out_dir = state_dir / "gates"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / RUN_ROUND_RESULT_NAME).write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+    return result
+
+
 def _print_result(result: dict[str, Any]) -> None:
     print(f"{result.get('gate_name')}: {result.get('gate_status')}")
     print(f"decision_id: {result.get('decision_id')}")
@@ -3378,6 +3552,22 @@ def _print_command_plan(result: dict[str, Any]) -> None:
         print(f"  [WARN] {warning}")
     for reason in result.get("blocking_reasons", []):
         print(f"  [BLOCK] {reason}")
+    print(f"recommended_next_action: {result.get('recommended_next_action')}")
+
+
+def _print_run_round(result: dict[str, Any]) -> None:
+    print(f"{result.get('gate_name')}: {result.get('run_status')}")
+    print(f"decision_id: {result.get('decision_id')}")
+    print(f"round_id: {result.get('round_id')}")
+    print(f"mainline: {result.get('mainline')}")
+    print(f"mode: {result.get('mode')}")
+    print(f"command_count: {result.get('command_count')}")
+    print(f"executed_count: {len(result.get('executed_commands') or [])}")
+    for warning in result.get("warnings", []):
+        print(f"  [WARN] {warning}")
+    for reason in result.get("blocking_reasons", []):
+        print(f"  [BLOCK] {reason}")
+    print(f"artifact: {RUN_ROUND_OUTPUT_PATH}")
     print(f"recommended_next_action: {result.get('recommended_next_action')}")
 
 
@@ -3488,6 +3678,12 @@ def main(argv: list[str] | None = None) -> int:
     command_plan_parser = subparsers.add_parser("command-plan", help="Generate a read-only command execution plan.")
     command_plan_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     command_plan_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    run_round_parser = subparsers.add_parser("run-round", help="Orchestrate project gate preflight and command-plan.")
+    run_round_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    mode_group = run_round_parser.add_mutually_exclusive_group()
+    mode_group.add_argument("--dry-run", action="store_true", help="Generate and validate the plan without executing it.")
+    mode_group.add_argument("--execute", action="store_true", help="Execute planned commands fail-fast.")
+    run_round_parser.add_argument("--json", action="store_true", help="Print JSON result.")
     report_summary_parser = subparsers.add_parser("report-summary", help="Synthesize and validate codex_report_summary.")
     report_summary_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     report_summary_parser.add_argument("--json", action="store_true", help="Print JSON result.")
@@ -3518,6 +3714,17 @@ def main(argv: list[str] | None = None) -> int:
         else:
             _print_command_plan(result)
         return 1 if result.get("plan_status") == "FAILED" else 0
+    if args.command == "run-round":
+        result = run_round(
+            state_dir=Path(args.state_dir),
+            dry_run=not bool(args.execute),
+            repo_root=Path.cwd(),
+        )
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_run_round(result)
+        return 1 if result.get("run_status") == "FAILED" else 0
     if args.command == "report-summary":
         result = build_report_summary_synthesis(state_dir=Path(args.state_dir), repo_root=Path.cwd())
         if args.json:

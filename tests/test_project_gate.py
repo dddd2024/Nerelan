@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from reverse_agent.project_gate import (
     final_check,
     main,
     preflight,
+    run_round,
 )
 from reverse_agent.project_state import archive_round, write_pytest_result
 
@@ -251,6 +253,22 @@ def _write_command_plan_decision(
 ## 1. Goal
 
 Build a read-only command plan.
+
+## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated files:
+
+- `project_state/gates/command_plan.json`
+- `project_state/gates/preflight_result.json`
+- `project_state/gates/run_round_result.json`
 
 {extra_text}
 {tests_section}
@@ -1371,6 +1389,46 @@ def test_report_summary_synthesizes_expected_fields(tmp_path: Path) -> None:
     assert summary["acceptance_recommendation"] == "ACCEPTED"
     assert "project_state/gates/report_summary_synthesis.json" in summary["generated_artifacts"]
     assert (state_dir / "gates" / "report_summary_synthesis.json").exists()
+
+
+def test_report_summary_includes_run_round_result_when_planned(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state_dir = _make_report_summary_state(tmp_path)
+    plan_path = state_dir / "gates" / "command_plan.json"
+    plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    plan["commands"].append(
+        {
+            "index": len(plan["commands"]) + 1,
+            "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+            "phase": "gate",
+            "kind": "run-round",
+            "required": True,
+            "expected_exit_codes": [0],
+            "records_stdout_stderr": True,
+            "notes": "run-round expected to exit 0",
+        }
+    )
+    _write_json(plan_path, plan)
+    changed_files = [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py",
+        "project_state/codex_execution_report.md",
+        "project_state/pytest_result.txt",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/rounds/round_gate/codex_execution_report.md",
+        "project_state/rounds/round_gate/decision_packet.md",
+        "project_state/rounds/round_gate/pytest_result.txt",
+        "project_state/rounds/round_gate/round_manifest.json",
+    ]
+    monkeypatch.setattr("reverse_agent.project_gate._git_changed_files", lambda _repo_root: changed_files)
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert "project_state/gates/run_round_result.json" in result["synthesized_summary"]["generated_artifacts"]
 
 
 def test_report_summary_fails_when_report_tests_ran_missing(tmp_path: Path) -> None:
@@ -2901,6 +2959,77 @@ def test_project_gate_command_plan_cli_json_writes_result(tmp_path: Path, capsys
     assert output["plan_status"] == "PASSED"
     assert output["commands"][0]["kind"] == "pytest"
     assert (state_dir / "gates" / "command_plan.json").exists()
+
+
+def test_command_plan_classifies_run_round_as_gate(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+    )
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert result["commands"][0]["kind"] == "run-round"
+    assert result["commands"][0]["phase"] == "gate"
+
+
+def test_project_gate_run_round_cli_dry_run_json_writes_result(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -m pytest tests/test_project_gate.py -q",
+    )
+
+    assert main(["run-round", "--state-dir", str(state_dir), "--dry-run", "--json"]) == 0
+    output = json.loads(capsys.readouterr().out)
+
+    assert output["gate_name"] == "run-round"
+    assert output["run_status"] == "PASSED"
+    assert output["mode"] == "dry-run"
+    assert output["executed_commands"] == []
+    assert output["command_count"] == 1
+    assert (state_dir / "gates" / "run_round_result.json").exists()
+
+
+def test_run_round_dry_run_does_not_execute_planned_commands(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="python -m pytest tests/test_project_gate.py -q",
+    )
+
+    def fail_if_called(command: str) -> subprocess.CompletedProcess[str]:
+        raise AssertionError(f"dry-run executed command: {command}")
+
+    result = run_round(state_dir=state_dir, dry_run=True, repo_root=tmp_path, command_runner=fail_if_called)
+
+    assert result["run_status"] == "PASSED"
+    assert result["mode"] == "dry-run"
+    assert result["executed_commands"] == []
+
+
+def test_run_round_execute_stops_after_first_unexpected_exit(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(
+        tmp_path,
+        tests_block="""python -c "raise SystemExit(7)"
+python -c "print('not reached')"
+""",
+    )
+    seen: list[str] = []
+
+    def fake_runner(command: str) -> subprocess.CompletedProcess[str]:
+        seen.append(command)
+        return subprocess.CompletedProcess(command, 7, stdout="failed\n", stderr="")
+
+    result = run_round(state_dir=state_dir, dry_run=False, repo_root=tmp_path, command_runner=fake_runner)
+
+    assert result["run_status"] == "FAILED"
+    assert seen == ['python -c "raise SystemExit(7)"']
+    assert len(result["executed_commands"]) == 1
+    assert result["executed_commands"][0]["exit_code"] == 7
+    assert "expected [0]" in result["blocking_reasons"][0]
 
 
 def test_command_plan_classifies_command_plan_self_check_as_gate(tmp_path: Path) -> None:
