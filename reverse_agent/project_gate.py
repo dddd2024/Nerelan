@@ -3905,6 +3905,8 @@ def _command_kind(command: str) -> str:
         return "lint-report"
     if "project_state" in lowered and " doctor" in lowered:
         return "doctor"
+    if "project_state" in lowered and "active-execution-view" in lowered:
+        return "active-execution-view"
     if "project_state" in lowered and " status" in lowered:
         return "status"
     if lowered.startswith("git status") or " git status" in lowered:
@@ -3953,6 +3955,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         "lint-report",
         "status",
         "doctor",
+        "active-execution-view",
         "git status",
         "git rev-parse",
         "git diff",

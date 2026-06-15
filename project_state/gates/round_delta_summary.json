@@ -1,22 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260615_decision_immutability_and_build_output_scope_guard_v1",
-  "round_id": "round_20260615_decision_immutability_and_build_output_scope_guard_v1",
-  "head_commit": "ff4596807b67",
+  "decision_id": "decision_20260615_decision_immutability_scope_guard_rework_v1",
+  "round_id": "round_20260615_decision_immutability_scope_guard_rework_v1",
+  "head_commit": "d794fafba8b9",
   "baseline_available": true,
-  "baseline_git_status_short": [
-    " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py"
-  ],
-  "baseline_git_diff_name_only": [
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
-  ],
-  "baseline_dirty_files": [
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
-  ],
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
   "final_git_status_short": [
@@ -30,7 +21,11 @@
     " M project_state/gates/run_round_result.json",
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py"
+    " M tests/test_project_gate.py",
+    "?? project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -55,6 +50,10 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
+    "project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
@@ -67,12 +66,15 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
-    "project_state/pytest_result.txt"
-  ],
-  "inherited_dirty_files": [
+    "project_state/pytest_result.txt",
+    "project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260615_decision_immutability_scope_guard_rework_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
+  "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-15T15:49:43.415974Z"
+  "generated_at": "2026-06-15T16:16:51.442531Z"
 }

@@ -8,6 +8,8 @@ import pytest
 from reverse_agent.project_gate import (
     BUILD_OUTPUT_WHITELIST,
     _close_round_exit_code,
+    _command_kind,
+    _command_phase,
     _decision_immutability_check,
     _build_output_scope_check,
     _verified_cli_coverage_check,
@@ -5714,3 +5716,117 @@ class TestDecisionNotDirtyInBaselinePreflight:
         )
         assert baseline_check is not None
         assert baseline_check["status"] == "PASS"
+
+
+class TestActiveExecutionViewCommandKind:
+    """Scenario 1: active-execution-view command is not unknown in command-plan."""
+
+    def test_active_execution_view_kind(self) -> None:
+        """active-execution-view is recognized as a known command kind."""
+        cmd = "python -m reverse_agent.project_state active-execution-view --state-dir project_state --json"
+        assert _command_kind(cmd) == "active-execution-view"
+
+    def test_active_execution_view_phase(self) -> None:
+        """active-execution-view has phase 'status'."""
+        cmd = "python -m reverse_agent.project_state active-execution-view --state-dir project_state --json"
+        kind = _command_kind(cmd)
+        assert _command_phase(kind, archive_seen=False) == "status"
+
+    def test_active_execution_view_not_unknown(self) -> None:
+        """active-execution-view is not classified as unknown."""
+        cmd = "python -m reverse_agent.project_state active-execution-view --state-dir project_state --json"
+        assert _command_kind(cmd) != "unknown"
+
+
+class TestCommandPlanActiveExecutionViewPassed:
+    """Scenario 2: command-plan --json returns PASSED with active-execution-view."""
+
+    def test_command_plan_with_active_execution_view_passes(self, tmp_path: Path) -> None:
+        """command-plan plan_status is PASSED when active-execution-view is in tests."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        _write_skill_registry(tmp_path)
+        _write_json(
+            state_dir / "current_state.json",
+            {"round_id": "round_test", "state_build_id": "state_test", "state_digest": "digest_test", "state_scope": "sample_state", "source_harness_run": "run_test"},
+        )
+        _write_json(
+            state_dir / "task_packet.json",
+            {"state_scope": "sample_state", "task_source": "derived_from_sample_artifacts", "execution_scope": "decision_packet_controls_current_round", "active_decision_packet": "project_state/decision_packet.md"},
+        )
+        _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+        _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+        _write_json(state_dir / "negative_results.json", {})
+        # Write a decision that includes active-execution-view in tests
+        decision_text = (
+            "```json decision_meta\n"
+            '{"schema_version":1,"decision_id":"decision_test","round_id":"round_test",'
+            '"based_on_state_build_id":"state_test","based_on_state_digest":"digest_test",'
+            '"status":"APPROVED","mainline":"engineering_branch","skill_profiles":["reverse-agent-iteration@v2"]}\n'
+            "```\n\n"
+            "# Decision\n\n"
+            "## Goal\nTest goal\n\n"
+            "## Current Evidence\nNone\n\n"
+            "## Do Not Do\nNothing\n\n"
+            "## Files To Inspect\nNone\n\n"
+            "## Required Audit\n\n```powershell\n"
+            "Set-Location F:\\reverse-agent\n"
+            "```\n\n"
+            "## Implementation Scope\nNone\n\n"
+            "## Tests\n\n```powershell\n"
+            "python -m reverse_agent.project_state active-execution-view --state-dir project_state --json\n"
+            "```\n\n"
+            "## Stop Conditions\nNone\n"
+        )
+        (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+        result = command_plan(state_dir=state_dir, write_result=False)
+        assert result["plan_status"] == "PASSED"
+        active_ev_cmds = [c for c in result["commands"] if c["kind"] == "active-execution-view"]
+        assert len(active_ev_cmds) > 0
+        assert active_ev_cmds[0]["phase"] == "status"
+
+
+class TestLateBaselineCaptureStillFails:
+    """Scenario 3: late baseline capture still fails."""
+
+    def test_late_baseline_capture_fails(self, tmp_path: Path) -> None:
+        """Source/test files in both baseline_dirty and files_changed triggers FAIL."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": [],
+            "new_dirty_files": ["reverse_agent/project_gate.py"],
+            "files_changed": ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"],
+        }
+        result = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text="## Implementation Scope\n\n允许修改：\n- reverse_agent/project_gate.py\n\n## Do Not Do\nNothing\n",
+            report_text="",
+        )
+        guard = next((c for c in result if c["name"] == "baseline_lifecycle_guard"), None)
+        assert guard is not None
+        assert guard["status"] == "FAIL"
+
+
+class TestCleanStartupNoBaselineGuard:
+    """Scenario 4: clean startup + valid modifications don't trigger baseline_lifecycle_guard."""
+
+    def test_clean_startup_passes(self, tmp_path: Path) -> None:
+        """Clean baseline with modifications after preflight doesn't trigger guard."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": [],
+            "inherited_dirty_files": [],
+            "new_dirty_files": ["reverse_agent/project_gate.py"],
+            "files_changed": ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"],
+        }
+        result = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text="## Implementation Scope\n\nNone\n\n## Do Not Do\nNothing\n",
+            report_text="",
+        )
+        guard = next((c for c in result if c["name"] == "baseline_lifecycle_guard"), None)
+        assert guard is not None
+        assert guard["status"] == "PASS"
