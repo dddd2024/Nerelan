@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
-  "round_id": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+  "decision_id": "decision_20260616_cpp1_static_triage_closeout_rework_v1",
+  "round_id": "round_20260616_cpp1_static_triage_closeout_rework_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
-  "mainline": "tool_integration",
+  "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,39 +15,49 @@
 
 ## 1. Goal
 
-从 `round_20260613_training_queue_static_triage_hygiene_v1` 之后恢复业务主线，对训练队列中下一个合理样本 `cpp1_2f6fcb63` 做有界静态 triage。
+Close out the previous `cpp1_2f6fcb63` static-triage round by fixing report/gate/archive consistency.
 
-本轮只生成静态证据和状态登记，不求解、不生成候选、不运行样本。完成后应得到当前样本的 static triage artifact，并把该 artifact 以 current freshness 登记到 `artifact_index.json`。
+The previous round produced a useful static evidence artifact, but the live report and final gate disagree. This round is only a closeout/reconciliation round. Do not start a new sample and do not extend the analysis.
+
+Required end state: report-summary, final-check, close-round, and round archive all describe the same status.
 
 ## 2. Current Evidence
 
-工程门禁支线已收口：`round_20260615_startup_status_baseline_consistency_guard_v1` 已 ACCEPTED，final gate 无 blocking / warnings，archive 已完成。
+The current execution authority is this `project_state/decision_packet.md`.
 
-恢复点来自 `round_20260613_training_queue_static_triage_hygiene_v1`：当时队列中 `affineenc_333f8ca9` 已完成 static triage，PDF 文档不应进入可执行样本 triage，`cpp1_2f6fcb63` 被识别为下一个合理 PE 样本候选。
+The previous round was `round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1`.
 
-当前 `task_packet.json` 和 `current_state.json` 仍保留旧 `samplereverse` 信息，只能作为 historical/advisory。当前执行权威是 `project_state/decision_packet.md`。
+Current known facts:
+
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` exists.
+- The artifact records static-only evidence and `runtime_validated=false`.
+- The artifact source_run points to the previous round.
+- The live report claims success with limitations.
+- The final gate records failure because status policy still treats historical missing artifacts as blocking.
+- Report summary synthesis expects `FAILED / REWORK_REQUIRED`, but live report says success.
+- The previous round archive exists, but its manifest status follows the live report rather than the final gate synthesis.
+
+Old `task_packet.json` and `current_state.json` still refer to historical `samplereverse` state. They are not the current task.
 
 ## 3. Do Not Do
 
-不要推进 `samplereverse`。
+Do not process a new sample.
 
-不要做动态执行、交互验证、候选生成或批量队列处理。
+Do not extend the static evidence.
 
-不要把 `cpp1_2f6fcb63` 标记为 solved。
+Do not produce a candidate or mark the sample solved.
 
-不要重写旧 `affineenc_333f8ca9` 或 `affine_8cfebe03` 的证据语义。
+Do not remove historical missing artifact entries just to pass the gate.
 
-不要读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
+Do not modify `.codex-skills/`, raw samples, training materials, or unrelated modules.
 
-不要修改 `.codex-skills/`、training materials、raw sample 文件、solver/strategy/runtime 相关模块。
+Do not modify live `project_state/decision_packet.md` during Codex execution.
 
-不要修改 live `project_state/decision_packet.md`。
-
-不要把 `task_packet.task` 当作当前执行任务。
+Do not use `task_packet.task` as the current execution task.
 
 ## 4. Files To Inspect
 
-必须按顺序读取：
+Read the default project_state files in order:
 
 1. `project_state/task_packet.json`
 2. `project_state/current_state.json`
@@ -58,73 +68,66 @@
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-还必须有界读取：
+Also inspect:
 
-- `project_state/local_reverse_training_status.json`
-- `project_state/local_reverse_evaluation_queue.json`
-- `project_state/local_reverse_inventory.json`
-- `reverse_agent/local_reverse_single_sample_static_triage.py`
-- `reverse_agent/local_reverse_training_status.py`
-- `reverse_agent/project_state.py`
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
+- `project_state/gates/final_gate_result.json`
+- `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/round_delta_summary.json`
+- `project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/round_manifest.json`
 - `reverse_agent/project_gate.py`
-- 直接相关测试
-
-必要时只读恢复点：
-
-- `project_state/rounds/round_20260613_training_queue_static_triage_hygiene_v1/decision_packet.md`
-- `project_state/rounds/round_20260613_tool_integration_artifact_policy_closeout_v1/decision_packet.md`
+- `reverse_agent/project_state.py`
+- related gate/state tests
 
 ## 5. Required Audit
 
-执行前确认：
+Confirm before changing files:
 
-1. 当前 decision 是 `decision_20260615_cpp1_2f6fcb63_bounded_static_triage_v1`。
-2. `reverse-agent-iteration@v2` 是 active skill。
-3. 当前主线是 `tool_integration`。
-4. `task_packet.json` 只是 advisory/state input。
-5. `cpp1_2f6fcb63` 必须能由 inventory / training status / evaluation queue 交叉确认。
-6. 先检查现有 static triage 工具和 artifact 登记流程，不能新建重复接口。
-7. 如果已有 current static triage artifact，先审计 freshness/source_run，不重复生成。
-8. 如果样本路径或静态工具不可用，生成 blocker diagnostic 并停止。
+1. Current decision id is `decision_20260616_cpp1_static_triage_closeout_rework_v1`.
+2. Current mainline is `engineering_branch`.
+3. `reverse-agent-iteration@v2` is active.
+4. The previous static artifact exists and is the only sample-specific artifact in scope.
+5. Historical missing artifacts are not current evidence for this closeout.
+6. Current required artifacts must still remain strict: if the current static artifact is missing or stale, the round must fail.
 
 ## 6. Implementation Scope
 
-允许使用已有 static triage 工具对 `cpp1_2f6fcb63` 做一次有界静态提取。
+Prefer no source changes. If code changes are necessary, keep them limited to:
 
-允许生成或更新：
+- `reverse_agent/project_gate.py`
+- `reverse_agent/project_state.py`
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py`
 
-- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` 或现有命名规范下的等价 artifact；
-- `project_state/artifact_index.json`，只登记本轮 current artifact，不清空旧 missing/stale；
-- `project_state/local_reverse_training_status.json`，只更新该样本的 static triage 状态；
-- `project_state/local_reverse_evaluation_queue.json`，只做由现有生成器产生的有界更新；
+Allowed project_state updates:
+
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/*`
+- `project_state/rounds/round_20260616_cpp1_static_triage_closeout_rework_v1/*`
 
-允许最小源码/测试修改，仅限修复现有 static triage 或状态登记的明显 bug。不得新增平行工具体系。
+Carefully allowed only if required:
 
-## 7. Static Triage Requirements
+- `project_state/artifact_index.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
 
-静态 triage artifact 至少记录：
+For those two files, only update provenance or limitation metadata. Do not change the meaning of existing evidence.
 
-- `schema_version`
-- `sample_id`
-- `relative_path`
-- `source_tool`
-- `tool_status`
-- `static_only: true`
-- `runtime_validated: false`
-- 文件 size / sha256 / format hints
-- strings / functions / imports / xrefs / compare contexts / constants 中可稳定提取的摘要
-- `hypotheses[]`，仅限静态假设
-- `limitations[]`，说明未做动态验证、未做候选验证
+## 7. Acceptance Criteria
 
-若静态工具失败，生成 blocker diagnostic artifact，记录工具名、exit code、stdout/stderr 摘要、失败原因和下一步建议。
+The round is acceptable only if:
+
+1. `codex_report_summary` matches `report_summary_synthesis.json`.
+2. `final_gate_result.json` is not FAILED, or the live report honestly says FAILED / REWORK_REQUIRED.
+3. Historical missing artifacts do not block this engineering closeout.
+4. A missing or stale current artifact still blocks.
+5. The artifact index records the current artifact provenance clearly.
+6. `close-round` exits 0.
+7. The archived report, decision, and pytest result match the live files.
 
 ## 8. Tests
 
-必须记录命令、stdout/stderr、exit code 到 `project_state/pytest_result.txt`：
+Record command, stdout, stderr, and exit code in `project_state/pytest_result.txt`:
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -142,34 +145,25 @@ python -m reverse_agent.project_state active-execution-view --state-dir project_
 python -m pytest tests/test_project_state.py tests/test_project_gate.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_static_triage_closeout_rework_v1
 ```
 
-如果运行 static triage 命令，也必须记录到 `pytest_result.txt` 和 `codex_report_summary.tests_ran`，并记录 exit code。
+Test coverage must confirm:
 
-必须新增或确认测试覆盖：
-
-1. `task_packet.task` 不覆盖本轮 decision；
-2. historical sample missing artifacts 不阻塞当前 static triage closeout；
-3. current static triage artifact missing/stale 仍会阻塞；
-4. artifact_index 能登记本轮 current artifact；
-5. 已完成 triage 的样本不会继续排在 static triage 队首；
-6. decision immutability / startup baseline consistency / verified CLI coverage 不回退。
+1. historical missing artifacts can be downgraded for this closeout;
+2. current artifact missing or stale remains blocking;
+3. report-summary mismatch cannot be accepted;
+4. artifact provenance is verifiable;
+5. existing gate guards do not regress.
 
 ## 9. Stop Conditions
 
-如果需要动态执行、交互验证或候选求解，停止并报告 `BLOCKED`。
+Stop and report `BLOCKED` if resolving the closeout requires new sample analysis.
 
-如果需要读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`，停止并报告 `BLOCKED`。
+Stop and report `BLOCKED` if historical and current artifact failures cannot be distinguished safely.
 
-如果 inventory 无法确认 `cpp1_2f6fcb63`，停止并报告 `BLOCKED`，不要改跑其他样本。
+Stop and report `REWORK_REQUIRED` if live `decision_packet.md` must be edited during execution.
 
-如果现有 static triage 工具不可用，生成 blocker diagnostic 并停止，不要新建重复工具接口。
+Do not write SUCCESS if command-plan, report-summary, final-check, or close-round fails.
 
-如果需要修改 live `project_state/decision_packet.md` 才能通过，停止并报告 `REWORK_REQUIRED`。
-
-如果 `command-plan` 不是 `PASSED`，不得写 `SUCCESS`。
-
-如果 `report-summary / final-check / close-round` 任一 exit 非 0，不得写 `SUCCESS`。
-
-如果 `pytest_result.txt` 缺失、测试未真实运行、report/decision id 不匹配，不得提交 `SUCCESS`。
+Do not write SUCCESS if pytest_result is missing, incomplete, or mismatched.
