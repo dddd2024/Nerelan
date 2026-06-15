@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "artifact_kind": "local_reverse_success_boundary_static_recheck",
+  "generated_at": "2026-06-15T05:30:10Z",
+  "decision_id": "decision_20260615_cpp1_success_boundary_static_recheck_v1",
+  "round_id": "round_20260615_cpp1_success_boundary_static_recheck_v1",
+  "sample_id": "cpp1_2f6fcb63",
+  "sample_relpath": "逆向课程2023春01/CPP1.exe",
+  "sample_static_path_used": "E:/reverse/逆向课程2023春01/CPP1.exe",
+  "sample_sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+  "executed_sample": false,
+  "runtime_validated": false,
+  "debugger_or_hook_used": false,
+  "bruteforce_or_solver_search_used": false,
+  "static_sources": [
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "freshness": "current",
+      "used_for": "strlen 18 guard, strncpy length 16, transform loop bound, compare loop and success check pseudocode"
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+      "freshness": "current",
+      "used_for": "byte_429A30 base VA and known target bytes 0..15"
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
+      "freshness": "current",
+      "used_for": "existing all-byte inverse preview and printable-preimage negative result"
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
+      "freshness": "current",
+      "used_for": "u8 transform semantics and target-length mismatch concern"
+    },
+    {
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
+      "freshness": "current",
+      "used_for": "18-byte payload preview and prior UNKNOWN_NEEDS_STATIC_OR_TOOL_RECHECK boundary status"
+    },
+    {
+      "path": "project_state/negative_results.json",
+      "freshness": "current",
+      "used_for": "do-not-repeat printable inverse negative result"
+    }
+  ],
+  "boundary_semantics_review": {
+    "strlen_required_length": 18,
+    "input_copy_operation": "strncpy(Destination, Str, 0x10u)",
+    "input_controlled_destination_indices_from_strncpy": [
+      0,
+      15
+    ],
+    "transform_loop_condition": "i < strlen(Str)",
+    "transformed_destination_indices_for_18_byte_input": [
+      0,
+      17
+    ],
+    "compare_loop_condition": "i < strlen(Str) && Destination[i] == byte_429A30[i]",
+    "success_condition": "i == 16",
+    "required_success_exit_boundary": "first mismatch must occur at compare index 16",
+    "requested_boundary_indices": [
+      16,
+      17
+    ]
+  },
+  "byte_429A30_static_read": {
+    "method": "read-only PE static file parse; sample was not executed",
+    "image_base": "0x00400000",
+    "target_va": "0x00429A30",
+    "target_rva": "0x00029A30",
+    "file_offset": "0x00029A30",
+    "section": ".data",
+    "bytes_0_to_23_hex": "d596c4f60745577776e5f64847f748170000000000000000",
+    "bytes_0_to_15_hex": "d596c4f60745577776e5f64847f74817",
+    "byte_16_hex": "00",
+    "byte_17_hex": "00",
+    "bytes_18_to_23_hex": "000000000000",
+    "known_bytes_0_to_15_match_target_bytes_revalidation": true
+  },
+  "destination_index_16_source_review": {
+    "strncpy_writes_index_16": false,
+    "current_artifacts_show_input_controlled_write_to_index_16": false,
+    "fresh_process_static_buffer_model": "Destination[16] is expected to retain static zero because only indices 0..15 are copied before the 18-iteration transform.",
+    "transform_of_zero": "0x00 remains 0x00 under (x & 3) | (16 * (x & 0x0c)) | ((x & 0xf0) >> 2)",
+    "residual_uncertainty": "No runtime was executed and no debugger was used; if another static xref proves an intervening write to Destination[16], this conclusion must be revisited before runtime validation."
+  },
+  "byte_429A30_index_16_status": "KNOWN_MATCH_BLOCKER",
+  "compare_loop_exit_reason_review": {
+    "status": "current_payload_not_success_boundary_safe",
+    "reason": "For success, comparison must stop at i == 16. The static target byte at byte_429A30[16] is 0x00, and the fresh static-buffer model predicts transformed Destination[16] is also 0x00. That is a match at index 16, so the compare loop is not expected to exit with i == 16.",
+    "index_17_note": "byte_429A30[17] is also 0x00, so a zero-filled Destination[17] would also match; the next mismatch location is outside the current safe success-boundary claim.",
+    "sample_execution_needed_for_claim": false
+  },
+  "payload_preview_review": {
+    "payload_preview_hex_from_input_delivery_review": "5d5a1cde131557d7d69dde2417df24534141",
+    "payload_preview_length": 18,
+    "payload_indices_16_to_17_hex": "4141",
+    "payload_indices_16_to_17_control_destination": false,
+    "allowed_to_call_solved_or_validated": false,
+    "reason": "The last two input bytes satisfy strlen length but are not copied by strncpy(..., 0x10u), so they do not force the required compare mismatch at Destination[16]."
+  },
+  "negative_results_considered": [
+    {
+      "block_id": "cpp1_2f6fcb63 current target bytes printable inverse path",
+      "do_not_repeat": true,
+      "reason": "No complete printable ASCII preimage under current byte_429A30[0..15]; missing printable inverse indices include 2,3,4,5,7,8,9,10,12,13."
+    }
+  ],
+  "recommended_next_action": "STOP_TARGET_OR_BOUNDARY_CONTRADICTION",
+  "stop_conditions_for_next_round": [
+    "Do not execute CPP1.exe with the current 18-byte payload preview as a claimed validation input.",
+    "Do not mark the all-byte inverse preview as solved or runtime validated.",
+    "Do not repeat the printable inverse path unless byte_429A30 or transform semantics change.",
+    "Before any runtime validation proposal, first prove a nonzero or otherwise mismatching Destination[16] source, or identify a different success condition/control path that makes i == 16 reachable.",
+    "Keep samplereverse and unrelated solver/frontier work out of this cpp1 round."
+  ],
+  "tool_capability_audit": {
+    "new_tool_interface_added": false,
+    "existing_static_capability_reused": "Read-only PE static file parsing of the already-recorded local sample path; no IDA automation rerun was required after byte_429A30[16] was recoverable from the PE image.",
+    "ida_unavailable_block": false,
+    "needs_tool_recheck": false
+  }
+}
