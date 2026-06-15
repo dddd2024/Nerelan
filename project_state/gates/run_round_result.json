@@ -2,15 +2,27 @@
   "schema_version": 1,
   "gate_name": "run-round",
   "run_status": "PASSED",
-  "decision_id": "decision_20260615_baseline_report_negation_guard_rework_v2",
-  "round_id": "round_20260615_baseline_report_negation_guard_rework_v2",
+  "decision_id": "decision_20260615_round_baseline_capture_order_guard_v1",
+  "round_id": "round_20260615_round_baseline_capture_order_guard_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-15T13:15:30.875691Z",
+  "generated_at": "2026-06-15T13:49:12.227464Z",
   "mode": "dry-run",
   "command_count": 15,
   "commands": [
     {
       "index": 1,
+      "command": "git status --short",
+      "phase": "status",
+      "kind": "git status",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "git status expected to exit 0"
+    },
+    {
+      "index": 2,
       "command": "Set-Location F:\\reverse-agent",
       "phase": "status",
       "kind": "set-location",
@@ -22,7 +34,7 @@
       "notes": "set-location expected to exit 0"
     },
     {
-      "index": 2,
+      "index": 3,
       "command": "Get-Location",
       "phase": "status",
       "kind": "pwd",
@@ -34,7 +46,7 @@
       "notes": "pwd expected to exit 0"
     },
     {
-      "index": 3,
+      "index": 4,
       "command": "Test-Path F:\\reverse-agent",
       "phase": "status",
       "kind": "test-path",
@@ -46,7 +58,7 @@
       "notes": "test-path expected to exit 0"
     },
     {
-      "index": 4,
+      "index": 5,
       "command": "git rev-parse --show-toplevel",
       "phase": "status",
       "kind": "git rev-parse",
@@ -56,18 +68,6 @@
       ],
       "records_stdout_stderr": true,
       "notes": "git rev-parse expected to exit 0"
-    },
-    {
-      "index": 5,
-      "command": "git status --short",
-      "phase": "status",
-      "kind": "git status",
-      "required": true,
-      "expected_exit_codes": [
-        0
-      ],
-      "records_stdout_stderr": true,
-      "notes": "git status expected to exit 0"
     },
     {
       "index": 6,
@@ -179,7 +179,7 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_baseline_report_negation_guard_rework_v2",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_round_baseline_capture_order_guard_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,

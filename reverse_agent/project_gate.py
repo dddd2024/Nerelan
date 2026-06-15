@@ -1288,6 +1288,173 @@ def _baseline_lifecycle_checks(
     return checks
 
 
+def _baseline_capture_order_checks(
+    *,
+    delta_summary: dict[str, Any],
+    files_changed: set[str],
+    decision_text: str,
+    report_text: str,
+    pytest_text: str,
+    state_dir: Path | None = None,
+    current_decision_id: str = "",
+) -> list[dict[str, Any]]:
+    """Check for suspected late baseline capture.
+
+    Late baseline capture occurs when Codex modifies source/test files before
+    running ``preflight``, causing those modifications to be absorbed into the
+    baseline and misclassified as inherited dirty files.
+
+    The key signal is: a file is simultaneously in ``baseline_dirty_files``,
+    ``files_changed`` (from the report), and the source/test scope.  If such
+    a file exists, it is *suspected* late baseline capture unless there is
+    explicit evidence that the file was already dirty before the round started
+    (e.g. the startup ``git status --short`` in ``pytest_result.txt`` shows
+    the file as dirty).
+    """
+    baseline_available = bool(delta_summary.get("baseline_available"))
+    baseline_dirty_files = _string_set(delta_summary.get("baseline_dirty_files"))
+    scope_text = _markdown_section(decision_text, "Implementation Scope")
+    source_test_scope = _allowed_source_test_scope_paths(scope_text)
+    allowed_inherited = _allowed_inherited_baseline_paths(decision_text)
+
+    checks: list[dict[str, Any]]
+
+    if not baseline_available:
+        checks = [
+            _check(
+                "baseline_capture_order",
+                "WARN",
+                "baseline is unavailable; capture order cannot be checked",
+                capture_order_status="unavailable",
+            )
+        ]
+        return checks
+
+    # The overlap: files that are baseline-dirty, in files_changed, and in
+    # the source/test scope.  These are suspected late baseline captures.
+    overlap = sorted(
+        (baseline_dirty_files & files_changed) & source_test_scope
+    )
+
+    # Determine pre-startup evidence from pytest_result.txt.
+    # The startup section records ``git status --short`` before any
+    # implementation.  If a file appears there as dirty, it was genuinely
+    # inherited — not a late capture.
+    startup_dirty_files = _extract_startup_dirty_files(pytest_text)
+
+    # Separate overlap into confirmed-inherited vs suspected-late-capture.
+    confirmed_inherited = sorted(
+        path for path in overlap if path in startup_dirty_files
+    )
+    suspected_late = sorted(
+        path for path in overlap if path not in startup_dirty_files
+    )
+
+    # Build detail fields for final_gate_result.json.
+    detail_fields: dict[str, Any] = {
+        "suspected_late_baseline_files": suspected_late,
+        "allowed_inherited_dirty_files": sorted(allowed_inherited),
+        "baseline_dirty_source_test_files": sorted(baseline_dirty_files & source_test_scope),
+        "files_changed_overlap": overlap,
+        "confirmed_inherited_from_startup_evidence": confirmed_inherited,
+    }
+
+    if not overlap:
+        detail_fields["capture_order_status"] = "clean"
+        checks = [
+            _check(
+                "baseline_capture_order",
+                "PASS",
+                "baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed",
+                **detail_fields,
+            )
+        ]
+    elif suspected_late:
+        # There are suspected late baseline captures with no startup evidence.
+        # Even if the decision has an Allowed Inherited Dirty Baseline Files
+        # section, that only means "these files are allowed to be inherited" —
+        # it does NOT prove they were dirty before the round started.
+        if confirmed_inherited:
+            # Mixed: some confirmed, some suspected.
+            detail_fields["capture_order_status"] = "suspected_late_capture_partial"
+            checks = [
+                _check(
+                    "baseline_capture_order",
+                    "FAIL",
+                    "suspected late baseline capture: source/test files appear in both baseline dirty files and files_changed without startup evidence; some files have startup evidence confirming they were pre-existing",
+                    **detail_fields,
+                )
+            ]
+        else:
+            detail_fields["capture_order_status"] = "suspected_late_capture"
+            checks = [
+                _check(
+                    "baseline_capture_order",
+                    "FAIL",
+                    "suspected late baseline capture: source/test files appear in both baseline dirty files and files_changed without startup evidence",
+                    **detail_fields,
+                )
+            ]
+    else:
+        # All overlap files have startup evidence confirming they were
+        # pre-existing dirty files — genuine inherited dirty, not late capture.
+        detail_fields["capture_order_status"] = "confirmed_inherited"
+        checks = [
+            _check(
+                "baseline_capture_order",
+                "WARN",
+                "source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
+                **detail_fields,
+            )
+        ]
+
+    return checks
+
+
+def _extract_startup_dirty_files(pytest_text: str) -> set[str]:
+    """Extract dirty file paths from the startup ``git status --short``
+    command block in ``pytest_result.txt``.
+
+    The startup section is the *first* ``git status --short`` command block,
+    which records the working tree state before any implementation.
+    """
+    blocks = _parse_recorded_command_blocks(pytest_text)
+    for block in blocks.get("blocks", []):
+        if not isinstance(block, dict):
+            continue
+        command = str(block.get("command") or "").strip()
+        if command == "git status --short":
+            stdout = str(block.get("stdout") or "")
+            return _parse_git_status_short_dirty(stdout)
+    return set()
+
+
+def _parse_git_status_short_dirty(status_output: str) -> set[str]:
+    """Parse ``git status --short`` output into a set of dirty file paths."""
+    paths: set[str] = set()
+    for line in status_output.splitlines():
+        if not line or len(line) < 4:
+            continue
+        # git status --short format: XY PATH
+        # X = index status, Y = worktree status
+        # The path starts at column 3 (0-indexed) in the raw line.
+        # Do NOT strip the line — leading whitespace is significant.
+        xy = line[:2]
+        if xy == "??":
+            path = line[3:].strip().strip('"')
+        elif xy[0] in ("M", "A", "D", "R", "C", " ") or xy[1] in ("M", "A", "D", "R", "C", " "):
+            # At least one of X/Y is a recognized status code.
+            if xy[0] in ("M", "A", "D", "R", "C") or xy[1] in ("M", "A", "D", "R", "C"):
+                path = line[3:].strip().strip('"')
+            else:
+                continue
+        else:
+            continue
+        if path:
+            paths.add(_norm_path(path))
+    return paths
+
+
 def _check(name: str, status: str, detail: str, **extra: Any) -> dict[str, Any]:
     item: dict[str, Any] = {"name": name, "status": status, "detail": detail}
     item.update(extra)
@@ -1791,6 +1958,7 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
             "report_summary_status_source_available",
             "status_policy_valid",
             "files_changed_excludes_inherited_dirty_files",
+            "baseline_capture_order",
         }
         status_policy_has_limitations = any(
             isinstance(check, dict)
@@ -2451,6 +2619,17 @@ def final_check(
             current_decision_id=decision_id,
         )
     )
+    checks.extend(
+        _baseline_capture_order_checks(
+            delta_summary=delta_summary,
+            files_changed=files_changed,
+            decision_text=decision_text,
+            report_text=report_text,
+            pytest_text=pytest_text,
+            state_dir=state_dir,
+            current_decision_id=decision_id,
+        )
+    )
 
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
     archive_check_status = (
@@ -3015,6 +3194,17 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             delta_summary=delta_summary,
             decision_text=decision_text,
             report_text=report_text,
+            state_dir=state_dir,
+            current_decision_id=decision_id,
+        )
+    )
+    checks.extend(
+        _baseline_capture_order_checks(
+            delta_summary=delta_summary,
+            files_changed=files_changed,
+            decision_text=decision_text,
+            report_text=report_text,
+            pytest_text=pytest_text,
             state_dir=state_dir,
             current_decision_id=decision_id,
         )

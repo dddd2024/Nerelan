@@ -4388,6 +4388,285 @@ Disallowed:
         assert guard_check["status"] in ("PASS", "WARN")
 
 
+class TestBaselineCaptureOrderChecks:
+    """Verify _baseline_capture_order_checks detects suspected late baseline capture.
+
+    Test scenarios from decision:
+    1. baseline clean, source/test in new_dirty_files_since_baseline → PASS
+    2. baseline dirty source/test, not in files_changed → no overlap, PASS
+    3. baseline dirty source/test, also in files_changed → suspected late capture
+    4. Even with Allowed Inherited Dirty Baseline Files, cannot PASS suspected late capture
+    5. No startup evidence + suspected late capture → FAIL
+    6. Startup evidence confirms pre-existing dirty → WARN (not FAIL)
+    """
+
+    DECISION_TEXT = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+"""
+
+    DECISION_TEXT_WITH_ALLOWLIST = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+
+## Allowed Inherited Dirty Baseline Files
+
+- `reverse_agent/project_gate.py`
+- `tests/test_project_gate.py`
+"""
+
+    REPORT_TEXT = "## Allowed Inherited Dirty Baseline Files\n\n- `reverse_agent/project_gate.py`\n"
+
+    def _make_delta(
+        self,
+        baseline_dirty: list[str] | None = None,
+        baseline_available: bool = True,
+    ) -> dict[str, Any]:
+        return {
+            "baseline_available": baseline_available,
+            "baseline_dirty_files": baseline_dirty or [],
+            "inherited_dirty_files": baseline_dirty or [],
+            "new_dirty_files_since_baseline": [],
+        }
+
+    def _make_pytest_text(self, startup_dirty: list[str] | None = None) -> str:
+        """Build a minimal pytest_result.txt with startup git status --short."""
+        status_lines = ""
+        if startup_dirty:
+            for path in startup_dirty:
+                status_lines += f" M {path}\n"
+        return (
+            "===== COMMAND: git status --short =====\n"
+            f"{status_lines}"
+            "===== EXIT: 0 =====\n"
+        )
+
+    def test_baseline_clean_new_dirty_passes(self) -> None:
+        """Scenario 1: baseline clean, source/test in new_dirty → PASS."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=[])
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text="",
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "PASS"
+        assert check["capture_order_status"] == "clean"
+
+    def test_baseline_dirty_not_in_files_changed_passes(self) -> None:
+        """Scenario 2: baseline dirty source/test, not in files_changed → PASS (no overlap)."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=["reverse_agent/project_gate.py"])
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"project_state/codex_execution_report.md"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text="",
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "PASS"
+        assert check["capture_order_status"] == "clean"
+
+    def test_baseline_dirty_and_in_files_changed_suspected_late(self) -> None:
+        """Scenario 3: baseline dirty source/test, also in files_changed → FAIL (suspected late)."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=["reverse_agent/project_gate.py"])
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text="",
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "FAIL"
+        assert check["capture_order_status"] == "suspected_late_capture"
+        assert "reverse_agent/project_gate.py" in check["suspected_late_baseline_files"]
+
+    def test_allowlist_does_not_override_suspected_late(self) -> None:
+        """Scenario 4: Even with Allowed Inherited Dirty Baseline Files, cannot PASS."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=["reverse_agent/project_gate.py"])
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT_WITH_ALLOWLIST,
+            report_text=self.REPORT_TEXT,
+            pytest_text="",
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "FAIL"
+        assert check["capture_order_status"] == "suspected_late_capture"
+
+    def test_no_startup_evidence_suspected_late_fails(self) -> None:
+        """Scenario 5: No startup evidence + suspected late capture → FAIL."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=["reverse_agent/project_gate.py"])
+        # pytest_text has no startup git status --short block
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text="some text without git status",
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "FAIL"
+
+    def test_startup_evidence_confirms_inherited_warns(self) -> None:
+        """Scenario 6: Startup evidence confirms pre-existing dirty → WARN."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=["reverse_agent/project_gate.py"])
+        pytest_text = self._make_pytest_text(
+            startup_dirty=["reverse_agent/project_gate.py"]
+        )
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text=pytest_text,
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "WARN"
+        assert check["capture_order_status"] == "confirmed_inherited"
+        assert "reverse_agent/project_gate.py" in check["confirmed_inherited_from_startup_evidence"]
+
+    def test_mixed_confirmed_and_suspected_fails(self) -> None:
+        """Mixed: one file confirmed, one suspected → FAIL (partial)."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(
+            baseline_dirty=["reverse_agent/project_gate.py", "tests/test_project_gate.py"]
+        )
+        pytest_text = self._make_pytest_text(
+            startup_dirty=["reverse_agent/project_gate.py"]
+        )
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py", "tests/test_project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text=pytest_text,
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "FAIL"
+        assert check["capture_order_status"] == "suspected_late_capture_partial"
+
+    def test_baseline_unavailable_warns(self) -> None:
+        """Baseline unavailable → WARN."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_available=False)
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text="",
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "WARN"
+        assert check["capture_order_status"] == "unavailable"
+
+    def test_detail_fields_present(self) -> None:
+        """Verify all required detail fields are present in the check output."""
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=["reverse_agent/project_gate.py"])
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text="",
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert "suspected_late_baseline_files" in check
+        assert "allowed_inherited_dirty_files" in check
+        assert "baseline_dirty_source_test_files" in check
+        assert "files_changed_overlap" in check
+        assert "capture_order_status" in check
+
+
+class TestExtractStartupDirtyFiles:
+    """Verify _extract_startup_dirty_files parses pytest_result.txt correctly."""
+
+    def test_extracts_modified_files(self) -> None:
+        from reverse_agent.project_gate import _extract_startup_dirty_files
+
+        text = (
+            "===== COMMAND: git status --short =====\n"
+            " M reverse_agent/project_gate.py\n"
+            " M tests/test_project_gate.py\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _extract_startup_dirty_files(text)
+        assert "reverse_agent/project_gate.py" in result
+        assert "tests/test_project_gate.py" in result
+
+    def test_extracts_untracked_files(self) -> None:
+        from reverse_agent.project_gate import _extract_startup_dirty_files
+
+        text = (
+            "===== COMMAND: git status --short =====\n"
+            "?? new_file.py\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _extract_startup_dirty_files(text)
+        assert "new_file.py" in result
+
+    def test_uses_first_git_status_block(self) -> None:
+        """Only the first git status --short block is the startup state."""
+        from reverse_agent.project_gate import _extract_startup_dirty_files
+
+        text = (
+            "===== COMMAND: git status --short =====\n"
+            " M file_a.py\n"
+            "===== EXIT: 0 =====\n"
+            "\n"
+            "===== COMMAND: git status --short =====\n"
+            " M file_a.py\n"
+            " M file_b.py\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _extract_startup_dirty_files(text)
+        assert "file_a.py" in result
+        assert "file_b.py" not in result
+
+    def test_empty_text_returns_empty(self) -> None:
+        from reverse_agent.project_gate import _extract_startup_dirty_files
+
+        result = _extract_startup_dirty_files("")
+        assert result == set()
+
+    def test_no_git_status_block_returns_empty(self) -> None:
+        from reverse_agent.project_gate import _extract_startup_dirty_files
+
+        result = _extract_startup_dirty_files("some text without git status")
+        assert result == set()
+
+
 class TestRoundDeltaChecksClosedRound:
     """Verify _round_delta_checks distinguishes active vs closed rounds for inherited dirty warnings."""
 
