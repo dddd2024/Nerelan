@@ -1,10 +1,10 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260615_project_state_refresh_active_execution_view_v1",
-  "round_id": "round_20260615_project_state_refresh_active_execution_view_v1",
-  "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
-  "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
+  "decision_id": "decision_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "round_id": "round_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
+  "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
   "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
@@ -15,38 +15,33 @@
 
 ## 1. Goal
 
-实现或验证 `project_state` 的 **active execution view / 状态刷新能力**。
+修复上一轮 `project_state_refresh_active_execution_view_v1` 审计中暴露出的两个工程规范问题：
 
-目标不是推进逆向样本，而是让状态包在 Codex 每轮启动时能更明确地区分：
+1. **live `project_state/decision_packet.md` 不可被 Codex 执行轮反向修改**。
+2. **`project_state build` 会重写哪些动态状态文件必须有明确 scope 规则**。
 
-1. 当前执行权威：`project_state/decision_packet.md`
-2. 当前 decision 是否已经被 SUCCESS report 消费
-3. `task_packet.json` 是否只是 advisory/state input
-4. `current_state.json` 是否只是旧 sample_state
-5. historical sample artifacts 是否只是 external_state_notices
-6. 下一轮是否需要生成新 decision，而不是复用已消费 decision
-
-本轮目标是减少以后人工审计时反复解释“task_packet 是建议，不是当前任务”的成本。
+本轮不是继续扩展 active execution view，也不是推进逆向样本；本轮目标是把执行边界做硬，避免以后 Codex 通过修改当前 decision 来适配 dirty baseline，或因为 `project_state build` 造成未声明状态文件漂移。
 
 ## 2. Current Evidence
 
-上一轮 `round_20260615_state_handoff_after_gate_acceptance_v1` 已经 ACCEPTED：
+上一轮 `round_20260615_project_state_refresh_active_execution_view_v1` 审计结论是 `ACCEPTED_WITH_LIMITATIONS`。
 
-- `codex_execution_report.md` status 为 `SUCCESS`
-- `acceptance_recommendation` 为 `ACCEPTED`
-- `pytest_result.txt` 为 `PASSED`
-- `final_gate_result.json` 为 `PASSED`
-- `round_manifest.json` 已归档
+已接受部分：
 
-但当前状态文件仍保留旧 sample 信息：
+- `active_execution_view()` 已实现；
+- `active-execution-view` CLI 已接入；
+- `pytest` 记录为 `526 passed`；
+- `final_gate_result.json` 为 `PASSED`；
+- round archive 已创建；
+- 没有推进样本求解，也没有改 solver / strategy / IDA / Ghidra / debugger / harness。
 
-- `task_packet.json` 仍有 `derived_task: collect_missing_evidence`
-- `task_packet.json` 仍有 `profile: samplereverse`
-- `task_packet.json` 仍有 `state_scope: sample_state`
-- `current_state.json` 仍有 `sample: samplereverse`
-- `current_state.json` 仍有 `workflow_status: REPORT_AVAILABLE`
+限制点：
 
-这些信息不能删除或伪造，但需要在状态视图中被明确降级为 historical/advisory。
+1. Codex 在执行过程中修改了 live `project_state/decision_packet.md`，加入 `Allowed Inherited Dirty Baseline Files` 段。该文件是当前执行权威，执行轮不应反向改写。
+2. 本轮 `project_state build` 运行后改动了 `project_state/artifact_index.json`、`project_state/current_state.json`、`project_state/task_packet.json`、`project_state/model_gate.json`、`project_state/negative_results.json` 等动态状态文件；其中部分文件未在上一轮 Implementation Scope 中明确列出。
+3. 报告声称验证了 active-execution-view CLI，但 `pytest_result.txt` 的 command list 没有单独记录该 CLI 命令。以后报告中声称验证的命令必须进入 `tests_ran` / `pytest_result`。
+
+当前状态仍然保留旧 sample 信息：`samplereverse / collect_missing_evidence / sample_state`。这仍然只能作为 historical/advisory，不是当前执行主线。
 
 ## 3. Do Not Do
 
@@ -64,7 +59,9 @@
 
 不要把 `task_packet.task` 或 `task_packet.derived_task` 当作当前执行任务。
 
-不要为了让状态“看起来干净”而删除旧 sample_state；正确做法是分类、标注、降级。
+不要在执行过程中修改 live `project_state/decision_packet.md`。允许读取它；允许 `close-round` 把它复制到 `project_state/rounds/<round_id>/decision_packet.md`；不允许把 live 文件加入 `files_changed`。
+
+不要为了压掉 baseline warnings 再给 live decision 补 allowlist。若启动时 source/test 文件已经 dirty，必须按 baseline 规则记录；若需要修改 decision 才能通过 gate，应停止并报告 `REWORK_REQUIRED`。
 
 ## 4. Files To Inspect
 
@@ -79,95 +76,78 @@
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 9. `project_state/gates/final_gate_result.json`
-10. `project_state/rounds/round_20260615_state_handoff_after_gate_acceptance_v1/round_manifest.json`
+10. `project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json`
 
 重点检查：
 
-- `reverse_agent/project_state.py`
 - `reverse_agent/project_gate.py`
-- `tests/test_project_state.py`
 - `tests/test_project_gate.py`
+- `reverse_agent/project_state.py`
+- `tests/test_project_state.py`
 
 ## 5. Required Audit
 
 执行前确认：
 
-1. 当前 `decision_packet.md` 是本轮 `decision_20260615_project_state_refresh_active_execution_view_v1`。
-2. 上一轮 `decision_20260615_state_handoff_after_gate_acceptance_v1` 已经被 SUCCESS report 消费。
+1. 当前 `decision_packet.md` 是本轮 `decision_20260615_decision_immutability_and_build_output_scope_guard_v1`。
+2. 上一轮 `decision_20260615_project_state_refresh_active_execution_view_v1` 已经被 SUCCESS report 消费。
 3. `task_packet.json` 只是 advisory/state input。
 4. `current_state.json` 中旧 sample_state 不能当作当前执行主线。
 5. `reverse-agent-iteration@v2` 来自 active registry。
 6. 当前主线是 `engineering_branch`。
 7. historical sample artifacts 只能作为 external_state_notices。
 8. 不允许切换到 `reverse_solving`、`tool_integration` 或 `training_dataset`。
+9. 启动 `git status --short` 如果显示 live `project_state/decision_packet.md` dirty，应停止并报告 `BLOCKED`，不能继续执行。
+10. 如果报告声明某个 CLI 被验证，该 CLI 必须出现在 `codex_report_summary.tests_ran` 和 `pytest_result_summary.tests_ran`，并在 body 中有对应 command block。
 
 ## 6. Implementation Scope
 
-优先做小改动。
+优先改 gate / lint 规则和测试，不改求解逻辑。
 
 允许修改：
 
-- `reverse_agent/project_state.py`
-- `tests/test_project_state.py`
+- `reverse_agent/project_gate.py`
+- `tests/test_project_gate.py`
 
 必要时允许修改：
 
-- `reverse_agent/project_gate.py`
-- `tests/test_project_gate.py`
+- `reverse_agent/project_state.py`
+- `tests/test_project_state.py`
 
 允许生成或更新：
 
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/*`
+- `project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/*`
 
-谨慎允许更新：
-
-- `project_state/task_packet.json`
-- `project_state/current_state.json`
-
-前提是这些文件必须由明确的 `project_state build` 或等价状态刷新命令生成，不能手工伪造。
+本轮不应运行 live `project_state build`。如果为了测试 build output scope，需要使用 pytest 临时目录 fixture，不要直接刷新 live `project_state` 动态文件。
 
 只读，不得修改：
 
+- live `project_state/decision_packet.md`，除本文件由 GPT 预先上传外，Codex 执行期间不得修改；
 - `.codex-skills/`
 - `solve_reports/`
 - `PROJECT_PROGRESS_LOG.txt`
-- solver / strategy / transform / probe / IDA / Ghidra / debugger 相关模块
+- solver / strategy / transform / probe / IDA / Ghidra / debugger 相关模块。
 
-具体要求：
+本轮具体要求：
 
-1. 先审计当前 `project_state build` 是否已经支持生成 active execution view。
-2. 如果已有能力，直接运行状态刷新命令并记录结果，不做源码修改。
-3. 如果没有能力，只做最小工程增强：
-   - 增加一个 compact active execution summary；
-   - 或在 `doctor / lint-report / build` 输出中统一暴露当前执行视图字段。
-4. active execution view 至少应包含：
-   - `execution_authority`
-   - `active_decision_id`
-   - `active_round_id`
-   - `decision_status`
-   - `decision_execution_state`
-   - `latest_success_report_id`
-   - `latest_closed_round_id`
-   - `task_packet_role`
-   - `current_state_role`
-   - `historical_artifacts_role`
-   - `recommended_next_action`
-5. 如果当前 decision 已被 SUCCESS report 消费，状态视图必须明确提示：
-   - `recommended_next_action: generate_new_decision`
-   - 或等价表达；
-   - 不能提示继续执行已消费 decision。
-6. 不要删除旧 sample_state；只允许标注其 role，例如：
-   - `current_state_role: historical_sample_state`
-   - `task_packet_role: advisory_state_input`
-   - `artifact_freshness_role: historical_external_notices`
-
-## Allowed Inherited Dirty Baseline Files
-
-- `reverse_agent/project_state.py`
-- `tests/test_project_state.py`
+1. 增加或强化 gate 检查：如果 current round 的 `files_changed` 或 round delta 包含 live `project_state/decision_packet.md`，应判定为 FAIL，除非只是 archive 路径 `project_state/rounds/<round_id>/decision_packet.md`。
+2. 增加或强化 gate 检查：如果 startup baseline 里 live `project_state/decision_packet.md` 已 dirty，应阻止执行，不能允许 Codex 在执行中修补当前 decision。
+3. 明确 `project_state build` 的动态输出白名单，建议集中定义为：
+   - `project_state/artifact_index.json`
+   - `project_state/current_state.json`
+   - `project_state/task_packet.json`
+   - `project_state/model_gate.json`
+   - `project_state/negative_results.json`
+4. 如果上述 build-generated files 出现在 round delta 中，必须满足至少一个条件：
+   - `pytest_result.txt` 记录了 `python -m reverse_agent.project_state build` 且 exit code 为 0；
+   - 或 report 明确说明这些文件来自受控状态刷新命令，并且 command-plan / pytest_result 可验证。
+5. 如果 build-generated files 出现在 round delta，但没有记录 build 命令，应 FAIL 或至少 WARN，并给出明确 `build_output_scope_unverified` 诊断。
+6. 如果报告正文声称验证了某个 CLI，例如 `active-execution-view`，但该命令不在 `tests_ran` 和 command block 中，应 WARN 或 FAIL。最低要求是新增测试覆盖这一点；实现难度过高时，报告中不得再声称未记录的命令验证。
+7. 不要改 active_execution_view 的业务语义，除非为测试或字段稳定性修复必要 bug。
+8. 不要删除旧 sample_state；只允许标注其 role 或让 active execution view 降级解释。
 
 ## 7. Tests
 
@@ -185,22 +165,24 @@ python -m reverse_agent.project_gate command-plan --state-dir project_state --js
 python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
 python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
-python -m reverse_agent.project_state build
+python -m reverse_agent.project_state active-execution-view --state-dir project_state --json
 python -m pytest tests/test_project_state.py tests/test_project_gate.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_state_refresh_active_execution_view_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_decision_immutability_and_build_output_scope_guard_v1
 ```
 
 必须新增或确认测试覆盖：
 
-1. `decision_packet.md` 优先级高于 `task_packet.task`
-2. consumed decision 不能被继续执行
-3. old sample_state 在 engineering_branch 下被标注为 historical/advisory
-4. missing historical sample artifacts 不会阻断 engineering_branch
-5. active execution view 能稳定输出当前 decision/report/round 状态
-6. active execution view 对已消费 decision 给出 generate_new_decision 或等价建议
-7. 不删除、不伪造 artifact_index 中的 missing/stale 信息
+1. live `project_state/decision_packet.md` 出现在 current round `files_changed` 时，final-check 或 close-round 必须 FAIL。
+2. archive 路径 `project_state/rounds/<round_id>/decision_packet.md` 不触发 live decision mutation failure。
+3. startup baseline 中 live `project_state/decision_packet.md` dirty 时，preflight/final-check 至少有明确 blocking 诊断。
+4. build-generated state files 白名单稳定输出。
+5. build-generated state files 若出现在 round delta 且 pytest_result 未记录 `project_state build`，应产生 `build_output_scope_unverified` 诊断。
+6. build-generated state files 若出现在 round delta 且 pytest_result 记录 build 命令 exit 0，应被分类为受控状态刷新产物。
+7. 报告声称验证的 CLI 必须被 `tests_ran` / `pytest_result` 覆盖，至少对 `active-execution-view` 建一个回归测试或在报告模板中禁止未记录 claim。
+8. 现有 active execution view 行为不回退：consumed decision 仍推荐 `generate_new_decision`，READY_FOR_EXECUTION 仍推荐 `execute_decision_scope`。
+9. 不删除、不伪造 artifact_index 中的 missing/stale 信息。
 
 ## 8. Stop Conditions
 
@@ -208,7 +190,9 @@ python -m reverse_agent.project_gate close-round --state-dir project_state --rou
 
 如果需要读取完整 `solve_reports/` 才能继续，停止并报告 `BLOCKED`。
 
-如果需要删除或伪造 historical missing artifacts 才能通过，停止并报告 `REWORK_REQUIRED`。
+如果需要修改 live `project_state/decision_packet.md` 才能通过 gate，停止并报告 `REWORK_REQUIRED`。
+
+如果启动时 `project_state/decision_packet.md` 已 dirty，停止并报告 `BLOCKED`，不要继续修改。
 
 如果修改会让 `task_packet.task` 覆盖 `decision_packet.md`，停止并报告 `REWORK_REQUIRED`。
 
