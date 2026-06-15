@@ -809,10 +809,10 @@ def test_final_check_passes_engineering_success_with_legacy_sample_artifacts(tmp
     assert status_policy.get("external_state_notices") is not None
 
 
-def test_final_check_downgrades_unclaimed_legacy_artifacts_for_reverse_solving(
+def test_final_check_blocks_unclaimed_legacy_artifacts_for_reverse_solving(
     tmp_path: Path,
 ) -> None:
-    """reverse_solving treats unclaimed historical artifact freshness as non-blocking."""
+    """reverse_solving must treat unclaimed historical artifact freshness as blocking."""
     state_dir = _make_gate_state(tmp_path, mainline="reverse_solving")
     _write_json(
         state_dir / "artifact_index.json",
@@ -826,11 +826,9 @@ def test_final_check_downgrades_unclaimed_legacy_artifacts_for_reverse_solving(
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-    assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
-    assert result["blocking_reasons"] == []
+    assert result["gate_status"] == "FAILED"
     status_policy = _check(result, "status_policy_valid")
-    assert status_policy["status"] in {"PASS", "WARN"}
-    assert status_policy.get("limitations")
+    assert status_policy["status"] == "FAIL"
 
 
 def test_final_check_blocks_reverse_solving_when_report_claims_sample_artifacts(
@@ -859,10 +857,10 @@ def test_final_check_blocks_reverse_solving_when_report_claims_sample_artifacts(
     assert "stale artifacts" in " ".join(status_policy["lint_errors"])
 
 
-def test_final_check_downgrades_historical_artifacts_for_tool_integration(
+def test_final_check_blocks_historical_artifacts_for_tool_integration(
     tmp_path: Path,
 ) -> None:
-    """tool_integration downgrades historical missing/stale artifacts to WARN
+    """tool_integration must treat historical missing/stale artifacts as blocking
     when the report does not claim sample artifact freshness."""
     state_dir = _make_gate_state(tmp_path, mainline="tool_integration")
     _write_json(
@@ -877,10 +875,9 @@ def test_final_check_downgrades_historical_artifacts_for_tool_integration(
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-    assert result["gate_status"] == "WARN"
+    assert result["gate_status"] == "FAILED"
     status_policy = _check(result, "status_policy_valid")
-    assert status_policy["status"] == "WARN"
-    assert "stale artifacts" in " ".join(status_policy.get("warnings", []))
+    assert status_policy["status"] == "FAIL"
 
 
 def test_final_check_fails_when_recorded_stdout_status_is_stale(tmp_path: Path) -> None:
@@ -4558,7 +4555,7 @@ class TestFinalCheckMainlineStatusPolicy:
         assert len(status_policy["external_state_notices"]) > 0
 
     def test_reverse_solving_historical_still_with_limitations(self, tmp_path: Path) -> None:
-        """reverse_solving with historical sample limitations should return PASSED_WITH_LIMITATIONS."""
+        """reverse_solving with historical sample limitations must block (strict freshness)."""
         state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW", mainline="reverse_solving")
         _write_json(
             state_dir / "artifact_index.json",
@@ -4574,10 +4571,9 @@ class TestFinalCheckMainlineStatusPolicy:
 
         result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-        assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+        assert result["gate_status"] == "FAILED"
         status_policy = _check(result, "status_policy_valid")
-        # For reverse_solving, limitations should remain in limitations field
-        assert status_policy.get("limitations") is not None
+        assert status_policy["status"] == "FAIL"
 
     def test_engineering_branch_external_state_notices_visible(self, tmp_path: Path) -> None:
         """Historical sample limitations should be visible in external_state_notices."""
@@ -4647,8 +4643,8 @@ class TestReportSummarySynthesisMainlineAware:
         assert "external_state_notices" in synthesized
         assert len(synthesized["external_state_notices"]) > 0
 
-    def test_reverse_solving_historical_still_limitations_in_synthesis(self, tmp_path: Path) -> None:
-        """For reverse_solving, historical sample limitations should remain as limitations."""
+    def test_reverse_solving_historical_blocks_in_synthesis(self, tmp_path: Path) -> None:
+        """For reverse_solving, historical sample limitations must block (strict freshness)."""
         state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW", mainline="reverse_solving")
         _write_json(
             state_dir / "artifact_index.json",
@@ -4669,5 +4665,4 @@ class TestReportSummarySynthesisMainlineAware:
         result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
 
         synthesized = result["synthesized_summary"]
-        assert synthesized.get("acceptance_recommendation") == "ACCEPTED_WITH_LIMITATIONS"
-        assert "limitations" in synthesized
+        assert synthesized.get("acceptance_recommendation") in {"NEEDS_REVIEW", "REWORK_REQUIRED"}

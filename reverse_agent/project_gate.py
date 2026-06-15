@@ -2466,17 +2466,18 @@ def final_check(
 
     if doctor_status == "FAIL":
         status_errors.append("doctor status is FAIL")
-    elif report_status == "SUCCESS" and doctor_blocking_warnings:
-        # If all blocking warnings are historical missing/stale artifacts and the
-        # report does not claim sample artifact freshness, downgrade to warnings.
-        # Current reverse-solving rounds remain strict when they explicitly claim
-        # sample artifacts in generated_artifacts or verified_artifacts.
+    elif doctor_blocking_warnings:
+        # If there are blocking warnings from doctor, they must be treated as errors
+        # unless they are historical artifacts downgraded for engineering_branch.
         _all_historical = all(
             re.match(r"\d+ missing, \d+ stale artifacts", w)
             for w in doctor_blocking_warnings
         )
+        mainline = str(decision.get("mainline") or "")
         if (
             _all_historical
+            and mainline == "engineering_branch"
+            and report_status == "SUCCESS"
             and not _report_claims_sample_artifact_freshness(report)
         ):
             status_warnings.extend(doctor_blocking_warnings)
@@ -2660,9 +2661,14 @@ def _status_policy_failure_is_archive_pending(
 def _status_policy_failure_is_historical_artifacts_only(
     *,
     result: dict[str, Any],
+    mainline: str = "",
 ) -> bool:
     """After archive, status_policy_valid FAIL from historical artifact freshness
-    should not block closeout when report is SUCCESS and doctor is not FAIL."""
+    should not block closeout when report is SUCCESS and doctor is not FAIL.
+    Only engineering_branch is allowed this downgrade; reverse_solving,
+    tool_integration, and training_dataset must remain strict."""
+    if mainline != "engineering_branch":
+        return False
     status_policy = _check_by_name(result, "status_policy_valid")
     if status_policy.get("status") != "FAIL":
         return False
@@ -3132,7 +3138,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                 after_tolerated: set[str] = set()
                 if (
                     after_failed == {"status_policy_valid"}
-                    and _status_policy_failure_is_historical_artifacts_only(result=after)
+                    and _status_policy_failure_is_historical_artifacts_only(result=after, mainline=str(decision.get("mainline") or ""))
                 ):
                     after_tolerated.add("status_policy_valid")
                     _patch_gate_result_historical_artifacts(

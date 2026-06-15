@@ -3197,7 +3197,7 @@ def _historical_artifact_freshness_is_non_blocking(
     round_consistency: dict[str, Any],
     pytest_validation: dict[str, Any],
 ) -> bool:
-    ALLOWED_NON_BLOCKING_MAINLINES = {"engineering_branch", "reverse_solving", "training_dataset"}
+    ALLOWED_NON_BLOCKING_MAINLINES = {"engineering_branch"}
     if str(decision.get("mainline") or "") not in ALLOWED_NON_BLOCKING_MAINLINES:
         return False
     # Path 1: fully consumed success report (existing behavior)
@@ -3209,10 +3209,12 @@ def _historical_artifact_freshness_is_non_blocking(
         if not bool(pytest_validation.get("tests_ran_covers_report")):
             return False
         return not _report_claims_sample_artifact_freshness(report)
-    # Path 2: active round where the report is not yet SUCCESS but does not claim
-    # sample artifact freshness. Historical sample artifacts are non-blocking
-    # unless the current report explicitly depends on them.
-    if str(decision.get("mainline") or "") in {"engineering_branch", "reverse_solving"}:
+    # Path 2: active engineering_branch round where the report is not yet SUCCESS
+    # but does not claim sample artifact freshness. Historical sample artifacts
+    # are non-blocking unless the current report explicitly depends on them.
+    # Only engineering_branch is allowed this path; reverse_solving,
+    # tool_integration, and training_dataset must always have strict freshness.
+    if str(decision.get("mainline") or "") == "engineering_branch":
         if str(report.get("status") or "") != "SUCCESS":
             return not _report_claims_sample_artifact_freshness(report)
     return False
