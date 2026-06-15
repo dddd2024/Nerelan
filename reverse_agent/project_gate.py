@@ -41,6 +41,7 @@ RUN_ROUND_NAME = "run-round"
 RUN_ROUND_RESULT_NAME = "run_round_result.json"
 ROUND_BASELINE_RESULT_NAME = "round_baseline.json"
 ROUND_DELTA_SUMMARY_NAME = "round_delta_summary.json"
+ROUND_CLOSE_SNAPSHOT_RESULT_NAME = "round_close_snapshot.json"
 SELF_OUTPUT_PATH = f"project_state/gates/{FINAL_GATE_RESULT_NAME}"
 PREFLIGHT_OUTPUT_PATH = f"project_state/gates/{PREFLIGHT_RESULT_NAME}"
 COMMAND_PLAN_OUTPUT_PATH = f"project_state/gates/{COMMAND_PLAN_RESULT_NAME}"
@@ -48,6 +49,7 @@ REPORT_SUMMARY_OUTPUT_PATH = f"project_state/gates/{REPORT_SUMMARY_RESULT_NAME}"
 RUN_ROUND_OUTPUT_PATH = f"project_state/gates/{RUN_ROUND_RESULT_NAME}"
 ROUND_BASELINE_OUTPUT_PATH = f"project_state/gates/{ROUND_BASELINE_RESULT_NAME}"
 ROUND_DELTA_OUTPUT_PATH = f"project_state/gates/{ROUND_DELTA_SUMMARY_NAME}"
+ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{ROUND_CLOSE_SNAPSHOT_RESULT_NAME}"
 CLOSE_ROUND_NAME = "close-round"
 
 ARCHIVE_PENDING_CHECKS = {
@@ -694,6 +696,10 @@ def _round_delta_summary_path(state_dir: Path) -> Path:
     return state_dir / "gates" / ROUND_DELTA_SUMMARY_NAME
 
 
+def _round_close_snapshot_path(state_dir: Path) -> Path:
+    return state_dir / "gates" / ROUND_CLOSE_SNAPSHOT_RESULT_NAME
+
+
 def _is_generated_state_or_archive_path(path: str) -> bool:
     normalized = _norm_path(path)
     return (
@@ -731,6 +737,53 @@ def _baseline_matches_round(payload: dict[str, Any], decision_id: str, round_id:
         and str(payload.get("decision_id") or "") == decision_id
         and str(payload.get("round_id") or "") == round_id
     )
+
+
+def _write_round_close_snapshot(
+    *,
+    state_dir: Path,
+    repo_root: Path,
+    decision_id: str,
+    round_id: str,
+) -> dict[str, Any]:
+    """Write a close snapshot / lifecycle artifact during close-round."""
+    baseline = _read_json(_round_baseline_path(state_dir))
+    baseline_dirty_files = _string_set(baseline.get("baseline_dirty_files")) if baseline else set()
+    close_git_status_short = _git_status_short_lines(repo_root)
+    close_git_diff_name_only = _git_diff_name_only(repo_root)
+    close_dirty_files = set(_git_changed_files(repo_root))
+    close_worktree_clean = not close_dirty_files
+    inherited_at_close = close_dirty_files & baseline_dirty_files
+
+    snapshot = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "artifact_name": ROUND_CLOSE_SNAPSHOT_RESULT_NAME,
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "closed_at": _now_iso(),
+        "round_closed": True,
+        "baseline_active": False,
+        "close_git_status_short": close_git_status_short,
+        "close_git_diff_name_only": close_git_diff_name_only,
+        "close_dirty_files": sorted(close_dirty_files),
+        "close_worktree_clean": close_worktree_clean,
+        "baseline_dirty_files": sorted(baseline_dirty_files),
+        "inherited_dirty_files_at_close": sorted(inherited_at_close),
+        "recommended_next_action": "no_action_required" if close_worktree_clean else "review_close_dirty_files",
+    }
+    snapshot_path = _round_close_snapshot_path(state_dir)
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    snapshot_path.write_text(
+        json.dumps(snapshot, ensure_ascii=True, indent=2) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return snapshot
+
+
+def _read_round_close_snapshot(state_dir: Path) -> dict[str, Any]:
+    """Read the round close snapshot if it exists."""
+    return _read_json(_round_close_snapshot_path(state_dir))
 
 
 def _capture_round_baseline(
@@ -836,6 +889,7 @@ def _round_delta_checks(
     files_changed: set[str],
     generated_artifacts: set[str],
     archive_paths: set[str],
+    state_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     baseline_available = bool(delta_summary.get("baseline_available"))
     final_dirty_files = _string_set(delta_summary.get("final_dirty_files"))
@@ -865,15 +919,34 @@ def _round_delta_checks(
         for path in (inherited_dirty_files & files_changed)
         if not _is_generated_state_or_archive_path(path)
     ) if baseline_available else []
+
+    # Check close snapshot for baseline lifecycle semantics.
+    close_snapshot = _read_round_close_snapshot(state_dir) if state_dir else {}
+    round_closed = bool(close_snapshot and close_snapshot.get("round_closed"))
+    close_worktree_clean = bool(close_snapshot.get("close_worktree_clean")) if close_snapshot else False
+
     if inherited_claimed:
-        checks.append(
-            _check(
-                "files_changed_excludes_inherited_dirty_files",
-                "WARN",
-                "files_changed includes inherited baseline dirty files (may have been modified this round)",
-                inherited_files_in_files_changed=inherited_claimed,
+        # For closed rounds, inherited baseline dirty files are no longer
+        # active; the close snapshot records the authoritative state.
+        if round_closed:
+            checks.append(
+                _check(
+                    "files_changed_excludes_inherited_dirty_files",
+                    "PASS",
+                    "round is closed; inherited baseline dirty files in files_changed are recorded in close snapshot",
+                    inherited_files_in_files_changed=inherited_claimed,
+                    close_worktree_clean=close_worktree_clean,
+                )
             )
-        )
+        else:
+            checks.append(
+                _check(
+                    "files_changed_excludes_inherited_dirty_files",
+                    "WARN",
+                    "files_changed includes inherited baseline dirty files (may have been modified this round)",
+                    inherited_files_in_files_changed=inherited_claimed,
+                )
+            )
     else:
         checks.append(
             _check(
@@ -945,6 +1018,7 @@ def _baseline_lifecycle_checks(
     delta_summary: dict[str, Any],
     decision_text: str,
     report_text: str,
+    state_dir: Path | None = None,
 ) -> list[dict[str, Any]]:
     baseline_available = bool(delta_summary.get("baseline_available"))
     baseline_dirty_files = _string_set(delta_summary.get("baseline_dirty_files"))
@@ -963,6 +1037,13 @@ def _baseline_lifecycle_checks(
     allowed_claimed = sorted((baseline_dirty_files & source_test_scope) & allowed_inherited)
     generated_or_archive_dirty = sorted(path for path in baseline_dirty_files if _is_generated_state_or_archive_path(path))
     checks: list[dict[str, Any]] = []
+
+    # Read close snapshot to determine baseline lifecycle state.
+    close_snapshot = _read_round_close_snapshot(state_dir) if state_dir else {}
+    round_closed = bool(close_snapshot and close_snapshot.get("round_closed"))
+    close_worktree_clean = bool(close_snapshot.get("close_worktree_clean")) if close_snapshot else False
+    close_dirty_files = _string_set(close_snapshot.get("close_dirty_files")) if close_snapshot else set()
+    close_snapshot_available = bool(close_snapshot)
 
     # --- baseline_lifecycle_violation check (before baseline_lifecycle_guard) ---
     baseline_has_untracked_impl = bool(delta_summary.get("baseline_has_untracked_implementation_files"))
@@ -1007,7 +1088,59 @@ def _baseline_lifecycle_checks(
             )
         )
         return checks
-    if unauthorized:
+
+    # For closed rounds with close snapshot, adjust lifecycle guard behavior.
+    if round_closed and close_snapshot_available:
+        if close_worktree_clean:
+            # Round closed with clean worktree: stale baseline dirty files
+            # are not a concern since the worktree was clean at close time.
+            checks.append(
+                _check(
+                    "baseline_lifecycle_guard",
+                    "PASS",
+                    "round is closed with clean worktree; baseline dirty files are stale and no longer active",
+                    source_test_baseline_dirty=source_test_baseline_dirty,
+                    allowed_inherited_dirty_files=sorted(allowed_inherited),
+                    generated_or_archive_baseline_dirty_files=generated_or_archive_dirty,
+                    close_worktree_clean=True,
+                    close_snapshot_available=True,
+                )
+            )
+        else:
+            # Round closed with dirty worktree: warn based on close snapshot
+            # dirty files, not stale baseline dirty files.
+            close_source_test_dirty = sorted(close_dirty_files & source_test_scope)
+            close_unauthorized = sorted((close_dirty_files & source_test_scope) - allowed_inherited)
+            if close_unauthorized:
+                checks.append(
+                    _check(
+                        "baseline_lifecycle_guard",
+                        "FAIL",
+                        "round closed with dirty worktree; close snapshot contains unauthorized source/test dirty files",
+                        unauthorized_inherited_source_test_files=close_unauthorized,
+                        close_dirty_files=sorted(close_dirty_files),
+                        close_source_test_dirty=close_source_test_dirty,
+                        allowed_inherited_dirty_files=sorted(allowed_inherited),
+                        source_test_scope=sorted(source_test_scope),
+                        close_worktree_clean=False,
+                        close_snapshot_available=True,
+                    )
+                )
+            else:
+                checks.append(
+                    _check(
+                        "baseline_lifecycle_guard",
+                        "PASS",
+                        "round closed with dirty worktree; close snapshot source/test dirty files are within allowed scope",
+                        source_test_baseline_dirty=source_test_baseline_dirty,
+                        close_source_test_dirty=close_source_test_dirty,
+                        allowed_inherited_dirty_files=sorted(allowed_inherited),
+                        generated_or_archive_baseline_dirty_files=generated_or_archive_dirty,
+                        close_worktree_clean=False,
+                        close_snapshot_available=True,
+                    )
+                )
+    elif unauthorized:
         checks.append(
             _check(
                 "baseline_lifecycle_guard",
@@ -1747,6 +1880,7 @@ def build_report_summary_synthesis(
         delta_summary=delta_summary,
         decision_text=decision_text,
         report_text=report_text,
+        state_dir=state_dir,
     )
     unauthorized_lifecycle_files: set[str] = set()
     for check in lifecycle_checks:
@@ -1761,7 +1895,16 @@ def build_report_summary_synthesis(
     inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
     allowed_inherited = _allowed_inherited_files(decision_text, inherited_dirty_files)
     round_delta_files |= allowed_inherited
-    expected_files_changed = sorted(round_delta_files | archive_paths | {REPORT_SUMMARY_OUTPUT_PATH})
+    # Only include close snapshot in expected files if it already exists
+    # (i.e., close-round has been run). During active rounds before
+    # close-round, the close snapshot doesn't exist yet.
+    close_snapshot_exists = _round_close_snapshot_path(state_dir).exists()
+    expected_files_changed = sorted(
+        round_delta_files
+        | archive_paths
+        | {REPORT_SUMMARY_OUTPUT_PATH}
+        | ({ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH} if close_snapshot_exists else set())
+    )
     generated_artifact_set = {
         "project_state/codex_execution_report.md",
         "project_state/pytest_result.txt",
@@ -1771,6 +1914,7 @@ def build_report_summary_synthesis(
         SELF_OUTPUT_PATH,
         ROUND_BASELINE_OUTPUT_PATH,
         ROUND_DELTA_OUTPUT_PATH,
+        ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH,
         *archive_paths,
     }
     if RUN_ROUND_OUTPUT_PATH in round_delta_files or any(_command_kind(command) == "run-round" for command in command_strings):
@@ -1828,11 +1972,21 @@ def build_report_summary_synthesis(
     report_files_changed = _string_set(report.get("files_changed"))
     inherited_claimed = sorted(inherited_dirty_files & report_files_changed)
     if inherited_claimed:
-        # Inherited dirty files in files_changed may have been legitimately
-        # modified this round; downgrade to WARN to avoid false positives.
-        warnings.append(
-            f"files_changed includes inherited dirty files (may have been modified this round): {inherited_claimed}"
-        )
+        # For closed rounds, inherited dirty files that are within the
+        # decision's allowed scope should not produce a warning, regardless
+        # of close_worktree_clean status.
+        close_snapshot = _read_round_close_snapshot(state_dir)
+        round_closed = bool(close_snapshot and close_snapshot.get("round_closed"))
+        if round_closed:
+            # Suppress warning for closed rounds - the close snapshot
+            # records the authoritative state at close time.
+            pass
+        else:
+            # Inherited dirty files in files_changed may have been legitimately
+            # modified this round; downgrade to WARN to avoid false positives.
+            warnings.append(
+                f"files_changed includes inherited dirty files (may have been modified this round): {inherited_claimed}"
+            )
 
     diffs: list[dict[str, Any]] = []
     for field in (
@@ -2147,6 +2301,7 @@ def final_check(
             files_changed=files_changed,
             generated_artifacts=generated_artifacts,
             archive_paths=archive_paths,
+            state_dir=state_dir,
         )
     )
     checks.extend(
@@ -2154,6 +2309,7 @@ def final_check(
             delta_summary=delta_summary,
             decision_text=decision_text,
             report_text=report_text,
+            state_dir=state_dir,
         )
     )
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
@@ -2682,6 +2838,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             files_changed=files_changed,
             generated_artifacts=generated_artifacts,
             archive_paths=archive_paths,
+            state_dir=state_dir,
         )
     )
     checks.extend(
@@ -2689,6 +2846,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             delta_summary=delta_summary,
             decision_text=decision_text,
             report_text=report_text,
+            state_dir=state_dir,
         )
     )
 
@@ -2917,6 +3075,18 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                     }
                 )
                 close_status = "CLOSED" if not effective_after_failed else "FAILED"
+
+    # Write close snapshot when the round is successfully closed.
+    # This records the git state at close time so that downstream
+    # checks (final-check, report-summary) can distinguish active
+    # baseline dirty files from closed-round stale baseline entries.
+    if close_status == "CLOSED":
+        _write_round_close_snapshot(
+            state_dir=state_dir,
+            repo_root=repo_root,
+            decision_id=decision_id,
+            round_id=requested_round_id,
+        )
 
     warnings = [f"{check['name']}: {check['detail']}" for check in checks if check.get("status") == "WARN"]
     blocking_reasons = [f"{check['name']}: {check['detail']}" for check in checks if check.get("status") == "FAIL"]

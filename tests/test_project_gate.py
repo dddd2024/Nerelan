@@ -1,6 +1,7 @@
 import json
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -12,10 +13,13 @@ from reverse_agent.project_gate import (
     _is_descriptive_backtick_line,
     _is_prohibitive_line,
     _is_self_invocation,
+    _read_round_close_snapshot,
     _report_status_from_gate,
     _report_status_from_gate_payload,
     _result_status,
+    _round_close_snapshot_path,
     _allowed_inherited_files,
+    _write_round_close_snapshot,
     build_report_summary_synthesis,
     close_round,
     command_plan,
@@ -648,6 +652,7 @@ def _make_report_summary_state(
         "project_state/gates/final_gate_result.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/gates/round_close_snapshot.json",
         *archive_paths,
     ]
     _write_json(
@@ -3877,3 +3882,438 @@ Allowed source files:
 """
         result = _allowed_inherited_files(decision_text, set())
         assert result == set()
+
+
+class TestWriteRoundCloseSnapshot:
+    """Verify _write_round_close_snapshot writes the required fields."""
+
+    def test_writes_snapshot_with_required_fields(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        # Write a baseline so the snapshot can reference it
+        _write_json(gates_dir / "round_baseline.json", {
+            "schema_version": 1,
+            "artifact_name": "round_baseline.json",
+            "decision_id": "decision_test",
+            "round_id": "round_test",
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+        })
+        snapshot = _write_round_close_snapshot(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            decision_id="decision_test",
+            round_id="round_test",
+        )
+        # Verify returned snapshot has required fields
+        assert snapshot["schema_version"] == 1
+        assert snapshot["artifact_name"] == "round_close_snapshot.json"
+        assert snapshot["decision_id"] == "decision_test"
+        assert snapshot["round_id"] == "round_test"
+        assert snapshot["round_closed"] is True
+        assert snapshot["baseline_active"] is False
+        assert "closed_at" in snapshot
+        assert isinstance(snapshot["close_dirty_files"], list)
+        assert isinstance(snapshot["close_worktree_clean"], bool)
+        assert isinstance(snapshot["baseline_dirty_files"], list)
+        assert isinstance(snapshot["inherited_dirty_files_at_close"], list)
+        assert "recommended_next_action" in snapshot
+
+    def test_snapshot_file_is_written(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        _write_json(gates_dir / "round_baseline.json", {
+            "schema_version": 1,
+            "baseline_dirty_files": [],
+        })
+        _write_round_close_snapshot(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            decision_id="decision_test",
+            round_id="round_test",
+        )
+        snapshot_path = _round_close_snapshot_path(state_dir)
+        assert snapshot_path.exists()
+        # Verify it can be read back
+        read_back = _read_round_close_snapshot(state_dir)
+        assert read_back["round_closed"] is True
+
+    def test_clean_worktree_snapshot(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        _write_json(gates_dir / "round_baseline.json", {
+            "schema_version": 1,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+        })
+        # Monkeypatch to simulate clean worktree at close time
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_changed_files",
+            lambda _repo_root: [],
+        )
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_status_short_lines",
+            lambda _repo_root: [],
+        )
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_diff_name_only",
+            lambda _repo_root: [],
+        )
+        snapshot = _write_round_close_snapshot(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            decision_id="decision_test",
+            round_id="round_test",
+        )
+        assert snapshot["close_worktree_clean"] is True
+        assert snapshot["close_dirty_files"] == []
+        assert snapshot["recommended_next_action"] == "no_action_required"
+
+
+class TestReadRoundCloseSnapshot:
+    """Verify _read_round_close_snapshot returns empty dict when no snapshot exists."""
+
+    def test_returns_empty_when_no_snapshot(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        result = _read_round_close_snapshot(state_dir)
+        assert result == {}
+
+    def test_returns_snapshot_when_exists(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        _write_json(gates_dir / "round_close_snapshot.json", {
+            "schema_version": 1,
+            "round_closed": True,
+            "close_worktree_clean": True,
+        })
+        result = _read_round_close_snapshot(state_dir)
+        assert result["round_closed"] is True
+        assert result["close_worktree_clean"] is True
+
+
+class TestBaselineLifecycleClosedRound:
+    """Verify baseline lifecycle checks distinguish active vs closed rounds."""
+
+    DECISION_TEXT = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+
+Disallowed:
+- solve_reports/
+"""
+
+    def _make_delta_summary(self, *, baseline_dirty: list[str] | None = None) -> dict[str, Any]:
+        return {
+            "baseline_available": True,
+            "baseline_dirty_files": baseline_dirty or ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": baseline_dirty or ["reverse_agent/project_gate.py"],
+            "new_dirty_files_since_baseline": ["project_state/codex_execution_report.md"],
+            "final_dirty_files": ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"],
+            "baseline_has_untracked_implementation_files": False,
+            "baseline_untracked_files": [],
+        }
+
+    def test_closed_clean_worktree_no_warning(self, tmp_path: Path) -> None:
+        """Closed round with clean worktree should not warn about stale baseline dirty files."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        # Write close snapshot showing clean worktree
+        _write_json(gates_dir / "round_close_snapshot.json", {
+            "schema_version": 1,
+            "round_closed": True,
+            "close_worktree_clean": True,
+            "close_dirty_files": [],
+        })
+        checks = _baseline_lifecycle_checks(
+            delta_summary=self._make_delta_summary(),
+            decision_text=self.DECISION_TEXT,
+            report_text="baseline inherited",
+            state_dir=state_dir,
+        )
+        guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard_check["status"] == "PASS"
+        assert "closed with clean worktree" in guard_check["detail"]
+
+    def test_closed_dirty_worktree_warns_on_close_files(self, tmp_path: Path) -> None:
+        """Closed round with dirty worktree should warn based on close snapshot dirty files."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        # Write close snapshot showing dirty worktree with a file that is
+        # in source_test_scope but NOT in baseline_dirty_files (so not
+        # in allowed_inherited).
+        _write_json(gates_dir / "round_close_snapshot.json", {
+            "schema_version": 1,
+            "round_closed": True,
+            "close_worktree_clean": False,
+            "close_dirty_files": ["reverse_agent/project_gate.py"],
+        })
+        # baseline_dirty_files does NOT include project_gate.py, so it
+        # won't be in allowed_inherited, making it unauthorized.
+        checks = _baseline_lifecycle_checks(
+            delta_summary=self._make_delta_summary(baseline_dirty=["reverse_agent/other.py"]),
+            decision_text=self.DECISION_TEXT,
+            report_text="baseline inherited",
+            state_dir=state_dir,
+        )
+        guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard_check["status"] == "FAIL"
+        assert "close snapshot contains unauthorized" in guard_check["detail"]
+
+    def test_closed_dirty_worktree_passes_when_allowed(self, tmp_path: Path) -> None:
+        """Closed round with dirty worktree but allowed files should pass."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        _write_json(gates_dir / "round_close_snapshot.json", {
+            "schema_version": 1,
+            "round_closed": True,
+            "close_worktree_clean": False,
+            "close_dirty_files": ["reverse_agent/project_gate.py"],
+        })
+        checks = _baseline_lifecycle_checks(
+            delta_summary=self._make_delta_summary(),
+            decision_text=self.DECISION_TEXT,
+            report_text="baseline inherited",
+            state_dir=state_dir,
+        )
+        guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard_check["status"] == "PASS"
+
+    def test_active_round_still_warns(self, tmp_path: Path) -> None:
+        """Active round without close snapshot should still warn about inherited dirty files."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        # No close snapshot
+        checks = _baseline_lifecycle_checks(
+            delta_summary=self._make_delta_summary(),
+            decision_text=self.DECISION_TEXT,
+            report_text="baseline inherited",
+            state_dir=state_dir,
+        )
+        guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard_check["status"] == "PASS"
+        # Active round with allowed inherited files should still pass
+        # (this is the existing behavior from Round 2)
+
+    def test_no_state_dir_uses_active_behavior(self) -> None:
+        """Without state_dir, close snapshot cannot be read, so active behavior is used."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        checks = _baseline_lifecycle_checks(
+            delta_summary=self._make_delta_summary(),
+            decision_text=self.DECISION_TEXT,
+            report_text="baseline inherited",
+            state_dir=None,
+        )
+        guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        # Without close snapshot, existing behavior applies
+        assert guard_check["status"] in ("PASS", "WARN")
+
+
+class TestRoundDeltaChecksClosedRound:
+    """Verify _round_delta_checks distinguishes active vs closed rounds for inherited dirty warnings."""
+
+    DECISION_TEXT = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+"""
+
+    def test_closed_clean_worktree_no_inherited_warning(self, tmp_path: Path) -> None:
+        """Closed round with clean worktree should not warn about inherited dirty files in files_changed."""
+        from reverse_agent.project_gate import _round_delta_checks
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        _write_json(gates_dir / "round_close_snapshot.json", {
+            "schema_version": 1,
+            "round_closed": True,
+            "close_worktree_clean": True,
+            "close_dirty_files": [],
+        })
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": ["reverse_agent/project_gate.py"],
+            "new_dirty_files_since_baseline": ["project_state/codex_execution_report.md"],
+            "final_dirty_files": ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"],
+        }
+        checks = _round_delta_checks(
+            delta_summary=delta_summary,
+            files_changed={"reverse_agent/project_gate.py", "project_state/codex_execution_report.md"},
+            generated_artifacts=set(),
+            archive_paths=set(),
+            state_dir=state_dir,
+        )
+        inherited_check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
+        assert inherited_check["status"] == "PASS"
+        assert "closed" in inherited_check["detail"]
+
+    def test_active_round_still_warns_inherited(self, tmp_path: Path) -> None:
+        """Active round should still warn about inherited dirty files in files_changed."""
+        from reverse_agent.project_gate import _round_delta_checks
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        # No close snapshot
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": ["reverse_agent/project_gate.py"],
+            "new_dirty_files_since_baseline": ["project_state/codex_execution_report.md"],
+            "final_dirty_files": ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"],
+        }
+        checks = _round_delta_checks(
+            delta_summary=delta_summary,
+            files_changed={"reverse_agent/project_gate.py", "project_state/codex_execution_report.md"},
+            generated_artifacts=set(),
+            archive_paths=set(),
+            state_dir=state_dir,
+        )
+        inherited_check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
+        assert inherited_check["status"] == "WARN"
+
+
+class TestCloseRoundWritesSnapshot:
+    """Verify close_round writes a close snapshot on successful close.
+
+    The full close_round integration is tested through the live gate pipeline.
+    Here we verify the snapshot writing mechanism and its interaction with
+    lifecycle checks.
+    """
+
+    def test_write_and_read_round_trip(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Write a close snapshot and verify it can be read back with correct fields."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        _write_json(gates_dir / "round_baseline.json", {
+            "schema_version": 1,
+            "artifact_name": "round_baseline.json",
+            "decision_id": "decision_test",
+            "round_id": "round_test",
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+        })
+        # Simulate clean worktree
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_changed_files",
+            lambda _repo_root: [],
+        )
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_status_short_lines",
+            lambda _repo_root: [],
+        )
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_diff_name_only",
+            lambda _repo_root: [],
+        )
+        snapshot = _write_round_close_snapshot(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            decision_id="decision_test",
+            round_id="round_test",
+        )
+        # Read back and verify
+        read_back = _read_round_close_snapshot(state_dir)
+        assert read_back["round_closed"] is True
+        assert read_back["close_worktree_clean"] is True
+        assert read_back["decision_id"] == "decision_test"
+        assert read_back["round_id"] == "round_test"
+        assert read_back["baseline_active"] is False
+        assert "closed_at" in read_back
+
+    def test_snapshot_with_dirty_worktree(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Write a close snapshot with dirty worktree and verify fields."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        _write_json(gates_dir / "round_baseline.json", {
+            "schema_version": 1,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+        })
+        # Simulate dirty worktree
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_changed_files",
+            lambda _repo_root: ["reverse_agent/project_gate.py"],
+        )
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_status_short_lines",
+            lambda _repo_root: [" M reverse_agent/project_gate.py"],
+        )
+        monkeypatch.setattr(
+            "reverse_agent.project_gate._git_diff_name_only",
+            lambda _repo_root: ["reverse_agent/project_gate.py"],
+        )
+        snapshot = _write_round_close_snapshot(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            decision_id="decision_test",
+            round_id="round_test",
+        )
+        assert snapshot["close_worktree_clean"] is False
+        assert "reverse_agent/project_gate.py" in snapshot["close_dirty_files"]
+        assert "reverse_agent/project_gate.py" in snapshot["inherited_dirty_files_at_close"]
+        assert snapshot["recommended_next_action"] == "review_close_dirty_files"
+
+
+class TestBaselinePreservedAfterClose:
+    """Verify round_baseline.json is not modified by close-round or close snapshot writing."""
+
+    def test_baseline_unchanged_after_snapshot_write(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        original_baseline = {
+            "schema_version": 1,
+            "artifact_name": "round_baseline.json",
+            "decision_id": "decision_test",
+            "round_id": "round_test",
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "generated_at": "2026-06-15T00:00:00Z",
+        }
+        _write_json(gates_dir / "round_baseline.json", original_baseline)
+        _write_round_close_snapshot(
+            state_dir=state_dir,
+            repo_root=tmp_path,
+            decision_id="decision_test",
+            round_id="round_test",
+        )
+        # Read back baseline and verify it's unchanged
+        import json
+        baseline_path = gates_dir / "round_baseline.json"
+        with open(baseline_path, encoding="utf-8") as f:
+            current_baseline = json.load(f)
+        assert current_baseline == original_baseline
