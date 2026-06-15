@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260615_cpp1_success_boundary_static_recheck_v1",
-  "round_id": "round_20260615_cpp1_success_boundary_static_recheck_v1",
+  "decision_id": "decision_20260615_project_gate_run_round_orchestrator_v1",
+  "round_id": "round_20260615_project_gate_run_round_orchestrator_v1",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
-  "mainline": "reverse_solving",
+  "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,73 +15,63 @@
 
 ## 1. Goal
 
-纠正上一份误指向 `samplereverse` 的下一轮计划。本轮当前样本按近期 current artifact 和 negative_results 判定为 `cpp1_2f6fcb63`，相对路径为 `逆向课程2023春01/CPP1.exe`。
+本轮切回 `engineering_branch`，实现门禁流程的一键化基础能力，减少 Codex/GPT 每轮反复复制、执行、整理门禁命令的操作成本。
 
-本轮目标是做 `cpp1_2f6fcb63` 的**成功边界静态重查**：确认 `byte_429A30[16]` / compare loop 在 `strlen(Str)==18`、`strncpy(..., 0x10u)`、`if (i == 16)` 组合下的边界语义，产出可审计 artifact，决定下一轮是否允许进行有界 raw stdin runtime validation。
+目标是在现有 `reverse_agent.project_gate` 中新增 `run-round` 编排入口，复用现有 `preflight`、`command-plan`、`report-summary`、`final-check`、`close-round` 语义，不改变现有各门禁的判定规则。
 
-本轮不是解 `samplereverse`，不是重新做 target bytes printable inverse，不是 candidate blind search，也不是直接运行样本。
+本轮只做门禁工程，不推进任何样本求解，不运行 runtime probe，不修改 solver / strategy / IDA / Ghidra / debugger / harness 语义。
+
+本轮交付的核心能力：
+
+- `python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json` 可生成结构化 `project_state/gates/run_round_result.json`。
+- `run-round` 能从现有 `command-plan` 读取待执行命令，产出机器可读的执行计划 / dry-run 结果。
+- 为后续轮次启用 `run-round --execute` 打基础，但本轮不能用未验证的新 `run-round --execute` 关闭自己的改动。
 
 ## 2. Current Evidence
 
-当前 `task_packet.json` 与 `current_state.json` 仍残留 `samplereverse` 压缩状态，因此不能把其中的 sample/profile 当成当前真实任务权威。`task_packet.json` 只能作为旧建议；当前轮执行权威是本 `project_state/decision_packet.md`。
+当前 `task_packet.json` 和 `current_state.json` 仍残留 `samplereverse` 压缩状态，但本轮不是样本求解，`task_packet.task` 只能作为建议，当前执行权威是本 `project_state/decision_packet.md`。
 
-`artifact_index.json` 的 current artifact 已显示 `cpp1_2f6fcb63` 是近期实际推进样本：
+上一轮 `decision_20260615_cpp1_success_boundary_static_recheck_v1` 已被 `codex_report_20260615_cpp1_success_boundary_static_recheck_v1` 消费，报告状态为 `SUCCESS`，建议为 `ACCEPTED_WITH_LIMITATIONS`。`final_gate_result.json` 显示上一轮 `gate_status=PASSED_WITH_LIMITATIONS`，无 blocking reasons，round archive 已存在。
 
-- `local_reverse_cpp1_2f6fcb63_static_triage`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1`。
-- `local_reverse_cpp1_2f6fcb63_target_bytes_revalidation`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1`。
-- `local_reverse_cpp1_2f6fcb63_static_inverse_handoff`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1`。
-- `local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1`。
-- `local_reverse_cpp1_2f6fcb63_input_delivery_review`：freshness=current，source_run=`round_20260614_cpp1_2f6fcb63_input_delivery_review_v1`。
+上一轮 `cpp1_2f6fcb63` 的静态边界重查产物 `project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json` 给出 `recommended_next_action=STOP_TARGET_OR_BOUNDARY_CONTRADICTION`。因此不应继续拿当前 18 字节 payload 做 runtime validation，也不应重复 printable inverse path。
 
-Current static triage confirms IDA static-only evidence for `cpp1_2f6fcb63`: sample path `逆向课程2023春01/CPP1.exe`, PE/cpp category, `tool_status=success`, `source_tool=IDA`, `executed_sample=false`, `runtime_validated=false`; allowed_actions only include `static_triage`, and forbidden_actions include `runtime_probe`, `bruteforce`, `upload_binary`.
+当前工程已有门禁能力：
 
-Current target revalidation confirms:
+- `project_gate.py` 已有 `preflight`、`command-plan`、`report-summary`、`final-check`、`close-round` 子命令。
+- `command_plan()` 已能从 `Required Audit` 和 `Tests` 提取命令，分类 command kind，并写出 `project_state/gates/command_plan.json`。
+- `preflight()` 已在启动阶段捕获 round baseline，检查 `decision_meta`、主线、skill、scope、artifact freshness、tool capability audit 等。
+- `final_check()` 已检查 report / pytest / command_plan / round archive / generated_artifacts / forbidden paths 等一致性。
+- `close_round()` 已负责归档 round，并在成功关闭时把 close-round command block 追加回 `pytest_result.txt`。
+- 当前 `project_gate.py` 没有 `run-round` 子命令；`_command_kind()` 也没有识别 `run-round`。
 
-- target symbol: `byte_429A30`
-- target address: `0x00429A30`
-- target length: 16
-- target bytes hex: `d596c4f60745577776e5f64847f74817`
-- main function: `_main_0`
-- forward transform: `(x & 3) | (16 * (x & 0x0C)) | ((x & 0xF0) >> 2)`
-- static notes: input length check is `strlen(Str) != 18`, copy is `strncpy(Destination, Str, 0x10u)`, compare expression is `Destination[i] == byte_429A30[i]`.
+已有相关测试：
 
-Current static inverse handoff is BLOCKED with `NO_COMPLETE_PRINTABLE_PREIMAGE_UNDER_CURRENT_TARGET_BYTES`. It found a unique all-byte preimage but no complete printable ASCII preimage. This path is now recorded in `negative_results.json` and must not be repeated.
+- `tests/test_project_gate.py` 已覆盖 `preflight`、`command_plan`、`final_check`、`report_summary`、`close_round`、CLI `main()` 等门禁核心路径。
+- `tests/test_project_state.py` 是 project_state / gate 一致性相关的配套测试。
 
-Current alternative static semantics review says the transform is a single-byte bit permutation, signed/unsigned models are equivalent after `u8` truncation, no xor/add/sub/table/previous-byte dependency was seen, and the nonprintable all-byte preview is `5d5a1cde131557d7d69dde2417df2453`.
-
-Current input delivery review says raw byte delivery appears feasible, suggested payload preview is `5d5a1cde131557d7d69dde2417df24534141`, but success boundary remains `UNKNOWN_NEEDS_STATIC_OR_TOOL_RECHECK` because `byte_429A30[16]` is not available in the current 16-byte target revalidation. It explicitly recommends `NEEDS_SUCCESS_BOUNDARY_STATIC_RECHECK` before runtime.
-
-`negative_results.json` must be respected. In particular, do not repeat `cpp1_2f6fcb63 current target bytes printable inverse path`; it already established no complete printable preimage under current target bytes, with missing printable indices `2, 3, 4, 5, 7, 8, 9, 10, 12, 13`.
-
-Existing tool capabilities must be reused, not reimplemented:
-
-- IDA / IDAPython interface already exists through `tool_runners.py` and `reverse_agent/ida_scripts/collect_evidence.py`.
-- artifact_index freshness tracking already exists in `project_state.py` / `project_gate.py`.
-- StructuredEvidence primitives already exist in `evidence.py`.
-- Harness exists, but this round must not run runtime validation unless the success boundary is first resolved and a later decision explicitly permits it.
-- Ghidra is not the required path for this round; do not create a Ghidra runner.
+本轮应复用这些能力，不要新建独立门禁系统，不要把一键门禁做成与现有 `command-plan` / `final-check` 并行的第二套规则。
 
 ## 3. Do Not Do
 
-Do not solve or analyze `samplereverse` in this round.
+不要推进 `samplereverse`、`cpp1_2f6fcb63` 或任何其他样本求解。
 
-Do not use `task_packet.sample=samplereverse` as current task authority.
+不要运行样本、runtime probe、debugger、hook、emulator、sidecar、solver search、旧 `sample_solver`、beam/topN/budget 扩张。
 
-Do not repeat the `cpp1_2f6fcb63 current target bytes printable inverse path`.
+不要修改 solver、strategy、transform、IDA/Ghidra/debugger/harness 语义。
 
-Do not call the nonprintable preview or `5d5a1cde131557d7d69dde2417df24534141` a solved password without runtime proof.
+不要新建重复门禁系统；必须复用现有 `preflight`、`command-plan`、`report-summary`、`final-check`、`close-round`。
 
-Do not run runtime_probe, dynamic debugger, hook, emulator, or sample execution in this round.
+不要让 `run-round --execute` 在本轮关闭自己的实现改动；本轮只能对 live `project_state` 跑 `run-round --dry-run`，执行模式必须通过临时目录单测覆盖。
 
-Do not run brute force, blind solver search, old `sample_solver`, or budget/beam/topN expansion.
+不要读取完整 `solve_reports/` 或完整 `PROJECT_PROGRESS_LOG.txt`。
 
-Do not create duplicate IDA / debugger / harness / solver interfaces.
+不要把动态事实写入 `.codex-skills/`。
 
-Do not modify `.codex-skills/`, `training_materials/`, or complete `solve_reports/`.
+不要修改 `.codex-skills/registry.json`。
 
-Do not treat stale/missing artifact as current evidence.
+不要把 stale/missing artifact 当作 current evidence。
 
-Do not widen to other local samples such as `affineenc_333f8ca9` unless the inspected current artifact proves `cpp1_2f6fcb63` is not the active sample; if so, stop and report mismatch instead of guessing.
+不要把上一轮 `cpp1` 的 `STOP_TARGET_OR_BOUNDARY_CONTRADICTION` 绕开后继续做 runtime validation。
 
 ## 4. Files To Inspect
 
@@ -96,83 +86,69 @@ Must read in order:
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-Must bounded-read current cpp1 artifacts:
+Must inspect implementation files:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json`
-
-Must inspect existing tool/code only if needed for the static recheck:
-
-- `reverse_agent/tool_runners.py`
-- `reverse_agent/ida_scripts/collect_evidence.py`
-- `reverse_agent/local_reverse_single_sample_static_triage.py`
-- `reverse_agent/project_state.py`
 - `reverse_agent/project_gate.py`
-- directly relevant tests for any touched module
+- `reverse_agent/project_state.py` only if needed for pytest_result writing / command result compatibility
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py` only if a project_state helper is touched
 
-Do not read full `PROJECT_PROGRESS_LOG.txt` or full `solve_reports/`.
+May bounded-read, only for current evidence / stop condition confirmation:
+
+- `project_state/gates/final_gate_result.json`
+- `project_state/gates/command_plan.json`
+- `project_state/gates/report_summary_synthesis.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json`
+
+Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
 ## 5. Required Audit
 
 Startup commands must be recorded first:
 
-- `Set-Location F:\reverse-agent`
-- `Get-Location`
-- `Test-Path F:\reverse-agent`
-- `git rev-parse --show-toplevel`
-- `git status --short`
+```powershell
+Set-Location F:\reverse-agent
+Get-Location
+Test-Path F:\reverse-agent
+git rev-parse --show-toplevel
+git status --short
+```
 
-If startup dirty files exist, record baseline before doing work and do not classify inherited dirty files as current round changes.
+If startup dirty files exist, capture them as baseline before implementation and do not classify inherited dirty files as current round work.
 
-Perform these checks before producing any result:
+Before changing code, verify:
 
-1. Verify `decision_meta` is parseable, `status=APPROVED`, `mainline=reverse_solving`, and `skill_profiles` are active in `.codex-skills/registry.json`.
-2. Verify the current cpp1 artifact paths in `artifact_index.json` have `freshness=current` and `sample_id=cpp1_2f6fcb63`.
-3. Verify the prior negative result for `cpp1_2f6fcb63 current target bytes printable inverse path` is not repeated.
-4. Verify no runtime execution is performed.
-5. Verify no new tool interface is created when existing IDA static extraction capability is available.
+1. `decision_meta` is parseable, `status=APPROVED`, `mainline=engineering_branch`。
+2. `reverse-agent-iteration@v2` exists and is active in `.codex-skills/registry.json`。
+3. Current `decision_packet.md` is the execution authority; `task_packet.json` is advisory only。
+4. Existing `project_gate` already has individual gate commands and command-plan extraction; do not duplicate these rules。
+5. `run-round` is absent or incomplete before implementation; if it already exists locally after pull, inspect and extend it instead of replacing it。
+6. The previous `cpp1` sample route is stopped by boundary contradiction; do not continue it in this engineering round。
 
-Required output artifact:
+Required implementation audit:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json`
-
-The artifact must include at least:
-
-- `schema_version`
-- `decision_id`
-- `round_id`
-- `sample_id`
-- `relative_path`
-- `sha256`
-- `analysis_mode="success_boundary_static_recheck"`
-- `mainline="reverse_solving"`
-- `executed_sample=false`
-- `runtime_validated=false`
-- `source_artifacts` with freshness for all cpp1 current artifacts used
-- `negative_results_considered`
-- `target_symbol`
-- `target_address`
-- `target_length_known=16`
-- `requested_boundary_indices=[16,17]` or explicit reason if only index 16 is relevant
-- `byte_429A30_index_16_status`: one of `KNOWN_MATCH_BLOCKER`, `KNOWN_MISMATCH_SAFE`, `UNKNOWN_REQUIRES_TOOL_RECHECK`, `CONTRADICTED_STOP`
-- `destination_index_16_source_review`
-- `compare_loop_exit_reason_review`
-- `payload_preview_hex` from current input_delivery_review, but not as solved answer
-- `recommended_next_action`: one of `ALLOW_SEPARATE_BOUNDED_RAW_STDIN_RUNTIME_VALIDATION`, `STOP_TARGET_OR_BOUNDARY_CONTRADICTION`, `NEEDS_TOOL_RECHECK`, `NO_SAFE_NEXT_ACTION`
-- `stop_conditions_for_next_round`
-
-If the current artifacts do not contain enough data to determine `byte_429A30[16]`, Codex may run only an existing bounded IDA static extraction path, using existing IDA runner/script, to extract adjacent bytes around `0x00429A30` or xrefs required for boundary semantics. If IDA cannot be run or configured, stop with `NEEDS_TOOL_RECHECK`; do not invent the byte.
+- Add a new result artifact name, e.g. `RUN_ROUND_RESULT_NAME = "run_round_result.json"` and write to `project_state/gates/run_round_result.json`。
+- Add a new command kind for `run-round` so `command-plan` can classify `python -m reverse_agent.project_gate run-round ...`。
+- Add a `run_round(...)` function or equivalent internal entry point that reuses `preflight()` and `command_plan()`。
+- `--dry-run` must not execute command-plan commands; it should validate/generate the plan and write a structured result。
+- Execution-mode internals may be implemented, but must be tested only in temporary test state directories in this round。
+- If execution-mode is implemented, it must be fail-fast by default: stop after the first command with an unexpected exit code, record the failing command, and avoid running later gates after a blocking failure。
+- If execution-mode is implemented, avoid duplicate close-round recording: when `close-round` is executed as a subprocess, do not append a second duplicate close-round command block from `run-round`。
+- `run_round_result.json` must include at least: `schema_version`, `gate_name="run-round"`, `run_status`, `decision_id`, `round_id`, `mode`, `command_count`, `commands`, `executed_commands`, `blocking_reasons`, `warnings`, `recommended_next_action`。
 
 ## 6. Implementation Scope
 
-Default: no source code changes.
+Allowed source files:
 
-Allowed generated/updated files:
+- `reverse_agent/project_gate.py`
 
-- `project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json`
+Allowed tests:
+
+- `tests/test_project_gate.py`
+- `tests/test_project_state.py` only if `reverse_agent/project_state.py` is touched
+
+Allowed generated files:
+
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/command_plan.json`
@@ -181,56 +157,74 @@ Allowed generated/updated files:
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/rounds/round_20260615_cpp1_success_boundary_static_recheck_v1/*`
+- `project_state/gates/run_round_result.json`
+- `project_state/rounds/round_20260615_project_gate_run_round_orchestrator_v1/*`
 
-Only if existing code cannot register or validate this static recheck artifact, Codex may make minimal changes to:
+Conditionally allowed source file:
 
-- `reverse_agent/project_state.py`
-- `reverse_agent/project_gate.py`
-- relevant tests
+- `reverse_agent/project_state.py` only if required for reusable pytest_result command-block writing; otherwise do not touch it。
 
-Do not modify solver logic, strategy logic, harness runtime behavior, IDA runner semantics, or sample-specific solver profiles in this round.
+Disallowed:
+
+- `.codex-skills/`
+- `solve_reports/`
+- `PROJECT_PROGRESS_LOG.txt`
+- `reverse_agent/strategies/`
+- `reverse_agent/transforms/`
+- `reverse_agent/ida_scripts/`
+- `reverse_agent/olly_scripts/`
+- `reverse_agent/probes/`
+- solver / harness / sample-specific modules unrelated to project gate execution
 
 ## 7. Tests
 
 Must record commands, stdout/stderr, and exit code in `project_state/pytest_result.txt`.
 
-Required commands:
+Required command sequence for this implementation round:
 
-- `python -m reverse_agent.project_gate preflight --state-dir project_state`
-- `python -m reverse_agent.project_gate command-plan --state-dir project_state`
-- `python -m reverse_agent.project_gate command-plan --state-dir project_state --json`
-- `python -m reverse_agent.project_state doctor --state-dir project_state`
-- `python -m reverse_agent.project_state lint-report --state-dir project_state`
+```powershell
+Set-Location F:\reverse-agent
+Get-Location
+Test-Path F:\reverse-agent
+git rev-parse --show-toplevel
+git status --short
+python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m reverse_agent.project_gate command-plan --state-dir project_state
+python -m reverse_agent.project_gate command-plan --state-dir project_state --json
+python -m reverse_agent.project_state doctor --state-dir project_state
+python -m reverse_agent.project_state lint-report --state-dir project_state
+python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
+python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
+python -m reverse_agent.project_gate report-summary --state-dir project_state
+python -m reverse_agent.project_gate final-check --state-dir project_state
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_gate_run_round_orchestrator_v1
+```
 
-If no source code is modified, run:
+Unit test requirements:
 
-- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`
-
-If source code is modified, run the directly relevant focused tests plus:
-
-- `python -m pytest tests/test_project_gate.py tests/test_project_state.py -q`
-
-Finish with:
-
-- `python -m reverse_agent.project_gate report-summary --state-dir project_state`
-- `python -m reverse_agent.project_gate final-check --state-dir project_state`
-- `python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_cpp1_success_boundary_static_recheck_v1`
+- Test `run-round --dry-run --json` returns zero exit and writes `project_state/gates/run_round_result.json`。
+- Test `run_round(..., dry_run=True)` does not execute planned commands。
+- Test `command_plan()` classifies `run-round` as a known gate command, not `unknown`。
+- Test execution-mode logic, if implemented, using a temporary state directory and injected/fake command runner; do not execute live project_state through `--execute` in this round。
+- Test fail-fast behavior for an unexpected nonzero exit, if execution mode is implemented。
+- Test report/final gate compatibility when `run_round_result.json` is a generated gate artifact。
 
 ## 8. Stop Conditions
 
-If startup path is not `F:\reverse-agent`, stop.
+If current working directory is not `F:\reverse-agent`, stop.
 
-If `decision_meta` is invalid, stop.
+If startup repository root is not `F:/reverse-agent` or equivalent, stop.
 
-If registry does not contain active `reverse-agent-iteration@v2`, stop.
+If `decision_meta` is invalid or `reverse-agent-iteration@v2` is not active, stop.
 
-If current artifacts do not support `cpp1_2f6fcb63` as the active sample, stop and report state mismatch instead of falling back to `samplereverse`.
+If there are inherited dirty source/test files outside allowed scope, stop or report baseline explicitly before modifying anything.
 
-If success boundary remains unknown and existing IDA static extraction cannot safely resolve it, stop with `NEEDS_TOOL_RECHECK`.
+If implementing `run-round` requires changing solver, strategy, harness runtime, IDA/Ghidra/debugger, or sample-specific code, stop and report `BLOCKED`。
 
-If runtime validation becomes necessary, do not run it in this round; write a separate next decision requiring bounded raw stdin delivery validation.
+If `run-round --dry-run --json` cannot be made safe and non-executing, stop before adding execution mode。
 
-If any forbidden path or negative-result repeat is touched, report `REWORK_REQUIRED`.
+If command execution recording cannot preserve stdout, stderr, and exit code in the existing command-block format, do not claim `run-round --execute` is ready。
 
-If pytest_result/report/decision/round ids mismatch, report `REWORK_REQUIRED`.
+If `close-round` behavior would create duplicate command blocks or inconsistent archive metadata, keep execution mode disabled or test-only and report the limitation。
+
+If pytest, report-summary, final-check, or close-round fails, do not upload a success report; mark `REWORK_REQUIRED` with blocking reasons。
