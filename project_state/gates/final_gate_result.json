@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260615_startup_status_baseline_consistency_guard_v1",
-  "report_id": "codex_report_20260615_startup_status_baseline_consistency_guard_v1",
-  "round_id": "round_20260615_startup_status_baseline_consistency_guard_v1",
-  "generated_at": "2026-06-15T16:38:59.783407Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+  "report_id": "codex_report_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+  "round_id": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+  "generated_at": "2026-06-15T17:08:40.278718Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260615_startup_status_baseline_consistency_guard_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -50,6 +50,7 @@
       "baseline_available": true,
       "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -58,15 +59,19 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/decision_packet.md",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/pytest_result.txt",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/round_manifest.json",
+        "tests/test_local_reverse_training_status.py",
+        "training_materials/local_reverse/status_overlay.json"
       ],
       "final_dirty_files": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -75,13 +80,16 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/decision_packet.md",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/pytest_result.txt",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/round_manifest.json",
+        "tests/test_local_reverse_training_status.py",
+        "training_materials/local_reverse/status_overlay.json"
       ]
     },
     {
@@ -96,6 +104,7 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -104,15 +113,19 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/decision_packet.md",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/pytest_result.txt",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/round_manifest.json",
+        "tests/test_local_reverse_training_status.py",
+        "training_materials/local_reverse/status_overlay.json"
       ],
       "required_round_delta_files": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -121,13 +134,16 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/decision_packet.md",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/pytest_result.txt",
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/round_manifest.json",
+        "tests/test_local_reverse_training_status.py",
+        "training_materials/local_reverse/status_overlay.json"
       ],
       "inherited_dirty_files": []
     },
@@ -136,8 +152,11 @@
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
       "substantive_dirty_files": [
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
+        "project_state/artifact_index.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
+        "tests/test_local_reverse_training_status.py"
       ]
     },
     {
@@ -194,9 +213,12 @@
     },
     {
       "name": "build_output_scope",
-      "status": "PASS",
-      "detail": "no build-generated state files in round delta",
-      "build_files_in_delta": []
+      "status": "WARN",
+      "detail": "build_output_scope_unverified: build-generated state files in round delta without recorded build command",
+      "build_files_in_delta": [
+        "project_state/artifact_index.json"
+      ],
+      "build_command_recorded": false
     },
     {
       "name": "verified_cli_coverage",
@@ -230,8 +252,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260615_startup_status_baseline_consistency_guard_v1",
-      "command_plan_round_id": "round_20260615_startup_status_baseline_consistency_guard_v1"
+      "command_plan_decision_id": "decision_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+      "command_plan_round_id": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -280,10 +302,21 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "codex_report_summary matches synthesized summary",
+      "status": "WARN",
+      "detail": "codex_report_summary differs from synthesized summary",
       "errors": [],
-      "diffs": []
+      "diffs": [
+        {
+          "field": "status",
+          "expected": "FAILED",
+          "actual": "SUCCESS"
+        },
+        {
+          "field": "acceptance_recommendation",
+          "expected": "REWORK_REQUIRED",
+          "actual": "ACCEPTED"
+        }
+      ]
     },
     {
       "name": "report_summary_status_source_available",
@@ -299,16 +332,15 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "PASS",
-      "detail": "SUCCESS report passes lint and doctor",
-      "lint_errors": [],
+      "status": "FAIL",
+      "detail": "status policy found blocking issues",
+      "lint_errors": [
+        "50 missing, 0 stale artifacts"
+      ],
       "warnings": [],
-      "doctor_status": "PASS",
+      "doctor_status": "WARN",
       "report_status": "SUCCESS",
-      "limitations": null,
-      "external_state_notices": [
-        "50 missing historical sample artifacts"
-      ]
+      "limitations": null
     },
     {
       "name": "final_check_stdout_matches_gate_status",
@@ -318,15 +350,20 @@
       "skipped_reason": "close_round_in_progress"
     }
   ],
-  "blocking_reasons": [],
-  "warnings": [],
-  "recommended_next_action": "no_action_required",
+  "blocking_reasons": [
+    "status_policy_valid: status policy found blocking issues"
+  ],
+  "warnings": [
+    "build_output_scope: build_output_scope_unverified: build-generated state files in round delta without recorded build command",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
     "archive_status": "archived",
-    "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED"
+    "report_status": "FAILED",
+    "report_acceptance_recommendation": "REWORK_REQUIRED"
   }
 }

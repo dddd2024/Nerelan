@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260615_startup_status_baseline_consistency_guard_v1",
-  "round_id": "round_20260615_startup_status_baseline_consistency_guard_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-15T16:33:36.286070Z",
+  "decision_id": "decision_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+  "round_id": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+  "mainline": "tool_integration",
+  "generated_at": "2026-06-15T17:00:43.352124Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is engineering_branch",
+      "detail": "mainline is tool_integration",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260615_decision_immutability_scope_guard_rework_v1"
+      "report_id": "codex_report_20260615_startup_status_baseline_consistency_guard_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,14 +71,14 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/*.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+        "project_state/local_reverse_evaluation_queue.json",
+        "project_state/local_reverse_training_status.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/*",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "tests/test_project_gate.py",
-        "tests/test_project_state.py"
+        "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/*"
       ]
     },
     {
@@ -99,6 +99,7 @@
       "status": "PASS",
       "detail": "stale/missing artifacts are not claimed as current evidence",
       "artifact_freshness": {
+        "current": 1,
         "missing": 50
       },
       "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6"
@@ -107,7 +108,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": false
+      "capability_required": true
     }
   ],
   "blocking_reasons": [],
@@ -116,7 +117,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "47a9de2140ca"
+    "head_commit": "77da9a7318f8"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

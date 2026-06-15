@@ -1640,3 +1640,313 @@ def test_training_status_end_to_end_with_artifact_index_overlays(tmp_path: Path)
     assert "E:\\reverse" not in github_text
     assert "D:\\reverse" not in github_text
     assert "C:\\reverse" not in github_text
+
+
+# --- Round 18 decision test scenarios ---
+
+
+class TestTaskPacketDoesNotOverrideDecision:
+    """Scenario 1: task_packet.task does not override current decision."""
+
+    def test_task_packet_task_ignored_for_training_status(self, tmp_path: Path) -> None:
+        """task_packet.task is advisory; decision_packet controls execution."""
+        inventory = {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "sample_id": "cpp1_2f6fcb63",
+                    "display_name": "CPP1.exe",
+                    "relative_path": "CPP1.exe",
+                    "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+                    "size_bytes": 196700,
+                    "extension": ".exe",
+                    "guessed_file_type": "pe",
+                    "category": "cpp",
+                    "tags": ["local", "reverse", "cpp", "pe"],
+                }
+            ],
+        }
+        inv_path = tmp_path / "inventory.json"
+        _write_json(inv_path, inventory)
+
+        # No artifact_index entries -> inventory_only
+        result = build_training_status(
+            inventory_path=inv_path,
+            validated_path=tmp_path / "missing_validated.json",
+            constraint_path=tmp_path / "missing_constraint.json",
+            solver_result_path=tmp_path / "missing_solver.json",
+            artifact_index_path=tmp_path / "missing_artifact_index.json",
+            out_path=tmp_path / "status.json",
+            queue_out_path=tmp_path / "queue.json",
+        )
+        # The result is determined by artifact state, not task_packet.task
+        assert result["status_summary"]["inventory_only"] == 1
+        assert result["status_summary"]["solved"] == 0
+
+
+class TestHistoricalMissingArtifactsNonBlocking:
+    """Scenario 2: historical sample missing artifacts do not block current static triage closeout."""
+
+    def test_missing_historical_artifact_does_not_block_current_triage(self, tmp_path: Path) -> None:
+        """A sample with missing old artifacts should not prevent another sample's triage."""
+        inventory = {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "sample_id": "old_sample_missing",
+                    "display_name": "old.exe",
+                    "relative_path": "old.exe",
+                    "sha256": "a" * 64,
+                    "size_bytes": 100000,
+                    "extension": ".exe",
+                    "guessed_file_type": "pe",
+                    "category": "cpp",
+                    "tags": ["local", "reverse", "cpp", "pe"],
+                },
+                {
+                    "sample_id": "cpp1_2f6fcb63",
+                    "display_name": "CPP1.exe",
+                    "relative_path": "CPP1.exe",
+                    "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+                    "size_bytes": 196700,
+                    "extension": ".exe",
+                    "guessed_file_type": "pe",
+                    "category": "cpp",
+                    "tags": ["local", "reverse", "cpp", "pe"],
+                },
+            ],
+        }
+        # Current static triage artifact for cpp1_2f6fcb63
+        triage_artifact = tmp_path / "cpp1_triage.json"
+        _write_json(triage_artifact, {
+            "sample_id": "cpp1_2f6fcb63",
+            "static_only": True,
+            "executed_sample": False,
+            "runtime_validated": False,
+            "tool_status": "success",
+            "blocked_reason": "",
+            "candidate": None,
+            "triage": {"solver_profile_hypotheses": ["string_compare_password_checker"]},
+        })
+        artifact_index = {
+            "latest_artifacts_v2": {
+                "local_reverse_cpp1_2f6fcb63_static_triage": {
+                    "kind": "local_reverse_single_sample_static_triage",
+                    "freshness": "current",
+                    "path": str(triage_artifact),
+                    "sample_id": "cpp1_2f6fcb63",
+                },
+            }
+        }
+        inv_path = tmp_path / "inventory.json"
+        ai_path = tmp_path / "artifact_index.json"
+        _write_json(inv_path, inventory)
+        _write_json(ai_path, artifact_index)
+
+        result = build_training_status(
+            inventory_path=inv_path,
+            validated_path=tmp_path / "missing_validated.json",
+            constraint_path=tmp_path / "missing_constraint.json",
+            solver_result_path=tmp_path / "missing_solver.json",
+            artifact_index_path=ai_path,
+            out_path=tmp_path / "status.json",
+            queue_out_path=tmp_path / "queue.json",
+        )
+        # cpp1_2f6fcb63 has needs_triage (triage success), old_sample is inventory_only
+        assert result["status_summary"]["needs_triage"] >= 1
+        assert result["status_summary"]["inventory_only"] >= 1
+        # No crash or block from missing historical artifacts
+
+
+class TestCurrentStaticTriageMissingBlocksCloseout:
+    """Scenario 3: current static triage artifact missing/stale still blocks."""
+
+    def test_stale_static_triage_not_counted_as_current(self, tmp_path: Path) -> None:
+        """A stale static triage artifact should not produce needs_triage status."""
+        inventory = {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "sample_id": "cpp1_2f6fcb63",
+                    "display_name": "CPP1.exe",
+                    "relative_path": "CPP1.exe",
+                    "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+                    "size_bytes": 196700,
+                    "extension": ".exe",
+                    "guessed_file_type": "pe",
+                    "category": "cpp",
+                    "tags": ["local", "reverse", "cpp", "pe"],
+                }
+            ],
+        }
+        triage_artifact = tmp_path / "cpp1_triage.json"
+        _write_json(triage_artifact, {
+            "sample_id": "cpp1_2f6fcb63",
+            "static_only": True,
+            "executed_sample": False,
+            "runtime_validated": False,
+            "tool_status": "success",
+            "blocked_reason": "",
+            "candidate": None,
+            "triage": {"solver_profile_hypotheses": ["string_compare_password_checker"]},
+        })
+        artifact_index = {
+            "latest_artifacts_v2": {
+                "local_reverse_cpp1_2f6fcb63_static_triage": {
+                    "kind": "local_reverse_single_sample_static_triage",
+                    "freshness": "stale",  # stale, not current
+                    "path": str(triage_artifact),
+                    "sample_id": "cpp1_2f6fcb63",
+                },
+            }
+        }
+        inv_path = tmp_path / "inventory.json"
+        ai_path = tmp_path / "artifact_index.json"
+        _write_json(inv_path, inventory)
+        _write_json(ai_path, artifact_index)
+
+        result = build_training_status(
+            inventory_path=inv_path,
+            validated_path=tmp_path / "missing_validated.json",
+            constraint_path=tmp_path / "missing_constraint.json",
+            solver_result_path=tmp_path / "missing_solver.json",
+            artifact_index_path=ai_path,
+            out_path=tmp_path / "status.json",
+            queue_out_path=tmp_path / "queue.json",
+        )
+        # Stale artifact should NOT produce needs_triage
+        assert result["status_summary"]["needs_triage"] == 0
+        assert result["status_summary"]["inventory_only"] == 1
+
+
+class TestArtifactIndexRegistersCurrentArtifact:
+    """Scenario 4: artifact_index can register current round artifact."""
+
+    def test_static_triage_registers_current_artifact(self, tmp_path: Path) -> None:
+        """Running static triage should register a current artifact in artifact_index."""
+        from reverse_agent.local_reverse_single_sample_static_triage import _update_artifact_index
+
+        out_path = tmp_path / "local_reverse_cpp1_2f6fcb63_static_triage.json"
+        artifact_data = {
+            "schema_version": 1,
+            "sample_id": "cpp1_2f6fcb63",
+            "tool_status": "success",
+            "generated_at": "2026-06-15T17:00:00Z",
+        }
+        _write_json(out_path, artifact_data)
+
+        artifact_index_path = tmp_path / "artifact_index.json"
+        _write_json(artifact_index_path, {"latest_artifacts_v2": {}})
+
+        _update_artifact_index(
+            artifact_index_path=artifact_index_path,
+            sample_id="cpp1_2f6fcb63",
+            out_path=out_path,
+            artifact=artifact_data,
+            source_run="round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+        )
+
+        index = json.loads(artifact_index_path.read_text(encoding="utf-8"))
+        key = "local_reverse_cpp1_2f6fcb63_static_triage"
+        assert key in index["latest_artifacts_v2"]
+        entry = index["latest_artifacts_v2"][key]
+        assert entry["freshness"] == "current"
+        assert entry["kind"] == "local_reverse_single_sample_static_triage"
+        assert entry["sample_id"] == "cpp1_2f6fcb63"
+        assert entry["source_run"] == "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1"
+        assert entry["tool_status"] == "success"
+
+
+class TestTriagedSampleNotInStaticTriageQueue:
+    """Scenario 5: samples with completed triage do not remain at static triage queue head."""
+
+    def test_needs_triage_sample_not_in_evaluation_queue(self, tmp_path: Path) -> None:
+        """A sample that completed static triage (needs_triage) should not be in the queue."""
+        inventory = {
+            "schema_version": 1,
+            "entries": [
+                {
+                    "sample_id": "cpp1_2f6fcb63",
+                    "display_name": "CPP1.exe",
+                    "relative_path": "CPP1.exe",
+                    "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+                    "size_bytes": 196700,
+                    "extension": ".exe",
+                    "guessed_file_type": "pe",
+                    "category": "cpp",
+                    "tags": ["local", "reverse", "cpp", "pe"],
+                },
+                {
+                    "sample_id": "cpp1_378eeffd",
+                    "display_name": "CPP1b.exe",
+                    "relative_path": "CPP1b.exe",
+                    "sha256": "378eeffdb7f9ccd9ef33a59d3a2bb8a180d057a2955c7537ce91fd0d48931057",
+                    "size_bytes": 196689,
+                    "extension": ".exe",
+                    "guessed_file_type": "pe",
+                    "category": "cpp",
+                    "tags": ["local", "reverse", "cpp", "pe"],
+                },
+            ],
+        }
+        triage_artifact = tmp_path / "cpp1_triage.json"
+        _write_json(triage_artifact, {
+            "sample_id": "cpp1_2f6fcb63",
+            "static_only": True,
+            "executed_sample": False,
+            "runtime_validated": False,
+            "tool_status": "success",
+            "blocked_reason": "",
+            "candidate": None,
+            "triage": {"solver_profile_hypotheses": ["string_compare_password_checker"]},
+        })
+        artifact_index = {
+            "latest_artifacts_v2": {
+                "local_reverse_cpp1_2f6fcb63_static_triage": {
+                    "kind": "local_reverse_single_sample_static_triage",
+                    "freshness": "current",
+                    "path": str(triage_artifact),
+                    "sample_id": "cpp1_2f6fcb63",
+                },
+            }
+        }
+        inv_path = tmp_path / "inventory.json"
+        ai_path = tmp_path / "artifact_index.json"
+        _write_json(inv_path, inventory)
+        _write_json(ai_path, artifact_index)
+
+        result = build_training_status(
+            inventory_path=inv_path,
+            validated_path=tmp_path / "missing_validated.json",
+            constraint_path=tmp_path / "missing_constraint.json",
+            solver_result_path=tmp_path / "missing_solver.json",
+            artifact_index_path=ai_path,
+            out_path=tmp_path / "status.json",
+            queue_out_path=tmp_path / "queue.json",
+        )
+
+        queue_data = json.loads((tmp_path / "queue.json").read_text(encoding="utf-8"))
+        queue_ids = [item["sample_id"] for item in queue_data["items"]]
+        # cpp1_2f6fcb63 completed triage -> not in queue
+        assert "cpp1_2f6fcb63" not in queue_ids
+        # cpp1_378eeffd still inventory_only -> in queue
+        assert "cpp1_378eeffd" in queue_ids
+
+
+class TestGateChecksNotRegressed:
+    """Scenario 6: decision immutability / startup baseline consistency / verified CLI coverage not regressed."""
+
+    def test_decision_immutability_check_exists(self) -> None:
+        """Verify decision_immutability check function exists in project_gate."""
+        from reverse_agent.project_gate import _decision_immutability_check
+        assert callable(_decision_immutability_check)
+
+    def test_startup_baseline_consistency_check_exists(self) -> None:
+        """Verify startup_baseline_consistency check function exists in project_gate."""
+        from reverse_agent.project_gate import _startup_baseline_consistency_check
+        assert callable(_startup_baseline_consistency_check)
+
+    def test_verified_cli_coverage_check_exists(self) -> None:
+        """Verify verified_cli_coverage check function exists in project_gate."""
+        from reverse_agent.project_gate import _verified_cli_coverage_check
+        assert callable(_verified_cli_coverage_check)

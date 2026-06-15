@@ -6,7 +6,7 @@
   "executed_sample": false,
   "static_only": true,
   "runtime_validated": false,
-  "generated_at": "2026-06-14T07:30:18Z",
+  "generated_at": "2026-06-15T16:56:12Z",
   "tool_status": "success",
   "blocked_reason": "",
   "source_tool": "IDA",
@@ -29,7 +29,7 @@
     "bruteforce",
     "upload_binary"
   ],
-  "source_run": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+  "source_run": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
   "tool_provenance": {
     "source_tool": "IDA",
     "ida_executable": "E:\\Program Files\\ida_pro\\idat64.exe",

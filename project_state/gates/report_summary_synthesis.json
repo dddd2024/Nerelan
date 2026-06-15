@@ -2,16 +2,17 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "PASSED",
-  "decision_id": "decision_20260615_startup_status_baseline_consistency_guard_v1",
-  "round_id": "round_20260615_startup_status_baseline_consistency_guard_v1",
-  "report_id": "codex_report_20260615_startup_status_baseline_consistency_guard_v1",
-  "generated_at": "2026-06-15T16:38:59.713750Z",
+  "synthesis_status": "FAILED",
+  "decision_id": "decision_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+  "round_id": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+  "report_id": "codex_report_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+  "generated_at": "2026-06-15T17:08:40.223627Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260615_startup_status_baseline_consistency_guard_v1",
-    "round_id": "round_20260615_startup_status_baseline_consistency_guard_v1",
-    "based_on_decision_id": "decision_20260615_startup_status_baseline_consistency_guard_v1",
+    "report_id": "codex_report_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+    "round_id": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+    "based_on_decision_id": "decision_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
     "files_changed": [
+      "project_state/artifact_index.json",
       "project_state/codex_execution_report.md",
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
@@ -21,13 +22,16 @@
       "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/gates/run_round_result.json",
+      "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "project_state/local_reverse_evaluation_queue.json",
+      "project_state/local_reverse_training_status.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/decision_packet.md",
-      "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/pytest_result.txt",
-      "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/round_manifest.json",
-      "reverse_agent/project_gate.py",
-      "tests/test_project_gate.py"
+      "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/decision_packet.md",
+      "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/pytest_result.txt",
+      "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/round_manifest.json",
+      "tests/test_local_reverse_training_status.py",
+      "training_materials/local_reverse/status_overlay.json"
     ],
     "tests_ran": [
       "Set-Location F:\\reverse-agent",
@@ -45,7 +49,7 @@
       "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_startup_status_baseline_consistency_guard_v1"
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -58,18 +62,26 @@
       "project_state/gates/round_delta_summary.json",
       "project_state/gates/run_round_result.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/decision_packet.md",
-      "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/pytest_result.txt",
-      "project_state/rounds/round_20260615_startup_status_baseline_consistency_guard_v1/round_manifest.json"
+      "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/decision_packet.md",
+      "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/pytest_result.txt",
+      "project_state/rounds/round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1/round_manifest.json"
     ],
-    "status": "SUCCESS",
-    "acceptance_recommendation": "ACCEPTED",
-    "external_state_notices": [
-      "50 missing historical sample artifacts"
-    ]
+    "status": "FAILED",
+    "acceptance_recommendation": "REWORK_REQUIRED"
   },
-  "diffs": [],
+  "diffs": [
+    {
+      "field": "status",
+      "expected": "FAILED",
+      "actual": "SUCCESS"
+    },
+    {
+      "field": "acceptance_recommendation",
+      "expected": "REWORK_REQUIRED",
+      "actual": "ACCEPTED"
+    }
+  ],
   "errors": [],
   "warnings": [],
   "sources": {
