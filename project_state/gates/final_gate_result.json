@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED_WITH_LIMITATIONS",
-  "decision_id": "decision_20260615_project_gate_baseline_lifecycle_v1",
-  "report_id": "codex_report_20260615_project_gate_baseline_lifecycle_v1",
-  "round_id": "round_20260615_project_gate_baseline_lifecycle_v1",
-  "generated_at": "2026-06-15T09:04:28.344429Z",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260615_project_gate_mainline_status_policy_v1",
+  "report_id": "codex_report_20260615_project_gate_mainline_status_policy_v1",
+  "round_id": "round_20260615_project_gate_mainline_status_policy_v1",
+  "generated_at": "2026-06-15T10:02:54.514292Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260615_project_gate_baseline_lifecycle_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260615_project_gate_mainline_status_policy_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -59,14 +59,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/round_manifest.json"
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/decision_packet.md",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/pytest_result.txt",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/round_manifest.json"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -75,14 +74,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/round_manifest.json",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/decision_packet.md",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/pytest_result.txt",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -109,14 +107,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/round_manifest.json",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/decision_packet.md",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/pytest_result.txt",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -127,14 +124,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/round_manifest.json"
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/decision_packet.md",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/pytest_result.txt",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
         "reverse_agent/project_gate.py",
@@ -205,8 +201,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260615_project_gate_baseline_lifecycle_v1",
-      "command_plan_round_id": "round_20260615_project_gate_baseline_lifecycle_v1"
+      "command_plan_decision_id": "decision_20260615_project_gate_mainline_status_policy_v1",
+      "command_plan_round_id": "round_20260615_project_gate_mainline_status_policy_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -236,9 +232,9 @@
     {
       "name": "close_round_is_last_command_block",
       "status": "PASS",
-      "detail": "close-round is the last command block in pytest_result",
-      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_gate_baseline_lifecycle_v1",
-      "last_kind": "close-round"
+      "detail": "close-round command block is pending until close-round completes",
+      "required": false,
+      "skipped_reason": "close_round_in_progress"
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
@@ -280,15 +276,17 @@
       "warnings": [],
       "doctor_status": "PASS",
       "report_status": "SUCCESS",
-      "limitations": [
+      "limitations": null,
+      "external_state_notices": [
         "50 missing historical sample artifacts"
       ]
     },
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "no recorded final-check stdout status to compare",
-      "required": false
+      "detail": "final-check stdout status is allowed to differ while close-round is in progress",
+      "required": false,
+      "skipped_reason": "close_round_in_progress"
     }
   ],
   "blocking_reasons": [],
@@ -300,6 +298,6 @@
     "decision_consumed_by_report": true,
     "archive_status": "archived",
     "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED_WITH_LIMITATIONS"
+    "report_acceptance_recommendation": "ACCEPTED"
   }
 }

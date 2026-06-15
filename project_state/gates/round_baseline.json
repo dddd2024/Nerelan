@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260615_project_gate_baseline_lifecycle_v1",
-  "round_id": "round_20260615_project_gate_baseline_lifecycle_v1",
-  "head_commit": "39d0fff2b8d0",
+  "decision_id": "decision_20260615_project_gate_mainline_status_policy_v1",
+  "round_id": "round_20260615_project_gate_mainline_status_policy_v1",
+  "head_commit": "9ab4d1282015",
   "baseline_git_status_short": [
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py"
@@ -18,5 +18,5 @@
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-15T08:42:41.085829Z"
+  "generated_at": "2026-06-15T09:56:44.375510Z"
 }

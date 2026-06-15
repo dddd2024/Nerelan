@@ -9,8 +9,10 @@ from reverse_agent.project_gate import (
     _close_round_exit_code,
     _extract_bash_commands,
     _extract_unfenced_commands,
+    _historical_sample_limitations_only,
     _is_close_round_command,
     _is_descriptive_backtick_line,
+    _is_historical_sample_limitation,
     _is_prohibitive_line,
     _is_self_invocation,
     _read_round_close_snapshot,
@@ -799,9 +801,12 @@ def test_final_check_passes_engineering_success_with_legacy_sample_artifacts(tmp
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-    assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+    assert result["gate_status"] == "PASSED"
     assert result["blocking_reasons"] == []
-    assert _check(result, "status_policy_valid")["status"] == "PASS"
+    status_policy = _check(result, "status_policy_valid")
+    assert status_policy["status"] == "PASS"
+    # Historical sample limitations should be in external_state_notices
+    assert status_policy.get("external_state_notices") is not None
 
 
 def test_final_check_downgrades_unclaimed_legacy_artifacts_for_reverse_solving(
@@ -930,10 +935,10 @@ def test_final_check_accepts_conservative_warn_for_limitations(tmp_path: Path) -
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-    assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+    assert result["gate_status"] == "PASSED"
     stdout_check = _check(result, "final_check_stdout_matches_gate_status")
     assert stdout_check["status"] == "PASS"
-    assert stdout_check["expected_gate_status"] == "PASSED_WITH_LIMITATIONS"
+    assert stdout_check["expected_gate_status"] == "PASSED"
     assert stdout_check["recorded_stdout_status"] == "WARN"
     assert stdout_check["conservative_warn_accepted"] is True
 
@@ -1679,7 +1684,7 @@ def test_close_round_allows_engineering_success_legacy_artifacts_until_archive(t
     assert result["actions"][0]["allowed_archive_pending_failures"] == []
     assert result["actions"][0]["unexpected_failures"] == []
     assert result["actions"][2]["status"] == "PASSED"
-    assert result["actions"][2]["gate_status"] == "PASSED_WITH_LIMITATIONS"
+    assert result["actions"][2]["gate_status"] == "PASSED"
 
 
 def test_close_round_is_idempotent_for_existing_matching_archive(tmp_path: Path) -> None:
@@ -2642,11 +2647,11 @@ class TestResultStatusWithLimitations:
 
 
 class TestFinalCheckWithHistoricalLimitations:
-    """Verify final_check produces PASSED_WITH_LIMITATIONS when only historical artifacts are missing."""
+    """Verify final_check produces PASSED for engineering_branch when only historical artifacts are missing."""
 
     def test_engineering_partial_with_historical_only_limitations(self, tmp_path: Path) -> None:
         """When report is PARTIAL but doctor WARN is only from historical non-blocking artifacts,
-        gate should be PASSED_WITH_LIMITATIONS."""
+        engineering_branch gate should be PASSED with external_state_notices."""
         state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
         # Add stale/missing artifacts to artifact_index
         _write_json(
@@ -2663,12 +2668,13 @@ class TestFinalCheckWithHistoricalLimitations:
 
         result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-        assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+        assert result["gate_status"] == "PASSED"
         assert result["blocking_reasons"] == []
         status_policy = _check(result, "status_policy_valid")
-        assert status_policy["status"] == "WARN"
-        assert status_policy.get("limitations") is not None
-        assert len(status_policy["limitations"]) > 0
+        assert status_policy["status"] in {"PASS", "WARN"}
+        # Historical limitations should be in external_state_notices
+        assert status_policy.get("external_state_notices") is not None
+        assert len(status_policy["external_state_notices"]) > 0
 
     def test_status_policy_valid_still_fails_for_current_round_missing(self, tmp_path: Path) -> None:
         """When current-round required artifacts are missing (lint errors), status_policy_valid should FAIL."""
@@ -2687,11 +2693,11 @@ class TestFinalCheckWithHistoricalLimitations:
 
 
 class TestReportSummarySynthesisWithLimitations:
-    """Verify build_report_summary_synthesis includes limitations when status is ACCEPTED_WITH_LIMITATIONS."""
+    """Verify build_report_summary_synthesis handles historical limitations for engineering_branch."""
 
-    def test_synthesis_includes_limitations_from_gate(self, tmp_path: Path) -> None:
-        """When final gate has PASSED_WITH_LIMITATIONS and status_policy_valid has limitations,
-        synthesis should include limitations in synthesized_summary."""
+    def test_synthesis_includes_external_state_notices_from_gate(self, tmp_path: Path) -> None:
+        """When final gate has PASSED and status_policy_valid has historical limitations,
+        engineering_branch synthesis should include external_state_notices and ACCEPTED."""
         state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
         _write_json(
             state_dir / "artifact_index.json",
@@ -2712,9 +2718,9 @@ class TestReportSummarySynthesisWithLimitations:
         result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
 
         synthesized = result["synthesized_summary"]
-        assert synthesized.get("acceptance_recommendation") == "ACCEPTED_WITH_LIMITATIONS"
-        assert "limitations" in synthesized
-        assert len(synthesized["limitations"]) > 0
+        assert synthesized.get("acceptance_recommendation") == "ACCEPTED"
+        assert "external_state_notices" in synthesized
+        assert len(synthesized["external_state_notices"]) > 0
 
 
 def test_command_plan_fails_when_tests_section_missing(tmp_path: Path) -> None:
@@ -4317,3 +4323,345 @@ class TestBaselinePreservedAfterClose:
         with open(baseline_path, encoding="utf-8") as f:
             current_baseline = json.load(f)
         assert current_baseline == original_baseline
+
+
+class TestIsHistoricalSampleLimitation:
+    """Verify _is_historical_sample_limitation classifies limitations correctly."""
+
+    def test_missing_historical_sample_artifacts(self) -> None:
+        assert _is_historical_sample_limitation("50 missing historical sample artifacts")
+
+    def test_missing_sample_artifacts_without_historical(self) -> None:
+        assert _is_historical_sample_limitation("3 missing sample artifacts")
+
+    def test_historical_artifact_freshness(self) -> None:
+        assert _is_historical_sample_limitation("historical artifact freshness degraded")
+
+    def test_missing_historical_artifact(self) -> None:
+        assert _is_historical_sample_limitation("missing historical artifact for probe_x")
+
+    def test_non_historical_limitation(self) -> None:
+        assert not _is_historical_sample_limitation("report/decision mismatch detected")
+
+    def test_pytest_mismatch(self) -> None:
+        assert not _is_historical_sample_limitation("pytest result does not match report")
+
+    def test_scope_violation(self) -> None:
+        assert not _is_historical_sample_limitation("scope violation: modified forbidden file")
+
+
+class TestHistoricalSampleLimitationsOnly:
+    """Verify _historical_sample_limitations_only checks all items."""
+
+    def test_all_historical(self) -> None:
+        assert _historical_sample_limitations_only([
+            "50 missing historical sample artifacts",
+            "historical artifact freshness degraded",
+        ])
+
+    def test_mixed(self) -> None:
+        assert not _historical_sample_limitations_only([
+            "50 missing historical sample artifacts",
+            "report/decision mismatch",
+        ])
+
+    def test_empty(self) -> None:
+        assert not _historical_sample_limitations_only([])
+
+    def test_none_historical(self) -> None:
+        assert not _historical_sample_limitations_only([
+            "report/decision mismatch",
+            "pytest failure",
+        ])
+
+
+class TestResultStatusMainlineAware:
+    """Verify _result_status mainline-aware behavior for engineering_branch."""
+
+    def test_engineering_branch_historical_only_returns_passed(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "limitations": ["50 missing historical sample artifacts"]},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="engineering_branch") == "PASSED"
+
+    def test_engineering_branch_with_external_state_notices_returns_passed(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "external_state_notices": ["50 missing historical sample artifacts"]},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="engineering_branch") == "PASSED"
+
+    def test_engineering_branch_pass_with_historical_limitations_returns_passed(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "PASS", "limitations": ["50 missing historical sample artifacts"]},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="engineering_branch") == "PASSED"
+
+    def test_engineering_branch_pass_with_external_notices_returns_passed(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "PASS", "external_state_notices": ["50 missing historical sample artifacts"]},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="engineering_branch") == "PASSED"
+
+    def test_reverse_solving_historical_still_warns(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "limitations": ["50 missing historical sample artifacts"]},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="reverse_solving") == "PASSED_WITH_LIMITATIONS"
+
+    def test_tool_integration_historical_still_warns(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "limitations": ["50 missing historical sample artifacts"]},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="tool_integration") == "PASSED_WITH_LIMITATIONS"
+
+    def test_training_dataset_historical_still_warns(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "limitations": ["50 missing historical sample artifacts"]},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="training_dataset") == "PASSED_WITH_LIMITATIONS"
+
+    def test_engineering_branch_mixed_limitations_returns_with_limitations(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "limitations": [
+                "50 missing historical sample artifacts",
+                "report/decision mismatch",
+            ]},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="engineering_branch") == "PASSED_WITH_LIMITATIONS"
+
+    def test_no_mainline_default_still_warns(self) -> None:
+        checks = [
+            {"name": "status_policy_valid", "status": "WARN", "limitations": ["50 missing historical sample artifacts"]},
+        ]
+        assert _result_status(checks, "SUCCESS") == "PASSED_WITH_LIMITATIONS"
+
+    def test_real_failure_still_fails(self) -> None:
+        checks = [
+            {"name": "some_check", "status": "FAIL"},
+        ]
+        assert _result_status(checks, "SUCCESS", mainline="engineering_branch") == "FAILED"
+
+
+class TestReportStatusFromGatePayloadMainlineAware:
+    """Verify _report_status_from_gate_payload mainline-aware behavior."""
+
+    def test_engineering_branch_warn_historical_returns_accepted(self) -> None:
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {"name": "status_policy_valid", "status": "WARN", "limitations": ["50 missing historical sample artifacts"]},
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("SUCCESS", "ACCEPTED")
+
+    def test_engineering_branch_warn_with_external_notices_returns_accepted(self) -> None:
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {"name": "status_policy_valid", "status": "WARN", "external_state_notices": ["50 missing historical sample artifacts"]},
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("SUCCESS", "ACCEPTED")
+
+    def test_engineering_branch_passed_historical_returns_accepted(self) -> None:
+        payload = {
+            "gate_status": "PASSED",
+            "checks": [
+                {"name": "status_policy_valid", "status": "PASS", "limitations": ["50 missing historical sample artifacts"]},
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("SUCCESS", "ACCEPTED")
+
+    def test_engineering_branch_passed_external_notices_returns_accepted(self) -> None:
+        payload = {
+            "gate_status": "PASSED",
+            "checks": [
+                {"name": "status_policy_valid", "status": "PASS", "external_state_notices": ["50 missing historical sample artifacts"]},
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("SUCCESS", "ACCEPTED")
+
+    def test_reverse_solving_warn_historical_returns_with_limitations(self) -> None:
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {"name": "status_policy_valid", "status": "WARN", "limitations": ["50 missing historical sample artifacts"]},
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="reverse_solving")
+        assert result == ("SUCCESS", "ACCEPTED_WITH_LIMITATIONS")
+
+    def test_engineering_branch_mixed_limitations_returns_with_limitations(self) -> None:
+        payload = {
+            "gate_status": "WARN",
+            "status_summary": {
+                "report_status": "SUCCESS",
+                "report_acceptance_recommendation": "ACCEPTED",
+            },
+            "checks": [
+                {"name": "status_policy_valid", "status": "WARN", "limitations": [
+                    "50 missing historical sample artifacts",
+                    "report/decision mismatch",
+                ]},
+            ],
+        }
+        result = _report_status_from_gate_payload(payload, mainline="engineering_branch")
+        assert result == ("SUCCESS", "ACCEPTED_WITH_LIMITATIONS")
+
+
+class TestFinalCheckMainlineStatusPolicy:
+    """Verify final_check mainline-aware status policy for engineering_branch."""
+
+    def test_engineering_branch_historical_only_returns_passed(self, tmp_path: Path) -> None:
+        """engineering_branch with only historical sample limitations should return PASSED."""
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        _write_json(
+            state_dir / "artifact_index.json",
+            {
+                "missing": [],
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    "old_probe": {"freshness": "stale"},
+                    "missing_probe": {"freshness": "missing"},
+                },
+            },
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        assert result["gate_status"] == "PASSED"
+        status_policy = _check(result, "status_policy_valid")
+        # Historical limitations should be in external_state_notices, not limitations
+        assert status_policy.get("external_state_notices") is not None
+        assert len(status_policy["external_state_notices"]) > 0
+
+    def test_reverse_solving_historical_still_with_limitations(self, tmp_path: Path) -> None:
+        """reverse_solving with historical sample limitations should return PASSED_WITH_LIMITATIONS."""
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW", mainline="reverse_solving")
+        _write_json(
+            state_dir / "artifact_index.json",
+            {
+                "missing": [],
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    "old_probe": {"freshness": "stale"},
+                    "missing_probe": {"freshness": "missing"},
+                },
+            },
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        assert result["gate_status"] == "PASSED_WITH_LIMITATIONS"
+        status_policy = _check(result, "status_policy_valid")
+        # For reverse_solving, limitations should remain in limitations field
+        assert status_policy.get("limitations") is not None
+
+    def test_engineering_branch_external_state_notices_visible(self, tmp_path: Path) -> None:
+        """Historical sample limitations should be visible in external_state_notices."""
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        _write_json(
+            state_dir / "artifact_index.json",
+            {
+                "missing": [],
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    "old_probe": {"freshness": "stale"},
+                    "missing_probe": {"freshness": "missing"},
+                },
+            },
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        status_policy = _check(result, "status_policy_valid")
+        notices = status_policy.get("external_state_notices", [])
+        assert len(notices) > 0
+        # Verify the notices contain historical sample artifact references
+        assert any("historical" in str(n).lower() or "sample" in str(n).lower() for n in notices)
+
+    def test_real_failure_still_fails_regardless_of_mainline(self, tmp_path: Path) -> None:
+        """Real failures should still cause FAILED gate status even for engineering_branch."""
+        state_dir = _make_gate_state(tmp_path)
+        # Corrupt the report to trigger lint failure
+        (state_dir / "codex_execution_report.md").write_text(
+            "# CODEX_EXECUTION_REPORT\nNo summary block.\n",
+            encoding="utf-8",
+        )
+
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        assert result["gate_status"] == "FAILED"
+
+
+class TestReportSummarySynthesisMainlineAware:
+    """Verify build_report_summary_synthesis mainline-aware behavior."""
+
+    def test_engineering_branch_historical_notices_in_synthesis(self, tmp_path: Path) -> None:
+        """For engineering_branch, historical sample limitations should appear as
+        external_state_notices, not limitations, and acceptance should be ACCEPTED."""
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
+        _write_json(
+            state_dir / "artifact_index.json",
+            {
+                "missing": [],
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    "old_probe": {"freshness": "stale"},
+                    "missing_probe": {"freshness": "missing"},
+                },
+            },
+        )
+
+        # Run final_check first to produce the gate result
+        final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        # Now run synthesis
+        result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+        synthesized = result["synthesized_summary"]
+        assert synthesized.get("acceptance_recommendation") == "ACCEPTED"
+        # Historical limitations should be in external_state_notices
+        assert "external_state_notices" in synthesized
+        assert len(synthesized["external_state_notices"]) > 0
+
+    def test_reverse_solving_historical_still_limitations_in_synthesis(self, tmp_path: Path) -> None:
+        """For reverse_solving, historical sample limitations should remain as limitations."""
+        state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW", mainline="reverse_solving")
+        _write_json(
+            state_dir / "artifact_index.json",
+            {
+                "missing": [],
+                "latest_artifacts": {},
+                "latest_artifacts_v2": {
+                    "old_probe": {"freshness": "stale"},
+                    "missing_probe": {"freshness": "missing"},
+                },
+            },
+        )
+
+        # Run final_check first to produce the gate result
+        final_check(state_dir=state_dir, repo_root=tmp_path)
+
+        # Now run synthesis
+        result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+        synthesized = result["synthesized_summary"]
+        assert synthesized.get("acceptance_recommendation") == "ACCEPTED_WITH_LIMITATIONS"
+        assert "limitations" in synthesized

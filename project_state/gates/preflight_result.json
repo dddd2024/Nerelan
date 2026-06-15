@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260615_project_gate_baseline_lifecycle_v1",
-  "round_id": "round_20260615_project_gate_baseline_lifecycle_v1",
+  "decision_id": "decision_20260615_project_gate_mainline_status_policy_v1",
+  "round_id": "round_20260615_project_gate_mainline_status_policy_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-15T08:43:11.689041Z",
+  "generated_at": "2026-06-15T09:57:01.347439Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -51,7 +51,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260615_project_gate_noise_reduction_v1"
+      "report_id": "codex_report_20260615_project_gate_baseline_lifecycle_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -76,7 +76,7 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_gate_baseline_lifecycle_v1/*",
+        "project_state/rounds/round_20260615_project_gate_mainline_status_policy_v1/*",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -120,7 +120,7 @@
       "reverse_agent/project_gate.py",
       "tests/test_project_gate.py"
     ],
-    "head_commit": "39d0fff2b8d0"
+    "head_commit": "9ab4d1282015"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

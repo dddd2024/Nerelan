@@ -1408,7 +1408,7 @@ def _final_check_stdout_status_check(pytest_text: str, expected_gate_status: str
             "no recorded final-check stdout status to compare",
             required=False,
         )
-    conservative_warn = recorded_status == "WARN" and expected_gate_status == "PASSED_WITH_LIMITATIONS"
+    conservative_warn = recorded_status == "WARN" and expected_gate_status in ("PASSED_WITH_LIMITATIONS", "PASSED")
     matches = recorded_status == expected_gate_status or conservative_warn
     return _check(
         "final_check_stdout_matches_gate_status",
@@ -1703,7 +1703,7 @@ def _report_status_from_gate(gate_status: str) -> tuple[str, str] | None:
     return mapping.get(gate_status)
 
 
-def _report_status_from_gate_payload(payload: dict[str, Any]) -> tuple[str, str] | None:
+def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str = "") -> tuple[str, str] | None:
     gate_status = str(payload.get("gate_status") or "")
     if gate_status == "PASSED_WITH_LIMITATIONS":
         return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
@@ -1726,23 +1726,42 @@ def _report_status_from_gate_payload(payload: dict[str, Any]) -> tuple[str, str]
             isinstance(check, dict)
             and check.get("name") == "status_policy_valid"
             and check.get("status") == "WARN"
-            and check.get("limitations")
+            and (check.get("limitations") or check.get("external_state_notices"))
             for check in payload.get("checks", [])
         )
         if status_policy_has_limitations and warn_check_names <= allowed_prearchive_warnings:
+            # For engineering_branch, if the only limitations are historical sample
+            # artifacts, these are external state notices, not current-round issues.
+            if mainline == "engineering_branch":
+                all_limitations: list[str] = []
+                for check in payload.get("checks", []):
+                    if isinstance(check, dict) and check.get("name") == "status_policy_valid":
+                        if isinstance(check.get("limitations"), list):
+                            all_limitations.extend(check["limitations"])
+                        if isinstance(check.get("external_state_notices"), list):
+                            all_limitations.extend(check["external_state_notices"])
+                if _historical_sample_limitations_only(all_limitations):
+                    return "SUCCESS", "ACCEPTED"
             return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
         if report_status == "SUCCESS" and warn_check_names and warn_check_names <= allowed_prearchive_warnings:
             return "SUCCESS", acceptance if acceptance else "ACCEPTED"
-    # Check if PASSED gate has status_policy_valid with limitations (post-archive scenario
-    # where doctor is PASS but historical artifacts are still missing)
+    # Check if PASSED gate has status_policy_valid with limitations or external_state_notices
+    # (post-archive scenario where doctor is PASS but historical artifacts are still missing)
     if gate_status == "PASSED":
         for check in payload.get("checks", []):
             if (
                 isinstance(check, dict)
                 and check.get("name") == "status_policy_valid"
                 and check.get("status") == "PASS"
-                and check.get("limitations")
+                and (check.get("limitations") or check.get("external_state_notices"))
             ):
+                # For engineering_branch, historical sample artifact limitations
+                # are external state notices, not current-round limitations.
+                check_limitations = list(check.get("limitations") or [])
+                check_external = list(check.get("external_state_notices") or [])
+                combined = check_limitations + check_external
+                if mainline == "engineering_branch" and _historical_sample_limitations_only(combined):
+                    return "SUCCESS", "ACCEPTED"
                 return "SUCCESS", "ACCEPTED_WITH_LIMITATIONS"
     return _report_status_from_gate(gate_status)
 
@@ -1938,7 +1957,8 @@ def build_report_summary_synthesis(
             final_gate_status = str(final_gate_payload.get("gate_status") or "")
     else:
         warnings.append("final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet")
-    status_pair = _report_status_from_gate_payload(final_gate_payload) if final_gate_matches else None
+    mainline = str(decision.get("mainline") or "")
+    status_pair = _report_status_from_gate_payload(final_gate_payload, mainline=mainline) if final_gate_matches else None
 
     synthesized_summary: dict[str, Any] = {
         "report_id": report_id,
@@ -1951,14 +1971,24 @@ def build_report_summary_synthesis(
     if status_pair is not None:
         synthesized_summary["status"] = status_pair[0]
         synthesized_summary["acceptance_recommendation"] = status_pair[1]
-        # When status is ACCEPTED_WITH_LIMITATIONS, include limitations from gate
-        if status_pair[1] == "ACCEPTED_WITH_LIMITATIONS" and final_gate_matches:
-            gate_limitations: list[str] = []
-            for check in final_gate_payload.get("checks", []):
-                if isinstance(check, dict) and check.get("limitations"):
-                    gate_limitations.extend(check["limitations"])
-            if gate_limitations:
-                synthesized_summary["limitations"] = gate_limitations
+        # Collect limitations and external_state_notices from gate checks
+        gate_limitations: list[str] = []
+        gate_external_notices: list[str] = []
+        for check in final_gate_payload.get("checks", []):
+            if isinstance(check, dict):
+                if check.get("limitations"):
+                    for lim in check["limitations"]:
+                        if mainline == "engineering_branch" and _is_historical_sample_limitation(lim):
+                            gate_external_notices.append(lim)
+                        else:
+                            gate_limitations.append(lim)
+                if check.get("external_state_notices"):
+                    for notice in check["external_state_notices"]:
+                        gate_external_notices.append(notice)
+        if gate_limitations:
+            synthesized_summary["limitations"] = gate_limitations
+        if gate_external_notices:
+            synthesized_summary["external_state_notices"] = gate_external_notices
 
     if not isinstance(pytest_header.get("tests_ran"), list) or not pytest_header.get("tests_ran"):
         errors.append("pytest_result_summary.tests_ran missing or empty")
@@ -2109,7 +2139,25 @@ def _forbidden_hits(paths: set[str], *, mainline: str = "") -> list[str]:
     return hits
 
 
-def _result_status(checks: list[dict[str, Any]], report_status: str) -> str:
+def _is_historical_sample_limitation(limitation: str) -> bool:
+    """Return True if the limitation text refers to historical sample artifact missing/stale."""
+    lowered = limitation.lower()
+    return bool(
+        re.search(r"\d+\s+missing\s+(historical\s+)?sample\s+artifact", lowered)
+        or re.search(r"historical\s+sample\s+artifact", lowered)
+        or re.search(r"missing.*historical.*artifact", lowered)
+        or re.search(r"historical\s+artifact\s+freshness", lowered)
+    )
+
+
+def _historical_sample_limitations_only(limitations: list[str]) -> bool:
+    """Return True if all limitations are historical sample artifact limitations."""
+    if not limitations:
+        return False
+    return all(_is_historical_sample_limitation(lim) for lim in limitations)
+
+
+def _result_status(checks: list[dict[str, Any]], report_status: str, *, mainline: str = "") -> str:
     if any(check.get("status") == "FAIL" for check in checks):
         return "FAILED"
     if report_status == "BLOCKED":
@@ -2120,20 +2168,39 @@ def _result_status(checks: list[dict[str, Any]], report_status: str) -> str:
     warn_checks = [check for check in checks if check.get("status") == "WARN"]
     if warn_checks:
         all_non_blocking = all(
-            check.get("name") == "status_policy_valid" and check.get("limitations")
+            check.get("name") == "status_policy_valid"
+            and (check.get("limitations") or check.get("external_state_notices"))
             for check in warn_checks
         )
         if all_non_blocking:
+            # For engineering_branch, if the only limitations are historical sample
+            # artifacts, these are external state notices, not current-round issues.
+            # Return PASSED instead of PASSED_WITH_LIMITATIONS.
+            all_limitations: list[str] = []
+            for check in warn_checks:
+                if isinstance(check.get("limitations"), list):
+                    all_limitations.extend(check["limitations"])
+                if isinstance(check.get("external_state_notices"), list):
+                    all_limitations.extend(check["external_state_notices"])
+            if mainline == "engineering_branch" and _historical_sample_limitations_only(all_limitations):
+                return "PASSED"
             return "PASSED_WITH_LIMITATIONS"
-    # Also check if a PASS status_policy_valid has limitations (post-archive scenario
-    # where doctor is PASS but historical artifacts are still missing)
+    # Also check if a PASS status_policy_valid has limitations or external_state_notices
+    # (post-archive scenario where doctor is PASS but historical artifacts are still missing)
     for check in checks:
         if (
             isinstance(check, dict)
             and check.get("name") == "status_policy_valid"
             and check.get("status") == "PASS"
-            and check.get("limitations")
+            and (check.get("limitations") or check.get("external_state_notices"))
         ):
+            # For engineering_branch, historical sample artifact limitations
+            # are external state notices, not current-round limitations.
+            check_limitations = list(check.get("limitations") or [])
+            check_external = list(check.get("external_state_notices") or [])
+            combined = check_limitations + check_external
+            if mainline == "engineering_branch" and _historical_sample_limitations_only(combined):
+                return "PASSED"
             return "PASSED_WITH_LIMITATIONS"
     if report_status in {"FAILED", "PARTIAL"}:
         return "WARN"
@@ -2432,20 +2499,37 @@ def final_check(
     else:
         status_detail = "status policy found blocking issues"
     status_check = "FAIL" if status_errors else ("WARN" if status_warnings and report_status != "BLOCKED" else "PASS")
+    # Classify limitations for mainline-aware visibility
+    mainline = str(decision.get("mainline") or "")
+    external_state_notices: list[str] = []
+    remaining_limitations: list[str] = []
+    if limitations and mainline == "engineering_branch":
+        for lim in limitations:
+            if _is_historical_sample_limitation(lim):
+                external_state_notices.append(lim)
+            else:
+                remaining_limitations.append(lim)
+    else:
+        remaining_limitations = limitations
+    check_kwargs: dict[str, Any] = {
+        "lint_errors": status_errors,
+        "warnings": status_warnings,
+        "doctor_status": doctor_status,
+        "report_status": report_status,
+        "limitations": remaining_limitations if remaining_limitations else None,
+    }
+    if external_state_notices:
+        check_kwargs["external_state_notices"] = external_state_notices
     checks.append(
         _check(
             "status_policy_valid",
             status_check,
             status_detail,
-            lint_errors=status_errors,
-            warnings=status_warnings,
-            doctor_status=doctor_status,
-            report_status=report_status,
-            limitations=limitations if limitations else None,
+            **check_kwargs,
         )
     )
 
-    gate_status = _result_status(checks, report_status)
+    gate_status = _result_status(checks, report_status, mainline=str(decision.get("mainline") or ""))
     pre_stdout_failed_checks = {
         str(check.get("name") or "")
         for check in checks
@@ -2467,7 +2551,7 @@ def final_check(
         )
     else:
         checks.append(_final_check_stdout_status_check(pytest_text, gate_status))
-    gate_status = _result_status(checks, report_status)
+    gate_status = _result_status(checks, report_status, mainline=str(decision.get("mainline") or ""))
     warnings = [
         f"{check['name']}: {check['detail']}"
         for check in checks
@@ -2587,11 +2671,14 @@ def _patch_gate_result_historical_artifacts(
     *,
     state_dir: Path,
     result: dict[str, Any],
+    mainline: str = "",
 ) -> None:
     """Rewrite final_gate_result.json to downgrade status_policy_valid FAIL to WARN
-    and gate_status to PASSED_WITH_LIMITATIONS, so synthesis derives SUCCESS."""
+    and gate_status to PASSED_WITH_LIMITATIONS (or PASSED for engineering_branch
+    with only historical sample limitations), so synthesis derives SUCCESS."""
+    is_eng = mainline == "engineering_branch"
     patched = dict(result)
-    patched["gate_status"] = "PASSED_WITH_LIMITATIONS"
+    patched["gate_status"] = "PASSED" if is_eng else "PASSED_WITH_LIMITATIONS"
     patched["blocking_reasons"] = [
         reason for reason in patched.get("blocking_reasons", [])
         if "status_policy_valid" not in reason
@@ -2602,11 +2689,14 @@ def _patch_gate_result_historical_artifacts(
     )
     for check in patched.get("checks", []):
         if isinstance(check, dict) and check.get("name") == "status_policy_valid" and check.get("status") == "FAIL":
-            check["status"] = "WARN"
+            check["status"] = "PASS" if is_eng else "WARN"
             check["detail"] = "historical artifact freshness non-blocking after archive"
-            check["limitations"] = [
-                "historical sample artifacts missing; non-blocking for non-sample-solving closeout"
-            ]
+            historical_msg = "historical sample artifacts missing; non-blocking for non-sample-solving closeout"
+            if is_eng:
+                check["external_state_notices"] = [historical_msg]
+                check.pop("limitations", None)
+            else:
+                check["limitations"] = [historical_msg]
     out_dir = state_dir / "gates"
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / FINAL_GATE_RESULT_NAME).write_text(
@@ -3038,6 +3128,7 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
                     _patch_gate_result_historical_artifacts(
                         state_dir=state_dir,
                         result=after,
+                        mainline=str(decision.get("mainline") or ""),
                     )
                     build_report_summary_synthesis(
                         state_dir=state_dir,

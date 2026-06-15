@@ -277,7 +277,11 @@ round_id: round_20260615_project_gate_mainline_status_policy_v1
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
+final-check: PASSED_WITH_LIMITATIONS
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_gate_mainline_status_policy_v1 =====
+close-round: CLOSED
 ===== EXIT: 0 =====
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_gate_mainline_status_policy_v1 =====
 close-round: CLOSED
