@@ -121,6 +121,7 @@ COMMAND_PLAN_KINDS = {
 
 NATURAL_LANGUAGE_COMMANDS = {
     "position": [
+        "Set-Location F:\\reverse-agent",
         "pwd",
         "Test-Path F:\\reverse-agent",
         "git rev-parse --show-toplevel",
@@ -2861,6 +2862,8 @@ def _command_kind(command: str) -> str:
         return "pwd"
     if lowered == "get-location" or lowered.startswith("get-location "):
         return "pwd"
+    if lowered == "set-location" or lowered.startswith("set-location "):
+        return "set-location"
     if "python -m pytest" in lowered or lowered.startswith("pytest"):
         return "pytest"
     if "python -m reverse_agent.local_reverse_single_sample_static_triage" in lowered:
@@ -2952,6 +2955,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         "artifact-index-verification",
         "test-path",
         "pwd",
+        "set-location",
     }:
         return "status"
     return "unknown"

@@ -2794,6 +2794,7 @@ def test_command_plan_extracts_chinese_natural_language_gate_checklist(tmp_path:
 
     assert result["plan_status"] == "PASSED"
     assert [command["command"] for command in result["commands"]] == [
+        "Set-Location F:\\reverse-agent",
         "pwd",
         "Test-Path F:\\reverse-agent",
         "git rev-parse --show-toplevel",
