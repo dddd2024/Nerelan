@@ -6,11 +6,16 @@ import pytest
 
 from reverse_agent.project_gate import (
     _close_round_exit_code,
+    _extract_bash_commands,
+    _extract_unfenced_commands,
     _is_close_round_command,
+    _is_descriptive_backtick_line,
+    _is_prohibitive_line,
     _is_self_invocation,
     _report_status_from_gate,
     _report_status_from_gate_payload,
     _result_status,
+    _allowed_inherited_files,
     build_report_summary_synthesis,
     close_round,
     command_plan,
@@ -3569,3 +3574,306 @@ python -c "print('not reached')"
         content = pytest_path.read_text(encoding="utf-8")
         assert "===== EXIT: 7 =====" in content
         assert "not reached" not in content
+
+
+# ---------------------------------------------------------------------------
+# Tests for command extraction noise reduction
+# ---------------------------------------------------------------------------
+
+
+class TestIsProhibitiveLine:
+    """Verify _is_prohibitive_line detects prohibition patterns."""
+
+    def test_do_not(self) -> None:
+        assert _is_prohibitive_line("Do not run this command") is True
+
+    def test_do_not_chinese(self) -> None:
+        assert _is_prohibitive_line("不要在 live project_state 上执行") is True
+
+    def test_must_not(self) -> None:
+        assert _is_prohibitive_line("You must not commit") is True
+
+    def test_forbidden_chinese(self) -> None:
+        assert _is_prohibitive_line("禁止修改 .codex-skills/") is True
+
+    def test_normal_line(self) -> None:
+        assert _is_prohibitive_line("Run the following command") is False
+
+    def test_stop_condition(self) -> None:
+        assert _is_prohibitive_line("If pytest fails, stop and report BLOCKED") is True
+
+    def test_shall_not(self) -> None:
+        assert _is_prohibitive_line("We shall not proceed") is True
+
+    def test_negative_chinese(self) -> None:
+        assert _is_prohibitive_line("不得把 task_packet.json 当执行权威") is True
+
+
+class TestIsDescriptiveBacktickLine:
+    """Verify _is_descriptive_backtick_line detects numbered descriptive items."""
+
+    def test_numbered_item_with_multiple_backticks(self) -> None:
+        assert _is_descriptive_backtick_line(
+            '5. `pytest_result.txt` shows bare `python -m reverse_agent.project_gate run-round` was recorded'
+        ) is True
+
+    def test_numbered_item_with_single_backtick(self) -> None:
+        assert _is_descriptive_backtick_line(
+            '3. Run `python -m pytest tests/ -q` to verify'
+        ) is False
+
+    def test_non_numbered_line(self) -> None:
+        assert _is_descriptive_backtick_line(
+            'Run `python -m pytest tests/ -q` and `git status`'
+        ) is False
+
+    def test_empty_line(self) -> None:
+        assert _is_descriptive_backtick_line("") is False
+
+
+class TestCommandExtractionNoiseReduction:
+    """Verify command-plan does not extract commands from prohibitive or descriptive text."""
+
+    def test_extract_bash_commands_supports_powershell(self) -> None:
+        text = """```powershell
+Set-Location F:\\reverse-agent
+Get-Location
+Test-Path F:\\reverse-agent
+```
+"""
+        commands, error = _extract_bash_commands(text)
+        assert error is None
+        assert "Set-Location F:\\reverse-agent" in commands
+        assert "Get-Location" in commands
+        assert "Test-Path F:\\reverse-agent" in commands
+
+    def test_extract_bash_commands_prefers_fenced_over_unfenced(self) -> None:
+        text = """```powershell
+python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m reverse_agent.project_gate command-plan --state-dir project_state
+```
+
+Some prose mentioning `python -m reverse_agent.project_gate run-round` as an example.
+"""
+        commands, error = _extract_bash_commands(text)
+        assert error is None
+        # Fenced commands should be extracted
+        assert any("preflight" in cmd for cmd in commands)
+        # The unfenced backtick reference should NOT be extracted
+        assert not any("run-round" in cmd and "preflight" not in cmd for cmd in commands)
+
+    def test_no_extraction_from_do_not_do(self) -> None:
+        text = """Do not run `python -m reverse_agent.project_gate run-round --state-dir project_state --execute` on live project_state.
+Do not use the old sample_solver.
+"""
+        commands = _extract_unfenced_commands(text)
+        assert not any("run-round" in cmd for cmd in commands)
+
+    def test_no_extraction_from_descriptive_numbered_item(self) -> None:
+        text = "5. `pytest_result.txt` shows bare `python -m reverse_agent.project_gate run-round` was recorded as a command-plan command"
+        commands = _extract_unfenced_commands(text)
+        assert not any("run-round" in cmd for cmd in commands)
+
+    def test_extraction_from_explicit_backtick_command(self) -> None:
+        text = "Run `python -m reverse_agent.project_gate preflight --state-dir project_state` first."
+        commands = _extract_unfenced_commands(text)
+        assert any("preflight" in cmd for cmd in commands)
+
+    def test_no_extraction_from_chinese_prohibition(self) -> None:
+        text = "不要在 live project_state 上执行 python -m reverse_agent.project_gate run-round --execute"
+        commands = _extract_unfenced_commands(text)
+        assert not any("run-round" in cmd for cmd in commands)
+
+    def test_command_plan_does_not_emit_bare_run_round_from_do_not(self, tmp_path: Path) -> None:
+        """Regression test: decision with run-round in Do Not Do must not emit bare run-round."""
+        decision_text = """```json decision_meta
+{
+  "schema_version": 1,
+  "decision_id": "decision_test_noise",
+  "round_id": "round_test_noise",
+  "based_on_state_build_id": "state_test",
+  "based_on_state_digest": "abc123",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+Test noise reduction.
+
+## 2. Current Evidence
+Previous round had a bare run-round command.
+
+## 3. Do Not Do
+Do not run `python -m reverse_agent.project_gate run-round --state-dir project_state --execute` on live project_state.
+不要在 live project_state 上执行 run-round --execute。
+
+## 4. Files To Inspect
+- reverse_agent/project_gate.py
+
+## 5. Required Audit
+Startup commands must be recorded first:
+
+```powershell
+Set-Location F:\\reverse-agent
+Get-Location
+Test-Path F:\\reverse-agent
+git rev-parse --show-toplevel
+git status --short
+```
+
+Before changing code, verify that `pytest_result.txt` shows bare `python -m reverse_agent.project_gate run-round` was recorded as a command-plan command even though it is not a required command.
+
+## 6. Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+
+## 7. Tests
+```powershell
+Set-Location F:\\reverse-agent
+Get-Location
+Test-Path F:\\reverse-agent
+git rev-parse --show-toplevel
+git status --short
+python -m reverse_agent.project_gate preflight --state-dir project_state
+python -m pytest tests/test_project_gate.py -q
+```
+
+## 8. Stop Conditions
+If current working directory is not F:\\reverse-agent, stop.
+"""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+        _write_json(state_dir / "task_packet.json", {"schema_version": 2, "round_id": "round_test_noise"})
+        _write_json(state_dir / "current_state.json", {"schema_version": 2, "round_id": "round_test_noise"})
+        _write_json(state_dir / "artifact_index.json", {"latest_artifacts": {}})
+        _write_json(state_dir / "negative_results.json", [])
+        _write_json(state_dir / "codex_execution_report.md", {})
+        _write_json(state_dir / "pytest_result.txt", {})
+
+        result = command_plan(state_dir=state_dir, write_result=False)
+
+        # The bare `python -m reverse_agent.project_gate run-round` must NOT appear
+        command_strings = [cmd["command"] for cmd in result["commands"]]
+        bare_run_round = [c for c in command_strings if c == "python -m reverse_agent.project_gate run-round"]
+        assert not bare_run_round, f"bare run-round should not be extracted, got: {bare_run_round}"
+
+        # The explicit preflight command from the Tests fenced block SHOULD appear
+        assert any("preflight" in c for c in command_strings), "preflight command should be extracted from Tests"
+
+    def test_command_plan_still_extracts_explicit_run_round_dry_run(self, tmp_path: Path) -> None:
+        """Explicit run-round --dry-run in Tests fenced block must still be extracted."""
+        decision_text = """```json decision_meta
+{
+  "schema_version": 1,
+  "decision_id": "decision_test_explicit",
+  "round_id": "round_test_explicit",
+  "based_on_state_build_id": "state_test",
+  "based_on_state_digest": "abc123",
+  "status": "APPROVED",
+  "mainline": "engineering_branch",
+  "skill_profiles": ["reverse-agent-iteration@v2"]
+}
+```
+
+# DECISION_PACKET
+
+## 1. Goal
+Test explicit command extraction.
+
+## 2. Current Evidence
+None.
+
+## 3. Do Not Do
+Nothing special.
+
+## 4. Files To Inspect
+- reverse_agent/project_gate.py
+
+## 5. Required Audit
+None.
+
+## 6. Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+
+## 7. Tests
+```powershell
+python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json
+python -m reverse_agent.project_gate preflight --state-dir project_state
+```
+
+## 8. Stop Conditions
+None.
+"""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+        _write_json(state_dir / "task_packet.json", {"schema_version": 2, "round_id": "round_test_explicit"})
+        _write_json(state_dir / "current_state.json", {"schema_version": 2, "round_id": "round_test_explicit"})
+        _write_json(state_dir / "artifact_index.json", {"latest_artifacts": {}})
+        _write_json(state_dir / "negative_results.json", [])
+        _write_json(state_dir / "codex_execution_report.md", {})
+        _write_json(state_dir / "pytest_result.txt", {})
+
+        result = command_plan(state_dir=state_dir, write_result=False)
+
+        command_strings = [cmd["command"] for cmd in result["commands"]]
+        dry_run_cmd = "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json"
+        assert dry_run_cmd in command_strings, "explicit dry-run command should be extracted from Tests"
+
+
+class TestAllowedInheritedFiles:
+    """Verify _allowed_inherited_files returns only inherited files within decision scope."""
+
+    def test_returns_intersection_with_scope(self) -> None:
+        decision_text = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+- reverse_agent/other.py
+
+Allowed tests:
+- tests/test_project_gate.py
+
+Disallowed:
+- solve_reports/
+"""
+        inherited = {"reverse_agent/project_gate.py", "reverse_agent/unknown.py", "tests/test_project_gate.py"}
+        result = _allowed_inherited_files(decision_text, inherited)
+        assert result == {"reverse_agent/project_gate.py", "tests/test_project_gate.py"}
+
+    def test_returns_empty_when_no_scope_match(self) -> None:
+        decision_text = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/other.py
+
+Allowed tests:
+- tests/test_other.py
+"""
+        inherited = {"reverse_agent/project_gate.py", "tests/test_project_gate.py"}
+        result = _allowed_inherited_files(decision_text, inherited)
+        assert result == set()
+
+    def test_returns_empty_when_no_inherited(self) -> None:
+        decision_text = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+"""
+        result = _allowed_inherited_files(decision_text, set())
+        assert result == set()

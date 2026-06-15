@@ -258,7 +258,7 @@ def _fenced_code_blocks(text: str) -> list[tuple[str, str]]:
 
 def _extract_bash_commands(text: str) -> tuple[list[str], str | None]:
     blocks = _fenced_code_blocks(text)
-    bash_blocks = [body for language, body in blocks if language in {"bash", "sh", "shell"}]
+    bash_blocks = [body for language, body in blocks if language in {"bash", "sh", "shell", "powershell", "ps1"}]
     if not bash_blocks:
         commands = _extract_unfenced_commands(text)
         if commands:
@@ -308,16 +308,65 @@ def _looks_like_standalone_command(line: str) -> bool:
     )
 
 
+def _is_prohibitive_line(line: str) -> bool:
+    """Return True if the line is a prohibition or description that should not yield commands."""
+    lowered = line.lower()
+    prohibitive_patterns = (
+        "do not ",
+        "do not\n",
+        "don't ",
+        "不要",
+        "不得",
+        "禁止",
+        "stop ",
+        "must not ",
+        "shall not ",
+        "不得在",
+        "不允许",
+    )
+    return any(pattern in lowered for pattern in prohibitive_patterns)
+
+
+def _is_descriptive_backtick_line(line: str) -> bool:
+    """Return True if the line is a numbered descriptive item with backtick references.
+
+    Lines like '5. `pytest_result.txt` shows bare `python -m ... run-round` ...'
+    are descriptive references, not executable command lines.
+    """
+    stripped = line.strip()
+    # Match numbered list items: "1. ", "2. ", etc.
+    if re.match(r"^\d+\.\s", stripped):
+        # Count backtick pairs — if more than one, it's likely descriptive.
+        backtick_count = stripped.count("`")
+        if backtick_count >= 4:  # At least 2 pairs of backticks
+            return True
+    return False
+
+
 def _extract_unfenced_commands(text: str) -> list[str]:
     commands: list[str] = []
     for raw_line in text.splitlines():
+        # Skip prohibitive lines entirely — they describe what NOT to do.
+        if _is_prohibitive_line(raw_line):
+            continue
+
+        # Skip descriptive numbered items with multiple backtick references.
+        # These are prose descriptions, not executable command lines.
+        is_descriptive = _is_descriptive_backtick_line(raw_line)
+
         line_commands: list[str] = []
-        for match in re.finditer(r"`([^`]+)`", raw_line):
-            candidate = match.group(1).strip()
-            if candidate and "..." not in candidate and _command_kind(candidate) != "unknown":
-                line_commands.append(candidate)
+        # Only extract backtick commands from non-descriptive lines.
+        if not is_descriptive:
+            for match in re.finditer(r"`([^`]+)`", raw_line):
+                candidate = match.group(1).strip()
+                if candidate and "..." not in candidate and _command_kind(candidate) != "unknown":
+                    line_commands.append(candidate)
         if line_commands:
             commands.extend(line_commands)
+            continue
+
+        # Skip natural language matching on descriptive lines.
+        if is_descriptive:
             continue
 
         stripped = raw_line.strip()
@@ -479,6 +528,13 @@ def _allowed_source_test_scope_paths(scope_text: str) -> set[str]:
         if item:
             paths.add(_norm_path(item))
     return paths
+
+
+def _allowed_inherited_files(decision_text: str, inherited_dirty_files: set[str]) -> set[str]:
+    """Return inherited dirty files that are within the decision's allowed source/test scope."""
+    scope_text = _markdown_section(decision_text, "Implementation Scope")
+    source_test_scope = _allowed_source_test_scope_paths(scope_text)
+    return inherited_dirty_files & source_test_scope
 
 
 def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
@@ -1698,6 +1754,13 @@ def build_report_summary_synthesis(
             errors.append(str(check.get("detail") or check.get("name")))
             unauthorized_lifecycle_files.update(_string_set(check.get("unauthorized_inherited_source_test_files")))
     round_delta_files |= unauthorized_lifecycle_files
+    # Include inherited dirty files that are explicitly allowed and reported
+    # in the decision scope. These files were modified this round even though
+    # they were already dirty at baseline, so they legitimately appear in
+    # files_changed.
+    inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
+    allowed_inherited = _allowed_inherited_files(decision_text, inherited_dirty_files)
+    round_delta_files |= allowed_inherited
     expected_files_changed = sorted(round_delta_files | archive_paths | {REPORT_SUMMARY_OUTPUT_PATH})
     generated_artifact_set = {
         "project_state/codex_execution_report.md",
