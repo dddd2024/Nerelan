@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260615_startup_status_order_guard_rework_v1",
-  "round_id": "round_20260615_startup_status_order_guard_rework_v1",
+  "decision_id": "decision_20260615_state_handoff_after_gate_acceptance_v1",
+  "round_id": "round_20260615_state_handoff_after_gate_acceptance_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-15T14:18:56.185388Z",
+  "generated_at": "2026-06-15T14:41:36.812674Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -51,7 +51,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260615_round_baseline_capture_order_guard_v1"
+      "report_id": "codex_report_20260615_startup_status_order_guard_rework_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -69,7 +69,7 @@
         "project_state/codex_execution_report.md",
         "project_state/gates/*.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_startup_status_order_guard_rework_v1/*",
+        "project_state/rounds/round_20260615_state_handoff_after_gate_acceptance_v1/*",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
         "tests/test_project_gate.py",
@@ -111,11 +111,8 @@
   "recommended_next_action": "proceed_with_decision_scope",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
-    "baseline_dirty_files": [
-      "reverse_agent/project_gate.py",
-      "tests/test_project_gate.py"
-    ],
-    "head_commit": "01b7df57c7f9"
+    "baseline_dirty_files": [],
+    "head_commit": "672ed5643c7a"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",
