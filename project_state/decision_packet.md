@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260615_round_baseline_capture_order_guard_v1",
-  "round_id": "round_20260615_round_baseline_capture_order_guard_v1",
+  "decision_id": "decision_20260615_startup_status_order_guard_rework_v1",
+  "round_id": "round_20260615_startup_status_order_guard_rework_v1",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
@@ -15,38 +15,40 @@
 
 ## 1. Goal
 
-修复 round baseline 捕获顺序问题，防止源码/测试文件已经被本轮修改后，才生成 `project_state/gates/round_baseline.json`，再通过 `Allowed Inherited Dirty Baseline Files` 把这些本轮修改解释为 inherited dirty。
+修复 baseline capture order guard 的启动状态采集顺序问题。
+
+上一轮新增的 `baseline_capture_order` 检查依赖 `pytest_result.txt` 中第一个 `git status --short` block 作为 startup dirty evidence。但实际记录中 `git status --short` 出现在 `Set-Location F:\reverse-agent` 和 `git rev-parse --show-toplevel` 之前，不能严格证明该状态来自 `F:\reverse-agent` 仓库。
 
 本轮目标：
 
-1. 明确区分三种状态：
-   - 执行前真实 inherited dirty；
-   - 本轮执行后新增 dirty；
-   - late baseline capture 导致本轮修改被错误吸收到 baseline。
-2. `preflight` / `run-round` / `final-check` 应能发现：当前 decision 的 source/test 文件在 baseline 中 dirty，但 baseline 不是在实现前稳定捕获的情况。
-3. `Allowed Inherited Dirty Baseline Files` 只能用于真实执行前 inherited dirty，不应作为 late baseline capture 的常规豁免。
-4. 如果 baseline 中包含当前 Implementation Scope 内 source/test dirty files，且 close snapshot / round delta 表明这些文件也是本轮 `files_changed`，gate 至少应 `WARN`；如没有明确的“启动前已存在”证据，应 `FAIL`。
-5. 保留已修复行为：
-   - `_report_explains_inherited_baseline_files()` 必须继续使用 `_NEGATION_PHRASES`；
-   - Implementation Scope 不能自动成为 inherited dirty allowlist；
-   - 只有 `engineering_branch` 可把 historical sample missing/stale artifacts 作为 non-blocking external state notices。
+1. 保留 `baseline_capture_order` 检查。
+2. 保留 `_extract_startup_dirty_files()` 使用第一个合格 startup git status block 的语义。
+3. 将 command-plan / pytest_result 的启动顺序规范为：
+   - `Set-Location F:\reverse-agent`
+   - `Get-Location`
+   - `Test-Path F:\reverse-agent`
+   - `git rev-parse --show-toplevel`
+   - `git status --short`
+4. 只有在上述目录确认完成后采集的 `git status --short`，才能作为 startup dirty evidence。
+5. 如果 `pytest_result.txt` 中第一个 `git status --short` 出现在路径确认之前，`startup_command_coverage` 或新增检查应 `FAIL`。
+6. 不得回退上一轮 `baseline_capture_order` 的 overlap 检查、startup evidence 检查、WARN/FAIL 语义。
 
 ## 2. Current Evidence
 
-当前 `decision_20260615_baseline_report_negation_guard_rework_v2` 已完成：
+上一轮已经实现：
 
-- `codex_execution_report.md` 对应 v2，`status=SUCCESS`；
-- `pytest_result.txt` 记录 `493 passed in 60.10s`；
-- `close-round` 已执行并归档；
-- `final_gate_result.json` 为 `PASSED`；
-- negation guard 已实际使用 `_NEGATION_PHRASES`。
+- `_baseline_capture_order_checks()`；
+- `_extract_startup_dirty_files()`；
+- `_parse_git_status_short_dirty()`；
+- final-check / close-round 集成；
+- 测试 `507 passed`；
+- `final_gate_result.json` 输出 `baseline_capture_order: WARN / confirmed_inherited`。
 
-但仍有一个流程限制：
+但当前问题是：
 
-- `final_gate_result.json` 记录 inherited dirty files 包含 `reverse_agent/project_gate.py` 和 `tests/test_project_gate.py`；
-- `files_changed_excludes_inherited_dirty_files` 为 `WARN`，原因是 files_changed 仍包含 inherited source/test baseline dirty files，可能是 late baseline capture。
-
-因此下一轮应从“允许解释 late baseline”转向“防止 late baseline 发生”。
+- `pytest_result.txt` 第一条命令是 `git status --short`；
+- 后面才执行 `Set-Location F:\reverse-agent`、`Get-Location`、`Test-Path F:\reverse-agent`、`git rev-parse --show-toplevel`；
+- 这不满足本项目启动门禁，也削弱 startup dirty evidence 的可信度。
 
 ## 3. Do Not Do
 
@@ -64,11 +66,11 @@
 
 不要回退 artifact freshness strictness 修复。
 
-不要回退 `_NEGATION_PHRASES` / `_report_explains_inherited_baseline_files()` 的否定语义检查。
+不要回退 `_NEGATION_PHRASES` / `_report_explains_inherited_baseline_files()`。
 
-不要把 Implementation Scope 重新当成 inherited dirty allowlist。
+不要回退 `baseline_capture_order` 的核心判断。
 
-不要把 late baseline capture 简单写进 allowlist 后继续 PASS。
+不要继续把“路径确认前的 git status”当作可信 startup evidence。
 
 ## 4. Files To Inspect
 
@@ -89,32 +91,21 @@
 - `tests/test_project_gate.py`
 - `reverse_agent/project_state.py`
 - `tests/test_project_state.py`
-- `project_state/gates/round_baseline.json`
-- `project_state/gates/round_delta_summary.json`
-- `project_state/gates/round_close_snapshot.json`
+- `project_state/gates/command_plan.json`
 - `project_state/gates/final_gate_result.json`
-- `project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/round_manifest.json`
+- `project_state/gates/round_delta_summary.json`
+- `project_state/gates/round_baseline.json`
 
 ## 5. Required Audit
 
 执行前确认：
 
-1. 当前 decision 是 `decision_20260615_round_baseline_capture_order_guard_v1`。
+1. 当前 decision 是 `decision_20260615_startup_status_order_guard_rework_v1`。
 2. `task_packet.json` 仍只是 advisory/state input。
 3. 当前任务来自 `project_state/decision_packet.md`，不来自 `task_packet.task`。
 4. `reverse-agent-iteration@v2` 必须来自 active registry。
-5. 历史 sample artifacts 的 missing 状态仍只能作为 engineering_branch 的 external_state_notices，不得当作本轮阻塞。
-6. baseline capture order 的事实来源应包括：
-   - `round_baseline.json`
-   - `round_delta_summary.json`
-   - `round_close_snapshot.json`
-   - `pytest_result.txt` 中启动阶段 `git status --short`
-   - `codex_execution_report.md` 中 files_changed
-
-## Allowed Inherited Dirty Baseline Files
-
-- `reverse_agent/project_gate.py`
-- `tests/test_project_gate.py`
+5. 历史 sample artifacts missing 仍只是 `engineering_branch` 下的 external_state_notices。
+6. 本轮只修 startup command ordering / startup evidence validity，不推进样本。
 
 ## 6. Implementation Scope
 
@@ -133,7 +124,7 @@
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/*.json`
-- `project_state/rounds/round_20260615_round_baseline_capture_order_guard_v1/*`
+- `project_state/rounds/round_20260615_startup_status_order_guard_rework_v1/*`
 
 只读，不得修改：
 
@@ -144,24 +135,22 @@
 
 具体要求：
 
-1. 增加或收紧 baseline capture order 检查，例如：
-   - `_baseline_capture_order_checks(...)`
-   - 或整合进 `_baseline_lifecycle_checks()` / `_round_delta_checks()`。
-2. 检查 `baseline_dirty_files ∩ files_changed ∩ source_test_scope`。
-3. 如果这些文件存在，且同时属于当前 Implementation Scope，应默认视为 suspicious late baseline capture。
-4. 只有存在明确 evidence 表明这些文件在 Codex 实现开始前已经 dirty，才允许降级为 WARN 或 PASS。
-5. 不要仅凭 `Allowed Inherited Dirty Baseline Files` 直接 PASS。allowlist 只能说明“允许继承”，不能证明“不是 late baseline”。
-6. 在 `final_gate_result.json` 中输出清晰字段：
-   - `suspected_late_baseline_files`
-   - `allowed_inherited_dirty_files`
-   - `baseline_dirty_source_test_files`
-   - `files_changed_overlap`
-   - `capture_order_status`
-7. 如果发现 suspected late baseline capture 且无启动前证据，应：
-   - `final-check`: `FAIL` 或至少 `WARN`；
-   - `report-summary`: 不得把 `SUCCESS/ACCEPTED` 合成为完全无问题；
-   - `close-round`: 不得用 archive 动作掩盖该问题。
-8. 继续保留现有 negation guard 测试和 artifact freshness strictness 测试。
+1. 调整 command-plan 生成顺序，使启动阶段固定为：
+   1. `Set-Location F:\reverse-agent`
+   2. `Get-Location`
+   3. `Test-Path F:\reverse-agent`
+   4. `git rev-parse --show-toplevel`
+   5. `git status --short`
+2. 修改 `_extract_startup_dirty_files()` 或其调用方：只有当 `git status --short` block 出现在上述路径确认命令之后，才可作为 startup dirty evidence。
+3. 如果 `git status --short` 出现在 `Set-Location / Get-Location / Test-Path / git rev-parse` 之前，应返回空 evidence 或让对应 gate `FAIL`。
+4. 增加 gate 检查字段，例如：
+   - `startup_status_order_valid`
+   - `startup_status_block_index`
+   - `path_confirmation_block_indexes`
+   - `startup_status_evidence_trusted`
+5. `baseline_capture_order` 只能使用 trusted startup evidence。
+6. 如果 startup evidence 不可信且存在 baseline/files_changed/source-test overlap，应 `FAIL`，不能降级为 confirmed inherited。
+7. 保留现有 `baseline_capture_order` 测试，并新增不可信顺序测试。
 
 ## 7. Tests
 
@@ -182,19 +171,20 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_round_baseline_capture_order_guard_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_startup_status_order_guard_rework_v1
 ```
 
 必须新增或更新测试：
 
-1. baseline clean，source/test 修改出现在 `new_dirty_files_since_baseline`：PASS。
-2. baseline 中 source/test dirty，但这些文件不在 `files_changed`：允许作为真实 inherited dirty，按 allowlist 规则处理。
-3. baseline 中 source/test dirty，且同一文件也在 `files_changed`：判定为 suspected late baseline capture，至少 WARN。
-4. 上述情况即使 decision 有 `Allowed Inherited Dirty Baseline Files`，也不能直接 PASS。
-5. 无启动前 evidence + suspected late baseline capture：FAIL 或 WARN，测试必须固定预期。
-6. 有启动前 evidence 明确证明这些文件本来就是 inherited dirty：可以 PASS 或 WARN，但必须在 detail 中说明证据来源。
-7. `_report_explains_inherited_baseline_files()` 现有 11 个测试继续通过。
-8. `reverse_solving / tool_integration / training_dataset` artifact freshness strictness 测试继续通过。
+1. command-plan 输出顺序必须是路径确认命令在前，`git status --short` 在后。
+2. `git status --short` 出现在路径确认之后：startup evidence trusted。
+3. `git status --short` 出现在 `Set-Location` 前：startup evidence untrusted。
+4. `git status --short` 出现在 `git rev-parse --show-toplevel` 前：startup evidence untrusted。
+5. untrusted startup evidence + baseline/files_changed/source-test overlap：`baseline_capture_order` 必须 `FAIL`。
+6. trusted startup evidence + overlap：仍为 `WARN / confirmed_inherited`。
+7. no startup evidence + overlap：仍为 `FAIL / suspected_late_capture`。
+8. `_report_explains_inherited_baseline_files()` 现有 negation guard 测试继续通过。
+9. `reverse_solving / tool_integration / training_dataset` artifact freshness strictness 测试继续通过。
 
 ## 8. Stop Conditions
 
@@ -204,8 +194,8 @@ python -m reverse_agent.project_gate close-round --state-dir project_state --rou
 
 如果修改会削弱 `reverse_solving / tool_integration / training_dataset` 的 artifact freshness strictness，停止并报告 `REWORK_REQUIRED`。
 
-如果修改会回退 `_NEGATION_PHRASES` 或 allowlist section 检查，停止并报告 `REWORK_REQUIRED`。
+如果修改会回退 `_NEGATION_PHRASES` 或 `baseline_capture_order`，停止并报告 `REWORK_REQUIRED`。
 
-如果修复只能靠继续扩大 `Allowed Inherited Dirty Baseline Files` 完成，停止并报告 `REWORK_REQUIRED`。
+如果仍然让路径确认前的 `git status --short` 作为 startup evidence，停止并报告 `REWORK_REQUIRED`。
 
 如果 pytest、lint-report、report-summary、final-check 或 close-round 失败，不得提交 `SUCCESS` 报告。
