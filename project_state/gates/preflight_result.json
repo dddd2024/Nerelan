@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260615_project_state_mainline_clarity_v1",
-  "round_id": "round_20260615_project_state_mainline_clarity_v1",
+  "decision_id": "decision_20260615_project_state_mainline_clarity_rework_v2",
+  "round_id": "round_20260615_project_state_mainline_clarity_rework_v2",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-15T10:50:10.713797Z",
+  "generated_at": "2026-06-15T11:25:42.791361Z",
   "checks": [
     {
       "name": "decision_meta_parse",
@@ -51,7 +51,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260615_project_gate_mainline_status_policy_v1"
+      "report_id": "codex_report_20260615_project_state_mainline_clarity_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -67,16 +67,9 @@
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
         "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
+        "project_state/gates/*.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_mainline_clarity_v1/*",
+        "project_state/rounds/round_20260615_project_state_mainline_clarity_rework_v2/*",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
         "tests/test_project_gate.py",
@@ -122,7 +115,7 @@
       "reverse_agent/project_state.py",
       "tests/test_project_state.py"
     ],
-    "head_commit": "a1096476a50d"
+    "head_commit": "15e95bde359a"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

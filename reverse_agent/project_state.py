@@ -1631,6 +1631,10 @@ def _latest_closed_round_info(state_dir: Path) -> dict[str, str]:
       - latest_accepted_decision_id: decision_id of that round
 
     Empty strings if no rounds found.
+
+    For manifests that lack decision_id or acceptance_recommendation (e.g.
+    older archives), falls back to reading the archived decision_packet.md
+    and codex_execution_report.md within the round directory.
     """
     rounds_dir = state_dir / "rounds"
     if not rounds_dir.is_dir():
@@ -1660,6 +1664,25 @@ def _latest_closed_round_info(state_dir: Path) -> dict[str, str]:
         round_id = str(manifest.get("round_id") or entry.name)
         decision_id = str(manifest.get("decision_id") or "")
         acceptance = str(manifest.get("acceptance_recommendation") or "")
+
+        # Fallback: read from archived decision_packet.md if manifest lacks fields
+        if not decision_id:
+            archived_decision = entry / "decision_packet.md"
+            if archived_decision.exists():
+                meta = read_decision_meta(entry)
+                if isinstance(meta, dict):
+                    decision_id = str(meta.get("decision_id") or "")
+
+        # Fallback: read from archived codex_execution_report.md if manifest lacks acceptance
+        if not acceptance:
+            archived_report = entry / "codex_execution_report.md"
+            if archived_report.exists():
+                report_summary = read_codex_report_summary(entry)
+                if isinstance(report_summary, dict):
+                    acceptance = str(report_summary.get("acceptance_recommendation") or "")
+                    if not decision_id:
+                        decision_id = str(report_summary.get("based_on_decision_id") or "")
+
         mtime = _safe_mtime(manifest_path)
 
         if mtime > latest_closed_mtime:
@@ -2249,15 +2272,20 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
             "latest_accepted_round_id": "",
         })
 
-    # Check 11: task_packet role classification
-    task_packet_role = "advisory"
-    if mainline in {"reverse_solving", "tool_integration", "training_dataset"}:
-        task_packet_role = "authoritative"
+    # Check 11: execution authority and artifact freshness requirement
+    execution_authority = "decision_packet"
+    task_packet_role = "state_input"
+    if mainline == "engineering_branch":
+        artifact_freshness_requirement = "historical_external_notices_non_blocking"
+    else:
+        artifact_freshness_requirement = "strict"
     checks.append({
         "name": "task_packet_role",
         "status": "INFO",
-        "detail": f"task_packet.json is {task_packet_role} for mainline={mainline}",
+        "detail": f"execution_authority={execution_authority}; task_packet is {task_packet_role}; artifact_freshness_requirement={artifact_freshness_requirement} for mainline={mainline}",
+        "execution_authority": execution_authority,
         "task_packet_role": task_packet_role,
+        "artifact_freshness_requirement": artifact_freshness_requirement,
         "mainline": mainline,
     })
 
@@ -2288,7 +2316,9 @@ def doctor(state_dir: Path, *, json_output: bool = False) -> dict[str, Any]:
         "mainline": mainline,
         "latest_closed_round_id": latest_closed_round_id,
         "latest_accepted_round_id": latest_accepted_round_id,
+        "execution_authority": execution_authority,
         "task_packet_role": task_packet_role,
+        "artifact_freshness_requirement": artifact_freshness_requirement,
         "artifact_freshness": artifact_classification,
         "state_package_classification": state_package_classification,
     }
@@ -6176,9 +6206,31 @@ def _build_round_manifest(
     omitted_files = [
         name for name in ARCHIVE_OPTIONAL_NAMES if name not in files
     ]
+    # Read decision and report metadata for the manifest
+    decision_meta = read_decision_meta(state_dir)
+    decision_id = ""
+    mainline = ""
+    if isinstance(decision_meta, dict):
+        decision_id = str(decision_meta.get("decision_id") or "")
+        mainline = str(decision_meta.get("mainline") or "")
+
+    report_summary = read_codex_report_summary(state_dir)
+    report_id = ""
+    report_status = ""
+    acceptance_recommendation = ""
+    if isinstance(report_summary, dict):
+        report_id = str(report_summary.get("report_id") or "")
+        report_status = str(report_summary.get("status") or "")
+        acceptance_recommendation = str(report_summary.get("acceptance_recommendation") or "")
+
     return {
         "schema_version": 1,
         "round_id": round_id,
+        "decision_id": decision_id,
+        "mainline": mainline,
+        "report_id": report_id,
+        "report_status": report_status,
+        "acceptance_recommendation": acceptance_recommendation,
         "archived_at": archived_at,
         "source_git_commit": _git_commit() or current_state.get("source_git_commit") or "",
         "source_harness_run": current_state.get("source_harness_run") or "",
@@ -6331,9 +6383,12 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
     )
     mainline = str(decision.get("mainline") or "")
     closed_round_info = _latest_closed_round_info(state_dir)
-    task_packet_role = "advisory"
-    if mainline in {"reverse_solving", "tool_integration", "training_dataset"}:
-        task_packet_role = "authoritative"
+    execution_authority = "decision_packet"
+    task_packet_role = "state_input"
+    if mainline == "engineering_branch":
+        artifact_freshness_requirement = "historical_external_notices_non_blocking"
+    else:
+        artifact_freshness_requirement = "strict"
     historical_external_state_notices: list[str] = []
     if artifact_freshness_classification.get("limitations"):
         for lim in artifact_freshness_classification["limitations"]:
@@ -6342,7 +6397,9 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
     return {
         "state_dir": _path_for_json(state_dir),
         "mainline": mainline,
+        "execution_authority": execution_authority,
         "task_packet_role": task_packet_role,
+        "artifact_freshness_requirement": artifact_freshness_requirement,
         "latest_closed_round_id": closed_round_info["latest_closed_round_id"],
         "latest_accepted_round_id": closed_round_info["latest_accepted_round_id"],
         "latest_harness_run": artifact_index.get("latest_harness_run"),
@@ -6400,7 +6457,9 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
 def _print_status(summary: dict[str, Any]) -> None:
     print(f"state_dir: {summary.get('state_dir')}")
     print(f"mainline: {summary.get('mainline')}")
+    print(f"execution_authority: {summary.get('execution_authority')}")
     print(f"task_packet_role: {summary.get('task_packet_role')}")
+    print(f"artifact_freshness_requirement: {summary.get('artifact_freshness_requirement')}")
     print(f"latest_closed_round_id: {summary.get('latest_closed_round_id')}")
     print(f"latest_accepted_round_id: {summary.get('latest_accepted_round_id')}")
     print(f"latest_harness_run: {summary.get('latest_harness_run')}")

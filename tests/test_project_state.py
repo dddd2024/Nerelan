@@ -9,6 +9,7 @@ import pytest
 from reverse_agent.project_state import (
     CODEX_REPORT_ACCEPTANCE_RECOMMENDATIONS,
     CODEX_REPORT_STATUSES,
+    _build_round_manifest,
     _build_summary_error_detail,
     _classify_artifact_freshness,
     _historical_artifact_freshness_is_non_blocking,
@@ -6743,26 +6744,32 @@ class TestDoctorMainlineClarity:
         result = doctor(state_dir=state_dir, json_output=False)
         check = next(c for c in result["checks"] if c["name"] == "task_packet_role")
         assert check["status"] == "INFO"
-        assert check["task_packet_role"] == "advisory"
+        assert check["task_packet_role"] == "state_input"
+        assert check["execution_authority"] == "decision_packet"
+        assert check["artifact_freshness_requirement"] == "historical_external_notices_non_blocking"
         assert check["mainline"] == "engineering_branch"
 
-    def test_doctor_task_packet_role_authoritative_for_reverse_solving(self, tmp_path: Path) -> None:
+    def test_doctor_task_packet_role_state_input_for_reverse_solving(self, tmp_path: Path) -> None:
         state_dir = self._prepare_state(tmp_path, mainline="reverse_solving")
         result = doctor(state_dir=state_dir, json_output=False)
         check = next(c for c in result["checks"] if c["name"] == "task_packet_role")
-        assert check["task_packet_role"] == "authoritative"
+        assert check["task_packet_role"] == "state_input"
+        assert check["execution_authority"] == "decision_packet"
+        assert check["artifact_freshness_requirement"] == "strict"
 
-    def test_doctor_task_packet_role_authoritative_for_tool_integration(self, tmp_path: Path) -> None:
+    def test_doctor_task_packet_role_state_input_for_tool_integration(self, tmp_path: Path) -> None:
         state_dir = self._prepare_state(tmp_path, mainline="tool_integration")
         result = doctor(state_dir=state_dir, json_output=False)
         check = next(c for c in result["checks"] if c["name"] == "task_packet_role")
-        assert check["task_packet_role"] == "authoritative"
+        assert check["task_packet_role"] == "state_input"
+        assert check["artifact_freshness_requirement"] == "strict"
 
-    def test_doctor_task_packet_role_authoritative_for_training_dataset(self, tmp_path: Path) -> None:
+    def test_doctor_task_packet_role_state_input_for_training_dataset(self, tmp_path: Path) -> None:
         state_dir = self._prepare_state(tmp_path, mainline="training_dataset")
         result = doctor(state_dir=state_dir, json_output=False)
         check = next(c for c in result["checks"] if c["name"] == "task_packet_role")
-        assert check["task_packet_role"] == "authoritative"
+        assert check["task_packet_role"] == "state_input"
+        assert check["artifact_freshness_requirement"] == "strict"
 
     def test_doctor_has_mainline_status_check(self, tmp_path: Path) -> None:
         state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
@@ -6782,7 +6789,9 @@ class TestDoctorMainlineClarity:
         state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
         result = doctor(state_dir=state_dir, json_output=False)
         assert result["mainline"] == "engineering_branch"
-        assert result["task_packet_role"] == "advisory"
+        assert result["task_packet_role"] == "state_input"
+        assert result["execution_authority"] == "decision_packet"
+        assert result["artifact_freshness_requirement"] == "historical_external_notices_non_blocking"
         assert "latest_closed_round_id" in result
         assert "latest_accepted_round_id" in result
 
@@ -6857,15 +6866,18 @@ class TestStatusSummaryMainlineClarity:
         summary = status_summary(state_dir=state_dir)
         assert summary["mainline"] == "engineering_branch"
 
-    def test_status_summary_task_packet_role_advisory(self, tmp_path: Path) -> None:
+    def test_status_summary_task_packet_role_state_input(self, tmp_path: Path) -> None:
         state_dir = self._prepare_state(tmp_path, mainline="engineering_branch")
         summary = status_summary(state_dir=state_dir)
-        assert summary["task_packet_role"] == "advisory"
+        assert summary["task_packet_role"] == "state_input"
+        assert summary["execution_authority"] == "decision_packet"
+        assert summary["artifact_freshness_requirement"] == "historical_external_notices_non_blocking"
 
-    def test_status_summary_task_packet_role_authoritative_reverse_solving(self, tmp_path: Path) -> None:
+    def test_status_summary_task_packet_role_state_input_reverse_solving(self, tmp_path: Path) -> None:
         state_dir = self._prepare_state(tmp_path, mainline="reverse_solving")
         summary = status_summary(state_dir=state_dir)
-        assert summary["task_packet_role"] == "authoritative"
+        assert summary["task_packet_role"] == "state_input"
+        assert summary["artifact_freshness_requirement"] == "strict"
 
     def test_status_summary_has_latest_closed_round_id(self, tmp_path: Path) -> None:
         state_dir = self._prepare_state(tmp_path)
@@ -6887,8 +6899,10 @@ class TestStatusSummaryMainlineClarity:
         summary = status_summary(state_dir=state_dir)
         # decision_id comes from decision_packet.md, not task_packet.json
         assert summary["decision_id"] == "decision_status_test"
-        # task comes from task_packet but role is advisory
-        assert summary["task_packet_role"] == "advisory"
+        # task_packet is state_input, never authoritative
+        assert summary["task_packet_role"] == "state_input"
+        # execution_authority is always decision_packet
+        assert summary["execution_authority"] == "decision_packet"
         # execution_scope confirms decision_packet controls
         assert summary["execution_scope"] == "decision_packet_controls_current_round"
 
@@ -7047,3 +7061,163 @@ class TestMainlineClarityIntegration:
         result = doctor(state_dir=state_dir, json_output=False)
         mainline_check = next(c for c in result["checks"] if c["name"] == "mainline_status")
         assert mainline_check["historical_sample_notices_non_blocking"] is False
+
+
+class TestLatestClosedRoundInfoFallback:
+    """Tests for _latest_closed_round_info fallback when manifest lacks fields."""
+
+    def test_fallback_from_archived_decision_packet(self, tmp_path: Path) -> None:
+        """When manifest lacks decision_id, fallback to archived decision_packet.md."""
+        rounds_dir = tmp_path / "rounds"
+        r1 = rounds_dir / "round_old"
+        r1.mkdir(parents=True)
+        # Old manifest without decision_id or acceptance_recommendation
+        _write_json(r1 / "round_manifest.json", {
+            "round_id": "round_old",
+            "schema_version": 1,
+        })
+        # Archived decision_packet.md with decision_meta
+        (r1 / "decision_packet.md").write_text(
+            '```json decision_meta\n{"decision_id": "decision_old", "round_id": "round_old", "status": "APPROVED", "mainline": "engineering_branch"}\n```\n\n# Goal\nTest\n',
+            encoding="utf-8",
+        )
+        # Archived codex_execution_report.md with acceptance
+        (r1 / "codex_execution_report.md").write_text(
+            '```json codex_report_summary\n{"report_id": "report_old", "acceptance_recommendation": "ACCEPTED", "based_on_decision_id": "decision_old"}\n```\n\n# Report\n',
+            encoding="utf-8",
+        )
+        info = _latest_closed_round_info(tmp_path)
+        assert info["latest_closed_round_id"] == "round_old"
+        assert info["latest_closed_decision_id"] == "decision_old"
+        assert info["latest_accepted_round_id"] == "round_old"
+        assert info["latest_accepted_decision_id"] == "decision_old"
+
+    def test_fallback_from_archived_report_only(self, tmp_path: Path) -> None:
+        """When manifest lacks fields and decision_packet.md missing, fallback to report."""
+        rounds_dir = tmp_path / "rounds"
+        r1 = rounds_dir / "round_nodp"
+        r1.mkdir(parents=True)
+        _write_json(r1 / "round_manifest.json", {"round_id": "round_nodp"})
+        # No decision_packet.md, but report exists
+        (r1 / "codex_execution_report.md").write_text(
+            '```json codex_report_summary\n{"acceptance_recommendation": "ACCEPTED", "based_on_decision_id": "decision_from_report"}\n```\n\n# Report\n',
+            encoding="utf-8",
+        )
+        info = _latest_closed_round_info(tmp_path)
+        assert info["latest_closed_decision_id"] == "decision_from_report"
+        assert info["latest_accepted_round_id"] == "round_nodp"
+
+    def test_no_fallback_needed_when_manifest_has_fields(self, tmp_path: Path) -> None:
+        """New manifests with decision_id should not need fallback."""
+        rounds_dir = tmp_path / "rounds"
+        r1 = rounds_dir / "round_new"
+        r1.mkdir(parents=True)
+        _write_json(r1 / "round_manifest.json", {
+            "round_id": "round_new",
+            "decision_id": "decision_new",
+            "acceptance_recommendation": "ACCEPTED",
+        })
+        info = _latest_closed_round_info(tmp_path)
+        assert info["latest_closed_decision_id"] == "decision_new"
+        assert info["latest_accepted_round_id"] == "round_new"
+
+
+class TestBuildRoundManifestNewFields:
+    """Tests for _build_round_manifest() including decision_id, report_id, etc."""
+
+    def test_manifest_includes_decision_id(self, tmp_path: Path) -> None:
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir(parents=True)
+        _write_decision_packet(
+            state_dir,
+            decision_id="decision_manifest_test",
+            round_id="round_manifest_test",
+            mainline="engineering_branch",
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id="report_manifest_test",
+            round_id="round_manifest_test",
+            based_on_decision_id="decision_manifest_test",
+        )
+        _write_json(state_dir / "current_state.json", {"state_build_id": "sb1", "state_digest": "sd1"})
+        manifest = _build_round_manifest(
+            round_id="round_manifest_test",
+            state_dir=state_dir,
+            archived_at="2026-06-15T12:00:00Z",
+            files={},
+            pytest_result=None,
+            include_state_snapshot=False,
+            include_diff=False,
+        )
+        assert manifest["decision_id"] == "decision_manifest_test"
+        assert manifest["mainline"] == "engineering_branch"
+        assert manifest["report_id"] == "report_manifest_test"
+        assert manifest["acceptance_recommendation"] == "ACCEPTED"
+
+
+class TestTaskPacketRoleNeverAuthoritative:
+    """Verify task_packet_role is never 'authoritative' for any mainline."""
+
+    @pytest.mark.parametrize("mainline", ["engineering_branch", "reverse_solving", "tool_integration", "training_dataset"])
+    def test_task_packet_role_is_state_input(self, tmp_path: Path, mainline: str) -> None:
+        """task_packet_role must never be 'authoritative' for any mainline."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir(parents=True)
+        _write_skill_registry(tmp_path)
+        _write_decision_packet(
+            state_dir,
+            decision_id=f"decision_tpr_{mainline}",
+            round_id=f"round_tpr_{mainline}",
+            mainline=mainline,
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id=f"report_tpr_{mainline}",
+            round_id=f"round_tpr_{mainline}",
+            based_on_decision_id=f"decision_tpr_{mainline}",
+        )
+        _write_pytest_result(state_dir)
+        result = doctor(state_dir=state_dir, json_output=False)
+        check = next(c for c in result["checks"] if c["name"] == "task_packet_role")
+        assert check["task_packet_role"] != "authoritative"
+        assert check["task_packet_role"] == "state_input"
+        assert check["execution_authority"] == "decision_packet"
+
+    @pytest.mark.parametrize("mainline", ["engineering_branch", "reverse_solving", "tool_integration", "training_dataset"])
+    def test_status_summary_task_packet_role_never_authoritative(self, tmp_path: Path, mainline: str) -> None:
+        """status_summary task_packet_role must never be 'authoritative'."""
+        reports_dir = tmp_path / "solve_reports"
+        state_dir = tmp_path / "project_state"
+        _write_skill_registry(tmp_path)
+        run_dir = _make_minimal_harness_run(reports_dir, run_name=f"samplereverse_tpr_{mainline}")
+        _write_json(
+            run_dir / "summary.json",
+            {"run_name": f"samplereverse_tpr_{mainline}", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+        )
+        _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+        build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+        current_state = _read_json(state_dir / "current_state.json")
+        assert isinstance(current_state, dict)
+        _write_decision_packet(
+            state_dir,
+            decision_id=f"decision_ss_tpr_{mainline}",
+            round_id=f"round_ss_tpr_{mainline}",
+            based_on_state_build_id=str(current_state["state_build_id"]),
+            based_on_state_digest=str(current_state["state_digest"]),
+            mainline=mainline,
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        _write_codex_report(
+            state_dir,
+            report_id=f"report_ss_tpr_{mainline}",
+            round_id=f"round_ss_tpr_{mainline}",
+            based_on_decision_id=f"decision_ss_tpr_{mainline}",
+        )
+        _write_pytest_result(state_dir)
+        summary = status_summary(state_dir=state_dir)
+        assert summary["task_packet_role"] != "authoritative"
+        assert summary["task_packet_role"] == "state_input"
+        assert summary["execution_authority"] == "decision_packet"
