@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260615_project_gate_run_round_execute_hardening_v1",
-  "round_id": "round_20260615_project_gate_run_round_execute_hardening_v1",
+  "decision_id": "decision_20260615_project_gate_noise_reduction_v1",
+  "round_id": "round_20260615_project_gate_noise_reduction_v1",
   "based_on_state_build_id": "state_20260613_054156_2729a02c7407",
   "based_on_state_digest": "2729a02c7407808c057a8a3f3e1d414797d660957dbe80b6c0780ffe6ec6bac9",
   "status": "APPROVED",
@@ -15,40 +15,46 @@
 
 ## 1. Goal
 
-本轮继续 `engineering_branch`，在上一轮 `run-round --dry-run` 已验收的基础上，硬化 `run-round --execute` 的安全执行契约。
+本轮继续 `engineering_branch`，只修复上一轮门禁闭环中的两个质量噪声，不推进 `run-round --execute` 的 live 使用，也不推进任何逆向样本。
 
-目标不是让 live `project_state` 直接用 `run-round --execute` 关闭本轮，而是先把执行模式中最容易造成门禁失控的两个问题做成可测试规则：
+目标是让门禁输出更稳定、更少误报：
 
-1. 防止 `run-round --execute` 执行 command-plan 中的 `run-round` 自调用，避免递归或重复编排。
-2. 为 execute 模式建立 pytest_result command block 记录能力，确保每条真实执行命令都能记录 stdout、stderr、exit_code，同时避免与 `close-round` 自己追加的 command block 重复。
+1. 修复 `command-plan` 的命令抽取边界，避免从说明性 / 禁止性 / 单测描述文本中误抽出 bare `python -m reverse_agent.project_gate run-round` 这类并未作为本轮执行命令要求的条目。
+2. 修复 `report-summary` / `final-check` 对 `files_changed` 的合成与比较逻辑，使允许范围内实际修改的 source/test 文件不会因为 synthesis 只偏向 generated artifacts 而产生无意义的 summary mismatch。
 
-本轮结束时，`run-round --dry-run --json` 仍然是 live `project_state` 上允许执行的验证命令；`run-round --execute` 只能通过临时 state 目录和 fake/injected runner 单测验证，不得用于关闭本轮自己的改动。
+本轮不是继续硬化 execute 模式本身。`run-round --execute` 仍然不得在 live `project_state` 上运行；live 验证仍只允许 `run-round --dry-run --json`。
 
 ## 2. Current Evidence
 
-当前 `task_packet.json` / `current_state.json` 仍是旧的 `samplereverse` 压缩样本状态，`task_packet.task=collect_missing_evidence` 只能作为建议；当前轮执行权威是本 `project_state/decision_packet.md`。本轮不推进 `samplereverse`，不收集样本 runtime evidence。
+当前 `task_packet.json` 和 `current_state.json` 仍是旧的 `samplereverse` 压缩样本状态，`task_packet.task=collect_missing_evidence` 只能作为建议；当前轮执行权威是本 `project_state/decision_packet.md`。本轮不推进样本，不补样本 runtime evidence。
 
-`artifact_index.json` 仍有大量历史样本 artifact 为 `missing`。这些缺失只能作为历史限制，不能作为本轮工程实现的 current evidence，也不能因此回到样本求解主线。
+`artifact_index.json` 仍有大量历史样本 artifact 为 `missing`。这些缺失只能作为历史限制或状态噪声，不能作为本轮工程改动的 current evidence，也不能触发回到 reverse_solving。
 
-上一轮 `decision_20260615_project_gate_run_round_orchestrator_v1` 已被 `codex_report_20260615_project_gate_run_round_orchestrator_v1` 消费，报告状态 `SUCCESS`，建议 `ACCEPTED_WITH_LIMITATIONS`。限制项明确说明：`run-round --execute` 只用 injected runner 做了单测，live `project_state` 只跑了 `--dry-run`。
+`negative_results.json` 中的失败方向仍约束样本求解路径：旧 `sample_solver` blind search、只扩 beam/budget、`compare_semantics_agree=false` frontier、提交完整 `solve_reports`、重复 cpp1 printable inverse path 等。本轮不触碰这些方向。
 
-上一轮 final gate 为 `PASSED_WITH_LIMITATIONS`，blocking_reasons 为空，recommended_next_action 为 `no_action_required`。限制来自历史样本 artifact 缺失，不是本轮门禁工程失败。
+上一轮 `decision_20260615_project_gate_run_round_execute_hardening_v1` 已被 `codex_report_20260615_project_gate_run_round_execute_hardening_v1` 消费，报告状态 `SUCCESS`，建议 `ACCEPTED_WITH_LIMITATIONS`。报告说明 `run-round --execute` 已通过 self-invocation guard、close-round delegation、command-block recording 做了测试化硬化，但 live `project_state` 只跑了 dry-run。
 
-当前 `project_gate.py` 已有相关能力：
+上一轮 `pytest_result.txt` 显示本轮门禁记录中出现了两条 run-round 命令：
 
-- `RUN_ROUND_NAME = "run-round"`。
-- `RUN_ROUND_RESULT_NAME = "run_round_result.json"`。
-- `_command_kind()` 能把 `project_gate run-round` 分类为 `run-round`。
-- `_command_phase()` 能把 `run-round` 归类为 `gate`。
-- `run_round(..., dry_run=True)` 会调用 `preflight()` 和 `command_plan()`，但不执行 planned commands。
-- `run_round(..., dry_run=False)` 已有 fail-fast 基础逻辑，会保存 `executed_commands` 到 `run_round_result.json`，但还没有明确的自调用 skip 策略和 pytest_result command block 记录契约。
-- `close-round` CLI 已经自己负责在成功关闭时追加 close-round command block 到 `project_state/pytest_result.txt`。
+- `python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json`
+- `python -m reverse_agent.project_gate run-round`
 
-当前 `project_state/gates/run_round_result.json` 显示 live dry-run：`run_status=PASSED`、`mode=dry-run`、`command_count=15`、`executed_commands=[]`、`recommended_next_action=review_plan_before_execute`。
+其中第一条是 decision 明确要求的 live dry-run；第二条 bare `run-round` 不是 `Tests` 必需命令，应作为命令抽取噪声处理。
 
-当前测试已覆盖：dry-run JSON 输出、dry-run 不执行 planned commands、command-plan 将 run-round 分类为 gate、execute 模式 fail-fast fake runner。下一步应扩展这些测试，不应删除或弱化它们。
+上一轮 final gate 为 `PASSED_WITH_LIMITATIONS`，blocking_reasons 为空，recommended_next_action 为 `no_action_required`。非阻塞 warnings 包括：
 
-`negative_results.json` 中的失败方向仍只约束样本求解路径，包括旧 sample_solver blind search、只扩 beam/budget、compare_semantics_agree=false frontier、提交完整 solve_reports、cpp1 printable inverse path等。本轮不触碰这些路径。
+- `files_changed_excludes_inherited_dirty_files`：`files_changed` 包含 inherited baseline dirty files，且报告解释这些文件在允许 source/test scope 内。
+- `report_summary_fields_match_synthesis`：`codex_report_summary` 与 synthesized summary 的 `files_changed` 字段不同。
+- `report_summary_status_source_available`：report summary synthesis 有 source warnings。
+
+这些 warnings 不代表实现失败，但会降低门禁信噪比。当前最合理的下一步是修复门禁抽取和合成逻辑，而不是继续扩大 `run-round --execute` 或转回样本求解。
+
+当前相关实现集中在：
+
+- `reverse_agent/project_gate.py`：`command_plan()`、命令抽取、`build_report_summary_synthesis()`、`final_check()`、baseline-aware files_changed 相关检查。
+- `tests/test_project_gate.py`：已有大量 command-plan、report-summary、final-check、close-round、run-round 测试。
+
+`.codex-skills/registry.json` 中 `reverse-agent-iteration` 为 active，version=2，可继续作为本轮 skill profile。
 
 ## 3. Do Not Do
 
@@ -70,11 +76,11 @@
 
 不要在 live `project_state` 上执行 `python -m reverse_agent.project_gate run-round --state-dir project_state --execute`。
 
-不要让 `run-round --execute` 执行 command-plan 里的任何 `run-round` 自调用；必须将其显式 skip 并记录 skip reason。
+不要通过删除 source/test 文件记录来消除 `files_changed` warning；应修复 synthesis / comparison 逻辑，使其正确表达实际修改。
 
-不要让 `run-round` 自己重复追加 `close-round` 的 command block；`close-round` 子进程仍是 close-round block 的唯一 owner。
+不要放宽 final gate 到忽略真实 mismatch；本轮只消除已知误报和抽取噪声。
 
-不要为了实现 execute 硬化引入数据库、队列、workflow engine、后台任务、GitHub Actions 或重型调度系统。
+不要引入数据库、队列、workflow engine、后台任务、GitHub Actions 或重型调度系统。
 
 ## 4. Files To Inspect
 
@@ -94,18 +100,14 @@ Must inspect implementation files:
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
 
-Conditionally inspect:
-
-- `reverse_agent/project_state.py` only if command-block writing must reuse existing pytest_result helpers located there.
-- `tests/test_project_state.py` only if `reverse_agent/project_state.py` is touched.
-
 May bounded-read, only for current evidence / compatibility checks:
 
-- `project_state/gates/run_round_result.json`
 - `project_state/gates/command_plan.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/report_summary_synthesis.json`
-- `project_state/rounds/round_20260615_project_gate_run_round_orchestrator_v1/round_manifest.json`
+- `project_state/gates/round_delta_summary.json`
+- `project_state/gates/run_round_result.json`
+- `project_state/rounds/round_20260615_project_gate_run_round_execute_hardening_v1/round_manifest.json`
 
 Do not read full `solve_reports/` or full `PROJECT_PROGRESS_LOG.txt`.
 
@@ -128,22 +130,25 @@ Before changing code, verify:
 1. `decision_meta` is parseable, `status=APPROVED`, `mainline=engineering_branch`。
 2. `reverse-agent-iteration@v2` exists and is active in `.codex-skills/registry.json`。
 3. Current `decision_packet.md` is the execution authority; `task_packet.json` is advisory only。
-4. Previous `run-round --dry-run` round is consumed by a SUCCESS report with ACCEPTED_WITH_LIMITATIONS。
-5. `project_state/gates/run_round_result.json` exists and records dry-run mode with `executed_commands=[]`。
-6. Existing `close-round` command block append behavior remains the owner for close-round output; do not duplicate it from `run-round`。
+4. Previous execute-hardening report is consumed by a SUCCESS report with ACCEPTED_WITH_LIMITATIONS。
+5. `pytest_result.txt` shows bare `python -m reverse_agent.project_gate run-round` was recorded as a command-plan command even though it is not a required command in the Tests sequence。
+6. `final_gate_result.json` shows report-summary mismatch around `files_changed` source/test entries and no blocking reasons。
 
 Required implementation audit:
 
-- Add an explicit self-invocation guard for `run_round(..., dry_run=False)`。
-- Any command whose kind is `run-round`, or whose command text invokes `python -m reverse_agent.project_gate run-round`, must be skipped by default during execute mode。
-- Skipped self-invocation commands must be recorded in `run_round_result.json` under a structured field such as `skipped_commands` with at least: `index`, `command`, `kind`, `phase`, `reason`。
-- `run_round_result.json` must continue to include existing fields: `schema_version`, `gate_name`, `run_status`, `decision_id`, `round_id`, `mode`, `command_count`, `commands`, `executed_commands`, `blocking_reasons`, `warnings`, `recommended_next_action`。
-- Add fields needed to audit execution logging, e.g. `skipped_commands`, `recorded_command_blocks`, or equivalent。
-- In execute mode, record stdout/stderr/exit_code for executed commands in the existing `pytest_result.txt` command-block format when a safe test state path is provided。
-- Do not duplicate the close-round command block. If execute mode reaches a `close-round` command, either skip run-round's own append for that command and let `close-round` append itself, or record a clear test-only policy proving no duplicate block occurs。
-- Preserve fail-fast behavior: after the first executed command with an unexpected exit code, stop executing later commands and record blocking_reasons。
-- Preserve dry-run behavior: dry-run must not execute or append any command blocks。
-- Preserve existing CLI behavior: `run-round --dry-run --json` must still return JSON and write `project_state/gates/run_round_result.json`。
+- Tighten command extraction so only explicit executable commands in approved command-bearing contexts are emitted:
+  - fenced command blocks under `Required Audit` / `Tests`;
+  - backtick commands that contain complete executable command lines under `Required Audit` / `Tests`;
+  - approved Chinese natural-language gate checklist expansion already covered by tests.
+- Do not extract commands from `Do Not Do`, `Current Evidence`, `Stop Conditions`, ordinary prose, unit-test bullet descriptions, or prohibition examples.
+- Add regression test using a decision text that contains `run-round` in prose / prohibition / unit-test requirement text; command-plan must keep the required dry-run command but must not emit bare `python -m reverse_agent.project_gate run-round`.
+- Preserve existing command-plan behavior for legitimate explicit commands in `Required Audit` and `Tests`.
+- Repair report-summary synthesis so `files_changed` comparison aligns with final gate semantics:
+  - generated artifacts remain generated artifacts;
+  - substantive source/test files changed within allowed scope may appear in `files_changed` without causing `report_summary_fields_match_synthesis` warning solely because synthesis omitted them;
+  - inherited baseline dirty files that are explicitly allowed and explained should not create a summary mismatch if they are also substantive allowed scope files.
+- Add regression test where report `files_changed` includes `reverse_agent/project_gate.py` and `tests/test_project_gate.py` plus generated artifacts; report-summary synthesis and final-check should not warn solely on that difference.
+- Preserve detection of real report-summary mismatch; do not make synthesis comparison always pass.
 
 ## 6. Implementation Scope
 
@@ -154,7 +159,6 @@ Allowed source files:
 Allowed tests:
 
 - `tests/test_project_gate.py`
-- `tests/test_project_state.py` only if `reverse_agent/project_state.py` is touched
 
 Allowed generated files:
 
@@ -167,11 +171,7 @@ Allowed generated files:
 - `project_state/gates/round_baseline.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260615_project_gate_run_round_execute_hardening_v1/*`
-
-Conditionally allowed source file:
-
-- `reverse_agent/project_state.py` only if required to reuse or expose command-block writing helpers; otherwise do not touch it。
+- `project_state/rounds/round_20260615_project_gate_noise_reduction_v1/*`
 
 Disallowed:
 
@@ -183,7 +183,8 @@ Disallowed:
 - `reverse_agent/ida_scripts/`
 - `reverse_agent/olly_scripts/`
 - `reverse_agent/probes/`
-- solver / harness / sample-specific modules unrelated to project gate execution
+- `reverse_agent/project_state.py` unless a blocking test proves `project_gate.py` cannot own the fix
+- solver / harness / sample-specific modules unrelated to project gate command extraction or report-summary synthesis
 
 ## 7. Tests
 
@@ -206,18 +207,17 @@ python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m pytest tests/test_project_gate.py tests/test_project_state.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_gate_run_round_execute_hardening_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_gate_noise_reduction_v1
 ```
 
 Unit test requirements:
 
-- Test `run_round(..., dry_run=False)` skips command-plan entries whose kind is `run-round` and records them in `skipped_commands`。
-- Test a command text containing `python -m reverse_agent.project_gate run-round --state-dir ... --execute` is skipped and not executed。
-- Test execute mode records non-run-round executed command stdout/stderr/exit_code in memory result and command-block output in a temporary `pytest_result.txt`。
-- Test execute mode fail-fast still stops after the first unexpected exit code and does not execute later commands。
-- Test dry-run still leaves `executed_commands=[]` and does not append command blocks。
-- Test close-round command block duplication is prevented or explicitly delegated to close-round。
-- Test `run-round --dry-run --json` still returns exit code 0 and writes `project_state/gates/run_round_result.json`。
+- Test command-plan does not extract bare `python -m reverse_agent.project_gate run-round` from `Do Not Do`, `Stop Conditions`, or unit-test requirement prose.
+- Test command-plan still extracts the explicit live dry-run command from the Tests command sequence.
+- Test command-plan still extracts valid fenced and backtick commands under `Required Audit` / `Tests`.
+- Test report-summary synthesis includes or normalizes allowed source/test `files_changed` consistently with final gate expectations.
+- Test final-check no longer emits `report_summary_fields_match_synthesis` WARN when the only difference is allowed source/test files that are actually part of the round delta and are explicitly reported.
+- Test final-check still fails or warns for real mismatches, such as missing required generated artifacts or source/test files outside allowed scope.
 
 ## 8. Stop Conditions
 
@@ -231,10 +231,10 @@ If there are inherited dirty source/test files outside allowed scope, stop or re
 
 If implementing this requires changing solver, strategy, harness runtime, IDA/Ghidra/debugger, or sample-specific code, stop and report `BLOCKED`。
 
-If execute-mode command block recording cannot preserve stdout, stderr, and exit code, do not claim execute mode is hardened。
+If command-plan noise cannot be fixed without breaking existing explicit command extraction, stop and report `REWORK_REQUIRED`。
 
-If self-invocation guard cannot reliably prevent recursive `run-round --execute`, stop and report `BLOCKED`。
+If report-summary mismatch can only be hidden by ignoring all files_changed differences, stop and report `REWORK_REQUIRED`。
 
-If close-round command block behavior would become duplicated or inconsistent, keep execute mode test-only and report the limitation。
+If live validation would require `run-round --execute`, stop; live command must remain `run-round --dry-run --json`。
 
 If pytest, report-summary, final-check, or close-round fails, do not upload a SUCCESS report; mark `REWORK_REQUIRED` with blocking reasons。
