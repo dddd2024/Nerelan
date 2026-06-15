@@ -1689,6 +1689,119 @@ def _verified_cli_coverage_check(
     )
 
 
+def _startup_baseline_consistency_check(
+    *,
+    delta_summary: dict[str, Any],
+    decision_text: str,
+    report_text: str,
+    pytest_text: str,
+) -> dict[str, Any]:
+    """Check that startup ``git status --short`` dirty files are consistent
+    with baseline dirty records.
+
+    If the startup ``git status --short`` in ``pytest_result.txt`` shows
+    source/test dirty files, but the baseline records (``round_baseline.json``,
+    ``round_delta_summary.json``) show no corresponding dirty files, this
+    indicates an inconsistency — either the baseline was captured after
+    modifications (late baseline capture) or the baseline records are
+    inaccurate.
+    """
+    baseline_available = bool(delta_summary.get("baseline_available"))
+    baseline_dirty_files = _string_set(delta_summary.get("baseline_dirty_files"))
+    inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
+    scope_text = _markdown_section(decision_text, "Implementation Scope")
+    source_test_scope = _allowed_source_test_scope_paths(scope_text)
+
+    # Extract startup dirty files from pytest_result.txt
+    startup_dirty_files = _extract_startup_dirty_files(pytest_text)
+    order_info = _startup_status_order_valid(pytest_text)
+    startup_evidence_trusted = order_info.get("startup_status_evidence_trusted", False)
+
+    # Filter startup dirty files to source/test scope
+    startup_source_test_dirty = startup_dirty_files & source_test_scope
+
+    # Determine which startup source/test dirty files are NOT in baseline records
+    all_baseline_dirty = baseline_dirty_files | inherited_dirty_files
+    missing_from_baseline = sorted(startup_source_test_dirty - all_baseline_dirty)
+
+    # Check if report claims no inherited dirty when startup shows source/test dirty
+    report_claims_no_inherited = (
+        bool(report_text.strip())
+        and _report_explains_inherited_baseline_files(report_text) is False
+    )
+    report_inconsistency = bool(startup_source_test_dirty) and report_claims_no_inherited
+
+    if not baseline_available:
+        return _check(
+            "startup_baseline_consistency",
+            "PASS",
+            "baseline is unavailable; startup/baseline consistency check skipped",
+            startup_source_test_dirty=sorted(startup_source_test_dirty),
+            baseline_dirty_files=sorted(baseline_dirty_files),
+            startup_evidence_trusted=startup_evidence_trusted,
+        )
+
+    if not startup_evidence_trusted:
+        # No trusted startup git status evidence available — skip check
+        # rather than WARN, because older pytest_result formats may not
+        # include startup git status blocks.
+        return _check(
+            "startup_baseline_consistency",
+            "PASS",
+            "startup git status evidence not available or not trusted; consistency check skipped",
+            startup_source_test_dirty=sorted(startup_source_test_dirty),
+            baseline_dirty_files=sorted(baseline_dirty_files),
+            startup_evidence_trusted=False,
+        )
+
+    if not startup_source_test_dirty:
+        # Startup git status is clean for source/test files
+        return _check(
+            "startup_baseline_consistency",
+            "PASS",
+            "startup git status --short is consistent with baseline records; no source/test dirty files at startup",
+            startup_source_test_dirty=[],
+            baseline_dirty_files=sorted(baseline_dirty_files),
+            missing_from_baseline=[],
+        )
+
+    if missing_from_baseline:
+        # Startup shows source/test dirty but baseline doesn't record them
+        return _check(
+            "startup_baseline_consistency",
+            "FAIL",
+            "startup git status --short shows source/test dirty files not recorded in baseline; baseline records are inconsistent with startup evidence",
+            startup_source_test_dirty=sorted(startup_source_test_dirty),
+            baseline_dirty_files=sorted(baseline_dirty_files),
+            inherited_dirty_files=sorted(inherited_dirty_files),
+            missing_from_baseline=missing_from_baseline,
+            report_inconsistency=report_inconsistency,
+        )
+
+    # Startup dirty files are all accounted for in baseline records
+    if report_inconsistency:
+        return _check(
+            "startup_baseline_consistency",
+            "FAIL",
+            "startup git status --short shows source/test dirty files but report claims no inherited dirty files",
+            startup_source_test_dirty=sorted(startup_source_test_dirty),
+            baseline_dirty_files=sorted(baseline_dirty_files),
+            inherited_dirty_files=sorted(inherited_dirty_files),
+            missing_from_baseline=[],
+            report_inconsistency=True,
+        )
+
+    return _check(
+        "startup_baseline_consistency",
+        "PASS",
+        "startup git status --short is consistent with baseline records; source/test dirty files are properly recorded",
+        startup_source_test_dirty=sorted(startup_source_test_dirty),
+        baseline_dirty_files=sorted(baseline_dirty_files),
+        inherited_dirty_files=sorted(inherited_dirty_files),
+        missing_from_baseline=[],
+    )
+
+
 def _parse_git_status_short_dirty(status_output: str) -> set[str]:
     """Parse ``git status --short`` output into a set of dirty file paths."""
     paths: set[str] = set()
@@ -2221,6 +2334,7 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
             "baseline_capture_order",
             "build_output_scope",
             "verified_cli_coverage",
+            "startup_baseline_consistency",
         }
         status_policy_has_limitations = any(
             isinstance(check, dict)
@@ -2943,6 +3057,16 @@ def final_check(
         )
     )
 
+    # Startup-baseline consistency check
+    checks.append(
+        _startup_baseline_consistency_check(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
+            pytest_text=pytest_text,
+        )
+    )
+
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
     archive_check_status = (
         "PASS" if not missing_archive_artifacts
@@ -3568,6 +3692,16 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
         _verified_cli_coverage_check(
             report_text=report_text,
             tests_ran=report_tests_ran_close,
+            pytest_text=pytest_text,
+        )
+    )
+
+    # Startup-baseline consistency check
+    checks.append(
+        _startup_baseline_consistency_check(
+            delta_summary=delta_summary,
+            decision_text=decision_text,
+            report_text=report_text,
             pytest_text=pytest_text,
         )
     )

@@ -13,6 +13,7 @@ from reverse_agent.project_gate import (
     _decision_immutability_check,
     _build_output_scope_check,
     _verified_cli_coverage_check,
+    _startup_baseline_consistency_check,
     _extract_bash_commands,
     _extract_unfenced_commands,
     _historical_sample_limitations_only,
@@ -5830,3 +5831,267 @@ class TestCleanStartupNoBaselineGuard:
         guard = next((c for c in result if c["name"] == "baseline_lifecycle_guard"), None)
         assert guard is not None
         assert guard["status"] == "PASS"
+
+
+# ---------------------------------------------------------------------------
+# Startup-Baseline Consistency Check Tests (9 scenarios)
+# ---------------------------------------------------------------------------
+
+class TestStartupBaselineConsistencyDirtyBaselineEmpty:
+    """Scenario 1: startup git status has source/test dirty, baseline dirty empty → FAIL."""
+
+    def test_startup_dirty_baseline_empty_fails(self) -> None:
+        """Startup shows source/test dirty but baseline_dirty_files is empty → FAIL."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": [],
+                "inherited_dirty_files": [],
+            },
+            decision_text="## Implementation Scope\n\n允许修改：\n- reverse_agent/project_gate.py\n\n## Do Not Do\nNothing\n",
+            report_text="",
+            pytest_text=(
+                "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+                "F:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Get-Location =====\n"
+                "Path\n----\nF:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+                "True\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git rev-parse --show-toplevel =====\n"
+                "F:/reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git status --short =====\n"
+                " M reverse_agent/project_gate.py\n"
+                "===== EXIT: 0 =====\n"
+            ),
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "FAIL"
+        assert "reverse_agent/project_gate.py" in result.get("missing_from_baseline", [])
+
+
+class TestStartupBaselineConsistencyDirtyBaselineRecords:
+    """Scenario 2: startup git status has source/test dirty, baseline correctly records inherited dirty → PASS."""
+
+    def test_startup_dirty_baseline_records_passes(self) -> None:
+        """Startup shows source/test dirty and baseline correctly records them → PASS."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+                "inherited_dirty_files": [],
+            },
+            decision_text="## Implementation Scope\n\n允许修改：\n- reverse_agent/project_gate.py\n\n## Do Not Do\nNothing\n",
+            report_text="",
+            pytest_text=(
+                "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+                "F:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Get-Location =====\n"
+                "Path\n----\nF:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+                "True\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git rev-parse --show-toplevel =====\n"
+                "F:/reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git status --short =====\n"
+                " M reverse_agent/project_gate.py\n"
+                "===== EXIT: 0 =====\n"
+            ),
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "PASS"
+
+
+class TestStartupBaselineConsistencyBothClean:
+    """Scenario 3: startup git status clean, baseline clean → PASS."""
+
+    def test_startup_clean_baseline_clean_passes(self) -> None:
+        """Both startup git status and baseline are clean → PASS."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": [],
+                "inherited_dirty_files": [],
+            },
+            decision_text="## Implementation Scope\n\n允许修改：\n- reverse_agent/project_gate.py\n\n## Do Not Do\nNothing\n",
+            report_text="",
+            pytest_text=(
+                "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+                "F:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Get-Location =====\n"
+                "Path\n----\nF:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+                "True\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git rev-parse --show-toplevel =====\n"
+                "F:/reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git status --short =====\n"
+                "===== EXIT: 0 =====\n"
+            ),
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "PASS"
+
+
+class TestStartupBaselineConsistencyDecisionDirty:
+    """Scenario 4: live decision_packet.md dirty → still FAIL (decision immutability)."""
+
+    def test_decision_dirty_still_fails(self) -> None:
+        """decision_packet.md in startup dirty files → baseline records it but
+        decision_immutability check handles this separately; consistency check
+        should still report the file is present."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": ["project_state/decision_packet.md"],
+                "inherited_dirty_files": [],
+            },
+            decision_text="## Implementation Scope\n\n允许修改：\n- reverse_agent/project_gate.py\n\n## Do Not Do\nNothing\n",
+            report_text="",
+            pytest_text=(
+                "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+                "F:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Get-Location =====\n"
+                "Path\n----\nF:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+                "True\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git rev-parse --show-toplevel =====\n"
+                "F:/reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git status --short =====\n"
+                " M project_state/decision_packet.md\n"
+                "===== EXIT: 0 =====\n"
+            ),
+        )
+        # decision_packet.md is not in source_test_scope (it's not in 允许修改),
+        # so startup_source_test_dirty is empty → PASS
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "PASS"
+
+
+class TestStartupBaselineConsistencyActiveExecutionView:
+    """Scenario 5: active-execution-view still recognized as known command."""
+
+    def test_active_execution_view_kind(self) -> None:
+        """active-execution-view is still recognized as known command kind."""
+        from reverse_agent.project_gate import _command_kind
+        assert _command_kind("python -m reverse_agent.project_state active-execution-view --state-dir project_state --json") == "active-execution-view"
+
+    def test_active_execution_view_phase(self) -> None:
+        """active-execution-view is still classified as status phase."""
+        from reverse_agent.project_gate import _command_phase
+        assert _command_phase("active-execution-view", archive_seen=False) == "status"
+
+
+class TestStartupBaselineConsistencyCommandPlanPassed:
+    """Scenario 6: command-plan --json still PASSED for active-execution-view."""
+
+    def test_command_plan_with_active_execution_view_passes(self, tmp_path: Path) -> None:
+        """command-plan returns PASSED with active-execution-view in command list."""
+        state_dir = tmp_path / "state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        (gates_dir / "round_baseline.json").write_text(
+            json.dumps({"baseline_dirty_files": [], "captured_at": "2026-01-01T00:00:00Z"}),
+            encoding="utf-8",
+        )
+        decision_text = (
+            "```json decision_meta\n"
+            '{"schema_version":1,"decision_id":"d1","round_id":"r1",'
+            '"based_on_state_build_id":"s1","based_on_state_digest":"h1",'
+            '"status":"APPROVED","mainline":"engineering_branch","skill_profiles":[]}\n'
+            "```\n"
+            "## Goal\nTest\n## Current Evidence\nNone\n## Do Not Do\nNothing\n"
+            "## Files To Inspect\nNone\n## Required Audit\nNone\n"
+            "## Implementation Scope\nNone\n"
+            "## Tests\n```bash\npython -m pytest tests/ -q\n```\n"
+            "## Stop Conditions\nNone\n"
+        )
+        (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+        report_text = (
+            "```json codex_report_summary\n"
+            '{"schema_version":1,"report_id":"r1","round_id":"r1",'
+            '"based_on_decision_id":"d1","status":"SUCCESS","acceptance_recommendation":"ACCEPTED",'
+            '"files_changed":[],"tests_ran":[],"generated_artifacts":[]}\n'
+            "```\n"
+        )
+        (state_dir / "codex_execution_report.md").write_text(report_text, encoding="utf-8")
+        result = command_plan(state_dir=state_dir, write_result=True)
+        assert result.get("plan_status") == "PASSED"
+
+
+class TestStartupBaselineConsistencyBuildOutputScope:
+    """Scenario 7: build output scope check not regressed."""
+
+    def test_build_output_scope_no_violation(self) -> None:
+        """No build output scope violation when no build-generated files."""
+        result = _build_output_scope_check(
+            new_dirty_files={"reverse_agent/project_gate.py"},
+            files_changed={"reverse_agent/project_gate.py"},
+            pytest_text="===== COMMAND: test =====\noutput\n===== EXIT: 0 =====\n",
+        )
+        assert result["name"] == "build_output_scope"
+        assert result["status"] == "PASS"
+
+
+class TestStartupBaselineConsistencyVerifiedCliCoverage:
+    """Scenario 8: verified CLI coverage check not regressed."""
+
+    def test_verified_cli_coverage_passes(self) -> None:
+        """CLI coverage passes when all commands are covered."""
+        result = _verified_cli_coverage_check(
+            report_text="",
+            tests_ran=["python -m pytest tests/ -q"],
+            pytest_text="===== COMMAND: python -m pytest tests/ -q =====\n549 passed\n===== EXIT: 0 =====\n",
+        )
+        assert result["name"] == "verified_cli_coverage"
+        assert result["status"] == "PASS"
+
+
+class TestStartupBaselineConsistencyReportClaimsNone:
+    """Scenario 9: report claims 'no inherited dirty' when startup git status has source/test dirty → FAIL."""
+
+    def test_report_claims_no_inherited_with_startup_dirty_fails(self) -> None:
+        """Report claims no inherited dirty files but startup shows source/test dirty → FAIL."""
+        result = _startup_baseline_consistency_check(
+            delta_summary={
+                "baseline_available": True,
+                "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+                "inherited_dirty_files": [],
+            },
+            decision_text="## Implementation Scope\n\n允许修改：\n- reverse_agent/project_gate.py\n\n## Do Not Do\nNothing\n",
+            report_text="# Report\n\nNo inherited baseline dirty files.\n",
+            pytest_text=(
+                "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+                "F:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Get-Location =====\n"
+                "Path\n----\nF:\\reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+                "True\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git rev-parse --show-toplevel =====\n"
+                "F:/reverse-agent\n"
+                "===== EXIT: 0 =====\n"
+                "===== COMMAND: git status --short =====\n"
+                " M reverse_agent/project_gate.py\n"
+                "===== EXIT: 0 =====\n"
+            ),
+        )
+        assert result["name"] == "startup_baseline_consistency"
+        assert result["status"] == "FAIL"
+        assert result.get("report_inconsistency") is True

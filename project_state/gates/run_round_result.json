@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "run-round",
-  "run_status": "FAILED",
-  "decision_id": "decision_20260615_decision_immutability_scope_guard_rework_v1",
-  "round_id": "round_20260615_decision_immutability_scope_guard_rework_v1",
+  "run_status": "PASSED",
+  "decision_id": "decision_20260615_startup_status_baseline_consistency_guard_v1",
+  "round_id": "round_20260615_startup_status_baseline_consistency_guard_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-15T16:08:53.216797Z",
+  "generated_at": "2026-06-15T16:33:36.287221Z",
   "mode": "dry-run",
   "command_count": 16,
   "commands": [
@@ -191,7 +191,7 @@
     },
     {
       "index": 16,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_decision_immutability_scope_guard_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_startup_status_baseline_consistency_guard_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,
@@ -205,12 +205,9 @@
   "executed_commands": [],
   "skipped_commands": [],
   "recorded_command_blocks": [],
-  "blocking_reasons": [
-    "preflight: decision_not_consumed_by_report: decision already appears consumed by report",
-    "preflight gate_status=BLOCKED"
-  ],
+  "blocking_reasons": [],
   "warnings": [],
-  "recommended_next_action": "fix_run_round_failures_before_retry",
+  "recommended_next_action": "review_plan_before_execute",
   "artifacts": {
     "preflight": "project_state/gates/preflight_result.json",
     "command_plan": "project_state/gates/command_plan.json",
