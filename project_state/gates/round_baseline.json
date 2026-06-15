@@ -1,28 +1,22 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260615_artifact_freshness_strictness_rework_v1",
-  "round_id": "round_20260615_artifact_freshness_strictness_rework_v1",
-  "head_commit": "ecba7e4a86c5",
+  "decision_id": "decision_20260615_baseline_lifecycle_guard_rework_v1",
+  "round_id": "round_20260615_baseline_lifecycle_guard_rework_v1",
+  "head_commit": "8087258110ae",
   "baseline_git_status_short": [
     " M reverse_agent/project_gate.py",
-    " M reverse_agent/project_state.py",
-    " M tests/test_project_gate.py",
-    " M tests/test_project_state.py"
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_state.py"
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
     "reverse_agent/project_gate.py",
-    "reverse_agent/project_state.py",
-    "tests/test_project_gate.py",
-    "tests/test_project_state.py"
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-15T11:48:48.284732Z"
+  "generated_at": "2026-06-15T12:20:49.682753Z"
 }

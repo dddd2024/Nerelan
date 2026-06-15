@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "run-round",
   "run_status": "PASSED",
-  "decision_id": "decision_20260615_artifact_freshness_strictness_rework_v1",
-  "round_id": "round_20260615_artifact_freshness_strictness_rework_v1",
+  "decision_id": "decision_20260615_baseline_lifecycle_guard_rework_v1",
+  "round_id": "round_20260615_baseline_lifecycle_guard_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-15T11:48:54.730569Z",
+  "generated_at": "2026-06-15T12:30:31.102553Z",
   "mode": "dry-run",
   "command_count": 15,
   "commands": [
@@ -143,7 +143,7 @@
     },
     {
       "index": 12,
-      "command": "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
       "phase": "test",
       "kind": "pytest",
       "required": true,
@@ -179,7 +179,7 @@
     },
     {
       "index": 15,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_artifact_freshness_strictness_rework_v1",
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_baseline_lifecycle_guard_rework_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,

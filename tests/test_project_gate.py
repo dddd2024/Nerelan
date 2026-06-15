@@ -1065,12 +1065,12 @@ def test_final_check_fails_when_files_changed_claims_inherited_dirty_file(tmp_pa
     assert "reverse_agent/project_gate.py" in inherited_check["inherited_files_in_files_changed"]
 
 
-def test_final_check_passes_when_source_test_dirty_is_inherited_but_in_scope(tmp_path: Path) -> None:
+def test_final_check_fails_when_source_test_dirty_in_scope_but_no_explicit_allowlist(tmp_path: Path) -> None:
     """When source/test files are in baseline_dirty_files and ARE in the
-    decision scope (Allowed source files / Allowed tests), the
-    baseline_lifecycle_guard should PASS even without an explicit
-    "Allowed Inherited Dirty Baseline Files" section, because the
-    decision scope itself authorises those files.
+    decision scope but NOT in an explicit "Allowed Inherited Dirty Baseline Files"
+    section, the baseline_lifecycle_guard should FAIL because scope membership
+    alone does not authorise inherited dirty baseline — doing so would mask
+    late baseline capture.
     """
     archive_paths = _archive_paths("round_gate")
     state_dir = _make_gate_state(
@@ -1094,9 +1094,9 @@ def test_final_check_passes_when_source_test_dirty_is_inherited_but_in_scope(tmp
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
     lifecycle = _check(result, "baseline_lifecycle_guard")
-    assert lifecycle["status"] != "FAIL", (
-        "baseline_lifecycle_guard should not FAIL when source/test files"
-        " are authorised by decision scope"
+    assert lifecycle["status"] == "FAIL", (
+        "baseline_lifecycle_guard should FAIL when source/test files are in"
+        " scope but not in explicit Allowed Inherited Dirty Baseline Files"
     )
 
 
@@ -3842,9 +3842,11 @@ None.
 
 
 class TestAllowedInheritedFiles:
-    """Verify _allowed_inherited_files returns only inherited files within decision scope."""
+    """Verify _allowed_inherited_files returns only files explicitly listed in
+    the "Allowed Inherited Dirty Baseline Files" section, NOT files that merely
+    appear in Implementation Scope."""
 
-    def test_returns_intersection_with_scope(self) -> None:
+    def test_returns_explicit_allowlist_intersection(self) -> None:
         decision_text = """# DECISION_PACKET
 
 ## Implementation Scope
@@ -3855,6 +3857,10 @@ Allowed source files:
 Allowed tests:
 - tests/test_project_gate.py
 
+## Allowed Inherited Dirty Baseline Files
+- reverse_agent/project_gate.py
+- tests/test_project_gate.py
+
 Disallowed:
 - solve_reports/
 """
@@ -3862,15 +3868,17 @@ Disallowed:
         result = _allowed_inherited_files(decision_text, inherited)
         assert result == {"reverse_agent/project_gate.py", "tests/test_project_gate.py"}
 
-    def test_returns_empty_when_no_scope_match(self) -> None:
+    def test_returns_empty_when_only_scope_not_explicit_allowlist(self) -> None:
+        """Files in Implementation Scope but NOT in explicit allowlist should NOT be allowed."""
         decision_text = """# DECISION_PACKET
 
 ## Implementation Scope
 Allowed source files:
+- reverse_agent/project_gate.py
 - reverse_agent/other.py
 
 Allowed tests:
-- tests/test_other.py
+- tests/test_project_gate.py
 """
         inherited = {"reverse_agent/project_gate.py", "tests/test_project_gate.py"}
         result = _allowed_inherited_files(decision_text, inherited)
@@ -3882,8 +3890,164 @@ Allowed tests:
 ## Implementation Scope
 Allowed source files:
 - reverse_agent/project_gate.py
+
+## Allowed Inherited Dirty Baseline Files
+- reverse_agent/project_gate.py
 """
         result = _allowed_inherited_files(decision_text, set())
+        assert result == set()
+
+
+class TestBaselineLifecycleLateBaselineCapture:
+    """Test baseline lifecycle guard against late baseline capture scenarios.
+
+    Decision requires 6 test scenarios:
+    1. Clean baseline, source/test dirty after execution → round delta, not inherited.
+    2. Baseline has source/test dirty, no explicit allowlist → WARN or FAIL.
+    3. Baseline has source/test dirty, explicit allowlist, report explains → PASS.
+    4. Baseline has source/test dirty, report claims no inherited → WARN or FAIL.
+    5. Baseline only has generated state artifact dirty → not flagged as source/test late baseline.
+    6. Previous artifact freshness strictness tests still pass.
+    """
+
+    DECISION_TEXT_NO_ALLOWLIST = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+"""
+
+    DECISION_TEXT_WITH_ALLOWLIST = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+
+## Allowed Inherited Dirty Baseline Files
+- reverse_agent/project_gate.py
+"""
+
+    def _make_delta_summary(self, *, baseline_dirty: list[str] | None = None, inherited: list[str] | None = None) -> dict[str, Any]:
+        return {
+            "baseline_available": True,
+            "baseline_dirty_files": baseline_dirty or [],
+            "inherited_dirty_files": inherited or baseline_dirty or [],
+            "new_dirty_files_since_baseline": ["project_state/codex_execution_report.md"],
+            "final_dirty_files": (baseline_dirty or []) + ["project_state/codex_execution_report.md"],
+            "baseline_has_untracked_implementation_files": False,
+            "baseline_untracked_files": [],
+        }
+
+    def test_clean_baseline_source_test_dirty_is_round_delta(self) -> None:
+        """Scenario 1: Clean baseline, source/test dirty after execution → round delta, not inherited."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        delta_summary = self._make_delta_summary(
+            baseline_dirty=[],
+            inherited=[],
+        )
+        # new_dirty_files_since_baseline contains source/test files
+        delta_summary["new_dirty_files_since_baseline"] = ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"]
+        delta_summary["final_dirty_files"] = ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"]
+
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=self.DECISION_TEXT_NO_ALLOWLIST,
+            report_text="no inherited baseline files",
+            state_dir=None,
+        )
+        guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard_check["status"] == "PASS"
+
+    def test_baseline_source_test_dirty_no_allowlist_fails(self) -> None:
+        """Scenario 2: Baseline has source/test dirty, no explicit allowlist → FAIL."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        delta_summary = self._make_delta_summary(
+            baseline_dirty=["reverse_agent/project_gate.py"],
+        )
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=self.DECISION_TEXT_NO_ALLOWLIST,
+            report_text="baseline inherited",
+            state_dir=None,
+        )
+        guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard_check["status"] == "FAIL"
+
+    def test_baseline_source_test_dirty_explicit_allowlist_passes(self) -> None:
+        """Scenario 3: Baseline has source/test dirty, explicit allowlist, report explains → PASS."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        delta_summary = self._make_delta_summary(
+            baseline_dirty=["reverse_agent/project_gate.py"],
+        )
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=self.DECISION_TEXT_WITH_ALLOWLIST,
+            report_text="report explains inherited baseline dirty files for project_gate.py",
+            state_dir=None,
+        )
+        guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard_check["status"] == "PASS"
+
+    def test_baseline_source_test_dirty_report_claims_no_inherited_fails(self) -> None:
+        """Scenario 4: Baseline has source/test dirty, report claims no inherited → WARN or FAIL."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        delta_summary = self._make_delta_summary(
+            baseline_dirty=["reverse_agent/project_gate.py"],
+        )
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=self.DECISION_TEXT_WITH_ALLOWLIST,
+            report_text="working tree was clean at round start, all changes are new this round",
+            state_dir=None,
+        )
+        allowlist_check = next(c for c in checks if c["name"] == "baseline_inherited_allowlist_explained")
+        # Report does not explain inherited files even though allowlist exists
+        assert allowlist_check["status"] == "FAIL"
+
+    def test_baseline_only_generated_artifact_dirty_not_flagged(self) -> None:
+        """Scenario 5: Baseline only has generated state artifact dirty → not flagged as source/test late baseline."""
+        from reverse_agent.project_gate import _baseline_lifecycle_checks
+        delta_summary = self._make_delta_summary(
+            baseline_dirty=["project_state/gates/round_baseline.json"],
+            inherited=["project_state/gates/round_baseline.json"],
+        )
+        checks = _baseline_lifecycle_checks(
+            delta_summary=delta_summary,
+            decision_text=self.DECISION_TEXT_NO_ALLOWLIST,
+            report_text="no inherited source/test baseline files",
+            state_dir=None,
+        )
+        guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
+        assert guard_check["status"] == "PASS"
+
+    def test_scope_files_not_automatically_allowed(self) -> None:
+        """Files in Implementation Scope but NOT in explicit allowlist should NOT be auto-allowed."""
+        from reverse_agent.project_gate import _allowed_inherited_files
+        decision_text = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+- reverse_agent/project_state.py
+
+Allowed tests:
+- tests/test_project_gate.py
+- tests/test_project_state.py
+"""
+        inherited = {
+            "reverse_agent/project_gate.py",
+            "reverse_agent/project_state.py",
+            "tests/test_project_gate.py",
+            "tests/test_project_state.py",
+        }
+        result = _allowed_inherited_files(decision_text, inherited)
+        # None should be allowed without explicit "Allowed Inherited Dirty Baseline Files" section
         assert result == set()
 
 
@@ -4011,9 +4175,13 @@ class TestBaselineLifecycleClosedRound:
 ## Implementation Scope
 Allowed source files:
 - reverse_agent/project_gate.py
+- reverse_agent/other.py
 
 Allowed tests:
 - tests/test_project_gate.py
+
+## Allowed Inherited Dirty Baseline Files
+- reverse_agent/project_gate.py
 
 Disallowed:
 - solve_reports/
@@ -4064,17 +4232,16 @@ Disallowed:
         gates_dir = state_dir / "gates"
         gates_dir.mkdir()
         # Write close snapshot showing dirty worktree with a file that is
-        # in source_test_scope but NOT in baseline_dirty_files (so not
-        # in allowed_inherited).
+        # in source_test_scope but NOT in the explicit allowlist.
         _write_json(gates_dir / "round_close_snapshot.json", {
             "schema_version": 1,
             "decision_id": "decision_test",
             "round_closed": True,
             "close_worktree_clean": False,
-            "close_dirty_files": ["reverse_agent/project_gate.py"],
+            "close_dirty_files": ["reverse_agent/other.py"],
         })
-        # baseline_dirty_files does NOT include project_gate.py, so it
-        # won't be in allowed_inherited, making it unauthorized.
+        # baseline_dirty_files includes other.py, which is in source_test_scope
+        # but NOT in the explicit "Allowed Inherited Dirty Baseline Files" allowlist.
         checks = _baseline_lifecycle_checks(
             delta_summary=self._make_delta_summary(baseline_dirty=["reverse_agent/other.py"]),
             decision_text=self.DECISION_TEXT,
@@ -4130,7 +4297,8 @@ Disallowed:
         # (this is the existing behavior from Round 2)
 
     def test_no_state_dir_uses_active_behavior(self) -> None:
-        """Without state_dir, close snapshot cannot be read, so active behavior is used."""
+        """Without state_dir, close snapshot cannot be read, so active behavior is used.
+        With explicit allowlist, the file should be allowed."""
         from reverse_agent.project_gate import _baseline_lifecycle_checks
         checks = _baseline_lifecycle_checks(
             delta_summary=self._make_delta_summary(),
@@ -4139,7 +4307,7 @@ Disallowed:
             state_dir=None,
         )
         guard_check = next(c for c in checks if c["name"] == "baseline_lifecycle_guard")
-        # Without close snapshot, existing behavior applies
+        # With explicit allowlist, the file is allowed
         assert guard_check["status"] in ("PASS", "WARN")
 
 
@@ -4156,8 +4324,9 @@ Allowed tests:
 - tests/test_project_gate.py
 """
 
-    def test_closed_clean_worktree_no_inherited_warning(self, tmp_path: Path) -> None:
-        """Closed round with clean worktree should not warn about inherited dirty files in files_changed."""
+    def test_closed_clean_worktree_warns_source_test_inherited(self, tmp_path: Path) -> None:
+        """Closed round with clean worktree should still WARN about inherited
+        source/test dirty files in files_changed (possible late baseline capture)."""
         from reverse_agent.project_gate import _round_delta_checks
         state_dir = tmp_path / "project_state"
         state_dir.mkdir()
@@ -4184,8 +4353,8 @@ Allowed tests:
             state_dir=state_dir,
         )
         inherited_check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
-        assert inherited_check["status"] == "PASS"
-        assert "closed" in inherited_check["detail"]
+        assert inherited_check["status"] == "WARN"
+        assert "source/test" in inherited_check["detail"]
 
     def test_active_round_still_warns_inherited(self, tmp_path: Path) -> None:
         """Active round should still warn about inherited dirty files in files_changed."""

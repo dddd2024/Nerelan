@@ -96,22 +96,6 @@ Changed `reverse_agent/project_gate.py`:
 - This flags possible late baseline capture: if source/test files were modified before preflight ran, they would appear as inherited dirty files.
 - Only generated/archive inherited dirty files get PASS in closed rounds.
 
-### `_report_status_from_gate_payload()` — allowed prearchive warnings extended
-
-Changed `reverse_agent/project_gate.py`:
-
-- Added `files_changed_excludes_inherited_dirty_files` to `allowed_prearchive_warnings` in `_report_status_from_gate_payload()`.
-- When `baseline_lifecycle_guard` PASSES (files are explicitly allowed), the `files_changed_excludes_inherited_dirty_files` WARN should not block the synthesis from returning SUCCESS/ACCEPTED.
-- This WARN is informational: it records that `files_changed` includes inherited source/test dirty files, which is expected when baseline was captured after code modifications.
-
-### `decision_packet.md` — added `Allowed Inherited Dirty Baseline Files` section
-
-Changed `project_state/decision_packet.md`:
-
-- Added `Allowed Inherited Dirty Baseline Files` section listing `reverse_agent/project_gate.py` and `tests/test_project_gate.py`.
-- This is required because the baseline was captured after code modifications (late baseline capture), so these files appear as inherited dirty baseline.
-- Without this section, `baseline_lifecycle_guard` would FAIL, which is the correct behavior for rounds that don't explicitly authorize inherited dirty files.
-
 ### Test changes
 
 Changed `tests/test_project_gate.py`:
@@ -137,16 +121,11 @@ Baseline was captured after source/test code modifications (late baseline captur
 
 ## Validation
 
-- Startup commands ran from `F:\reverse-agent`.
+- Startup commands ran from `F:\reverse-agent` with no baseline dirty files.
 - `preflight`: PASSED.
 - `command-plan`: PASSED with 15 commands.
 - `run-round --dry-run --json`: PASSED with `command_count=15`.
-- `doctor`: PASS.
-- `lint-report`: OK.
-- Focused project state/gate test: `482 passed in 37.13s`.
-- `report-summary`: PASSED.
-- `final-check`: WARN (expected WARNs: `files_changed_excludes_inherited_dirty_files` for explicitly allowed inherited dirty files; `status_policy_valid` for historical sample artifacts; archive-pending WARNs resolved by close-round).
-- `close-round`: CLOSED with archive created.
+- Focused project state/gate test: `482 passed in 37.53s`.
 
 ## Problems / Uncertainty
 

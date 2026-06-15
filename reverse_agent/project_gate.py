@@ -533,10 +533,13 @@ def _allowed_source_test_scope_paths(scope_text: str) -> set[str]:
 
 
 def _allowed_inherited_files(decision_text: str, inherited_dirty_files: set[str]) -> set[str]:
-    """Return inherited dirty files that are within the decision's allowed source/test scope."""
-    scope_text = _markdown_section(decision_text, "Implementation Scope")
-    source_test_scope = _allowed_source_test_scope_paths(scope_text)
-    return inherited_dirty_files & source_test_scope
+    """Return inherited dirty files that are explicitly allowed by the decision's
+    "Allowed Inherited Dirty Baseline Files" section.
+
+    Files that merely appear in Implementation Scope are NOT automatically
+    allowed — doing so would mask late baseline capture."""
+    allowed_paths = _allowed_inherited_baseline_paths(decision_text)
+    return inherited_dirty_files & allowed_paths
 
 
 def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
@@ -926,25 +929,43 @@ def _round_delta_checks(
     close_worktree_clean = bool(close_snapshot.get("close_worktree_clean")) if close_snapshot else False
 
     if inherited_claimed:
-        # For closed rounds, inherited baseline dirty files are no longer
-        # active; the close snapshot records the authoritative state.
+        # Inherited dirty files that overlap with files_changed and are
+        # source/test files may indicate late baseline capture (Codex modified
+        # files before running preflight, so they were absorbed into baseline).
+        # Even for closed rounds, this is worth flagging as a WARN.
+        source_test_inherited_claimed = sorted(
+            path for path in inherited_claimed if _is_implementation_file(path)
+        )
         if round_closed:
-            checks.append(
-                _check(
-                    "files_changed_excludes_inherited_dirty_files",
-                    "PASS",
-                    "round is closed; inherited baseline dirty files in files_changed are recorded in close snapshot",
-                    inherited_files_in_files_changed=inherited_claimed,
-                    close_worktree_clean=close_worktree_clean,
+            if source_test_inherited_claimed:
+                checks.append(
+                    _check(
+                        "files_changed_excludes_inherited_dirty_files",
+                        "WARN",
+                        "round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot",
+                        inherited_files_in_files_changed=inherited_claimed,
+                        source_test_inherited_in_files_changed=source_test_inherited_claimed,
+                        close_worktree_clean=close_worktree_clean,
+                    )
                 )
-            )
+            else:
+                checks.append(
+                    _check(
+                        "files_changed_excludes_inherited_dirty_files",
+                        "PASS",
+                        "round is closed; inherited baseline dirty files in files_changed are generated/archive files recorded in close snapshot",
+                        inherited_files_in_files_changed=inherited_claimed,
+                        close_worktree_clean=close_worktree_clean,
+                    )
+                )
         else:
             checks.append(
                 _check(
                     "files_changed_excludes_inherited_dirty_files",
                     "WARN",
-                    "files_changed includes inherited baseline dirty files (may have been modified this round)",
+                    "files_changed includes inherited baseline dirty files (may have been modified this round; possible late baseline capture)",
                     inherited_files_in_files_changed=inherited_claimed,
+                    source_test_inherited_in_files_changed=source_test_inherited_claimed,
                 )
             )
     else:
@@ -1026,13 +1047,13 @@ def _baseline_lifecycle_checks(
     inherited_dirty_files = _string_set(delta_summary.get("inherited_dirty_files"))
     scope_text = _markdown_section(decision_text, "Implementation Scope")
     source_test_scope = _allowed_source_test_scope_paths(scope_text)
+    # Only files explicitly listed in the "Allowed Inherited Dirty Baseline
+    # Files" section of the decision are allowed as inherited dirty baseline.
+    # Files that merely appear in Implementation Scope are NOT automatically
+    # allowed — doing so would mask late baseline capture (where Codex modifies
+    # source/test files before running preflight, causing those modifications
+    # to be absorbed into the baseline and misclassified as inherited).
     allowed_inherited = _allowed_inherited_baseline_paths(decision_text)
-    # Files explicitly listed in "Allowed source files" / "Allowed tests"
-    # are valid as inherited baseline dirty files.  They produce a WARN
-    # (not a FAIL) because the decision explicitly authorises them even
-    # though they pre-date the current round.
-    scope_allowed_inherited = source_test_scope & baseline_dirty_files
-    allowed_inherited |= scope_allowed_inherited
     source_test_baseline_dirty = sorted(baseline_dirty_files & source_test_scope)
     unauthorized = sorted((baseline_dirty_files & source_test_scope) - allowed_inherited)
     allowed_claimed = sorted((baseline_dirty_files & source_test_scope) & allowed_inherited)
@@ -1727,6 +1748,7 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
             "report_summary_fields_match_synthesis",
             "report_summary_status_source_available",
             "status_policy_valid",
+            "files_changed_excludes_inherited_dirty_files",
         }
         status_policy_has_limitations = any(
             isinstance(check, dict)
