@@ -562,21 +562,32 @@ def _report_explains_inherited_baseline_files(report_text: str) -> bool:
     inherited baseline dirty files — not a negation like "no inherited baseline
     dirty files" or "working tree was clean".
 
-    The check looks specifically at the "Allowed Inherited Dirty Baseline Files"
-    section of the report. If that section exists and contains at least one
-    file path (``- `` list item), it counts as an affirmative explanation.
-    This avoids false negatives when test descriptions elsewhere in the report
-    happen to contain negation phrases.
+    Two conditions must both hold:
+    1. The "Allowed Inherited Dirty Baseline Files" section exists and contains
+       at least one file path (``- `` list item).
+    2. The full report text does NOT contain any negation phrase from
+       ``_NEGATION_PHRASES``.  If a negation phrase appears anywhere in the
+       report, the explanation is considered invalid — even if the allowlist
+       section has list items — because the report contradicts itself.
     """
+    # Condition 1: allowlist section must have list items
     section = _markdown_section(report_text, "Allowed Inherited Dirty Baseline Files")
     if not section.strip():
         return False
-    # A non-empty section with at least one list item (``- ``) is affirmative
-    for line in section.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("- ") and len(stripped) > 2:
-            return True
-    return False
+    has_list_item = any(
+        line.strip().startswith("- ") and len(line.strip()) > 2
+        for line in section.splitlines()
+    )
+    if not has_list_item:
+        return False
+
+    # Condition 2: no negation phrases anywhere in the report
+    report_lower = report_text.lower()
+    for phrase in _NEGATION_PHRASES:
+        if phrase in report_lower:
+            return False
+
+    return True
 
 
 def _decision_text_without_do_not_do(decision_text: str) -> str:

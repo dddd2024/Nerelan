@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260615_baseline_report_negation_guard_rework_v1",
-  "round_id": "round_20260615_baseline_report_negation_guard_rework_v1",
-  "head_commit": "1a1062396d7c",
+  "decision_id": "decision_20260615_baseline_report_negation_guard_rework_v2",
+  "round_id": "round_20260615_baseline_report_negation_guard_rework_v2",
+  "head_commit": "2c31273a58bd",
   "baseline_available": true,
   "baseline_git_status_short": [
     " M reverse_agent/project_gate.py",
@@ -32,10 +32,10 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/round_manifest.json"
+    "?? project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/codex_execution_report.md",
+    "?? project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/decision_packet.md",
+    "?? project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/pytest_result.txt",
+    "?? project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -62,10 +62,10 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/codex_execution_report.md",
+    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/decision_packet.md",
+    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/pytest_result.txt",
+    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
@@ -80,15 +80,15 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v1/round_manifest.json"
+    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/codex_execution_report.md",
+    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/decision_packet.md",
+    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/pytest_result.txt",
+    "project_state/rounds/round_20260615_baseline_report_negation_guard_rework_v2/round_manifest.json"
   ],
   "inherited_dirty_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-15T13:01:53.641661Z"
+  "generated_at": "2026-06-15T13:22:01.262357Z"
 }

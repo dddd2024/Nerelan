@@ -4052,10 +4052,12 @@ Allowed tests:
 
 
 class TestReportExplainsInheritedBaselineFiles:
-    """Verify _report_explains_inherited_baseline_files requires Allowed Inherited
-    Dirty Baseline Files section with list items, and rejects negation-only text."""
+    """Verify _report_explains_inherited_baseline_files requires both:
+    1. Allowed Inherited Dirty Baseline Files section with list items
+    2. No negation phrases anywhere in the report text
+    """
 
-    def test_affirmative_explanation_returns_true(self) -> None:
+    def test_allowlist_section_with_list_item_and_no_negation_returns_true(self) -> None:
         from reverse_agent.project_gate import _report_explains_inherited_baseline_files
         assert _report_explains_inherited_baseline_files(
             "## Allowed Inherited Dirty Baseline Files\n\n- reverse_agent/project_gate.py"
@@ -4067,19 +4069,37 @@ class TestReportExplainsInheritedBaselineFiles:
             "no inherited baseline dirty files at round start"
         ) is False
 
-    def test_negation_working_tree_was_clean_returns_false(self) -> None:
-        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
-        assert _report_explains_inherited_baseline_files(
-            "working tree was clean at round start, all changes are new this round"
-        ) is False
-
     def test_negation_no_inherited_dirty_files_returns_false(self) -> None:
         from reverse_agent.project_gate import _report_explains_inherited_baseline_files
         assert _report_explains_inherited_baseline_files(
             "no inherited dirty files in baseline"
         ) is False
 
-    def test_no_keywords_returns_false(self) -> None:
+    def test_negation_no_baseline_dirty_files_returns_false(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "no baseline dirty files at round start"
+        ) is False
+
+    def test_negation_working_tree_was_clean_returns_false(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "working tree was clean at round start, all changes are new this round"
+        ) is False
+
+    def test_negation_working_tree_clean_returns_false(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "working tree clean, no dirty files at round start"
+        ) is False
+
+    def test_negation_no_dirty_files_at_round_start_returns_false(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "no dirty files at round start"
+        ) is False
+
+    def test_no_section_returns_false(self) -> None:
         from reverse_agent.project_gate import _report_explains_inherited_baseline_files
         assert _report_explains_inherited_baseline_files(
             "all changes are new this round"
@@ -4089,6 +4109,22 @@ class TestReportExplainsInheritedBaselineFiles:
         from reverse_agent.project_gate import _report_explains_inherited_baseline_files
         assert _report_explains_inherited_baseline_files(
             "## Allowed Inherited Dirty Baseline Files\n\nNo inherited baseline dirty files."
+        ) is False
+
+    def test_allowlist_section_with_list_item_but_negation_phrase_returns_false(self) -> None:
+        """Conflict: section has list items but report also contains negation phrase."""
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "## Allowed Inherited Dirty Baseline Files\n\n- reverse_agent/project_gate.py\n\n"
+            "No inherited baseline dirty files were found."
+        ) is False
+
+    def test_allowlist_section_with_list_item_but_working_tree_clean_returns_false(self) -> None:
+        """Conflict: section has list items but report also says working tree was clean."""
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "## Allowed Inherited Dirty Baseline Files\n\n- reverse_agent/project_gate.py\n\n"
+            "Working tree was clean at round start."
         ) is False
 
 
