@@ -1128,7 +1128,7 @@ def test_final_check_allows_inherited_source_test_dirty_with_explicit_allowlist_
     report_path = state_dir / "codex_execution_report.md"
     report_path.write_text(
         report_path.read_text(encoding="utf-8")
-        + "\nThe inherited baseline files are explicitly allowed for this round.\n",
+        + "\n## Allowed Inherited Dirty Baseline Files\n\n- `reverse_agent/project_gate.py`\n- `tests/test_project_gate.py`\n",
         encoding="utf-8",
     )
     (state_dir / "rounds" / "round_gate" / "codex_execution_report.md").write_text(
@@ -4049,6 +4049,47 @@ Allowed tests:
         result = _allowed_inherited_files(decision_text, inherited)
         # None should be allowed without explicit "Allowed Inherited Dirty Baseline Files" section
         assert result == set()
+
+
+class TestReportExplainsInheritedBaselineFiles:
+    """Verify _report_explains_inherited_baseline_files requires Allowed Inherited
+    Dirty Baseline Files section with list items, and rejects negation-only text."""
+
+    def test_affirmative_explanation_returns_true(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "## Allowed Inherited Dirty Baseline Files\n\n- reverse_agent/project_gate.py"
+        ) is True
+
+    def test_negation_no_inherited_baseline_dirty_returns_false(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "no inherited baseline dirty files at round start"
+        ) is False
+
+    def test_negation_working_tree_was_clean_returns_false(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "working tree was clean at round start, all changes are new this round"
+        ) is False
+
+    def test_negation_no_inherited_dirty_files_returns_false(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "no inherited dirty files in baseline"
+        ) is False
+
+    def test_no_keywords_returns_false(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "all changes are new this round"
+        ) is False
+
+    def test_section_exists_but_no_list_items_returns_false(self) -> None:
+        from reverse_agent.project_gate import _report_explains_inherited_baseline_files
+        assert _report_explains_inherited_baseline_files(
+            "## Allowed Inherited Dirty Baseline Files\n\nNo inherited baseline dirty files."
+        ) is False
 
 
 class TestWriteRoundCloseSnapshot:

@@ -115,12 +115,12 @@ Baseline was captured after source/test code modifications (late baseline captur
 - `preflight`: PASSED.
 - `command-plan`: PASSED with 15 commands.
 - `run-round --dry-run --json`: PASSED with `command_count=15`.
-- `doctor`: PASS.
-- `lint-report`: OK.
-- Focused project state/gate test: `488 passed in 62.19s`.
-- `report-summary`: PASSED.
-- `final-check`: WARN (expected WARNs: `files_changed_excludes_inherited_dirty_files` for explicitly allowed inherited dirty files; `status_policy_valid` for historical sample artifacts; archive-pending WARNs resolved by close-round).
-- `close-round`: CLOSED with archive created.
+- `doctor`: FAIL (expected — report not yet updated for this round).
+- `lint-report`: pending.
+- Focused project state/gate test: `488 passed in 56.48s`.
+- `report-summary`: pending.
+- `final-check`: pending.
+- `close-round`: pending.
 
 ## Problems / Uncertainty
 
