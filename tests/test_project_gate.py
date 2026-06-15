@@ -6,7 +6,11 @@ from typing import Any
 import pytest
 
 from reverse_agent.project_gate import (
+    BUILD_OUTPUT_WHITELIST,
     _close_round_exit_code,
+    _decision_immutability_check,
+    _build_output_scope_check,
+    _verified_cli_coverage_check,
     _extract_bash_commands,
     _extract_unfenced_commands,
     _historical_sample_limitations_only,
@@ -5430,3 +5434,283 @@ class TestReportSummarySynthesisMainlineAware:
 
         synthesized = result["synthesized_summary"]
         assert synthesized.get("acceptance_recommendation") in {"NEEDS_REVIEW", "REWORK_REQUIRED"}
+
+
+class TestDecisionImmutabilityCheck:
+    """Verify _decision_immutability_check enforces that live decision_packet.md
+    must not be modified during execution.
+
+    Test scenarios from decision section 7:
+    1. live decision_packet.md in files_changed → FAIL
+    2. archive path decision_packet.md → no failure
+    3. startup baseline decision_packet.md dirty → blocking diagnostic
+    """
+
+    def test_live_decision_in_files_changed_fails(self) -> None:
+        """Scenario 1: live decision_packet.md in files_changed → FAIL."""
+        result = _decision_immutability_check(
+            files_changed={"project_state/decision_packet.md", "reverse_agent/project_gate.py"},
+            new_dirty_files={"reverse_agent/project_gate.py"},
+            baseline_dirty_files=set(),
+            round_id="round_test",
+        )
+        assert result["name"] == "decision_immutability"
+        assert result["status"] == "FAIL"
+        assert result["live_decision_in_files_changed"] is True
+
+    def test_live_decision_in_new_dirty_files_fails(self) -> None:
+        """Scenario 1 variant: live decision_packet.md in new_dirty_files → FAIL."""
+        result = _decision_immutability_check(
+            files_changed={"reverse_agent/project_gate.py"},
+            new_dirty_files={"project_state/decision_packet.md"},
+            baseline_dirty_files=set(),
+            round_id="round_test",
+        )
+        assert result["name"] == "decision_immutability"
+        assert result["status"] == "FAIL"
+        assert result["live_decision_in_new_dirty"] is True
+
+    def test_archive_path_decision_no_failure(self) -> None:
+        """Scenario 2: archive path decision_packet.md → PASS."""
+        result = _decision_immutability_check(
+            files_changed={
+                "project_state/rounds/round_test/decision_packet.md",
+                "reverse_agent/project_gate.py",
+            },
+            new_dirty_files={"reverse_agent/project_gate.py"},
+            baseline_dirty_files=set(),
+            round_id="round_test",
+        )
+        assert result["name"] == "decision_immutability"
+        assert result["status"] == "PASS"
+
+    def test_baseline_dirty_decision_blocks(self) -> None:
+        """Scenario 3: startup baseline decision_packet.md dirty → FAIL with blocking diagnostic."""
+        result = _decision_immutability_check(
+            files_changed=set(),
+            new_dirty_files=set(),
+            baseline_dirty_files={"project_state/decision_packet.md"},
+            round_id="round_test",
+        )
+        assert result["name"] == "decision_immutability"
+        assert result["status"] == "FAIL"
+        assert result["live_decision_in_baseline"] is True
+
+    def test_clean_decision_passes(self) -> None:
+        """No live decision mutation → PASS."""
+        result = _decision_immutability_check(
+            files_changed={"reverse_agent/project_gate.py"},
+            new_dirty_files={"reverse_agent/project_gate.py"},
+            baseline_dirty_files=set(),
+            round_id="round_test",
+        )
+        assert result["name"] == "decision_immutability"
+        assert result["status"] == "PASS"
+
+
+class TestBuildOutputScopeCheck:
+    """Verify _build_output_scope_check enforces build output scope rules.
+
+    Test scenarios from decision section 7:
+    4. build-generated state files whitelist stable
+    5. build-generated files in round delta without build command → unverified
+    6. build-generated files in round delta with build command exit 0 → controlled refresh
+    """
+
+    def test_whitelist_stable(self) -> None:
+        """Scenario 4: BUILD_OUTPUT_WHITELIST contains expected files."""
+        expected = {
+            "project_state/artifact_index.json",
+            "project_state/current_state.json",
+            "project_state/task_packet.json",
+            "project_state/model_gate.json",
+            "project_state/negative_results.json",
+        }
+        assert BUILD_OUTPUT_WHITELIST == frozenset(expected)
+
+    def test_no_build_files_in_delta_passes(self) -> None:
+        """No build-generated files in delta → PASS."""
+        result = _build_output_scope_check(
+            new_dirty_files={"reverse_agent/project_gate.py"},
+            files_changed={"reverse_agent/project_gate.py"},
+            pytest_text="",
+        )
+        assert result["name"] == "build_output_scope"
+        assert result["status"] == "PASS"
+
+    def test_build_files_without_command_unverified(self) -> None:
+        """Scenario 5: build-generated files in delta without build command → WARN."""
+        result = _build_output_scope_check(
+            new_dirty_files={
+                "project_state/artifact_index.json",
+                "project_state/current_state.json",
+            },
+            files_changed={
+                "project_state/artifact_index.json",
+                "project_state/current_state.json",
+            },
+            pytest_text="",
+        )
+        assert result["name"] == "build_output_scope"
+        assert result["status"] == "WARN"
+        assert "build_output_scope_unverified" in result["detail"]
+        assert result["build_command_recorded"] is False
+
+    def test_build_files_with_command_exit_zero_passes(self) -> None:
+        """Scenario 6: build-generated files with build command exit 0 → PASS."""
+        pytest_text = (
+            "===== COMMAND: python -m reverse_agent.project_state build =====\n"
+            "Build complete\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _build_output_scope_check(
+            new_dirty_files={
+                "project_state/artifact_index.json",
+                "project_state/current_state.json",
+            },
+            files_changed={
+                "project_state/artifact_index.json",
+                "project_state/current_state.json",
+            },
+            pytest_text=pytest_text,
+        )
+        assert result["name"] == "build_output_scope"
+        assert result["status"] == "PASS"
+        assert result["build_command_recorded"] is True
+        assert result["build_exit_zero"] is True
+
+    def test_build_files_with_command_nonzero_exit_warns(self) -> None:
+        """Build command with non-zero exit → WARN."""
+        pytest_text = (
+            "===== COMMAND: python -m reverse_agent.project_state build =====\n"
+            "Build failed\n"
+            "===== EXIT: 1 =====\n"
+        )
+        result = _build_output_scope_check(
+            new_dirty_files={"project_state/artifact_index.json"},
+            files_changed={"project_state/artifact_index.json"},
+            pytest_text=pytest_text,
+        )
+        assert result["name"] == "build_output_scope"
+        assert result["status"] == "WARN"
+        assert result["build_command_recorded"] is True
+        assert result["build_exit_zero"] is False
+
+
+class TestVerifiedCliCoverageCheck:
+    """Verify _verified_cli_coverage_check enforces CLI coverage rules.
+
+    Test scenario from decision section 7:
+    7. CLI claims must be covered by tests_ran (at least active-execution-view)
+    """
+
+    def test_no_cli_claims_passes(self) -> None:
+        """No CLI claims in report → PASS."""
+        result = _verified_cli_coverage_check(
+            report_text="No CLI verification mentioned.",
+            tests_ran=["python -m pytest -q"],
+            pytest_text="",
+        )
+        assert result["name"] == "verified_cli_coverage"
+        assert result["status"] == "PASS"
+
+    def test_cli_claim_covered_by_tests_ran_passes(self) -> None:
+        """CLI claim covered by tests_ran → PASS."""
+        result = _verified_cli_coverage_check(
+            report_text="Verified active-execution-view CLI.",
+            tests_ran=["python -m reverse_agent.project_state active-execution-view --state-dir project_state --json"],
+            pytest_text="",
+        )
+        assert result["name"] == "verified_cli_coverage"
+        assert result["status"] == "PASS"
+
+    def test_cli_claim_covered_by_command_block_passes(self) -> None:
+        """CLI claim covered by pytest command block → PASS."""
+        pytest_text = (
+            "===== COMMAND: python -m reverse_agent.project_state active-execution-view --state-dir project_state --json =====\n"
+            '{"execution_authority": "decision_packet"}\n'
+            "===== EXIT: 0 =====\n"
+        )
+        result = _verified_cli_coverage_check(
+            report_text="Verified active-execution-view CLI.",
+            tests_ran=["python -m pytest -q"],
+            pytest_text=pytest_text,
+        )
+        assert result["name"] == "verified_cli_coverage"
+        assert result["status"] == "PASS"
+
+    def test_cli_claim_uncovered_warns(self) -> None:
+        """Scenario 7: CLI claim not in tests_ran or command blocks → WARN."""
+        result = _verified_cli_coverage_check(
+            report_text="Verified active-execution-view CLI.",
+            tests_ran=["python -m pytest -q"],
+            pytest_text="",
+        )
+        assert result["name"] == "verified_cli_coverage"
+        assert result["status"] == "WARN"
+        assert "active-execution-view" in result["uncovered_clis"]
+
+
+class TestDecisionImmutabilityInFinalCheck:
+    """Verify decision_immutability check is integrated into final_check."""
+
+    def test_live_decision_in_files_changed_final_check_fails(self, tmp_path: Path) -> None:
+        """Scenario 1: live decision_packet.md in files_changed causes final-check FAIL."""
+        state_dir = _make_gate_state(
+            tmp_path,
+            files_changed=[
+                "project_state/decision_packet.md",
+                "reverse_agent/project_gate.py",
+                "tests/test_project_gate.py",
+                "project_state/codex_execution_report.md",
+                "project_state/pytest_result.txt",
+                "project_state/gates/round_baseline.json",
+                "project_state/gates/round_delta_summary.json",
+                "project_state/gates/final_gate_result.json",
+                *(_archive_paths("round_gate")),
+            ],
+        )
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        immutability_check = next(
+            (c for c in result["checks"] if c["name"] == "decision_immutability"), None
+        )
+        assert immutability_check is not None
+        assert immutability_check["status"] == "FAIL"
+
+    def test_clean_decision_final_check_passes(self, tmp_path: Path) -> None:
+        """No live decision mutation → decision_immutability PASS in final_check."""
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        immutability_check = next(
+            (c for c in result["checks"] if c["name"] == "decision_immutability"), None
+        )
+        assert immutability_check is not None
+        assert immutability_check["status"] == "PASS"
+
+
+class TestDecisionNotDirtyInBaselinePreflight:
+    """Verify decision_not_dirty_in_baseline check in preflight."""
+
+    def test_clean_baseline_passes(self, tmp_path: Path) -> None:
+        """Clean baseline → decision_not_dirty_in_baseline PASS."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        _write_skill_registry(tmp_path)
+        _write_json(
+            state_dir / "current_state.json",
+            {"round_id": "round_test", "state_build_id": "state_test", "state_digest": "digest_test", "state_scope": "sample_state", "source_harness_run": "run_test"},
+        )
+        _write_json(
+            state_dir / "task_packet.json",
+            {"state_scope": "sample_state", "task_source": "derived_from_sample_artifacts", "execution_scope": "decision_packet_controls_current_round", "active_decision_packet": "project_state/decision_packet.md"},
+        )
+        _write_json(state_dir / "artifact_index.json", {"missing": [], "latest_artifacts": {}})
+        _write_json(state_dir / "model_gate.json", {"should_call_model": False})
+        _write_json(state_dir / "negative_results.json", {})
+        _write_preflight_decision(state_dir, decision_id="decision_test", round_id="round_test")
+        result = preflight(state_dir=state_dir, repo_root=tmp_path)
+        baseline_check = next(
+            (c for c in result["checks"] if c["name"] == "decision_not_dirty_in_baseline"), None
+        )
+        assert baseline_check is not None
+        assert baseline_check["status"] == "PASS"

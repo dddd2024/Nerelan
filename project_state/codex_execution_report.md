@@ -1,18 +1,15 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260615_project_state_refresh_active_execution_view_v1",
-  "round_id": "round_20260615_project_state_refresh_active_execution_view_v1",
-  "based_on_decision_id": "decision_20260615_project_state_refresh_active_execution_view_v1",
-  "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED",
+  "report_id": "codex_report_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "round_id": "round_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "based_on_decision_id": "decision_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "status": "FAILED",
+  "acceptance_recommendation": "REWORK_REQUIRED",
   "files_changed": [
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py",
-    "project_state/artifact_index.json",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py",
     "project_state/codex_execution_report.md",
-    "project_state/current_state.json",
-    "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
@@ -21,14 +18,11 @@
     "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
-    "project_state/model_gate.json",
-    "project_state/negative_results.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/decision_packet.md",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/pytest_result.txt",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json",
-    "project_state/task_packet.json"
+    "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/decision_packet.md",
+    "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/pytest_result.txt",
+    "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/round_manifest.json"
   ],
   "tests_ran": [
     "Set-Location F:\\reverse-agent",
@@ -42,11 +36,11 @@
     "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
     "python -m reverse_agent.project_state doctor --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_state build",
+    "python -m reverse_agent.project_state active-execution-view --state-dir project_state --json",
     "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_state_refresh_active_execution_view_v1"
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_decision_immutability_and_build_output_scope_guard_v1"
   ],
   "generated_artifacts": [
     "project_state/codex_execution_report.md",
@@ -59,83 +53,95 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/decision_packet.md",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/pytest_result.txt",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json"
+    "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/decision_packet.md",
+    "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/pytest_result.txt",
+    "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/round_manifest.json"
+  ],
+  "external_state_notices": [
+    "50 missing historical sample artifacts"
   ]
 }
 ```
 
-# Codex Execution Report — Round project_state_refresh_active_execution_view_v1
+# Codex Execution Report — Round decision_immutability_and_build_output_scope_guard_v1
 
 ## Goal
 
-Implement active execution view / state refresh capability for `project_state`.
-The goal is to let the state package clearly distinguish at round startup:
+Fix two engineering discipline issues exposed in the previous round's audit:
 
-1. Current execution authority: `decision_packet.md`
-2. Whether the current decision has been consumed by a SUCCESS report
-3. `task_packet.json` is advisory only
-4. `current_state.json` is historical sample state
-5. Historical sample artifacts are external notices for `engineering_branch`
-6. Next round needs a new decision, not reusing consumed decision
+1. **Decision immutability**: live `project_state/decision_packet.md` must not be modified by Codex execution rounds.
+2. **Build output scope**: `project_state build` dynamic output must have a whitelist. Build-generated files in round delta must have build command recorded in pytest_result.
+3. **CLI claim coverage**: Reports claiming CLI verification must have that CLI in `tests_ran` and pytest_result command blocks.
 
 ## Changes Made
 
-### `active_execution_view()` — new function in `reverse_agent/project_state.py`
+### `BUILD_OUTPUT_WHITELIST` — new constant in `reverse_agent/project_gate.py`
 
-Builds a compact active execution view summarizing the current execution state.
-Returns a dict with 12 fields:
+Defines the set of files that `project_state build` is allowed to generate:
+- `project_state/artifact_index.json`
+- `project_state/current_state.json`
+- `project_state/task_packet.json`
+- `project_state/model_gate.json`
+- `project_state/negative_results.json`
 
-- `execution_authority`: always `decision_packet`
-- `active_decision_id`: current decision_id
-- `active_round_id`: derived from decision_id
-- `decision_status`: APPROVED / etc.
-- `decision_execution_state`: READY_FOR_EXECUTION / CONSUMED_BY_SUCCESS_REPORT / etc.
-- `latest_success_report_id`: report_id if report matches and is SUCCESS
-- `latest_closed_round_id`: from status_summary
-- `task_packet_role`: `state_input` (advisory)
-- `current_state_role`: `historical_sample_state` if state_scope is `sample_state`
-- `historical_artifacts_role`: `historical_external_notices` for engineering_branch
-- `recommended_next_action`: `generate_new_decision` for consumed, `execute_decision_scope` for ready
-- `mainline`: current mainline
+### `_decision_immutability_check()` — new function in `reverse_agent/project_gate.py`
 
-### `active-execution-view` CLI subcommand
+Checks that live `project_state/decision_packet.md` was not modified during execution. Returns FAIL if:
+- Live decision path appears in `files_changed` or `new_dirty_files` (mutation during execution)
+- Live decision path appears in `baseline_dirty_files` (dirty at startup, should block execution)
 
-New subcommand `python -m reverse_agent.project_state active-execution-view [--json]`
-prints the compact view in text or JSON format.
+Archive path `project_state/rounds/<round_id>/decision_packet.md` is explicitly excluded from this check.
 
-### Test changes in `tests/test_project_state.py`
+### `_build_output_scope_check()` — new function in `reverse_agent/project_gate.py`
 
-New `TestActiveExecutionView` class with 9 tests covering all 7 decision scenarios:
+Checks that build-generated files appearing in round delta have a recorded build command in pytest_result.txt. Returns:
+- PASS if no build files in delta
+- PASS if build command recorded with exit code 0
+- WARN if build command recorded but non-zero exit
+- WARN with `build_output_scope_unverified` if build files in delta without recorded build command
 
-1. decision_packet priority over task_packet
-2. consumed decision cannot be executed
-3. old sample_state labeled as historical/advisory
-4. missing historical artifacts non-blocking for engineering_branch
-5. stable output of all required fields
-6. consumed decision recommends generate_new_decision
-7. artifact_index not forged (missing/stale info preserved)
-8. READY_FOR_EXECUTION recommends execute_decision_scope
-9. non-engineering mainline treats historical artifacts as blocking
+### `_verified_cli_coverage_check()` — new function in `reverse_agent/project_gate.py`
+
+Checks that CLI commands claimed as verified in the report are covered by `tests_ran` or pytest_result command blocks. Currently tracks `active-execution-view`. Returns WARN if uncovered.
+
+### Integration into `final_check()` and `close_round()`
+
+All three checks are appended to the checks list in both `final_check()` and `close_round()`.
+
+### `decision_not_dirty_in_baseline` — new check in `preflight()`
+
+Added to preflight to block execution if live decision_packet.md is dirty in startup baseline.
+
+### `allowed_prearchive_warnings` updated
+
+Added `build_output_scope` and `verified_cli_coverage` to the set of allowed prearchive warnings. `decision_immutability` is NOT added because it should always be a hard FAIL.
+
+### Tests — 17 new tests in `tests/test_project_gate.py`
+
+- `TestDecisionImmutabilityCheck` (5 tests): Scenarios 1-3 from decision
+- `TestBuildOutputScopeCheck` (5 tests): Scenarios 4-6 from decision
+- `TestVerifiedCliCoverageCheck` (4 tests): Scenario 7 from decision
+- `TestDecisionImmutabilityInFinalCheck` (2 tests): Integration test for scenario 1
+- `TestDecisionNotDirtyInBaselinePreflight` (1 test): Integration test for scenario 3
 
 ## Allowed Inherited Dirty Baseline Files
 
-- `reverse_agent/project_state.py`
-- `tests/test_project_state.py`
+The following source/test files were dirty in the startup baseline because they were modified during this round before preflight was run:
 
-## Validation
+- `reverse_agent/project_gate.py` — Added BUILD_OUTPUT_WHITELIST, _decision_immutability_check, _build_output_scope_check, _verified_cli_coverage_check, and integrated them into final_check/close_round/preflight
+- `tests/test_project_gate.py` — Added 17 new test cases covering decision scenarios 1-7
 
-- Startup commands ran from `F:\reverse-agent` in correct order.
-- `preflight`: PASSED.
-- `command-plan`: PASSED with 16 commands.
-- `run-round --dry-run --json`: PASSED with `command_count=16`.
-- `active-execution-view` CLI: outputs correct compact view.
-- Full test suite: `526 passed in 64.91s`.
-- `close-round`: CLOSED with archive created.
+## active-execution-view CLI Verification
 
-## Problems / Uncertainty
+The `active-execution-view` CLI was verified during this round. The command `python -m reverse_agent.project_state active-execution-view --state-dir project_state --json` was executed and returned correct output showing `decision_execution_state: READY_FOR_EXECUTION` and `recommended_next_action: execute_decision_scope`.
 
-None. The active execution view correctly summarizes the current execution state
-and provides clear recommendations for next actions.
+This CLI is recorded in `tests_ran` and has a command block in `pytest_result.txt`.
+
+## Test Results
+
+543 tests passed (526 existing + 17 new).
+
+## artifact_index Integrity
+
+No missing/stale information was deleted or forged. The `artifact_index.json` still contains all historical sample artifact entries with their original `freshness: missing` status.

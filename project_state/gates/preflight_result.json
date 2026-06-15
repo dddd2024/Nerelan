@@ -2,11 +2,16 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260615_project_state_refresh_active_execution_view_v1",
-  "round_id": "round_20260615_project_state_refresh_active_execution_view_v1",
+  "decision_id": "decision_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "round_id": "round_20260615_decision_immutability_and_build_output_scope_guard_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-15T15:01:26.339291Z",
+  "generated_at": "2026-06-15T15:35:00.431017Z",
   "checks": [
+    {
+      "name": "decision_not_dirty_in_baseline",
+      "status": "PASS",
+      "detail": "live decision_packet.md is not dirty in startup baseline"
+    },
     {
       "name": "decision_meta_parse",
       "status": "PASS",
@@ -51,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260615_state_handoff_after_gate_acceptance_v1"
+      "report_id": "codex_report_20260615_project_state_refresh_active_execution_view_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -67,11 +72,9 @@
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
         "project_state/codex_execution_report.md",
-        "project_state/current_state.json",
         "project_state/gates/*.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/*",
-        "project_state/task_packet.json",
+        "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/*",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
         "tests/test_project_gate.py",
@@ -96,7 +99,6 @@
       "status": "PASS",
       "detail": "stale/missing artifacts are not claimed as current evidence",
       "artifact_freshness": {
-        "current": 8,
         "missing": 50
       },
       "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6"
@@ -114,10 +116,10 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
-      "reverse_agent/project_state.py",
-      "tests/test_project_state.py"
+      "reverse_agent/project_gate.py",
+      "tests/test_project_gate.py"
     ],
-    "head_commit": "a86c75d8b71d"
+    "head_commit": "ff4596807b67"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",
@@ -125,6 +127,6 @@
     "decision_consumed_by_report": false,
     "task": "collect_missing_evidence",
     "derived_task": "collect_missing_evidence",
-    "current_state_round_id": "round_20260613_054156"
+    "current_state_round_id": "round_20260615_150220"
   }
 }

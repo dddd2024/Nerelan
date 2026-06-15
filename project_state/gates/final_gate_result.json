@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260615_project_state_refresh_active_execution_view_v1",
-  "report_id": "codex_report_20260615_project_state_refresh_active_execution_view_v1",
-  "round_id": "round_20260615_project_state_refresh_active_execution_view_v1",
-  "generated_at": "2026-06-15T15:05:33.060117Z",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "report_id": "codex_report_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "round_id": "round_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "generated_at": "2026-06-15T15:49:11.396691Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -26,19 +26,19 @@
     },
     {
       "name": "round_manifest_present",
-      "status": "PASS",
-      "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260615_project_state_refresh_active_execution_view_v1\\round_manifest.json"
+      "status": "WARN",
+      "detail": "round manifest is missing",
+      "round_manifest_path": "project_state\\rounds\\round_20260615_decision_immutability_and_build_output_scope_guard_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
-      "status": "PASS",
-      "detail": "archived report matches live report"
+      "status": "WARN",
+      "detail": "archived report differs from live report"
     },
     {
       "name": "archived_pytest_result_matches_live_pytest_result",
-      "status": "PASS",
-      "detail": "archived pytest_result matches live pytest_result",
+      "status": "WARN",
+      "detail": "archived pytest_result differs from live pytest_result",
       "required": true,
       "skipped_reason": null
     },
@@ -49,14 +49,11 @@
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
       "inherited_dirty_files": [
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "new_dirty_files_since_baseline": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/current_state.json",
-        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
@@ -64,20 +61,10 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
-        "project_state/model_gate.json",
-        "project_state/negative_results.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json",
-        "project_state/task_packet.json"
+        "project_state/pytest_result.txt"
       ],
       "final_dirty_files": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/current_state.json",
-        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
@@ -85,16 +72,9 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
-        "project_state/model_gate.json",
-        "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json",
-        "project_state/task_packet.json",
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
@@ -102,12 +82,12 @@
       "status": "WARN",
       "detail": "round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot",
       "inherited_files_in_files_changed": [
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "source_test_inherited_in_files_changed": [
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "close_worktree_clean": false
     },
@@ -117,10 +97,7 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/current_state.json",
-        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
@@ -128,22 +105,12 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
-        "project_state/model_gate.json",
-        "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json",
-        "project_state/task_packet.json",
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
-        "project_state/current_state.json",
-        "project_state/decision_packet.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
@@ -151,31 +118,19 @@
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
-        "project_state/model_gate.json",
-        "project_state/negative_results.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/decision_packet.md",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/pytest_result.txt",
-        "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json",
-        "project_state/task_packet.json"
+        "project_state/rounds/round_20260615_decision_immutability_and_build_output_scope_guard_v1/round_manifest.json"
       ],
       "inherited_dirty_files": [
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ]
     },
     {
       "name": "files_changed_covers_substantive_changes",
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
-      "substantive_dirty_files": [
-        "project_state/artifact_index.json",
-        "project_state/current_state.json",
-        "project_state/model_gate.json",
-        "project_state/negative_results.json",
-        "project_state/task_packet.json"
-      ]
+      "substantive_dirty_files": []
     },
     {
       "name": "generated_artifacts_cover_round_delta",
@@ -190,50 +145,49 @@
     },
     {
       "name": "baseline_lifecycle_guard",
-      "status": "PASS",
-      "detail": "baseline source/test dirty files are absent or explicitly allowed",
-      "source_test_baseline_dirty": [
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+      "status": "FAIL",
+      "detail": "baseline contains source/test dirty files not allowed as inherited baseline",
+      "unauthorized_inherited_source_test_files": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
-      "allowed_inherited_dirty_files": [
+      "allowed_inherited_dirty_files": [],
+      "source_test_scope": [
+        "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
-      ],
-      "generated_or_archive_baseline_dirty_files": []
-    },
-    {
-      "name": "baseline_inherited_allowlist_explained",
-      "status": "PASS",
-      "detail": "report explains explicitly allowed inherited baseline files",
-      "allowed_inherited_source_test_files": [
-        "reverse_agent/project_state.py",
+        "tests/test_project_gate.py",
         "tests/test_project_state.py"
       ]
     },
     {
+      "name": "baseline_inherited_allowlist_explained",
+      "status": "PASS",
+      "detail": "no source/test inherited baseline explanation is required",
+      "inherited_dirty_files": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ]
+    },
+    {
       "name": "baseline_capture_order",
-      "status": "WARN",
-      "detail": "source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
-      "suspected_late_baseline_files": [],
-      "allowed_inherited_dirty_files": [
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+      "status": "FAIL",
+      "detail": "suspected late baseline capture: source/test files appear in both baseline dirty files and files_changed without startup evidence",
+      "suspected_late_baseline_files": [
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
+      "allowed_inherited_dirty_files": [],
       "baseline_dirty_source_test_files": [
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
       "files_changed_overlap": [
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
       ],
-      "confirmed_inherited_from_startup_evidence": [
-        "reverse_agent/project_state.py",
-        "tests/test_project_state.py"
-      ],
+      "confirmed_inherited_from_startup_evidence": [],
       "startup_status_evidence_trusted": true,
-      "capture_order_status": "confirmed_inherited"
+      "capture_order_status": "suspected_late_capture"
     },
     {
       "name": "startup_status_order_valid",
@@ -250,6 +204,25 @@
       "startup_status_evidence_trusted": true
     },
     {
+      "name": "decision_immutability",
+      "status": "PASS",
+      "detail": "live project_state/decision_packet.md was not modified during execution",
+      "live_decision_in_files_changed": false,
+      "live_decision_in_new_dirty": false
+    },
+    {
+      "name": "build_output_scope",
+      "status": "PASS",
+      "detail": "no build-generated state files in round delta",
+      "build_files_in_delta": []
+    },
+    {
+      "name": "verified_cli_coverage",
+      "status": "PASS",
+      "detail": "all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks",
+      "uncovered_clis": []
+    },
+    {
       "name": "generated_artifacts_cover_round_archive",
       "status": "PASS",
       "detail": "generated_artifacts covers round archive files",
@@ -264,11 +237,11 @@
     },
     {
       "name": "command_plan_ids_match",
-      "status": "PASS",
-      "detail": "command_plan ids and status match current decision/report",
-      "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260615_project_state_refresh_active_execution_view_v1",
-      "command_plan_round_id": "round_20260615_project_state_refresh_active_execution_view_v1"
+      "status": "FAIL",
+      "detail": "command_plan ids, round_id, or status do not match",
+      "plan_status": "WARN",
+      "command_plan_decision_id": "decision_20260615_decision_immutability_and_build_output_scope_guard_v1",
+      "command_plan_round_id": "round_20260615_decision_immutability_and_build_output_scope_guard_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -298,15 +271,30 @@
     {
       "name": "close_round_is_last_command_block",
       "status": "PASS",
-      "detail": "close-round command block is pending until close-round completes",
-      "required": false,
-      "skipped_reason": "close_round_in_progress"
+      "detail": "close-round is the last command block in pytest_result",
+      "last_command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_decision_immutability_and_build_output_scope_guard_v1",
+      "last_kind": "close-round"
     },
     {
       "name": "pytest_result_exit_codes_match_command_plan",
-      "status": "PASS",
-      "detail": "recorded command exit codes match command_plan expected_exit_codes",
-      "errors": []
+      "status": "FAIL",
+      "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+      "errors": [
+        {
+          "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        },
+        {
+          "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_decision_immutability_and_build_output_scope_guard_v1",
+          "exit_code": 1,
+          "expected_exit_codes": [
+            0
+          ]
+        }
+      ]
     },
     {
       "name": "report_summary_synthesis_required",
@@ -317,9 +305,11 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "PASS",
-      "detail": "codex_report_summary matches synthesized summary",
-      "errors": [],
+      "status": "FAIL",
+      "detail": "codex_report_summary differs from synthesized summary",
+      "errors": [
+        "baseline contains source/test dirty files not allowed as inherited baseline"
+      ],
       "diffs": []
     },
     {
@@ -336,12 +326,16 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "PASS",
-      "detail": "SUCCESS report passes lint and doctor",
+      "status": "WARN",
+      "detail": "current-round artifacts complete; historical sample artifacts non-blocking",
       "lint_errors": [],
-      "warnings": [],
-      "doctor_status": "PASS",
-      "report_status": "SUCCESS",
+      "warnings": [
+        "report_status is FAILED",
+        "report round not archived yet",
+        "doctor status is WARN (historical artifacts non-blocking)"
+      ],
+      "doctor_status": "WARN",
+      "report_status": "FAILED",
       "limitations": null,
       "external_state_notices": [
         "50 missing historical sample artifacts"
@@ -350,23 +344,32 @@
     {
       "name": "final_check_stdout_matches_gate_status",
       "status": "PASS",
-      "detail": "final-check stdout status is allowed to differ while close-round is in progress",
+      "detail": "archive-pending final-check status is allowed to differ before close-round",
       "required": false,
-      "skipped_reason": "close_round_in_progress"
+      "skipped_reason": "archive_pending_pre_close_round"
     }
   ],
-  "blocking_reasons": [],
-  "warnings": [
-    "files_changed_excludes_inherited_dirty_files: round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot",
-    "baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable"
+  "blocking_reasons": [
+    "baseline_lifecycle_guard: baseline contains source/test dirty files not allowed as inherited baseline",
+    "baseline_capture_order: suspected late baseline capture: source/test files appear in both baseline dirty files and files_changed without startup evidence",
+    "command_plan_ids_match: command_plan ids, round_id, or status do not match",
+    "pytest_result_exit_codes_match_command_plan: recorded command exit codes do not match command_plan expected_exit_codes",
+    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
   ],
-  "recommended_next_action": "no_action_required",
+  "warnings": [
+    "round_manifest_present: round manifest is missing",
+    "archived_report_matches_live_report: archived report differs from live report",
+    "archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result",
+    "files_changed_excludes_inherited_dirty_files: round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot",
+    "status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking"
+  ],
+  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
   "status_summary": {
-    "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
+    "decision_execution_state": "CONSUMED_BY_NON_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
-    "archive_status": "archived",
-    "report_status": "SUCCESS",
-    "report_acceptance_recommendation": "ACCEPTED"
+    "archive_status": "not_archived",
+    "report_status": "FAILED",
+    "report_acceptance_recommendation": "REWORK_REQUIRED"
   }
 }

@@ -1,29 +1,26 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260615_project_state_refresh_active_execution_view_v1",
-  "round_id": "round_20260615_project_state_refresh_active_execution_view_v1",
-  "head_commit": "a86c75d8b71d",
+  "decision_id": "decision_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "round_id": "round_20260615_decision_immutability_and_build_output_scope_guard_v1",
+  "head_commit": "ff4596807b67",
   "baseline_available": true,
   "baseline_git_status_short": [
-    " M reverse_agent/project_state.py",
-    " M tests/test_project_state.py"
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
   "final_git_status_short": [
-    " M project_state/artifact_index.json",
     " M project_state/codex_execution_report.md",
-    " M project_state/current_state.json",
-    " M project_state/decision_packet.md",
     " M project_state/gates/command_plan.json",
     " M project_state/gates/final_gate_result.json",
     " M project_state/gates/preflight_result.json",
@@ -31,22 +28,12 @@
     " M project_state/gates/round_baseline.json",
     " M project_state/gates/round_delta_summary.json",
     " M project_state/gates/run_round_result.json",
-    " M project_state/model_gate.json",
-    " M project_state/negative_results.json",
     " M project_state/pytest_result.txt",
-    " M project_state/task_packet.json",
-    " M reverse_agent/project_state.py",
-    " M tests/test_project_state.py",
-    "?? project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json"
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
   "final_git_diff_name_only": [
-    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
-    "project_state/current_state.json",
-    "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
@@ -54,18 +41,12 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
-    "project_state/model_gate.json",
-    "project_state/negative_results.json",
     "project_state/pytest_result.txt",
-    "project_state/task_packet.json",
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "final_dirty_files": [
-    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
-    "project_state/current_state.json",
-    "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
@@ -73,22 +54,12 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
-    "project_state/model_gate.json",
-    "project_state/negative_results.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/decision_packet.md",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/pytest_result.txt",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json",
-    "project_state/task_packet.json",
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "new_dirty_files_since_baseline": [
-    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
-    "project_state/current_state.json",
-    "project_state/decision_packet.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
@@ -96,19 +67,12 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
-    "project_state/model_gate.json",
-    "project_state/negative_results.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/decision_packet.md",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/pytest_result.txt",
-    "project_state/rounds/round_20260615_project_state_refresh_active_execution_view_v1/round_manifest.json",
-    "project_state/task_packet.json"
+    "project_state/pytest_result.txt"
   ],
   "inherited_dirty_files": [
-    "reverse_agent/project_state.py",
-    "tests/test_project_state.py"
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-15T15:05:33.003336Z"
+  "generated_at": "2026-06-15T15:49:43.415974Z"
 }

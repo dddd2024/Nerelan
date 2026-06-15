@@ -79,6 +79,13 @@ FORBIDDEN_PREFIXES = (
     "reverse_agent/strategies/",
     "reverse_agent/transforms/",
 )
+BUILD_OUTPUT_WHITELIST: frozenset[str] = frozenset({
+    "project_state/artifact_index.json",
+    "project_state/current_state.json",
+    "project_state/task_packet.json",
+    "project_state/model_gate.json",
+    "project_state/negative_results.json",
+})
 SAMPLE_SOLVING_TERMS = (
     "sample_solver",
     "candidate search",
@@ -1527,6 +1534,161 @@ def _startup_status_order_valid(pytest_text: str) -> dict[str, Any]:
     }
 
 
+def _decision_immutability_check(
+    *,
+    files_changed: set[str],
+    new_dirty_files: set[str],
+    baseline_dirty_files: set[str],
+    round_id: str,
+) -> dict[str, Any]:
+    """Check that live decision_packet.md was not modified during execution."""
+    LIVE_DECISION_PATH = "project_state/decision_packet.md"
+    # Archive path pattern: project_state/rounds/<round_id>/decision_packet.md
+    _archive_prefix = f"project_state/rounds/{round_id}/" if round_id else ""
+
+    in_files_changed = LIVE_DECISION_PATH in files_changed
+    in_new_dirty = LIVE_DECISION_PATH in new_dirty_files
+    in_baseline_dirty = LIVE_DECISION_PATH in baseline_dirty_files
+
+    # Only flag if it's the live path, not an archive copy
+    is_live_mutation = in_files_changed or in_new_dirty
+
+    if in_baseline_dirty:
+        return _check(
+            "decision_immutability",
+            "FAIL",
+            "live project_state/decision_packet.md is dirty in startup baseline; execution must not proceed",
+            live_decision_in_baseline=True,
+            live_decision_in_files_changed=in_files_changed,
+            live_decision_in_new_dirty=in_new_dirty,
+        )
+
+    if is_live_mutation:
+        return _check(
+            "decision_immutability",
+            "FAIL",
+            "live project_state/decision_packet.md appears in round delta or files_changed; decision must not be modified during execution",
+            live_decision_in_files_changed=in_files_changed,
+            live_decision_in_new_dirty=in_new_dirty,
+        )
+
+    return _check(
+        "decision_immutability",
+        "PASS",
+        "live project_state/decision_packet.md was not modified during execution",
+        live_decision_in_files_changed=False,
+        live_decision_in_new_dirty=False,
+    )
+
+
+def _build_output_scope_check(
+    *,
+    new_dirty_files: set[str],
+    files_changed: set[str],
+    pytest_text: str,
+) -> dict[str, Any]:
+    """Check that build-generated files in round delta have a recorded build command."""
+    build_files_in_delta = {
+        path for path in new_dirty_files | files_changed
+        if path in BUILD_OUTPUT_WHITELIST
+    }
+
+    if not build_files_in_delta:
+        return _check(
+            "build_output_scope",
+            "PASS",
+            "no build-generated state files in round delta",
+            build_files_in_delta=[],
+        )
+
+    # Check if pytest_result.txt records a build command
+    recorded = _parse_recorded_command_blocks(pytest_text)
+    has_build_command = False
+    build_exit_zero = False
+    for block in recorded.get("blocks", []):
+        if not isinstance(block, dict):
+            continue
+        command = str(block.get("command") or "")
+        if "project_state build" in command or "project-state build" in command or "project_state.project_state build" in command:
+            has_build_command = True
+            exit_code = block.get("exit_code")
+            if exit_code == 0:
+                build_exit_zero = True
+                break
+
+    if has_build_command and build_exit_zero:
+        return _check(
+            "build_output_scope",
+            "PASS",
+            "build-generated state files in round delta have recorded build command with exit code 0",
+            build_files_in_delta=sorted(build_files_in_delta),
+            build_command_recorded=True,
+            build_exit_zero=True,
+        )
+
+    if has_build_command and not build_exit_zero:
+        return _check(
+            "build_output_scope",
+            "WARN",
+            "build-generated state files in round delta but build command did not exit with code 0",
+            build_files_in_delta=sorted(build_files_in_delta),
+            build_command_recorded=True,
+            build_exit_zero=False,
+        )
+
+    # No build command recorded but build files in delta
+    return _check(
+        "build_output_scope",
+        "WARN",
+        "build_output_scope_unverified: build-generated state files in round delta without recorded build command",
+        build_files_in_delta=sorted(build_files_in_delta),
+        build_command_recorded=False,
+    )
+
+
+def _verified_cli_coverage_check(
+    *,
+    report_text: str,
+    tests_ran: list[str],
+    pytest_text: str,
+) -> dict[str, Any]:
+    """Check that CLI commands claimed as verified in the report are covered by tests_ran."""
+    # Known CLI subcommands that should be covered if claimed
+    CLI_PATTERNS = {
+        "active-execution-view": r"active[- ]execution[- ]view",
+    }
+
+    uncovered_clis: list[str] = []
+    for cli_name, pattern in CLI_PATTERNS.items():
+        if re.search(pattern, report_text, re.IGNORECASE):
+            # Check if this CLI appears in tests_ran
+            in_tests_ran = any(cli_name in str(test) for test in tests_ran)
+            # Also check if there's a command block in pytest_result
+            recorded = _parse_recorded_command_blocks(pytest_text)
+            in_command_blocks = any(
+                isinstance(block, dict) and cli_name.replace("-", " ") in str(block.get("command") or "").lower().replace("-", " ")
+                or isinstance(block, dict) and cli_name in str(block.get("command") or "")
+                for block in recorded.get("blocks", [])
+            )
+            if not in_tests_ran and not in_command_blocks:
+                uncovered_clis.append(cli_name)
+
+    if not uncovered_clis:
+        return _check(
+            "verified_cli_coverage",
+            "PASS",
+            "all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks",
+            uncovered_clis=[],
+        )
+
+    return _check(
+        "verified_cli_coverage",
+        "WARN",
+        "report claims CLI verification but commands are not in tests_ran or pytest_result command blocks",
+        uncovered_clis=uncovered_clis,
+    )
+
+
 def _parse_git_status_short_dirty(status_output: str) -> set[str]:
     """Parse ``git status --short`` output into a set of dirty file paths."""
     paths: set[str] = set()
@@ -2057,6 +2219,8 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
             "status_policy_valid",
             "files_changed_excludes_inherited_dirty_files",
             "baseline_capture_order",
+            "build_output_scope",
+            "verified_cli_coverage",
         }
         status_policy_has_limitations = any(
             isinstance(check, dict)
@@ -2749,6 +2913,36 @@ def final_check(
             )
         )
 
+    # Decision immutability check
+    baseline_dirty_files = _string_set(delta_summary.get("baseline_dirty_files"))
+    checks.append(
+        _decision_immutability_check(
+            files_changed=files_changed,
+            new_dirty_files=new_dirty_files,
+            baseline_dirty_files=baseline_dirty_files,
+            round_id=round_id,
+        )
+    )
+
+    # Build output scope check
+    checks.append(
+        _build_output_scope_check(
+            new_dirty_files=new_dirty_files,
+            files_changed=files_changed,
+            pytest_text=pytest_text,
+        )
+    )
+
+    # Verified CLI coverage check
+    report_tests_ran = list(report.get("tests_ran") or [])
+    checks.append(
+        _verified_cli_coverage_check(
+            report_text=report_text,
+            tests_ran=report_tests_ran,
+            pytest_text=pytest_text,
+        )
+    )
+
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
     archive_check_status = (
         "PASS" if not missing_archive_artifacts
@@ -3348,6 +3542,36 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             )
         )
 
+    # Decision immutability check
+    baseline_dirty_files_close = _string_set(delta_summary.get("baseline_dirty_files"))
+    checks.append(
+        _decision_immutability_check(
+            files_changed=files_changed,
+            new_dirty_files=new_dirty_files,
+            baseline_dirty_files=baseline_dirty_files_close,
+            round_id=requested_round_id,
+        )
+    )
+
+    # Build output scope check
+    checks.append(
+        _build_output_scope_check(
+            new_dirty_files=new_dirty_files,
+            files_changed=files_changed,
+            pytest_text=pytest_text,
+        )
+    )
+
+    # Verified CLI coverage check
+    report_tests_ran_close = list(report.get("tests_ran") or [])
+    checks.append(
+        _verified_cli_coverage_check(
+            report_text=report_text,
+            tests_ran=report_tests_ran_close,
+            pytest_text=pytest_text,
+        )
+    )
+
     checks.extend(
         _report_summary_checks(
             state_dir=state_dir,
@@ -3919,6 +4143,19 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
         decision_id=decision_id,
         round_id=round_id,
         write_result=write_result,
+    )
+
+    # Check if live decision_packet.md is dirty in baseline
+    baseline_dirty_file_set = set(baseline.get("baseline_dirty_files") or [])
+    decision_packet_dirty_in_baseline = "project_state/decision_packet.md" in baseline_dirty_file_set
+    checks.append(
+        _check(
+            "decision_not_dirty_in_baseline",
+            "PASS" if not decision_packet_dirty_in_baseline else "FAIL",
+            "live decision_packet.md is not dirty in startup baseline"
+            if not decision_packet_dirty_in_baseline
+            else "live project_state/decision_packet.md is dirty in startup baseline; execution must not proceed",
+        )
     )
 
     parse_error = decision.get("parse_error")
