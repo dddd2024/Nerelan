@@ -2,10 +2,10 @@
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260615_state_handoff_after_gate_acceptance_v1",
-  "round_id": "round_20260615_state_handoff_after_gate_acceptance_v1",
+  "decision_id": "decision_20260615_project_state_refresh_active_execution_view_v1",
+  "round_id": "round_20260615_project_state_refresh_active_execution_view_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-15T14:41:36.813528Z",
+  "generated_at": "2026-06-15T15:01:26.340211Z",
   "commands": [
     {
       "index": 1,
@@ -141,6 +141,18 @@
     },
     {
       "index": 12,
+      "command": "python -m reverse_agent.project_state build",
+      "phase": "status",
+      "kind": "status",
+      "required": true,
+      "expected_exit_codes": [
+        0
+      ],
+      "records_stdout_stderr": true,
+      "notes": "status expected to exit 0"
+    },
+    {
+      "index": 13,
       "command": "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
       "phase": "test",
       "kind": "pytest",
@@ -152,7 +164,7 @@
       "notes": "pytest expected to exit 0"
     },
     {
-      "index": 13,
+      "index": 14,
       "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "phase": "gate",
       "kind": "report-summary",
@@ -164,7 +176,7 @@
       "notes": "report-summary expected to exit 0"
     },
     {
-      "index": 14,
+      "index": 15,
       "command": "python -m reverse_agent.project_gate final-check --state-dir project_state",
       "phase": "gate",
       "kind": "final-check",
@@ -176,8 +188,8 @@
       "notes": "final-check expected to exit 0"
     },
     {
-      "index": 15,
-      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_state_handoff_after_gate_acceptance_v1",
+      "index": 16,
+      "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260615_project_state_refresh_active_execution_view_v1",
       "phase": "gate",
       "kind": "close-round",
       "required": true,

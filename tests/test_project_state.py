@@ -7307,3 +7307,141 @@ class TestTaskPacketRoleNeverAuthoritative:
         assert summary["task_packet_role"] != "authoritative"
         assert summary["task_packet_role"] == "state_input"
         assert summary["execution_authority"] == "decision_packet"
+
+
+class TestActiveExecutionView:
+    """Verify active_execution_view produces correct compact execution state."""
+
+    def _setup_state(self, tmp_path: Path, *, mainline: str = "engineering_branch",
+                     decision_id: str = "decision_aev_test",
+                     report_status: str = "SUCCESS",
+                     report_based_on_decision_id: str | None = None,
+                     state_scope: str = "sample_state") -> Path:
+        """Create minimal state files and return state_dir."""
+        from reverse_agent.project_state import build_project_state
+
+        state_dir = tmp_path / "project_state"
+        reports_dir = tmp_path / "solve_reports"
+        _write_skill_registry(tmp_path)
+        run_dir = _make_minimal_harness_run(reports_dir, run_name="samplereverse_aev")
+        _write_json(
+            run_dir / "summary.json",
+            {"run_name": "samplereverse_aev", "total_cases": 1, "executed_cases": 1, "error_cases": 0},
+        )
+        _write_json(run_dir / "case_results" / "samplereverse.json", {"status": "ok"})
+        build_project_state(reports_dir=reports_dir, state_dir=state_dir, sample="samplereverse")
+        current_state = _read_json(state_dir / "current_state.json")
+        _write_decision_packet(
+            state_dir,
+            decision_id=decision_id,
+            round_id=decision_id.replace("decision_", "round_"),
+            based_on_state_build_id=str(current_state["state_build_id"]),
+            based_on_state_digest=str(current_state["state_digest"]),
+            mainline=mainline,
+            skill_profiles=["reverse-agent-iteration@v2"],
+        )
+        bid = report_based_on_decision_id if report_based_on_decision_id is not None else decision_id
+        _write_codex_report(
+            state_dir,
+            report_id=f"report_{decision_id}",
+            round_id=decision_id.replace("decision_", "round_"),
+            based_on_decision_id=bid,
+            status=report_status,
+        )
+        _write_pytest_result(state_dir)
+        return state_dir
+
+    def test_decision_packet_priority_over_task_packet(self, tmp_path: Path) -> None:
+        """Scenario 1: decision_packet.md priority over task_packet.task."""
+        from reverse_agent.project_state import active_execution_view
+
+        state_dir = self._setup_state(tmp_path)
+        view = active_execution_view(state_dir=state_dir)
+        assert view["execution_authority"] == "decision_packet"
+        assert view["task_packet_role"] != "authoritative"
+
+    def test_consumed_decision_cannot_be_executed(self, tmp_path: Path) -> None:
+        """Scenario 2: consumed decision cannot be continued."""
+        from reverse_agent.project_state import active_execution_view
+
+        state_dir = self._setup_state(tmp_path, report_status="SUCCESS")
+        view = active_execution_view(state_dir=state_dir)
+        assert view["decision_execution_state"] == "CONSUMED_BY_SUCCESS_REPORT"
+        assert view["recommended_next_action"] == "generate_new_decision"
+
+    def test_old_sample_state_labeled_historical(self, tmp_path: Path) -> None:
+        """Scenario 3: old sample_state labeled as historical/advisory."""
+        from reverse_agent.project_state import active_execution_view
+
+        state_dir = self._setup_state(tmp_path)
+        view = active_execution_view(state_dir=state_dir)
+        assert view["current_state_role"] == "historical_sample_state"
+        assert view["task_packet_role"] == "state_input"
+
+    def test_missing_historical_artifacts_non_blocking(self, tmp_path: Path) -> None:
+        """Scenario 4: missing historical sample artifacts don't block engineering_branch."""
+        from reverse_agent.project_state import active_execution_view
+
+        state_dir = self._setup_state(tmp_path, mainline="engineering_branch")
+        view = active_execution_view(state_dir=state_dir)
+        assert view["historical_artifacts_role"] == "historical_external_notices"
+
+    def test_stable_output_fields(self, tmp_path: Path) -> None:
+        """Scenario 5: active execution view outputs all required fields."""
+        from reverse_agent.project_state import active_execution_view
+
+        state_dir = self._setup_state(tmp_path)
+        view = active_execution_view(state_dir=state_dir)
+        required_fields = [
+            "execution_authority", "active_decision_id", "active_round_id",
+            "decision_status", "decision_execution_state",
+            "latest_success_report_id", "latest_closed_round_id",
+            "task_packet_role", "current_state_role",
+            "historical_artifacts_role", "recommended_next_action",
+        ]
+        for field in required_fields:
+            assert field in view, f"missing field: {field}"
+
+    def test_consumed_decision_recommends_generate_new(self, tmp_path: Path) -> None:
+        """Scenario 6: consumed decision gives generate_new_decision recommendation."""
+        from reverse_agent.project_state import active_execution_view
+
+        state_dir = self._setup_state(tmp_path, report_status="SUCCESS")
+        view = active_execution_view(state_dir=state_dir)
+        assert view["recommended_next_action"] == "generate_new_decision"
+
+    def test_artifact_index_not_forged(self, tmp_path: Path) -> None:
+        """Scenario 7: artifact_index missing/stale info is preserved, not deleted."""
+        from reverse_agent.project_state import active_execution_view
+
+        state_dir = self._setup_state(tmp_path)
+        # Verify artifact_index exists and is a dict
+        artifact_index = _read_json(state_dir / "artifact_index.json")
+        assert isinstance(artifact_index, dict)
+        # active_execution_view should not modify artifact_index
+        view = active_execution_view(state_dir=state_dir)
+        artifact_index_after = _read_json(state_dir / "artifact_index.json")
+        # The missing list must be preserved exactly (even if empty)
+        assert artifact_index_after["missing"] == artifact_index.get("missing", [])
+
+    def test_ready_for_execution_recommends_execute(self, tmp_path: Path) -> None:
+        """READY_FOR_EXECUTION decision recommends execute_decision_scope."""
+        from reverse_agent.project_state import active_execution_view
+
+        # Create state where decision is not consumed by report
+        state_dir = self._setup_state(
+            tmp_path,
+            decision_id="decision_aev_ready",
+            report_based_on_decision_id="decision_other",  # mismatch → READY_FOR_EXECUTION
+        )
+        view = active_execution_view(state_dir=state_dir)
+        assert view["decision_execution_state"] == "READY_FOR_EXECUTION"
+        assert view["recommended_next_action"] == "execute_decision_scope"
+
+    def test_non_engineering_mainline_historical_artifacts_blocking(self, tmp_path: Path) -> None:
+        """Non-engineering mainline treats historical artifacts as blocking."""
+        from reverse_agent.project_state import active_execution_view
+
+        state_dir = self._setup_state(tmp_path, mainline="reverse_solving")
+        view = active_execution_view(state_dir=state_dir)
+        assert view["historical_artifacts_role"] == "blocking_requirement"

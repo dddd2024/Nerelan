@@ -54,13 +54,5 @@
     "override_reason_required": true,
     "reason": "transform trace consistency diagnostic confirmed five runtime-backed candidates agree with offline UTF-16LE/Base64/RC4/compare trace; next work needs a different bounded evidence source",
     "severity": "soft_block"
-  },
-  {
-    "direction": "cpp1_2f6fcb63 current target bytes printable inverse path",
-    "do_not_repeat": true,
-    "override_allowed": true,
-    "override_reason_required": true,
-    "reason": "current revalidation artifact local_reverse_cpp1_2f6fcb63_target_bytes_revalidation is PASSED/current, but static inverse handoff over byte_429A30 target bytes has no complete printable ASCII preimage; missing printable indices: 2, 3, 4, 5, 7, 8, 9, 10, 12, 13",
-    "severity": "soft_block"
   }
 ]

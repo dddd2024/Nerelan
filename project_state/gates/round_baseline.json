@@ -1,13 +1,22 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260615_state_handoff_after_gate_acceptance_v1",
-  "round_id": "round_20260615_state_handoff_after_gate_acceptance_v1",
-  "head_commit": "672ed5643c7a",
-  "baseline_git_status_short": [],
-  "baseline_git_diff_name_only": [],
-  "baseline_dirty_files": [],
+  "decision_id": "decision_20260615_project_state_refresh_active_execution_view_v1",
+  "round_id": "round_20260615_project_state_refresh_active_execution_view_v1",
+  "head_commit": "a86c75d8b71d",
+  "baseline_git_status_short": [
+    " M reverse_agent/project_state.py",
+    " M tests/test_project_state.py"
+  ],
+  "baseline_git_diff_name_only": [
+    "reverse_agent/project_state.py",
+    "tests/test_project_state.py"
+  ],
+  "baseline_dirty_files": [
+    "reverse_agent/project_state.py",
+    "tests/test_project_state.py"
+  ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-15T14:39:46.472750Z"
+  "generated_at": "2026-06-15T15:01:12.711121Z"
 }

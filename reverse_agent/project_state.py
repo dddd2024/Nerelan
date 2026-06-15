@@ -6456,6 +6456,93 @@ def status_summary(*, state_dir: Path) -> dict[str, Any]:
     }
 
 
+def active_execution_view(*, state_dir: Path) -> dict[str, Any]:
+    """Build a compact active execution view summarizing the current execution state.
+
+    This view is designed for quick consumption at round startup to avoid
+    repeatedly re-deriving the same facts from multiple state files.
+
+    Required fields per decision_20260615_project_state_refresh_active_execution_view_v1:
+      - execution_authority
+      - active_decision_id
+      - active_round_id
+      - decision_status
+      - decision_execution_state
+      - latest_success_report_id
+      - latest_closed_round_id
+      - task_packet_role
+      - current_state_role
+      - historical_artifacts_role
+      - recommended_next_action
+    """
+    summary = status_summary(state_dir=state_dir)
+    decision_execution_state = str(
+        summary.get("decision_execution_state") or "UNKNOWN"
+    )
+    mainline = str(summary.get("mainline") or "")
+
+    # Determine current_state_role
+    state_scope = str(summary.get("state_scope") or "")
+    if state_scope == "sample_state":
+        current_state_role = "historical_sample_state"
+    else:
+        current_state_role = "active_state"
+
+    # Determine historical_artifacts_role
+    if mainline == "engineering_branch":
+        historical_artifacts_role = "historical_external_notices"
+    else:
+        historical_artifacts_role = "blocking_requirement"
+
+    # Determine recommended_next_action
+    if decision_execution_state == "CONSUMED_BY_SUCCESS_REPORT":
+        recommended_next_action = "generate_new_decision"
+    elif decision_execution_state == "READY_FOR_EXECUTION":
+        recommended_next_action = "execute_decision_scope"
+    elif decision_execution_state == "CONSUMED_BY_NON_SUCCESS_REPORT":
+        recommended_next_action = "generate_new_decision_or_rework"
+    elif decision_execution_state == "STALE_WITHOUT_MATCHING_REPORT":
+        recommended_next_action = "generate_new_decision_or_rebuild_state"
+    else:
+        recommended_next_action = "generate_new_decision"
+
+    return {
+        "execution_authority": summary.get("execution_authority", "decision_packet"),
+        "active_decision_id": summary.get("decision_id"),
+        "active_round_id": summary.get("decision_id")
+        and str(summary["decision_id"]).replace("decision_", "round_"),
+        "decision_status": summary.get("decision_status"),
+        "decision_execution_state": decision_execution_state,
+        "latest_success_report_id": (
+            summary.get("report_id")
+            if summary.get("report_status") == "SUCCESS"
+            and summary.get("decision_report_id_match") is True
+            else None
+        ),
+        "latest_closed_round_id": summary.get("latest_closed_round_id"),
+        "task_packet_role": summary.get("task_packet_role", "advisory_state_input"),
+        "current_state_role": current_state_role,
+        "historical_artifacts_role": historical_artifacts_role,
+        "recommended_next_action": recommended_next_action,
+        "mainline": mainline,
+    }
+
+
+def _print_active_execution_view(view: dict[str, Any]) -> None:
+    print(f"execution_authority: {view.get('execution_authority')}")
+    print(f"active_decision_id: {view.get('active_decision_id')}")
+    print(f"active_round_id: {view.get('active_round_id')}")
+    print(f"decision_status: {view.get('decision_status')}")
+    print(f"decision_execution_state: {view.get('decision_execution_state')}")
+    print(f"latest_success_report_id: {view.get('latest_success_report_id')}")
+    print(f"latest_closed_round_id: {view.get('latest_closed_round_id')}")
+    print(f"task_packet_role: {view.get('task_packet_role')}")
+    print(f"current_state_role: {view.get('current_state_role')}")
+    print(f"historical_artifacts_role: {view.get('historical_artifacts_role')}")
+    print(f"recommended_next_action: {view.get('recommended_next_action')}")
+    print(f"mainline: {view.get('mainline')}")
+
+
 def _print_status(summary: dict[str, Any]) -> None:
     print(f"state_dir: {summary.get('state_dir')}")
     print(f"mainline: {summary.get('mainline')}")
@@ -6650,6 +6737,10 @@ def main(argv: list[str] | None = None) -> int:
     doctor_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     doctor_parser.add_argument("--json", action="store_true", help="Output JSON instead of text.")
 
+    aev_parser = subparsers.add_parser("active-execution-view", help="Print compact active execution view.")
+    aev_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    aev_parser.add_argument("--json", action="store_true", help="Output JSON instead of text.")
+
     args = parser.parse_args(argv)
     if args.command == "build":
         build_project_state(
@@ -6694,6 +6785,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "doctor":
         result = doctor(state_dir=Path(args.state_dir), json_output=bool(args.json))
         return 0 if result["status"] in {"PASS", "WARN"} else 1
+    if args.command == "active-execution-view":
+        view = active_execution_view(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(view, default=str, indent=2))
+        else:
+            _print_active_execution_view(view)
+        return 0
     return 1
 
 

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-14T16:08:06Z",
+  "generated_at": "2026-06-15T15:02:20Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": null,
@@ -50,11 +50,7 @@
     "smt_validation": null,
     "strata_summary": null,
     "summary": null,
-    "transform_trace_consistency": null,
-    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
-    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-    "local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
-    "local_reverse_cpp1_2f6fcb63_input_delivery_review": "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json"
+    "transform_trace_consistency": null
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -506,84 +502,6 @@
       "sha256": null,
       "size_bytes": null,
       "source_run": ""
-    },
-    "local_reverse_affine_8cfebe03_static_triage": {
-      "freshness": "current",
-      "kind": "local_reverse_single_sample_static_triage",
-      "modified_at": "2026-06-13T11:00:00Z",
-      "path": "project_state/local_reverse_affine_8cfebe03_static_triage.json",
-      "sha256": "1d79d992dfad3bcf0a1071caea2fc8a7daa299301fb7cbe8d058a29b64c91ed9",
-      "size_bytes": 22282,
-      "source_run": "round_20260613_static_tool_blocker_validation_rework_v1"
-    },
-    "local_reverse_affine_8cfebe03_static_evidence_summary": {
-      "freshness": "current",
-      "kind": "static_evidence_summary",
-      "modified_at": "2026-06-13T12:00:00Z",
-      "path": "project_state/local_reverse_affine_8cfebe03_static_evidence_summary.json",
-      "sha256": "dfe231e5dc7d6288345496dbde8f7c0c7ec64296bb676a011601514f2bd98a8f",
-      "size_bytes": 3017,
-      "source_run": "round_20260613_affine_static_evidence_classification_v1"
-    },
-    "local_reverse_affineenc_333f8ca9_static_triage": {
-      "freshness": "current",
-      "kind": "local_reverse_single_sample_static_triage",
-      "modified_at": "2026-06-13T13:00:00Z",
-      "path": "project_state/local_reverse_affineenc_333f8ca9_static_triage.json",
-      "sha256": "dfae90d584401dafd52c736c349f05f14e22c8475e54339de1b5a1c573f4ac40",
-      "size_bytes": 22651,
-      "source_run": "round_20260613_affineenc_static_triage_v1"
-    },
-    "local_reverse_cpp1_2f6fcb63_static_triage": {
-      "freshness": "current",
-      "kind": "local_reverse_single_sample_static_triage",
-      "modified_at": "2026-06-14T07:30:18Z",
-      "path": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
-      "sample_id": "cpp1_2f6fcb63",
-      "sha256": "7ee631310d1ea459015d685d09eeeb2f29229437f439cff300e38591f64913f4",
-      "size_bytes": 25989,
-      "source_run": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
-      "tool_status": "success"
-    },
-    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": {
-      "kind": "target_bytes_current_revalidation",
-      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
-      "freshness": "current",
-      "source_run": "round_20260614_cpp1_2f6fcb63_target_bytes_current_revalidation_v1",
-      "sha256": "6088954e340f9001e1d6f131ad06b60f7818bbc7a922f709fa3488746b322468",
-      "size_bytes": 9467,
-      "modified_at": "2026-06-14T09:34:50Z",
-      "sample_id": "cpp1_2f6fcb63"
-    },
-    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": {
-      "kind": "static_inverse_transform_handoff",
-      "path": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-      "freshness": "current",
-      "source_run": "round_20260614_cpp1_2f6fcb63_static_inverse_handoff_v1",
-      "sha256": "11e412b98fc39729f0c16443d0aae3cbaa52cf93d1773629f2295205c4bec7f8",
-      "size_bytes": 30050,
-      "modified_at": "2026-06-14T13:39:32Z",
-      "sample_id": "cpp1_2f6fcb63"
-    },
-    "local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review": {
-      "kind": "alternative_static_semantics_review",
-      "path": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
-      "freshness": "current",
-      "source_run": "round_20260614_cpp1_2f6fcb63_alternative_static_semantics_review_v1",
-      "sha256": "aca4d7fcd6f7a679d22588b1151aec238bf1af8290862f118ad12bc0626d44a2",
-      "size_bytes": 9713,
-      "modified_at": "2026-06-14T14:40:55Z",
-      "sample_id": "cpp1_2f6fcb63"
-    },
-    "local_reverse_cpp1_2f6fcb63_input_delivery_review": {
-      "kind": "input_delivery_review",
-      "path": "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json",
-      "freshness": "current",
-      "source_run": "round_20260614_cpp1_2f6fcb63_input_delivery_review_v1",
-      "sha256": "425283fc49a3c40ff668c8d2f14142ab4ee1befc269628092fc6ed5e04571e14",
-      "size_bytes": 7092,
-      "modified_at": "2026-06-14T16:08:06Z",
-      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [],
@@ -598,11 +516,5 @@
   ],
   "recent_artifacts": [],
   "reports_dir": "solve_reports",
-  "sample": "samplereverse",
-  "artifact_refs": {
-    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
-    "local_reverse_cpp1_2f6fcb63_static_inverse_handoff": "project_state\\local_reverse_cpp1_2f6fcb63_static_inverse_handoff.json",
-    "local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review": "project_state/local_reverse_cpp1_2f6fcb63_alternative_static_semantics_review.json",
-    "local_reverse_cpp1_2f6fcb63_input_delivery_review": "project_state/local_reverse_cpp1_2f6fcb63_input_delivery_review.json"
-  }
+  "sample": "samplereverse"
 }
