@@ -305,7 +305,11 @@ def _extract_unfenced_commands(text: str) -> list[str]:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["command-plan"])
         if "doctor" in lowered:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["doctor"])
-        if "pytest" in lowered:
+        if (
+            re.search(r"\bpytest\b", lowered)
+            and "pytest_result" not in lowered
+            and not ("archived" in lowered and "live" in lowered)
+        ):
             commands.extend(NATURAL_LANGUAGE_COMMANDS["pytest"])
         if "lint-report" in lowered:
             commands.extend(NATURAL_LANGUAGE_COMMANDS["lint-report"])
@@ -3030,6 +3034,7 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
     decision = read_decision_meta(state_dir)
     decision_text = _read_text(state_dir / "decision_packet.md")
     tests_text = _markdown_section(decision_text, "Tests")
+    required_audit_text = _markdown_section(decision_text, "Required Audit")
 
     decision_id = str(decision.get("decision_id") or "")
     round_id = str(decision.get("round_id") or "")
@@ -3041,7 +3046,13 @@ def command_plan(*, state_dir: Path, write_result: bool = True) -> dict[str, Any
     if not tests_text.strip():
         blocking_reasons.append("Tests section is missing")
     else:
-        extracted_commands, extract_error = _extract_bash_commands(tests_text)
+        extracted_commands = []
+        if required_audit_text.strip():
+            required_audit_commands, _required_audit_error = _extract_bash_commands(required_audit_text)
+            extracted_commands.extend(required_audit_commands)
+        tests_commands, extract_error = _extract_bash_commands(tests_text)
+        extracted_commands.extend(tests_commands)
+        extracted_commands = _dedupe_commands(extracted_commands)
         if extract_error:
             blocking_reasons.append(extract_error)
         extracted_commands = _inject_report_summary_command(extracted_commands, decision_text)

@@ -2701,6 +2701,42 @@ def test_command_plan_extracts_unfenced_backtick_commands(tmp_path: Path) -> Non
     assert [command["command"] for command in result["commands"]] == ["python -m pytest -q"]
 
 
+def test_command_plan_includes_required_audit_commands(tmp_path: Path) -> None:
+    state_dir = _make_command_plan_state(tmp_path, tests_block="python -m pytest tests/test_project_gate.py -q")
+    text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")
+    text = text.replace(
+        "## 7. Tests",
+        """## 5. Required Audit
+
+- `Set-Location F:\\reverse-agent`
+- `Get-Location`
+- `Test-Path F:\\reverse-agent`
+- `git rev-parse --show-toplevel`
+- `git status --short`
+- `python -m reverse_agent.project_gate preflight --state-dir project_state`
+- `python -m reverse_agent.project_gate command-plan --state-dir project_state`
+- `python -m reverse_agent.project_gate command-plan --state-dir project_state --json`
+
+## 7. Tests""",
+    )
+    (state_dir / "decision_packet.md").write_text(text, encoding="utf-8")
+
+    result = command_plan(state_dir=state_dir)
+
+    assert result["plan_status"] == "PASSED"
+    assert [command["command"] for command in result["commands"]] == [
+        "Set-Location F:\\reverse-agent",
+        "Get-Location",
+        "Test-Path F:\\reverse-agent",
+        "git rev-parse --show-toplevel",
+        "git status --short",
+        "python -m reverse_agent.project_gate preflight --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+        "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+        "python -m pytest tests/test_project_gate.py -q",
+    ]
+
+
 def test_command_plan_keeps_backticks_and_queue_status_verification(tmp_path: Path) -> None:
     state_dir = _make_command_plan_state(tmp_path, tests_block="placeholder")
     text = (state_dir / "decision_packet.md").read_text(encoding="utf-8")

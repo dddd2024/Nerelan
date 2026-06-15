@@ -1,19 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260615_gate_baseline_lifecycle_clean_validation_rework_v1",
-  "round_id": "round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1",
-  "head_commit": "6c86b1eef78b",
-  "baseline_git_status_short": [
-    " M project_state/gates/command_plan.json"
-  ],
-  "baseline_git_diff_name_only": [
-    "project_state/gates/command_plan.json"
-  ],
-  "baseline_dirty_files": [
-    "project_state/gates/command_plan.json"
-  ],
+  "decision_id": "decision_20260615_gate_true_clean_start_validation_rework_v1",
+  "round_id": "round_20260615_gate_true_clean_start_validation_rework_v1",
+  "head_commit": "cb50cb0d80e2",
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-15T04:14:16.409795Z"
+  "generated_at": "2026-06-15T05:06:16.236277Z"
 }

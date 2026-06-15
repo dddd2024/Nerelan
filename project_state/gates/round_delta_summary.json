@@ -1,19 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260615_gate_baseline_lifecycle_clean_validation_rework_v1",
-  "round_id": "round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1",
-  "head_commit": "6c86b1eef78b",
+  "decision_id": "decision_20260615_gate_true_clean_start_validation_rework_v1",
+  "round_id": "round_20260615_gate_true_clean_start_validation_rework_v1",
+  "head_commit": "cb50cb0d80e2",
   "baseline_available": true,
-  "baseline_git_status_short": [
-    " M project_state/gates/command_plan.json"
-  ],
-  "baseline_git_diff_name_only": [
-    "project_state/gates/command_plan.json"
-  ],
-  "baseline_dirty_files": [
-    "project_state/gates/command_plan.json"
-  ],
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
   "final_git_status_short": [
@@ -27,10 +21,10 @@
     " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
     " M tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/round_manifest.json"
+    "?? project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -53,31 +47,30 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
+    "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260615_gate_baseline_lifecycle_clean_validation_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/decision_packet.md",
+    "project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/pytest_result.txt",
+    "project_state/rounds/round_20260615_gate_true_clean_start_validation_rework_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
-  "inherited_dirty_files": [
-    "project_state/gates/command_plan.json"
-  ],
+  "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-15T04:31:59.697607Z"
+  "generated_at": "2026-06-15T05:13:24.120270Z"
 }
