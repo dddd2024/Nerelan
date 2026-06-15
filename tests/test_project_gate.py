@@ -4439,17 +4439,42 @@ Allowed tests:
             "new_dirty_files_since_baseline": [],
         }
 
-    def _make_pytest_text(self, startup_dirty: list[str] | None = None) -> str:
-        """Build a minimal pytest_result.txt with startup git status --short."""
+    # Minimal path-confirmation prefix required for trusted startup evidence.
+    _PATH_PREFIX = (
+        "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+        "F:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Get-Location =====\n"
+        "Path\n----\nF:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+        "True\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git rev-parse --show-toplevel =====\n"
+        "F:/reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+    )
+
+    def _make_pytest_text(self, startup_dirty: list[str] | None = None, *, trusted: bool = True) -> str:
+        """Build a minimal pytest_result.txt with startup git status --short.
+
+        If *trusted* is True (default), path-confirmation commands appear
+        before ``git status --short`` so the evidence is trusted.
+        If *trusted* is False, ``git status --short`` appears first (untrusted).
+        """
         status_lines = ""
         if startup_dirty:
             for path in startup_dirty:
                 status_lines += f" M {path}\n"
-        return (
+        git_status_block = (
             "===== COMMAND: git status --short =====\n"
             f"{status_lines}"
             "===== EXIT: 0 =====\n"
         )
+        if trusted:
+            return self._PATH_PREFIX + git_status_block
+        else:
+            return git_status_block + self._PATH_PREFIX
 
     def test_baseline_clean_new_dirty_passes(self) -> None:
         """Scenario 1: baseline clean, source/test in new_dirty → PASS."""
@@ -4608,15 +4633,212 @@ Allowed tests:
         assert "files_changed_overlap" in check
         assert "capture_order_status" in check
 
+    def test_untrusted_startup_evidence_overlap_fails(self) -> None:
+        """Untrusted startup evidence + overlap → FAIL (not WARN/confirmed_inherited).
+
+        Decision scenario 5: if git status --short appears before path
+        confirmation, the startup evidence is untrusted and all overlap files
+        are treated as suspected late capture.
+        """
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=["reverse_agent/project_gate.py"])
+        pytest_text = self._make_pytest_text(
+            startup_dirty=["reverse_agent/project_gate.py"],
+            trusted=False,
+        )
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text=pytest_text,
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "FAIL"
+        assert check["capture_order_status"] == "suspected_late_capture"
+        assert check["startup_status_evidence_trusted"] is False
+
+    def test_trusted_startup_evidence_overlap_warns(self) -> None:
+        """Trusted startup evidence + overlap → WARN/confirmed_inherited.
+
+        Decision scenario 6: when git status --short appears after path
+        confirmation and the file appears in startup dirty, it is confirmed
+        inherited (not suspected late capture).
+        """
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=["reverse_agent/project_gate.py"])
+        pytest_text = self._make_pytest_text(
+            startup_dirty=["reverse_agent/project_gate.py"],
+            trusted=True,
+        )
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text=pytest_text,
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "WARN"
+        assert check["capture_order_status"] == "confirmed_inherited"
+        assert check["startup_status_evidence_trusted"] is True
+
+    def test_no_startup_evidence_overlap_fails(self) -> None:
+        """No startup evidence + overlap → FAIL/suspected_late_capture.
+
+        Decision scenario 7: without any startup evidence, overlap files are
+        all treated as suspected late capture.
+        """
+        from reverse_agent.project_gate import _baseline_capture_order_checks
+
+        delta = self._make_delta(baseline_dirty=["reverse_agent/project_gate.py"])
+        checks = _baseline_capture_order_checks(
+            delta_summary=delta,
+            files_changed={"reverse_agent/project_gate.py"},
+            decision_text=self.DECISION_TEXT,
+            report_text=self.REPORT_TEXT,
+            pytest_text="",
+        )
+        check = next(c for c in checks if c["name"] == "baseline_capture_order")
+        assert check["status"] == "FAIL"
+        assert check["capture_order_status"] == "suspected_late_capture"
+        assert check["startup_status_evidence_trusted"] is False
+
+
+class TestStartupStatusOrderValid:
+    """Verify _startup_status_order_valid checks command ordering in pytest_result.txt."""
+
+    _PATH_PREFIX = (
+        "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+        "F:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Get-Location =====\n"
+        "Path\n----\nF:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+        "True\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git rev-parse --show-toplevel =====\n"
+        "F:/reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+    )
+
+    _GIT_STATUS_BLOCK = (
+        "===== COMMAND: git status --short =====\n"
+        " M file.py\n"
+        "===== EXIT: 0 =====\n"
+    )
+
+    def test_git_status_after_path_confirmation_trusted(self) -> None:
+        """Decision scenario 2: git status after path confirmation → trusted."""
+        from reverse_agent.project_gate import _startup_status_order_valid
+
+        text = self._PATH_PREFIX + self._GIT_STATUS_BLOCK
+        result = _startup_status_order_valid(text)
+        assert result["valid"] is True
+        assert result["startup_status_evidence_trusted"] is True
+        assert result["startup_status_block_index"] is not None
+        assert result["startup_status_block_index"] > max(
+            v for v in result["path_confirmation_block_indexes"].values() if v is not None
+        )
+
+    def test_git_status_before_set_location_untrusted(self) -> None:
+        """Decision scenario 3: git status before Set-Location → untrusted."""
+        from reverse_agent.project_gate import _startup_status_order_valid
+
+        # git status appears first, before any path confirmation
+        text = self._GIT_STATUS_BLOCK + self._PATH_PREFIX
+        result = _startup_status_order_valid(text)
+        assert result["valid"] is False
+        assert result["startup_status_evidence_trusted"] is False
+
+    def test_git_status_before_git_rev_parse_untrusted(self) -> None:
+        """Decision scenario 4: git status before git rev-parse → untrusted."""
+        from reverse_agent.project_gate import _startup_status_order_valid
+
+        # Include Set-Location, Get-Location, Test-Path but not git rev-parse
+        partial_prefix = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "Path\n----\nF:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n"
+            "===== EXIT: 0 =====\n"
+        )
+        rev_parse_block = (
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+        )
+        # git status after partial prefix but before git rev-parse
+        text = partial_prefix + self._GIT_STATUS_BLOCK + rev_parse_block
+        result = _startup_status_order_valid(text)
+        assert result["valid"] is False
+        assert result["startup_status_evidence_trusted"] is False
+
+    def test_no_git_status_valid(self) -> None:
+        """No git status block → valid (no ordering violation)."""
+        from reverse_agent.project_gate import _startup_status_order_valid
+
+        text = self._PATH_PREFIX
+        result = _startup_status_order_valid(text)
+        assert result["valid"] is True
+        assert result["startup_status_evidence_trusted"] is False
+        assert result["startup_status_block_index"] is None
+
+    def test_empty_text_valid(self) -> None:
+        """Empty text → valid (no ordering violation)."""
+        from reverse_agent.project_gate import _startup_status_order_valid
+
+        result = _startup_status_order_valid("")
+        assert result["valid"] is True
+        assert result["startup_status_evidence_trusted"] is False
+        assert result["startup_status_block_index"] is None
+
+    def test_path_confirmation_indexes_populated(self) -> None:
+        """Verify path_confirmation_block_indexes are correctly populated."""
+        from reverse_agent.project_gate import _startup_status_order_valid
+
+        text = self._PATH_PREFIX + self._GIT_STATUS_BLOCK
+        result = _startup_status_order_valid(text)
+        indexes = result["path_confirmation_block_indexes"]
+        assert indexes["Set-Location"] == 0
+        assert indexes["Get-Location"] == 1
+        assert indexes["Test-Path"] == 2
+        assert indexes["git rev-parse"] == 3
+        assert result["startup_status_block_index"] == 4
+
 
 class TestExtractStartupDirtyFiles:
     """Verify _extract_startup_dirty_files parses pytest_result.txt correctly."""
+
+    # Minimal path-confirmation prefix required for trusted startup evidence.
+    _PATH_PREFIX = (
+        "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+        "F:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Get-Location =====\n"
+        "Path\n----\nF:\\reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+        "True\n"
+        "===== EXIT: 0 =====\n"
+        "===== COMMAND: git rev-parse --show-toplevel =====\n"
+        "F:/reverse-agent\n"
+        "===== EXIT: 0 =====\n"
+    )
 
     def test_extracts_modified_files(self) -> None:
         from reverse_agent.project_gate import _extract_startup_dirty_files
 
         text = (
-            "===== COMMAND: git status --short =====\n"
+            self._PATH_PREFIX
+            + "===== COMMAND: git status --short =====\n"
             " M reverse_agent/project_gate.py\n"
             " M tests/test_project_gate.py\n"
             "===== EXIT: 0 =====\n"
@@ -4629,7 +4851,8 @@ class TestExtractStartupDirtyFiles:
         from reverse_agent.project_gate import _extract_startup_dirty_files
 
         text = (
-            "===== COMMAND: git status --short =====\n"
+            self._PATH_PREFIX
+            + "===== COMMAND: git status --short =====\n"
             "?? new_file.py\n"
             "===== EXIT: 0 =====\n"
         )
@@ -4637,11 +4860,12 @@ class TestExtractStartupDirtyFiles:
         assert "new_file.py" in result
 
     def test_uses_first_git_status_block(self) -> None:
-        """Only the first git status --short block is the startup state."""
+        """Only the first git status --short block after path confirmation is used."""
         from reverse_agent.project_gate import _extract_startup_dirty_files
 
         text = (
-            "===== COMMAND: git status --short =====\n"
+            self._PATH_PREFIX
+            + "===== COMMAND: git status --short =====\n"
             " M file_a.py\n"
             "===== EXIT: 0 =====\n"
             "\n"
@@ -4653,6 +4877,21 @@ class TestExtractStartupDirtyFiles:
         result = _extract_startup_dirty_files(text)
         assert "file_a.py" in result
         assert "file_b.py" not in result
+
+    def test_git_status_before_path_confirmation_returns_empty(self) -> None:
+        """git status before path confirmation returns empty (untrusted)."""
+        from reverse_agent.project_gate import _extract_startup_dirty_files
+
+        text = (
+            "===== COMMAND: git status --short =====\n"
+            " M file_a.py\n"
+            "===== EXIT: 0 =====\n"
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n"
+            "===== EXIT: 0 =====\n"
+        )
+        result = _extract_startup_dirty_files(text)
+        assert result == set()
 
     def test_empty_text_returns_empty(self) -> None:
         from reverse_agent.project_gate import _extract_startup_dirty_files

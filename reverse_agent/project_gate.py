@@ -1339,16 +1339,25 @@ def _baseline_capture_order_checks(
     # Determine pre-startup evidence from pytest_result.txt.
     # The startup section records ``git status --short`` before any
     # implementation.  If a file appears there as dirty, it was genuinely
-    # inherited — not a late capture.
+    # inherited — not a late capture.  However, the startup evidence is
+    # only trusted if the git status command appeared after path confirmation.
+    order_info = _startup_status_order_valid(pytest_text)
     startup_dirty_files = _extract_startup_dirty_files(pytest_text)
+    startup_evidence_trusted = order_info.get("startup_status_evidence_trusted", False)
 
     # Separate overlap into confirmed-inherited vs suspected-late-capture.
-    confirmed_inherited = sorted(
-        path for path in overlap if path in startup_dirty_files
-    )
-    suspected_late = sorted(
-        path for path in overlap if path not in startup_dirty_files
-    )
+    # If startup evidence is not trusted (git status before path confirmation),
+    # all overlap files are treated as suspected late capture.
+    if startup_evidence_trusted:
+        confirmed_inherited = sorted(
+            path for path in overlap if path in startup_dirty_files
+        )
+        suspected_late = sorted(
+            path for path in overlap if path not in startup_dirty_files
+        )
+    else:
+        confirmed_inherited = []
+        suspected_late = sorted(overlap)
 
     # Build detail fields for final_gate_result.json.
     detail_fields: dict[str, Any] = {
@@ -1357,6 +1366,7 @@ def _baseline_capture_order_checks(
         "baseline_dirty_source_test_files": sorted(baseline_dirty_files & source_test_scope),
         "files_changed_overlap": overlap,
         "confirmed_inherited_from_startup_evidence": confirmed_inherited,
+        "startup_status_evidence_trusted": startup_evidence_trusted,
     }
 
     if not overlap:
@@ -1415,18 +1425,106 @@ def _extract_startup_dirty_files(pytest_text: str) -> set[str]:
     """Extract dirty file paths from the startup ``git status --short``
     command block in ``pytest_result.txt``.
 
-    The startup section is the *first* ``git status --short`` command block,
-    which records the working tree state before any implementation.
+    The startup section is the *first* ``git status --short`` command block
+    that appears *after* the required path-confirmation commands.  If the
+    first ``git status --short`` block appears before path confirmation,
+    it is not trusted and this function returns an empty set.
     """
     blocks = _parse_recorded_command_blocks(pytest_text)
-    for block in blocks.get("blocks", []):
+    block_list = blocks.get("blocks", [])
+
+    # Find the first git status --short block that appears after all
+    # path-confirmation commands.
+    path_confirmation_seen = {
+        "Set-Location": False,
+        "Get-Location": False,
+        "Test-Path": False,
+        "git rev-parse": False,
+    }
+    for block in block_list:
         if not isinstance(block, dict):
             continue
         command = str(block.get("command") or "").strip()
-        if command == "git status --short":
-            stdout = str(block.get("stdout") or "")
-            return _parse_git_status_short_dirty(stdout)
+        # Track path-confirmation commands.
+        if command.startswith("Set-Location"):
+            path_confirmation_seen["Set-Location"] = True
+        elif command == "Get-Location":
+            path_confirmation_seen["Get-Location"] = True
+        elif command.startswith("Test-Path"):
+            path_confirmation_seen["Test-Path"] = True
+        elif command.startswith("git rev-parse"):
+            path_confirmation_seen["git rev-parse"] = True
+        elif command == "git status --short":
+            # Only trust this git status if all path-confirmation commands
+            # have been seen before it.
+            if all(path_confirmation_seen.values()):
+                stdout = str(block.get("stdout") or "")
+                return _parse_git_status_short_dirty(stdout)
+            else:
+                # git status appears before path confirmation — untrusted.
+                return set()
     return set()
+
+
+def _startup_status_order_valid(pytest_text: str) -> dict[str, Any]:
+    """Check whether the startup command order in ``pytest_result.txt`` is valid.
+
+    The required order is:
+    1. Set-Location
+    2. Get-Location
+    3. Test-Path
+    4. git rev-parse --show-toplevel
+    5. git status --short
+
+    Returns a dict with:
+    - ``valid``: bool — whether the order is correct
+    - ``startup_status_block_index``: int or None — index of the git status block
+    - ``path_confirmation_block_indexes``: dict mapping command name to block index
+    - ``startup_status_evidence_trusted``: bool — whether git status evidence is trusted
+    """
+    blocks = _parse_recorded_command_blocks(pytest_text)
+    block_list = blocks.get("blocks", [])
+
+    path_confirmation_indexes: dict[str, int | None] = {
+        "Set-Location": None,
+        "Get-Location": None,
+        "Test-Path": None,
+        "git rev-parse": None,
+    }
+    git_status_index: int | None = None
+
+    for idx, block in enumerate(block_list):
+        if not isinstance(block, dict):
+            continue
+        command = str(block.get("command") or "").strip()
+        if command.startswith("Set-Location") and path_confirmation_indexes["Set-Location"] is None:
+            path_confirmation_indexes["Set-Location"] = idx
+        elif command == "Get-Location" and path_confirmation_indexes["Get-Location"] is None:
+            path_confirmation_indexes["Get-Location"] = idx
+        elif command.startswith("Test-Path") and path_confirmation_indexes["Test-Path"] is None:
+            path_confirmation_indexes["Test-Path"] = idx
+        elif command.startswith("git rev-parse") and path_confirmation_indexes["git rev-parse"] is None:
+            path_confirmation_indexes["git rev-parse"] = idx
+        elif command == "git status --short" and git_status_index is None:
+            git_status_index = idx
+
+    # git status is trusted only if all path-confirmation commands appear
+    # before it.
+    all_path_seen = all(v is not None for v in path_confirmation_indexes.values())
+    if all_path_seen and git_status_index is not None:
+        max_path_index = max(v for v in path_confirmation_indexes.values() if v is not None)
+        trusted = git_status_index > max_path_index
+    else:
+        trusted = False
+
+    valid = trusted or git_status_index is None
+
+    return {
+        "valid": valid,
+        "startup_status_block_index": git_status_index,
+        "path_confirmation_block_indexes": path_confirmation_indexes,
+        "startup_status_evidence_trusted": trusted,
+    }
 
 
 def _parse_git_status_short_dirty(status_output: str) -> set[str]:
@@ -2630,6 +2728,26 @@ def final_check(
             current_decision_id=decision_id,
         )
     )
+    # Startup status order check
+    order_info = _startup_status_order_valid(pytest_text)
+    if order_info.get("valid"):
+        checks.append(
+            _check(
+                "startup_status_order_valid",
+                "PASS",
+                "startup git status --short appears after path confirmation commands",
+                **order_info,
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "startup_status_order_valid",
+                "FAIL",
+                "startup git status --short appears before path confirmation commands; startup evidence is not trusted",
+                **order_info,
+            )
+        )
 
     missing_archive_artifacts = sorted(archive_paths - generated_artifacts)
     archive_check_status = (
@@ -3209,6 +3327,26 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             current_decision_id=decision_id,
         )
     )
+    # Startup status order check
+    order_info = _startup_status_order_valid(pytest_text)
+    if order_info.get("valid"):
+        checks.append(
+            _check(
+                "startup_status_order_valid",
+                "PASS",
+                "startup git status --short appears after path confirmation commands",
+                **order_info,
+            )
+        )
+    else:
+        checks.append(
+            _check(
+                "startup_status_order_valid",
+                "FAIL",
+                "startup git status --short appears before path confirmation commands; startup evidence is not trusted",
+                **order_info,
+            )
+        )
 
     checks.extend(
         _report_summary_checks(
