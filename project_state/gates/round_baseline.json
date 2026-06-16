@@ -1,22 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260616_command_plan_git_fetch_kind_rework_v1",
-  "round_id": "round_20260616_command_plan_git_fetch_kind_rework_v1",
-  "head_commit": "1bbbf9f7568d",
-  "baseline_git_status_short": [
-    " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py"
-  ],
-  "baseline_git_diff_name_only": [
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
-  ],
-  "baseline_dirty_files": [
-    "reverse_agent/project_gate.py",
-    "tests/test_project_gate.py"
-  ],
+  "decision_id": "decision_20260616_clean_baseline_after_git_fetch_rework_v1",
+  "round_id": "round_20260616_clean_baseline_after_git_fetch_rework_v1",
+  "head_commit": "e5b90870d2ea",
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-16T14:40:28.703063Z"
+  "generated_at": "2026-06-16T15:05:43.655063Z"
 }
