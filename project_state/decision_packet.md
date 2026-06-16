@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260616_gate_baseline_lifecycle_closeout_rework_v1",
-  "round_id": "round_20260616_gate_baseline_lifecycle_closeout_rework_v1",
+  "decision_id": "decision_20260616_report_summary_status_semantics_v1",
+  "round_id": "round_20260616_report_summary_status_semantics_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
@@ -15,61 +15,66 @@
 
 ## 1. Goal
 
-Close out `round_20260616_cpp1_success_reanchor_closeout_rework_v1` by repairing the remaining gate baseline lifecycle and close snapshot inconsistency.
+Repair the report-summary status semantics ambiguity found during audit of `round_20260616_gate_baseline_lifecycle_closeout_rework_v1`.
 
-This is an `engineering_branch` gate repair round. Do not continue CPP1 solving work. Do not rerun the CPP1 local sample. Do not regenerate CPP1 evidence artifacts.
+This is an `engineering_branch` gate semantics round. Do not continue reverse solving, do not rerun CPP1, and do not regenerate sample evidence.
 
 Required end state:
 
-- live `final_gate_result.json` is not FAILED;
-- `report_summary_synthesis.json` is PASSED;
-- `baseline_lifecycle_guard` no longer treats explicitly authorized source/test changes as unauthorized inherited dirty files;
-- `report_summary_fields_match_synthesis` passes;
-- close-round exits 0;
-- round archive exists for `round_20260616_gate_baseline_lifecycle_closeout_rework_v1`;
-- `local_reverse_cpp1_2f6fcb63_success_target_reanchor` remains current and unchanged.
+- `python -m reverse_agent.project_gate report-summary --state-dir project_state` has CLI output and JSON status semantics that agree;
+- `project_state/gates/report_summary_synthesis.json` no longer reports `synthesis_status=WARN` when there are no `errors` and no `diffs` and the only warnings are explicitly non-blocking inherited-dirty / external-state notices;
+- `report_summary_fields_match_synthesis` remains PASS;
+- `baseline_lifecycle_guard` remains strict for unauthorized source/test dirty files;
+- `final-check` exits 0;
+- `close-round` exits 0 and archives `round_20260616_report_summary_status_semantics_v1`;
+- current CPP1 artifacts, especially `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json`, remain unchanged.
 
 ## 2. Current Evidence
 
-Current execution authority is this `project_state/decision_packet.md`; `task_packet.json` and `current_state.json` remain state inputs only and must not override this decision.
+Current execution authority is this `project_state/decision_packet.md`; `task_packet.json` and `current_state.json` are state inputs only and must not override this decision.
 
-Previous round:
+Previous reviewed round:
 
-- `decision_20260616_cpp1_success_reanchor_closeout_rework_v1`
-- `round_20260616_cpp1_success_reanchor_closeout_rework_v1`
+- `decision_20260616_gate_baseline_lifecycle_closeout_rework_v1`
+- `round_20260616_gate_baseline_lifecycle_closeout_rework_v1`
 - mainline: `engineering_branch`
+- audit conclusion: `ACCEPTED_WITH_LIMITATIONS`
 
 Known facts from audit:
 
-- `command-plan` now passes.
-- The generic project CLI classification works.
-- `pytest` passes with 570 tests.
-- `close-round` reported CLOSED and created an archive.
-- live `final_gate_result.json` still reports FAILED.
-- blockers are `baseline_lifecycle_guard` and `report_summary_fields_match_synthesis`.
-- `project_state/gates/round_close_snapshot.json` records dirty source/test files: `reverse_agent/project_gate.py` and `tests/test_project_gate.py`.
-- These two files were explicitly allowed by the previous decision implementation scope.
-- Current CPP1 reanchor artifact is already current and must not be changed.
+- `codex_execution_report.md` reports `SUCCESS` and `acceptance_recommendation=ACCEPTED` for the previous round.
+- `pytest_result.txt` recorded all required commands and `python -m pytest tests/test_project_state.py tests/test_project_gate.py -q` passed with 578 tests.
+- `report-summary` CLI output was `PASSED`.
+- `final-check` was `PASSED`.
+- `close-round` was `CLOSED` with exit 0 and archive created.
+- `project_state/gates/report_summary_synthesis.json` still recorded `synthesis_status=WARN` because of an inherited dirty warning even though `diffs=[]` and `errors=[]`.
+- This creates a status-language mismatch: the gate behavior is acceptable, but the artifact field is ambiguous for future audit.
+- Historical missing sample artifacts remain external state notices, not blockers for this engineering gate round.
+- `project_state/artifact_index.json` still contains current CPP1 evidence, including `local_reverse_cpp1_2f6fcb63_success_target_reanchor` with freshness `current`; this round must not alter its meaning.
 
-Historical missing artifacts remain external state notices. Missing/stale current artifacts must still block.
+Existing relevant capabilities:
+
+- `reverse_agent/project_gate.py` already implements `report-summary`, `final-check`, `close-round`, `command-plan`, baseline lifecycle checks, close snapshot checks, round archive checks, and report synthesis.
+- `tests/test_project_gate.py` already contains focused tests for report synthesis, baseline lifecycle, close snapshot behavior, command-plan extraction, and close-round behavior.
+- This round does not require IDA, Ghidra, debugger, runtime probe, solver, harness execution, GUI/frontend work, or sample metadata changes.
 
 ## 3. Do Not Do
 
-Do not rerun the CPP1 local sample.
+Do not rerun CPP1 or any local reverse sample.
 
-Do not continue reverse-solving work or produce candidate material.
+Do not generate candidate material.
 
-Do not modify CPP1 evidence artifacts, except read-only verification.
+Do not modify solver logic, sample runners, IDA runner semantics, debugger/emulator/probe code, `.codex-skills/`, raw samples, training materials, GUI/frontend, or full `solve_reports/`.
 
-Do not analyze `samplereverse`.
-
-Do not modify solver logic, sample runners, IDA runner semantics, `.codex-skills/`, raw samples, training materials, GUI/frontend, or full `solve_reports/`.
-
-Do not manually patch gate result files to hide failures.
+Do not manually patch `report_summary_synthesis.json`, `final_gate_result.json`, or other gate files to hide failures.
 
 Do not weaken decision/report/pytest/round id matching.
 
-Do not weaken current artifact freshness policy.
+Do not weaken artifact freshness policy.
+
+Do not make all report-summary warnings non-blocking.
+
+Do not suppress real `errors`, real `diffs`, missing command-plan, missing round baseline, report/decision mismatch, pytest mismatch, unauthorized dirty source/test files, or forbidden path violations.
 
 Do not remove historical missing artifact entries just to pass gates.
 
@@ -88,15 +93,14 @@ Read the default project_state files in order:
 
 Also inspect:
 
-- `project_state/gates/final_gate_result.json`
 - `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/round_close_snapshot.json`
+- `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_delta_summary.json`
-- `project_state/rounds/round_20260616_cpp1_success_reanchor_closeout_rework_v1/round_manifest.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json`, read-only verification only
+- `project_state/gates/round_close_snapshot.json`
 - `reverse_agent/project_gate.py`
 - `tests/test_project_gate.py`
 - `tests/test_project_state.py`
+- `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json`, read-only verification only
 
 Do not read full `PROJECT_PROGRESS_LOG.txt` or full `solve_reports/`.
 
@@ -106,20 +110,19 @@ Before changing files, confirm:
 
 1. Startup path is `F:\reverse-agent` and `git rev-parse --show-toplevel` points to this repository.
 2. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
-3. `project_gate.py` and `tests/test_project_gate.py` were authorized in the previous decision's Implementation Scope.
-4. The close snapshot correctly records they were dirty at close.
-5. The gate incorrectly classifies them as unauthorized inherited source/test dirty files.
-6. The fix must be limited to baseline lifecycle / close snapshot authorization semantics.
-7. Current CPP1 artifacts remain current and are not downgraded.
-8. Historical 50 missing sample artifacts remain external state notices, not blockers.
+3. The previous round passed final-check and close-round but left `report_summary_synthesis.json` with `synthesis_status=WARN` and no `errors` / `diffs`.
+4. The warning source is non-blocking inherited-dirty or external-state notice, not a real report-summary mismatch.
+5. `report_summary_fields_match_synthesis` currently passes and must continue to pass.
+6. `baseline_lifecycle_guard` currently passes and must continue to block unauthorized source/test dirty files.
+7. Current CPP1 artifacts remain current and are not modified.
 
 Required result:
 
-- `baseline_lifecycle_guard` must pass or become non-blocking only for source/test files that are authorized by decision scope and covered by report/tests.
-- Unauthorized source/test dirty files must still block.
-- `report_summary_fields_match_synthesis` must pass.
-- Gate result files must be generated by gate commands, not manually edited.
-- close-round must exit 0 before reporting SUCCESS/ACCEPTED.
+- Define a precise status policy for report-summary synthesis artifacts.
+- If `errors` or `diffs` are present, `synthesis_status` must remain `FAILED` or equivalent blocking status.
+- If warnings are only recognized non-blocking warnings, choose one consistent representation and test it. Preferred representation: `synthesis_status=PASSED` plus a separate `warnings` list and/or `non_blocking_warnings` / `external_state_notices` field.
+- If warnings are not recognized as non-blocking, status must remain `WARN` and final-check must not silently turn it into full acceptance.
+- CLI output, JSON artifact, final-check interpretation, and tests must agree.
 
 ## 6. Implementation Scope
 
@@ -128,7 +131,7 @@ Allowed source changes:
 - `reverse_agent/project_gate.py`
 - directly related tests, preferably `tests/test_project_gate.py`
 
-Allowed state updates:
+Allowed state updates generated by commands:
 
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
@@ -140,22 +143,16 @@ Allowed state updates:
 - `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/*`
+- `project_state/rounds/round_20260616_report_summary_status_semantics_v1/*`
 
 Do not modify:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json`;
-- `project_state/artifact_index.json`, unless needed only to preserve existing current registration without changing meaning;
-- solver/sample-runner/IDA/harness modules;
-- `.codex-skills/`.
+- `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json`
+- `project_state/artifact_index.json`, unless needed only for read-only verification output and without changing artifact meaning
+- solver/sample-runner/IDA/debugger/harness modules
+- `.codex-skills/`
 
-Implementation must distinguish:
-
-- unauthorized inherited source/test dirty files;
-- source/test files explicitly authorized by the current decision and listed in report/tests;
-- generated state files expected during closeout.
-
-Do not make all dirty source/test files non-blocking. The exception must be constrained by current decision scope, report coverage, and tests.
+Implementation must be minimal and status-policy focused. Do not refactor unrelated gate logic.
 
 ## 7. Tests
 
@@ -179,31 +176,35 @@ python -m reverse_agent.project_state active-execution-view --state-dir project_
 python -m pytest tests/test_project_state.py tests/test_project_gate.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_gate_baseline_lifecycle_closeout_rework_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_report_summary_status_semantics_v1
 ```
 
 Focused tests must cover:
 
-- authorized source/test files in Implementation Scope are not reported as unauthorized inherited dirty files at close;
-- unauthorized source/test dirty files still block;
-- close snapshot dirty source/test files must be either authorized or blocking;
-- report-summary includes all files required by synthesis, including `round_close_snapshot.json` when generated;
+- report-summary synthesis with `errors=[]`, `diffs=[]`, and only recognized non-blocking warnings yields the chosen non-blocking status consistently;
+- report-summary synthesis with real `diffs` remains blocking;
+- report-summary synthesis with real `errors` remains blocking;
+- inherited dirty warning is not globally suppressed when the dirty source/test file is unauthorized;
+- `baseline_lifecycle_guard` still fails on unauthorized close snapshot source/test dirty files;
+- `final-check` and close-round interpret the report-summary synthesis status consistently;
 - current artifact freshness and id matching checks remain strict.
 
 ## 8. Stop Conditions
 
-Stop with `REWORK_REQUIRED` if live `final_gate_result.json` remains FAILED.
+Stop with `REWORK_REQUIRED` if `report_summary_synthesis.json` still has ambiguous status semantics after the fix.
 
-Stop with `REWORK_REQUIRED` if `baseline_lifecycle_guard` still fails.
+Stop with `REWORK_REQUIRED` if `report_summary_fields_match_synthesis` fails.
 
-Stop with `REWORK_REQUIRED` if `report_summary_fields_match_synthesis` still fails.
+Stop with `REWORK_REQUIRED` if `baseline_lifecycle_guard` fails unexpectedly or is weakened for unauthorized source/test dirty files.
+
+Stop with `REWORK_REQUIRED` if live `final_gate_result.json` is FAILED.
 
 Stop with `REWORK_REQUIRED` if close-round exits nonzero.
 
-Stop with `REWORK_REQUIRED` if the fix weakens artifact freshness, id matching, forbidden path checks, or unauthorized source/test dirty detection.
-
 Stop with `REWORK_REQUIRED` if CPP1 evidence artifacts are modified.
 
-Stop with `BLOCKED` if this requires broad project_state schema changes outside baseline lifecycle / close snapshot semantics.
+Stop with `REWORK_REQUIRED` if the fix weakens artifact freshness, id matching, forbidden path checks, or unauthorized dirty detection.
 
-Do not write SUCCESS or ACCEPTED if final gate or close-round fails.
+Stop with `BLOCKED` if this requires broad project_state schema migration outside report-summary status semantics.
+
+Do not write SUCCESS or ACCEPTED if final-check or close-round fails.
