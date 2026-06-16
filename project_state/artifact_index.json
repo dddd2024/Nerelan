@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-15T15:02:20Z",
+  "generated_at": "2026-06-16T03:43:07Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": null,
@@ -50,7 +50,8 @@
     "smt_validation": null,
     "strata_summary": null,
     "summary": null,
-    "transform_trace_consistency": null
+    "transform_trace_consistency": null,
+    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
   },
   "latest_artifacts_v2": {
     "base64_rc4_breakpoint_probe": {
@@ -513,6 +514,16 @@
       "size_bytes": 25410,
       "source_run": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
       "tool_status": "success"
+    },
+    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": {
+      "kind": "target_bytes_current_revalidation",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+      "freshness": "current",
+      "source_run": "round_20260616_cpp1_target_bytes_current_revalidation_v2",
+      "sha256": "5d4583bf787958980cbe7132e6ce8c4c3f641e91f871f4109285a34639ab2734",
+      "size_bytes": 9460,
+      "modified_at": "2026-06-16T03:43:07Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [],
@@ -527,5 +538,8 @@
   ],
   "recent_artifacts": [],
   "reports_dir": "solve_reports",
-  "sample": "samplereverse"
+  "sample": "samplereverse",
+  "artifact_refs": {
+    "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
+  }
 }

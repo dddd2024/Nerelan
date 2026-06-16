@@ -8,7 +8,7 @@
   "executed_sample": false,
   "static_only": true,
   "runtime_validated": false,
-  "generated_at": "2026-06-14T09:34:50Z",
+  "generated_at": "2026-06-16T03:43:07Z",
   "tool_status": "success",
   "source_tool": "existing_static_artifacts",
   "ida_used_this_round": false,
@@ -25,7 +25,7 @@
       "artifact_key": "local_reverse_cpp1_2f6fcb63_static_triage",
       "path": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
       "freshness": "current",
-      "source_run": "round_20260614_cpp1_2f6fcb63_static_triage_tooling_rework_v1",
+      "source_run": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
       "sample_id": "cpp1_2f6fcb63"
     },
     "old_target_bytes": {

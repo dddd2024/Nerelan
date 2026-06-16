@@ -4,8 +4,8 @@
   "report_id": "codex_report_20260616_cpp1_target_bytes_current_revalidation_v2",
   "round_id": "round_20260616_cpp1_target_bytes_current_revalidation_v2",
   "based_on_decision_id": "decision_20260616_cpp1_target_bytes_current_revalidation_v2",
-  "status": "PARTIAL",
-  "acceptance_recommendation": "REWORK_REQUIRED",
+  "status": "SUCCESS",
+  "acceptance_recommendation": "ACCEPTED",
   "files_changed": [
     "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",

@@ -228,7 +228,7 @@ recommended_next_action: review_warnings_before_closeout
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_target_bytes_current_revalidation_v2 =====
-close-round: FAILED
+close-round: CLOSED
 decision_id: decision_20260616_cpp1_target_bytes_current_revalidation_v2
 report_id: codex_report_20260616_cpp1_target_bytes_current_revalidation_v2
 round_id: round_20260616_cpp1_target_bytes_current_revalidation_v2
@@ -245,7 +245,7 @@ round_id: round_20260616_cpp1_target_bytes_current_revalidation_v2
   [PASS] startup_command_coverage: pytest_result covers required startup commands
   [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
   [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [PASS] close_round_is_last_command_block: close-round is the last command block in pytest_result
+  [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
   [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
   [PASS] round_delta_summary_present: round delta summary is baseline-aware
   [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
@@ -257,20 +257,19 @@ round_id: round_20260616_cpp1_target_bytes_current_revalidation_v2
   [PASS] baseline_capture_order: baseline capture order is clean; no source/test files overlap between baseline dirty and files_changed
   [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
   [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
-  [WARN] build_output_scope: build_output_scope_unverified: build-generated state files in round delta without recorded build command
+  [PASS] build_output_scope: no build-generated state files in round delta
   [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
   [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
   [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [WARN] report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary
+  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
   [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
   [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
   [PASS] forbidden_paths_absent: no forbidden paths detected
   [PASS] state_package_compact: state package classification is compact or non-blocking
   [ACTION PASSED] final_check_before_archive
   [ACTION created] archive_round
-  [ACTION FAILED] final_check_after_archive
+  [ACTION PASSED] final_check_after_archive
 archive_status: created
-  [BLOCK] final_check_after_archive: ['status_policy_valid']
-recommended_next_action: fix_close_round_failures_before_retry
+recommended_next_action: no_action_required
 ===== STDERR =====
-===== EXIT: 1 =====
+===== EXIT: 0 =====
