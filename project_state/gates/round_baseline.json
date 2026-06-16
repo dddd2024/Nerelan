@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260616_cpp1_target_bytes_current_revalidation_v2",
-  "round_id": "round_20260616_cpp1_target_bytes_current_revalidation_v2",
-  "head_commit": "b4466f97f4fc",
+  "decision_id": "decision_20260616_cpp1_target_revalidation_closeout_rework_v1",
+  "round_id": "round_20260616_cpp1_target_revalidation_closeout_rework_v1",
+  "head_commit": "ce644133620e",
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
   "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-16T03:42:54.588313Z"
+  "generated_at": "2026-06-16T04:03:39.607043Z"
 }

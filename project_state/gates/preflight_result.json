@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260616_cpp1_target_bytes_current_revalidation_v2",
-  "round_id": "round_20260616_cpp1_target_bytes_current_revalidation_v2",
-  "mainline": "tool_integration",
-  "generated_at": "2026-06-16T03:42:54.589140Z",
+  "decision_id": "decision_20260616_cpp1_target_revalidation_closeout_rework_v1",
+  "round_id": "round_20260616_cpp1_target_revalidation_closeout_rework_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-16T04:04:01.700401Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is tool_integration",
+      "detail": "mainline is engineering_branch",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260616_cpp1_static_triage_closeout_rework_v1"
+      "report_id": "codex_report_20260616_cpp1_target_bytes_current_revalidation_v2"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,6 +71,7 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
+        "directly related tests",
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
@@ -78,15 +79,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/*",
-        "reverse_agent/local_reverse_cpp1_target_byte_extract.py",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/*",
         "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py",
-        "\u76f4\u63a5\u76f8\u5173 tests"
+        "reverse_agent/project_state.py"
       ]
     },
     {
@@ -107,7 +106,7 @@
       "status": "PASS",
       "detail": "stale/missing artifacts are not claimed as current evidence",
       "artifact_freshness": {
-        "current": 1,
+        "current": 2,
         "missing": 50
       },
       "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6"
@@ -116,7 +115,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": true
+      "capability_required": false
     }
   ],
   "blocking_reasons": [],
@@ -125,7 +124,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "b4466f97f4fc"
+    "head_commit": "ce644133620e"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

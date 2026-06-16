@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "final-check",
-  "gate_status": "FAILED",
-  "decision_id": "decision_20260616_cpp1_target_bytes_current_revalidation_v2",
-  "report_id": "codex_report_20260616_cpp1_target_bytes_current_revalidation_v2",
-  "round_id": "round_20260616_cpp1_target_bytes_current_revalidation_v2",
-  "generated_at": "2026-06-16T03:50:07.049194Z",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260616_cpp1_target_revalidation_closeout_rework_v1",
+  "report_id": "codex_report_20260616_cpp1_target_revalidation_closeout_rework_v1",
+  "round_id": "round_20260616_cpp1_target_revalidation_closeout_rework_v1",
+  "generated_at": "2026-06-16T04:29:08.765719Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260616_cpp1_target_bytes_current_revalidation_v2\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260616_cpp1_target_revalidation_closeout_rework_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -50,7 +50,6 @@
       "baseline_available": true,
       "inherited_dirty_files": [],
       "new_dirty_files_since_baseline": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -58,15 +57,14 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/decision_packet.md",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/round_manifest.json"
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/round_manifest.json"
       ],
       "final_dirty_files": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -74,12 +72,12 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/decision_packet.md",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/round_manifest.json"
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/round_manifest.json"
       ]
     },
     {
@@ -94,7 +92,6 @@
       "detail": "files_changed covers round delta files",
       "missing_files": [],
       "git_changed_files": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -102,15 +99,14 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/decision_packet.md",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/round_manifest.json"
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/round_manifest.json"
       ],
       "required_round_delta_files": [
-        "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
@@ -118,12 +114,12 @@
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+        "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/codex_execution_report.md",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/decision_packet.md",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/round_manifest.json"
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/round_manifest.json"
       ],
       "inherited_dirty_files": []
     },
@@ -131,10 +127,7 @@
       "name": "files_changed_covers_substantive_changes",
       "status": "PASS",
       "detail": "files_changed covers substantive source/test/artifact changes",
-      "substantive_dirty_files": [
-        "project_state/artifact_index.json",
-        "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json"
-      ]
+      "substantive_dirty_files": []
     },
     {
       "name": "generated_artifacts_cover_round_delta",
@@ -172,12 +165,12 @@
       "status": "PASS",
       "detail": "startup git status --short appears after path confirmation commands",
       "valid": true,
-      "startup_status_block_index": 5,
+      "startup_status_block_index": 6,
       "path_confirmation_block_indexes": {
-        "Set-Location": 1,
-        "Get-Location": 2,
-        "Test-Path": 3,
-        "git rev-parse": 4
+        "Set-Location": 2,
+        "Get-Location": 3,
+        "Test-Path": 4,
+        "git rev-parse": 5
       },
       "startup_status_evidence_trusted": true
     },
@@ -190,12 +183,9 @@
     },
     {
       "name": "build_output_scope",
-      "status": "WARN",
-      "detail": "build_output_scope_unverified: build-generated state files in round delta without recorded build command",
-      "build_files_in_delta": [
-        "project_state/artifact_index.json"
-      ],
-      "build_command_recorded": false
+      "status": "PASS",
+      "detail": "no build-generated state files in round delta",
+      "build_files_in_delta": []
     },
     {
       "name": "verified_cli_coverage",
@@ -229,8 +219,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260616_cpp1_target_bytes_current_revalidation_v2",
-      "command_plan_round_id": "round_20260616_cpp1_target_bytes_current_revalidation_v2"
+      "command_plan_decision_id": "decision_20260616_cpp1_target_revalidation_closeout_rework_v1",
+      "command_plan_round_id": "round_20260616_cpp1_target_revalidation_closeout_rework_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -279,21 +269,10 @@
     },
     {
       "name": "report_summary_fields_match_synthesis",
-      "status": "WARN",
-      "detail": "codex_report_summary differs from synthesized summary",
+      "status": "PASS",
+      "detail": "codex_report_summary matches synthesized summary",
       "errors": [],
-      "diffs": [
-        {
-          "field": "status",
-          "expected": "FAILED",
-          "actual": "SUCCESS"
-        },
-        {
-          "field": "acceptance_recommendation",
-          "expected": "REWORK_REQUIRED",
-          "actual": "ACCEPTED"
-        }
-      ]
+      "diffs": []
     },
     {
       "name": "report_summary_status_source_available",
@@ -309,15 +288,16 @@
     },
     {
       "name": "status_policy_valid",
-      "status": "FAIL",
-      "detail": "status policy found blocking issues",
-      "lint_errors": [
-        "50 missing, 0 stale artifacts"
-      ],
+      "status": "PASS",
+      "detail": "SUCCESS report passes lint and doctor",
+      "lint_errors": [],
       "warnings": [],
-      "doctor_status": "WARN",
+      "doctor_status": "PASS",
       "report_status": "SUCCESS",
-      "limitations": null
+      "limitations": null,
+      "external_state_notices": [
+        "50 missing historical sample artifacts"
+      ]
     },
     {
       "name": "final_check_stdout_matches_gate_status",
@@ -327,20 +307,15 @@
       "skipped_reason": "close_round_in_progress"
     }
   ],
-  "blocking_reasons": [
-    "status_policy_valid: status policy found blocking issues"
-  ],
-  "warnings": [
-    "build_output_scope: build_output_scope_unverified: build-generated state files in round delta without recorded build command",
-    "report_summary_fields_match_synthesis: codex_report_summary differs from synthesized summary"
-  ],
-  "recommended_next_action": "fix_gate_failures_before_archive_or_handoff",
+  "blocking_reasons": [],
+  "warnings": [],
+  "recommended_next_action": "no_action_required",
   "status_summary": {
     "decision_execution_state": "CONSUMED_BY_SUCCESS_REPORT",
     "decision_report_id_match": true,
     "decision_consumed_by_report": true,
     "archive_status": "archived",
-    "report_status": "FAILED",
-    "report_acceptance_recommendation": "REWORK_REQUIRED"
+    "report_status": "SUCCESS",
+    "report_acceptance_recommendation": "ACCEPTED"
   }
 }
