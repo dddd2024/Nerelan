@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260616_cpp1_target_revalidation_closeout_rework_v1",
-  "round_id": "round_20260616_cpp1_target_revalidation_closeout_rework_v1",
-  "mainline": "engineering_branch",
-  "generated_at": "2026-06-16T04:04:01.700401Z",
+  "decision_id": "decision_20260616_cpp1_bounded_runtime_boundary_probe_v1",
+  "round_id": "round_20260616_cpp1_bounded_runtime_boundary_probe_v1",
+  "mainline": "reverse_solving",
+  "generated_at": "2026-06-16T04:59:55.555782Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is engineering_branch",
+      "detail": "mainline is reverse_solving",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260616_cpp1_target_bytes_current_revalidation_v2"
+      "report_id": "codex_report_20260616_cpp1_target_revalidation_closeout_rework_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,7 +71,7 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "directly related tests",
+        "directly relevant tests",
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
@@ -82,10 +82,12 @@
         "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
+        "project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/*",
-        "reverse_agent/project_gate.py",
-        "reverse_agent/project_state.py"
+        "project_state/rounds/round_20260616_cpp1_bounded_runtime_boundary_probe_v1/*",
+        "reverse_agent/local_reverse_cpp1_inverse_handoff.py",
+        "reverse_agent/local_reverse_cpp1_runtime_boundary_probe.py",
+        "reverse_agent/local_reverse_runtime.py"
       ]
     },
     {
@@ -99,7 +101,12 @@
       "status": "PASS",
       "detail": "mainline scope policy is satisfied",
       "matched_terms": [],
-      "matched_paths": []
+      "matched_paths": [
+        "project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json",
+        "project_state/rounds/round_20260616_cpp1_bounded_runtime_boundary_probe_v1/*",
+        "reverse_agent/local_reverse_cpp1_runtime_boundary_probe.py",
+        "reverse_agent/local_reverse_runtime.py"
+      ]
     },
     {
       "name": "artifact_freshness_policy",
@@ -115,7 +122,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": false
+      "capability_required": true
     }
   ],
   "blocking_reasons": [],
@@ -124,7 +131,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "ce644133620e"
+    "head_commit": "0bec02e4fb63"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

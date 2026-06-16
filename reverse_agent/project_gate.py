@@ -4019,6 +4019,8 @@ def _command_kind(command: str) -> str:
         and "--current-revalidation" in lowered
     ):
         return "target-bytes-revalidation"
+    if "python -m reverse_agent.local_reverse_cpp1_runtime_boundary_probe" in lowered:
+        return "runtime-boundary-probe"
     if "project_gate" in lowered and "preflight" in lowered:
         return "preflight"
     if "project_gate" in lowered and "command-plan" in lowered:

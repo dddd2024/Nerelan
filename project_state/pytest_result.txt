@@ -1,14 +1,12 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260616_cpp1_target_revalidation_closeout_rework_v1",
-  "report_id": "codex_report_20260616_cpp1_target_revalidation_closeout_rework_v1",
-  "round_id": "round_20260616_cpp1_target_revalidation_closeout_rework_v1",
-  "generated_at": "2026-06-16T04:15:00Z",
-  "status": "PASSED",
+  "decision_id": "decision_20260616_cpp1_bounded_runtime_boundary_probe_v1",
+  "report_id": "codex_report_20260616_cpp1_bounded_runtime_boundary_probe_v1",
+  "round_id": "round_20260616_cpp1_bounded_runtime_boundary_probe_v1",
+  "generated_at": "2026-06-16T05:05:00Z",
+  "status": "PARTIAL",
   "tests_ran": [
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
     "Set-Location F:\\reverse-agent",
     "Get-Location",
     "Test-Path F:\\reverse-agent",
@@ -21,17 +19,151 @@
     "python -m reverse_agent.project_state doctor --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state active-execution-view --state-dir project_state --json",
+    "python -m reverse_agent.local_reverse_cpp1_runtime_boundary_probe --target-revalidation project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json --success-boundary project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json --timeout-seconds 5",
     "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_target_revalidation_closeout_rework_v1"
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_bounded_runtime_boundary_probe_v1"
   ]
 }
 ```
 
+===== COMMAND: Set-Location F:\reverse-agent =====
+F:\reverse-agent
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: Get-Location =====
+F:\reverse-agent
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: Test-Path F:\reverse-agent =====
+True
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: git rev-parse --show-toplevel =====
+F:/reverse-agent
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: git status --short =====
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
+preflight: PASSED
+decision_id: decision_20260616_cpp1_bounded_runtime_boundary_probe_v1
+round_id: round_20260616_cpp1_bounded_runtime_boundary_probe_v1
+mainline: reverse_solving
+  [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline
+  [PASS] decision_meta_parse: decision_meta parsed
+  [PASS] decision_approved: decision status is APPROVED
+  [PASS] mainline_valid: mainline is reverse_solving
+  [PASS] skill_profiles_active: skill profiles are active
+  [PASS] decision_not_consumed_by_report: decision has not been consumed by a report
+  [PASS] task_packet_is_non-authoritative: decision_packet remains authoritative over task_packet suggestions
+  [PASS] implementation_scope_present: implementation scope is present and parseable
+  [PASS] forbidden_paths_not_allowed: allowed scope contains no forbidden paths
+  [PASS] mainline_scope_policy: mainline scope policy is satisfied
+  [PASS] artifact_freshness_policy: stale/missing artifacts are not claimed as current evidence
+  [PASS] tool_capability_audit_required_when_applicable: tool capability audit requirement is satisfied
+recommended_next_action: proceed_with_decision_scope
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
+command-plan: PASSED
+decision_id: decision_20260616_cpp1_bounded_runtime_boundary_probe_v1
+round_id: round_20260616_cpp1_bounded_runtime_boundary_probe_v1
+mainline: reverse_solving
+  [1] status set-location: Set-Location F:\reverse-agent expected_exit=[0]
+  [2] status pwd: Get-Location expected_exit=[0]
+  [3] status test-path: Test-Path F:\reverse-agent expected_exit=[0]
+  [4] status git rev-parse: git rev-parse --show-toplevel expected_exit=[0]
+  [5] status git status: git status --short expected_exit=[0]
+  [6] preflight preflight: python -m reverse_agent.project_gate preflight --state-dir project_state expected_exit=[0]
+  [7] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state expected_exit=[0]
+  [8] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state --json expected_exit=[0]
+  [9] gate run-round: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json expected_exit=[0]
+  [10] status doctor: python -m reverse_agent.project_state doctor --state-dir project_state expected_exit=[0]
+  [11] status lint-report: python -m reverse_agent.project_state lint-report --state-dir project_state expected_exit=[0]
+  [12] status active-execution-view: python -m reverse_agent.project_state active-execution-view --state-dir project_state --json expected_exit=[0]
+  [13] unknown runtime-boundary-probe: python -m reverse_agent.local_reverse_cpp1_runtime_boundary_probe --target-revalidation project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json --success-boundary project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json --timeout-seconds 5 expected_exit=[0]
+  [14] test pytest: python -m pytest tests/test_project_state.py tests/test_project_gate.py -q expected_exit=[0]
+  [15] gate report-summary: python -m reverse_agent.project_gate report-summary --state-dir project_state expected_exit=[0]
+  [16] gate final-check: python -m reverse_agent.project_gate final-check --state-dir project_state expected_exit=[0]
+  [17] gate close-round: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_bounded_runtime_boundary_probe_v1 expected_exit=[0]
+recommended_next_action: record_and_follow_command_plan_manually
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
+{"schema_version":1,"plan_name":"command-plan","plan_status":"PASSED","decision_id":"decision_20260616_cpp1_bounded_runtime_boundary_probe_v1","round_id":"round_20260616_cpp1_bounded_runtime_boundary_probe_v1","mainline":"reverse_solving","generated_at":"2026-06-16T05:06:13.944193Z","commands":[{"index":1,"command":"Set-Location F:\\reverse-agent","phase":"status","kind":"set-location","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"set-location expected to exit 0"},{"index":2,"command":"Get-Location","phase":"status","kind":"pwd","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"pwd expected to exit 0"},{"index":3,"command":"Test-Path F:\\reverse-agent","phase":"status","kind":"test-path","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"test-path expected to exit 0"},{"index":4,"command":"git rev-parse --show-toplevel","phase":"status","kind":"git rev-parse","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"git rev-parse expected to exit 0"},{"index":5,"command":"git status --short","phase":"status","kind":"git status","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"git status expected to exit 0"},{"index":6,"command":"python -m reverse_agent.project_gate preflight --state-dir project_state","phase":"preflight","kind":"preflight","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"preflight expected to exit 0"},{"index":7,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"command-plan expected to exit 0"},{"index":8,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state --json","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"command-plan expected to exit 0"},{"index":9,"command":"python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json","phase":"gate","kind":"run-round","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"run-round expected to exit 0"},{"index":10,"command":"python -m reverse_agent.project_state doctor --state-dir project_state","phase":"status","kind":"doctor","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"doctor expected to exit 0"},{"index":11,"command":"python -m reverse_agent.project_state lint-report --state-dir project_state","phase":"status","kind":"lint-report","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"lint-report expected to exit 0"},{"index":12,"command":"python -m reverse_agent.project_state active-execution-view --state-dir project_state --json","phase":"status","kind":"active-execution-view","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"active-execution-view expected to exit 0"},{"index":13,"command":"python -m reverse_agent.local_reverse_cpp1_runtime_boundary_probe --target-revalidation project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json --success-boundary project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json --timeout-seconds 5","phase":"unknown","kind":"runtime-boundary-probe","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"runtime-boundary-probe expected to exit 0"},{"index":14,"command":"python -m pytest tests/test_project_state.py tests/test_project_gate.py -q","phase":"test","kind":"pytest","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"pytest expected to exit 0"},{"index":15,"command":"python -m reverse_agent.project_gate report-summary --state-dir project_state","phase":"gate","kind":"report-summary","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"report-summary expected to exit 0"},{"index":16,"command":"python -m reverse_agent.project_gate final-check --state-dir project_state","phase":"gate","kind":"final-check","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"final-check expected to exit 0"},{"index":17,"command":"python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_bounded_runtime_boundary_probe_v1","phase":"gate","kind":"close-round","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"close-round expected to exit 0"}],"warnings":[],"blocking_reasons":[],"recommended_next_action":"record_and_follow_command_plan_manually"}
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json =====
+run-round dry-run output recorded (see run_round_result.json)
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
+doctor: WARN
+  [PASS] decision_approval: decision decision_20260616_cpp1_bounded_runtime_boundary_probe_v1 is APPROVED
+  [PASS] mainline: mainline is reverse_solving
+  [PASS] skill_profiles: skill profiles active
+  [PASS] report_parse: report codex_report_20260616_cpp1_bounded_runtime_boundary_probe_v1 status is PARTIAL
+  [PASS] report_decision_match: report decision_id matches
+  [PASS] pytest_result: pytest_result.txt matches report and covers all tests
+  [WARN] archive: decision consumed but round manifest not present
+  [INFO] artifacts: 50 missing, 0 stale historical sample artifacts (non-blocking)
+  [PASS] state_package_classification
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_state lint-report --state-dir project_state =====
+lint-report: OK
+warning: report round not archived yet
+report_id: codex_report_20260616_cpp1_bounded_runtime_boundary_probe_v1
+report_status: PARTIAL
+acceptance_recommendation: REWORK_REQUIRED
+based_on_decision_id: decision_20260616_cpp1_bounded_runtime_boundary_probe_v1
+decision_id: decision_20260616_cpp1_bounded_runtime_boundary_probe_v1
+decision_report_id_match: True
+round_id: round_20260616_cpp1_bounded_runtime_boundary_probe_v1
+report_round_id: round_20260616_cpp1_bounded_runtime_boundary_probe_v1
+decision_round_id: round_20260616_cpp1_bounded_runtime_boundary_probe_v1
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_state active-execution-view --state-dir project_state --json =====
+{"execution_authority":"decision_packet","active_decision_id":"decision_20260616_cpp1_bounded_runtime_boundary_probe_v1","active_round_id":"round_20260616_cpp1_bounded_runtime_boundary_probe_v1","decision_status":"APPROVED","decision_execution_state":"READY_FOR_EXECUTION","latest_success_report_id":null,"latest_closed_round_id":"round_20260616_cpp1_target_revalidation_closeout_rework_v1","task_packet_role":"state_input","current_state_role":"historical_sample_state","historical_artifacts_role":"historical_external_notices","recommended_next_action":"execute_decision_scope","mainline":"reverse_solving"}
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.local_reverse_cpp1_runtime_boundary_probe --target-revalidation project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json --success-boundary project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json --inventory project_state/local_reverse_inventory.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json --timeout-seconds 5 =====
+cpp1 runtime boundary probe: verdict=INCONCLUSIVE_TIMEOUT_OR_IO
+  executed_sample=False
+  runtime_validated=False
+  static_boundary_contradicted=False
+  probe=baseline_18_A exit=None timeout=True success=False failure=True duration_ms=5015
+  probe=raw_inverse_AA exit=None timeout=True success=False failure=True duration_ms=5015
+  probe=raw_inverse_BB exit=None timeout=True success=False failure=True duration_ms=5016
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m pytest tests/test_project_state.py tests/test_project_gate.py -q =====
+559 passed in 55.38s
+===== STDERR =====
+===== EXIT: 0 =====
+
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
 report-summary: WARN
-decision_id: decision_20260616_cpp1_target_revalidation_closeout_rework_v1
-report_id: codex_report_20260616_cpp1_target_revalidation_closeout_rework_v1
-round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
+decision_id: decision_20260616_cpp1_bounded_runtime_boundary_probe_v1
+report_id: codex_report_20260616_cpp1_bounded_runtime_boundary_probe_v1
+round_id: round_20260616_cpp1_bounded_runtime_boundary_probe_v1
   [WARN] final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet
 artifact: project_state/gates/report_summary_synthesis.json
 ===== STDERR =====
@@ -39,15 +171,12 @@ artifact: project_state/gates/report_summary_synthesis.json
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
 final-check: WARN
-decision_id: decision_20260616_cpp1_target_revalidation_closeout_rework_v1
-report_id: codex_report_20260616_cpp1_target_revalidation_closeout_rework_v1
-round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
+decision_id: decision_20260616_cpp1_bounded_runtime_boundary_probe_v1
+report_id: codex_report_20260616_cpp1_bounded_runtime_boundary_probe_v1
+round_id: round_20260616_cpp1_bounded_runtime_boundary_probe_v1
   [PASS] decision_report_match: decision/report ids and round_id match
   [PASS] pytest_result_match: pytest_result matches report
   [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
-  [WARN] round_manifest_present: round manifest is missing
-  [WARN] archived_report_matches_live_report: archived report differs from live report
-  [WARN] archived_pytest_result_matches_live_pytest_result: archived pytest_result differs from live pytest_result
   [PASS] round_delta_summary_present: round delta summary is baseline-aware
   [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
   [PASS] files_changed_covers_git_diff: files_changed covers round delta files
@@ -80,139 +209,11 @@ recommended_next_action: review_warnings_before_closeout
 ===== STDERR =====
 ===== EXIT: 0 =====
 
-===== COMMAND: Set-Location F:\reverse-agent =====
-F:\reverse-agent
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: Get-Location =====
-F:\reverse-agent
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: Test-Path F:\reverse-agent =====
-True
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: git rev-parse --show-toplevel =====
-F:/reverse-agent
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: git status --short =====
- M project_state/codex_execution_report.md
- M project_state/gates/command_plan.json
- M project_state/gates/final_gate_result.json
- M project_state/gates/preflight_result.json
- M project_state/gates/report_summary_synthesis.json
- M project_state/gates/round_baseline.json
- M project_state/gates/round_delta_summary.json
- M project_state/gates/run_round_result.json
- M project_state/pytest_result.txt
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
-preflight: PASSED
-decision_id: decision_20260616_cpp1_target_revalidation_closeout_rework_v1
-round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
-mainline: engineering_branch
-  [PASS] decision_not_dirty_in_baseline: live decision_packet.md is not dirty in startup baseline
-  [PASS] decision_meta_parse: decision_meta parsed
-  [PASS] decision_approved: decision status is APPROVED
-  [PASS] mainline_valid: mainline is engineering_branch
-  [PASS] skill_profiles_active: skill profiles are active
-  [PASS] decision_not_consumed_by_report: decision has not been consumed by a report
-  [PASS] task_packet_is_non-authoritative: decision_packet remains authoritative over task_packet suggestions
-  [PASS] implementation_scope_present: implementation scope is present and parseable
-  [PASS] forbidden_paths_not_allowed: allowed scope contains no forbidden paths
-  [PASS] mainline_scope_policy: mainline scope policy is satisfied
-  [PASS] artifact_freshness_policy: stale/missing artifacts are not claimed as current evidence
-  [PASS] tool_capability_audit_required_when_applicable: tool capability audit requirement is satisfied
-recommended_next_action: proceed_with_decision_scope
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
-command-plan: PASSED
-decision_id: decision_20260616_cpp1_target_revalidation_closeout_rework_v1
-round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
-mainline: engineering_branch
-  [1] gate report-summary: python -m reverse_agent.project_gate report-summary --state-dir project_state expected_exit=[0]
-  [2] gate final-check: python -m reverse_agent.project_gate final-check --state-dir project_state expected_exit=[0]
-  [3] status set-location: Set-Location F:\reverse-agent expected_exit=[0]
-  [4] status pwd: Get-Location expected_exit=[0]
-  [5] status test-path: Test-Path F:\reverse-agent expected_exit=[0]
-  [6] status git rev-parse: git rev-parse --show-toplevel expected_exit=[0]
-  [7] status git status: git status --short expected_exit=[0]
-  [8] preflight preflight: python -m reverse_agent.project_gate preflight --state-dir project_state expected_exit=[0]
-  [9] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state expected_exit=[0]
-  [10] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state --json expected_exit=[0]
-  [11] gate run-round: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json expected_exit=[0]
-  [12] status doctor: python -m reverse_agent.project_state doctor --state-dir project_state expected_exit=[0]
-  [13] status lint-report: python -m reverse_agent.project_state lint-report --state-dir project_state expected_exit=[0]
-  [14] status active-execution-view: python -m reverse_agent.project_state active-execution-view --state-dir project_state --json expected_exit=[0]
-  [15] test pytest: python -m pytest tests/test_project_state.py tests/test_project_gate.py -q expected_exit=[0]
-  [16] gate close-round: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_target_revalidation_closeout_rework_v1 expected_exit=[0]
-recommended_next_action: record_and_follow_command_plan_manually
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-{"schema_version":1,"plan_name":"command-plan","plan_status":"PASSED","decision_id":"decision_20260616_cpp1_target_revalidation_closeout_rework_v1","round_id":"round_20260616_cpp1_target_revalidation_closeout_rework_v1","mainline":"engineering_branch","generated_at":"2026-06-16T04:04:01.701237Z","commands":[{"index":1,"command":"python -m reverse_agent.project_gate report-summary --state-dir project_state","phase":"gate","kind":"report-summary","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"report-summary expected to exit 0"},{"index":2,"command":"python -m reverse_agent.project_gate final-check --state-dir project_state","phase":"gate","kind":"final-check","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"final-check expected to exit 0"},{"index":3,"command":"Set-Location F:\\reverse-agent","phase":"status","kind":"set-location","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"set-location expected to exit 0"},{"index":4,"command":"Get-Location","phase":"status","kind":"pwd","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"pwd expected to exit 0"},{"index":5,"command":"Test-Path F:\\reverse-agent","phase":"status","kind":"test-path","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"test-path expected to exit 0"},{"index":6,"command":"git rev-parse --show-toplevel","phase":"status","kind":"git rev-parse","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"git rev-parse expected to exit 0"},{"index":7,"command":"git status --short","phase":"status","kind":"git status","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"git status expected to exit 0"},{"index":8,"command":"python -m reverse_agent.project_gate preflight --state-dir project_state","phase":"preflight","kind":"preflight","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"preflight expected to exit 0"},{"index":9,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"command-plan expected to exit 0"},{"index":10,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state --json","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"command-plan expected to exit 0"},{"index":11,"command":"python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json","phase":"gate","kind":"run-round","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"run-round expected to exit 0"},{"index":12,"command":"python -m reverse_agent.project_state doctor --state-dir project_state","phase":"status","kind":"doctor","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"doctor expected to exit 0"},{"index":13,"command":"python -m reverse_agent.project_state lint-report --state-dir project_state","phase":"status","kind":"lint-report","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"lint-report expected to exit 0"},{"index":14,"command":"python -m reverse_agent.project_state active-execution-view --state-dir project_state --json","phase":"status","kind":"active-execution-view","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"active-execution-view expected to exit 0"},{"index":15,"command":"python -m pytest tests/test_project_state.py tests/test_project_gate.py -q","phase":"test","kind":"pytest","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"pytest expected to exit 0"},{"index":16,"command":"python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_target_revalidation_closeout_rework_v1","phase":"gate","kind":"close-round","required":true,"expected_exit_codes":[0],"records_stdout_stderr":true,"notes":"close-round expected to exit 0"}],"warnings":[],"blocking_reasons":[],"recommended_next_action":"record_and_follow_command_plan_manually"}
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json =====
-run-round dry-run output recorded (see run_round_result.json)
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
-doctor: WARN
-  [PASS] decision_approval: decision decision_20260616_cpp1_target_revalidation_closeout_rework_v1 is APPROVED
-  [PASS] mainline: mainline is engineering_branch
-  [PASS] skill_profiles: skill profiles active
-  [PASS] report_parse: report codex_report_20260616_cpp1_target_revalidation_closeout_rework_v1 status is SUCCESS
-  [PASS] report_decision_match: report decision_id matches
-  [PASS] pytest_result: pytest_result.txt matches report and covers all tests
-  [WARN] archive: decision consumed but round manifest not present
-  [INFO] artifacts: 50 missing, 0 stale historical sample artifacts (non-blocking)
-  [PASS] state_package_classification
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_state lint-report --state-dir project_state =====
-lint-report: OK
-warning: report round not archived yet
-report_id: codex_report_20260616_cpp1_target_revalidation_closeout_rework_v1
-report_status: SUCCESS
-acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260616_cpp1_target_revalidation_closeout_rework_v1
-decision_id: decision_20260616_cpp1_target_revalidation_closeout_rework_v1
-decision_report_id_match: True
-round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
-report_round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
-decision_round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_state active-execution-view --state-dir project_state --json =====
-{"execution_authority":"decision_packet","active_decision_id":"decision_20260616_cpp1_target_revalidation_closeout_rework_v1","active_round_id":"round_20260616_cpp1_target_revalidation_closeout_rework_v1","decision_status":"APPROVED","decision_execution_state":"READY_FOR_EXECUTION","latest_success_report_id":null,"latest_closed_round_id":"round_20260616_cpp1_target_bytes_current_revalidation_v2","task_packet_role":"state_input","current_state_role":"historical_sample_state","historical_artifacts_role":"historical_external_notices","recommended_next_action":"execute_decision_scope","mainline":"engineering_branch"}
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m pytest tests/test_project_state.py tests/test_project_gate.py -q =====
-559 passed in 37.61s
-===== STDERR =====
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_target_revalidation_closeout_rework_v1 =====
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_bounded_runtime_boundary_probe_v1 =====
 close-round: CLOSED
-decision_id: decision_20260616_cpp1_target_revalidation_closeout_rework_v1
-report_id: codex_report_20260616_cpp1_target_revalidation_closeout_rework_v1
-round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
+decision_id: decision_20260616_cpp1_bounded_runtime_boundary_probe_v1
+report_id: codex_report_20260616_cpp1_bounded_runtime_boundary_probe_v1
+round_id: round_20260616_cpp1_bounded_runtime_boundary_probe_v1
   [PASS] decision_meta_parse: decision_meta parsed
   [PASS] decision_approved: decision status is APPROVED
   [PASS] report_present: codex report summary parsed
@@ -226,7 +227,7 @@ round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
   [PASS] startup_command_coverage: pytest_result covers required startup commands
   [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
   [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
+  [PASS] close_round_is_last_command_block: close-round is the last command block in pytest_result
   [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
   [PASS] round_delta_summary_present: round delta summary is baseline-aware
   [PASS] files_changed_excludes_inherited_dirty_files: files_changed excludes inherited baseline dirty files
@@ -243,15 +244,15 @@ round_id: round_20260616_cpp1_target_revalidation_closeout_rework_v1
   [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; no source/test dirty files at startup
   [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
   [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
-  [WARN] report_summary_status_source_available: report summary synthesis has source warnings
+  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
   [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
   [PASS] forbidden_paths_absent: no forbidden paths detected
   [PASS] state_package_compact: state package classification is compact or non-blocking
+  [PASS] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
   [ACTION PASSED] final_check_before_archive
   [ACTION created] archive_round
   [ACTION PASSED] final_check_after_archive
-archive_status: created
-recommended_next_action: no_action_required
+archive_status: archived
+recommended_next_action: round_closed_successfully
 ===== STDERR =====
 ===== EXIT: 0 =====
-

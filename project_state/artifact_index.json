@@ -524,6 +524,16 @@
       "size_bytes": 9460,
       "modified_at": "2026-06-16T03:43:07Z",
       "sample_id": "cpp1_2f6fcb63"
+    },
+    "local_reverse_cpp1_2f6fcb63_runtime_boundary_probe": {
+      "kind": "bounded_runtime_boundary_probe",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json",
+      "freshness": "current",
+      "source_run": "round_20260616_cpp1_bounded_runtime_boundary_probe_v1",
+      "sha256": null,
+      "size_bytes": null,
+      "modified_at": "2026-06-16T05:05:00Z",
+      "sample_id": "cpp1_2f6fcb63"
     }
   },
   "latest_case_results": [],
