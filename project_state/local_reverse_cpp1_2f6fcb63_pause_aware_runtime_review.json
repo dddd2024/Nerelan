@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "decision_id": "",
+  "round_id": "",
+  "sample_id": "cpp1_2f6fcb63",
+  "relative_path": "逆向课程2023春01/CPP1.exe",
+  "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+  "analysis_mode": "pause_aware_runtime_evidence_review",
+  "mainline": "reverse_solving",
+  "source_artifacts": {
+    "runtime_boundary_probe": "project_state\\local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json",
+    "target_revalidation": "project_state\\local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+    "success_boundary_static_recheck": "project_state\\local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json"
+  },
+  "source_artifact_freshness": {
+    "runtime_boundary_probe": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_runtime_boundary_probe",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json",
+      "freshness": "current",
+      "source_run": "round_20260616_cpp1_bounded_runtime_boundary_probe_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "target_revalidation": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+      "freshness": "current",
+      "source_run": "",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "success_boundary_static_recheck": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck",
+      "path": "project_state\\local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json",
+      "freshness": "current",
+      "source_run": "round_20260615_cpp1_success_boundary_static_recheck_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    }
+  },
+  "executed_sample": false,
+  "reviewed_prior_runtime_execution": true,
+  "runtime_validated": false,
+  "success_markers": [],
+  "failure_markers": [
+    "baseline_18_A",
+    "raw_inverse_AA",
+    "raw_inverse_BB"
+  ],
+  "pause_markers": [
+    "baseline_18_A",
+    "raw_inverse_AA",
+    "raw_inverse_BB"
+  ],
+  "per_probe_classification": {
+    "baseline_18_A": {
+      "probe_name": "baseline_18_A",
+      "stdin_hex": "4141414141414141414141414141414141410d0a0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+      "timeout": true,
+      "exit_code": null,
+      "success_marker_seen": false,
+      "failure_marker_seen": true,
+      "pause_marker_seen": true,
+      "classification": "FAILURE_MARKER_SEEN"
+    },
+    "raw_inverse_AA": {
+      "probe_name": "raw_inverse_AA",
+      "stdin_hex": "5d5a1cde131557d7d69dde2417df245341410d0a0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+      "timeout": true,
+      "exit_code": null,
+      "success_marker_seen": false,
+      "failure_marker_seen": true,
+      "pause_marker_seen": true,
+      "classification": "FAILURE_MARKER_SEEN"
+    },
+    "raw_inverse_BB": {
+      "probe_name": "raw_inverse_BB",
+      "stdin_hex": "5d5a1cde131557d7d69dde2417df245342420d0a0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+      "timeout": true,
+      "exit_code": null,
+      "success_marker_seen": false,
+      "failure_marker_seen": true,
+      "pause_marker_seen": true,
+      "classification": "FAILURE_MARKER_SEEN"
+    }
+  },
+  "candidate_bytes_hex": null,
+  "candidate_text": null,
+  "current_preview_status": "REJECTED_BY_RUNTIME_OUTPUT",
+  "static_boundary_contradicted": false,
+  "recommended_next_action": "Use a separate tool_integration/static-debugger decision to inspect why the success boundary fails: specifically, determine the actual value of Destination[16] after the transform loop for a candidate input, and whether byte_429A30[16]==0x00 creates an unavoidable match that prevents i==16 exit. Do not rerun the same payloads. Consider patching system('pause') out of the binary for clean runtime testing, or using a debugger script to set a breakpoint at the compare loop.",
+  "stop_conditions_for_next_round": [
+    "Do not rerun CPP1.exe with the same payloads that already timed out.",
+    "Do not treat timeout alone as success or failure; only captured markers are decisive.",
+    "Do not mark CPP1 as solved or runtime_validated without an exact success marker.",
+    "Do not repeat the printable inverse path unless target bytes or transform semantics change.",
+    "Do not modify project_gate.py in the next round unless an engineering_branch decision explicitly authorizes it.",
+    "Before any new runtime validation, first resolve the Destination[16] success boundary contradiction.",
+    "If a new runtime campaign is proposed, use a separate decision that patches out system('pause') or uses debugger/console automation."
+  ],
+  "generated_at": "2026-06-16T06:18:44.785600+00:00"
+}
