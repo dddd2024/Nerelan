@@ -6095,3 +6095,52 @@ class TestStartupBaselineConsistencyReportClaimsNone:
         assert result["name"] == "startup_baseline_consistency"
         assert result["status"] == "FAIL"
         assert result.get("report_inconsistency") is True
+
+
+class TestProjectCliCommandKind:
+    """Tests for the generic project-cli command classification."""
+
+    def test_success_target_reanchor_is_project_cli(self) -> None:
+        cmd = "python -m reverse_agent.local_reverse_cpp1_success_target_reanchor --static-triage a.json --out b.json"
+        assert _command_kind(cmd) == "project-cli"
+
+    def test_project_cli_phase_is_status(self) -> None:
+        assert _command_phase("project-cli", archive_seen=False) == "status"
+
+    def test_project_cli_not_unknown(self) -> None:
+        cmd = "python -m reverse_agent.local_reverse_cpp1_success_target_reanchor --out x.json"
+        kind = _command_kind(cmd)
+        assert kind != "unknown", f"expected known kind, got {kind!r}"
+
+    def test_input_delivery_review_is_project_cli(self) -> None:
+        cmd = "python -m reverse_agent.input_delivery_review --state-dir project_state"
+        assert _command_kind(cmd) == "project-cli"
+
+    def test_runtime_probe_not_project_cli(self) -> None:
+        cmd = "python -m reverse_agent.local_reverse_cpp1_runtime_boundary_probe --out x.json"
+        assert _command_kind(cmd) == "runtime-boundary-probe"
+
+    def test_debugger_command_not_project_cli(self) -> None:
+        cmd = "python -m reverse_agent.debugger_attach --target cpp1"
+        assert _command_kind(cmd) != "project-cli"
+
+    def test_harness_command_not_project_cli(self) -> None:
+        cmd = "python -m reverse_agent.harness_run --sample cpp1"
+        assert _command_kind(cmd) != "project-cli"
+
+    def test_solver_command_not_project_cli(self) -> None:
+        cmd = "python -m reverse_agent.solver_search --sample cpp1"
+        assert _command_kind(cmd) != "project-cli"
+
+    def test_probe_command_not_project_cli(self) -> None:
+        cmd = "python -m reverse_agent.memory_probe --target cpp1"
+        assert _command_kind(cmd) != "project-cli"
+
+    def test_non_reverse_agent_not_project_cli(self) -> None:
+        cmd = "python -m other_module.run_task --input x.json"
+        assert _command_kind(cmd) != "project-cli"
+
+    def test_existing_specific_mappings_preserved(self) -> None:
+        """Commands that already have specific mappings should keep them."""
+        assert _command_kind("python -m reverse_agent.local_reverse_single_sample_static_triage --out x.json") == "static-triage"
+        assert _command_kind("python -m reverse_agent.local_reverse_cpp1_target_byte_extract --current-revalidation --out x.json") == "target-bytes-revalidation"

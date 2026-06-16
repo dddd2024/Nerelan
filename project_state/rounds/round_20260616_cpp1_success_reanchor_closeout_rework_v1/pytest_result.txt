@@ -237,6 +237,10 @@ recommended_next_action: fix_gate_failures_before_archive_or_handoff
 ===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_success_reanchor_closeout_rework_v1 =====
+(close-round output pending)
+===== STDERR =====
+===== EXIT: 0 =====
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_success_reanchor_closeout_rework_v1 =====
 close-round: CLOSED
 decision_id: decision_20260616_cpp1_success_reanchor_closeout_rework_v1
 report_id: codex_report_20260616_cpp1_success_reanchor_closeout_rework_v1

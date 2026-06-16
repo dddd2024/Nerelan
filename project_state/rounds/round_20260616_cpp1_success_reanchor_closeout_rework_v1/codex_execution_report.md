@@ -101,8 +101,8 @@ Additionally, `_allowed_source_test_scope_paths` was updated with the same "do n
 - pytest: 570 passed (including 11 new project-cli tests)
 - preflight: PASSED (all 12 checks PASS)
 - command-plan: PASSED (16 commands, no warnings)
-- doctor: WARN (round manifest not yet present — expected before close-round)
-- lint-report: OK
-- report-summary: WARN (inherited dirty files in files_changed)
-- final-check: FAILED (pytest_result_exit_codes_match_command_plan — final-check exit code 1, but this check is always skipped for final-check commands)
-- close-round: CLOSED (exit 0, all critical checks PASS)
+- doctor: FAIL (report_decision_match — expected, report is from previous round)
+- lint-report: FAILED (report mismatch — expected, report is from previous round)
+- report-summary: pending
+- final-check: pending
+- close-round: pending
