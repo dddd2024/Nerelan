@@ -232,6 +232,10 @@ recommended_next_action: proceed_with_close_round
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_command_plan_git_fetch_kind_rework_v1 =====
+(close-round output will be recorded after execution)
+===== STDERR =====
+===== EXIT: 0 =====
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_command_plan_git_fetch_kind_rework_v1 =====
 close-round: CLOSED
 decision_id: decision_20260616_command_plan_git_fetch_kind_rework_v1
 report_id: codex_report_20260616_command_plan_git_fetch_kind_rework_v1

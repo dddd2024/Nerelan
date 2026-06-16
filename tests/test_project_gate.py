@@ -6274,6 +6274,94 @@ class TestProjectCliCommandKind:
         assert _command_kind("python -m reverse_agent.local_reverse_cpp1_target_byte_extract --current-revalidation --out x.json") == "target-bytes-revalidation"
 
 
+class TestGitFetchCommandClassification:
+    """Tests for git fetch command classification in command-plan.
+
+    Covers:
+    - _command_kind recognizes git fetch as a known kind
+    - _command_phase classifies git fetch as status phase
+    - command-plan with git fetch returns plan_status=PASSED when no other warnings
+    - unknown unrelated commands still produce WARN
+    - close-round still fails on real command-plan id mismatch
+    """
+
+    def test_command_kind_git_fetch_origin(self) -> None:
+        assert _command_kind("git fetch origin") == "git fetch"
+
+    def test_command_kind_git_fetch_bare(self) -> None:
+        assert _command_kind("git fetch") == "git fetch"
+
+    def test_command_kind_git_fetch_all(self) -> None:
+        assert _command_kind("git fetch --all") == "git fetch"
+
+    def test_command_phase_git_fetch_is_status(self) -> None:
+        assert _command_phase("git fetch", archive_seen=False) == "status"
+
+    def test_command_plan_with_git_fetch_passes(self, tmp_path: Path) -> None:
+        """command-plan with git fetch origin returns plan_status=PASSED."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        decision_text = (
+            "```json decision_meta\n"
+            '{"schema_version":1,"decision_id":"d1","round_id":"r1",'
+            '"based_on_state_build_id":"s1","based_on_state_digest":"h1",'
+            '"status":"APPROVED","mainline":"engineering_branch",'
+            '"skill_profiles":["reverse-agent-iteration@v2"]}\n'
+            "```\n"
+            "# DECISION_PACKET\n"
+            "## 1. Goal\nTest.\n"
+            "## 2. Current Evidence\nNone.\n"
+            "## 3. Do Not Do\nNothing.\n"
+            "## 4. Files To Inspect\nNone.\n"
+            "## 5. Required Audit\nNone.\n"
+            "## 6. Implementation Scope\n"
+            "Allowed source changes:\n- reverse_agent/project_gate.py\n"
+            "## 7. Tests\n"
+            "```powershell\n"
+            "git fetch origin\n"
+            "git status --short\n"
+            "```\n"
+            "## 8. Stop Conditions\nNone.\n"
+        )
+        (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+        result = command_plan(state_dir=state_dir, write_result=True)
+        assert result["plan_status"] == "PASSED", f"Expected PASSED, got {result['plan_status']}; warnings={result.get('warnings')}"
+
+    def test_unknown_command_still_warns(self, tmp_path: Path) -> None:
+        """Unknown unrelated commands still produce plan_status=WARN."""
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        decision_text = (
+            "```json decision_meta\n"
+            '{"schema_version":1,"decision_id":"d1","round_id":"r1",'
+            '"based_on_state_build_id":"s1","based_on_state_digest":"h1",'
+            '"status":"APPROVED","mainline":"engineering_branch",'
+            '"skill_profiles":["reverse-agent-iteration@v2"]}\n'
+            "```\n"
+            "# DECISION_PACKET\n"
+            "## 1. Goal\nTest.\n"
+            "## 2. Current Evidence\nNone.\n"
+            "## 3. Do Not Do\nNothing.\n"
+            "## 4. Files To Inspect\nNone.\n"
+            "## 5. Required Audit\nNone.\n"
+            "## 6. Implementation Scope\n"
+            "Allowed source changes:\n- reverse_agent/project_gate.py\n"
+            "## 7. Tests\n"
+            "```powershell\n"
+            "some_unknown_command --flag\n"
+            "```\n"
+            "## 8. Stop Conditions\nNone.\n"
+        )
+        (state_dir / "decision_packet.md").write_text(decision_text, encoding="utf-8")
+        result = command_plan(state_dir=state_dir, write_result=True)
+        assert result["plan_status"] == "WARN"
+        assert any("unknown kind" in w for w in result.get("warnings", []))
+
+
 class TestBaselineLifecycleCloseSnapshotAuthorization:
     """Tests for baseline lifecycle guard close snapshot authorization semantics.
 

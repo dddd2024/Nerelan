@@ -4138,6 +4138,8 @@ def _command_kind(command: str) -> str:
         return "git rev-parse"
     if lowered.startswith("git diff") or " git diff" in lowered:
         return "git diff"
+    if lowered.startswith("git fetch") or " git fetch" in lowered:
+        return "git fetch"
     if lowered.startswith("git ls-files") or " git ls-files" in lowered:
         return "git ls-files"
     if lowered.startswith("git rm") or " git rm" in lowered:
@@ -4192,6 +4194,7 @@ def _command_phase(kind: str, *, archive_seen: bool) -> str:
         "git status",
         "git rev-parse",
         "git diff",
+        "git fetch",
         "git ls-files",
         "git rm",
         "build",
