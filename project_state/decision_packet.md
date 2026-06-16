@@ -1,8 +1,8 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260616_cpp1_success_reanchor_closeout_rework_v1",
-  "round_id": "round_20260616_cpp1_success_reanchor_closeout_rework_v1",
+  "decision_id": "decision_20260616_gate_baseline_lifecycle_closeout_rework_v1",
+  "round_id": "round_20260616_gate_baseline_lifecycle_closeout_rework_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
@@ -15,19 +15,19 @@
 
 ## 1. Goal
 
-Close out `round_20260616_cpp1_success_target_reanchor_v1` and fix the gate command-kind limitation that blocked archive.
+Close out `round_20260616_cpp1_success_reanchor_closeout_rework_v1` by repairing the remaining gate baseline lifecycle and close snapshot inconsistency.
 
-This is an `engineering_branch` round. Do not rerun `CPP1.exe`. Do not continue solving. Do not regenerate the reanchor artifact unless needed only to verify metadata.
+This is an `engineering_branch` gate repair round. Do not continue CPP1 solving work. Do not rerun the CPP1 local sample. Do not regenerate CPP1 evidence artifacts.
 
 Required end state:
 
-- command-plan recognizes the reanchor CLI or a generic project artifact-builder CLI;
-- `command_plan_ids_match` passes;
-- `pytest_result_exit_codes_match_command_plan` passes;
-- `final_gate_result.json` is not FAILED;
+- live `final_gate_result.json` is not FAILED;
+- `report_summary_synthesis.json` is PASSED;
+- `baseline_lifecycle_guard` no longer treats explicitly authorized source/test changes as unauthorized inherited dirty files;
+- `report_summary_fields_match_synthesis` passes;
 - close-round exits 0;
-- round archive for `round_20260616_cpp1_success_reanchor_closeout_rework_v1` exists;
-- `local_reverse_cpp1_2f6fcb63_success_target_reanchor` remains current.
+- round archive exists for `round_20260616_gate_baseline_lifecycle_closeout_rework_v1`;
+- `local_reverse_cpp1_2f6fcb63_success_target_reanchor` remains current and unchanged.
 
 ## 2. Current Evidence
 
@@ -35,55 +35,47 @@ Current execution authority is this `project_state/decision_packet.md`; `task_pa
 
 Previous round:
 
-- `decision_20260616_cpp1_success_target_reanchor_v1`
-- `round_20260616_cpp1_success_target_reanchor_v1`
-- mainline: `tool_integration`
+- `decision_20260616_cpp1_success_reanchor_closeout_rework_v1`
+- `round_20260616_cpp1_success_reanchor_closeout_rework_v1`
+- mainline: `engineering_branch`
 
 Known facts from audit:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json` was generated.
-- `artifact_index.json` registers `local_reverse_cpp1_2f6fcb63_success_target_reanchor` as `freshness=current`, source_run `round_20260616_cpp1_success_target_reanchor_v1`, sample_id `cpp1_2f6fcb63`.
-- The reanchor artifact has `contradiction_resolution=CURRENT_TARGET_PATH_REJECTED`.
-- The artifact recommends `TARGET_REANCHOR_NEEDED` and does not mark solved or runtime validated.
-- The thin CLI `reverse_agent/local_reverse_cpp1_success_target_reanchor.py` was created and executed successfully.
-- `pytest` passed with 559 tests.
-- `command-plan` was WARN because command 13 had unknown kind.
-- `final-check` failed.
-- `close-round` failed with exit 1.
-- `codex_execution_report.md` says `PARTIAL / REWORK_REQUIRED`.
-- The blocking issue is gate classification, not the reanchor evidence itself.
+- `command-plan` now passes.
+- The generic project CLI classification works.
+- `pytest` passes with 570 tests.
+- `close-round` reported CLOSED and created an archive.
+- live `final_gate_result.json` still reports FAILED.
+- blockers are `baseline_lifecycle_guard` and `report_summary_fields_match_synthesis`.
+- `project_state/gates/round_close_snapshot.json` records dirty source/test files: `reverse_agent/project_gate.py` and `tests/test_project_gate.py`.
+- These two files were explicitly allowed by the previous decision implementation scope.
+- Current CPP1 reanchor artifact is already current and must not be changed.
 
-Historical missing artifacts remain historical external state notices. They must not be treated as current CPP1 evidence. Missing/stale current CPP1 artifacts must still block.
-
-Existing gate problem:
-
-- `project_gate.py` currently uses a finite command-kind classifier.
-- New project CLIs under `python -m reverse_agent.<module>` can become `unknown` even when explicitly declared in the decision Tests section.
-- A pure one-off mapping would unblock this round, but the same failure will recur for each new thin artifact-builder CLI.
+Historical missing artifacts remain external state notices. Missing/stale current artifacts must still block.
 
 ## 3. Do Not Do
 
-Do not rerun `CPP1.exe`.
+Do not rerun the CPP1 local sample.
 
-Do not run debugger, runtime probe, harness campaign, emulator, hook, or console automation.
+Do not continue reverse-solving work or produce candidate material.
 
-Do not generate candidate/password/flag.
+Do not modify CPP1 evidence artifacts, except read-only verification.
 
-Do not analyze or solve `samplereverse`.
+Do not analyze `samplereverse`.
 
-Do not modify solver logic, harness behavior, runtime runner behavior, IDA runner semantics, debugger integration, `.codex-skills/`, raw samples, training materials, GUI/frontend, or full `solve_reports/`.
+Do not modify solver logic, sample runners, IDA runner semantics, `.codex-skills/`, raw samples, training materials, GUI/frontend, or full `solve_reports/`.
 
-Do not downgrade current CPP1 artifacts.
+Do not manually patch gate result files to hide failures.
 
-Do not manually patch `final_gate_result.json` to hide failures.
+Do not weaken decision/report/pytest/round id matching.
 
-Do not weaken final gate semantics for id matching, pytest result matching, current artifact freshness, forbidden paths, or close-round requirements.
+Do not weaken current artifact freshness policy.
 
-Do not remove historical missing artifact entries just to pass the gate.
+Do not remove historical missing artifact entries just to pass gates.
 
 ## 4. Files To Inspect
 
-Read default state files in order:
+Read the default project_state files in order:
 
 1. `project_state/task_packet.json`
 2. `project_state/current_state.json`
@@ -96,13 +88,13 @@ Read default state files in order:
 
 Also inspect:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json`
-- `project_state/gates/command_plan.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/round_delta_summary.json`
+- `project_state/rounds/round_20260616_cpp1_success_reanchor_closeout_rework_v1/round_manifest.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json`, read-only verification only
 - `reverse_agent/project_gate.py`
-- `reverse_agent/local_reverse_cpp1_success_target_reanchor.py`
 - `tests/test_project_gate.py`
 - `tests/test_project_state.py`
 
@@ -114,20 +106,20 @@ Before changing files, confirm:
 
 1. Startup path is `F:\reverse-agent` and `git rev-parse --show-toplevel` points to this repository.
 2. `decision_meta` is valid, `status=APPROVED`, `mainline=engineering_branch`, and `reverse-agent-iteration@v2` is active.
-3. The reanchor artifact exists and is current in `artifact_index.json`.
-4. The prior close-round failed because command-plan did not recognize `reverse_agent.local_reverse_cpp1_success_target_reanchor`.
-5. The 50 missing artifacts are historical sample artifacts, not current CPP1 artifacts.
-6. The fix is gate command classification only, not a change to solving/evidence semantics.
-7. Current artifact freshness remains strict.
-8. No runtime/debugger/sample execution is needed.
+3. `project_gate.py` and `tests/test_project_gate.py` were authorized in the previous decision's Implementation Scope.
+4. The close snapshot correctly records they were dirty at close.
+5. The gate incorrectly classifies them as unauthorized inherited source/test dirty files.
+6. The fix must be limited to baseline lifecycle / close snapshot authorization semantics.
+7. Current CPP1 artifacts remain current and are not downgraded.
+8. Historical 50 missing sample artifacts remain external state notices, not blockers.
 
 Required result:
 
-- `command-plan` must be PASSED, not WARN, for the declared reanchor CLI command.
-- `final-check` must not be FAILED.
-- `close-round` must exit 0 before reporting SUCCESS/ACCEPTED.
-- If a generic project CLI fallback is added, tests must prove that it does not authorize undeclared or forbidden runtime/debugger/solver behavior.
-- If a one-off mapping is used, report must explain that this is a short-term unblock and recommend replacing repeated one-off mappings with a generic project-cli/artifact-builder policy.
+- `baseline_lifecycle_guard` must pass or become non-blocking only for source/test files that are authorized by decision scope and covered by report/tests.
+- Unauthorized source/test dirty files must still block.
+- `report_summary_fields_match_synthesis` must pass.
+- Gate result files must be generated by gate commands, not manually edited.
+- close-round must exit 0 before reporting SUCCESS/ACCEPTED.
 
 ## 6. Implementation Scope
 
@@ -135,14 +127,6 @@ Allowed source changes:
 
 - `reverse_agent/project_gate.py`
 - directly related tests, preferably `tests/test_project_gate.py`
-
-Preferred implementation:
-
-1. Add a generic command classification for declared project CLIs under `python -m reverse_agent.<module>` when the full command is present in the current decision Tests section, classifying safe artifact builders as `project-cli` or `artifact-builder-cli`.
-2. Keep sensitive behavior blocked by policy: commands containing or classified as runtime/debugger/harness/sample execution/solver search must still require explicit decision authorization.
-3. If generic support is too large for this round, add a narrow mapping for `local_reverse_cpp1_success_target_reanchor` to a stable kind such as `success-target-reanchor`, but do not change broader policy semantics.
-
-Do not change policy semantics except command classification. Current artifact missing/stale must remain blocking. Forbidden paths must remain blocking. Report/decision/pytest/round matching must remain strict.
 
 Allowed state updates:
 
@@ -156,14 +140,22 @@ Allowed state updates:
 - `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260616_cpp1_success_reanchor_closeout_rework_v1/*`
+- `project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/*`
 
 Do not modify:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json`, except read-only verification;
-- `project_state/artifact_index.json`, except if required to preserve existing current registration without changing meaning;
-- solver/runtime/debugger/IDA/harness modules;
+- `project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json`;
+- `project_state/artifact_index.json`, unless needed only to preserve existing current registration without changing meaning;
+- solver/sample-runner/IDA/harness modules;
 - `.codex-skills/`.
+
+Implementation must distinguish:
+
+- unauthorized inherited source/test dirty files;
+- source/test files explicitly authorized by the current decision and listed in report/tests;
+- generated state files expected during closeout.
+
+Do not make all dirty source/test files non-blocking. The exception must be constrained by current decision scope, report coverage, and tests.
 
 ## 7. Tests
 
@@ -187,29 +179,31 @@ python -m reverse_agent.project_state active-execution-view --state-dir project_
 python -m pytest tests/test_project_state.py tests/test_project_gate.py -q
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_success_reanchor_closeout_rework_v1
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_gate_baseline_lifecycle_closeout_rework_v1
 ```
 
-If source changes are made, add or update focused tests for command-kind classification. At minimum, tests should cover:
+Focused tests must cover:
 
-- the `local_reverse_cpp1_success_target_reanchor` CLI no longer becomes unknown;
-- an unknown undeclared `python -m reverse_agent.<module>` command does not silently bypass policy;
-- runtime/debugger/harness/sample-execution style commands are not authorized by the generic fallback unless the decision explicitly allows them.
+- authorized source/test files in Implementation Scope are not reported as unauthorized inherited dirty files at close;
+- unauthorized source/test dirty files still block;
+- close snapshot dirty source/test files must be either authorized or blocking;
+- report-summary includes all files required by synthesis, including `round_close_snapshot.json` when generated;
+- current artifact freshness and id matching checks remain strict.
 
 ## 8. Stop Conditions
 
-Stop with `REWORK_REQUIRED` if command-plan remains WARN due to unknown kind.
+Stop with `REWORK_REQUIRED` if live `final_gate_result.json` remains FAILED.
+
+Stop with `REWORK_REQUIRED` if `baseline_lifecycle_guard` still fails.
+
+Stop with `REWORK_REQUIRED` if `report_summary_fields_match_synthesis` still fails.
 
 Stop with `REWORK_REQUIRED` if close-round exits nonzero.
 
-Stop with `REWORK_REQUIRED` if report-summary and live report disagree.
+Stop with `REWORK_REQUIRED` if the fix weakens artifact freshness, id matching, forbidden path checks, or unauthorized source/test dirty detection.
 
-Stop with `REWORK_REQUIRED` if final gate remains FAILED.
+Stop with `REWORK_REQUIRED` if CPP1 evidence artifacts are modified.
 
-Stop with `REWORK_REQUIRED` if the fix changes runtime/debugger/solver/harness behavior.
-
-Stop with `REWORK_REQUIRED` if current CPP1 artifacts are downgraded or reinterpreted.
-
-Stop with `BLOCKED` if implementing this requires broad gate policy changes outside command-kind classification.
+Stop with `BLOCKED` if this requires broad project_state schema changes outside baseline lifecycle / close snapshot semantics.
 
 Do not write SUCCESS or ACCEPTED if final gate or close-round fails.
