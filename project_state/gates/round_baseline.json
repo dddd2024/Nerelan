@@ -1,55 +1,39 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260616_cpp1_success_reanchor_closeout_rework_v1",
-  "round_id": "round_20260616_cpp1_success_reanchor_closeout_rework_v1",
-  "head_commit": "9ee4c58faca3",
+  "decision_id": "decision_20260616_gate_baseline_lifecycle_closeout_rework_v1",
+  "round_id": "round_20260616_gate_baseline_lifecycle_closeout_rework_v1",
+  "head_commit": "1c59804c001f",
   "baseline_git_status_short": [
     " D project_state/codex_execution_report.md",
     " D project_state/gates/command_plan.json",
     " D project_state/gates/final_gate_result.json",
-    " D project_state/gates/preflight_result.json",
     " D project_state/gates/report_summary_synthesis.json",
-    " D project_state/gates/round_baseline.json",
     " D project_state/gates/round_close_snapshot.json",
     " D project_state/gates/round_delta_summary.json",
-    " D project_state/gates/run_round_result.json",
-    " M project_state/pytest_result.txt",
     " M reverse_agent/project_gate.py",
-    " M tests/test_project_gate.py",
-    "?? project_state/codex_execution_report.md.bak"
+    " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
-    "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/round_baseline.json",
     "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/gates/run_round_result.json",
-    "project_state/pytest_result.txt",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
     "project_state/codex_execution_report.md",
-    "project_state/codex_execution_report.md.bak",
     "project_state/gates/command_plan.json",
-    "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
-    "project_state/gates/round_baseline.json",
     "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/gates/run_round_result.json",
-    "project_state/pytest_result.txt",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
-  "baseline_untracked_files": [
-    "project_state/codex_execution_report.md.bak"
-  ],
+  "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-16T10:38:32.193297Z"
+  "generated_at": "2026-06-16T13:12:01.261442Z"
 }

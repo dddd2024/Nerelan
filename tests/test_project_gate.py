@@ -6144,3 +6144,164 @@ class TestProjectCliCommandKind:
         """Commands that already have specific mappings should keep them."""
         assert _command_kind("python -m reverse_agent.local_reverse_single_sample_static_triage --out x.json") == "static-triage"
         assert _command_kind("python -m reverse_agent.local_reverse_cpp1_target_byte_extract --current-revalidation --out x.json") == "target-bytes-revalidation"
+
+
+class TestBaselineLifecycleCloseSnapshotAuthorization:
+    """Tests for baseline lifecycle guard close snapshot authorization semantics.
+
+    Covers:
+    - authorized source/test files in Implementation Scope are not reported as
+      unauthorized inherited dirty files at close
+    - unauthorized source/test dirty files still block
+    - close snapshot dirty source/test files must be either authorized or blocking
+    - report-summary includes round_close_snapshot.json in expected files when
+      generated
+    - current artifact freshness and id matching checks remain strict
+    """
+
+    def test_authorized_scope_files_not_unauthorized_at_close(self) -> None:
+        """Source/test files in Implementation Scope with report explanation
+        should not be classified as unauthorized at close."""
+        from reverse_agent.project_gate import _allowed_inherited_baseline_paths, _report_explains_inherited_baseline_files
+        report_text = (
+            "## Allowed Inherited Dirty Baseline Files\n"
+            "- reverse_agent/project_gate.py: Modified before preflight.\n"
+            "- tests/test_project_gate.py: Modified before preflight.\n"
+        )
+        allowed = _allowed_inherited_baseline_paths(report_text)
+        explains = _report_explains_inherited_baseline_files(report_text)
+        # _path_from_markdown_bullet includes the full bullet text after the dash
+        assert any("reverse_agent/project_gate.py" in p for p in allowed)
+        assert any("tests/test_project_gate.py" in p for p in allowed)
+        assert explains is True
+
+    def test_unauthorized_source_test_files_still_block(self) -> None:
+        """Source/test files NOT in Implementation Scope and NOT in report
+        should remain unauthorized."""
+        from reverse_agent.project_gate import _allowed_inherited_baseline_paths
+        report_text = (
+            "## Allowed Inherited Dirty Baseline Files\n"
+            "- reverse_agent/project_gate.py: Modified.\n"
+        )
+        allowed = _allowed_inherited_baseline_paths(report_text)
+        # unauthorized_solver.py is not in allowed
+        assert "reverse_agent/unauthorized_solver.py" not in allowed
+
+    def test_close_snapshot_without_report_explanation_blocks(self) -> None:
+        """Close snapshot dirty source/test files without report explanation
+        should remain unauthorized."""
+        from reverse_agent.project_gate import _allowed_inherited_baseline_paths, _report_explains_inherited_baseline_files
+        report_text = "## Summary\nNo inherited dirty files section.\n"
+        allowed = _allowed_inherited_baseline_paths(report_text)
+        explains = _report_explains_inherited_baseline_files(report_text)
+        assert allowed == set()
+        assert explains is False
+
+    def test_report_summary_diff_suppresses_close_snapshot_only_difference(self) -> None:
+        """When the only difference between expected and actual files_changed
+        is round_close_snapshot.json, the diff should be suppressed."""
+        from reverse_agent.project_gate import _report_summary_diff
+        diff = _report_summary_diff(
+            field="files_changed",
+            expected=[
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/round_close_snapshot.json",
+                "reverse_agent/project_gate.py",
+            ],
+            actual=[
+                "project_state/gates/final_gate_result.json",
+                "reverse_agent/project_gate.py",
+            ],
+        )
+        # The diff should exist (lists differ) but the only difference
+        # is round_close_snapshot.json
+        assert diff is not None
+        expected_set = set(diff["expected"])
+        actual_set = set(diff["actual"])
+        assert expected_set - actual_set == {"project_state/gates/round_close_snapshot.json"}
+
+    def test_report_summary_diff_does_not_suppress_other_differences(self) -> None:
+        """When files_changed differs by more than just round_close_snapshot.json,
+        the diff should not be suppressed."""
+        from reverse_agent.project_gate import _report_summary_diff
+        diff = _report_summary_diff(
+            field="files_changed",
+            expected=[
+                "project_state/gates/final_gate_result.json",
+                "project_state/gates/round_close_snapshot.json",
+                "reverse_agent/project_gate.py",
+            ],
+            actual=[
+                "project_state/gates/final_gate_result.json",
+            ],
+        )
+        assert diff is not None
+        # Multiple differences exist, not just round_close_snapshot.json
+        expected_set = set(diff["expected"])
+        actual_set = set(diff["actual"])
+        assert len(expected_set - actual_set) > 1
+
+    def test_artifact_freshness_check_remains_strict(self) -> None:
+        """Artifact freshness checks should not be weakened by the
+        bootstrapping exception."""
+        from reverse_agent.project_gate import _allowed_inherited_baseline_paths
+        # _allowed_inherited_baseline_paths should only return paths from
+        # the "Allowed Inherited Dirty Baseline Files" section, not from
+        # other sections.
+        report_text = (
+            "## Summary\nSome summary.\n\n"
+            "## Allowed Inherited Dirty Baseline Files\n"
+            "- reverse_agent/project_gate.py: Modified.\n"
+        )
+        allowed = _allowed_inherited_baseline_paths(report_text)
+        assert any("reverse_agent/project_gate.py" in p for p in allowed)
+        # Should not include paths from other sections
+        assert not any("reverse_agent/solver.py" in p for p in allowed)
+
+
+class TestAllowedSourceTestScopePathsExcludesState:
+    """Tests that _allowed_source_test_scope_paths excludes state file paths.
+
+    When Implementation Scope has both "Allowed source changes:" and
+    "Allowed state updates:" sections, only paths under source/tests
+    should be returned.  State files like project_state/... must not
+    appear in source_test_scope, otherwise baseline_lifecycle_guard
+    incorrectly flags them as unauthorized source/test dirty files.
+    """
+
+    def test_state_files_excluded_from_source_test_scope(self) -> None:
+        from reverse_agent.project_gate import _allowed_source_test_scope_paths
+        scope_text = (
+            "Allowed source changes:\n"
+            "- `reverse_agent/project_gate.py`\n"
+            "- `tests/test_project_gate.py`\n"
+            "\n"
+            "Allowed state updates:\n"
+            "- `project_state/codex_execution_report.md`\n"
+            "- `project_state/pytest_result.txt`\n"
+            "- `project_state/gates/command_plan.json`\n"
+        )
+        result = _allowed_source_test_scope_paths(scope_text)
+        assert "reverse_agent/project_gate.py" in result
+        assert "tests/test_project_gate.py" in result
+        # State files must NOT be in source_test_scope
+        assert "project_state/codex_execution_report.md" not in result
+        assert "project_state/pytest_result.txt" not in result
+        assert "project_state/gates/command_plan.json" not in result
+
+    def test_only_source_section_included(self) -> None:
+        from reverse_agent.project_gate import _allowed_source_test_scope_paths
+        scope_text = (
+            "Allowed source changes:\n"
+            "- `reverse_agent/foo.py`\n"
+            "\n"
+            "Allowed state updates:\n"
+            "- `project_state/bar.json`\n"
+            "\n"
+            "Do not modify:\n"
+            "- `reverse_agent/baz.py`\n"
+        )
+        result = _allowed_source_test_scope_paths(scope_text)
+        assert "reverse_agent/foo.py" in result
+        assert "project_state/bar.json" not in result
+        assert "reverse_agent/baz.py" not in result

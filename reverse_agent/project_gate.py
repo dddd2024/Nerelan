@@ -526,6 +526,7 @@ def _allowed_source_test_scope_paths(scope_text: str) -> set[str]:
             continue
         if (
             lowered.startswith("allowed generated")
+            or lowered.startswith("allowed state")
             or lowered.startswith("disallowed")
             or lowered.startswith("不允许")
             or lowered.startswith("允许生成")
@@ -1210,6 +1211,17 @@ def _baseline_lifecycle_checks(
             # dirty files, not stale baseline dirty files.
             close_source_test_dirty = sorted(close_dirty_files & source_test_scope)
             close_unauthorized = sorted((close_dirty_files & source_test_scope) - allowed_inherited)
+            # Bootstrapping exception for close snapshot: when source/test
+            # files are authorized by Implementation Scope and the report
+            # explicitly lists and explains them, they are not unauthorized
+            # even at close time.  This mirrors the preflight bootstrapping
+            # exception above.
+            if close_unauthorized:
+                report_allowed = _allowed_inherited_baseline_paths(report_text)
+                if report_allowed and _report_explains_inherited_baseline_files(report_text):
+                    bootstrapped = set(close_unauthorized) & source_test_scope & report_allowed
+                    if bootstrapped:
+                        close_unauthorized = sorted(set(close_unauthorized) - bootstrapped)
             if close_unauthorized:
                 checks.append(
                     _check(
@@ -2679,6 +2691,22 @@ def build_report_summary_synthesis(
             continue
         diff = _report_summary_diff(field=field, expected=synthesized_summary[field], actual=report.get(field))
         if diff:
+            # For files_changed, allow the report to omit
+            # round_close_snapshot.json because the report is written
+            # before close-round runs.  The synthesized summary includes
+            # it because close-round has already created the snapshot.
+            if (
+                field == "files_changed"
+                and isinstance(diff.get("expected"), list)
+                and isinstance(diff.get("actual"), list)
+            ):
+                expected_set = set(diff["expected"])
+                actual_set = set(diff["actual"])
+                # If the only difference is round_close_snapshot.json
+                # being present in expected but not actual, suppress.
+                close_snapshot_path = ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH
+                if expected_set - actual_set == {close_snapshot_path} and actual_set - expected_set == set():
+                    continue
             diffs.append(diff)
 
     synthesis_status = "FAILED" if errors or diffs else ("WARN" if warnings else "PASSED")

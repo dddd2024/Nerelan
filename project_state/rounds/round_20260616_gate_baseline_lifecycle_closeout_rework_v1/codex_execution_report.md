@@ -90,6 +90,6 @@ This round repairs the remaining gate baseline lifecycle and close snapshot inco
 - preflight: PASSED (all 12 checks PASS)
 - command-plan: PASSED (16 commands, no warnings)
 - run-round dry-run: PASSED
-- report-summary: PASSED (baseline_lifecycle_guard PASS, report_summary_fields_match_synthesis PASS)
-- final-check: PASSED (all critical checks PASS)
-- close-round: CLOSED (exit 0, archive created)
+- report-summary: pending
+- final-check: pending
+- close-round: pending
