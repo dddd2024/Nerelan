@@ -2709,7 +2709,31 @@ def build_report_summary_synthesis(
                     continue
             diffs.append(diff)
 
-    synthesis_status = "FAILED" if errors or diffs else ("WARN" if warnings else "PASSED")
+    # Classify warnings as blocking or non-blocking for synthesis_status.
+    # Non-blocking warnings are informational notices that do not indicate
+    # a real synthesis problem: inherited dirty files that may have been
+    # legitimately modified, or missing gate status that prevents status
+    # derivation but does not invalidate the synthesis itself.
+    _NON_BLOCKING_WARNING_PATTERNS: list[re.Pattern[str]] = [
+        re.compile(r"^files_changed includes inherited dirty files"),
+        re.compile(r"^final_gate_result\.json contains only retriable"),
+        re.compile(r"^final_gate_result\.json is missing or not for current round"),
+    ]
+
+    def _is_non_blocking_synthesis_warning(warning: str) -> bool:
+        return any(pattern.search(warning) for pattern in _NON_BLOCKING_WARNING_PATTERNS)
+
+    non_blocking_warnings = [w for w in warnings if _is_non_blocking_synthesis_warning(w)]
+    blocking_warnings = [w for w in warnings if not _is_non_blocking_synthesis_warning(w)]
+
+    if errors or diffs:
+        synthesis_status = "FAILED"
+    elif blocking_warnings:
+        synthesis_status = "WARN"
+    else:
+        # All warnings (if any) are non-blocking; synthesis is PASSED
+        # with informational notices preserved in non_blocking_warnings.
+        synthesis_status = "PASSED"
     result = {
         "schema_version": GATE_RESULT_SCHEMA_VERSION,
         "artifact_name": REPORT_SUMMARY_RESULT_NAME,
@@ -2723,6 +2747,7 @@ def build_report_summary_synthesis(
         "diffs": diffs,
         "errors": errors,
         "warnings": warnings,
+        "non_blocking_warnings": non_blocking_warnings,
         "sources": {
             "decision_meta": "project_state/decision_packet.md",
             "command_plan": COMMAND_PLAN_OUTPUT_PATH,
@@ -2774,6 +2799,8 @@ def _report_summary_checks(
     errors = list(synthesis.get("errors") or [])
     diffs = list(synthesis.get("diffs") or [])
     warnings = list(synthesis.get("warnings") or [])
+    non_blocking_warnings = list(synthesis.get("non_blocking_warnings") or [])
+    blocking_warnings = [w for w in warnings if w not in non_blocking_warnings]
     return [
         _check(
             "report_summary_synthesis_required",
@@ -2793,11 +2820,12 @@ def _report_summary_checks(
         ),
         _check(
             "report_summary_status_source_available",
-            "PASS" if not warnings else "WARN",
+            "PASS" if not blocking_warnings else "WARN",
             "report summary status fields are derived from final gate result"
-            if not warnings
-            else "report summary synthesis has source warnings",
+            if not blocking_warnings
+            else "report summary synthesis has blocking source warnings",
             warnings=warnings,
+            non_blocking_warnings=non_blocking_warnings,
         ),
     ]
 
@@ -4854,7 +4882,10 @@ def _print_report_summary(result: dict[str, Any]) -> None:
     for diff in result.get("diffs", []):
         print(f"  [DIFF] {diff.get('field')}")
     for warning in result.get("warnings", []):
-        print(f"  [WARN] {warning}")
+        if warning in (result.get("non_blocking_warnings") or []):
+            print(f"  [INFO] {warning}")
+        else:
+            print(f"  [WARN] {warning}")
     print(f"artifact: {REPORT_SUMMARY_OUTPUT_PATH}")
 
 

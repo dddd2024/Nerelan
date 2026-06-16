@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "final-check",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260616_gate_baseline_lifecycle_closeout_rework_v1",
-  "report_id": "codex_report_20260616_gate_baseline_lifecycle_closeout_rework_v1",
-  "round_id": "round_20260616_gate_baseline_lifecycle_closeout_rework_v1",
-  "generated_at": "2026-06-16T13:20:12.774252Z",
+  "decision_id": "decision_20260616_report_summary_status_semantics_v1",
+  "report_id": "codex_report_20260616_report_summary_status_semantics_v1",
+  "round_id": "round_20260616_report_summary_status_semantics_v1",
+  "generated_at": "2026-06-16T13:55:21.859709Z",
   "checks": [
     {
       "name": "decision_report_match",
@@ -28,7 +28,7 @@
       "name": "round_manifest_present",
       "status": "PASS",
       "detail": "round manifest is present",
-      "round_manifest_path": "project_state\\rounds\\round_20260616_gate_baseline_lifecycle_closeout_rework_v1\\round_manifest.json"
+      "round_manifest_path": "project_state\\rounds\\round_20260616_report_summary_status_semantics_v1\\round_manifest.json"
     },
     {
       "name": "archived_report_matches_live_report",
@@ -49,24 +49,23 @@
       "path": "project_state/gates/round_delta_summary.json",
       "baseline_available": true,
       "inherited_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "new_dirty_files_since_baseline": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
         "project_state/gates/final_gate_result.json",
         "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/round_manifest.json"
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/decision_packet.md",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/pytest_result.txt",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/round_manifest.json"
       ],
       "final_dirty_files": [
         "project_state/codex_execution_report.md",
@@ -75,14 +74,13 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/decision_packet.md",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/pytest_result.txt",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -90,7 +88,7 @@
     {
       "name": "files_changed_excludes_inherited_dirty_files",
       "status": "WARN",
-      "detail": "files_changed includes inherited baseline dirty files (may have been modified this round; possible late baseline capture)",
+      "detail": "round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot",
       "inherited_files_in_files_changed": [
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
@@ -98,7 +96,8 @@
       "source_test_inherited_in_files_changed": [
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
-      ]
+      ],
+      "close_worktree_clean": false
     },
     {
       "name": "files_changed_covers_git_diff",
@@ -112,34 +111,32 @@
         "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
         "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/round_manifest.json",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/decision_packet.md",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/pytest_result.txt",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/round_manifest.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "required_round_delta_files": [
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260616_gate_baseline_lifecycle_closeout_rework_v1/round_manifest.json"
-      ],
-      "inherited_dirty_files": [
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/preflight_result.json",
         "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_baseline.json",
         "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/decision_packet.md",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/pytest_result.txt",
+        "project_state/rounds/round_20260616_report_summary_status_semantics_v1/round_manifest.json"
+      ],
+      "inherited_dirty_files": [
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -170,24 +167,13 @@
         "tests/test_project_gate.py"
       ],
       "allowed_inherited_dirty_files": [],
-      "generated_or_archive_baseline_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json"
-      ]
+      "generated_or_archive_baseline_dirty_files": []
     },
     {
       "name": "baseline_inherited_allowlist_explained",
       "status": "PASS",
       "detail": "no source/test inherited baseline explanation is required",
       "inherited_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
@@ -255,20 +241,10 @@
         "tests/test_project_gate.py"
       ],
       "baseline_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
       "inherited_dirty_files": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ],
@@ -292,8 +268,8 @@
       "status": "PASS",
       "detail": "command_plan ids and status match current decision/report",
       "plan_status": "PASSED",
-      "command_plan_decision_id": "decision_20260616_gate_baseline_lifecycle_closeout_rework_v1",
-      "command_plan_round_id": "round_20260616_gate_baseline_lifecycle_closeout_rework_v1"
+      "command_plan_decision_id": "decision_20260616_report_summary_status_semantics_v1",
+      "command_plan_round_id": "round_20260616_report_summary_status_semantics_v1"
     },
     {
       "name": "command_plan_covers_report_tests",
@@ -349,11 +325,10 @@
     },
     {
       "name": "report_summary_status_source_available",
-      "status": "WARN",
-      "detail": "report summary synthesis has source warnings",
-      "warnings": [
-        "files_changed includes inherited dirty files (may have been modified this round): ['project_state/gates/report_summary_synthesis.json', 'reverse_agent/project_gate.py', 'tests/test_project_gate.py']"
-      ]
+      "status": "PASS",
+      "detail": "report summary status fields are derived from final gate result",
+      "warnings": [],
+      "non_blocking_warnings": []
     },
     {
       "name": "forbidden_paths_absent",
@@ -384,9 +359,8 @@
   ],
   "blocking_reasons": [],
   "warnings": [
-    "files_changed_excludes_inherited_dirty_files: files_changed includes inherited baseline dirty files (may have been modified this round; possible late baseline capture)",
-    "baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable",
-    "report_summary_status_source_available: report summary synthesis has source warnings"
+    "files_changed_excludes_inherited_dirty_files: round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot",
+    "baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable"
   ],
   "recommended_next_action": "no_action_required",
   "status_summary": {

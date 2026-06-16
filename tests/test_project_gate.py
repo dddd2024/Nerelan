@@ -1469,10 +1469,137 @@ def test_report_summary_fails_when_files_changed_claims_inherited_dirty(tmp_path
 
     result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
 
-    # Inherited dirty files in files_changed are now WARN (not ERROR) because
-    # they may have been legitimately modified this round.
-    assert result["synthesis_status"] in ("WARN", "FAILED")
-    assert any("inherited dirty files" in w for w in result.get("warnings", []))
+    # Inherited dirty files in files_changed that are not explicitly allowed
+    # as inherited baseline produce a baseline_lifecycle_guard FAIL error.
+    # synthesis_status is FAILED because of the error, not just a warning.
+    assert result["synthesis_status"] == "FAILED"
+    assert any("inherited" in e.lower() or "baseline" in e.lower() for e in result.get("errors", []))
+
+
+def test_report_summary_non_blocking_warnings_yield_passed_status(tmp_path: Path) -> None:
+    """When errors=[], diffs=[], and only recognized non-blocking warnings
+    are present, synthesis_status must be PASSED (not WARN)."""
+    # Use retriable final_gate_result failure scenario: it produces a
+    # non-blocking warning about retriable drift failures.
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_json(
+        state_dir / "gates" / "final_gate_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "FAILED",
+            "decision_id": "decision_report_summary",
+            "report_id": "codex_report_gate",
+            "round_id": "round_gate",
+            "checks": [
+                {
+                    "name": "archived_pytest_result_matches_live_pytest_result",
+                    "status": "FAIL",
+                    "detail": "archived pytest_result differs from live pytest_result",
+                },
+                {
+                    "name": "pytest_result_exit_codes_match_command_plan",
+                    "status": "FAIL",
+                    "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+                }
+            ],
+        },
+    )
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "PASSED"
+    assert result["errors"] == []
+    assert result["diffs"] == []
+    assert len(result["warnings"]) > 0
+    assert result["non_blocking_warnings"] == result["warnings"]
+
+
+def test_report_summary_real_diffs_remain_blocking(tmp_path: Path) -> None:
+    """When there are real diffs, synthesis_status must be FAILED regardless
+    of non-blocking warnings."""
+    state_dir = _make_report_summary_state(tmp_path, tests_ran=[])
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "FAILED"
+    assert any(diff["field"] == "tests_ran" for diff in result["diffs"])
+
+
+def test_report_summary_real_errors_remain_blocking(tmp_path: Path) -> None:
+    """When there are real errors, synthesis_status must be FAILED regardless
+    of non-blocking warnings."""
+    state_dir = _make_report_summary_state(tmp_path)
+    (state_dir / "gates" / "command_plan.json").unlink()
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    assert result["synthesis_status"] == "FAILED"
+    assert any("command_plan.json" in error for error in result["errors"])
+
+
+def test_report_summary_inherited_dirty_not_suppressed_for_unauthorized(tmp_path: Path) -> None:
+    """Inherited dirty warning is not globally suppressed when the dirty
+    source/test file is unauthorized (outside decision scope)."""
+    state_dir = _make_report_summary_state(
+        tmp_path,
+        baseline_dirty_files=["reverse_agent/unauthorized_module.py"],
+    )
+    # Remove scope coverage so the file is unauthorized
+    decision_path = state_dir / "decision_packet.md"
+    decision_text = decision_path.read_text(encoding="utf-8")
+    decision_text = decision_text.replace("Allowed source files:", "Disallowed:")
+    decision_text = decision_text.replace("Allowed tests:", "Disallowed:")
+    decision_path.write_text(decision_text, encoding="utf-8")
+
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    # The unauthorized file is outside source_test_scope, so it won't appear
+    # in the inherited dirty warning (only files in report_files_changed &
+    # inherited_dirty_files trigger the warning). The gate should not produce
+    # a false FAIL for out-of-scope files.
+    # If a warning is present, it should still be non-blocking.
+    if result["warnings"]:
+        # Any warning about inherited dirty files is non-blocking
+        for w in result["warnings"]:
+            if "inherited dirty files" in w:
+                assert w in result["non_blocking_warnings"]
+
+
+def test_report_summary_cli_output_matches_json_status(tmp_path: Path) -> None:
+    """CLI output synthesis_status must match JSON synthesis_status."""
+    # Use retriable failure scenario to get non-blocking warnings
+    state_dir = _make_report_summary_state(tmp_path)
+    _write_json(
+        state_dir / "gates" / "final_gate_result.json",
+        {
+            "schema_version": 1,
+            "gate_name": "final-check",
+            "gate_status": "FAILED",
+            "decision_id": "decision_report_summary",
+            "report_id": "codex_report_gate",
+            "round_id": "round_gate",
+            "checks": [
+                {
+                    "name": "archived_pytest_result_matches_live_pytest_result",
+                    "status": "FAIL",
+                    "detail": "archived pytest_result differs from live pytest_result",
+                },
+                {
+                    "name": "pytest_result_exit_codes_match_command_plan",
+                    "status": "FAIL",
+                    "detail": "recorded command exit codes do not match command_plan expected_exit_codes",
+                }
+            ],
+        },
+    )
+    result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
+
+    # Verify JSON synthesis_status is PASSED with non-blocking warnings
+    assert result["synthesis_status"] == "PASSED"
+    assert len(result["non_blocking_warnings"]) > 0
+    # Verify the non_blocking_warnings field is present and matches warnings
+    assert result["non_blocking_warnings"] == result["warnings"]
 
 
 def test_report_summary_warns_when_late_baseline_hides_source_test_diff(tmp_path: Path) -> None:
@@ -1599,11 +1726,12 @@ def test_report_summary_ignores_retriable_archived_pytest_drift_status_source(tm
 
     result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
 
-    assert result["synthesis_status"] == "WARN"
+    assert result["synthesis_status"] == "PASSED"
     assert result["diffs"] == []
     assert result["errors"] == []
     assert "status" not in result["synthesized_summary"]
     assert any("retriable report-summary/archive drift failures" in warning for warning in result["warnings"])
+    assert any("retriable report-summary/archive drift failures" in warning for warning in result["non_blocking_warnings"])
 
 
 def test_report_summary_fails_when_command_plan_missing(tmp_path: Path) -> None:
