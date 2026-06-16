@@ -791,7 +791,7 @@ def test_doctor_passes_for_all_valid_mainlines(tmp_path: Path, mainline: str) ->
     archive_round(state_dir=state_dir, round_id=round_id)
 
     result = doctor(state_dir=state_dir)
-    expected_status = "PASS" if mainline == "engineering_branch" else "WARN"
+    expected_status = "PASS" if mainline in {"engineering_branch", "training_dataset"} else "WARN"
     assert result["status"] == expected_status
     mainline_check = next(c for c in result["checks"] if c["name"] == "mainline")
     assert mainline_check["status"] == "PASS"
@@ -6419,10 +6419,10 @@ class TestClassifyArtifactFreshnessLimitations:
 
 
 class TestClassifyArtifactFreshnessStrictMainlines:
-    """Verify _classify_artifact_freshness returns blocking for non-engineering mainlines."""
+    """Verify _classify_artifact_freshness returns blocking for reverse_solving and tool_integration."""
 
-    @pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration", "training_dataset"])
-    def test_missing_artifacts_blocking_for_non_engineering(self, mainline: str) -> None:
+    @pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration"])
+    def test_missing_artifacts_blocking_for_strict_mainlines(self, mainline: str) -> None:
         result = _classify_artifact_freshness(
             freshness={"missing": 5, "stale": 2},
             decision={"mainline": mainline},
@@ -6435,7 +6435,7 @@ class TestClassifyArtifactFreshnessStrictMainlines:
         assert result["blocking"] is True
         assert result["classification"] == "artifact_freshness_requires_review"
 
-    @pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration", "training_dataset"])
+    @pytest.mark.parametrize("mainline", ["reverse_solving", "tool_integration"])
     def test_missing_artifacts_blocking_even_consumed_by_success(self, mainline: str) -> None:
         result = _classify_artifact_freshness(
             freshness={"missing": 5},
@@ -6526,24 +6526,38 @@ class TestHistoricalArtifactFreshnessNonBlocking:
             pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
         ) is False
 
-    def test_returns_false_for_training_dataset_non_success(self) -> None:
-        """training_dataset must always have strict artifact freshness; non-blocking is not allowed."""
+    def test_returns_true_for_training_dataset_non_success(self) -> None:
+        """training_dataset treats historical sample artifacts as non-blocking when report does not claim them."""
         assert _historical_artifact_freshness_is_non_blocking(
             decision={"mainline": "training_dataset"},
             report={"status": "PARTIAL", "generated_artifacts": [], "verified_artifacts": []},
             decision_execution_state="READY_FOR_EXECUTION",
             round_consistency={},
             pytest_validation={"matches_report": False, "tests_ran_covers_report": False},
-        ) is False
+        ) is True
 
-    def test_returns_false_for_training_dataset_consumed_by_success(self) -> None:
-        """training_dataset must have strict freshness even with CONSUMED_BY_SUCCESS_REPORT."""
+    def test_returns_true_for_training_dataset_consumed_by_success(self) -> None:
+        """training_dataset treats historical sample artifacts as non-blocking with CONSUMED_BY_SUCCESS_REPORT."""
         assert _historical_artifact_freshness_is_non_blocking(
             decision={"mainline": "training_dataset"},
             report={"status": "SUCCESS", "generated_artifacts": [], "verified_artifacts": []},
             decision_execution_state="CONSUMED_BY_SUCCESS_REPORT",
             round_consistency={},
             pytest_validation={"matches_report": True, "tests_ran_covers_report": True},
+        ) is True
+
+    def test_returns_false_for_training_dataset_when_report_claims_sample_artifacts(self) -> None:
+        """training_dataset must still block when report claims sample artifact freshness."""
+        assert _historical_artifact_freshness_is_non_blocking(
+            decision={"mainline": "training_dataset"},
+            report={
+                "status": "PARTIAL",
+                "generated_artifacts": ["solve_reports/sample_run"],
+                "verified_artifacts": [],
+            },
+            decision_execution_state="READY_FOR_EXECUTION",
+            round_consistency={},
+            pytest_validation={"matches_report": False, "tests_ran_covers_report": False},
         ) is False
 
     def test_returns_false_for_tool_integration_non_success(self) -> None:

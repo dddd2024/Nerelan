@@ -3431,9 +3431,9 @@ def _status_policy_failure_is_historical_artifacts_only(
 ) -> bool:
     """After archive, status_policy_valid FAIL from historical artifact freshness
     should not block closeout when report is SUCCESS and doctor is not FAIL.
-    Only engineering_branch is allowed this downgrade; reverse_solving,
-    tool_integration, and training_dataset must remain strict."""
-    if mainline != "engineering_branch":
+    engineering_branch and training_dataset are allowed this downgrade;
+    reverse_solving and tool_integration must remain strict."""
+    if mainline not in {"engineering_branch", "training_dataset"}:
         return False
     status_policy = _check_by_name(result, "status_policy_valid")
     if status_policy.get("status") != "FAIL":

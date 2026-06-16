@@ -6521,3 +6521,91 @@ class TestAllowedSourceTestScopePathsExcludesState:
         assert "reverse_agent/foo.py" in result
         assert "project_state/bar.json" not in result
         assert "reverse_agent/baz.py" not in result
+
+
+class TestStatusPolicyHistoricalArtifactsOnly:
+    """Verify _status_policy_failure_is_historical_artifacts_only allows training_dataset."""
+
+    def _make_result(self, **overrides: object) -> dict[str, Any]:
+        base: dict[str, Any] = {
+            "checks": [
+                {
+                    "name": "status_policy_valid",
+                    "status": "FAIL",
+                    "report_status": "SUCCESS",
+                    "doctor_status": "WARN",
+                    "lint_errors": ["50 missing, 0 stale artifacts"],
+                },
+            ],
+        }
+        base.update(overrides)
+        return base
+
+    def test_returns_true_for_engineering_branch(self) -> None:
+        from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
+
+        result = _status_policy_failure_is_historical_artifacts_only(
+            result=self._make_result(),
+            mainline="engineering_branch",
+        )
+        assert result is True
+
+    def test_returns_true_for_training_dataset(self) -> None:
+        from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
+
+        result = _status_policy_failure_is_historical_artifacts_only(
+            result=self._make_result(),
+            mainline="training_dataset",
+        )
+        assert result is True
+
+    def test_returns_false_for_reverse_solving(self) -> None:
+        from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
+
+        result = _status_policy_failure_is_historical_artifacts_only(
+            result=self._make_result(),
+            mainline="reverse_solving",
+        )
+        assert result is False
+
+    def test_returns_false_for_tool_integration(self) -> None:
+        from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
+
+        result = _status_policy_failure_is_historical_artifacts_only(
+            result=self._make_result(),
+            mainline="tool_integration",
+        )
+        assert result is False
+
+    def test_returns_false_when_report_not_success(self) -> None:
+        from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
+
+        sp = dict(self._make_result()["checks"][0])
+        sp["report_status"] = "FAILED"
+        result = _status_policy_failure_is_historical_artifacts_only(
+            result={"checks": [sp]},
+            mainline="training_dataset",
+        )
+        assert result is False
+
+    def test_returns_false_when_doctor_fail(self) -> None:
+        from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
+
+        sp = dict(self._make_result()["checks"][0])
+        sp["doctor_status"] = "FAIL"
+        result = _status_policy_failure_is_historical_artifacts_only(
+            result={"checks": [sp]},
+            mainline="training_dataset",
+        )
+        assert result is False
+
+    def test_returns_false_when_no_artifact_errors(self) -> None:
+        from reverse_agent.project_gate import _status_policy_failure_is_historical_artifacts_only
+
+        sp = dict(self._make_result()["checks"][0])
+        sp["lint_errors"] = ["something else entirely"]
+        result = _status_policy_failure_is_historical_artifacts_only(
+            result={"checks": [sp]},
+            mainline="training_dataset",
+        )
+        assert result is False
