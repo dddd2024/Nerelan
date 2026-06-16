@@ -93,13 +93,7 @@ Updated `project_state/local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review.js
 Removed the `pause-aware-runtime-review` kind mapping that was added outside the original decision's scope. The original decision explicitly stated "Do not modify reverse_agent/project_gate.py in this round." The kind mapping was a workaround; reverting it is the correct action per the closeout decision's preference.
 
 ### 4. Gate Pipeline Re-execution
-Running the full gate pipeline for this engineering_branch closeout round. All gates passed:
-- preflight: PASSED
-- command-plan: PASSED (16 commands)
-- pytest: 559 passed
-- report-summary: PASSED
-- final-check: WARN (historical artifacts non-blocking)
-- close-round: CLOSED (exit 0)
+Running the full gate pipeline for this engineering_branch closeout round.
 
 ## Do Not Do Compliance
 - Did not rerun CPP1.exe

@@ -4026,8 +4026,6 @@ def _command_kind(command: str) -> str:
         return "target-bytes-revalidation"
     if "python -m reverse_agent.local_reverse_cpp1_runtime_boundary_probe" in lowered:
         return "runtime-boundary-probe"
-    if "python -m reverse_agent.local_reverse_cpp1_pause_aware_runtime_review" in lowered:
-        return "pause-aware-runtime-review"
     if "project_gate" in lowered and "preflight" in lowered:
         return "preflight"
     if "project_gate" in lowered and "command-plan" in lowered:

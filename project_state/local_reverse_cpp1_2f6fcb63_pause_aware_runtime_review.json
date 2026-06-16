@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "decision_id": "",
-  "round_id": "",
+  "decision_id": "decision_20260616_cpp1_pause_aware_runtime_evidence_review_v1",
+  "round_id": "round_20260616_cpp1_pause_aware_runtime_evidence_review_v1",
   "sample_id": "cpp1_2f6fcb63",
   "relative_path": "逆向课程2023春01/CPP1.exe",
   "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
