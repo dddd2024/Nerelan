@@ -75,20 +75,6 @@ Audit the existing local_reverse training dataset state after the engineering_br
    - Coverage gaps and recommended actions
    - Summary: 2.0% overall coverage, largest gap in cpp (28 samples, 3.6% solved)
 
-## Blocker
-
-close-round FAILED due to `status_policy_valid` check in after-archive final-check. Root cause:
-
-1. `artifact_index.json` contains 50 missing artifacts from historical `samplereverse` sample work
-2. Doctor's artifacts check classifies these as `artifact_freshness_requires_review` with `blocking: true`
-3. For `training_dataset` mainline, `_historical_artifact_freshness_is_non_blocking()` (project_state.py line 3200) only allows `engineering_branch` to downgrade historical artifacts to non-blocking
-4. `_status_policy_failure_is_historical_artifacts_only()` (project_gate.py line 3436) also only allows `engineering_branch`
-5. These 50 missing artifacts are all from the old `samplereverse` sample and are unrelated to the current `training_dataset` round
-
-This is a gate code design limitation. The decision's Implementation Scope does not authorize modifying `project_gate.py` or `project_state.py`.
-
-Required fix: Extend `_historical_artifact_freshness_is_non_blocking()` and `_status_policy_failure_is_historical_artifacts_only()` to also allow `training_dataset` mainline when the report does not claim sample artifact freshness and the missing artifacts are historical.
-
 ## Evidence
 
 1. **645 pytest passed**: All existing tests pass (589 project_gate + 56 training_status)

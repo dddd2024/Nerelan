@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260616_local_reverse_training_resume_plan_v1",
+  "round_id": "round_20260616_local_reverse_training_resume_plan_v1",
+  "generated_at": "2026-06-16T15:30:00Z",
+  "source_artifacts": [
+    "project_state/local_reverse_training_status.json",
+    "project_state/local_reverse_training_review_queue.json",
+    "project_state/local_reverse_training_next_queue.json",
+    "project_state/local_reverse_training_status_summary_sync.json",
+    "project_state/local_reverse_training_inventory_audit.md",
+    "project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json",
+    "training_materials/local_reverse/queue.json",
+    "training_materials/local_reverse/github_safe_status_overlay.json"
+  ],
+  "status_snapshot": {
+    "total_samples": 50,
+    "solved": 1,
+    "blocked": 2,
+    "needs_triage": 1,
+    "inventory_only": 46
+  },
+  "solved_samples": [
+    {
+      "sample_id": "cpp1_bcbd9979",
+      "relative_path": "逆向课程2022春补考01/Cpp1.exe",
+      "category": "cpp",
+      "guessed_file_type": "pe",
+      "known_candidate": "hookapi",
+      "evidence_sources": [
+        "ida_solver_classification",
+        "runtime_validation",
+        "source:local_reverse_validated_candidate_handoff.json",
+        "source:local_reverse_constraint_recovery_result.json"
+      ],
+      "next_action": "inspect sub_40100A hook data flow and confirm file compare source"
+    }
+  ],
+  "blocked_samples": [
+    {
+      "sample_id": "cpp2_4c69f173",
+      "relative_path": "逆向课程2022春02/CPP2.exe",
+      "category": "cpp",
+      "guessed_file_type": "pe",
+      "blocked_reason": "MISSING_UPSTREAM_TRANSFORM_FUNCTION:sub_401005",
+      "next_action": "recover sub_401005 transform or bounded dictionary before inversion",
+      "resume_priority": "medium",
+      "resume_prerequisite": "bounded_static_triage to extract sub_401005 disassembly or decompilation"
+    },
+    {
+      "sample_id": "sha_256_18019fca",
+      "relative_path": "逆向课程2024春01/sha_256.exe",
+      "category": "crypto/hash",
+      "guessed_file_type": "pe",
+      "blocked_reason": "NO_BOUNDED_HASH_PREIMAGE_DOMAIN",
+      "next_action": "targeted static re-extraction of input length/domain or request problem statement hint",
+      "resume_priority": "low",
+      "resume_prerequisite": "problem_statement_hint or bounded_input_length_evidence"
+    }
+  ],
+  "needs_triage_samples": [
+    {
+      "sample_id": "affine_8cfebe03",
+      "relative_path": "逆向课程2024春补考03/affine.exe",
+      "category": "unknown",
+      "guessed_file_type": "pe",
+      "blocked_reason": "STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+      "next_action": "resolve static tool blocker: STATIC_TOOL_NO_OUTPUT: IDA produced no evidence JSON",
+      "resume_priority": "high",
+      "resume_prerequisite": "bounded_static_triage with IDA re-run or alternative static tool"
+    }
+  ],
+  "active_investigation_samples": [
+    {
+      "sample_id": "cpp1_2f6fcb63",
+      "relative_path": "逆向课程2023春01/CPP1.exe",
+      "category": "cpp",
+      "guessed_file_type": "pe",
+      "training_status": "inventory_only",
+      "investigation_status": "TARGET_REANCHOR_NEEDED",
+      "contradiction_resolution": "CURRENT_TARGET_PATH_REJECTED",
+      "contradiction_reason": "Compare loop requires first mismatch at index 16 for success, but Destination[16]==byte_429A30[16]==0x00, making success path unreachable",
+      "resume_priority": "high",
+      "resume_prerequisite": "resolve Destination[16] success boundary contradiction or identify alternative success path"
+    }
+  ],
+  "resume_priorities": {
+    "high": [
+      {
+        "sample_id": "affine_8cfebe03",
+        "reason": "needs_triage with IDA tool blocker; resolving blocker unlocks static triage"
+      },
+      {
+        "sample_id": "cpp1_2f6fcb63",
+        "reason": "active investigation with success boundary contradiction; resolving contradiction unblocks solving path"
+      }
+    ],
+    "medium": [
+      {
+        "sample_id": "cpp2_4c69f173",
+        "reason": "blocked by missing transform function; bounded_static_triage may extract sub_401005"
+      }
+    ],
+    "low": [
+      {
+        "sample_id": "sha_256_18019fca",
+        "reason": "blocked by unbounded hash preimage; requires external hint or domain evidence"
+      }
+    ]
+  },
+  "primary_queue_resume_candidates": [
+    {
+      "sample_id": "cpp1_2f6fcb63",
+      "queue": "primary",
+      "allowed_next_action": "bounded_static_triage",
+      "reason": "resolve success boundary contradiction before attempting runtime validation"
+    },
+    {
+      "sample_id": "cpp1_378eeffd",
+      "queue": "primary",
+      "allowed_next_action": "bounded_static_triage",
+      "reason": "no prior triage; cpp category with likely serial/compare validation pattern"
+    },
+    {
+      "sample_id": "cpp1_7b504c54",
+      "queue": "primary",
+      "allowed_next_action": "bounded_static_triage",
+      "reason": "no prior triage; cpp category with likely serial/compare validation pattern"
+    },
+    {
+      "sample_id": "cpp2_32f1713e",
+      "queue": "primary",
+      "allowed_next_action": "bounded_static_triage",
+      "reason": "next_queue_hint_sample_id from status_summary_sync; cpp2 with potential transform pattern"
+    }
+  ],
+  "secondary_queue_resume_candidates": [
+    {
+      "sample_id": "desenc_0e0b5203",
+      "queue": "secondary",
+      "allowed_next_action": "pending_cipher_static_evidence_profile",
+      "reason": "DES cipher; requires cipher-specific static evidence profile before triage"
+    },
+    {
+      "sample_id": "rc4enc_3480917d",
+      "queue": "secondary",
+      "allowed_next_action": "pending_cipher_static_evidence_profile",
+      "reason": "RC4 cipher; requires cipher-specific static evidence profile before triage"
+    }
+  ],
+  "type_coverage_gaps": [
+    {
+      "type_category": "crypto/cipher",
+      "total_samples": 9,
+      "solved": 0,
+      "blocked": 0,
+      "needs_triage": 0,
+      "inventory_only": 9,
+      "gap_reason": "pending_cipher_static_evidence_profile blocks all cipher samples from triage"
+    },
+    {
+      "type_category": "crypto/hash",
+      "total_samples": 1,
+      "solved": 0,
+      "blocked": 1,
+      "inventory_only": 0,
+      "gap_reason": "unbounded hash preimage domain blocks solving"
+    },
+    {
+      "type_category": "unknown",
+      "total_samples": 12,
+      "solved": 0,
+      "blocked": 0,
+      "needs_triage": 1,
+      "inventory_only": 11,
+      "gap_reason": "category unknown prevents targeted triage; needs initial static profiling"
+    }
+  ],
+  "recommended_resume_sequence": [
+    "1. Resolve affine_8cfebe03 IDA tool blocker (high priority, unblocks needs_triage)",
+    "2. Resolve cpp1_2f6fcb63 success boundary contradiction (high priority, active investigation)",
+    "3. Run bounded_static_triage on cpp1_378eeffd and cpp1_7b504c54 (primary queue, no prior triage)",
+    "4. Build cipher_static_evidence_profile for DES and RC4 samples (unblocks secondary queue)",
+    "5. Attempt sub_401005 extraction for cpp2_4c69f173 (medium priority, blocked sample)"
+  ]
+}

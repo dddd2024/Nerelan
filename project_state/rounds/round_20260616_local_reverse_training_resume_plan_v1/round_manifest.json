@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-16T16:06:36Z",
+  "decision_id": "decision_20260616_local_reverse_training_resume_plan_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260616_local_reverse_training_resume_plan_v1\\codex_execution_report.md",
+      "sha256": "90fc7511c40ea85b06ffde84e82dc912112330d408c0740c74406e1ccf94ca39",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260616_local_reverse_training_resume_plan_v1\\decision_packet.md",
+      "sha256": "dec36e0ffcde525e3f17ca627a5f1651e7bf20c8677b02c754315fdaafa5dfe6",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260616_local_reverse_training_resume_plan_v1\\pytest_result.txt",
+      "sha256": "2864388316df4da33f33916f2e15e98cbd405e08f486ee48fc63561c2256b4a2",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "training_dataset",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260616_local_reverse_training_resume_plan_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260616_local_reverse_training_resume_plan_v1",
+  "schema_version": 1,
+  "source_git_commit": "286427a02c36",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260615_150220_24f61a9ac337",
+  "state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
+  "workflow_status": "REPORT_AVAILABLE"
+}

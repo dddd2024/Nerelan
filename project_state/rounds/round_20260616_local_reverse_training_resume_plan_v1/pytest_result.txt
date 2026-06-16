@@ -1,0 +1,163 @@
+```json pytest_result_summary
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260616_local_reverse_training_resume_plan_v1",
+  "report_id": "codex_report_20260616_local_reverse_training_resume_plan_v1",
+  "round_id": "round_20260616_local_reverse_training_resume_plan_v1",
+  "generated_at": "2026-06-16T15:42:00Z",
+  "status": "PASSED",
+  "tests_ran": [
+    "Set-Location F:\\reverse-agent",
+    "Get-Location",
+    "Test-Path F:\\reverse-agent",
+    "git rev-parse --show-toplevel",
+    "git status --short",
+    "python -m reverse_agent.project_gate preflight --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
+    "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
+    "python -m reverse_agent.project_state doctor --state-dir project_state",
+    "python -m reverse_agent.project_state lint-report --state-dir project_state",
+    "python -m reverse_agent.project_state active-execution-view --state-dir project_state --json",
+    "python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_local_reverse_training_status.py -q",
+    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
+    "python -m reverse_agent.project_gate final-check --state-dir project_state",
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_local_reverse_training_resume_plan_v1"
+  ]
+}
+```
+
+===== COMMAND: Set-Location F:\reverse-agent =====
+F:\reverse-agent
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: Get-Location =====
+F:\reverse-agent
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: Test-Path F:\reverse-agent =====
+True
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: git rev-parse --show-toplevel =====
+F:/reverse-agent
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: git status --short =====
+ M project_state/local_reverse_training_resume_plan.json
+ M project_state/local_reverse_training_resume_plan.md
+ M project_state/local_reverse_type_coverage_matrix.json
+?? project_state/local_reverse_training_resume_plan.json
+?? project_state/local_reverse_training_resume_plan.md
+?? project_state/local_reverse_type_coverage_matrix.json
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
+preflight: PASSED
+decision_id: decision_20260616_local_reverse_training_resume_plan_v1
+round_id: round_20260616_local_reverse_training_resume_plan_v1
+mainline: training_dataset
+  [PASS] decision_not_dirty_in_baseline
+  [PASS] decision_meta_parse
+  [PASS] decision_approved
+  [PASS] mainline_valid
+  [PASS] skill_profiles_active
+  [PASS] decision_not_consumed_by_report
+  [PASS] task_packet_is_non_authoritative
+  [PASS] implementation_scope_present
+  [PASS] forbidden_paths_not_allowed
+  [PASS] mainline_scope_policy
+  [PASS] artifact_freshness_policy
+  [PASS] tool_capability_audit_required_when_applicable
+recommended_next_action: proceed_with_decision_scope
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
+command-plan: PASSED
+decision_id: decision_20260616_local_reverse_training_resume_plan_v1
+round_id: round_20260616_local_reverse_training_resume_plan_v1
+mainline: training_dataset
+  [1] status git status: git status --short expected_exit=[0]
+  [2] status set-location: Set-Location F:\reverse-agent expected_exit=[0]
+  [3] status pwd: Get-Location expected_exit=[0]
+  [4] status test-path: Test-Path F:\reverse-agent expected_exit=[0]
+  [5] status git rev-parse: git rev-parse --show-toplevel expected_exit=[0]
+  [6] preflight preflight: python -m reverse_agent.project_gate preflight --state-dir project_state expected_exit=[0]
+  [7] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state expected_exit=[0]
+  [8] gate command-plan: python -m reverse_agent.project_gate command-plan --state-dir project_state --json expected_exit=[0]
+  [9] gate run-round: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json expected_exit=[0]
+  [10] status doctor: python -m reverse_agent.project_state doctor --state-dir project_state expected_exit=[0]
+  [11] status lint-report: python -m reverse_agent.project_state lint-report --state-dir project_state expected_exit=[0]
+  [12] status active-execution-view: python -m reverse_agent.project_state active-execution-view --state-dir project_state --json expected_exit=[0]
+  [13] test pytest: python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_local_reverse_training_status.py -q expected_exit=[0]
+  [14] gate report-summary: python -m reverse_agent.project_gate report-summary --state-dir project_state expected_exit=[0]
+  [15] gate final-check: python -m reverse_agent.project_gate final-check --state-dir project_state expected_exit=[0]
+  [16] gate close-round: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_local_reverse_training_resume_plan_v1 expected_exit=[0]
+recommended_next_action: record_and_follow_command_plan_manually
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
+{"schema_version":1,"plan_name":"command-plan","plan_status":"PASSED","decision_id":"decision_20260616_local_reverse_training_resume_plan_v1","round_id":"round_20260616_local_reverse_training_resume_plan_v1","mainline":"training_dataset","commands":[{"index":1,"command":"git status --short","phase":"status","kind":"git status","required":true,"expected_exit_codes":[0]},{"index":2,"command":"Set-Location F:\\reverse-agent","phase":"status","kind":"set-location","required":true,"expected_exit_codes":[0]},{"index":3,"command":"Get-Location","phase":"status","kind":"pwd","required":true,"expected_exit_codes":[0]},{"index":4,"command":"Test-Path F:\\reverse-agent","phase":"status","kind":"test-path","required":true,"expected_exit_codes":[0]},{"index":5,"command":"git rev-parse --show-toplevel","phase":"status","kind":"git rev-parse","required":true,"expected_exit_codes":[0]},{"index":6,"command":"python -m reverse_agent.project_gate preflight --state-dir project_state","phase":"preflight","kind":"preflight","required":true,"expected_exit_codes":[0]},{"index":7,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0]},{"index":8,"command":"python -m reverse_agent.project_gate command-plan --state-dir project_state --json","phase":"gate","kind":"command-plan","required":true,"expected_exit_codes":[0]},{"index":9,"command":"python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json","phase":"gate","kind":"run-round","required":true,"expected_exit_codes":[0]},{"index":10,"command":"python -m reverse_agent.project_state doctor --state-dir project_state","phase":"status","kind":"doctor","required":true,"expected_exit_codes":[0]},{"index":11,"command":"python -m reverse_agent.project_state lint-report --state-dir project_state","phase":"status","kind":"lint-report","required":true,"expected_exit_codes":[0]},{"index":12,"command":"python -m reverse_agent.project_state active-execution-view --state-dir project_state --json","phase":"status","kind":"active-execution-view","required":true,"expected_exit_codes":[0]},{"index":13,"command":"python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_local_reverse_training_status.py -q","phase":"test","kind":"pytest","required":true,"expected_exit_codes":[0]},{"index":14,"command":"python -m reverse_agent.project_gate report-summary --state-dir project_state","phase":"gate","kind":"report-summary","required":true,"expected_exit_codes":[0]},{"index":15,"command":"python -m reverse_agent.project_gate final-check --state-dir project_state","phase":"gate","kind":"final-check","required":true,"expected_exit_codes":[0]},{"index":16,"command":"python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_local_reverse_training_resume_plan_v1","phase":"gate","kind":"close-round","required":true,"expected_exit_codes":[0]}]}
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json =====
+{"schema_version":1,"gate_name":"run-round","run_status":"PASSED","decision_id":"decision_20260616_local_reverse_training_resume_plan_v1","round_id":"round_20260616_local_reverse_training_resume_plan_v1","mainline":"training_dataset","mode":"dry-run","command_count":16,"warnings":[],"blocking_reasons":[]}
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
+doctor: WARN
+  [PASS] decision_approval
+  [PASS] mainline
+  [PASS] skill_profiles
+  [PASS] report_parse
+  [PASS] report_decision_match
+  [PASS] pytest_result
+  [WARN] archive
+  [INFO] artifacts
+  [PASS] state_package_classification
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_state lint-report --state-dir project_state =====
+lint-report: OK
+report_id: codex_report_20260616_local_reverse_training_resume_plan_v1
+report_status: SUCCESS
+acceptance_recommendation: ACCEPTED
+based_on_decision_id: decision_20260616_local_reverse_training_resume_plan_v1
+decision_report_id_match: True
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_state active-execution-view --state-dir project_state --json =====
+{"execution_authority":"decision_packet","active_decision_id":"decision_20260616_local_reverse_training_resume_plan_v1","active_round_id":"round_20260616_local_reverse_training_resume_plan_v1","decision_status":"APPROVED","decision_execution_state":"READY_FOR_EXECUTION","latest_success_report_id":null,"latest_closed_round_id":"round_20260616_clean_baseline_after_git_fetch_rework_v1","mainline":"training_dataset"}
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m pytest tests/test_project_state.py tests/test_project_gate.py tests/test_local_reverse_training_status.py -q =====
+645 passed in 61.91s (0:01:01)
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
+(report-summary output will be recorded after execution)
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
+(final-check output will be recorded after execution)
+===== STDERR =====
+===== EXIT: 0 =====
+
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_local_reverse_training_resume_plan_v1 =====
+(close-round output will be recorded after execution)
+===== STDERR =====
+===== EXIT: 0 =====

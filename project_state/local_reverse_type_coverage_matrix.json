@@ -1,0 +1,162 @@
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260616_local_reverse_training_resume_plan_v1",
+  "round_id": "round_20260616_local_reverse_training_resume_plan_v1",
+  "generated_at": "2026-06-16T15:35:00Z",
+  "source_artifacts": [
+    "project_state/local_reverse_training_status.json",
+    "training_materials/local_reverse/queue.json",
+    "training_materials/local_reverse/github_safe_status_overlay.json"
+  ],
+  "matrix": [
+    {
+      "type_category": "cpp",
+      "guessed_file_type": "pe",
+      "total_samples": 28,
+      "solved": 1,
+      "blocked": 1,
+      "needs_triage": 0,
+      "inventory_only": 26,
+      "solved_sample_ids": ["cpp1_bcbd9979"],
+      "blocked_sample_ids": ["cpp2_4c69f173"],
+      "needs_triage_sample_ids": [],
+      "inventory_only_sample_ids": [
+        "cpp1_2f6fcb63", "cpp1_378eeffd", "cpp1_7b504c54",
+        "cpp2_29ebb670", "cpp2_2f64e68d", "cpp2_32f1713e", "cpp2_35310f79",
+        "cpp2_561edd9a", "cpp2_5910fe3b", "cpp2_6a58f5f7", "cpp2_883e67b9",
+        "cpp2_8c0d2ad4", "cpp2_aa2b785b", "cpp2_b210bced", "cpp2_f2738577",
+        "cpp2_f53fb951", "cpp2_fc735338",
+        "cpp3_019fcdc8", "cpp3_5c3b34d5", "cpp3_e5a33e0b",
+        "cpp4_ab1b6104", "cpp4_c7cb6b0e",
+        "cpp5_2ea076a7", "cpp5_79788295", "cpp5_8fae8fac",
+        "cpp_6af7c7f1"
+      ],
+      "coverage_percentage": 3.6,
+      "coverage_gap": "96.4% of cpp samples lack triage; only 1/28 solved",
+      "recommended_action": "prioritize bounded_static_triage for cpp1_* samples (likely serial/compare pattern)"
+    },
+    {
+      "type_category": "crypto/cipher",
+      "guessed_file_type": "pe",
+      "total_samples": 6,
+      "solved": 0,
+      "blocked": 0,
+      "needs_triage": 0,
+      "inventory_only": 6,
+      "solved_sample_ids": [],
+      "blocked_sample_ids": [],
+      "needs_triage_sample_ids": [],
+      "inventory_only_sample_ids": [
+        "desenc_0e0b5203", "desenc_14c58fcd", "desenc_40cba418", "desenc_fd9d0af6",
+        "rc4enc_3480917d", "rc4enc_f93c785f"
+      ],
+      "coverage_percentage": 0.0,
+      "coverage_gap": "100% of crypto/cipher PE samples lack triage; pending_cipher_static_evidence_profile blocks progress",
+      "recommended_action": "build cipher_static_evidence_profile to unblock DES and RC4 sample triage"
+    },
+    {
+      "type_category": "crypto/cipher",
+      "guessed_file_type": "python",
+      "total_samples": 3,
+      "solved": 0,
+      "blocked": 0,
+      "needs_triage": 0,
+      "inventory_only": 3,
+      "solved_sample_ids": [],
+      "blocked_sample_ids": [],
+      "needs_triage_sample_ids": [],
+      "inventory_only_sample_ids": [
+        "des_interactive_solver_256e1726",
+        "rc4_add1978d",
+        "rc4_interactive_solver_773052ac"
+      ],
+      "coverage_percentage": 0.0,
+      "coverage_gap": "reference/support materials only; not primary binary targets",
+      "recommended_action": "use as reference material for corresponding PE cipher samples"
+    },
+    {
+      "type_category": "crypto/hash",
+      "guessed_file_type": "pe",
+      "total_samples": 1,
+      "solved": 0,
+      "blocked": 1,
+      "needs_triage": 0,
+      "inventory_only": 0,
+      "solved_sample_ids": [],
+      "blocked_sample_ids": ["sha_256_18019fca"],
+      "needs_triage_sample_ids": [],
+      "inventory_only_sample_ids": [],
+      "coverage_percentage": 0.0,
+      "coverage_gap": "100% blocked; unbounded hash preimage domain",
+      "recommended_action": "targeted static re-extraction of input length/domain or request problem statement hint"
+    },
+    {
+      "type_category": "unknown",
+      "guessed_file_type": "pe",
+      "total_samples": 7,
+      "solved": 0,
+      "blocked": 0,
+      "needs_triage": 1,
+      "inventory_only": 6,
+      "solved_sample_ids": [],
+      "blocked_sample_ids": [],
+      "needs_triage_sample_ids": ["affine_8cfebe03"],
+      "inventory_only_sample_ids": [
+        "main_36c51ec1", "main_6ae5a26d", "main_ab1b6104",
+        "main_d44edbfe", "main_fb1f8cc0",
+        "seh_52be8d5c"
+      ],
+      "coverage_percentage": 0.0,
+      "coverage_gap": "category unknown prevents targeted triage; 1 needs_triage with IDA tool blocker",
+      "recommended_action": "resolve affine_8cfebe03 IDA blocker; run initial static profiling on main_* samples"
+    },
+    {
+      "type_category": "unknown",
+      "guessed_file_type": "python",
+      "total_samples": 4,
+      "solved": 0,
+      "blocked": 0,
+      "needs_triage": 0,
+      "inventory_only": 4,
+      "solved_sample_ids": [],
+      "blocked_sample_ids": [],
+      "needs_triage_sample_ids": [],
+      "inventory_only_sample_ids": [
+        "byte_shift_transform_solver_3718a6fa",
+        "sha_cd947414",
+        "xor_array_solver_4e6d25f0",
+        "xor_array_solver_v2_fb15e14c"
+      ],
+      "coverage_percentage": 0.0,
+      "coverage_gap": "reference/support materials only; not primary binary targets",
+      "recommended_action": "use as reference material for understanding transform patterns"
+    },
+    {
+      "type_category": "unknown",
+      "guessed_file_type": "text",
+      "total_samples": 1,
+      "solved": 0,
+      "blocked": 0,
+      "needs_triage": 0,
+      "inventory_only": 1,
+      "solved_sample_ids": [],
+      "blocked_sample_ids": [],
+      "needs_triage_sample_ids": [],
+      "inventory_only_sample_ids": ["pwd_030127ca"],
+      "coverage_percentage": 0.0,
+      "coverage_gap": "reference/support material; password hint file",
+      "recommended_action": "use as reference material for corresponding sample"
+    }
+  ],
+  "summary": {
+    "total_type_categories": 7,
+    "total_samples": 50,
+    "total_solved": 1,
+    "total_blocked": 2,
+    "total_needs_triage": 1,
+    "total_inventory_only": 46,
+    "overall_coverage_percentage": 2.0,
+    "largest_coverage_gap": "cpp category: 28 samples, only 1 solved (3.6%)",
+    "critical_blocker": "pending_cipher_static_evidence_profile blocks all 6 crypto/cipher PE samples"
+  }
+}
