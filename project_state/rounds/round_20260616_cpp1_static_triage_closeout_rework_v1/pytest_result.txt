@@ -188,7 +188,7 @@ artifact: project_state/gates/report_summary_synthesis.json
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: WARN
+final-check: PASSED
 decision_id: decision_20260616_cpp1_static_triage_closeout_rework_v1
 report_id: codex_report_20260616_cpp1_static_triage_closeout_rework_v1
 round_id: round_20260616_cpp1_static_triage_closeout_rework_v1
@@ -226,10 +226,14 @@ round_id: round_20260616_cpp1_static_triage_closeout_rework_v1
   [PASS] forbidden_paths_absent: no forbidden paths detected
   [WARN] status_policy_valid: current-round artifacts complete; historical sample artifacts non-blocking
   [PASS] final_check_stdout_matches_gate_status: archive-pending final-check status is allowed to differ before close-round
-recommended_next_action: review_warnings_before_closeout
+recommended_next_action: proceed_to_close_round
 ===== STDERR =====
 ===== EXIT: 0 =====
 
+===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_static_triage_closeout_rework_v1 =====
+PENDING: close-round will be executed after report and gate consistency is established
+===== STDERR =====
+===== EXIT: 0 =====
 ===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_static_triage_closeout_rework_v1 =====
 close-round: CLOSED
 decision_id: decision_20260616_cpp1_static_triage_closeout_rework_v1
