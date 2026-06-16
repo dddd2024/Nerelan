@@ -1,19 +1,13 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260616_cpp1_pause_review_closeout_rework_v1",
-  "round_id": "round_20260616_cpp1_pause_review_closeout_rework_v1",
-  "head_commit": "8db2dc943040",
-  "baseline_git_status_short": [
-    " M project_state/local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review.json"
-  ],
-  "baseline_git_diff_name_only": [
-    "project_state/local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review.json"
-  ],
-  "baseline_dirty_files": [
-    "project_state/local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review.json"
-  ],
+  "decision_id": "decision_20260616_cpp1_success_target_reanchor_v1",
+  "round_id": "round_20260616_cpp1_success_target_reanchor_v1",
+  "head_commit": "4f7a501dee13",
+  "baseline_git_status_short": [],
+  "baseline_git_diff_name_only": [],
+  "baseline_dirty_files": [],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-16T07:46:18.325407Z"
+  "generated_at": "2026-06-16T09:36:15.869995Z"
 }

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-06-16T03:43:07Z",
+  "generated_at": "2026-06-16T09:38:02Z",
   "latest_artifacts": {
     "base64_rc4_breakpoint_probe": null,
     "base64_rc4_static_point_discovery": null,
@@ -543,6 +543,16 @@
       "sha256": null,
       "size_bytes": null,
       "modified_at": "2026-06-16T06:00:00Z",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "local_reverse_cpp1_2f6fcb63_success_target_reanchor": {
+      "kind": "success_target_reanchor",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json",
+      "freshness": "current",
+      "source_run": "round_20260616_cpp1_success_target_reanchor_v1",
+      "sha256": "833fd389e85bc774390020bc79c3736a0d3fef3f8deaaecdccf17be717c4e9c7",
+      "size_bytes": 7109,
+      "modified_at": "2026-06-16T09:38:02Z",
       "sample_id": "cpp1_2f6fcb63"
     }
   },

@@ -1,12 +1,13 @@
 ```json codex_report_summary
 {
   "schema_version": 1,
-  "report_id": "codex_report_20260616_cpp1_pause_review_closeout_rework_v1",
-  "round_id": "round_20260616_cpp1_pause_review_closeout_rework_v1",
-  "based_on_decision_id": "decision_20260616_cpp1_pause_review_closeout_rework_v1",
-  "status": "SUCCESS",
-  "acceptance_recommendation": "ACCEPTED",
+  "report_id": "codex_report_20260616_cpp1_success_target_reanchor_v1",
+  "round_id": "round_20260616_cpp1_success_target_reanchor_v1",
+  "based_on_decision_id": "decision_20260616_cpp1_success_target_reanchor_v1",
+  "status": "PARTIAL",
+  "acceptance_recommendation": "REWORK_REQUIRED",
   "files_changed": [
+    "project_state/artifact_index.json",
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
@@ -15,13 +16,13 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/gates/run_round_result.json",
+    "project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260616_cpp1_pause_review_closeout_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260616_cpp1_pause_review_closeout_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260616_cpp1_pause_review_closeout_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260616_cpp1_pause_review_closeout_rework_v1/round_manifest.json",
-    "reverse_agent/project_gate.py"
+    "project_state/rounds/round_20260616_cpp1_success_target_reanchor_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260616_cpp1_success_target_reanchor_v1/decision_packet.md",
+    "project_state/rounds/round_20260616_cpp1_success_target_reanchor_v1/pytest_result.txt",
+    "project_state/rounds/round_20260616_cpp1_success_target_reanchor_v1/round_manifest.json",
+    "reverse_agent/local_reverse_cpp1_success_target_reanchor.py"
   ],
   "tests_ran": [
     "Set-Location F:\\reverse-agent",
@@ -36,10 +37,11 @@
     "python -m reverse_agent.project_state doctor --state-dir project_state",
     "python -m reverse_agent.project_state lint-report --state-dir project_state",
     "python -m reverse_agent.project_state active-execution-view --state-dir project_state --json",
+    "python -m reverse_agent.local_reverse_cpp1_success_target_reanchor --static-triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --target-revalidation project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json --success-boundary project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json --pause-review project_state/local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review.json --artifact-index project_state/artifact_index.json --out project_state/local_reverse_cpp1_2f6fcb63_success_target_reanchor.json",
     "python -m pytest tests/test_project_state.py tests/test_project_gate.py -q",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_pause_review_closeout_rework_v1"
+    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_success_target_reanchor_v1"
   ],
   "generated_artifacts": [
     "project_state/codex_execution_report.md",
@@ -52,66 +54,53 @@
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260616_cpp1_pause_review_closeout_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260616_cpp1_pause_review_closeout_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260616_cpp1_pause_review_closeout_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260616_cpp1_pause_review_closeout_rework_v1/round_manifest.json"
+    "project_state/rounds/round_20260616_cpp1_success_target_reanchor_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260616_cpp1_success_target_reanchor_v1/decision_packet.md",
+    "project_state/rounds/round_20260616_cpp1_success_target_reanchor_v1/pytest_result.txt",
+    "project_state/rounds/round_20260616_cpp1_success_target_reanchor_v1/round_manifest.json"
   ]
 }
 ```
 
-# Round Execution Report: cpp1 Pause Review Closeout Rework
+# Codex Execution Report
 
-## Decision
-- **decision_id**: decision_20260616_cpp1_pause_review_closeout_rework_v1
-- **round_id**: round_20260616_cpp1_pause_review_closeout_rework_v1
-- **mainline**: engineering_branch
+## Round: round_20260616_cpp1_success_target_reanchor_v1
 
-## Goal
-Close out and repair `round_20260616_cpp1_pause_aware_runtime_evidence_review_v1`. Fix state/report/archive consistency, artifact provenance, and the out-of-scope `project_gate.py` change.
+## Decision: decision_20260616_cpp1_success_target_reanchor_v1
 
-## What Was Done
+## Mainline: tool_integration
 
-### 1. Required Audit (10 items confirmed)
-1. Startup path is F:\reverse-agent and git rev-parse points to this repository.
-2. decision_meta is valid, status=APPROVED, mainline=engineering_branch, reverse-agent-iteration@v2 is active.
-3. The pause-aware review artifact exists.
-4. The artifact had empty decision_id/round_id — now repaired to `decision_20260616_cpp1_pause_aware_runtime_evidence_review_v1` / `round_20260616_cpp1_pause_aware_runtime_evidence_review_v1`.
-5. No sample execution is needed.
-6. The previous close-round failed with exit 1.
-7. The live final gate contained inconsistent WARN/diff evidence despite PASSED_WITH_LIMITATIONS.
-8. project_gate.py was changed outside the original decision scope — now reverted.
-9. The 50 missing artifacts are historical sample artifacts, not current CPP1 review artifacts.
-10. Current CPP1 artifacts were not downgraded.
+## Summary
 
-### 2. Pause-Aware Artifact Provenance Repair
-Updated `project_state/local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review.json`:
-- `decision_id`: "" → "decision_20260616_cpp1_pause_aware_runtime_evidence_review_v1"
-- `round_id`: "" → "round_20260616_cpp1_pause_aware_runtime_evidence_review_v1"
+This round re-anchored the `cpp1_2f6fcb63` success target and compare-boundary evidence using mature static tooling. A thin CLI module (`local_reverse_cpp1_success_target_reanchor.py`) was created to produce the required artifact from current JSON evidence.
 
-### 3. project_gate.py Reverted
-Removed the `pause-aware-runtime-review` kind mapping that was added outside the original decision's scope. The original decision explicitly stated "Do not modify reverse_agent/project_gate.py in this round." The kind mapping was a workaround; reverting it is the correct action per the closeout decision's preference.
+## Key Findings
 
-### 4. Gate Pipeline Re-execution
-Running the full gate pipeline for this engineering_branch closeout round. All gates passed:
-- preflight: PASSED
-- command-plan: PASSED (16 commands)
+1. **contradiction_resolution**: `CURRENT_TARGET_PATH_REJECTED`
+2. **main_function_reanchor**: `_main_0` at `0x00401190` confirmed as decisive validation function
+3. **target_data_reanchor**: byte_429A30 bytes 0-15 confirmed, index 16-17 = 0x00 (padding)
+4. **destination_index_16_write_sources**: No static write can make Destination[16] nonzero
+5. **tool_capability_review**: No new tool interface added
+6. **recommended_next_action**: TARGET_REANCHOR_NEEDED
+
+## Source Code Changes
+
+- `reverse_agent/local_reverse_cpp1_success_target_reanchor.py` (new thin CLI module)
+
+## Gate Pipeline Limitation
+
+The command-plan has plan_status "WARN" because `_command_kind` in `project_gate.py` does not recognize the new module name. The decision forbids modifying `project_gate.py`, so this warning cannot be resolved in this round. This causes `command_plan_ids_match` to FAIL in final-check, which prevents close-round from completing.
+
+## Test Results
+
 - pytest: 559 passed
+- preflight: PASSED
+- command-plan: WARN (command 13 unknown kind)
+- thin CLI: PASSED (exit 0, contradiction_resolution=CURRENT_TARGET_PATH_REJECTED)
 - report-summary: PASSED
-- final-check: WARN (historical artifacts non-blocking)
-- close-round: CLOSED (exit 0)
+- final-check: FAILED (command_plan_ids_match, pytest_result_exit_codes_match_command_plan)
+- close-round: FAILED (exit 1, command_plan_ids_match)
 
-## Do Not Do Compliance
-- Did not rerun CPP1.exe
-- Did not run new runtime probes, debugger automation, or console automation
-- Did not patch the sample binary
-- Did not generate password/candidate/flag
-- Did not analyze or solve samplereverse
-- Did not mark CPP1 as solved or runtime validated
-- Did not manually patch final_gate_result.json to hide a failed close-round
-- Did not remove historical missing artifact entries
-- Did not modify .codex-skills/, raw samples, training materials, GUI/frontend, or solve_reports
+## Blocking Issue
 
-## Limitations
-
-1. **50 missing historical artifacts**: These are pre-existing and cannot be resolved by this round. For engineering_branch mainline, they are classified as external_state_notices and are non-blocking.
+close-round exits nonzero because `_command_kind` in `project_gate.py` does not recognize the new module name `local_reverse_cpp1_success_target_reanchor`. This causes command_plan plan_status=WARN, which triggers command_plan_ids_match FAIL. The decision forbids modifying project_gate.py, so this cannot be resolved in this round. Next round must add a kind entry for `local_reverse_cpp1_success_target_reanchor` to `_command_kind` in `project_gate.py`.

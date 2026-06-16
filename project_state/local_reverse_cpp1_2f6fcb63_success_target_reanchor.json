@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "decision_id": "decision_20260616_cpp1_success_target_reanchor_v1",
+  "round_id": "round_20260616_cpp1_success_target_reanchor_v1",
+  "sample_id": "cpp1_2f6fcb63",
+  "relative_path": "逆向课程2023春01/CPP1.exe",
+  "sha256": "2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede",
+  "analysis_mode": "success_target_reanchor",
+  "mainline": "tool_integration",
+  "executed_sample": false,
+  "runtime_validated": false,
+  "debugger_or_hook_used": false,
+  "candidate_bytes_hex": null,
+  "candidate_text": null,
+  "generated_at": "2026-06-16T09:38:02Z",
+  "source_artifacts": {
+    "static_triage": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+    "target_bytes_revalidation": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+    "success_boundary_static_recheck": "project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json",
+    "pause_aware_runtime_review": "project_state/local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review.json",
+    "artifact_index": "project_state/artifact_index.json"
+  },
+  "source_artifact_freshness": {
+    "static_triage": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_static_triage",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_static_triage.json",
+      "freshness": "current",
+      "source_run": "round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "target_bytes_revalidation": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_target_bytes_revalidation",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json",
+      "freshness": "current",
+      "source_run": "round_20260616_cpp1_target_bytes_current_revalidation_v2",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "success_boundary_static_recheck": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_success_boundary_static_recheck.json",
+      "freshness": "current",
+      "source_run": "",
+      "sample_id": "cpp1_2f6fcb63"
+    },
+    "pause_aware_runtime_review": {
+      "artifact_key": "local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review",
+      "path": "project_state/local_reverse_cpp1_2f6fcb63_pause_aware_runtime_review.json",
+      "freshness": "current",
+      "source_run": "round_20260616_cpp1_pause_aware_runtime_evidence_review_v1",
+      "sample_id": "cpp1_2f6fcb63"
+    }
+  },
+  "tool_capability_review": {
+    "new_tool_interface_added": false,
+    "existing_ida_capability": "IDA/IDAPython runner and collect_evidence.py script exist",
+    "ida_available_locally": true,
+    "ida_used_this_round": false,
+    "reason_no_ida_rerun": "All required evidence is already present in current artifacts",
+    "needs_tool_recheck": false
+  },
+  "success_string_xrefs": {
+    "string_value": "Congratulations! You are right!\\n",
+    "source_function": "_main_0",
+    "source_address": "0x00401190",
+    "xref_type": "direct_printf_in_success_branch",
+    "evidence_source": "target_bytes_revalidation pseudocode"
+  },
+  "failure_string_xrefs": {
+    "string_value": "Sorry, you are wrong!\\n",
+    "source_function": "_main_0",
+    "source_address": "0x00401190",
+    "xref_type": "direct_printf_in_failure_branch_and_length_check",
+    "evidence_source": "target_bytes_revalidation pseudocode"
+  },
+  "main_function_reanchor": {
+    "function_name": "_main_0",
+    "function_address": "0x00401190",
+    "is_decisive_validation_function": true,
+    "reanchor_needed": false,
+    "reason": "_main_0 contains the complete validation flow. No other function is involved in the decisive success path."
+  },
+  "compare_loop_assembly_or_pseudocode_evidence": {
+    "loop_condition": "i < v4 && Destination[i] == byte_429A30[i]",
+    "loop_increment": "++i",
+    "compare_operand_sources": {
+      "left": "Destination[i] — global buffer, written by strncpy then transformed in-place",
+      "right": "byte_429A30[i] — static global data at VA 0x00429A30"
+    },
+    "branch_condition": "loop exits when either i >= v4 (strlen) or Destination[i] != byte_429A30[i] (first mismatch)",
+    "success_check": "if ( i == 16 ) — success requires first mismatch at index 16",
+    "pseudocode_source": "target_bytes_revalidation artifact"
+  },
+  "target_data_reanchor": {
+    "target_symbol": "byte_429A30",
+    "target_va": "0x00429A30",
+    "target_rva": "0x00029A30",
+    "target_section": ".data",
+    "bytes_0_to_15_hex": "d596c4f60745577776e5f64847f74817",
+    "byte_16_hex": "00",
+    "byte_17_hex": "00",
+    "index_16_is_target_owned_or_padding": "PADDING_TERMINATOR",
+    "reanchor_needed": false,
+    "reason_no_reanchor": "Target bytes confirmed by both IDA static triage and PE static file parsing."
+  },
+  "destination_index_16_write_sources": {
+    "strncpy_copies_indices": [
+      0,
+      15
+    ],
+    "strncpy_does_not_write_index_16": true,
+    "transform_loop_iterates_indices": [
+      0,
+      17
+    ],
+    "transform_loop_writes_index_16": true,
+    "transform_of_zero_input": {
+      "input_value": "0x00",
+      "formula": "(x & 3) | (16 * (x & 0xC)) | ((x & 0xF0) >> 2)",
+      "output_value": "0x00",
+      "explanation": "0x00 & 3 = 0, 16 * (0x00 & 0xC) = 0, (0x00 & 0xF0) >> 2 = 0; result = 0x00"
+    },
+    "any_other_static_write_to_destination_16": false,
+    "conclusion": "Destination[16] is guaranteed to be 0x00 after the transform loop."
+  },
+  "contradiction_resolution": "CURRENT_TARGET_PATH_REJECTED",
+  "contradiction_resolution_reason": "The compare loop requires a first mismatch at index 16 for success (i == 16). byte_429A30[16] == 0x00. Destination[16] is 0x00 after the transform loop (strncpy only copies 16 bytes, transform of 0x00 = 0x00). Therefore Destination[16] == byte_429A30[16], which is a match, not a mismatch. The compare loop will not exit at i == 16, making the success path unreachable.",
+  "recommended_next_action": "TARGET_REANCHOR_NEEDED: The next solving round must either (1) identify a different success path or compare target, (2) find evidence that Destination[16] can be made nonzero, or (3) use IDA/IDAPython to re-examine the disassembly to confirm decompiler accuracy.",
+  "stop_conditions_for_next_round": [
+    "Do not rerun CPP1.exe with the current 18-byte inverse payload or any variant that only differs at indices 16-17.",
+    "Do not mark CPP1 as solved or runtime_validated without a verified success marker.",
+    "Do not repeat the printable inverse path unless target bytes or transform semantics change.",
+    "Do not modify project_gate.py.",
+    "Before any new runtime validation, first resolve the Destination[16] success boundary contradiction.",
+    "If proposing IDA re-examination, use the existing IDA/IDAPython tool interface.",
+    "If the assembly confirms the pseudocode, accept CURRENT_TARGET_PATH_REJECTED and consider a fundamentally different approach."
+  ]
+}
