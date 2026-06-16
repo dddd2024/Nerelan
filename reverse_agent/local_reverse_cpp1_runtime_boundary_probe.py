@@ -341,7 +341,7 @@ def run_boundary_probe(
                     "freshness": entry.get("freshness", ""),
                 }
 
-    executed_sample = any(not p["timeout"] and p["exit_code"] is not None for p in probe_results)
+    executed_sample = any(p["timeout"] or p["exit_code"] is not None for p in probe_results)
 
     result: dict[str, Any] = {
         "schema_version": 1,

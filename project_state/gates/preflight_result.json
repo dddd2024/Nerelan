@@ -2,10 +2,10 @@
   "schema_version": 1,
   "gate_name": "preflight",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260616_cpp1_bounded_runtime_boundary_probe_v1",
-  "round_id": "round_20260616_cpp1_bounded_runtime_boundary_probe_v1",
-  "mainline": "reverse_solving",
-  "generated_at": "2026-06-16T04:59:55.555782Z",
+  "decision_id": "decision_20260616_cpp1_runtime_boundary_closeout_rework_v1",
+  "round_id": "round_20260616_cpp1_runtime_boundary_closeout_rework_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-16T05:33:49.927185Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -26,7 +26,7 @@
     {
       "name": "mainline_valid",
       "status": "PASS",
-      "detail": "mainline is reverse_solving",
+      "detail": "mainline is engineering_branch",
       "allowed_mainlines": [
         "engineering_branch",
         "reverse_solving",
@@ -56,7 +56,7 @@
       "status": "PASS",
       "detail": "decision has not been consumed by a report",
       "decision_execution_state": "READY_FOR_EXECUTION",
-      "report_id": "codex_report_20260616_cpp1_target_revalidation_closeout_rework_v1"
+      "report_id": "codex_report_20260616_cpp1_bounded_runtime_boundary_probe_v1"
     },
     {
       "name": "task_packet_is_non_authoritative",
@@ -71,7 +71,8 @@
       "status": "PASS",
       "detail": "implementation scope is present and parseable",
       "allowed_paths": [
-        "directly relevant tests",
+        "Add or update directly relevant tests only if source remains changed.",
+        "If kept, document why it is necessary and run focused tests.",
         "project_state/artifact_index.json",
         "project_state/codex_execution_report.md",
         "project_state/gates/command_plan.json",
@@ -84,10 +85,9 @@
         "project_state/gates/run_round_result.json",
         "project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260616_cpp1_bounded_runtime_boundary_probe_v1/*",
-        "reverse_agent/local_reverse_cpp1_inverse_handoff.py",
+        "project_state/rounds/round_20260616_cpp1_runtime_boundary_closeout_rework_v1/*",
         "reverse_agent/local_reverse_cpp1_runtime_boundary_probe.py",
-        "reverse_agent/local_reverse_runtime.py"
+        "reverse_agent/project_gate.py"
       ]
     },
     {
@@ -102,10 +102,7 @@
       "detail": "mainline scope policy is satisfied",
       "matched_terms": [],
       "matched_paths": [
-        "project_state/local_reverse_cpp1_2f6fcb63_runtime_boundary_probe.json",
-        "project_state/rounds/round_20260616_cpp1_bounded_runtime_boundary_probe_v1/*",
-        "reverse_agent/local_reverse_cpp1_runtime_boundary_probe.py",
-        "reverse_agent/local_reverse_runtime.py"
+        "reverse_agent/local_reverse_cpp1_runtime_boundary_probe.py"
       ]
     },
     {
@@ -113,7 +110,7 @@
       "status": "PASS",
       "detail": "stale/missing artifacts are not claimed as current evidence",
       "artifact_freshness": {
-        "current": 2,
+        "current": 3,
         "missing": 50
       },
       "latest_harness_run": "solve_reports\\harness_runs\\samplereverse_material_hook_runtime_validation_20260512_rerun6"
@@ -122,7 +119,7 @@
       "name": "tool_capability_audit_required_when_applicable",
       "status": "PASS",
       "detail": "tool capability audit requirement is satisfied",
-      "capability_required": true
+      "capability_required": false
     }
   ],
   "blocking_reasons": [],
@@ -131,7 +128,7 @@
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [],
-    "head_commit": "0bec02e4fb63"
+    "head_commit": "e146d2760703"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",

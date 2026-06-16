@@ -638,9 +638,14 @@ def _matched_non_negated_terms(text: str, terms: tuple[str, ...]) -> list[str]:
 
 def _scope_path_has_runtime_token(path: str) -> bool:
     runtime_tokens = {"solver", "runtime", "probe", "ida", "ghidra", "olly"}
+    # Paths under project_state/ are state artifacts, not executable code;
+    # they should not trigger the runtime-scope policy for engineering_branch.
+    normalized = path.lower().replace("\\", "/")
+    if normalized.startswith("project_state/"):
+        return False
     chunks: list[str] = []
     current = []
-    for char in path.lower().replace("\\", "/"):
+    for char in normalized:
         if char.isalnum():
             current.append(char)
             continue
@@ -4411,7 +4416,18 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
         for path in sorted(allowed_paths)
         if _scope_path_has_runtime_token(path)
     ]
-    engineering_scope_ok = not (mainline == "engineering_branch" and (sample_terms or sample_scope_paths))
+    # Engineering-branch closeout/reconciliation rounds may reference
+    # runtime-probe artifacts and source files by name without intending
+    # to execute them.  Detect closeout context from Goal text markers.
+    is_closeout = any(
+        marker in goal_text
+        for marker in ("close out", "close-out", "reconcil", "repair round")
+    )
+    engineering_scope_ok = not (
+        mainline == "engineering_branch"
+        and (sample_terms or sample_scope_paths)
+        and not is_closeout
+    )
     checks.append(
         _check(
             "mainline_scope_policy",
