@@ -1,12 +1,12 @@
 ```json decision_meta
 {
   "schema_version": 1,
-  "decision_id": "decision_20260616_cpp1_target_bytes_current_revalidation_v2",
-  "round_id": "round_20260616_cpp1_target_bytes_current_revalidation_v2",
+  "decision_id": "decision_20260616_cpp1_target_revalidation_closeout_rework_v1",
+  "round_id": "round_20260616_cpp1_target_revalidation_closeout_rework_v1",
   "based_on_state_build_id": "state_20260615_150220_24f61a9ac337",
   "based_on_state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
   "status": "APPROVED",
-  "mainline": "tool_integration",
+  "mainline": "engineering_branch",
   "skill_profiles": ["reverse-agent-iteration@v2"]
 }
 ```
@@ -15,66 +15,71 @@
 
 ## 1. Goal
 
-本轮目标是对 `cpp1_2f6fcb63` 的 target compare bytes 做**当前证据重验证与 artifact_index 登记**。
+Close out `round_20260616_cpp1_target_bytes_current_revalidation_v2` by reconciling report-summary, final-check, pytest_result, and round archive status.
 
-上一轮 closeout 已收口；当前 `artifact_index.json` 中只有 `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json` 明确为 current。仓库中虽然存在历史 `project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json`，但它不能直接作为当前求解证据。本轮要复用现有 `reverse_agent/local_reverse_cpp1_target_byte_extract.py --current-revalidation` 能力，把历史 target bytes 与当前 static triage 做一致性校验，生成新的 current revalidation artifact，并登记到 `artifact_index.json`。
+The target bytes revalidation itself succeeded and must not be repeated unless required only for verification. This round is an engineering closeout/reconciliation round, not a reverse-solving round.
 
-本轮不是求解轮，不生成 candidate/password/flag，不运行样本，不做 runtime probe，不启动 debugger/harness，不扩展到其他样本。
+Required end state:
+
+- `codex_report_summary` matches `report_summary_synthesis.json`.
+- `final_gate_result.json` is not FAILED, or the live report honestly says FAILED / REWORK_REQUIRED.
+- `close-round` exits 0.
+- Archived report, decision, and pytest_result match live files.
+- Current artifact `local_reverse_cpp1_2f6fcb63_target_bytes_revalidation` remains registered as current.
 
 ## 2. Current Evidence
 
-当前执行权威是本 `project_state/decision_packet.md`，不是 `task_packet.json`。`task_packet.json/current_state.json` 仍包含历史 `samplereverse` 压缩状态，只能作为背景，不得覆盖本轮任务。
+The current execution authority is this `project_state/decision_packet.md`; `task_packet.json` remains state input only and must not override this decision.
 
-上一轮 `decision_20260616_cpp1_static_triage_closeout_rework_v1` 为 `engineering_branch` closeout，审计结论可接受：report/pytest/final gate/round archive 已对齐。本轮不继续 gate closeout 返工。
+The previous round was `round_20260616_cpp1_target_bytes_current_revalidation_v2`.
 
-`artifact_index.json` 中 `local_reverse_cpp1_2f6fcb63_static_triage` 为 current，path 为 `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`，source_run 为 `round_20260615_cpp1_2f6fcb63_bounded_static_triage_v1`，tool_status 为 success。
+Known facts from the audit:
 
-当前 static triage artifact 显示：
+- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json` was generated.
+- `project_state/artifact_index.json` registers `local_reverse_cpp1_2f6fcb63_target_bytes_revalidation` with `freshness=current`, `sample_id=cpp1_2f6fcb63`, and source_run `round_20260616_cpp1_target_bytes_current_revalidation_v2`.
+- The revalidation command exited 0 and reported `status=PASSED`.
+- No sample execution occurred.
+- No candidate/password/flag was produced.
+- `close-round` failed with exit 1.
+- `final_gate_result.json` is FAILED because `status_policy_valid` blocks on 50 historical missing artifacts.
+- `report_summary_synthesis.json` expects `FAILED / REWORK_REQUIRED`.
+- `codex_execution_report.md` is internally inconsistent: the summary says `PARTIAL / REWORK_REQUIRED`, but the body still claims the full gate pipeline succeeded and close-round closed.
 
-- sample_id: `cpp1_2f6fcb63`
-- relative_path: `逆向课程2023春01/CPP1.exe`
-- sha256: `2f6fcb637151a413dae11ab981706ff1f46d2202abc1d60de8a3b534448baede`
-- analysis_mode: `single_sample_static_triage`
-- executed_sample=false
-- static_only=true
-- runtime_validated=false
-- source_tool=IDA
-- forbidden_actions 包含 `runtime_probe`, `bruteforce`, `upload_binary`
-- `_main_0` 是最高分 validation function candidate
-- `_main_0` 伪代码显示 `scanf("%s", Str)`, `strlen(Str) != 18`, `strncpy(Destination, Str, 0x10u)`, transform 公式，以及 `Destination[i] == byte_429A30[i]` 比较，`i == 16` 时输出成功
+This is not a reverse-solving round. It is an `engineering_branch` closeout round for report/gate/archive consistency.
 
-仓库存在历史 `project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json`，包含 `byte_429A30`、target address `0x00429A30`、target length 16、target bytes、main pseudocode 和 transform 信息。但它当前没有在 `artifact_index.json` 中被证明为 current，因此本轮只能把它作为待重验证输入，不能直接当 solved evidence 或 current evidence。
+Historical missing artifacts must not be treated as current evidence. However, a missing or stale current artifact must still block.
 
-现有能力必须复用：
+Existing relevant capabilities:
 
-- IDA / IDAPython runner、IDA script 和静态 triage 能力已存在；不得重写反汇编/反编译能力。
-- `reverse_agent/local_reverse_cpp1_target_byte_extract.py` 已有 `--current-revalidation` 模式，可读取 current triage 与旧 target bytes，生成 `target_bytes_current_revalidation` artifact，并更新 artifact_index。
-- solver templates、symbolic solver、harness 都已存在，但本轮不得使用它们做 candidate 搜索或 runtime validation。
-- `negative_results.json` 当前包含旧 `samplereverse` 失败方向；本轮不得触碰这些方向，也不得回到旧 `sample_solver` 盲搜、只扩 budget/beam、或提交完整 `solve_reports/`。
+- `project_gate.py` and `project_state.py` already implement gate/status/report policy checks.
+- The previous engineering closeout strategy used `engineering_branch` to downgrade historical missing artifacts into external-state notices while keeping current artifacts strict.
+- `reverse-agent-iteration@v2` is active in `.codex-skills/registry.json`.
+- IDA/static extraction capability already exists, but it is not in scope for this closeout.
+- Harness/runtime validation exists, but it is not in scope for this closeout.
 
 ## 3. Do Not Do
 
-不得分析或求解 `samplereverse`。
+Do not rerun solver, brute force, harness campaign, debugger, emulator, runtime validation, or sample execution.
 
-不得把 `task_packet.task` 当本轮执行任务。
+Do not rerun target bytes revalidation unless needed only to verify artifact presence and metadata.
 
-不得运行目标样本二进制；不得 runtime probe、dynamic debugger、hook、emulator、harness campaign、raw stdin validation、SMT、bruteforce 或 old `sample_solver` blind search。
+Do not delete, downgrade, or alter the meaning of `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`.
 
-不得生成 candidate/password/flag；不得把 `cpp1_2f6fcb63` 标记为 solved。
+Do not remove historical missing artifact entries just to pass the gate.
 
-不得把历史 `target_bytes.json` 直接改成 current，或只改 `artifact_index.json` 来伪造 current。必须生成独立 revalidation artifact，并记录 source_artifact_freshness 与 revalidation_checks。
+Do not modify `.codex-skills/`, raw samples, training materials, GUI/frontend, or complete `solve_reports/`.
 
-不得新建重复 IDA/Ghidra/debugger/radare2/objdump/solver/harness 接口。成熟工具和现有接口优先。
+Do not modify `project_gate.py` or `project_state.py` unless the existing engineering closeout path cannot safely distinguish historical missing artifacts from current artifacts.
 
-不得修改 `.codex-skills/`、raw samples、training materials、完整 `solve_reports/` 或无关模块。
+Do not widen this into frontend/backend work.
 
-不得读取完整 `PROJECT_PROGRESS_LOG.txt` 或完整 `solve_reports/`。
+Do not generate candidate/password/flag.
 
-不得扩大到其他本地样本；本轮只允许 `cpp1_2f6fcb63`。
+Do not treat `task_packet.task` or old `samplereverse` state as the current execution task.
 
 ## 4. Files To Inspect
 
-必须按顺序读取默认状态文件：
+Read the default project_state files in order:
 
 1. `project_state/task_packet.json`
 2. `project_state/current_state.json`
@@ -85,110 +90,77 @@
 7. `project_state/pytest_result.txt`
 8. `.codex-skills/registry.json`
 
-必须有界读取：
+Also inspect:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_static_triage.json`
-- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json`
-- `reverse_agent/local_reverse_cpp1_target_byte_extract.py`
-- `reverse_agent/tool_capability_inventory.py`
-- `reverse_agent/tool_runners.py`，只核验既有 IDA/tool runner 能力
-- `reverse_agent/ida_scripts/extract_named_data.py`，只在 revalidation blocked 且需要确认现有 IDA extraction 能力时读取
-- `tests/test_project_gate.py`
-- `tests/test_project_state.py`
-
-可选、有界读取：
-
-- `project_state/rounds/round_20260616_cpp1_static_triage_closeout_rework_v1/round_manifest.json`
+- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`
 - `project_state/gates/final_gate_result.json`
 - `project_state/gates/report_summary_synthesis.json`
+- `project_state/gates/round_delta_summary.json`
+- `project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/round_manifest.json`
+- `reverse_agent/project_gate.py`
+- `reverse_agent/project_state.py`
+- related gate/state tests if any source file is touched
+
+Do not read full `PROJECT_PROGRESS_LOG.txt` or full `solve_reports/`.
 
 ## 5. Required Audit
 
-开始修改前必须确认：
+Before changing files, confirm:
 
-1. 当前工作目录是 `F:\reverse-agent`，且 `git rev-parse --show-toplevel` 指向该仓库。
-2. `decision_meta` 可解析，`status=APPROVED`，`mainline=tool_integration`。
-3. `reverse-agent-iteration@v2` 在 `.codex-skills/registry.json` 中为 active。
-4. `task_packet.json/current_state.json` 的 `samplereverse` 状态不是本轮任务权威。
-5. `artifact_index.json` 中 `local_reverse_cpp1_2f6fcb63_static_triage` 为 current，且 sample_id 为 `cpp1_2f6fcb63`。
-6. 历史 `target_bytes.json` 只作为待重验证输入；在 revalidation 通过前不得当 current evidence。
-7. `reverse_agent/local_reverse_cpp1_target_byte_extract.py` 已有相关能力；不得新建重复 extractor 或 runner。
-8. 本轮不运行样本，不做 runtime validation，不生成 candidate。
+1. Startup path is `F:\reverse-agent` and `git rev-parse --show-toplevel` points to this repository.
+2. Current decision id is `decision_20260616_cpp1_target_revalidation_closeout_rework_v1`.
+3. Current mainline is `engineering_branch`.
+4. `reverse-agent-iteration@v2` is active.
+5. Current revalidation artifact exists and is current in `artifact_index.json`.
+6. Previous close-round failed due to `status_policy_valid`.
+7. The 50 missing artifacts are historical external state notices, not current required artifacts for `cpp1_2f6fcb63_target_bytes_revalidation`.
+8. Current required artifact missing/stale must still block.
+9. Live report, report-summary, final-check, and archive must describe the same status.
 
-本轮必须执行或如实报告：
+Required result:
 
-- 运行现有 current revalidation：
-
-```powershell
-python -m reverse_agent.local_reverse_cpp1_target_byte_extract --current-revalidation --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --out project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json --artifact-index project_state/artifact_index.json
-```
-
-- 新 artifact 必须包含至少：
-  - `schema_version`
-  - `sample_id`
-  - `relative_path`
-  - `sha256`
-  - `analysis_mode="target_bytes_current_revalidation"`
-  - `mainline="tool_integration"`
-  - `executed_sample=false`
-  - `static_only=true`
-  - `runtime_validated=false`
-  - `candidate=null`
-  - `known_candidate=""`
-  - `source_artifacts`
-  - `source_artifact_freshness`
-  - `revalidation_checks`
-  - `revalidation_status`
-  - `blocked_reason`
-  - `mismatched_fields`
-  - `target_symbol`
-  - `target_address`
-  - `target_length`
-  - `target_bytes_hex`
-  - `target_bytes`
-  - `forward_transform`
-  - `recommended_next_action`
-
-- 如果 revalidation_status 为 `PASSED`，`artifact_index.json` 必须登记 `local_reverse_cpp1_2f6fcb63_target_bytes_revalidation` 为 current，path 指向 `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`，source_run 为本轮 round_id，sample_id 为 `cpp1_2f6fcb63`。
-- 如果 revalidation_status 为 `BLOCKED` 或 `FAILED`，不得继续求解；报告 blocker，下一轮再决定是否使用既有 IDA extraction 有界重建。
-- `codex_execution_report.md` 必须明确说明：是否运行了 revalidation、是否更新 artifact_index、是否没有运行样本、是否没有生成 candidate、是否没有新建工具接口。
-- `pytest_result.txt` 必须记录真实命令、stdout/stderr 和 exit code。
+- `codex_execution_report.md` must not claim SUCCESS if close-round fails.
+- `codex_report_summary` must match `report_summary_synthesis.json`.
+- `pytest_result.txt` must record real commands, stdout, stderr, and exit codes.
+- `close-round` must exit 0 before reporting SUCCESS/ACCEPTED.
 
 ## 6. Implementation Scope
 
-默认不改源码。
+Prefer no source changes.
 
-允许更新/生成：
+Allowed project_state updates:
 
-- `project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json`
-- `project_state/artifact_index.json`
 - `project_state/codex_execution_report.md`
 - `project_state/pytest_result.txt`
 - `project_state/gates/command_plan.json`
+- `project_state/gates/final_gate_result.json`
 - `project_state/gates/preflight_result.json`
 - `project_state/gates/report_summary_synthesis.json`
-- `project_state/gates/final_gate_result.json`
 - `project_state/gates/round_baseline.json`
+- `project_state/gates/round_close_snapshot.json`
 - `project_state/gates/round_delta_summary.json`
 - `project_state/gates/run_round_result.json`
-- `project_state/rounds/round_20260616_cpp1_target_bytes_current_revalidation_v2/*`
+- `project_state/rounds/round_20260616_cpp1_target_revalidation_closeout_rework_v1/*`
 
-仅当现有 revalidation CLI 无法运行且必须做最小兼容修复时，允许修改：
+Carefully allowed only if required:
 
-- `reverse_agent/local_reverse_cpp1_target_byte_extract.py`
-- `reverse_agent/project_state.py`
+- `project_state/artifact_index.json`, only for provenance/status metadata and not to change evidence meaning.
+
+Only if existing engineering closeout cannot pass safely, allow minimal source changes to:
+
 - `reverse_agent/project_gate.py`
-- 直接相关 tests
+- `reverse_agent/project_state.py`
+- directly related tests
 
-不得修改 solver logic、harness runtime behavior、IDA runner semantics、GUI/frontend、training materials 或 `.codex-skills/`。
+Any source change must preserve the rule: current artifact missing/stale is blocking; historical missing artifacts may be downgraded only in this closeout-style engineering context.
 
-不得提交完整 `solve_reports/`。
+Do not modify solver logic, harness runtime behavior, IDA runner semantics, sample-specific solver profiles, GUI/frontend, or `.codex-skills/`.
 
 ## 7. Tests
 
-必须把命令、stdout、stderr、exit code 记录到 `project_state/pytest_result.txt`。
+Record command, stdout, stderr, and exit code in `project_state/pytest_result.txt`.
 
-启动检查必须先执行：
+Required commands:
 
 ```powershell
 Set-Location F:\reverse-agent
@@ -196,11 +168,6 @@ Get-Location
 Test-Path F:\reverse-agent
 git rev-parse --show-toplevel
 git status --short
-```
-
-必跑 gate/status 命令：
-
-```powershell
 python -m reverse_agent.project_gate preflight --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state
 python -m reverse_agent.project_gate command-plan --state-dir project_state --json
@@ -208,46 +175,30 @@ python -m reverse_agent.project_gate run-round --state-dir project_state --dry-r
 python -m reverse_agent.project_state doctor --state-dir project_state
 python -m reverse_agent.project_state lint-report --state-dir project_state
 python -m reverse_agent.project_state active-execution-view --state-dir project_state --json
-```
-
-必跑本轮 revalidation 命令：
-
-```powershell
-python -m reverse_agent.local_reverse_cpp1_target_byte_extract --current-revalidation --triage project_state/local_reverse_cpp1_2f6fcb63_static_triage.json --target-bytes project_state/local_reverse_cpp1_2f6fcb63_target_bytes.json --out project_state/local_reverse_cpp1_2f6fcb63_target_bytes_revalidation.json --artifact-index project_state/artifact_index.json
-```
-
-如果无源码修改，运行：
-
-```powershell
 python -m pytest tests/test_project_state.py tests/test_project_gate.py -q
-```
-
-如果源码被修改，必须增加直接相关测试；至少运行：
-
-```powershell
-python -m pytest tests/test_project_state.py tests/test_project_gate.py -q
-```
-
-收尾必须运行：
-
-```powershell
 python -m reverse_agent.project_gate report-summary --state-dir project_state
 python -m reverse_agent.project_gate final-check --state-dir project_state
-python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_target_bytes_current_revalidation_v2
+python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260616_cpp1_target_revalidation_closeout_rework_v1
+```
+
+If source files are modified, run the directly relevant focused tests plus:
+
+```powershell
+python -m pytest tests/test_project_state.py tests/test_project_gate.py -q
 ```
 
 ## 8. Stop Conditions
 
-如果无法进入 `F:\reverse-agent` 或不是该 Git 仓库，立即停止。
+Stop with `BLOCKED` if current revalidation artifact is missing or not current.
 
-如果 `decision_meta` 不合法、status 不是 APPROVED、mainline 不是 tool_integration、skill profile 不 active，立即停止。
+Stop with `REWORK_REQUIRED` if report-summary and live report still disagree.
 
-如果 current static triage artifact 缺失、不是 current、sample_id 不是 `cpp1_2f6fcb63`，停止并报告 state mismatch。
+Stop with `REWORK_REQUIRED` if close-round exits nonzero.
 
-如果历史 `target_bytes.json` 缺失或 revalidation 发现关键字段冲突，停止在 BLOCKED/FAILED，不继续 solver，不运行 IDA，除非本 decision 明确允许的 current-revalidation 已完成并给出 blocker。
+Stop with `BLOCKED` if fixing this requires changing project_gate status policy outside this decision scope.
 
-如果 revalidation 成功，也不要继续求解；本轮 stop after artifact registration and gate closeout。
+Stop with `REWORK_REQUIRED` if live `project_state/decision_packet.md` must be edited during Codex execution.
 
-如果任何命令失败、pytest_result 缺失/不匹配、report/decision/round id mismatch、final-check 或 close-round 失败，不得写 SUCCESS/ACCEPTED。
+Do not write SUCCESS if close-round fails.
 
-如果需要 runtime validation、raw stdin delivery、candidate confirmation 或 solver 推进，停止并请求下一轮独立 `reverse_solving` decision。
+Do not write ACCEPTED if `pytest_result.txt` is missing, incomplete, or mismatched.
