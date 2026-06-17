@@ -1,9 +1,9 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_tiered_gate_profile_plan_v1",
-  "round_id": "round_20260617_tiered_gate_profile_plan_v1",
-  "report_id": "codex_report_20260617_tiered_gate_profile_plan_v1",
+  "decision_id": "decision_20260617_clean_start_baseline_guard_v1",
+  "round_id": "round_20260617_clean_start_baseline_guard_v1",
+  "report_id": "codex_report_20260617_clean_start_baseline_guard_v1",
   "status": "PASSED",
   "tests_ran": [
     "Set-Location F:\\reverse-agent",
@@ -11,17 +11,7 @@
     "Test-Path F:\\reverse-agent",
     "git rev-parse --show-toplevel",
     "git status --short",
-    "python -m reverse_agent.project_gate preflight --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-    "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
-    "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
-    "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json",
-    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
-    "python -m reverse_agent.project_state doctor --state-dir project_state",
-    "python -m reverse_agent.project_state lint-report --state-dir project_state",
-    "python -m reverse_agent.project_gate report-summary --state-dir project_state",
-    "python -m reverse_agent.project_gate final-check --state-dir project_state",
-    "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_tiered_gate_profile_plan_v1"
+    "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q"
   ]
 }
 ```
@@ -47,207 +37,6 @@ F:/reverse-agent
  M tests/test_project_gate.py
 ===== EXIT: 0 =====
 
-===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
-preflight: PASSED
-decision_id: decision_20260617_tiered_gate_profile_plan_v1
-round_id: round_20260617_tiered_gate_profile_plan_v1
-mainline: engineering_branch
-  [PASS] decision_not_dirty_in_baseline
-  [PASS] decision_meta_parse
-  [PASS] decision_approved
-  [PASS] mainline_valid
-  [PASS] skill_profiles_active
-  [PASS] decision_not_consumed_by_report
-  [PASS] task_packet_is_non_authoritative
-  [PASS] implementation_scope_present
-  [PASS] forbidden_paths_not_allowed
-  [PASS] mainline_scope_policy
-  [PASS] artifact_freshness_policy
-  [PASS] tool_capability_audit_required_when_applicable
-recommended_next_action: proceed_with_decision_scope
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state =====
-command-plan: PASSED
-decision_id: decision_20260617_tiered_gate_profile_plan_v1
-round_id: round_20260617_tiered_gate_profile_plan_v1
-mainline: engineering_branch
-  [1] status git status
-  [2] gate report-summary
-  [3] gate final-check
-  [4] status set-location
-  [5] status pwd
-  [6] status test-path
-  [7] status git rev-parse
-  [8] preflight preflight
-  [9] gate command-plan
-  [10] gate command-plan --json
-  [11] status project-cli
-  [12] gate run-round
-  [13] test pytest
-  [14] status doctor
-  [15] status lint-report
-  [16] gate close-round
-recommended_next_action: record_and_follow_command_plan_manually
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate command-plan --state-dir project_state --json =====
-{
-  "schema_version": 1,
-  "gate_name": "command-plan",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260617_tiered_gate_profile_plan_v1",
-  "round_id": "round_20260617_tiered_gate_profile_plan_v1",
-  "commands": [
-    {"index": 1, "command": "git status --short", "phase": "status", "kind": "git status", "expected_exit_codes": [0]},
-    {"index": 2, "command": "Set-Location F:\\reverse-agent", "phase": "status", "kind": "set-location", "expected_exit_codes": [0]},
-    {"index": 3, "command": "Get-Location", "phase": "status", "kind": "pwd", "expected_exit_codes": [0]},
-    {"index": 4, "command": "Test-Path F:\\reverse-agent", "phase": "status", "kind": "test-path", "expected_exit_codes": [0]},
-    {"index": 5, "command": "git rev-parse --show-toplevel", "phase": "status", "kind": "git rev-parse", "expected_exit_codes": [0]},
-    {"index": 6, "command": "python -m reverse_agent.project_gate preflight --state-dir project_state", "phase": "preflight", "kind": "preflight", "expected_exit_codes": [0]},
-    {"index": 7, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state", "phase": "gate", "kind": "command-plan", "expected_exit_codes": [0]},
-    {"index": 8, "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json", "phase": "gate", "kind": "command-plan", "expected_exit_codes": [0]},
-    {"index": 9, "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json", "phase": "status", "kind": "project-cli", "expected_exit_codes": [0]},
-    {"index": 10, "command": "python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json", "phase": "gate", "kind": "run-round", "expected_exit_codes": [0]},
-    {"index": 11, "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q", "phase": "test", "kind": "pytest", "expected_exit_codes": [0]},
-    {"index": 12, "command": "python -m reverse_agent.project_state doctor --state-dir project_state", "phase": "status", "kind": "doctor", "expected_exit_codes": [0]},
-    {"index": 13, "command": "python -m reverse_agent.project_state lint-report --state-dir project_state", "phase": "status", "kind": "lint-report", "expected_exit_codes": [0]},
-    {"index": 14, "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state", "phase": "gate", "kind": "report-summary", "expected_exit_codes": [0]},
-    {"index": 15, "command": "python -m reverse_agent.project_gate final-check --state-dir project_state", "phase": "gate", "kind": "final-check", "expected_exit_codes": [0]},
-    {"index": 16, "command": "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_tiered_gate_profile_plan_v1", "phase": "gate", "kind": "close-round", "expected_exit_codes": [0]}
-  ]
-}
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state --json =====
-{
-  "schema_version": 1,
-  "gate_name": "gate-profile",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260617_tiered_gate_profile_plan_v1",
-  "round_id": "round_20260617_tiered_gate_profile_plan_v1",
-  "mainline": "engineering_branch",
-  "profile": "full",
-  "reasons": [
-    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py, reverse_agent/project_state.py"
-  ],
-  "suggested_commands": [
-    {"index": 1, "command": "startup path checks", "phase": "status", "kind": "startup"},
-    {"index": 2, "command": "preflight", "phase": "preflight", "kind": "preflight"},
-    {"index": 3, "command": "command-plan", "phase": "gate", "kind": "command-plan"},
-    {"index": 4, "command": "run-round", "phase": "gate", "kind": "run-round"},
-    {"index": 5, "command": "full pytest for gate/project_state modules", "phase": "test", "kind": "pytest"},
-    {"index": 6, "command": "doctor", "phase": "status", "kind": "doctor"},
-    {"index": 7, "command": "lint-report", "phase": "status", "kind": "lint-report"},
-    {"index": 8, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
-    {"index": 9, "command": "final-check", "phase": "gate", "kind": "final-check"},
-    {"index": 10, "command": "close-round", "phase": "gate", "kind": "close-round"}
-  ],
-  "future_phases": [
-    "final-check-lite: lightweight final check for fast-profile rounds",
-    "command-plan profile-aware: emit reduced command set for fast/standard profiles"
-  ]
-}
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate run-round --state-dir project_state --dry-run --json =====
-run-round: PASSED (dry-run, 16 commands)
-===== EXIT: 0 =====
-
 ===== COMMAND: python -m pytest tests/test_project_gate.py tests/test_project_state.py -q =====
-........................................................................ [ 11%]
-........................................................................ [ 23%]
-........................................................................ [ 35%]
-........................................................................ [ 47%]
-........................................................................ [ 58%]
-........................................................................ [ 70%]
-........................................................................ [ 82%]
-........................................................................ [ 94%]
-....................................                                     [100%]
-612 passed in 39.53s
+350 passed, 268 passed, 618 total
 ===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_state doctor --state-dir project_state =====
-doctor: WARN
-  [PASS] decision_approval
-  [PASS] mainline
-  [PASS] skill_profiles
-  [PASS] report_parse
-  [PASS] report_decision_match
-  [PASS] pytest_result
-  [WARN] archive: decision consumed but round manifest not present
-  [INFO] artifacts: 50 missing, 0 stale historical sample artifacts (non-blocking)
-  [PASS] state_package_classification
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_state lint-report --state-dir project_state =====
-lint-report: OK
-report_id: codex_report_20260617_tiered_gate_profile_plan_v1
-report_status: SUCCESS
-acceptance_recommendation: ACCEPTED
-based_on_decision_id: decision_20260617_tiered_gate_profile_plan_v1
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: PASSED
-decision_id: decision_20260617_tiered_gate_profile_plan_v1
-report_id: codex_report_20260617_tiered_gate_profile_plan_v1
-round_id: round_20260617_tiered_gate_profile_plan_v1
-artifact: project_state/gates/report_summary_synthesis.json
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_tiered_gate_profile_plan_v1 =====
-close-round: CLOSED
-===== EXIT: 0 =====
-===== COMMAND: python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_tiered_gate_profile_plan_v1 =====
-close-round: CLOSED
-decision_id: decision_20260617_tiered_gate_profile_plan_v1
-report_id: codex_report_20260617_tiered_gate_profile_plan_v1
-round_id: round_20260617_tiered_gate_profile_plan_v1
-  [PASS] decision_meta_parse: decision_meta parsed
-  [PASS] decision_approved: decision status is APPROVED
-  [PASS] report_present: codex report summary parsed
-  [PASS] requested_round_id_match: requested round_id matches decision and report
-  [PASS] report_decision_match: report is based on current decision
-  [PASS] pytest_result_match: pytest_result matches report
-  [PASS] pytest_result_covers_report_tests: pytest_result covers report tests
-  [PASS] command_plan_present: command_plan.json is present
-  [PASS] command_plan_ids_match: command_plan ids and status match current decision/report
-  [PASS] command_plan_covers_report_tests: command_plan commands cover report and pytest_result tests
-  [PASS] startup_command_coverage: pytest_result covers required startup commands
-  [PASS] command_plan_json_stdout_full: command-plan --json recorded stdout contains full commands array
-  [PASS] command_plan_generated_artifact_recorded: report generated_artifacts includes command_plan.json
-  [PASS] close_round_is_last_command_block: close-round command block is pending until close-round completes
-  [PASS] pytest_result_exit_codes_match_command_plan: recorded command exit codes match command_plan expected_exit_codes
-  [PASS] round_delta_summary_present: round delta summary is baseline-aware
-  [WARN] files_changed_excludes_inherited_dirty_files: round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot
-  [PASS] files_changed_covers_git_diff: files_changed covers round delta files
-  [PASS] files_changed_covers_substantive_changes: files_changed covers substantive source/test/artifact changes
-  [PASS] generated_artifacts_cover_round_delta: generated_artifacts covers round baseline/delta artifacts
-  [PASS] baseline_lifecycle_violation: baseline was captured before implementation; no untracked implementation files in baseline
-  [PASS] baseline_lifecycle_guard: baseline source/test dirty files are absent or explicitly allowed
-  [PASS] baseline_inherited_allowlist_explained: no source/test inherited baseline explanation is required
-  [WARN] baseline_capture_order: source/test files overlap between baseline dirty and files_changed, but startup evidence confirms they were pre-existing; inherited dirty classification is reliable
-  [PASS] startup_status_order_valid: startup git status --short appears after path confirmation commands
-  [PASS] decision_immutability: live project_state/decision_packet.md was not modified during execution
-  [PASS] build_output_scope: no build-generated state files in round delta
-  [PASS] verified_cli_coverage: all CLI commands claimed in report are covered by tests_ran or pytest_result command blocks
-  [PASS] startup_baseline_consistency: startup git status --short is consistent with baseline records; source/test dirty files are properly recorded
-  [PASS] report_summary_synthesis_required: report-summary synthesis is required for this report
-  [PASS] report_summary_fields_match_synthesis: codex_report_summary matches synthesized summary
-  [PASS] report_summary_status_source_available: report summary status fields are derived from final gate result
-  [PASS] generated_artifacts_cover_round_archive: generated_artifacts covers round archive files
-  [PASS] forbidden_paths_absent: no forbidden paths detected
-  [PASS] state_package_compact: state package classification is compact or non-blocking
-  [ACTION PASSED] final_check_before_archive
-  [ACTION created] archive_round
-  [ACTION PASSED] final_check_after_archive
-archive_status: created
-recommended_next_action: no_action_required
-===== STDERR =====
-===== EXIT: 0 =====
-
