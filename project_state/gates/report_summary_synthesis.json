@@ -2,15 +2,15 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "PASSED",
-  "decision_id": "decision_20260617_fast_artifact_only_validation_v1",
-  "round_id": "round_20260617_fast_artifact_only_validation_v1",
-  "report_id": "codex_report_20260617_fast_artifact_only_validation_v1",
-  "generated_at": "2026-06-17T16:35:17.854750Z",
+  "synthesis_status": "FAILED",
+  "decision_id": "decision_20260617_fast_artifact_only_validation_rework_v1",
+  "round_id": "round_20260617_fast_artifact_only_validation_rework_v1",
+  "report_id": "codex_report_20260617_fast_artifact_only_validation_rework_v1",
+  "generated_at": "2026-06-17T16:42:46.238904Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260617_fast_artifact_only_validation_v1",
-    "round_id": "round_20260617_fast_artifact_only_validation_v1",
-    "based_on_decision_id": "decision_20260617_fast_artifact_only_validation_v1",
+    "report_id": "codex_report_20260617_fast_artifact_only_validation_rework_v1",
+    "round_id": "round_20260617_fast_artifact_only_validation_rework_v1",
+    "based_on_decision_id": "decision_20260617_fast_artifact_only_validation_rework_v1",
     "files_changed": [
       "project_state/codex_execution_report.md",
       "project_state/gates/command_plan.json",
@@ -19,13 +19,12 @@
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
-      "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/decision_packet.md",
-      "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/pytest_result.txt",
-      "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/round_manifest.json"
+      "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/round_manifest.json"
     ],
     "generated_artifacts": [
       "project_state/codex_execution_report.md",
@@ -37,10 +36,15 @@
       "project_state/gates/round_baseline.json",
       "project_state/gates/round_delta_summary.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/round_manifest.json"
+      "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/round_manifest.json"
     ],
     "tests_ran": [
       "git status --short",
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
+      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "Set-Location F:\\reverse-agent",
       "Get-Location",
       "Test-Path F:\\reverse-agent",
@@ -48,20 +52,76 @@
       "python -m reverse_agent.project_gate preflight --state-dir project_state",
       "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
       "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
-      "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile fast --json",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state",
-      "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state"
     ]
   },
-  "diffs": [],
+  "diffs": [
+    {
+      "field": "files_changed",
+      "expected": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/round_manifest.json"
+      ],
+      "actual": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt"
+      ]
+    },
+    {
+      "field": "generated_artifacts",
+      "expected": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_fast_artifact_only_validation_rework_v1/round_manifest.json"
+      ],
+      "actual": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/pytest_result.txt"
+      ]
+    }
+  ],
   "errors": [],
   "warnings": [
-    "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
+    "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
   ],
   "non_blocking_warnings": [
-    "final_gate_result.json contains only retriable report-summary/archive drift failures; status fields cannot be gate-derived yet"
+    "final_gate_result.json is missing or not for current round; status fields cannot be gate-derived yet"
   ],
   "sources": {
     "decision_meta": "project_state/decision_packet.md",

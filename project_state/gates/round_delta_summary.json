@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260617_fast_artifact_only_validation_v1",
-  "round_id": "round_20260617_fast_artifact_only_validation_v1",
-  "head_commit": "65e3d44e89b7",
+  "decision_id": "decision_20260617_fast_artifact_only_validation_rework_v1",
+  "round_id": "round_20260617_fast_artifact_only_validation_rework_v1",
+  "head_commit": "1d1e19875598",
   "baseline_available": true,
   "baseline_git_status_short": [],
   "baseline_git_diff_name_only": [],
@@ -13,28 +13,20 @@
   "final_git_status_short": [
     " M project_state/codex_execution_report.md",
     " M project_state/gates/command_plan.json",
-    " M project_state/gates/final_gate_result.json",
     " M project_state/gates/gate_profile_plan.json",
     " M project_state/gates/preflight_result.json",
     " M project_state/gates/report_summary_synthesis.json",
     " M project_state/gates/round_baseline.json",
-    " D project_state/gates/round_close_snapshot.json",
     " M project_state/gates/round_delta_summary.json",
-    " M project_state/pytest_result.txt",
-    "?? project_state/rounds/round_20260617_fast_artifact_only_validation_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260617_fast_artifact_only_validation_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260617_fast_artifact_only_validation_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260617_fast_artifact_only_validation_v1/round_manifest.json"
+    " M project_state/pytest_result.txt"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
-    "project_state/gates/final_gate_result.json",
     "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/pytest_result.txt"
   ],
@@ -46,13 +38,8 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/round_manifest.json"
+    "project_state/pytest_result.txt"
   ],
   "new_dirty_files_since_baseline": [
     "project_state/codex_execution_report.md",
@@ -62,15 +49,10 @@
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
-    "project_state/gates/round_close_snapshot.json",
     "project_state/gates/round_delta_summary.json",
-    "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_fast_artifact_only_validation_v1/round_manifest.json"
+    "project_state/pytest_result.txt"
   ],
   "inherited_dirty_files": [],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-17T16:35:17.853242Z"
+  "generated_at": "2026-06-17T16:42:46.236517Z"
 }

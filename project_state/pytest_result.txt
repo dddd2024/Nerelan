@@ -1,11 +1,11 @@
 ```json pytest_result_summary
 {
   "schema_version": 1,
-  "decision_id": "decision_20260617_fast_artifact_only_validation_v1",
-  "report_id": "codex_report_20260617_fast_artifact_only_validation_v1",
-  "round_id": "round_20260617_fast_artifact_only_validation_v1",
-  "generated_at": "2026-06-17T16:24:00.000000Z",
-  "status": "PASSED",
+  "decision_id": "decision_20260617_fast_artifact_only_validation_rework_v1",
+  "report_id": "codex_report_20260617_fast_artifact_only_validation_rework_v1",
+  "round_id": "round_20260617_fast_artifact_only_validation_rework_v1",
+  "generated_at": "2026-06-17T16:42:00.000000Z",
+  "status": "PARTIAL",
   "tests_ran": [
     "Set-Location F:\\reverse-agent",
     "Get-Location",
@@ -15,11 +15,14 @@
     "python -m reverse_agent.project_gate preflight --state-dir project_state",
     "python -m reverse_agent.project_gate gate-profile --state-dir project_state",
     "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json",
-    "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile fast --json",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state",
     "python -m reverse_agent.project_gate command-plan --state-dir project_state --json",
     "python -m reverse_agent.project_gate report-summary --state-dir project_state",
     "python -m reverse_agent.project_gate final-check --state-dir project_state"
+  ],
+  "intentionally_omitted": [
+    "pytest: intentionally omitted per decision Tests section (Do not run pytest)",
+    "close-round: intentionally omitted per decision Tests section (Do not run close-round); fast profile closeout_allowed=false"
   ]
 }
 ```
@@ -45,8 +48,8 @@ F:/reverse-agent
 
 ===== COMMAND: python -m reverse_agent.project_gate preflight --state-dir project_state =====
 preflight: PASSED
-decision_id: decision_20260617_fast_artifact_only_validation_v1
-round_id: round_20260617_fast_artifact_only_validation_v1
+decision_id: decision_20260617_fast_artifact_only_validation_rework_v1
+round_id: round_20260617_fast_artifact_only_validation_rework_v1
 mainline: engineering_branch
   [PASS] decision_not_dirty_in_baseline
   [PASS] decision_meta_parse
@@ -61,13 +64,13 @@ mainline: engineering_branch
   [PASS] artifact_freshness_policy
   [PASS] tool_capability_audit_required_when_applicable
   [PASS] source_test_clean_start
-recommended_next_action: proceed_with_implementation
+recommended_next_action: proceed_with_decision_scope
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state =====
 gate-profile: PASSED
-decision_id: decision_20260617_fast_artifact_only_validation_v1
-round_id: round_20260617_fast_artifact_only_validation_v1
+decision_id: decision_20260617_fast_artifact_only_validation_rework_v1
+round_id: round_20260617_fast_artifact_only_validation_rework_v1
 mainline: engineering_branch
 profile: fast
 profile_reason: artifact-only cleanup does not require close-round
@@ -79,39 +82,15 @@ closeout_allowed: False
   "schema_version": 1,
   "gate_name": "gate-profile",
   "gate_status": "PASSED",
-  "decision_id": "decision_20260617_fast_artifact_only_validation_v1",
-  "round_id": "round_20260617_fast_artifact_only_validation_v1",
+  "decision_id": "decision_20260617_fast_artifact_only_validation_rework_v1",
+  "round_id": "round_20260617_fast_artifact_only_validation_rework_v1",
   "mainline": "engineering_branch",
   "profile": "fast",
   "profile_reason": "artifact-only cleanup does not require close-round",
   "risk_reasons": [],
   "closeout_allowed": false,
   "required_command_kinds": ["startup", "preflight", "command-plan", "report-summary", "final-check"],
-  "reasons": ["decision scope is artifact-only with generated/project-state deliverables: 12 artifact path(s)"],
-  "suggested_commands": [
-    {"index": 1, "phase": "status", "kind": "startup", "command": "startup path checks"},
-    {"index": 2, "phase": "preflight", "kind": "preflight", "command": "preflight"},
-    {"index": 3, "phase": "gate", "kind": "command-plan", "command": "command-plan"},
-    {"index": 4, "phase": "gate", "kind": "report-summary", "command": "report-summary"},
-    {"index": 5, "phase": "gate", "kind": "final-check", "command": "final-check"}
-  ]
-}
-===== EXIT: 0 =====
-
-===== COMMAND: python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile fast --json =====
-{
-  "schema_version": 1,
-  "gate_name": "gate-profile",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260617_fast_artifact_only_validation_v1",
-  "round_id": "round_20260617_fast_artifact_only_validation_v1",
-  "mainline": "engineering_branch",
-  "profile": "fast",
-  "profile_reason": "artifact-only cleanup does not require close-round",
-  "risk_reasons": [],
-  "closeout_allowed": false,
-  "required_command_kinds": ["startup", "preflight", "command-plan", "report-summary", "final-check"],
-  "reasons": ["decision scope is artifact-only with generated/project-state deliverables: 12 artifact path(s)"],
+  "reasons": ["decision scope is artifact-only with generated/project-state deliverables: 10 artifact path(s)"],
   "suggested_commands": [
     {"index": 1, "phase": "status", "kind": "startup", "command": "startup path checks"},
     {"index": 2, "phase": "preflight", "kind": "preflight", "command": "preflight"},
@@ -131,8 +110,8 @@ command-plan: PASSED
   "schema_version": 1,
   "plan_name": "command-plan",
   "plan_status": "PASSED",
-  "decision_id": "decision_20260617_fast_artifact_only_validation_v1",
-  "round_id": "round_20260617_fast_artifact_only_validation_v1",
+  "decision_id": "decision_20260617_fast_artifact_only_validation_rework_v1",
+  "round_id": "round_20260617_fast_artifact_only_validation_rework_v1",
   "mainline": "engineering_branch",
   "profile_meta": {
     "profile": "fast",
@@ -140,43 +119,47 @@ command-plan: PASSED
     "closeout_allowed": false,
     "required_command_kinds": ["startup", "preflight", "command-plan", "report-summary", "final-check"]
   },
-  "omitted_commands": [],
+  "omitted_commands": [
+    {
+      "command": "python -m pytest tests/test_project_gate.py tests/test_project_state.py -q",
+      "kind": "pytest",
+      "reason": "omitted by fast profile: pytest not in required_command_kinds"
+    }
+  ],
   "commands": [
     {"index": 1, "phase": "status", "kind": "git status", "command": "git status --short"},
-    {"index": 2, "phase": "status", "kind": "set-location", "command": "Set-Location F:\\reverse-agent"},
-    {"index": 3, "phase": "status", "kind": "pwd", "command": "Get-Location"},
-    {"index": 4, "phase": "status", "kind": "test-path", "command": "Test-Path F:\\reverse-agent"},
-    {"index": 5, "phase": "status", "kind": "git rev-parse", "command": "git rev-parse --show-toplevel"},
-    {"index": 6, "phase": "preflight", "kind": "preflight", "command": "python -m reverse_agent.project_gate preflight --state-dir project_state"},
-    {"index": 7, "phase": "status", "kind": "project-cli", "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state"},
-    {"index": 8, "phase": "status", "kind": "project-cli", "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json"},
-    {"index": 9, "phase": "status", "kind": "project-cli", "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --profile fast --json"},
-    {"index": 10, "phase": "gate", "kind": "command-plan", "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state"},
-    {"index": 11, "phase": "gate", "kind": "command-plan", "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json"},
-    {"index": 12, "phase": "gate", "kind": "report-summary", "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state"},
-    {"index": 13, "phase": "gate", "kind": "final-check", "command": "python -m reverse_agent.project_gate final-check --state-dir project_state"}
+    {"index": 2, "phase": "gate", "kind": "command-plan", "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state"},
+    {"index": 3, "phase": "gate", "kind": "command-plan", "command": "python -m reverse_agent.project_gate command-plan --state-dir project_state --json"},
+    {"index": 4, "phase": "status", "kind": "set-location", "command": "Set-Location F:\\reverse-agent"},
+    {"index": 5, "phase": "status", "kind": "pwd", "command": "Get-Location"},
+    {"index": 6, "phase": "status", "kind": "test-path", "command": "Test-Path F:\\reverse-agent"},
+    {"index": 7, "phase": "status", "kind": "git rev-parse", "command": "git rev-parse --show-toplevel"},
+    {"index": 8, "phase": "preflight", "kind": "preflight", "command": "python -m reverse_agent.project_gate preflight --state-dir project_state"},
+    {"index": 9, "phase": "status", "kind": "project-cli", "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state"},
+    {"index": 10, "phase": "status", "kind": "project-cli", "command": "python -m reverse_agent.project_gate gate-profile --state-dir project_state --json"},
+    {"index": 11, "phase": "gate", "kind": "report-summary", "command": "python -m reverse_agent.project_gate report-summary --state-dir project_state"},
+    {"index": 12, "phase": "gate", "kind": "final-check", "command": "python -m reverse_agent.project_gate final-check --state-dir project_state"}
   ]
 }
 ===== EXIT: 0 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate report-summary --state-dir project_state =====
-report-summary: PASSED
-decision_id: decision_20260617_fast_artifact_only_validation_v1
-report_id: codex_report_20260617_fast_artifact_only_validation_v1
-round_id: round_20260617_fast_artifact_only_validation_v1
-===== EXIT: 0 =====
+report-summary: FAILED
+decision_id: decision_20260617_fast_artifact_only_validation_rework_v1
+  [DIFF] files_changed
+  [DIFF] generated_artifacts
+  [INFO] final_gate_result.json is missing or not for current round
+===== EXIT: 1 =====
 
 ===== COMMAND: python -m reverse_agent.project_gate final-check --state-dir project_state =====
-final-check: PASSED
-decision_id: decision_20260617_fast_artifact_only_validation_v1
-report_id: codex_report_20260617_fast_artifact_only_validation_v1
-round_id: round_20260617_fast_artifact_only_validation_v1
+final-check: FAILED
+decision_id: decision_20260617_fast_artifact_only_validation_rework_v1
   [PASS] decision_report_match
   [PASS] pytest_result_match
   [PASS] pytest_result_covers_report_tests
-  [PASS] round_manifest_present
-  [PASS] archived_report_matches_live_report
-  [PASS] archived_pytest_result_matches_live_pytest_result
+  [WARN] round_manifest_present
+  [WARN] archived_report_matches_live_report
+  [WARN] archived_pytest_result_matches_live_pytest_result
   [PASS] round_delta_summary_present
   [PASS] files_changed_excludes_inherited_dirty_files
   [PASS] files_changed_covers_git_diff
@@ -193,7 +176,7 @@ round_id: round_20260617_fast_artifact_only_validation_v1
   [PASS] build_output_scope
   [PASS] verified_cli_coverage
   [PASS] startup_baseline_consistency
-  [PASS] generated_artifacts_cover_round_archive
+  [WARN] generated_artifacts_cover_round_archive
   [PASS] command_plan_present
   [PASS] command_plan_ids_match
   [PASS] command_plan_covers_report_tests
@@ -202,17 +185,17 @@ round_id: round_20260617_fast_artifact_only_validation_v1
   [PASS] command_plan_generated_artifact_recorded
   [PASS] pytest_result_exit_codes_match_command_plan
   [PASS] report_summary_synthesis_required
-  [PASS] report_summary_fields_match_synthesis
+  [FAIL] report_summary_fields_match_synthesis
   [PASS] report_summary_status_source_available
   [PASS] preflight_failure_handoff
-  [PASS] stale_artifact_ids
+  [FAIL] stale_artifact_ids
   [PASS] report_body_consistency
   [PASS] gate_profile_plan_current
   [PASS] gate_profile_plan_command_plan_consistency
   [PASS] fast_profile_scope_valid
   [PASS] fast_profile_pytest_not_omitted_with_source_changes
-  [PASS] fast_profile_closeout_consistency
+  [PASS] fast_profile_closeout_consistency: close-round not omitted or closeout is allowed [SEMANTIC ERROR: close-round IS effectively omitted by fast profile closeout_allowed=false but check cannot detect it]
   [PASS] forbidden_paths_absent
   [WARN] status_policy_valid
   [PASS] final_check_stdout_matches_gate_status
-===== EXIT: 0 =====
+===== EXIT: 1 =====
