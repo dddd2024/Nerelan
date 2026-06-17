@@ -2854,6 +2854,72 @@ def _report_status_from_gate_payload(payload: dict[str, Any], *, mainline: str =
     return _report_status_from_gate(gate_status)
 
 
+def _preflight_failure_handoff_check(
+    *,
+    state_dir: Path,
+    report: dict[str, Any],
+) -> dict[str, Any]:
+    """Check that if preflight failed, the report does not claim success or acceptance.
+
+    This is the preflight-failure handoff gate: a hard-stop preflight failure
+    must not be packaged as COMPLETED or ACCEPTED.
+    """
+    preflight_path = state_dir / "gates" / PREFLIGHT_RESULT_NAME
+    preflight_payload = _read_json(preflight_path)
+    if not preflight_payload:
+        return _check(
+            "preflight_failure_handoff",
+            "PASS",
+            "no preflight result available; handoff check not applicable",
+            required=False,
+            skipped_reason="no_preflight_result",
+        )
+
+    preflight_status = str(preflight_payload.get("gate_status") or "").upper()
+    preflight_failed = preflight_status in {"FAILED", "BLOCKED"}
+
+    if not preflight_failed:
+        return _check(
+            "preflight_failure_handoff",
+            "PASS",
+            "preflight passed or warned; no handoff violation",
+            preflight_status=preflight_status,
+        )
+
+    # Preflight failed — report must not claim success or acceptance.
+    report_status = str(report.get("status") or "").upper()
+    acceptance = str(report.get("acceptance_recommendation") or "").upper()
+    success_statuses = {"SUCCESS", "COMPLETED", "COMPLETED_WITH_LIMITATIONS"}
+    accepted_recommendations = {"ACCEPTED", "ACCEPTED_WITH_LIMITATIONS"}
+
+    status_violation = report_status in success_statuses
+    acceptance_violation = acceptance in accepted_recommendations
+
+    if status_violation or acceptance_violation:
+        violations: list[str] = []
+        if status_violation:
+            violations.append(f"report status is {report_status}")
+        if acceptance_violation:
+            violations.append(f"acceptance_recommendation is {acceptance}")
+        return _check(
+            "preflight_failure_handoff",
+            "FAIL",
+            f"preflight failed ({preflight_status}) but report claims success/acceptance: {'; '.join(violations)}",
+            preflight_status=preflight_status,
+            report_status=report_status,
+            acceptance_recommendation=acceptance,
+        )
+
+    return _check(
+        "preflight_failure_handoff",
+        "PASS",
+        f"preflight failed ({preflight_status}) and report correctly reflects non-success status",
+        preflight_status=preflight_status,
+        report_status=report_status,
+        acceptance_recommendation=acceptance,
+    )
+
+
 def _final_gate_is_report_summary_self_failure(payload: dict[str, Any]) -> bool:
     if payload.get("gate_status") != "FAILED":
         return False
@@ -3719,6 +3785,15 @@ def final_check(
         )
     )
 
+    # Preflight-failure handoff check: if preflight failed, the report must
+    # not claim success or acceptance.
+    checks.append(
+        _preflight_failure_handoff_check(
+            state_dir=state_dir,
+            report=report,
+        )
+    )
+
     path_claims = forbidden_claim_set | generated_artifacts | archive_paths
     forbidden_hits = _forbidden_hits(path_claims, mainline=str(decision.get("mainline") or ""))
     manifest_forbidden = list(round_consistency.get("round_manifest_forbidden_files") or [])
@@ -4352,6 +4427,15 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             decision_text=decision_text,
             report=report,
             write_result=True,
+        )
+    )
+
+    # Preflight-failure handoff check: if preflight failed, the report must
+    # not claim success or acceptance.
+    checks.append(
+        _preflight_failure_handoff_check(
+            state_dir=state_dir,
+            report=report,
         )
     )
 

@@ -1,22 +1,25 @@
 {
   "schema_version": 1,
   "artifact_name": "round_baseline.json",
-  "decision_id": "decision_20260617_execution_authority_hard_stop_rework_v1",
-  "round_id": "round_20260617_execution_authority_hard_stop_rework_v1",
-  "head_commit": "2fcc0caa780b",
+  "decision_id": "decision_20260617_preflight_failure_handoff_rework_v1",
+  "round_id": "round_20260617_preflight_failure_handoff_rework_v1",
+  "head_commit": "79eb69bb6d85",
   "baseline_git_status_short": [
     " M reverse_agent/project_gate.py",
+    " M reverse_agent/project_state.py",
     " M tests/test_project_gate.py"
   ],
   "baseline_git_diff_name_only": [
     "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
     "tests/test_project_gate.py"
   ],
   "baseline_dirty_files": [
     "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
     "tests/test_project_gate.py"
   ],
   "baseline_untracked_files": [],
   "baseline_has_untracked_implementation_files": false,
-  "generated_at": "2026-06-17T10:27:58.680846Z"
+  "generated_at": "2026-06-17T11:18:01.581807Z"
 }

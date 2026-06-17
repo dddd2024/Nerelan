@@ -1244,6 +1244,25 @@ def validate_pytest_result_for_report(
             "pytest_result header status is FAILED but body contains no failure markers"
         )
 
+    # Header/exit-code consistency check: if header says PASSED but any
+    # recorded command block has a non-zero exit code, that is a contradiction.
+    if header_status == "PASSED":
+        nonzero_exits: list[dict[str, Any]] = []
+        for line in pytest_text.splitlines():
+            if line.startswith("===== EXIT: ") and line.endswith(" ====="):
+                exit_text = line[len("===== EXIT: "):-len(" =====")].strip()
+                try:
+                    exit_code = int(exit_text)
+                except ValueError:
+                    continue
+                if exit_code != 0:
+                    nonzero_exits.append({"exit_code": exit_code, "line": line.strip()})
+        if nonzero_exits:
+            errors.append(
+                f"pytest_result header status is PASSED but {len(nonzero_exits)} "
+                f"command block(s) have non-zero exit codes. Contradiction detected."
+            )
+
     return {
         "found": parsed.get("found"),
         "parse_error": parsed.get("parse_error"),

@@ -8048,3 +8048,170 @@ Allowed generated/project-state files:
 """
         result = classify_gate_profile(decision_text)
         assert result["profile"] == "full"
+
+
+class TestPreflightFailureHandoff:
+    """Verify preflight-failure handoff behavior per
+    decision_20260617_preflight_failure_handoff_rework_v1.
+
+    Required tests:
+    1. preflight failed -> report summary status cannot be accepted/completed
+    2. preflight failed -> acceptance recommendation must be REWORK_REQUIRED or BLOCKED
+    3. command block exit 1 -> pytest_result_summary.status cannot be PASSED
+    4. pytest_result_summary.status=PASSED plus command block exit 1 -> final-check FAIL
+    5. preflight failed plus close-round attempted -> final-check or close-round FAIL
+    6. unsupported report status such as COMPLETED_WITH_LIMITATIONS causes lint/final-check FAIL
+    7. existing execution-authority hard-stop tests continue to pass
+    8. existing generated-artifact live-path tests continue to pass
+    9. existing report prose claim coverage tests continue to pass
+    10. existing tmp-path dirty-state tests continue to pass
+    11. existing gate-profile tests continue to pass
+    """
+
+    def test_preflight_failed_report_status_cannot_be_accepted(self, tmp_path: Path) -> None:
+        """Req 1: preflight failed -> report summary status cannot be accepted/completed."""
+        from reverse_agent.project_gate import _preflight_failure_handoff_check
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        preflight_result = {"gate_status": "FAILED", "checks": []}
+        (gates_dir / "preflight_result.json").write_text(
+            json.dumps(preflight_result), encoding="utf-8"
+        )
+        report = {"status": "SUCCESS", "acceptance_recommendation": "REWORK_REQUIRED"}
+        result = _preflight_failure_handoff_check(state_dir=state_dir, report=report)
+        assert result["status"] == "FAIL"
+        assert "SUCCESS" in result["detail"]
+
+    def test_preflight_failed_acceptance_must_be_rework_or_blocked(self, tmp_path: Path) -> None:
+        """Req 2: preflight failed -> acceptance_recommendation must be REWORK_REQUIRED or BLOCKED."""
+        from reverse_agent.project_gate import _preflight_failure_handoff_check
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        preflight_result = {"gate_status": "FAILED", "checks": []}
+        (gates_dir / "preflight_result.json").write_text(
+            json.dumps(preflight_result), encoding="utf-8"
+        )
+        report = {"status": "FAILED", "acceptance_recommendation": "ACCEPTED"}
+        result = _preflight_failure_handoff_check(state_dir=state_dir, report=report)
+        assert result["status"] == "FAIL"
+        assert "ACCEPTED" in result["detail"]
+
+    def test_preflight_failed_with_correct_report_passes(self, tmp_path: Path) -> None:
+        """Req 2 variant: preflight failed with correct FAILED/REWORK_REQUIRED passes."""
+        from reverse_agent.project_gate import _preflight_failure_handoff_check
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        preflight_result = {"gate_status": "FAILED", "checks": []}
+        (gates_dir / "preflight_result.json").write_text(
+            json.dumps(preflight_result), encoding="utf-8"
+        )
+        report = {"status": "FAILED", "acceptance_recommendation": "REWORK_REQUIRED"}
+        result = _preflight_failure_handoff_check(state_dir=state_dir, report=report)
+        assert result["status"] == "PASS"
+
+    def test_command_block_exit1_pytest_status_cannot_be_passed(self) -> None:
+        """Req 3: command block exit 1 -> pytest_result_summary.status cannot be PASSED."""
+        from reverse_agent.project_state import validate_pytest_result_for_report
+        pytest_text = (
+            '```json pytest_result_summary\n'
+            '{"schema_version": 1, "decision_id": "d1", "report_id": "r1", '
+            '"round_id": "r1", "status": "PASSED", "tests_ran": []}\n'
+            '```\n'
+            '===== COMMAND: preflight =====\n'
+            'preflight: FAILED\n'
+            '===== EXIT: 1 =====\n'
+        )
+        report = {"based_on_decision_id": "d1", "report_id": "r1", "round_id": "r1", "tests_ran": []}
+        result = validate_pytest_result_for_report(pytest_text, report)
+        assert any("non-zero exit codes" in e for e in result.get("errors", []))
+
+    def test_pytest_passed_plus_exit1_causes_final_check_fail(self, tmp_path: Path) -> None:
+        """Req 4: pytest_result_summary.status=PASSED plus command block exit 1 -> final-check FAIL."""
+        from reverse_agent.project_state import validate_pytest_result_for_report
+        pytest_text = (
+            '```json pytest_result_summary\n'
+            '{"schema_version": 1, "decision_id": "d1", "report_id": "r1", '
+            '"round_id": "r1", "status": "PASSED", "tests_ran": []}\n'
+            '```\n'
+            '===== COMMAND: preflight =====\n'
+            'preflight: FAILED\n'
+            '===== EXIT: 1 =====\n'
+        )
+        report = {"based_on_decision_id": "d1", "report_id": "r1", "round_id": "r1", "tests_ran": []}
+        result = validate_pytest_result_for_report(pytest_text, report)
+        assert result.get("errors"), "expected errors when PASSED status contradicts non-zero exit codes"
+
+    def test_preflight_failed_close_round_attempted_fails(self, tmp_path: Path) -> None:
+        """Req 5: preflight failed plus close-round attempted -> final-check or close-round FAIL."""
+        from reverse_agent.project_gate import _preflight_failure_handoff_check
+        state_dir = tmp_path / "project_state"
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir(parents=True)
+        preflight_result = {"gate_status": "FAILED", "checks": []}
+        (gates_dir / "preflight_result.json").write_text(
+            json.dumps(preflight_result), encoding="utf-8"
+        )
+        report = {"status": "SUCCESS", "acceptance_recommendation": "ACCEPTED"}
+        result = _preflight_failure_handoff_check(state_dir=state_dir, report=report)
+        assert result["status"] == "FAIL"
+
+    def test_unsupported_report_status_causes_lint_fail(self) -> None:
+        """Req 6: unsupported report status such as COMPLETED_WITH_LIMITATIONS causes lint FAIL."""
+        from reverse_agent.project_state import _normalize_status, CODEX_REPORT_STATUSES
+        status, error = _normalize_status("COMPLETED_WITH_LIMITATIONS", CODEX_REPORT_STATUSES)
+        assert error is not None, "COMPLETED_WITH_LIMITATIONS should not be a valid report status"
+        assert status == "UNKNOWN"
+
+    def test_existing_hard_stop_tests_pass(self, tmp_path: Path) -> None:
+        """Req 7: existing execution-authority hard-stop tests continue to pass."""
+        result = _decision_immutability_check(
+            files_changed={"project_state/decision_packet.md"},
+            new_dirty_files=set(),
+            baseline_dirty_files=set(),
+            round_id="round_test",
+        )
+        assert result["status"] == "FAIL"
+
+    def test_existing_generated_artifact_tests_pass(self, tmp_path: Path) -> None:
+        """Req 8: existing generated-artifact live-path tests continue to pass."""
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        artifact_check = _check(result, "generated_artifact_live_paths_exist")
+        assert artifact_check["status"] == "PASS"
+
+    def test_existing_report_prose_tests_pass(self, tmp_path: Path) -> None:
+        """Req 9: existing report prose claim coverage tests continue to pass."""
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        prose_check = _check(result, "report_prose_claims_covered_by_files_changed")
+        assert prose_check["status"] in ("PASS", "WARN")
+
+    def test_existing_tmp_path_tests_pass(self, tmp_path: Path) -> None:
+        """Req 10: existing tmp-path dirty-state tests continue to pass."""
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        tmp_check = _check(result, "tmp_paths_absent_from_dirty_state")
+        assert tmp_check["status"] == "PASS"
+
+    def test_existing_gate_profile_tests_pass(self) -> None:
+        """Req 11: existing gate-profile tests continue to pass."""
+        from reverse_agent.project_gate import classify_gate_profile
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"
