@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "artifact_name": "round_manifest.json",
+  "round_id": "round_20260617_fast_artifact_only_validation_v1",
+  "decision_id": "decision_20260617_fast_artifact_only_validation_v1",
+  "archive_status": "created",
+  "closeout_method": "fast_profile_no_close_round",
+  "manifest_files": [
+    "codex_execution_report.md",
+    "decision_packet.md",
+    "pytest_result.txt",
+    "round_manifest.json"
+  ],
+  "generated_at": "2026-06-17T16:30:00.000000Z"
+}
