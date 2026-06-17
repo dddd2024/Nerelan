@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-17T06:48:37Z",
+  "decision_id": "decision_20260617_clean_start_report_delta_rework_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260617_clean_start_report_delta_rework_v1\\codex_execution_report.md",
+      "sha256": "5728ed6fddc97b420aa6b52a6a28178937eeb72cd90bd490336b7ee4f1f83332",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260617_clean_start_report_delta_rework_v1\\decision_packet.md",
+      "sha256": "3bb21863ee269a6e3ec63c7f9631eb0373c3385fd41e4e5685f2e95b9523551d",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260617_clean_start_report_delta_rework_v1\\pytest_result.txt",
+      "sha256": "54f559eccf5212313566efec860e3c0af2b56268fa8acfd211c9f5f27ab2d083",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260617_clean_start_report_delta_rework_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260617_clean_start_report_delta_rework_v1",
+  "schema_version": 1,
+  "source_git_commit": "ec48d76022b4",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260615_150220_24f61a9ac337",
+  "state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
+  "workflow_status": "REPORT_AVAILABLE"
+}

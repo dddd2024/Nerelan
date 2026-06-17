@@ -2,11 +2,11 @@
   "schema_version": 1,
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
-  "synthesis_status": "FAILED",
+  "synthesis_status": "PASSED",
   "decision_id": "decision_20260617_clean_start_report_delta_rework_v1",
   "round_id": "round_20260617_clean_start_report_delta_rework_v1",
   "report_id": "codex_report_20260617_clean_start_report_delta_rework_v1",
-  "generated_at": "2026-06-17T06:40:30.794475Z",
+  "generated_at": "2026-06-17T06:48:38.305659Z",
   "synthesized_summary": {
     "report_id": "codex_report_20260617_clean_start_report_delta_rework_v1",
     "round_id": "round_20260617_clean_start_report_delta_rework_v1",
@@ -18,14 +18,14 @@
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
-      "project_state/gates/round_close_snapshot.json",
       "project_state/gates/round_delta_summary.json",
-      "project_state/gates/run_round_result.json",
       "project_state/pytest_result.txt",
       "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/codex_execution_report.md",
       "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/decision_packet.md",
       "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json"
+      "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json",
+      "reverse_agent/project_gate.py",
+      "tests/test_project_gate.py"
     ],
     "tests_ran": [
       "git status --short",
@@ -61,67 +61,19 @@
       "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
       "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json"
     ],
-    "status": "FAILED",
-    "acceptance_recommendation": "REWORK_REQUIRED",
+    "status": "SUCCESS",
+    "acceptance_recommendation": "ACCEPTED",
     "external_state_notices": [
       "50 missing historical sample artifacts"
     ]
   },
-  "diffs": [
-    {
-      "field": "status",
-      "expected": "FAILED",
-      "actual": "SUCCESS"
-    },
-    {
-      "field": "acceptance_recommendation",
-      "expected": "REWORK_REQUIRED",
-      "actual": "ACCEPTED"
-    },
-    {
-      "field": "files_changed",
-      "expected": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json"
-      ],
-      "actual": [
-        "project_state/codex_execution_report.md",
-        "project_state/gates/command_plan.json",
-        "project_state/gates/final_gate_result.json",
-        "project_state/gates/preflight_result.json",
-        "project_state/gates/report_summary_synthesis.json",
-        "project_state/gates/round_baseline.json",
-        "project_state/gates/round_close_snapshot.json",
-        "project_state/gates/round_delta_summary.json",
-        "project_state/gates/run_round_result.json",
-        "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/codex_execution_report.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/decision_packet.md",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/pytest_result.txt",
-        "project_state/rounds/round_20260617_clean_start_report_delta_rework_v1/round_manifest.json",
-        "reverse_agent/project_gate.py",
-        "tests/test_project_gate.py"
-      ]
-    }
-  ],
+  "diffs": [],
   "errors": [],
   "warnings": [
-    "files_changed includes inherited dirty files (may have been modified this round): ['project_state/codex_execution_report.md', 'project_state/gates/command_plan.json', 'project_state/gates/preflight_result.json', 'project_state/gates/report_summary_synthesis.json', 'project_state/gates/round_baseline.json', 'project_state/gates/round_close_snapshot.json', 'project_state/gates/round_delta_summary.json', 'project_state/gates/run_round_result.json', 'project_state/pytest_result.txt']"
+    "files_changed includes inherited dirty files (may have been modified this round): ['project_state/codex_execution_report.md', 'project_state/gates/command_plan.json', 'project_state/gates/preflight_result.json', 'project_state/gates/report_summary_synthesis.json', 'project_state/gates/round_baseline.json', 'project_state/gates/round_delta_summary.json', 'project_state/pytest_result.txt']"
   ],
   "non_blocking_warnings": [
-    "files_changed includes inherited dirty files (may have been modified this round): ['project_state/codex_execution_report.md', 'project_state/gates/command_plan.json', 'project_state/gates/preflight_result.json', 'project_state/gates/report_summary_synthesis.json', 'project_state/gates/round_baseline.json', 'project_state/gates/round_close_snapshot.json', 'project_state/gates/round_delta_summary.json', 'project_state/gates/run_round_result.json', 'project_state/pytest_result.txt']"
+    "files_changed includes inherited dirty files (may have been modified this round): ['project_state/codex_execution_report.md', 'project_state/gates/command_plan.json', 'project_state/gates/preflight_result.json', 'project_state/gates/report_summary_synthesis.json', 'project_state/gates/round_baseline.json', 'project_state/gates/round_delta_summary.json', 'project_state/pytest_result.txt']"
   ],
   "sources": {
     "decision_meta": "project_state/decision_packet.md",
