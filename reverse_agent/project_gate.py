@@ -1373,6 +1373,8 @@ def _round_delta_checks(
     state_dir: Path | None = None,
     decision_text: str = "",
     report_text: str = "",
+    pytest_text: str = "",
+    decision_immutability_failed: bool = False,
 ) -> list[dict[str, Any]]:
     baseline_available = bool(delta_summary.get("baseline_available"))
     final_dirty_files = _string_set(delta_summary.get("final_dirty_files"))
@@ -1419,44 +1421,62 @@ def _round_delta_checks(
 
     if inherited_claimed:
         # Inherited dirty files that overlap with files_changed and are
-        # source/test files may indicate late baseline capture (Codex modified
-        # files before running preflight, so they were absorbed into baseline).
-        # Even for closed rounds, this is worth flagging as a WARN.
+        # source/test files must FAIL unless all three conditions hold:
+        #   1. startup evidence confirms the files were pre-existing dirty
+        #   2. the active decision had an explicit allowlist before execution
+        #   3. live decision_packet.md was not modified during execution
         source_test_inherited_claimed = sorted(
             path for path in inherited_claimed if _is_implementation_file(path)
         )
-        if round_closed:
-            if source_test_inherited_claimed:
+        # Determine startup evidence trust
+        order_info = _startup_status_order_valid(pytest_text)
+        startup_evidence_trusted = order_info.get("startup_status_evidence_trusted", False)
+        startup_dirty_files = _extract_startup_dirty_files(pytest_text)
+        allowed_inherited = _allowed_inherited_baseline_paths(decision_text)
+        # Check if all source/test inherited files have startup evidence
+        all_confirmed_by_startup = (
+            startup_evidence_trusted
+            and all(path in startup_dirty_files for path in source_test_inherited_claimed)
+        ) if source_test_inherited_claimed else True
+        # Check if all source/test inherited files are in decision allowlist
+        all_in_decision_allowlist = (
+            all(_norm_path(path) in allowed_inherited for path in source_test_inherited_claimed)
+        ) if source_test_inherited_claimed else True
+        # Three conditions must ALL hold for inherited source/test dirty to be acceptable
+        inherited_source_test_ok = (
+            all_confirmed_by_startup
+            and all_in_decision_allowlist
+            and not decision_immutability_failed
+        )
+        if source_test_inherited_claimed:
+            if inherited_source_test_ok:
                 checks.append(
                     _check(
                         "files_changed_excludes_inherited_dirty_files",
-                        "WARN",
-                        "round is closed but files_changed includes inherited source/test baseline dirty files (possible late baseline capture); these are recorded in close snapshot",
+                        "PASS",
+                        "inherited source/test baseline dirty files in files_changed are authorized: startup evidence confirms pre-existing, decision allowlist present, and decision not modified during execution",
                         inherited_files_in_files_changed=inherited_claimed,
                         source_test_inherited_in_files_changed=source_test_inherited_claimed,
-                        close_worktree_clean=close_worktree_clean,
+                        close_worktree_clean=close_worktree_clean if round_closed else None,
+                        startup_evidence_trusted=startup_evidence_trusted,
+                        all_in_decision_allowlist=all_in_decision_allowlist,
+                        decision_immutability_failed=decision_immutability_failed,
                     )
                 )
             else:
                 checks.append(
                     _check(
                         "files_changed_excludes_inherited_dirty_files",
-                        "PASS",
-                        "round is closed; inherited baseline dirty files in files_changed are generated/archive files recorded in close snapshot",
+                        "FAIL",
+                        "inherited source/test baseline dirty files in files_changed are unauthorized: must have startup evidence, decision allowlist, and no live decision mutation",
                         inherited_files_in_files_changed=inherited_claimed,
-                        close_worktree_clean=close_worktree_clean,
+                        source_test_inherited_in_files_changed=source_test_inherited_claimed,
+                        close_worktree_clean=close_worktree_clean if round_closed else None,
+                        startup_evidence_trusted=startup_evidence_trusted,
+                        all_in_decision_allowlist=all_in_decision_allowlist,
+                        decision_immutability_failed=decision_immutability_failed,
                     )
                 )
-        else:
-            checks.append(
-                _check(
-                    "files_changed_excludes_inherited_dirty_files",
-                    "WARN",
-                    "files_changed includes inherited baseline dirty files (may have been modified this round; possible late baseline capture)",
-                    inherited_files_in_files_changed=inherited_claimed,
-                    source_test_inherited_in_files_changed=source_test_inherited_claimed,
-                )
-            )
     else:
         checks.append(
             _check(
@@ -2020,8 +2040,8 @@ def _decision_immutability_check(
     if is_live_mutation:
         return _check(
             "decision_immutability",
-            "WARN",
-            "live project_state/decision_packet.md appears in round delta or files_changed; decision should not be modified during execution",
+            "FAIL",
+            "live project_state/decision_packet.md appears in round delta or files_changed; decision must not be modified during execution",
             live_decision_in_files_changed=in_files_changed,
             live_decision_in_new_dirty=in_new_dirty,
         )
@@ -2899,11 +2919,13 @@ def _report_summary_diff(
 def _has_structural_field_diff(diffs: list[dict[str, Any]]) -> bool:
     """Return True if *diffs* contains a structural field mismatch.
 
-    Structural fields are ``files_changed`` and ``generated_artifacts``.
-    A diff in either of these fields is a hard failure because it means
-    the report and synthesis disagree about what was changed or generated.
+    Structural fields are ``status``, ``acceptance_recommendation``,
+    ``files_changed``, and ``generated_artifacts``.
+    A diff in any of these fields is a hard failure because it means
+    the report and synthesis disagree about the outcome, what was
+    changed, or what was generated.
     """
-    structural_fields = {"files_changed", "generated_artifacts"}
+    structural_fields = {"status", "acceptance_recommendation", "files_changed", "generated_artifacts"}
     return any(d.get("field") in structural_fields for d in diffs)
 
 
@@ -3537,6 +3559,15 @@ def final_check(
     changed_files = _string_set(delta_summary.get("final_dirty_files"))
     new_dirty_files = _string_set(delta_summary.get("new_dirty_files_since_baseline"))
     baseline_available = bool(delta_summary.get("baseline_available"))
+    # Pre-compute decision immutability result for use in _round_delta_checks
+    baseline_dirty_files_fc = _string_set(delta_summary.get("baseline_dirty_files"))
+    decision_immutability_result = _decision_immutability_check(
+        files_changed=files_changed,
+        new_dirty_files=new_dirty_files,
+        baseline_dirty_files=baseline_dirty_files_fc,
+        round_id=round_id,
+    )
+    decision_immutability_failed_fc = decision_immutability_result.get("status") == "FAIL"
     # When baseline is unavailable, new_dirty_files falls back to all dirty files.
     # Only check files explicitly claimed by the report to avoid false positives
     # from inherited dirty files that predate this round.
@@ -3553,6 +3584,8 @@ def final_check(
             state_dir=state_dir,
             decision_text=decision_text,
             report_text=report_text,
+            pytest_text=pytest_text,
+            decision_immutability_failed=decision_immutability_failed_fc,
         )
     )
     checks.extend(
@@ -3616,16 +3649,8 @@ def final_check(
             )
         )
 
-    # Decision immutability check
-    baseline_dirty_files = _string_set(delta_summary.get("baseline_dirty_files"))
-    checks.append(
-        _decision_immutability_check(
-            files_changed=files_changed,
-            new_dirty_files=new_dirty_files,
-            baseline_dirty_files=baseline_dirty_files,
-            round_id=round_id,
-        )
-    )
+    # Decision immutability check (pre-computed above for _round_delta_checks)
+    checks.append(decision_immutability_result)
 
     # Build output scope check
     checks.append(
@@ -4201,6 +4226,15 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
     changed_files = _string_set(delta_summary.get("final_dirty_files"))
     new_dirty_files = _string_set(delta_summary.get("new_dirty_files_since_baseline"))
     baseline_available = bool(delta_summary.get("baseline_available"))
+    # Pre-compute decision immutability result for use in _round_delta_checks
+    baseline_dirty_files_cr = _string_set(delta_summary.get("baseline_dirty_files"))
+    decision_immutability_result_cr = _decision_immutability_check(
+        files_changed=files_changed,
+        new_dirty_files=new_dirty_files,
+        baseline_dirty_files=baseline_dirty_files_cr,
+        round_id=requested_round_id,
+    )
+    decision_immutability_failed_cr = decision_immutability_result_cr.get("status") == "FAIL"
     forbidden_claim_set = (
         new_dirty_files if baseline_available
         else files_changed | generated_artifacts
@@ -4214,6 +4248,8 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             state_dir=state_dir,
             decision_text=decision_text,
             report_text=report_text,
+            pytest_text=pytest_text,
+            decision_immutability_failed=decision_immutability_failed_cr,
         )
     )
     checks.extend(
@@ -4277,16 +4313,8 @@ def close_round(*, state_dir: Path, round_id: str, repo_root: Path | None = None
             )
         )
 
-    # Decision immutability check
-    baseline_dirty_files_close = _string_set(delta_summary.get("baseline_dirty_files"))
-    checks.append(
-        _decision_immutability_check(
-            files_changed=files_changed,
-            new_dirty_files=new_dirty_files,
-            baseline_dirty_files=baseline_dirty_files_close,
-            round_id=requested_round_id,
-        )
-    )
+    # Decision immutability check (pre-computed above for _round_delta_checks)
+    checks.append(decision_immutability_result_cr)
 
     # Build output scope check
     checks.append(

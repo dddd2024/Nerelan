@@ -3,19 +3,19 @@
   "artifact_name": "report_summary_synthesis.json",
   "gate_name": "report-summary",
   "synthesis_status": "FAILED",
-  "decision_id": "decision_20260617_generated_artifact_existence_rework_v1",
-  "round_id": "round_20260617_generated_artifact_existence_rework_v1",
-  "report_id": "codex_report_20260617_generated_artifact_existence_rework_v1",
-  "generated_at": "2026-06-17T09:49:14.123801Z",
+  "decision_id": "decision_20260617_execution_authority_hard_stop_rework_v1",
+  "round_id": "round_20260617_execution_authority_hard_stop_rework_v1",
+  "report_id": "codex_report_20260617_execution_authority_hard_stop_rework_v1",
+  "generated_at": "2026-06-17T10:32:25.956983Z",
   "synthesized_summary": {
-    "report_id": "codex_report_20260617_generated_artifact_existence_rework_v1",
-    "round_id": "round_20260617_generated_artifact_existence_rework_v1",
-    "based_on_decision_id": "decision_20260617_generated_artifact_existence_rework_v1",
+    "report_id": "codex_report_20260617_execution_authority_hard_stop_rework_v1",
+    "round_id": "round_20260617_execution_authority_hard_stop_rework_v1",
+    "based_on_decision_id": "decision_20260617_execution_authority_hard_stop_rework_v1",
     "files_changed": [
       "project_state/codex_execution_report.md",
-      "project_state/decision_packet.md",
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
+      "project_state/gates/gate_profile_plan.json",
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
@@ -23,10 +23,10 @@
       "project_state/gates/round_delta_summary.json",
       "project_state/gates/run_round_result.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/round_manifest.json",
+      "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/round_manifest.json",
       "reverse_agent/project_gate.py",
       "tests/test_project_gate.py"
     ],
@@ -34,6 +34,7 @@
       "project_state/codex_execution_report.md",
       "project_state/gates/command_plan.json",
       "project_state/gates/final_gate_result.json",
+      "project_state/gates/gate_profile_plan.json",
       "project_state/gates/preflight_result.json",
       "project_state/gates/report_summary_synthesis.json",
       "project_state/gates/round_baseline.json",
@@ -41,10 +42,10 @@
       "project_state/gates/round_delta_summary.json",
       "project_state/gates/run_round_result.json",
       "project_state/pytest_result.txt",
-      "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/codex_execution_report.md",
-      "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/decision_packet.md",
-      "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/pytest_result.txt",
-      "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/round_manifest.json"
+      "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/codex_execution_report.md",
+      "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/decision_packet.md",
+      "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/pytest_result.txt",
+      "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/round_manifest.json"
     ],
     "tests_ran": [
       "git status --short",
@@ -62,10 +63,10 @@
       "python -m reverse_agent.project_state lint-report --state-dir project_state",
       "python -m reverse_agent.project_gate report-summary --state-dir project_state",
       "python -m reverse_agent.project_gate final-check --state-dir project_state",
-      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_generated_artifact_existence_rework_v1"
+      "python -m reverse_agent.project_gate close-round --state-dir project_state --round-id round_20260617_execution_authority_hard_stop_rework_v1"
     ],
-    "status": "PARTIAL",
-    "acceptance_recommendation": "NEEDS_REVIEW",
+    "status": "FAILED",
+    "acceptance_recommendation": "REWORK_REQUIRED",
     "external_state_notices": [
       "50 missing historical sample artifacts"
     ]
@@ -73,16 +74,94 @@
   "diffs": [
     {
       "field": "status",
-      "expected": "PARTIAL",
-      "actual": "FAILED"
+      "expected": "FAILED",
+      "actual": "UNKNOWN"
     },
     {
       "field": "acceptance_recommendation",
-      "expected": "NEEDS_REVIEW",
-      "actual": "REWORK_REQUIRED"
+      "expected": "REWORK_REQUIRED",
+      "actual": "ACCEPTED_WITH_LIMITATIONS"
+    },
+    {
+      "field": "files_changed",
+      "expected": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ],
+      "actual": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/round_manifest.json",
+        "reverse_agent/project_gate.py",
+        "tests/test_project_gate.py"
+      ]
+    },
+    {
+      "field": "generated_artifacts",
+      "expected": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/gate_profile_plan.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/round_manifest.json"
+      ],
+      "actual": [
+        "project_state/codex_execution_report.md",
+        "project_state/gates/command_plan.json",
+        "project_state/gates/final_gate_result.json",
+        "project_state/gates/preflight_result.json",
+        "project_state/gates/report_summary_synthesis.json",
+        "project_state/gates/round_baseline.json",
+        "project_state/gates/round_close_snapshot.json",
+        "project_state/gates/round_delta_summary.json",
+        "project_state/gates/run_round_result.json",
+        "project_state/pytest_result.txt",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/codex_execution_report.md",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/decision_packet.md",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/pytest_result.txt",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/round_manifest.json"
+      ]
     }
   ],
-  "errors": [],
+  "errors": [
+    "baseline contains source/test dirty files not allowed as inherited baseline"
+  ],
   "warnings": [],
   "non_blocking_warnings": [],
   "sources": {

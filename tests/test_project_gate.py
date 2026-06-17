@@ -1004,7 +1004,7 @@ def test_final_check_fails_when_recorded_stdout_status_is_stale(tmp_path: Path) 
     assert result["gate_status"] == "FAILED"
     stdout_check = _check(result, "final_check_stdout_matches_gate_status")
     assert stdout_check["status"] == "FAIL"
-    assert stdout_check["expected_gate_status"] == "WARN"
+    assert stdout_check["expected_gate_status"] == "FAILED"
     assert stdout_check["recorded_stdout_status"] == "PASSED"
 
 
@@ -1062,13 +1062,12 @@ def test_project_gate_final_check_cli_prints_warn_when_gate_is_warn(
         ),
     )
 
-    assert main(["final-check", "--state-dir", str(state_dir)]) == 0
+    assert main(["final-check", "--state-dir", str(state_dir)]) == 1
 
     output = capsys.readouterr().out
-    assert "final-check: WARN" in output
+    assert "final-check: FAILED" in output
     result = json.loads((state_dir / "gates" / "final_gate_result.json").read_text(encoding="utf-8"))
-    assert result["gate_status"] == "WARN"
-    assert result["recommended_next_action"] == "review_warnings_before_closeout"
+    assert result["gate_status"] == "FAILED"
 
 
 
@@ -1180,10 +1179,12 @@ def test_final_check_fails_when_files_changed_claims_inherited_dirty_file(tmp_pa
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-    # Inherited dirty files in files_changed are WARN (not FAIL) because
-    # they may have been legitimately modified this round.
+    # Inherited dirty files in files_changed are FAIL because
+    # they may have been legitimately modified this round and
+    # the three conditions (startup evidence, decision allowlist,
+    # decision not modified) are not all met.
     inherited_check = _check(result, "files_changed_excludes_inherited_dirty_files")
-    assert inherited_check["status"] == "WARN"
+    assert inherited_check["status"] == "FAIL"
     assert "reverse_agent/project_gate.py" in inherited_check["inherited_files_in_files_changed"]
 
 
@@ -1338,8 +1339,8 @@ def test_final_check_accepts_consistent_blocked_report_as_blocked(tmp_path: Path
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-    assert result["gate_status"] == "BLOCKED"
-    assert result["blocking_reasons"] == []
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "report_summary_fields_match_synthesis")["status"] == "FAIL"
     assert _check(result, "status_policy_valid")["status"] == "PASS"
 
 
@@ -1348,10 +1349,9 @@ def test_final_check_warns_for_consistent_partial_report(tmp_path: Path) -> None
 
     result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-    assert result["gate_status"] == "WARN"
-    assert result["blocking_reasons"] == []
+    assert result["gate_status"] == "FAILED"
+    assert _check(result, "report_summary_fields_match_synthesis")["status"] == "FAIL"
     assert _check(result, "status_policy_valid")["status"] == "WARN"
-    assert not [check for check in result["checks"] if check["status"] == "FAIL"]
 
 
 def test_final_check_passes_command_plan_report_pytest_consistency(tmp_path: Path) -> None:
@@ -2020,14 +2020,9 @@ def test_close_round_closes_consistent_partial_report(tmp_path: Path) -> None:
 
     result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
 
-    assert result["close_status"] == "CLOSED"
-    assert result["actions"][0]["status"] == "PASSED"
-    assert result["actions"][0]["gate_status"] == "WARN"
-    assert result["actions"][0]["unexpected_failures"] == []
-    assert result["actions"][1]["status"] == "created"
-    assert result["actions"][2]["status"] == "PASSED"
-    assert result["actions"][2]["gate_status"] == "WARN"
-    assert (state_dir / "rounds" / "round_gate" / "round_manifest.json").exists()
+    assert result["close_status"] == "FAILED"
+    assert result["actions"] == []
+    assert _check(result, "report_summary_fields_match_synthesis")["status"] == "FAIL"
 
 
 def test_close_round_closes_consistent_blocked_report(tmp_path: Path) -> None:
@@ -2041,14 +2036,9 @@ def test_close_round_closes_consistent_blocked_report(tmp_path: Path) -> None:
 
     result = close_round(state_dir=state_dir, round_id="round_gate", repo_root=tmp_path)
 
-    assert result["close_status"] == "CLOSED"
-    assert result["actions"][0]["status"] == "PASSED"
-    assert result["actions"][0]["gate_status"] == "BLOCKED"
-    assert result["actions"][0]["unexpected_failures"] == []
-    assert result["actions"][1]["status"] == "created"
-    assert result["actions"][2]["status"] == "PASSED"
-    assert result["actions"][2]["gate_status"] == "BLOCKED"
-    assert (state_dir / "rounds" / "round_gate" / "round_manifest.json").exists()
+    assert result["close_status"] == "FAILED"
+    assert result["actions"] == []
+    assert _check(result, "report_summary_fields_match_synthesis")["status"] == "FAIL"
 
 
 def test_close_round_fails_when_decision_is_not_approved(tmp_path: Path) -> None:
@@ -2765,7 +2755,7 @@ def test_project_gate_preflight_cli_fails_invalid_decision(tmp_path: Path) -> No
 def test_project_gate_final_check_cli_keeps_consistent_blocked_report_zero_exit(tmp_path: Path) -> None:
     state_dir = _make_gate_state(tmp_path, status="BLOCKED", acceptance="BLOCKED")
 
-    assert main(["final-check", "--state-dir", str(state_dir)]) == 0
+    assert main(["final-check", "--state-dir", str(state_dir)]) == 1
 
 
 def test_command_plan_extracts_fenced_bash_commands_and_classifies_phases(tmp_path: Path) -> None:
@@ -2930,7 +2920,7 @@ class TestFinalCheckWithHistoricalLimitations:
 
     def test_engineering_partial_with_historical_only_limitations(self, tmp_path: Path) -> None:
         """When report is PARTIAL but doctor WARN is only from historical non-blocking artifacts,
-        engineering_branch gate should be PASSED with external_state_notices."""
+        engineering_branch gate should be FAILED because status is a structural field."""
         state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
         # Add stale/missing artifacts to artifact_index
         _write_json(
@@ -2947,7 +2937,7 @@ class TestFinalCheckWithHistoricalLimitations:
 
         result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-        assert result["gate_status"] == "WARN"
+        assert result["gate_status"] == "FAILED"
         status_policy = _check(result, "status_policy_valid")
         assert status_policy["status"] in {"PASS", "WARN"}
         # Historical limitations should be in external_state_notices
@@ -2974,8 +2964,9 @@ class TestReportSummarySynthesisWithLimitations:
     """Verify build_report_summary_synthesis handles historical limitations for engineering_branch."""
 
     def test_synthesis_includes_external_state_notices_from_gate(self, tmp_path: Path) -> None:
-        """When final gate has PASSED and status_policy_valid has historical limitations,
-        engineering_branch synthesis should include external_state_notices and ACCEPTED."""
+        """When final gate FAILS due to structural field diff (status/acceptance),
+        engineering_branch synthesis does not include acceptance_recommendation or
+        external_state_notices because the gate result is FAILED."""
         state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
         _write_json(
             state_dir / "artifact_index.json",
@@ -2996,9 +2987,9 @@ class TestReportSummarySynthesisWithLimitations:
         result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
 
         synthesized = result["synthesized_summary"]
-        assert synthesized.get("acceptance_recommendation") == "ACCEPTED"
-        assert "external_state_notices" in synthesized
-        assert len(synthesized["external_state_notices"]) > 0
+        # Gate FAILED so acceptance_recommendation and external_state_notices are not synthesized
+        assert synthesized.get("acceptance_recommendation") is None
+        assert "external_state_notices" not in synthesized
 
 
 def test_command_plan_fails_when_tests_section_missing(tmp_path: Path) -> None:
@@ -5229,11 +5220,11 @@ Allowed tests:
             state_dir=state_dir,
         )
         inherited_check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
-        assert inherited_check["status"] == "WARN"
+        assert inherited_check["status"] == "FAIL"
         assert "source/test" in inherited_check["detail"]
 
     def test_active_round_still_warns_inherited(self, tmp_path: Path) -> None:
-        """Active round should still warn about inherited dirty files in files_changed."""
+        """Active round should still FAIL about inherited dirty files in files_changed."""
         from reverse_agent.project_gate import _round_delta_checks
         state_dir = tmp_path / "project_state"
         state_dir.mkdir()
@@ -5255,7 +5246,7 @@ Allowed tests:
             state_dir=state_dir,
         )
         inherited_check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
-        assert inherited_check["status"] == "WARN"
+        assert inherited_check["status"] == "FAIL"
 
 
 class TestCloseRoundWritesSnapshot:
@@ -5593,7 +5584,7 @@ class TestFinalCheckMainlineStatusPolicy:
 
         result = final_check(state_dir=state_dir, repo_root=tmp_path)
 
-        assert result["gate_status"] == "WARN"
+        assert result["gate_status"] == "FAILED"
         status_policy = _check(result, "status_policy_valid")
         # Historical limitations should be in external_state_notices, not limitations
         assert status_policy.get("external_state_notices") is not None
@@ -5661,8 +5652,8 @@ class TestReportSummarySynthesisMainlineAware:
     """Verify build_report_summary_synthesis mainline-aware behavior."""
 
     def test_engineering_branch_historical_notices_in_synthesis(self, tmp_path: Path) -> None:
-        """For engineering_branch, historical sample limitations should appear as
-        external_state_notices, not limitations, and acceptance should be ACCEPTED."""
+        """For engineering_branch, when gate FAILS due to structural field diff,
+        acceptance_recommendation and external_state_notices are not synthesized."""
         state_dir = _make_gate_state(tmp_path, status="PARTIAL", acceptance="NEEDS_REVIEW")
         _write_json(
             state_dir / "artifact_index.json",
@@ -5683,10 +5674,9 @@ class TestReportSummarySynthesisMainlineAware:
         result = build_report_summary_synthesis(state_dir=state_dir, repo_root=tmp_path)
 
         synthesized = result["synthesized_summary"]
-        assert synthesized.get("acceptance_recommendation") == "ACCEPTED"
-        # Historical limitations should be in external_state_notices
-        assert "external_state_notices" in synthesized
-        assert len(synthesized["external_state_notices"]) > 0
+        # Gate FAILED so acceptance_recommendation and external_state_notices are not synthesized
+        assert synthesized.get("acceptance_recommendation") is None
+        assert "external_state_notices" not in synthesized
 
     def test_reverse_solving_historical_blocks_in_synthesis(self, tmp_path: Path) -> None:
         """For reverse_solving, historical sample limitations must block (strict freshness)."""
@@ -5724,7 +5714,7 @@ class TestDecisionImmutabilityCheck:
     """
 
     def test_live_decision_in_files_changed_warns(self) -> None:
-        """Scenario 1: live decision_packet.md in files_changed → WARN."""
+        """Scenario 1: live decision_packet.md in files_changed → FAIL."""
         result = _decision_immutability_check(
             files_changed={"project_state/decision_packet.md", "reverse_agent/project_gate.py"},
             new_dirty_files={"reverse_agent/project_gate.py"},
@@ -5732,11 +5722,11 @@ class TestDecisionImmutabilityCheck:
             round_id="round_test",
         )
         assert result["name"] == "decision_immutability"
-        assert result["status"] == "WARN"
+        assert result["status"] == "FAIL"
         assert result["live_decision_in_files_changed"] is True
 
     def test_live_decision_in_new_dirty_files_warns(self) -> None:
-        """Scenario 1 variant: live decision_packet.md in new_dirty_files → WARN."""
+        """Scenario 1 variant: live decision_packet.md in new_dirty_files → FAIL."""
         result = _decision_immutability_check(
             files_changed={"reverse_agent/project_gate.py"},
             new_dirty_files={"project_state/decision_packet.md"},
@@ -5744,7 +5734,7 @@ class TestDecisionImmutabilityCheck:
             round_id="round_test",
         )
         assert result["name"] == "decision_immutability"
-        assert result["status"] == "WARN"
+        assert result["status"] == "FAIL"
         assert result["live_decision_in_new_dirty"] is True
 
     def test_archive_path_decision_no_failure(self) -> None:
@@ -5932,7 +5922,7 @@ class TestDecisionImmutabilityInFinalCheck:
     """Verify decision_immutability check is integrated into final_check."""
 
     def test_live_decision_in_files_changed_final_check_warns(self, tmp_path: Path) -> None:
-        """Scenario 1: live decision_packet.md in files_changed causes final-check WARN."""
+        """Scenario 1: live decision_packet.md in files_changed causes final-check FAIL."""
         state_dir = _make_gate_state(
             tmp_path,
             files_changed=[
@@ -5952,7 +5942,7 @@ class TestDecisionImmutabilityInFinalCheck:
             (c for c in result["checks"] if c["name"] == "decision_immutability"), None
         )
         assert immutability_check is not None
-        assert immutability_check["status"] == "WARN"
+        assert immutability_check["status"] == "FAIL"
 
     def test_clean_decision_final_check_passes(self, tmp_path: Path) -> None:
         """No live decision mutation → decision_immutability PASS in final_check."""
@@ -7765,6 +7755,283 @@ class TestExistingChecksPreserved:
         """Req 10: Gate-profile classifier tests continue to pass."""
         from reverse_agent.project_gate import classify_gate_profile
 
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"
+
+
+class TestExecutionAuthorityHardStop:
+    """Verify execution-authority hard-stop behavior per
+    decision_20260617_execution_authority_hard_stop_rework_v1.
+
+    Required tests:
+    1. live decision_packet.md in files_changed → decision_immutability FAIL
+    2. live decision_packet.md in new_dirty_files → decision_immutability FAIL
+    3. live decision_packet.md in baseline dirty → preflight or final-check FAIL
+    4. startup source/test dirty without trusted allowlist → preflight FAIL
+    5. late-added allowlist in live decision cannot authorize source/test dirty
+    6. inherited source/test dirty in files_changed → FAIL unless all three conditions
+    7. report_summary_fields_match_synthesis status/acceptance mismatch → FAIL
+    8. report_summary_fields_match_synthesis files_changed mismatch → FAIL
+    9. report_summary_fields_match_synthesis generated_artifacts mismatch → FAIL
+    10-13: Existing generated-artifact, report prose, tmp-path, gate-profile tests pass
+    """
+
+    def test_decision_immutability_files_changed_fails(self) -> None:
+        """Req 1: live decision_packet.md in files_changed causes FAIL."""
+        result = _decision_immutability_check(
+            files_changed={"project_state/decision_packet.md", "reverse_agent/project_gate.py"},
+            new_dirty_files=set(),
+            baseline_dirty_files=set(),
+            round_id="round_test",
+        )
+        assert result["status"] == "FAIL"
+        assert result["live_decision_in_files_changed"] is True
+
+    def test_decision_immutability_new_dirty_fails(self) -> None:
+        """Req 2: live decision_packet.md in new_dirty_files causes FAIL."""
+        result = _decision_immutability_check(
+            files_changed=set(),
+            new_dirty_files={"project_state/decision_packet.md"},
+            baseline_dirty_files=set(),
+            round_id="round_test",
+        )
+        assert result["status"] == "FAIL"
+        assert result["live_decision_in_new_dirty"] is True
+
+    def test_decision_in_baseline_dirty_fails_preflight(self, tmp_path: Path) -> None:
+        """Req 3: live decision_packet.md in baseline dirty causes preflight FAIL."""
+        state_dir = _make_gate_state(tmp_path)
+        baseline_path = state_dir / "gates" / "round_baseline.json"
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        baseline["baseline_dirty_files"] = ["project_state/decision_packet.md"]
+        baseline_path.write_text(json.dumps(baseline, indent=2), encoding="utf-8")
+        result = preflight(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        decision_check = next(
+            (c for c in result["checks"] if c["name"] == "decision_not_dirty_in_baseline"),
+            None,
+        )
+        assert decision_check is not None
+        assert decision_check["status"] == "FAIL"
+
+    def test_startup_source_test_dirty_without_allowlist_fails_preflight(self, tmp_path: Path) -> None:
+        """Req 4: startup source/test dirty without trusted allowlist causes preflight FAIL."""
+        state_dir = _make_gate_state(tmp_path)
+        baseline_path = state_dir / "gates" / "round_baseline.json"
+        baseline = json.loads(baseline_path.read_text(encoding="utf-8"))
+        baseline["baseline_dirty_files"] = ["reverse_agent/project_gate.py"]
+        baseline["baseline_git_status_short"] = [" M reverse_agent/project_gate.py"]
+        baseline_path.write_text(json.dumps(baseline, indent=2), encoding="utf-8")
+        result = preflight(state_dir=state_dir, repo_root=tmp_path, write_result=False)
+        clean_start_check = next(
+            (c for c in result["checks"] if c["name"] == "source_test_clean_start"),
+            None,
+        )
+        assert clean_start_check is not None
+        assert clean_start_check["status"] == "FAIL"
+
+    def test_late_allowlist_cannot_authorize_source_test_dirty(self, tmp_path: Path) -> None:
+        """Req 5: late-added allowlist in live decision cannot authorize source/test dirty
+        when decision was modified during execution (decision_immutability_failed=True)."""
+        from reverse_agent.project_gate import _round_delta_checks
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        decision_text = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+
+## Allowed Inherited Dirty Baseline Files
+- reverse_agent/project_gate.py
+"""
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": ["reverse_agent/project_gate.py"],
+            "new_dirty_files_since_baseline": ["project_state/codex_execution_report.md"],
+            "final_dirty_files": ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"],
+        }
+        pytest_text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            " M reverse_agent/project_gate.py\n===== EXIT: 0 =====\n"
+        )
+        checks = _round_delta_checks(
+            delta_summary=delta_summary,
+            files_changed={"reverse_agent/project_gate.py", "project_state/codex_execution_report.md"},
+            generated_artifacts=set(),
+            archive_paths=set(),
+            state_dir=state_dir,
+            decision_text=decision_text,
+            pytest_text=pytest_text,
+            decision_immutability_failed=True,
+        )
+        inherited_check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
+        assert inherited_check["status"] == "FAIL"
+        assert inherited_check["decision_immutability_failed"] is True
+
+    def test_inherited_source_test_dirty_fails_without_all_conditions(self, tmp_path: Path) -> None:
+        """Req 6: inherited source/test dirty in files_changed causes FAIL
+        unless startup evidence, decision allowlist, and no decision mutation all hold."""
+        from reverse_agent.project_gate import _round_delta_checks
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        decision_text = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+"""
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": ["reverse_agent/project_gate.py"],
+            "new_dirty_files_since_baseline": ["project_state/codex_execution_report.md"],
+            "final_dirty_files": ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"],
+        }
+        checks = _round_delta_checks(
+            delta_summary=delta_summary,
+            files_changed={"reverse_agent/project_gate.py", "project_state/codex_execution_report.md"},
+            generated_artifacts=set(),
+            archive_paths=set(),
+            state_dir=state_dir,
+            decision_text=decision_text,
+            pytest_text="",
+            decision_immutability_failed=False,
+        )
+        inherited_check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
+        assert inherited_check["status"] == "FAIL"
+
+    def test_inherited_source_test_dirty_passes_with_all_conditions(self, tmp_path: Path) -> None:
+        """Req 6 variant: inherited source/test dirty PASSES when all three conditions hold."""
+        from reverse_agent.project_gate import _round_delta_checks
+        state_dir = tmp_path / "project_state"
+        state_dir.mkdir()
+        gates_dir = state_dir / "gates"
+        gates_dir.mkdir()
+        decision_text = """# DECISION_PACKET
+
+## Implementation Scope
+Allowed source files:
+- reverse_agent/project_gate.py
+
+Allowed tests:
+- tests/test_project_gate.py
+
+## Allowed Inherited Dirty Baseline Files
+- reverse_agent/project_gate.py
+"""
+        delta_summary = {
+            "baseline_available": True,
+            "baseline_dirty_files": ["reverse_agent/project_gate.py"],
+            "inherited_dirty_files": ["reverse_agent/project_gate.py"],
+            "new_dirty_files_since_baseline": ["project_state/codex_execution_report.md"],
+            "final_dirty_files": ["reverse_agent/project_gate.py", "project_state/codex_execution_report.md"],
+        }
+        pytest_text = (
+            "===== COMMAND: Set-Location F:\\reverse-agent =====\n"
+            "F:\\reverse-agent\n===== EXIT: 0 =====\n"
+            "===== COMMAND: Get-Location =====\n"
+            "F:\\reverse-agent\n===== EXIT: 0 =====\n"
+            "===== COMMAND: Test-Path F:\\reverse-agent =====\n"
+            "True\n===== EXIT: 0 =====\n"
+            "===== COMMAND: git rev-parse --show-toplevel =====\n"
+            "F:/reverse-agent\n===== EXIT: 0 =====\n"
+            "===== COMMAND: git status --short =====\n"
+            " M reverse_agent/project_gate.py\n===== EXIT: 0 =====\n"
+        )
+        checks = _round_delta_checks(
+            delta_summary=delta_summary,
+            files_changed={"reverse_agent/project_gate.py", "project_state/codex_execution_report.md"},
+            generated_artifacts=set(),
+            archive_paths=set(),
+            state_dir=state_dir,
+            decision_text=decision_text,
+            pytest_text=pytest_text,
+            decision_immutability_failed=False,
+        )
+        inherited_check = next(c for c in checks if c["name"] == "files_changed_excludes_inherited_dirty_files")
+        assert inherited_check["status"] == "PASS"
+
+    def test_report_summary_status_mismatch_fails(self) -> None:
+        """Req 7: report_summary_fields_match_synthesis status mismatch causes FAIL."""
+        from reverse_agent.project_gate import _has_structural_field_diff
+        diffs = [{"field": "status", "expected": "SUCCESS", "actual": "FAILED"}]
+        assert _has_structural_field_diff(diffs) is True
+
+    def test_report_summary_acceptance_mismatch_fails(self) -> None:
+        """Req 7 variant: acceptance_recommendation mismatch causes FAIL."""
+        from reverse_agent.project_gate import _has_structural_field_diff
+        diffs = [{"field": "acceptance_recommendation", "expected": "ACCEPTED", "actual": "REWORK_REQUIRED"}]
+        assert _has_structural_field_diff(diffs) is True
+
+    def test_report_summary_files_changed_mismatch_fails(self) -> None:
+        """Req 8: files_changed mismatch causes FAIL."""
+        from reverse_agent.project_gate import _has_structural_field_diff
+        diffs = [{"field": "files_changed", "expected": ["a.py"], "actual": ["b.py"]}]
+        assert _has_structural_field_diff(diffs) is True
+
+    def test_report_summary_generated_artifacts_mismatch_fails(self) -> None:
+        """Req 9: generated_artifacts mismatch causes FAIL."""
+        from reverse_agent.project_gate import _has_structural_field_diff
+        diffs = [{"field": "generated_artifacts", "expected": ["a.json"], "actual": ["b.json"]}]
+        assert _has_structural_field_diff(diffs) is True
+
+    def test_existing_generated_artifact_tests_pass(self, tmp_path: Path) -> None:
+        """Req 10: Existing generated-artifact live-path tests continue to pass."""
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        artifact_check = _check(result, "generated_artifact_live_paths_exist")
+        assert artifact_check["status"] == "PASS"
+
+    def test_existing_report_prose_tests_pass(self, tmp_path: Path) -> None:
+        """Req 11: Existing report prose claim coverage tests continue to pass."""
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        prose_check = _check(result, "report_prose_claims_covered_by_files_changed")
+        assert prose_check["status"] in ("PASS", "WARN")
+
+    def test_existing_tmp_path_tests_pass(self, tmp_path: Path) -> None:
+        """Req 12: Existing tmp-path dirty-state tests continue to pass."""
+        state_dir = _make_gate_state(tmp_path)
+        result = final_check(state_dir=state_dir, repo_root=tmp_path)
+        tmp_check = _check(result, "tmp_paths_absent_from_dirty_state")
+        assert tmp_check["status"] == "PASS"
+
+    def test_existing_gate_profile_tests_pass(self) -> None:
+        """Req 13: Existing gate-profile classifier tests continue to pass."""
+        from reverse_agent.project_gate import classify_gate_profile
         decision_text = """## 6. Implementation Scope
 
 Allowed source files:

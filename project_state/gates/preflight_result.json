@@ -1,11 +1,11 @@
 {
   "schema_version": 1,
   "gate_name": "preflight",
-  "gate_status": "PASSED",
-  "decision_id": "decision_20260617_generated_artifact_existence_rework_v1",
-  "round_id": "round_20260617_generated_artifact_existence_rework_v1",
+  "gate_status": "FAILED",
+  "decision_id": "decision_20260617_execution_authority_hard_stop_rework_v1",
+  "round_id": "round_20260617_execution_authority_hard_stop_rework_v1",
   "mainline": "engineering_branch",
-  "generated_at": "2026-06-17T08:53:23.555863Z",
+  "generated_at": "2026-06-17T10:28:32.766849Z",
   "checks": [
     {
       "name": "decision_not_dirty_in_baseline",
@@ -81,7 +81,7 @@
         "project_state/gates/round_delta_summary.json",
         "project_state/gates/run_round_result.json",
         "project_state/pytest_result.txt",
-        "project_state/rounds/round_20260617_generated_artifact_existence_rework_v1/*",
+        "project_state/rounds/round_20260617_execution_authority_hard_stop_rework_v1/*",
         "reverse_agent/project_gate.py",
         "reverse_agent/project_state.py",
         "tests/test_project_gate.py",
@@ -119,47 +119,31 @@
     },
     {
       "name": "source_test_clean_start",
-      "status": "PASS",
-      "detail": "no source/test files are dirty at startup baseline",
-      "unauthorized_source_test_dirty": [],
-      "allowed_inherited_dirty_baseline_files": [
-        "Preserve backward compatibility for existing command-plan/final-check/close-round tests.",
-        "Preserve path normalization across Windows and POSIX separators.",
-        "Preserve the existing clean-start baseline guard behavior.",
-        "Preserve the gate-profile classifier behavior.",
-        "Preserve the report-prose claimed source/test coverage behavior.",
-        "project_state/",
-        "project_state/gates/",
-        "project_state/rounds/<round_id>/",
-        "report_summary_fields_match_synthesis",
+      "status": "FAIL",
+      "detail": "source/test files are dirty at startup baseline without explicit decision allowlist; stop before implementation",
+      "unauthorized_source_test_dirty": [
         "reverse_agent/project_gate.py",
-        "run_round_result.json",
-        "tests/test_project_gate.py",
-        "tmp*/"
+        "tests/test_project_gate.py"
       ],
+      "allowed_inherited_dirty_baseline_files": [],
       "baseline_source_test_dirty": [
         "reverse_agent/project_gate.py",
         "tests/test_project_gate.py"
       ]
     }
   ],
-  "blocking_reasons": [],
+  "blocking_reasons": [
+    "source_test_clean_start: source/test files are dirty at startup baseline without explicit decision allowlist; stop before implementation"
+  ],
   "warnings": [],
-  "recommended_next_action": "proceed_with_decision_scope",
+  "recommended_next_action": "fix_preflight_failures_before_starting",
   "round_baseline": {
     "path": "project_state/gates/round_baseline.json",
     "baseline_dirty_files": [
-      "project_state/codex_execution_report.md",
-      "project_state/gates/command_plan.json",
-      "project_state/gates/preflight_result.json",
-      "project_state/gates/report_summary_synthesis.json",
-      "project_state/gates/round_baseline.json",
-      "project_state/gates/round_delta_summary.json",
-      "project_state/pytest_result.txt",
       "reverse_agent/project_gate.py",
       "tests/test_project_gate.py"
     ],
-    "head_commit": "479f21baddd6"
+    "head_commit": "2fcc0caa780b"
   },
   "status_summary": {
     "decision_execution_state": "READY_FOR_EXECUTION",
