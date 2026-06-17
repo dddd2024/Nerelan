@@ -50,6 +50,9 @@ RUN_ROUND_OUTPUT_PATH = f"project_state/gates/{RUN_ROUND_RESULT_NAME}"
 ROUND_BASELINE_OUTPUT_PATH = f"project_state/gates/{ROUND_BASELINE_RESULT_NAME}"
 ROUND_DELTA_OUTPUT_PATH = f"project_state/gates/{ROUND_DELTA_SUMMARY_NAME}"
 ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH = f"project_state/gates/{ROUND_CLOSE_SNAPSHOT_RESULT_NAME}"
+GATE_PROFILE_PLAN_NAME = "gate-profile"
+GATE_PROFILE_PLAN_RESULT_NAME = "gate_profile_plan.json"
+GATE_PROFILE_PLAN_OUTPUT_PATH = f"project_state/gates/{GATE_PROFILE_PLAN_RESULT_NAME}"
 CLOSE_ROUND_NAME = "close-round"
 
 ARCHIVE_PENDING_CHECKS = {
@@ -474,6 +477,8 @@ def _allowed_scope_paths(scope_text: str) -> set[str]:
             or lowered.startswith("forbidden")
             or lowered.startswith("read-only")
             or lowered.startswith("read only")
+            or lowered.startswith("required")
+            or lowered.startswith("suggested")
             or lowered.startswith("不允许")
             or lowered.startswith("禁止")
             or lowered.startswith("只读")
@@ -595,6 +600,199 @@ def _decision_scope_deliverable_paths(decision_text: str) -> set[str]:
 def _allowed_inherited_baseline_paths(decision_text: str) -> set[str]:
     section = _markdown_section(decision_text, "Allowed Inherited Dirty Baseline Files")
     return _scope_paths(section)
+
+
+# ---------------------------------------------------------------------------
+# Gate profile classification
+# ---------------------------------------------------------------------------
+
+_GATE_PROFILE_NAMES: tuple[str, ...] = ("fast", "standard", "full")
+
+_FULL_SCOPE_PATHS: tuple[str, ...] = (
+    "reverse_agent/project_gate.py",
+    "reverse_agent/project_state.py",
+)
+
+_FULL_SCOPE_PREFIXES: tuple[str, ...] = (
+    "reverse_agent/solver",
+    "reverse_agent/harness",
+    "reverse_agent/ida",
+    "reverse_agent/ghidra",
+    "reverse_agent/debugger",
+    "reverse_agent/tool_runner",
+    "reverse_agent/runtime_probe",
+    ".codex-skills/",
+)
+
+_FAST_SUGGESTED_COMMANDS: list[dict[str, Any]] = [
+    {"index": 1, "command": "startup path checks", "phase": "status", "kind": "startup"},
+    {"index": 2, "command": "preflight", "phase": "preflight", "kind": "preflight"},
+    {"index": 3, "command": "schema/artifact validation for touched project_state files", "phase": "validation", "kind": "validation"},
+    {"index": 4, "command": "focused pytest only if tests are changed", "phase": "test", "kind": "pytest"},
+    {"index": 5, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
+    {"index": 6, "command": "final-check (or final-check-lite in future)", "phase": "gate", "kind": "final-check"},
+]
+
+_STANDARD_SUGGESTED_COMMANDS: list[dict[str, Any]] = [
+    {"index": 1, "command": "startup path checks", "phase": "status", "kind": "startup"},
+    {"index": 2, "command": "preflight", "phase": "preflight", "kind": "preflight"},
+    {"index": 3, "command": "command-plan", "phase": "gate", "kind": "command-plan"},
+    {"index": 4, "command": "focused pytest for touched modules", "phase": "test", "kind": "pytest"},
+    {"index": 5, "command": "doctor", "phase": "status", "kind": "doctor"},
+    {"index": 6, "command": "lint-report", "phase": "status", "kind": "lint-report"},
+    {"index": 7, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
+    {"index": 8, "command": "final-check", "phase": "gate", "kind": "final-check"},
+]
+
+_FULL_SUGGESTED_COMMANDS: list[dict[str, Any]] = [
+    {"index": 1, "command": "startup path checks", "phase": "status", "kind": "startup"},
+    {"index": 2, "command": "preflight", "phase": "preflight", "kind": "preflight"},
+    {"index": 3, "command": "command-plan", "phase": "gate", "kind": "command-plan"},
+    {"index": 4, "command": "run-round", "phase": "gate", "kind": "run-round"},
+    {"index": 5, "command": "full pytest for gate/project_state modules", "phase": "test", "kind": "pytest"},
+    {"index": 6, "command": "doctor", "phase": "status", "kind": "doctor"},
+    {"index": 7, "command": "lint-report", "phase": "status", "kind": "lint-report"},
+    {"index": 8, "command": "report-summary", "phase": "gate", "kind": "report-summary"},
+    {"index": 9, "command": "final-check", "phase": "gate", "kind": "final-check"},
+    {"index": 10, "command": "close-round", "phase": "gate", "kind": "close-round"},
+]
+
+
+def _path_is_full_scope(path: str) -> bool:
+    """Return True if *path* is a gate/project_state/harness/solver/tool-runner
+    file that warrants the ``full`` gate profile."""
+    normalized = _norm_path(path)
+    if normalized in {_norm_path(p) for p in _FULL_SCOPE_PATHS}:
+        return True
+    for prefix in _FULL_SCOPE_PREFIXES:
+        if normalized.startswith(_norm_path(prefix)):
+            return True
+    return False
+
+
+def _path_is_source_or_test(path: str) -> bool:
+    """Return True if *path* is a source or test file (but not project_state)."""
+    normalized = _norm_path(path)
+    if normalized.startswith("reverse_agent/") and normalized.endswith(".py"):
+        return True
+    if normalized.startswith("tests/") and normalized.endswith(".py"):
+        return True
+    return False
+
+
+def classify_gate_profile(decision_text: str) -> dict[str, Any]:
+    """Classify the gate profile for the current decision.
+
+    Returns a dict with:
+    - ``profile``: one of ``fast``, ``standard``, ``full``
+    - ``reasons``: list of strings explaining the classification
+    - ``suggested_commands``: list of command dicts for the recommended tier
+    - ``future_phases``: list of planned future enhancements
+    """
+    scope_text = _markdown_section(decision_text, "Implementation Scope")
+    allowed_source_test = _allowed_source_test_scope_paths(scope_text)
+    allowed_generated = _decision_scope_deliverable_paths(decision_text)
+
+    reasons: list[str] = []
+    profile = "fast"  # default: artifact-only
+
+    # Check for full-scope paths
+    full_scope_hits: list[str] = []
+    for path in sorted(allowed_source_test):
+        if _path_is_full_scope(path):
+            full_scope_hits.append(path)
+    if full_scope_hits:
+        profile = "full"
+        reasons.append(
+            f"decision scope includes gate/project_state/harness/solver/tool-runner paths: "
+            f"{', '.join(full_scope_hits)}"
+        )
+
+    # Check for .codex-skills/ in generated artifacts (also full)
+    codex_skills_hits = [
+        p for p in sorted(allowed_generated | allowed_source_test)
+        if _norm_path(p).startswith(".codex-skills/")
+    ]
+    if codex_skills_hits:
+        profile = "full"
+        reasons.append(
+            f"decision scope includes .codex-skills/ paths: {', '.join(codex_skills_hits)}"
+        )
+
+    # Check for ordinary source/test changes (standard)
+    if profile == "fast":
+        source_test_hits = [
+            p for p in sorted(allowed_source_test)
+            if _path_is_source_or_test(p) and not _path_is_full_scope(p)
+        ]
+        if source_test_hits:
+            profile = "standard"
+            reasons.append(
+                f"decision scope includes source/test changes: {', '.join(source_test_hits)}"
+            )
+
+    # Fast profile justification
+    if profile == "fast":
+        if allowed_generated:
+            reasons.append(
+                f"decision scope is artifact-only with generated/project-state deliverables: "
+                f"{len(allowed_generated)} artifact path(s)"
+            )
+        else:
+            reasons.append("decision scope has no source/test or gate/project_state changes")
+
+    suggested_commands: list[dict[str, Any]]
+    if profile == "fast":
+        suggested_commands = _FAST_SUGGESTED_COMMANDS
+    elif profile == "standard":
+        suggested_commands = _STANDARD_SUGGESTED_COMMANDS
+    else:
+        suggested_commands = _FULL_SUGGESTED_COMMANDS
+
+    return {
+        "profile": profile,
+        "reasons": reasons,
+        "suggested_commands": suggested_commands,
+        "future_phases": [
+            "final-check-lite: lightweight final check for fast-profile rounds",
+            "command-plan profile-aware: emit reduced command set for fast/standard profiles",
+        ],
+    }
+
+
+def gate_profile(*, state_dir: Path, write_result: bool = True) -> dict[str, Any]:
+    """Run gate profile classification and optionally write the result."""
+    state_dir = Path(state_dir)
+    decision = read_decision_meta(state_dir)
+    decision_text = _read_text(state_dir / "decision_packet.md")
+
+    decision_id = str(decision.get("decision_id") or "")
+    round_id = str(decision.get("round_id") or "")
+    mainline = str(decision.get("mainline") or "")
+
+    classification = classify_gate_profile(decision_text)
+
+    result: dict[str, Any] = {
+        "schema_version": GATE_RESULT_SCHEMA_VERSION,
+        "gate_name": "gate-profile",
+        "gate_status": "PASSED",
+        "decision_id": decision_id,
+        "round_id": round_id,
+        "mainline": mainline,
+        "generated_at": _now_iso(),
+        **classification,
+    }
+
+    if write_result:
+        output_path = state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(
+            json.dumps(result, ensure_ascii=True, indent=2) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
+
+    return result
 
 
 _NEGATION_PHRASES: tuple[str, ...] = (
@@ -2655,6 +2853,8 @@ def build_report_summary_synthesis(
         ROUND_CLOSE_SNAPSHOT_OUTPUT_PATH,
         *archive_paths,
     }
+    if (state_dir / "gates" / GATE_PROFILE_PLAN_RESULT_NAME).exists():
+        generated_artifact_set.add(GATE_PROFILE_PLAN_OUTPUT_PATH)
     if RUN_ROUND_OUTPUT_PATH in round_delta_files or any(_command_kind(command) == "run-round" for command in command_strings):
         generated_artifact_set.add(RUN_ROUND_OUTPUT_PATH)
     # Include decision-scope required deliverables that were promoted from
@@ -4586,10 +4786,18 @@ def preflight(*, state_dir: Path, repo_root: Path | None = None, write_result: b
         marker in goal_text
         for marker in ("close out", "close-out", "reconcil", "repair round")
     )
+    # Engineering-branch classification/profile rounds may mention solver,
+    # harness, debugger, etc. in descriptive classification rules without
+    # intending to execute them.  Detect classification context.
+    is_classification = any(
+        marker in goal_text
+        for marker in ("classify", "classification", "profile", "tiered", "gate profile")
+    )
     engineering_scope_ok = not (
         mainline == "engineering_branch"
         and (sample_terms or sample_scope_paths)
         and not is_closeout
+        and not is_classification
     )
     checks.append(
         _check(
@@ -4962,6 +5170,24 @@ def _print_close_round(result: dict[str, Any]) -> None:
     print(_close_round_output_text(result), end="")
 
 
+def _print_gate_profile(result: dict[str, Any]) -> None:
+    lines = [
+        f"gate-profile: {result.get('gate_status')}",
+        f"decision_id: {result.get('decision_id')}",
+        f"round_id: {result.get('round_id')}",
+        f"mainline: {result.get('mainline')}",
+        f"profile: {result.get('profile')}",
+    ]
+    for reason in result.get("reasons", []):
+        lines.append(f"  reason: {reason}")
+    for cmd in result.get("suggested_commands", []):
+        lines.append(f"  [{cmd.get('index')}] {cmd.get('phase')} {cmd.get('kind')}: {cmd.get('command')}")
+    for phase in result.get("future_phases", []):
+        lines.append(f"  [FUTURE] {phase}")
+    lines.append(f"artifact: project_state/gates/gate_profile_plan.json")
+    print("\n".join(lines))
+
+
 def _close_round_output_text(result: dict[str, Any]) -> str:
     lines = [
         f"{result.get('gate_name')}: {result.get('close_status')}",
@@ -5064,6 +5290,9 @@ def main(argv: list[str] | None = None) -> int:
     close_round_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
     close_round_parser.add_argument("--round-id", required=True)
     close_round_parser.add_argument("--json", action="store_true", help="Print JSON result.")
+    gate_profile_parser = subparsers.add_parser("gate-profile", help="Classify gate profile (fast/standard/full) for the current decision.")
+    gate_profile_parser.add_argument("--state-dir", default=str(DEFAULT_STATE_DIR))
+    gate_profile_parser.add_argument("--json", action="store_true", help="Print JSON result.")
 
     args = parser.parse_args(argv)
     if args.command == "final-check":
@@ -5125,6 +5354,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         print(output, end="")
         return exit_code
+    if args.command == "gate-profile":
+        result = gate_profile(state_dir=Path(args.state_dir))
+        if args.json:
+            print(json.dumps(result, ensure_ascii=True, indent=2))
+        else:
+            _print_gate_profile(result)
+        return 0
     return 1
 
 

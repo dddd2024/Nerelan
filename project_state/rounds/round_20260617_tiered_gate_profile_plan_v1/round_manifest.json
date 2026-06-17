@@ -1,0 +1,43 @@
+{
+  "acceptance_recommendation": "ACCEPTED",
+  "archive_mode": "minimal",
+  "archived_at": "2026-06-17T04:36:32Z",
+  "decision_id": "decision_20260617_tiered_gate_profile_plan_v1",
+  "files": {
+    "codex_execution_report.md": {
+      "archived_path": "project_state\\rounds\\round_20260617_tiered_gate_profile_plan_v1\\codex_execution_report.md",
+      "sha256": "335d6cb8d76a9edd3b7a67473e9deebfeef6606fd36ccfec89785159cacb1841",
+      "source_path": "project_state\\codex_execution_report.md"
+    },
+    "decision_packet.md": {
+      "archived_path": "project_state\\rounds\\round_20260617_tiered_gate_profile_plan_v1\\decision_packet.md",
+      "sha256": "fd2486023c7681adbee8c2cc43fb8da4b69d1550d6bce3b94e3d8a8369c86e3d",
+      "source_path": "project_state\\decision_packet.md"
+    },
+    "pytest_result.txt": {
+      "archived_path": "project_state\\rounds\\round_20260617_tiered_gate_profile_plan_v1\\pytest_result.txt",
+      "sha256": "29cd7ffe287e85e34d8ddf8deac496efb4d8bc8001e6b2227ace298ce612953b",
+      "source_path": "project_state\\pytest_result.txt"
+    }
+  },
+  "included_diff": false,
+  "included_state_snapshot": false,
+  "mainline": "engineering_branch",
+  "omitted_files": [
+    "artifact_index.json",
+    "current_state.json",
+    "negative_results.json",
+    "model_gate.json",
+    "task_packet.json",
+    "git_diff.patch"
+  ],
+  "report_id": "codex_report_20260617_tiered_gate_profile_plan_v1",
+  "report_status": "SUCCESS",
+  "round_id": "round_20260617_tiered_gate_profile_plan_v1",
+  "schema_version": 1,
+  "source_git_commit": "6055dd76876a",
+  "source_harness_run": "samplereverse_material_hook_runtime_validation_20260512_rerun6",
+  "state_build_id": "state_20260615_150220_24f61a9ac337",
+  "state_digest": "24f61a9ac337b596ff7d56b3e29f01e5ab68342825fb2a32ba50b65a84512bae",
+  "workflow_status": "REPORT_AVAILABLE"
+}

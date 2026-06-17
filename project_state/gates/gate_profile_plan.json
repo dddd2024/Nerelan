@@ -1,0 +1,79 @@
+{
+  "schema_version": 1,
+  "gate_name": "gate-profile",
+  "gate_status": "PASSED",
+  "decision_id": "decision_20260617_tiered_gate_profile_plan_v1",
+  "round_id": "round_20260617_tiered_gate_profile_plan_v1",
+  "mainline": "engineering_branch",
+  "generated_at": "2026-06-17T04:27:25.563412Z",
+  "profile": "full",
+  "reasons": [
+    "decision scope includes gate/project_state/harness/solver/tool-runner paths: reverse_agent/project_gate.py, reverse_agent/project_state.py"
+  ],
+  "suggested_commands": [
+    {
+      "index": 1,
+      "command": "startup path checks",
+      "phase": "status",
+      "kind": "startup"
+    },
+    {
+      "index": 2,
+      "command": "preflight",
+      "phase": "preflight",
+      "kind": "preflight"
+    },
+    {
+      "index": 3,
+      "command": "command-plan",
+      "phase": "gate",
+      "kind": "command-plan"
+    },
+    {
+      "index": 4,
+      "command": "run-round",
+      "phase": "gate",
+      "kind": "run-round"
+    },
+    {
+      "index": 5,
+      "command": "full pytest for gate/project_state modules",
+      "phase": "test",
+      "kind": "pytest"
+    },
+    {
+      "index": 6,
+      "command": "doctor",
+      "phase": "status",
+      "kind": "doctor"
+    },
+    {
+      "index": 7,
+      "command": "lint-report",
+      "phase": "status",
+      "kind": "lint-report"
+    },
+    {
+      "index": 8,
+      "command": "report-summary",
+      "phase": "gate",
+      "kind": "report-summary"
+    },
+    {
+      "index": 9,
+      "command": "final-check",
+      "phase": "gate",
+      "kind": "final-check"
+    },
+    {
+      "index": 10,
+      "command": "close-round",
+      "phase": "gate",
+      "kind": "close-round"
+    }
+  ],
+  "future_phases": [
+    "final-check-lite: lightweight final check for fast-profile rounds",
+    "command-plan profile-aware: emit reduced command set for fast/standard profiles"
+  ]
+}

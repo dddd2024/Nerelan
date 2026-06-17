@@ -6861,3 +6861,180 @@ Allowed generated artifacts:
         }
         inherited_scope_deliverables = inherited_dirty & deliverables & final_dirty
         assert len(inherited_scope_deliverables) == 0
+
+
+class TestClassifyGateProfile:
+    """Tests for the gate profile classifier (fast/standard/full)."""
+
+    def test_artifact_only_decision_classifies_fast(self) -> None:
+        """Artifact-only decision with only project_state generated artifacts
+        should classify as fast."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/local_reverse_cipher_static_evidence_profile.json`
+- `project_state/local_reverse_cipher_static_evidence_profile.md`
+
+Required implementation behavior:
+
+- Define evidence fields for DES and RC4 PE cipher samples.
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "fast"
+        assert any("artifact-only" in r for r in result["reasons"])
+
+    def test_source_test_decision_classifies_standard(self) -> None:
+        """Decision allowing ordinary source/test changes should classify as standard."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/some_module.py`
+
+Allowed tests:
+
+- `tests/test_some_module.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "standard"
+        assert any("source/test" in r for r in result["reasons"])
+
+    def test_gate_project_state_change_classifies_full(self) -> None:
+        """Decision allowing changes to project_gate.py should classify as full."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed tests:
+
+- `tests/test_project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+- `project_state/pytest_result.txt`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"
+        assert any("gate/project_state" in r for r in result["reasons"])
+
+    def test_project_state_py_change_classifies_full(self) -> None:
+        """Decision allowing changes to project_state.py should classify as full."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_state.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"
+
+    def test_harness_solver_paths_classify_full(self) -> None:
+        """Harness/solver/tool-runner/debugger/IDA/Ghidra/runtime-probe paths
+        should classify as full."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        for path in [
+            "reverse_agent/solver.py",
+            "reverse_agent/harness.py",
+            "reverse_agent/ida_integration.py",
+            "reverse_agent/ghidra_runner.py",
+            "reverse_agent/debugger_hook.py",
+            "reverse_agent/tool_runner.py",
+            "reverse_agent/runtime_probe.py",
+        ]:
+            decision_text = f"""## 6. Implementation Scope
+
+Allowed source files:
+
+- `{path}`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+            result = classify_gate_profile(decision_text)
+            assert result["profile"] == "full", f"Expected full for {path}, got {result['profile']}"
+
+    def test_codex_skills_paths_classify_full(self) -> None:
+        """.codex-skills/ paths should classify as full."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `.codex-skills/registry.json`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        result = classify_gate_profile(decision_text)
+        assert result["profile"] == "full"
+        assert any(".codex-skills" in r for r in result["reasons"])
+
+    def test_result_has_required_fields(self) -> None:
+        """Result must contain profile, reasons, suggested_commands, future_phases."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        decision_text = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/some_artifact.json`
+"""
+        result = classify_gate_profile(decision_text)
+        assert "profile" in result
+        assert "reasons" in result
+        assert "suggested_commands" in result
+        assert "future_phases" in result
+        assert result["profile"] in {"fast", "standard", "full"}
+        assert isinstance(result["reasons"], list)
+        assert len(result["reasons"]) > 0
+        assert isinstance(result["suggested_commands"], list)
+        assert len(result["suggested_commands"]) > 0
+
+    def test_fast_suggested_commands_shorter_than_full(self) -> None:
+        """Fast profile should have fewer suggested commands than full."""
+        from reverse_agent.project_gate import classify_gate_profile
+
+        fast_text = """## 6. Implementation Scope
+
+Allowed generated/project-state files:
+
+- `project_state/some_artifact.json`
+"""
+        full_text = """## 6. Implementation Scope
+
+Allowed source files:
+
+- `reverse_agent/project_gate.py`
+
+Allowed generated/project-state files:
+
+- `project_state/codex_execution_report.md`
+"""
+        fast_result = classify_gate_profile(fast_text)
+        full_result = classify_gate_profile(full_text)
+        assert len(fast_result["suggested_commands"]) < len(full_result["suggested_commands"])

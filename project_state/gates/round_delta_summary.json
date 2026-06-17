@@ -1,15 +1,18 @@
 {
   "schema_version": 1,
   "artifact_name": "round_delta_summary.json",
-  "decision_id": "decision_20260617_artifact_deliverable_reporting_rework_v1",
-  "round_id": "round_20260617_artifact_deliverable_reporting_rework_v1",
-  "head_commit": "fde83882e595",
+  "decision_id": "decision_20260617_tiered_gate_profile_plan_v1",
+  "round_id": "round_20260617_tiered_gate_profile_plan_v1",
+  "head_commit": "6055dd76876a",
   "baseline_available": true,
   "baseline_git_status_short": [
-    "M  reverse_agent/project_gate.py",
-    "M  tests/test_project_gate.py"
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py"
   ],
-  "baseline_git_diff_name_only": [],
+  "baseline_git_diff_name_only": [
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
+  ],
   "baseline_dirty_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
@@ -26,12 +29,13 @@
     " M project_state/gates/round_delta_summary.json",
     " M project_state/gates/run_round_result.json",
     " M project_state/pytest_result.txt",
-    "M  reverse_agent/project_gate.py",
-    "M  tests/test_project_gate.py",
-    "?? project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/codex_execution_report.md",
-    "?? project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/decision_packet.md",
-    "?? project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/pytest_result.txt",
-    "?? project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/round_manifest.json"
+    " M reverse_agent/project_gate.py",
+    " M tests/test_project_gate.py",
+    "?? project_state/gates/gate_profile_plan.json",
+    "?? project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/codex_execution_report.md",
+    "?? project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/decision_packet.md",
+    "?? project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/pytest_result.txt",
+    "?? project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/round_manifest.json"
   ],
   "final_git_diff_name_only": [
     "project_state/codex_execution_report.md",
@@ -42,22 +46,25 @@
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
-    "project_state/pytest_result.txt"
+    "project_state/pytest_result.txt",
+    "reverse_agent/project_gate.py",
+    "tests/test_project_gate.py"
   ],
   "final_dirty_files": [
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
+    "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/round_manifest.json",
+    "project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/round_manifest.json",
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
@@ -65,21 +72,22 @@
     "project_state/codex_execution_report.md",
     "project_state/gates/command_plan.json",
     "project_state/gates/final_gate_result.json",
+    "project_state/gates/gate_profile_plan.json",
     "project_state/gates/preflight_result.json",
     "project_state/gates/report_summary_synthesis.json",
     "project_state/gates/round_baseline.json",
     "project_state/gates/round_delta_summary.json",
     "project_state/gates/run_round_result.json",
     "project_state/pytest_result.txt",
-    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/codex_execution_report.md",
-    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/decision_packet.md",
-    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/pytest_result.txt",
-    "project_state/rounds/round_20260617_artifact_deliverable_reporting_rework_v1/round_manifest.json"
+    "project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/codex_execution_report.md",
+    "project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/decision_packet.md",
+    "project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/pytest_result.txt",
+    "project_state/rounds/round_20260617_tiered_gate_profile_plan_v1/round_manifest.json"
   ],
   "inherited_dirty_files": [
     "reverse_agent/project_gate.py",
     "tests/test_project_gate.py"
   ],
   "baseline_dirty_files_resolved": [],
-  "generated_at": "2026-06-17T04:05:21.871374Z"
+  "generated_at": "2026-06-17T04:36:33.406405Z"
 }
